@@ -293,13 +293,24 @@ export default function Dashboard() {
             {projects.map((project) => (
               <Card
                 key={project.id}
-                className="card-hover cursor-pointer group"
+                className="card-hover cursor-pointer group relative"
                 onClick={() => navigate(`/editor/${project.id}`)}
                 data-testid={`project-card-${project.id}`}
               >
+                {/* Delete button - always visible on hover */}
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
+                  onClick={(e) => handleDeleteProject(project.id, e)}
+                  data-testid={`delete-project-${project.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+                
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-base truncate pr-2">
+                    <CardTitle className="text-base truncate pr-8">
                       {project.name}
                     </CardTitle>
                     <DropdownMenu>
@@ -325,22 +336,36 @@ export default function Dashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="aspect-video bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                  <div className="aspect-video bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden relative">
                     {project.thumbnail ? (
                       <img
                         src={project.thumbnail}
                         alt=""
                         className="w-full h-full object-cover"
                       />
+                    ) : project.course?.slides?.[0]?.backgroundImage ? (
+                      <img
+                        src={`${process.env.REACT_APP_BACKEND_URL}${project.course.slides[0].backgroundImage}`}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <Presentation className="w-12 h-12 text-muted-foreground" />
                     )}
+                    {/* Slide count badge */}
+                    <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                      {project.course?.slides?.length || 0} slides
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock className="w-3 h-3" />
                     <span>{formatDate(project.updatedAt || project.createdAt)}</span>
-                    <span className="ml-auto">
-                      {project.course?.slides?.length || 0} slides
+                    <span className={`ml-auto px-2 py-0.5 rounded text-xs ${
+                      project.status === 'ready' ? 'bg-green-500/20 text-green-500' :
+                      project.status === 'processing' ? 'bg-yellow-500/20 text-yellow-500' :
+                      'bg-gray-500/20 text-gray-500'
+                    }`}>
+                      {project.status || 'draft'}
                     </span>
                   </div>
                 </CardContent>
