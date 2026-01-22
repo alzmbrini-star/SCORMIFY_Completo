@@ -586,30 +586,146 @@ const SlideCanvas = ({
       >
         {/* Existing annotations */}
         {slide.annotations?.map((annotation) => (
-          <path
-            key={annotation.id}
-            d={annotation.points?.length > 0
-              ? `M ${annotation.points[0].x} ${annotation.points[0].y} ${annotation.points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}`
-              : ''
-            }
-            stroke={annotation.color}
-            strokeWidth={annotation.strokeWidth}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <g key={annotation.id}>
+            {annotation.type === 'freehand' && (
+              <path
+                d={annotation.points?.length > 0
+                  ? `M ${annotation.points[0].x} ${annotation.points[0].y} ${annotation.points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}`
+                  : ''
+                }
+                stroke={annotation.color}
+                strokeWidth={annotation.strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+            {annotation.type === 'arrow' && annotation.points?.length >= 2 && (
+              <>
+                <defs>
+                  <marker
+                    id={`arrowhead-${annotation.id}`}
+                    markerWidth="10"
+                    markerHeight="7"
+                    refX="9"
+                    refY="3.5"
+                    orient="auto"
+                  >
+                    <polygon
+                      points="0 0, 10 3.5, 0 7"
+                      fill={annotation.color}
+                    />
+                  </marker>
+                </defs>
+                <line
+                  x1={annotation.points[0].x}
+                  y1={annotation.points[0].y}
+                  x2={annotation.points[1].x}
+                  y2={annotation.points[1].y}
+                  stroke={annotation.color}
+                  strokeWidth={annotation.strokeWidth}
+                  markerEnd={`url(#arrowhead-${annotation.id})`}
+                />
+              </>
+            )}
+            {annotation.type === 'circle' && annotation.points?.length >= 2 && (() => {
+              const cx = (annotation.points[0].x + annotation.points[1].x) / 2;
+              const cy = (annotation.points[0].y + annotation.points[1].y) / 2;
+              const rx = Math.abs(annotation.points[1].x - annotation.points[0].x) / 2;
+              const ry = Math.abs(annotation.points[1].y - annotation.points[0].y) / 2;
+              return (
+                <ellipse
+                  cx={cx}
+                  cy={cy}
+                  rx={rx}
+                  ry={ry}
+                  stroke={annotation.color}
+                  strokeWidth={annotation.strokeWidth}
+                  fill="none"
+                />
+              );
+            })()}
+            {annotation.type === 'rectangle' && annotation.points?.length >= 2 && (
+              <rect
+                x={Math.min(annotation.points[0].x, annotation.points[1].x)}
+                y={Math.min(annotation.points[0].y, annotation.points[1].y)}
+                width={Math.abs(annotation.points[1].x - annotation.points[0].x)}
+                height={Math.abs(annotation.points[1].y - annotation.points[0].y)}
+                stroke={annotation.color}
+                strokeWidth={annotation.strokeWidth}
+                fill="none"
+              />
+            )}
+          </g>
         ))}
 
-        {/* Current drawing */}
+        {/* Current drawing preview */}
         {isDrawing && annotationPoints.length > 0 && (
-          <path
-            d={`M ${annotationPoints[0].x} ${annotationPoints[0].y} ${annotationPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}`}
-            stroke="#EF4444"
-            strokeWidth={2}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <g>
+            {annotationMode === 'freehand' && (
+              <path
+                d={`M ${annotationPoints[0].x} ${annotationPoints[0].y} ${annotationPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}`}
+                stroke="#EF4444"
+                strokeWidth={2}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+            {annotationMode === 'arrow' && annotationPoints.length >= 2 && (
+              <>
+                <defs>
+                  <marker
+                    id="arrowhead-preview"
+                    markerWidth="10"
+                    markerHeight="7"
+                    refX="9"
+                    refY="3.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#EF4444" />
+                  </marker>
+                </defs>
+                <line
+                  x1={annotationPoints[0].x}
+                  y1={annotationPoints[0].y}
+                  x2={annotationPoints[1].x}
+                  y2={annotationPoints[1].y}
+                  stroke="#EF4444"
+                  strokeWidth={2}
+                  markerEnd="url(#arrowhead-preview)"
+                />
+              </>
+            )}
+            {annotationMode === 'circle' && annotationPoints.length >= 2 && (() => {
+              const cx = (annotationPoints[0].x + annotationPoints[1].x) / 2;
+              const cy = (annotationPoints[0].y + annotationPoints[1].y) / 2;
+              const rx = Math.abs(annotationPoints[1].x - annotationPoints[0].x) / 2;
+              const ry = Math.abs(annotationPoints[1].y - annotationPoints[0].y) / 2;
+              return (
+                <ellipse
+                  cx={cx}
+                  cy={cy}
+                  rx={rx}
+                  ry={ry}
+                  stroke="#EF4444"
+                  strokeWidth={2}
+                  fill="none"
+                />
+              );
+            })()}
+            {annotationMode === 'rectangle' && annotationPoints.length >= 2 && (
+              <rect
+                x={Math.min(annotationPoints[0].x, annotationPoints[1].x)}
+                y={Math.min(annotationPoints[0].y, annotationPoints[1].y)}
+                width={Math.abs(annotationPoints[1].x - annotationPoints[0].x)}
+                height={Math.abs(annotationPoints[1].y - annotationPoints[0].y)}
+                stroke="#EF4444"
+                strokeWidth={2}
+                fill="none"
+              />
+            )}
+          </g>
         )}
       </svg>
 
