@@ -159,6 +159,14 @@ async def create_project(data: ProjectCreate):
         description=data.description
     )
     
+    # Create default first slide
+    default_slide = Slide(
+        title="Slide 1",
+        order=0,
+        background="#FFFFFF"
+    )
+    project.course.slides = [default_slide]
+    
     project_dict = project.model_dump()
     project_dict['createdAt'] = project.createdAt.isoformat()
     project_dict['updatedAt'] = project.updatedAt.isoformat()
