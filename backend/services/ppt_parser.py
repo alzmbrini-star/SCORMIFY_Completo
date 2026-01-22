@@ -190,6 +190,12 @@ def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Op
             if hasattr(shape, 'auto_shape_type'):
                 shape_type = str(shape.auto_shape_type).split('.')[-1].lower()
             
+            # Check if this autoshape contains an image (picture fill)
+            placeholder_img = extract_placeholder_image(shape, assets_dir, project_id)
+            if placeholder_img:
+                element_type = "image"
+                src = placeholder_img
+            
             # Also check for text in shapes
             if hasattr(shape, 'text_frame') and shape.text_frame:
                 try:
@@ -226,6 +232,26 @@ def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Op
             
         elif shape.shape_type == MSO_SHAPE_TYPE.MEDIA:
             element_type = "video"
+        
+        elif shape.shape_type == MSO_SHAPE_TYPE.PLACEHOLDER:
+            # Placeholder might contain image
+            placeholder_img = extract_placeholder_image(shape, assets_dir, project_id)
+            if placeholder_img:
+                element_type = "image"
+                src = placeholder_img
+            elif hasattr(shape, 'text_frame') and shape.text_frame:
+                element_type = "text"
+                try:
+                    content = shape.text_frame.text
+                except:
+                    pass
+        
+        else:
+            # Unknown shape type - try to extract any embedded image
+            placeholder_img = extract_placeholder_image(shape, assets_dir, project_id)
+            if placeholder_img:
+                element_type = "image"
+                src = placeholder_img
             
         # Extract fill color
         fill_color = get_fill_color(shape)
