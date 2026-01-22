@@ -314,39 +314,103 @@ def get_slide_background(pptx_slide, assets_dir: Path, project_id: str) -> Tuple
     bg_image = None
     
     try:
+        # Try to get background from slide
         background = pptx_slide.background
         if background and background.fill:
             fill = background.fill
             
             # Solid fill
-            if fill.type is not None and hasattr(fill, 'fore_color'):
+            if fill.type is not None:
                 try:
-                    rgb = fill.fore_color.rgb
-                    if rgb:
-                        bg_color = rgb_to_hex(rgb)
+                    if hasattr(fill, 'fore_color') and fill.fore_color:
+                        rgb = fill.fore_color.rgb
+                        if rgb:
+                            bg_color = rgb_to_hex(rgb)
                 except:
                     pass
-                    
-            # Image fill
-            if hasattr(fill, 'background_image') and fill.background_image:
-                try:
-                    image = fill.background_image
-                    image_bytes = image.blob
-                    image_ext = image.ext
-                    image_filename = f"bg_{uuid.uuid4()}.{image_ext}"
-                    image_path = assets_dir / image_filename
-                    
-                    with open(image_path, 'wb') as f:
-                        f.write(image_bytes)
-                    
-                    bg_image = f"/api/projects/{project_id}/assets/{image_filename}"
-                except Exception as e:
-                    logger.debug(f"Error extracting background image: {e}")
+            
+            # Check for picture fill using XML
+            try:
+                from pptx.oxml.ns import qn
+                bg_xml = background._element
+                
+                # Look for blipFill in the background
+                blip_fills = bg_xml.findall('.//' + qn('a:blip'))
+                for blip in blip_fills:
+                    embed_id = blip.get(qn('r:embed'))
+                    if embed_id:
+                        # Get the related part
+                        related_part = pptx_slide.part.related_part(embed_id)
+                        if related_part:
+                            image_bytes = related_part.blob
+                            # Determine extension from content type
+                            content_type = related_part.content_type
+                            ext_map = {
+                                'image/png': 'png',
+                                'image/jpeg': 'jpg',
+                                'image/gif': 'gif',
+                                'image/bmp': 'bmp',
+                                'image/tiff': 'tiff'
+                            }
+                            ext = ext_map.get(content_type, 'png')
+                            image_filename = f"bg_{uuid.uuid4()}.{ext}"
+                            image_path = assets_dir / image_filename
+                            
+                            with open(image_path, 'wb') as f:
+                                f.write(image_bytes)
+                            
+                            bg_image = f"/api/projects/{project_id}/assets/{image_filename}"
+                            logger.info(f"Extracted background image: {image_filename}")
+                            break
+            except Exception as e:
+                logger.debug(f"Error extracting blip background: {e}")
                     
     except Exception as e:
         logger.debug(f"Error extracting background: {e}")
     
     return bg_color, bg_image
+
+def extract_placeholder_image(shape, assets_dir: Path, project_id: str) -> Optional[str]:
+    """Extract image from placeholder shapes"""
+    try:
+        from pptx.oxml.ns import qn
+        
+        # Check if this shape has a blip (embedded image)
+        shape_xml = shape._element
+        blips = shape_xml.findall('.//' + qn('a:blip'))
+        
+        for blip in blips:
+            embed_id = blip.get(qn('r:embed'))
+            if embed_id:
+                try:
+                    # Get the image part
+                    part = shape.part
+                    image_part = part.related_part(embed_id)
+                    if image_part:
+                        image_bytes = image_part.blob
+                        content_type = image_part.content_type
+                        ext_map = {
+                            'image/png': 'png',
+                            'image/jpeg': 'jpg', 
+                            'image/gif': 'gif',
+                            'image/bmp': 'bmp',
+                            'image/tiff': 'tiff'
+                        }
+                        ext = ext_map.get(content_type, 'png')
+                        image_filename = f"{uuid.uuid4()}.{ext}"
+                        image_path = assets_dir / image_filename
+                        
+                        with open(image_path, 'wb') as f:
+                            f.write(image_bytes)
+                        
+                        logger.info(f"Extracted placeholder image: {image_filename}")
+                        return f"/api/projects/{project_id}/assets/{image_filename}"
+                except Exception as e:
+                    logger.debug(f"Error getting related part: {e}")
+    except Exception as e:
+        logger.debug(f"Error extracting placeholder image: {e}")
+    
+    return None
 
 def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
     """
