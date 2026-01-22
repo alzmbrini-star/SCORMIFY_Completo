@@ -819,18 +819,18 @@ export default function Editor() {
                     {/* Current Slide Audio */}
                     <div>
                       <label className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Mic className="w-4 h-4 text-cyan-500" />
+                        <Mic className="w-4 h-4 text-slate-500" />
                         Slide {currentSlideIndex + 1} Audio
                       </label>
                       {currentSlide?.audio?.length > 0 ? (
                         <div className="space-y-2">
                           {currentSlide.audio.map((audio) => (
-                            <div key={audio.id} className="flex items-center gap-2 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
-                              <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                            <div key={audio.id} className="flex items-center gap-2 p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg">
+                              <div className="w-10 h-10 rounded-full bg-slate-500/20 flex items-center justify-center">
                                 {audio.type === 'narration' ? (
-                                  <Mic className="w-5 h-5 text-cyan-500" />
+                                  <Mic className="w-5 h-5 text-slate-500" />
                                 ) : (
-                                  <Music className="w-5 h-5 text-cyan-500" />
+                                  <Music className="w-5 h-5 text-slate-500" />
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
