@@ -85,6 +85,8 @@ async def update_project(project_id: str, update_data: dict):
 # Background task for PPT processing
 def process_ppt_upload(job_id: str, file_path: str, project_id: str):
     """Process uploaded PPT file in background"""
+    from pymongo import MongoClient
+    
     try:
         jobs[job_id]['status'] = 'processing'
         jobs[job_id]['message'] = 'Parsing PowerPoint file...'
@@ -95,27 +97,24 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         jobs[job_id]['progress'] = 80
         jobs[job_id]['message'] = 'Saving course data...'
         
-        # Update project in database (sync operation in background)
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Use synchronous MongoDB client for background task
+        sync_client = MongoClient(mongo_url)
+        sync_db = sync_client[os.environ['DB_NAME']]
         
-        async def save_course():
-            course_dict = course.model_dump()
-            course_dict['createdAt'] = course.createdAt.isoformat()
-            course_dict['updatedAt'] = course.updatedAt.isoformat()
-            
-            await db.projects.update_one(
-                {"id": project_id},
-                {"$set": {
-                    "course": course_dict,
-                    "status": "ready",
-                    "updatedAt": now_utc().isoformat()
-                }}
-            )
+        course_dict = course.model_dump()
+        course_dict['createdAt'] = course.createdAt.isoformat()
+        course_dict['updatedAt'] = course.updatedAt.isoformat()
         
-        loop.run_until_complete(save_course())
-        loop.close()
+        sync_db.projects.update_one(
+            {"id": project_id},
+            {"$set": {
+                "course": course_dict,
+                "status": "ready",
+                "updatedAt": now_utc().isoformat()
+            }}
+        )
+        
+        sync_client.close()
         
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
