@@ -909,16 +909,34 @@ export default function Editor() {
                     <div>
                       <label className="text-sm font-medium mb-2 flex items-center gap-2">
                         <Music className="w-4 h-4 text-primary" />
-                        Global Soundtrack (All Slides)
+                        Trilha Sonora Global
                       </label>
                       {currentProject?.course?.globalAudio ? (
                         <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg space-y-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 flex-shrink-0 rounded-full bg-primary/20 flex items-center justify-center">
-                              <Music className="w-4 h-4 text-primary" />
-                            </div>
+                            {/* Play/Stop Button */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-8 w-8 flex-shrink-0 rounded-full ${
+                                playingAudioId === 'global' 
+                                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
+                                  : 'bg-primary/20 hover:bg-primary/30'
+                              }`}
+                              onClick={() => playAudio(
+                                getAudioUrl(currentProject.course.globalAudio.filename),
+                                'global'
+                              )}
+                              data-testid="play-global-audio"
+                            >
+                              {playingAudioId === 'global' ? (
+                                <Square className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3 ml-0.5" />
+                              )}
+                            </Button>
                             <div className="flex-1 min-w-0 overflow-hidden">
-                              <p className="text-sm font-medium truncate max-w-[140px]">
+                              <p className="text-sm font-medium truncate max-w-[120px]">
                                 {currentProject.course.globalAudio.filename}
                               </p>
                               <p className="text-xs text-muted-foreground">
@@ -941,18 +959,19 @@ export default function Editor() {
                             <div className="flex items-center justify-between">
                               <label className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Volume2 className="w-3 h-3" />
-                                Volume da Trilha
+                                Volume
                               </label>
                               <span className="text-xs font-medium">
-                                {Math.round((currentProject.course.globalAudio.volume || 0.5) * 100)}%
+                                {Math.round(globalAudioVolume * 100)}%
                               </span>
                             </div>
                             <Slider
-                              value={[currentProject.course.globalAudio.volume || 0.5]}
+                              value={[globalAudioVolume]}
                               min={0}
                               max={1}
                               step={0.05}
-                              onValueCommit={handleGlobalVolumeChange}
+                              onValueChange={handleGlobalVolumeChange}
+                              onValueCommit={handleGlobalVolumeCommit}
                               className="w-full"
                               data-testid="global-audio-volume"
                             />
@@ -963,7 +982,7 @@ export default function Editor() {
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
-                          No global soundtrack set
+                          Nenhuma trilha sonora definida
                         </p>
                       )}
                     </div>
