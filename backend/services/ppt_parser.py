@@ -308,7 +308,7 @@ def extract_transition(pptx_slide) -> SlideTransition:
     
     return transition
 
-def get_slide_background(pptx_slide, assets_dir: Path) -> Tuple[str, Optional[str]]:
+def get_slide_background(pptx_slide, assets_dir: Path, project_id: str) -> Tuple[str, Optional[str]]:
     """Extract slide background color or image"""
     bg_color = "#FFFFFF"
     bg_image = None
@@ -339,7 +339,7 @@ def get_slide_background(pptx_slide, assets_dir: Path) -> Tuple[str, Optional[st
                     with open(image_path, 'wb') as f:
                         f.write(image_bytes)
                     
-                    bg_image = f"/assets/{image_filename}"
+                    bg_image = f"/api/projects/{project_id}/assets/{image_filename}"
                 except Exception as e:
                     logger.debug(f"Error extracting background image: {e}")
                     
