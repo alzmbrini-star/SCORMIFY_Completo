@@ -770,6 +770,38 @@ const SlideCanvas = ({
         )}
       </svg>
 
+      {/* Delete button for selected annotation */}
+      {selectedAnnotationId && slide.annotations && (() => {
+        const annotation = slide.annotations.find(a => a.id === selectedAnnotationId);
+        if (!annotation || !annotation.points?.length) return null;
+        
+        const minX = Math.min(...annotation.points.map(p => p.x));
+        const minY = Math.min(...annotation.points.map(p => p.y));
+        
+        return (
+          <button
+            className="absolute bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-colors z-[1001]"
+            style={{
+              left: `${(minX - 15) * scale}px`,
+              top: `${(minY - 15) * scale}px`,
+            }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                await deleteAnnotation(slide.id, selectedAnnotationId);
+                setSelectedAnnotationId(null);
+              } catch (err) {
+                console.error('Failed to delete annotation:', err);
+              }
+            }}
+            title="Apagar anotação"
+            data-testid="delete-annotation-btn"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        );
+      })()}
+
       {/* Instructions overlay when no elements */}
       {(!slide.elements || slide.elements.length === 0) && !slide.backgroundImage && (
         <div className="absolute inset-0 flex items-center justify-center text-muted-foreground pointer-events-none">
