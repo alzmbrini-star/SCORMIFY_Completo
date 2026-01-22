@@ -763,7 +763,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         .slide-element {{
-            position: absolute;
+            position: absolute !important;
             /* Removed overflow: hidden to allow proper rendering */
         }}
         
@@ -777,21 +777,21 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         .image-element img {{
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
         }}
         
         .video-element {{
-            border: none;
-            background: #000;
+            border: none !important;
+            background: #000 !important;
         }}
         
         .video-element iframe,
         .video-element video {{
-            width: 100%;
-            height: 100%;
-            border: none;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
         }}
         
         #controls {{
