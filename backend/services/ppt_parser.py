@@ -399,7 +399,7 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
         # Extract elements
         elements = []
         for shape_idx, shape in enumerate(pptx_slide.shapes):
-            element = shape_to_element(shape, shape_idx, assets_dir)
+            element = shape_to_element(shape, shape_idx, assets_dir, project_id)
             if element:
                 elements.append(element)
                 conversion_report["success"].append(f"Slide {slide_idx + 1}: {element.type}")
