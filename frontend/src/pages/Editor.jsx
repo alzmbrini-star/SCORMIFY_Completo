@@ -893,6 +893,83 @@ export default function Editor() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Audio Upload Dialog */}
+        <Dialog open={showAudioDialog} onOpenChange={(open) => {
+          setShowAudioDialog(open);
+          if (!open) {
+            setAudioFile(null);
+            setAudioTarget('slide');
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Áudio</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              {audioFile && (
+                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Music className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{audioFile.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(audioFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Aplicar áudio em:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={audioTarget === 'slide' ? 'default' : 'outline'}
+                    className="h-auto py-3 flex flex-col gap-1"
+                    onClick={() => setAudioTarget('slide')}
+                    data-testid="audio-target-slide"
+                  >
+                    <Mic className="w-5 h-5" />
+                    <span className="text-xs">Slide Atual</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={audioTarget === 'global' ? 'default' : 'outline'}
+                    className="h-auto py-3 flex flex-col gap-1"
+                    onClick={() => setAudioTarget('global')}
+                    data-testid="audio-target-global"
+                  >
+                    <Music className="w-5 h-5" />
+                    <span className="text-xs">Todos os Slides</span>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {audioTarget === 'slide' 
+                    ? 'O áudio será reproduzido apenas neste slide.' 
+                    : 'O áudio será a trilha sonora de fundo para todo o curso.'}
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setShowAudioDialog(false);
+                setAudioFile(null);
+                setAudioTarget('slide');
+              }}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleAudioUpload} 
+                disabled={!audioFile}
+                data-testid="confirm-audio-upload"
+              >
+                Adicionar Áudio
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
