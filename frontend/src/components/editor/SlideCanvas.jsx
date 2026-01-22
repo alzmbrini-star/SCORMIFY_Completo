@@ -123,6 +123,8 @@ const SlideCanvas = ({
       const newX = Math.max(0, Math.min(canvasWidth - elementStart.width, elementStart.x + deltaX));
       const newY = Math.max(0, Math.min(canvasHeight - elementStart.height, elementStart.y + deltaY));
       
+      // Store pending update and update UI immediately
+      pendingUpdateRef.current = { x: newX, y: newY };
       onUpdateElement(selectedElementId, { x: newX, y: newY });
     }
 
@@ -182,12 +184,14 @@ const SlideCanvas = ({
       newWidth = Math.min(newWidth, canvasWidth - newX);
       newHeight = Math.min(newHeight, canvasHeight - newY);
 
-      onUpdateElement(selectedElementId, {
+      // Store pending update and update UI immediately
+      pendingUpdateRef.current = {
         x: newX,
         y: newY,
         width: newWidth,
         height: newHeight,
-      });
+      };
+      onUpdateElement(selectedElementId, pendingUpdateRef.current);
     }
   }, [
     isDrawing, annotationMode, isDragging, isResizing, selectedElementId,
@@ -196,6 +200,18 @@ const SlideCanvas = ({
   ]);
 
   const handleMouseUp = useCallback(async () => {
+    // Ensure final position is saved when drag/resize ends
+    if ((isDragging || isResizing) && selectedElementId && pendingUpdateRef.current) {
+      // Force a final save with the last known position
+      try {
+        await onUpdateElement(selectedElementId, pendingUpdateRef.current);
+        console.log('Final position saved:', pendingUpdateRef.current);
+      } catch (err) {
+        console.error('Failed to save final position:', err);
+      }
+      pendingUpdateRef.current = null;
+    }
+    
     if (isDrawing && annotationMode && annotationPoints.length > 2 && slide) {
       try {
         await addAnnotation(slide.id, {
@@ -215,7 +231,7 @@ const SlideCanvas = ({
     setResizeHandle(null);
     setIsDrawing(false);
     setAnnotationPoints([]);
-  }, [isDrawing, annotationMode, annotationPoints, slide, addAnnotation]);
+  }, [isDragging, isResizing, isDrawing, annotationMode, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement]);
 
   const handleCanvasMouseDown = useCallback((e) => {
     if (annotationMode === 'freehand') {
