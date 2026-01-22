@@ -285,9 +285,16 @@ const SlideCanvas = ({
       e.preventDefault();
       onDeleteElement(selectedElementId);
     }
+    // Delete selected annotation with Delete/Backspace key
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && !selectedElementId) {
+      e.preventDefault();
+      deleteAnnotation(slide.id, selectedAnnotationId);
+      setSelectedAnnotationId(null);
+    }
     if (e.key === 'Escape') {
       onSelectElement(null);
       setEditingElementId(null);
+      setSelectedAnnotationId(null);
     }
     // Arrow key movement
     if (selectedElementId && !editingElementId) {
