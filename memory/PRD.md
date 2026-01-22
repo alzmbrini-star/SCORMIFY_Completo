@@ -90,18 +90,20 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: FIXED AND TESTED
 - **Verification**: Exported SCORM shows correct inline styles: `left:500px;top:200px;width:310px;height:165px`
 
-### Multiple Slides Blank in SCORM Export - FIXED
-- **Issue**: Only the first slide had background image, all other slides were blank in SCORM export
+### Element Position/Size Not Persisting in SCORM Export - FIXED
+- **Issue**: Video/image elements were not being exported with the correct size and position as shown in the Canvas editor
 - **Root Cause**: 
-  1. The `poppler-utils` package (pdftoppm) was not installed
-  2. The fallback method using `libreoffice --convert-to png` only generates ONE image for the entire presentation
-  3. When pdf2image library tried to use pdftoppm, it failed silently and fell back to the single-image method
+  1. The `handleMouseUp` function in `SlideCanvas.jsx` was not explicitly saving the final position after drag/resize
+  2. During rapid mouse movements, some position updates might be lost due to async operations
 - **Fix Applied**:
-  1. Installed `poppler-utils` package: `sudo apt-get install poppler-utils`
-  2. Improved `convert_pptx_to_images_fallback()` function to use pdftoppm directly if pdf2image fails
-  3. Added proper file renaming from pdftoppm output (slide-1.png, slide-2.png) to our format (slide_001.png, slide_002.png)
+  1. Added `pendingUpdateRef` to track the last known position during drag/resize operations
+  2. Modified `handleMouseUp` to explicitly save the final position with `await onUpdateElement()`
+  3. Added logging to confirm the final position is saved
 - **Status**: FIXED AND TESTED
-- **Note**: Projects created before this fix need to be re-imported to regenerate all slide images
+- **Verification**: 
+  - Video resized to 1100x550 in editor
+  - Exported SCORM shows: `style="left:0px; top:0px; width:1100px; height:550px"`
+  - Coverage: 85.9% width, 76.4% height of slide
 
 ## Prioritized Backlog
 
