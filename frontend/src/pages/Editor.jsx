@@ -335,17 +335,21 @@ export default function Editor() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Get slide dimensions - image fills 100% of slide
+    const slideWidth = currentSlide?.width || 960;
+    const slideHeight = currentSlide?.height || 540;
+
     try {
       const media = await uploadMedia(file);
       await addElement(currentSlide.id, {
         type: 'image',
-        x: 100,
-        y: 100,
-        width: 300,
-        height: 200,
+        x: 0,
+        y: 0,
+        width: slideWidth,
+        height: slideHeight,
         src: `${process.env.REACT_APP_BACKEND_URL}${media.url}`,
       });
-      toast.success('Image added');
+      toast.success('Imagem adicionada (100% do slide)');
     } catch (err) {
       toast.error('Failed to upload image');
     }
