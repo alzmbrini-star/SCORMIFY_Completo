@@ -253,6 +253,12 @@ var CoursePlayer = (function() {
         var slide = course.slides[index];
         var container = document.getElementById('slide-container');
         
+        // Adjust container size to match slide dimensions
+        var slideWidth = slide.width || 960;
+        var slideHeight = slide.height || 540;
+        container.style.width = slideWidth + 'px';
+        container.style.height = slideHeight + 'px';
+        
         // Clear previous content
         container.innerHTML = '';
         
