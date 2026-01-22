@@ -422,20 +422,44 @@ const SlideCanvas = ({
 
               {/* Video Element */}
               {element.type === 'video' && (
-                element.embedUrl ? (
-                  <iframe
-                    src={element.embedUrl}
-                    className="w-full h-full border-0"
-                    allow="autoplay; fullscreen"
-                    title="Video"
-                  />
-                ) : element.src ? (
-                  <video src={getAssetUrl(element.src)} controls className="w-full h-full" />
-                ) : (
-                  <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
-                    Video
-                  </div>
-                )
+                <div className="relative w-full h-full">
+                  {element.embedUrl ? (
+                    <iframe
+                      src={element.embedUrl}
+                      className="w-full h-full border-0"
+                      allow="autoplay; fullscreen"
+                      title="Video"
+                      style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                    />
+                  ) : element.src ? (
+                    <video 
+                      src={getAssetUrl(element.src)} 
+                      controls={!isSelected}
+                      className="w-full h-full"
+                      style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
+                      Video
+                    </div>
+                  )}
+                  {/* Overlay to capture mouse events when selected */}
+                  {isSelected && (
+                    <div 
+                      className="absolute inset-0 bg-transparent cursor-grab"
+                      style={{ zIndex: 1 }}
+                    />
+                  )}
+                  {/* Video indicator badge */}
+                  {!isSelected && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
