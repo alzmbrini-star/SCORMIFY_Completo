@@ -438,7 +438,11 @@ async def add_element(project_id: str, slide_id: str, data: ElementCreate):
     if slide_index is None:
         raise HTTPException(status_code=404, detail="Slide not found")
     
-    element = SlideElement(**data.model_dump())
+    element_data = data.model_dump(exclude_unset=True)
+    # Ensure style is a dict if not provided
+    if 'style' not in element_data or element_data.get('style') is None:
+        element_data['style'] = {}
+    element = SlideElement(**element_data)
     elements = slides[slide_index].get('elements', [])
     element_dict = element.model_dump()
     element_dict['zIndex'] = len(elements)
