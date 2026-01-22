@@ -127,11 +127,37 @@ export default function Editor() {
   const fileInputRef = useRef(null);
   const audioPlayerRef = useRef(null);
 
+  const API_URL = process.env.REACT_APP_BACKEND_URL;
+
   useEffect(() => {
     if (projectId) {
       fetchProject(projectId);
     }
   }, [projectId, fetchProject]);
+
+  // Sync volume states with project data
+  useEffect(() => {
+    if (currentProject?.course?.globalAudio) {
+      setGlobalAudioVolume(currentProject.course.globalAudio.volume ?? 0.5);
+    }
+    if (currentSlide?.audio) {
+      const volumes = {};
+      currentSlide.audio.forEach(audio => {
+        volumes[audio.id] = audio.volume ?? 1;
+      });
+      setSlideAudioVolumes(volumes);
+    }
+  }, [currentProject?.course?.globalAudio, currentSlide?.audio]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSave = async () => {
     try {
@@ -156,6 +182,52 @@ export default function Editor() {
     } finally {
       setExportLoading(false);
     }
+  };
+
+  // Audio playback functions
+  const playAudio = (audioUrl, audioId) => {
+    // Stop any currently playing audio
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    
+    if (playingAudioId === audioId) {
+      // If same audio, just stop
+      setPlayingAudioId(null);
+      return;
+    }
+
+    const audio = new Audio(audioUrl);
+    audio.volume = audioId === 'global' ? globalAudioVolume : (slideAudioVolumes[audioId] ?? 1);
+    
+    audio.onended = () => {
+      setPlayingAudioId(null);
+      audioPlayerRef.current = null;
+    };
+    
+    audio.onerror = () => {
+      toast.error('Erro ao reproduzir áudio');
+      setPlayingAudioId(null);
+      audioPlayerRef.current = null;
+    };
+    
+    audioPlayerRef.current = audio;
+    audio.play();
+    setPlayingAudioId(audioId);
+  };
+
+  const stopAudio = () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setPlayingAudioId(null);
+  };
+
+  const getAudioUrl = (filename) => {
+    if (!filename || !currentProject) return '';
+    return `${API_URL}/api/projects/${currentProject.id}/assets/${filename}`;
   };
 
   const handleAddSlide = async () => {
