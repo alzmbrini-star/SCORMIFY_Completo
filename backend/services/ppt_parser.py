@@ -110,7 +110,7 @@ def extract_text_properties(paragraph) -> Dict[str, Any]:
     
     return props
 
-def shape_to_element(shape, index: int, assets_dir: Path) -> Optional[SlideElement]:
+def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Optional[SlideElement]:
     """Convert a PowerPoint shape to a SlideElement"""
     try:
         element_id = str(uuid.uuid4())
