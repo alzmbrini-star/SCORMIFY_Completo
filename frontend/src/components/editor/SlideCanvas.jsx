@@ -186,7 +186,8 @@ const SlideCanvas = ({
   }, []);
 
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Delete' && selectedElementId && editingElementId !== selectedElementId) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId && editingElementId !== selectedElementId) {
+      e.preventDefault();
       onDeleteElement(selectedElementId);
     }
     if (e.key === 'Escape') {
