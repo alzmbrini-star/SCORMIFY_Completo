@@ -869,8 +869,8 @@ export default function Editor() {
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="media" className="flex-1 mt-0 overflow-auto">
-                <ScrollArea className="h-full">
+              <TabsContent value="media" className="flex-1 mt-0 overflow-hidden">
+                <ScrollArea className="h-[calc(100vh-200px)]">
                   <div className="p-4 space-y-4">
                     {/* Audio Upload Section */}
                     <div>
