@@ -29,7 +29,7 @@ import {
   MoreVertical,
   Sun,
   Moon,
-  FilePresentation,
+  Presentation,
   Clock,
   Loader2,
 } from 'lucide-react';
@@ -159,7 +159,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <FilePresentation className="w-5 h-5 text-primary-foreground" />
+              <Presentation className="w-5 h-5 text-primary-foreground" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">Scormify</h1>
           </div>
@@ -333,7 +333,7 @@ export default function Dashboard() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <FilePresentation className="w-12 h-12 text-muted-foreground" />
+                      <Presentation className="w-12 h-12 text-muted-foreground" />
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
