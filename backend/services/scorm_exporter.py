@@ -326,11 +326,16 @@ var CoursePlayer = (function() {
                 break;
                 
             case 'image':
-                el = document.createElement('img');
+                el = document.createElement('div');
                 el.className = 'slide-element image-element';
-                el.src = element.src;
-                el.alt = '';
-                el.draggable = false;
+                var img = document.createElement('img');
+                img.src = element.src;
+                img.alt = '';
+                img.draggable = false;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'contain';
+                el.appendChild(img);
                 break;
                 
             case 'shape':
@@ -373,13 +378,13 @@ var CoursePlayer = (function() {
         
         if (!el) return null;
         
-        // Apply positioning and styles
+        // Apply positioning and styles with explicit pixel values
         el.style.position = 'absolute';
-        el.style.left = element.x + 'px';
-        el.style.top = element.y + 'px';
-        el.style.width = element.width + 'px';
-        el.style.height = element.height + 'px';
-        el.style.zIndex = element.zIndex || 0;
+        el.style.left = (element.x || 0) + 'px';
+        el.style.top = (element.y || 0) + 'px';
+        el.style.width = (element.width || 100) + 'px';
+        el.style.height = (element.height || 100) + 'px';
+        el.style.zIndex = (element.zIndex || 0) + 1;
         
         if (element.rotation) {
             el.style.transform = 'rotate(' + element.rotation + 'deg)';
