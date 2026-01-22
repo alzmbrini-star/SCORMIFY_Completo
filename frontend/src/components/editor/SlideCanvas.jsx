@@ -468,7 +468,7 @@ const SlideCanvas = ({
               <>
                 {/* Delete Button */}
                 <button
-                  className="absolute -top-10 right-0 w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg transition-colors"
+                  className="absolute -top-10 right-0 w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg transition-colors z-50"
                   onClick={(e) => handleDeleteElement(e, element.id)}
                   title="Delete element (Del)"
                   data-testid={`delete-element-${element.id}`}
@@ -477,45 +477,53 @@ const SlideCanvas = ({
                 </button>
 
                 {/* Move indicator */}
-                <div className="absolute -top-10 left-0 px-2 py-1 bg-cyan-500 text-white text-xs rounded flex items-center gap-1">
+                <div className="absolute -top-10 left-0 px-2 py-1 bg-cyan-500 text-white text-xs rounded flex items-center gap-1 z-50">
                   <Move className="w-3 h-3" />
                   Drag to move
                 </div>
 
-                {/* Corner Resize Handles */}
+                {/* Corner Resize Handles - Larger and easier to grab */}
                 <div
-                  className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-cyan-500 rounded-full cursor-nw-resize border-2 border-white shadow"
+                  className="absolute -top-2 -left-2 w-4 h-4 bg-cyan-500 rounded-full cursor-nw-resize border-2 border-white shadow-lg hover:bg-cyan-400 hover:scale-125 transition-transform z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'nw')}
+                  data-testid={`resize-nw-${element.id}`}
                 />
                 <div
-                  className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-cyan-500 rounded-full cursor-ne-resize border-2 border-white shadow"
+                  className="absolute -top-2 -right-2 w-4 h-4 bg-cyan-500 rounded-full cursor-ne-resize border-2 border-white shadow-lg hover:bg-cyan-400 hover:scale-125 transition-transform z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'ne')}
+                  data-testid={`resize-ne-${element.id}`}
                 />
                 <div
-                  className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-cyan-500 rounded-full cursor-sw-resize border-2 border-white shadow"
+                  className="absolute -bottom-2 -left-2 w-4 h-4 bg-cyan-500 rounded-full cursor-sw-resize border-2 border-white shadow-lg hover:bg-cyan-400 hover:scale-125 transition-transform z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'sw')}
+                  data-testid={`resize-sw-${element.id}`}
                 />
                 <div
-                  className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-cyan-500 rounded-full cursor-se-resize border-2 border-white shadow"
+                  className="absolute -bottom-2 -right-2 w-4 h-4 bg-cyan-500 rounded-full cursor-se-resize border-2 border-white shadow-lg hover:bg-cyan-400 hover:scale-125 transition-transform z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'se')}
+                  data-testid={`resize-se-${element.id}`}
                 />
 
-                {/* Edge Resize Handles */}
+                {/* Edge Resize Handles - Larger */}
                 <div
-                  className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-cyan-500 rounded cursor-n-resize border border-white shadow"
+                  className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-cyan-500 rounded cursor-n-resize border border-white shadow-lg hover:bg-cyan-400 z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'n')}
+                  data-testid={`resize-n-${element.id}`}
                 />
                 <div
-                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-cyan-500 rounded cursor-s-resize border border-white shadow"
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-cyan-500 rounded cursor-s-resize border border-white shadow-lg hover:bg-cyan-400 z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 's')}
+                  data-testid={`resize-s-${element.id}`}
                 />
                 <div
-                  className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-6 bg-cyan-500 rounded cursor-w-resize border border-white shadow"
+                  className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-8 bg-cyan-500 rounded cursor-w-resize border border-white shadow-lg hover:bg-cyan-400 z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'w')}
+                  data-testid={`resize-w-${element.id}`}
                 />
                 <div
-                  className="absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-6 bg-cyan-500 rounded cursor-e-resize border border-white shadow"
+                  className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-8 bg-cyan-500 rounded cursor-e-resize border border-white shadow-lg hover:bg-cyan-400 z-50"
                   onMouseDown={(e) => handleResizeMouseDown(e, element, 'e')}
+                  data-testid={`resize-e-${element.id}`}
                 />
               </>
             )}
