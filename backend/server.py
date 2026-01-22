@@ -561,7 +561,7 @@ async def upload_slide_audio(
     project_id: str,
     slide_id: str,
     file: UploadFile = File(...),
-    audio_type: str = "narration"
+    audio_type: str = Form("narration")
 ):
     """Upload audio for a slide"""
     project = await get_project_by_id(project_id)
