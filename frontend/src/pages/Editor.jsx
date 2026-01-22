@@ -308,19 +308,23 @@ export default function Editor() {
         embedType = 'vimeo';
       }
 
+      // Get slide dimensions - video fills 100% of slide
+      const slideWidth = currentSlide?.width || 960;
+      const slideHeight = currentSlide?.height || 540;
+
       try {
         await addElement(currentSlide.id, {
           type: 'video',
-          x: 100,
-          y: 100,
-          width: 560,
-          height: 315,
+          x: 0,
+          y: 0,
+          width: slideWidth,
+          height: slideHeight,
           embedUrl,
           embedType,
         });
         setShowMediaDialog(false);
         setVideoUrl('');
-        toast.success('Video added');
+        toast.success('Vídeo adicionado (100% do slide)');
       } catch (err) {
         toast.error('Failed to add video');
       }
