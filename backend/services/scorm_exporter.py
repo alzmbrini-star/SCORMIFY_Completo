@@ -238,6 +238,11 @@ var CoursePlayer = (function() {
         if (course.globalAudio && course.globalAudio.src) {
             setupGlobalAudio();
         }
+        
+        // Recalculate scale on window resize
+        window.addEventListener('resize', function() {
+            renderSlide(currentSlide);
+        });
     }
     
     function setupGlobalAudio() {
