@@ -993,22 +993,36 @@ export default function Editor() {
                     <div>
                       <label className="text-sm font-medium mb-2 flex items-center gap-2">
                         <Mic className="w-4 h-4 text-slate-500" />
-                        Slide {currentSlideIndex + 1} Audio
+                        Áudio do Slide {currentSlideIndex + 1}
                       </label>
                       {currentSlide?.audio?.length > 0 ? (
                         <div className="space-y-3">
                           {currentSlide.audio.map((audio) => (
                             <div key={audio.id} className="p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg space-y-2">
                               <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 flex-shrink-0 rounded-full bg-slate-500/20 flex items-center justify-center">
-                                  {audio.type === 'narration' ? (
-                                    <Mic className="w-4 h-4 text-slate-500" />
-                                  ) : (
-                                    <Music className="w-4 h-4 text-slate-500" />
+                                {/* Play/Stop Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={`h-8 w-8 flex-shrink-0 rounded-full ${
+                                    playingAudioId === audio.id 
+                                      ? 'bg-slate-500 text-white hover:bg-slate-600' 
+                                      : 'bg-slate-500/20 hover:bg-slate-500/30'
+                                  }`}
+                                  onClick={() => playAudio(
+                                    getAudioUrl(audio.filename),
+                                    audio.id
                                   )}
-                                </div>
+                                  data-testid={`play-slide-audio-${audio.id}`}
+                                >
+                                  {playingAudioId === audio.id ? (
+                                    <Square className="w-3 h-3" />
+                                  ) : (
+                                    <Play className="w-3 h-3 ml-0.5" />
+                                  )}
+                                </Button>
                                 <div className="flex-1 min-w-0 overflow-hidden">
-                                  <p className="text-sm font-medium truncate max-w-[140px]">
+                                  <p className="text-sm font-medium truncate max-w-[100px]">
                                     {audio.filename || audio.type}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
@@ -1034,15 +1048,16 @@ export default function Editor() {
                                     Volume
                                   </label>
                                   <span className="text-xs font-medium">
-                                    {Math.round((audio.volume || 1) * 100)}%
+                                    {Math.round((slideAudioVolumes[audio.id] ?? audio.volume ?? 1) * 100)}%
                                   </span>
                                 </div>
                                 <Slider
-                                  value={[audio.volume || 1]}
+                                  value={[slideAudioVolumes[audio.id] ?? audio.volume ?? 1]}
                                   min={0}
                                   max={1}
                                   step={0.05}
-                                  onValueCommit={(value) => handleSlideAudioVolumeChange(audio.id, value)}
+                                  onValueChange={(value) => handleSlideAudioVolumeChange(audio.id, value)}
+                                  onValueCommit={(value) => handleSlideAudioVolumeCommit(audio.id, value)}
                                   className="w-full"
                                   data-testid={`slide-audio-volume-${audio.id}`}
                                 />
