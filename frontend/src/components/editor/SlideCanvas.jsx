@@ -621,6 +621,16 @@ const SlideCanvas = ({
               onSelectElement(null); // Deselect any element
             }}
           >
+            {/* Invisible hit area for click detection */}
+            <rect
+              x={bounds.minX - 10}
+              y={bounds.minY - 10}
+              width={bounds.maxX - bounds.minX + 20}
+              height={bounds.maxY - bounds.minY + 20}
+              fill="transparent"
+              stroke="none"
+              style={{ pointerEvents: 'all' }}
+            />
             {annotation.type === 'freehand' && (
               <path
                 d={annotation.points?.length > 0
@@ -632,6 +642,7 @@ const SlideCanvas = ({
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                style={{ pointerEvents: 'none' }}
               />
             )}
             {annotation.type === 'arrow' && annotation.points?.length >= 2 && (
@@ -659,6 +670,7 @@ const SlideCanvas = ({
                   stroke={annotation.color}
                   strokeWidth={annotation.strokeWidth}
                   markerEnd={`url(#arrowhead-${annotation.id})`}
+                  style={{ pointerEvents: 'none' }}
                 />
               </>
             )}
