@@ -239,7 +239,7 @@ const SlideCanvas = ({
         maxHeight: 'calc(100vh - 200px)',
         aspectRatio: `${canvasWidth} / ${canvasHeight}`,
         backgroundColor: slide.background || '#FFFFFF',
-        backgroundImage: slide.backgroundImage ? `url(${slide.backgroundImage})` : 'none',
+        backgroundImage: slide.backgroundImage ? `url(${getAssetUrl(slide.backgroundImage)})` : 'none',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         cursor: annotationMode ? 'crosshair' : 'default',
@@ -301,7 +301,7 @@ const SlideCanvas = ({
           {/* Image Element */}
           {element.type === 'image' && (
             <img
-              src={element.src}
+              src={getAssetUrl(element.src)}
               alt=""
               className="w-full h-full object-contain pointer-events-none"
               draggable={false}
