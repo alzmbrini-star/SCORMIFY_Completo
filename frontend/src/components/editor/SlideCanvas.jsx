@@ -429,34 +429,46 @@ const SlideCanvas = ({
                       className="w-full h-full border-0"
                       allow="autoplay; fullscreen"
                       title="Video"
-                      style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                      style={{ pointerEvents: 'none' }}
                     />
                   ) : element.src ? (
                     <video 
                       src={getAssetUrl(element.src)} 
-                      controls={!isSelected}
+                      controls={false}
                       className="w-full h-full"
-                      style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                      style={{ pointerEvents: 'none' }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
                       Video
                     </div>
                   )}
-                  {/* Overlay to capture mouse events when selected */}
-                  {isSelected && (
-                    <div 
-                      className="absolute inset-0 bg-transparent cursor-grab"
-                      style={{ zIndex: 1 }}
-                    />
-                  )}
+                  {/* Overlay to capture all mouse events */}
+                  <div 
+                    className="absolute inset-0 bg-transparent"
+                    style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
+                  />
                   {/* Video indicator badge */}
+                  <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded flex items-center gap-1 pointer-events-none">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
+                  </div>
+                  {/* Play hint when not selected */}
                   {!isSelected && (
-                    <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                      {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-16 h-16 rounded-full bg-black/50 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  {/* Selected state info */}
+                  {isSelected && (
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-cyan-500/90 text-white text-xs rounded pointer-events-none">
+                      Double-click to play • Drag corners to resize
                     </div>
                   )}
                 </div>
