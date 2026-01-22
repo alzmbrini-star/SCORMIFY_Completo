@@ -27,7 +27,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - [x] YouTube/Vimeo embedding
 - [x] Global soundtrack support
 - [x] Slide CRUD (create, duplicate, delete, reorder)
-- [x] Annotation tools (freehand drawing)
+- [x] Annotation tools (arrow, circle, rectangle, freehand) - **FULLY WORKING**
 - [x] SCORM 1.2 export with valid manifest
 - [x] Dark/Light theme toggle
 - [x] Project management (dashboard, delete)
