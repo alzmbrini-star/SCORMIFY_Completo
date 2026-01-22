@@ -69,6 +69,7 @@ packaging==25.0
 pandas==2.3.3
 passlib==1.7.4
 pathspec==1.0.3
+pdf2image==1.17.0
 pillow==12.1.0
 platformdirs==4.5.1
 pluggy==1.6.0
