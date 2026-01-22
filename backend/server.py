@@ -85,15 +85,16 @@ async def update_project(project_id: str, update_data: dict):
 
 # Background task for PPT processing
 def process_ppt_upload(job_id: str, file_path: str, project_id: str):
-    """Process uploaded PPT file in background"""
+    """Process uploaded PPT file in background using high-fidelity parser"""
     from pymongo import MongoClient
     
     try:
         jobs[job_id]['status'] = 'processing'
-        jobs[job_id]['message'] = 'Parsing PowerPoint file...'
+        jobs[job_id]['message'] = 'Converting PowerPoint slides to images...'
+        jobs[job_id]['progress'] = 10
         
-        # Parse PPT
-        course = parse_pptx(file_path, project_id, str(PROJECTS_DIR))
+        # Use high-fidelity parser that renders slides as images
+        course = parse_pptx_high_fidelity(file_path, project_id, str(PROJECTS_DIR))
         
         jobs[job_id]['progress'] = 80
         jobs[job_id]['message'] = 'Saving course data...'
@@ -119,7 +120,7 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
-        jobs[job_id]['message'] = 'Processing complete'
+        jobs[job_id]['message'] = 'Processing complete - slides rendered with high fidelity'
         jobs[job_id]['result'] = {'projectId': project_id}
         
     except Exception as e:
