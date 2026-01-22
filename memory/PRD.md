@@ -78,17 +78,18 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   5. Added visual indicators (YouTube/Vimeo badge, "Double-click to play" hint)
 - **Status**: FIXED AND TESTED
 
-### SCORM Export Positioning Bug - FIXED
-- **Issue**: Images and videos in SCORM export had fixed size and position instead of respecting editor values
+### Multiple Slides Blank in SCORM Export - FIXED
+- **Issue**: Only the first slide had background image, all other slides were blank in SCORM export
 - **Root Cause**: 
-  1. CSS `.image-element` had `width: 100%; height: 100%` directly on the img tag, overriding inline styles
-  2. The `createElementNode` function was creating img tags directly instead of wrapping in a container div
+  1. The `poppler-utils` package (pdftoppm) was not installed
+  2. The fallback method using `libreoffice --convert-to png` only generates ONE image for the entire presentation
+  3. When pdf2image library tried to use pdftoppm, it failed silently and fell back to the single-image method
 - **Fix Applied**:
-  1. Changed image rendering to use a container div with inline position/size, containing an img with 100% dimensions
-  2. Ensured all position values use fallback defaults: `(element.x || 0)`
-  3. Added `+1` to zIndex to prevent overlap with background
+  1. Installed `poppler-utils` package: `sudo apt-get install poppler-utils`
+  2. Improved `convert_pptx_to_images_fallback()` function to use pdftoppm directly if pdf2image fails
+  3. Added proper file renaming from pdftoppm output (slide-1.png, slide-2.png) to our format (slide_001.png, slide_002.png)
 - **Status**: FIXED AND TESTED
-- **Verification**: Exported SCORM shows correct inline styles: `left:500px;top:200px;width:310px;height:165px`
+- **Note**: Projects created before this fix need to be re-imported to regenerate all slide images
 
 ## Prioritized Backlog
 
