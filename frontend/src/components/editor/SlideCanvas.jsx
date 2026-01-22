@@ -41,8 +41,9 @@ const SlideCanvas = ({
   const pendingUpdateRef = useRef(null);
   const [editingElementId, setEditingElementId] = useState(null);
   const [scale, setScale] = useState(1);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState(null);
 
-  const { addAnnotation } = useProject();
+  const { addAnnotation, deleteAnnotation } = useProject();
 
   const canvasWidth = slide?.width || 960;
   const canvasHeight = slide?.height || 540;
