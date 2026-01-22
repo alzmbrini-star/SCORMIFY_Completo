@@ -869,39 +869,63 @@ export default function Editor() {
                         Slide {currentSlideIndex + 1} Audio
                       </label>
                       {currentSlide?.audio?.length > 0 ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {currentSlide.audio.map((audio) => (
-                            <div key={audio.id} className="flex items-center gap-2 p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg">
-                              <div className="w-10 h-10 rounded-full bg-slate-500/20 flex items-center justify-center">
-                                {audio.type === 'narration' ? (
-                                  <Mic className="w-5 h-5 text-slate-500" />
-                                ) : (
-                                  <Music className="w-5 h-5 text-slate-500" />
-                                )}
+                            <div key={audio.id} className="p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-10 h-10 rounded-full bg-slate-500/20 flex items-center justify-center">
+                                  {audio.type === 'narration' ? (
+                                    <Mic className="w-5 h-5 text-slate-500" />
+                                  ) : (
+                                    <Music className="w-5 h-5 text-slate-500" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">
+                                    {audio.filename || audio.type}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {audio.type === 'narration' ? 'Narração' : 'Música de fundo'}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleRemoveSlideAudio(audio.id)}
+                                  data-testid={`remove-slide-audio-${audio.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {audio.filename || audio.type}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {audio.type === 'narration' ? 'Narration' : 'Background music'}
-                                </p>
+                              
+                              {/* Volume Control for Slide Audio */}
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Volume2 className="w-3 h-3" />
+                                    Volume
+                                  </label>
+                                  <span className="text-xs font-medium">
+                                    {Math.round((audio.volume || 1) * 100)}%
+                                  </span>
+                                </div>
+                                <Slider
+                                  value={[audio.volume || 1]}
+                                  min={0}
+                                  max={1}
+                                  step={0.05}
+                                  onValueCommit={(value) => handleSlideAudioVolumeChange(audio.id, value)}
+                                  className="w-full"
+                                  data-testid={`slide-audio-volume-${audio.id}`}
+                                />
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => handleRemoveSlideAudio(audio.id)}
-                                data-testid={`remove-slide-audio-${audio.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
-                          No audio for this slide
+                          Nenhum áudio neste slide
                         </p>
                       )}
                     </div>
