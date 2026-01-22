@@ -803,27 +803,54 @@ export default function Editor() {
                         Global Soundtrack (All Slides)
                       </label>
                       {currentProject?.course?.globalAudio ? (
-                        <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
-                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                            <Music className="w-5 h-5 text-primary" />
+                        <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Music className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {currentProject.course.globalAudio.filename}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Plays on all slides
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={handleRemoveGlobalAudio}
+                              data-testid="remove-global-audio"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {currentProject.course.globalAudio.filename}
-                            </p>
+                          
+                          {/* Volume Control */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Volume2 className="w-3 h-3" />
+                                Volume da Trilha
+                              </label>
+                              <span className="text-xs font-medium">
+                                {Math.round((currentProject.course.globalAudio.volume || 0.5) * 100)}%
+                              </span>
+                            </div>
+                            <Slider
+                              value={[currentProject.course.globalAudio.volume || 0.5]}
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              onValueCommit={handleGlobalVolumeChange}
+                              className="w-full"
+                              data-testid="global-audio-volume"
+                            />
                             <p className="text-xs text-muted-foreground">
-                              Plays on all slides
+                              Reduza para não sobrepor a narração
                             </p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={handleRemoveGlobalAudio}
-                            data-testid="remove-global-audio"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
