@@ -59,6 +59,23 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ## Recent Bug Fixes (January 2026)
 
+### Audio Management Features - ADDED
+- **New Features**: 
+  1. Remove global audio (trilha sonora)
+  2. Remove slide audio (individual)
+  3. Volume control for global soundtrack (0-100%)
+  4. Volume control for slide audio (0-100%)
+- **Backend Endpoints Added**:
+  - `DELETE /api/projects/{id}/global-audio` - Remove global audio
+  - `PUT /api/projects/{id}/global-audio/volume` - Update global volume
+  - `DELETE /api/projects/{id}/slides/{slide_id}/audio/{audio_id}` - Remove slide audio
+  - `PUT /api/projects/{id}/slides/{slide_id}/audio/{audio_id}/volume` - Update slide audio volume
+- **Frontend Updates**:
+  - Volume sliders in Media tab
+  - "Reduza para não sobrepor a narração" hint for global audio
+  - Delete buttons for each audio item
+- **Status**: IMPLEMENTED AND TESTED
+
 ### Audio Upload Bug - FIXED
 - **Issue**: Audio upload was not working
 - **Root Cause**: Missing Dialog component in Editor.jsx for audio target selection
