@@ -862,6 +862,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
     if project_assets.exists():
         for asset in project_assets.iterdir():
             shutil.copy2(asset, package_dir / "assets" / asset.name)
+            logger.info(f"Copied asset: {asset.name}")
     
     # Write scripts
     with open(package_dir / "scripts" / "scorm-api.js", 'w') as f:
@@ -870,11 +871,41 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
     with open(package_dir / "scripts" / "player.js", 'w') as f:
         f.write(PLAYER_JS)
     
-    # Prepare course.json
+    # Prepare course.json - Fix asset URLs for SCORM package
     course_data = course.model_dump()
+    
     # Convert datetime to string
     course_data['createdAt'] = course.createdAt.isoformat() if course.createdAt else None
     course_data['updatedAt'] = course.updatedAt.isoformat() if course.updatedAt else None
+    
+    # Fix all asset URLs in slides
+    for slide in course_data.get('slides', []):
+        # Fix background image URL
+        if slide.get('backgroundImage'):
+            bg_url = slide['backgroundImage']
+            # Convert /api/projects/{id}/assets/filename.png to assets/filename.png
+            if '/assets/' in bg_url:
+                filename = bg_url.split('/assets/')[-1]
+                slide['backgroundImage'] = f"assets/{filename}"
+                logger.info(f"Fixed backgroundImage URL: {slide['backgroundImage']}")
+        
+        # Fix element URLs
+        for element in slide.get('elements', []):
+            if element.get('src') and '/assets/' in element.get('src', ''):
+                filename = element['src'].split('/assets/')[-1]
+                element['src'] = f"assets/{filename}"
+            
+            # Fix audio URLs
+        for audio in slide.get('audio', []):
+            if audio.get('src') and '/assets/' in audio.get('src', ''):
+                filename = audio['src'].split('/assets/')[-1]
+                audio['src'] = f"assets/{filename}"
+    
+    # Fix global audio URL
+    if course_data.get('globalAudio') and course_data['globalAudio'].get('src'):
+        if '/assets/' in course_data['globalAudio']['src']:
+            filename = course_data['globalAudio']['src'].split('/assets/')[-1]
+            course_data['globalAudio']['src'] = f"assets/{filename}"
     
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
         json.dump(course_data, f, ensure_ascii=False, indent=2)
