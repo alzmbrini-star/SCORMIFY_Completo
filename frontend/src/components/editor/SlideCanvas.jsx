@@ -587,12 +587,32 @@ const SlideCanvas = ({
 
       {/* Annotations SVG Layer */}
       <svg
-        className="absolute inset-0 pointer-events-none"
-        style={{ width: '100%', height: '100%', zIndex: 1000 }}
+        className="absolute inset-0"
+        style={{ width: '100%', height: '100%', zIndex: 1000, pointerEvents: annotationMode ? 'none' : 'auto' }}
       >
         {/* Existing annotations */}
-        {slide.annotations?.map((annotation) => (
-          <g key={annotation.id}>
+        {slide.annotations?.map((annotation) => {
+          const isSelected = selectedAnnotationId === annotation.id;
+          
+          // Calculate bounding box for selection highlight
+          let bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+          if (annotation.points?.length >= 2) {
+            bounds.minX = Math.min(...annotation.points.map(p => p.x));
+            bounds.minY = Math.min(...annotation.points.map(p => p.y));
+            bounds.maxX = Math.max(...annotation.points.map(p => p.x));
+            bounds.maxY = Math.max(...annotation.points.map(p => p.y));
+          }
+          
+          return (
+          <g 
+            key={annotation.id}
+            style={{ cursor: 'pointer' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedAnnotationId(isSelected ? null : annotation.id);
+              onSelectElement(null); // Deselect any element
+            }}
+          >
             {annotation.type === 'freehand' && (
               <path
                 d={annotation.points?.length > 0
