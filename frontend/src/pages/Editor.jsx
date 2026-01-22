@@ -91,6 +91,10 @@ export default function Editor() {
     uploadMedia,
     uploadSlideAudio,
     setGlobalAudio,
+    removeGlobalAudio,
+    updateGlobalAudioVolume,
+    removeSlideAudio,
+    updateSlideAudioVolume,
     exportScorm,
   } = useProject();
 
