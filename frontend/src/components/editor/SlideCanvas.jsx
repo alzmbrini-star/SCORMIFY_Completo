@@ -596,7 +596,7 @@ const SlideCanvas = ({
       {/* Annotations SVG Layer */}
       <svg
         className="absolute inset-0"
-        style={{ width: '100%', height: '100%', zIndex: 10, pointerEvents: annotationMode ? 'none' : 'auto' }}
+        style={{ width: '100%', height: '100%', zIndex: 10, pointerEvents: 'none' }}
       >
         {/* Existing annotations */}
         {slide.annotations?.map((annotation) => {
@@ -614,8 +614,9 @@ const SlideCanvas = ({
           return (
           <g 
             key={annotation.id}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: annotationMode ? 'default' : 'pointer', pointerEvents: annotationMode ? 'none' : 'all' }}
             onClick={(e) => {
+              if (annotationMode) return;
               e.stopPropagation();
               setSelectedAnnotationId(isSelected ? null : annotation.id);
               onSelectElement(null); // Deselect any element
@@ -629,7 +630,6 @@ const SlideCanvas = ({
               height={bounds.maxY - bounds.minY + 20}
               fill="transparent"
               stroke="none"
-              style={{ pointerEvents: 'all' }}
             />
             {annotation.type === 'freehand' && (
               <path
