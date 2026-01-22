@@ -670,11 +670,20 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         .image-element {{
             object-fit: contain;
+            width: 100%;
+            height: 100%;
         }}
         
         .video-element {{
+            border: none;
+            background: #000;
+        }}
+        
+        .video-element iframe,
+        .video-element video {{
             width: 100%;
             height: 100%;
+            border: none;
         }}
         
         #controls {{
