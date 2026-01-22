@@ -596,7 +596,7 @@ const SlideCanvas = ({
       {/* Annotations SVG Layer */}
       <svg
         className="absolute inset-0"
-        style={{ width: '100%', height: '100%', zIndex: 1000, pointerEvents: annotationMode ? 'none' : 'auto' }}
+        style={{ width: '100%', height: '100%', zIndex: 10, pointerEvents: annotationMode ? 'none' : 'auto' }}
       >
         {/* Existing annotations */}
         {slide.annotations?.map((annotation) => {
