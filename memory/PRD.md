@@ -103,6 +103,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: FIXED AND TESTED
 - **Note**: Projects created before this fix need to be re-imported to regenerate all slide images
 
+### Element Position/Size Not Persisting in SCORM Export - FIXED
+- **Issue**: Video/image elements were not being exported with the correct size and position as shown in the Canvas editor
+- **Root Cause**: 
+  1. The `handleMouseUp` function in `SlideCanvas.jsx` was not explicitly saving the final position after drag/resize
+  2. During rapid mouse movements, some position updates might be lost due to async operations
+- **Fix Applied**:
+  1. Added `pendingUpdateRef` to track the last known position during drag/resize operations
+  2. Modified `handleMouseUp` to explicitly save the final position with `await onUpdateElement()`
+  3. Added logging to confirm the final position is saved
+- **Status**: FIXED AND TESTED
+
 ### Image Position/Size Not Correct in SCORM Export - FIXED
 - **Issue**: Images appeared at different sizes in SCORM export compared to Canvas editor
 - **Root Cause**: 
