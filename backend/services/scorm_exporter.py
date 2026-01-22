@@ -756,9 +756,6 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             overflow: visible; /* Allow elements with negative positions to be visible */
             box-shadow: 0 10px 50px rgba(0,0,0,0.5);
             transform-origin: center center;
-            background-size: contain;
-            background-position: center;
-            background-repeat: no-repeat;
             /* Scale will be calculated dynamically by JS */
         }}
         
