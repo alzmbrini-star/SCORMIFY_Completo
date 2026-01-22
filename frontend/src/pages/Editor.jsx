@@ -61,6 +61,7 @@ import {
   Pause,
   StopCircle,
   MoreVertical,
+  Volume2,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
