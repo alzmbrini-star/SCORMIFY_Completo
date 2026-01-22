@@ -221,17 +221,22 @@ const SlideCanvas = ({
       pendingUpdateRef.current = null;
     }
     
-    if (isDrawing && annotationMode && annotationPoints.length > 2 && slide) {
+    // Save annotation when drawing ends
+    // For shapes (arrow, circle, rectangle) we need at least 2 points
+    // For freehand we need more points to make a meaningful drawing
+    const minPoints = annotationMode === 'freehand' ? 3 : 2;
+    if (isDrawing && annotationMode && annotationPoints.length >= minPoints && slide) {
       try {
         await addAnnotation(slide.id, {
           type: annotationMode,
           points: annotationPoints,
           color: '#EF4444',
-          strokeWidth: 2,
-          includeInExport: false,
+          strokeWidth: 3,
+          includeInExport: true,
         });
+        console.log('Annotation saved:', annotationMode, annotationPoints.length, 'points');
       } catch (err) {
-        console.error('Failed to save annotation');
+        console.error('Failed to save annotation:', err);
       }
     }
     
