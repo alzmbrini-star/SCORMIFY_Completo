@@ -78,6 +78,18 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   5. Added visual indicators (YouTube/Vimeo badge, "Double-click to play" hint)
 - **Status**: FIXED AND TESTED
 
+### SCORM Export Positioning Bug - FIXED
+- **Issue**: Images and videos in SCORM export had fixed size and position instead of respecting editor values
+- **Root Cause**: 
+  1. CSS `.image-element` had `width: 100%; height: 100%` directly on the img tag, overriding inline styles
+  2. The `createElementNode` function was creating img tags directly instead of wrapping in a container div
+- **Fix Applied**:
+  1. Changed image rendering to use a container div with inline position/size, containing an img with 100% dimensions
+  2. Ensured all position values use fallback defaults: `(element.x || 0)`
+  3. Added `+1` to zIndex to prevent overlap with background
+- **Status**: FIXED AND TESTED
+- **Verification**: Exported SCORM shows correct inline styles: `left:500px;top:200px;width:310px;height:165px`
+
 ### Multiple Slides Blank in SCORM Export - FIXED
 - **Issue**: Only the first slide had background image, all other slides were blank in SCORM export
 - **Root Cause**: 
