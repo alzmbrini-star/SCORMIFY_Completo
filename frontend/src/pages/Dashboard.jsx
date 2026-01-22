@@ -132,12 +132,12 @@ export default function Dashboard() {
 
   const handleDeleteProject = async (projectId, e) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this project?')) {
+    if (window.confirm('Tem certeza que deseja excluir este projeto? Esta ação não pode ser desfeita.')) {
       try {
         await deleteProject(projectId);
-        toast.success('Project deleted');
+        toast.success('Projeto excluído com sucesso!');
       } catch (err) {
-        toast.error('Failed to delete project');
+        toast.error('Erro ao excluir projeto');
       }
     }
   };
