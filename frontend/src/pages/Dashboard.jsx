@@ -281,7 +281,7 @@ export default function Dashboard() {
         ) : projects.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-16 text-center">
-              <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+              <Presentation className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
               <h4 className="text-lg font-medium mb-2">No projects yet</h4>
               <p className="text-muted-foreground mb-4">
                 Create a new project or import a PowerPoint to get started
