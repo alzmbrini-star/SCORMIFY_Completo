@@ -745,7 +745,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             justify-content: center;
             padding: 20px;
             background: #0f0f1a;
-            overflow: hidden;
+            overflow: hidden; /* Clip at wrapper level */
         }}
         
         #slide-container {{
@@ -760,16 +760,6 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             background-position: center;
             background-repeat: no-repeat;
             /* Scale will be calculated dynamically by JS */
-        }}
-        
-        #slide-wrapper {{
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            background: #0f0f1a;
-            overflow: hidden; /* Clip at wrapper level instead */
         }}
         
         .slide-element {{
