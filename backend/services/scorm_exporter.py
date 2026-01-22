@@ -753,7 +753,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             height: {height}px;
             background: #fff;
             position: relative;
-            overflow: hidden;
+            overflow: visible; /* Allow elements with negative positions to be visible */
             box-shadow: 0 10px 50px rgba(0,0,0,0.5);
             transform-origin: center center;
             background-size: contain;
@@ -762,9 +762,19 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             /* Scale will be calculated dynamically by JS */
         }}
         
+        #slide-wrapper {{
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #0f0f1a;
+            overflow: hidden; /* Clip at wrapper level instead */
+        }}
+        
         .slide-element {{
             position: absolute;
-            overflow: hidden;
+            /* Removed overflow: hidden to allow proper rendering */
         }}
         
         .text-element {{
