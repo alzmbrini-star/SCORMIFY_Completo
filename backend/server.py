@@ -647,6 +647,118 @@ async def set_global_audio(project_id: str, file: UploadFile = File(...)):
     
     return global_audio
 
+
+@api_router.delete("/projects/{project_id}/global-audio")
+async def remove_global_audio(project_id: str):
+    """Remove global audio from project"""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    
+    # Remove global audio file if exists
+    if course.get('globalAudio'):
+        old_file = course['globalAudio'].get('filename')
+        if old_file:
+            assets_dir = Path(f"storage/projects/{project_id}/assets")
+            old_path = assets_dir / old_file
+            if old_path.exists():
+                old_path.unlink()
+    
+    course['globalAudio'] = None
+    await update_project(project_id, {"course": course})
+    
+    return {"message": "Global audio removed"}
+
+
+@api_router.put("/projects/{project_id}/global-audio/volume")
+async def update_global_audio_volume(project_id: str, volume: float):
+    """Update global audio volume"""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    if not course.get('globalAudio'):
+        raise HTTPException(status_code=404, detail="No global audio set")
+    
+    # Clamp volume between 0 and 1
+    volume = max(0.0, min(1.0, volume))
+    course['globalAudio']['volume'] = volume
+    
+    await update_project(project_id, {"course": course})
+    
+    return course['globalAudio']
+
+
+@api_router.delete("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}")
+async def remove_slide_audio(project_id: str, slide_id: str, audio_id: str):
+    """Remove audio from slide"""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    slides = course.get('slides', [])
+    
+    slide_index = next((i for i, s in enumerate(slides) if s.get('id') == slide_id), None)
+    if slide_index is None:
+        raise HTTPException(status_code=404, detail="Slide not found")
+    
+    audio_list = slides[slide_index].get('audio', [])
+    
+    # Find and remove audio
+    audio_to_remove = next((a for a in audio_list if a.get('id') == audio_id), None)
+    if not audio_to_remove:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    
+    # Remove audio file
+    if audio_to_remove.get('filename'):
+        assets_dir = Path(f"storage/projects/{project_id}/assets")
+        audio_path = assets_dir / audio_to_remove['filename']
+        if audio_path.exists():
+            audio_path.unlink()
+    
+    # Update slide
+    slides[slide_index]['audio'] = [a for a in audio_list if a.get('id') != audio_id]
+    course['slides'] = slides
+    
+    await update_project(project_id, {"course": course})
+    
+    return {"message": "Audio removed from slide"}
+
+
+@api_router.put("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}/volume")
+async def update_slide_audio_volume(project_id: str, slide_id: str, audio_id: str, volume: float):
+    """Update slide audio volume"""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    slides = course.get('slides', [])
+    
+    slide_index = next((i for i, s in enumerate(slides) if s.get('id') == slide_id), None)
+    if slide_index is None:
+        raise HTTPException(status_code=404, detail="Slide not found")
+    
+    audio_list = slides[slide_index].get('audio', [])
+    audio_index = next((i for i, a in enumerate(audio_list) if a.get('id') == audio_id), None)
+    if audio_index is None:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    
+    # Clamp volume between 0 and 1
+    volume = max(0.0, min(1.0, volume))
+    audio_list[audio_index]['volume'] = volume
+    slides[slide_index]['audio'] = audio_list
+    course['slides'] = slides
+    
+    await update_project(project_id, {"course": course})
+    
+    return audio_list[audio_index]
+
+
 # Annotations
 
 @api_router.post("/projects/{project_id}/slides/{slide_id}/annotations")
