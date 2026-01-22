@@ -487,20 +487,82 @@ var CoursePlayer = (function() {
         svg.style.pointerEvents = 'none';
         svg.style.zIndex = '1000';
         
-        var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('stroke', annotation.color);
-        path.setAttribute('stroke-width', annotation.strokeWidth);
-        path.setAttribute('fill', 'none');
+        var color = annotation.color || '#EF4444';
+        var strokeWidth = annotation.strokeWidth || 3;
+        var points = annotation.points || [];
         
-        if (annotation.type === 'freehand' && annotation.points.length > 0) {
-            var d = 'M ' + annotation.points[0].x + ' ' + annotation.points[0].y;
-            for (var i = 1; i < annotation.points.length; i++) {
-                d += ' L ' + annotation.points[i].x + ' ' + annotation.points[i].y;
+        if (annotation.type === 'freehand' && points.length > 0) {
+            var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('stroke', color);
+            path.setAttribute('stroke-width', strokeWidth);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            var d = 'M ' + points[0].x + ' ' + points[0].y;
+            for (var i = 1; i < points.length; i++) {
+                d += ' L ' + points[i].x + ' ' + points[i].y;
             }
             path.setAttribute('d', d);
+            svg.appendChild(path);
+        }
+        else if (annotation.type === 'arrow' && points.length >= 2) {
+            // Create arrowhead marker
+            var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead-' + annotation.id);
+            marker.setAttribute('markerWidth', '10');
+            marker.setAttribute('markerHeight', '7');
+            marker.setAttribute('refX', '9');
+            marker.setAttribute('refY', '3.5');
+            marker.setAttribute('orient', 'auto');
+            var polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+            polygon.setAttribute('fill', color);
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+            
+            var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', points[0].x);
+            line.setAttribute('y1', points[0].y);
+            line.setAttribute('x2', points[1].x);
+            line.setAttribute('y2', points[1].y);
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-width', strokeWidth);
+            line.setAttribute('marker-end', 'url(#arrowhead-' + annotation.id + ')');
+            svg.appendChild(line);
+        }
+        else if (annotation.type === 'circle' && points.length >= 2) {
+            var cx = (points[0].x + points[1].x) / 2;
+            var cy = (points[0].y + points[1].y) / 2;
+            var rx = Math.abs(points[1].x - points[0].x) / 2;
+            var ry = Math.abs(points[1].y - points[0].y) / 2;
+            var ellipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            ellipse.setAttribute('cx', cx);
+            ellipse.setAttribute('cy', cy);
+            ellipse.setAttribute('rx', rx);
+            ellipse.setAttribute('ry', ry);
+            ellipse.setAttribute('stroke', color);
+            ellipse.setAttribute('stroke-width', strokeWidth);
+            ellipse.setAttribute('fill', 'none');
+            svg.appendChild(ellipse);
+        }
+        else if (annotation.type === 'rectangle' && points.length >= 2) {
+            var x = Math.min(points[0].x, points[1].x);
+            var y = Math.min(points[0].y, points[1].y);
+            var width = Math.abs(points[1].x - points[0].x);
+            var height = Math.abs(points[1].y - points[0].y);
+            var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', y);
+            rect.setAttribute('width', width);
+            rect.setAttribute('height', height);
+            rect.setAttribute('stroke', color);
+            rect.setAttribute('stroke-width', strokeWidth);
+            rect.setAttribute('fill', 'none');
+            svg.appendChild(rect);
         }
         
-        svg.appendChild(path);
         container.appendChild(svg);
     }
     
