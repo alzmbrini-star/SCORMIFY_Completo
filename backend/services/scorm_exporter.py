@@ -727,13 +727,12 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             justify-content: center;
             padding: 20px;
             background: #0f0f1a;
+            overflow: hidden;
         }}
         
         #slide-container {{
             width: {width}px;
             height: {height}px;
-            max-width: 100%;
-            max-height: calc(100vh - 100px);
             background: #fff;
             position: relative;
             overflow: hidden;
@@ -742,12 +741,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             background-size: contain;
             background-position: center;
             background-repeat: no-repeat;
-        }}
-        
-        @media (max-width: 1024px) {{
-            #slide-container {{
-                transform: scale(0.8);
-            }}
+            /* Scale will be calculated dynamically by JS */
         }}
         
         .slide-element {{
