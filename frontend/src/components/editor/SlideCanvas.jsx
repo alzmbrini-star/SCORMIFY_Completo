@@ -256,6 +256,7 @@ const SlideCanvas = ({
     } else {
       onSelectElement(null);
       setEditingElementId(null);
+      setSelectedAnnotationId(null); // Deselect annotation when clicking on canvas
     }
   }, [annotationMode, getCanvasCoords, onSelectElement]);
 
