@@ -688,6 +688,7 @@ const SlideCanvas = ({
                   stroke={annotation.color}
                   strokeWidth={annotation.strokeWidth}
                   fill="none"
+                  style={{ pointerEvents: 'none' }}
                 />
               );
             })()}
@@ -700,6 +701,7 @@ const SlideCanvas = ({
                 stroke={annotation.color}
                 strokeWidth={annotation.strokeWidth}
                 fill="none"
+                style={{ pointerEvents: 'none' }}
               />
             )}
             
@@ -714,6 +716,7 @@ const SlideCanvas = ({
                 strokeWidth={2}
                 strokeDasharray="5,5"
                 fill="none"
+                style={{ pointerEvents: 'none' }}
               />
             )}
           </g>
