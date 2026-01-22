@@ -873,15 +873,15 @@ export default function Editor() {
                           {currentSlide.audio.map((audio) => (
                             <div key={audio.id} className="p-3 bg-slate-500/10 border border-slate-500/30 rounded-lg space-y-2">
                               <div className="flex items-center gap-2">
-                                <div className="w-10 h-10 rounded-full bg-slate-500/20 flex items-center justify-center">
+                                <div className="w-8 h-8 flex-shrink-0 rounded-full bg-slate-500/20 flex items-center justify-center">
                                   {audio.type === 'narration' ? (
-                                    <Mic className="w-5 h-5 text-slate-500" />
+                                    <Mic className="w-4 h-4 text-slate-500" />
                                   ) : (
-                                    <Music className="w-5 h-5 text-slate-500" />
+                                    <Music className="w-4 h-4 text-slate-500" />
                                   )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium truncate">
+                                <div className="flex-1 min-w-0 overflow-hidden">
+                                  <p className="text-sm font-medium truncate max-w-[140px]">
                                     {audio.filename || audio.type}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
@@ -891,7 +891,7 @@ export default function Editor() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  className="h-8 w-8 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                   onClick={() => handleRemoveSlideAudio(audio.id)}
                                   data-testid={`remove-slide-audio-${audio.id}`}
                                 >
