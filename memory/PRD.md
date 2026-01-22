@@ -67,16 +67,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   2. Backend adjusted to receive audio_type via Form() instead of query parameter
 - **Status**: CONFIRMED FIXED (verified by testing agent)
 
-### Video Resize/Move Bug - FIXED
-- **Issue**: Video elements were difficult to resize and move because the iframe captured all mouse events
-- **Root Cause**: The YouTube/Vimeo iframe was intercepting all click/drag events
+### SCORM Export Positioning Bug - FIXED
+- **Issue**: Images and videos in SCORM export had fixed size and position instead of respecting editor values
+- **Root Cause**: 
+  1. CSS `.image-element` had `width: 100%; height: 100%` directly on the img tag, overriding inline styles
+  2. The `createElementNode` function was creating img tags directly instead of wrapping in a container div
 - **Fix Applied**:
-  1. Added transparent overlay on video elements to capture mouse events
-  2. Set `pointer-events: none` on iframe/video elements
-  3. Enlarged resize handles for easier grabbing (4x4 corners, 8x3/3x8 edges)
-  4. Added hover effects on resize handles
-  5. Added visual indicators (YouTube/Vimeo badge, "Double-click to play" hint)
+  1. Changed image rendering to use a container div with inline position/size, containing an img with 100% dimensions
+  2. Ensured all position values use fallback defaults: `(element.x || 0)`
+  3. Added `+1` to zIndex to prevent overlap with background
 - **Status**: FIXED AND TESTED
+- **Verification**: Exported SCORM shows correct inline styles: `left:500px;top:200px;width:310px;height:165px`
 
 ## Prioritized Backlog
 
