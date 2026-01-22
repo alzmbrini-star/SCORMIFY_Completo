@@ -20,6 +20,7 @@ from models import (
     JobStatus, ReorderSlidesRequest
 )
 from services.ppt_parser import parse_pptx
+from services.ppt_image_parser import parse_pptx_high_fidelity
 from services.scorm_exporter import export_scorm_package
 
 ROOT_DIR = Path(__file__).parent
