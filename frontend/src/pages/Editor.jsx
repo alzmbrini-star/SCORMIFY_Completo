@@ -713,48 +713,116 @@ export default function Editor() {
               <TabsContent value="media" className="flex-1 mt-0 overflow-auto">
                 <ScrollArea className="h-full">
                   <div className="p-4 space-y-4">
+                    {/* Audio Upload Section */}
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Global Soundtrack</label>
-                      <div className="space-y-2">
-                        {currentProject?.course?.globalAudio ? (
-                          <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                            <Music className="w-4 h-4" />
-                            <span className="text-sm truncate flex-1">
-                              {currentProject.course.globalAudio.filename}
-                            </span>
+                      <label className="text-sm font-medium mb-2 block">Add Audio</label>
+                      <div className="space-y-3">
+                        {/* Upload audio file button */}
+                        <label className="block">
+                          <div className="border border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
+                            <Music className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                            <span className="text-sm font-medium">Upload Audio File</span>
+                            <p className="text-xs text-muted-foreground mt-1">MP3, WAV, OGG</p>
                           </div>
-                        ) : (
-                          <label className="block">
-                            <div className="border border-dashed rounded p-4 text-center cursor-pointer hover:border-primary/50 transition-colors">
-                              <Music className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
-                              <span className="text-sm text-muted-foreground">Add soundtrack</span>
-                            </div>
-                            <input
-                              type="file"
-                              accept="audio/*"
-                              className="hidden"
-                              onChange={handleGlobalAudioUpload}
-                            />
-                          </label>
-                        )}
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setAudioFile(file);
+                                setShowAudioDialog(true);
+                              }
+                              e.target.value = '';
+                            }}
+                            data-testid="audio-upload-input"
+                          />
+                        </label>
                       </div>
                     </div>
 
                     <Separator />
 
+                    {/* Global Soundtrack */}
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Slide Narration</label>
+                      <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                        <Music className="w-4 h-4 text-primary" />
+                        Global Soundtrack (All Slides)
+                      </label>
+                      {currentProject?.course?.globalAudio ? (
+                        <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            <Music className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {currentProject.course.globalAudio.filename}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Plays on all slides
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={handleRemoveGlobalAudio}
+                            data-testid="remove-global-audio"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
+                          No global soundtrack set
+                        </p>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Current Slide Audio */}
+                    <div>
+                      <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                        <Mic className="w-4 h-4 text-cyan-500" />
+                        Slide {currentSlideIndex + 1} Audio
+                      </label>
                       {currentSlide?.audio?.length > 0 ? (
                         <div className="space-y-2">
                           {currentSlide.audio.map((audio) => (
-                            <div key={audio.id} className="flex items-center gap-2 p-2 bg-muted rounded">
-                              <Mic className="w-4 h-4" />
-                              <span className="text-sm truncate flex-1">{audio.type}</span>
+                            <div key={audio.id} className="flex items-center gap-2 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                              <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                                {audio.type === 'narration' ? (
+                                  <Mic className="w-5 h-5 text-cyan-500" />
+                                ) : (
+                                  <Music className="w-5 h-5 text-cyan-500" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {audio.filename || audio.type}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {audio.type === 'narration' ? 'Narration' : 'Background music'}
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleRemoveSlideAudio(audio.id)}
+                                data-testid={`remove-slide-audio-${audio.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground">No narration recorded</p>
+                        <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
+                          No audio for this slide
+                        </p>
                       )}
                     </div>
                   </div>
