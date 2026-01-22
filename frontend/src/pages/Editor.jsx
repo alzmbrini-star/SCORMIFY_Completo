@@ -816,8 +816,8 @@ export default function Editor() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="properties" className="flex-1 mt-0 overflow-auto">
-                <ScrollArea className="h-full">
+              <TabsContent value="properties" className="flex-1 mt-0 overflow-hidden">
+                <ScrollArea className="h-[calc(100vh-200px)]">
                   {selectedElement ? (
                     <ElementProperties
                       element={selectedElement}
@@ -836,8 +836,8 @@ export default function Editor() {
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="layers" className="flex-1 mt-0 overflow-auto">
-                <ScrollArea className="h-full">
+              <TabsContent value="layers" className="flex-1 mt-0 overflow-hidden">
+                <ScrollArea className="h-[calc(100vh-200px)]">
                   {currentSlide?.elements?.length > 0 ? (
                     <div className="p-2 space-y-1">
                       {[...currentSlide.elements]
