@@ -334,11 +334,8 @@ export default function Editor() {
   const handleRemoveGlobalAudio = async () => {
     if (!currentProject) return;
     try {
-      // Update course without global audio
-      const updatedCourse = { ...currentProject.course, globalAudio: null };
-      await saveCourse();
+      await removeGlobalAudio();
       toast.success('Trilha sonora removida');
-      fetchProject(currentProject.id);
     } catch (err) {
       toast.error('Erro ao remover áudio');
     }
@@ -347,11 +344,28 @@ export default function Editor() {
   const handleRemoveSlideAudio = async (audioId) => {
     if (!currentSlide) return;
     try {
-      const updatedAudio = currentSlide.audio.filter(a => a.id !== audioId);
-      await updateSlide(currentSlide.id, { audio: updatedAudio });
+      await removeSlideAudio(currentSlide.id, audioId);
       toast.success('Áudio removido do slide');
     } catch (err) {
       toast.error('Erro ao remover áudio');
+    }
+  };
+
+  const handleGlobalVolumeChange = async (value) => {
+    if (!currentProject?.course?.globalAudio) return;
+    try {
+      await updateGlobalAudioVolume(value[0]);
+    } catch (err) {
+      console.error('Error updating volume:', err);
+    }
+  };
+
+  const handleSlideAudioVolumeChange = async (audioId, value) => {
+    if (!currentSlide) return;
+    try {
+      await updateSlideAudioVolume(currentSlide.id, audioId, value[0]);
+    } catch (err) {
+      console.error('Error updating volume:', err);
     }
   };
 
