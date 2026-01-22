@@ -72,7 +72,7 @@ var CoursePlayer = (function() {
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
         if (slide.backgroundImage) {
-            // Create background image element for better control
+            // Create background image element - must fill entire container
             var bgImg = document.createElement('img');
             bgImg.src = slide.backgroundImage;
             bgImg.style.position = 'absolute';
@@ -80,7 +80,7 @@ var CoursePlayer = (function() {
             bgImg.style.left = '0';
             bgImg.style.width = '100%';
             bgImg.style.height = '100%';
-            bgImg.style.objectFit = 'contain';
+            bgImg.style.objectFit = 'fill'; // Fill the entire container to match element positions
             bgImg.style.pointerEvents = 'none';
             bgImg.style.zIndex = '0';
             container.appendChild(bgImg);
