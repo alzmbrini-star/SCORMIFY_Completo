@@ -803,7 +803,7 @@ const SlideCanvas = ({
         
         return (
           <button
-            className="absolute bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-colors z-[1001]"
+            className="absolute bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-colors z-[11]"
             style={{
               left: `${(minX - 15) * scale}px`,
               top: `${(minY - 15) * scale}px`,
