@@ -259,14 +259,21 @@ var CoursePlayer = (function() {
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
         if (slide.backgroundImage) {
-            container.style.backgroundImage = 'url(' + slide.backgroundImage + ')';
-            container.style.backgroundSize = 'cover';
-            container.style.backgroundPosition = 'center';
-        } else {
-            container.style.backgroundImage = 'none';
+            // Create background image element for better control
+            var bgImg = document.createElement('img');
+            bgImg.src = slide.backgroundImage;
+            bgImg.style.position = 'absolute';
+            bgImg.style.top = '0';
+            bgImg.style.left = '0';
+            bgImg.style.width = '100%';
+            bgImg.style.height = '100%';
+            bgImg.style.objectFit = 'contain';
+            bgImg.style.pointerEvents = 'none';
+            bgImg.style.zIndex = '0';
+            container.appendChild(bgImg);
         }
         
-        // Render elements
+        // Render elements (filter out invisible ones)
         slide.elements.forEach(function(element, elemIndex) {
             var el = createElementNode(element);
             if (el) {
