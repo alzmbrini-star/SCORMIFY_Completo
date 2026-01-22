@@ -113,11 +113,17 @@ export default function Editor() {
   const [showAudioDialog, setShowAudioDialog] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [audioTarget, setAudioTarget] = useState('slide'); // 'slide' or 'global'
+  
+  // Audio playback states
+  const [playingAudioId, setPlayingAudioId] = useState(null);
+  const [globalAudioVolume, setGlobalAudioVolume] = useState(0.5);
+  const [slideAudioVolumes, setSlideAudioVolumes] = useState({});
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingIntervalRef = useRef(null);
   const fileInputRef = useRef(null);
+  const audioPlayerRef = useRef(null);
 
   useEffect(() => {
     if (projectId) {
