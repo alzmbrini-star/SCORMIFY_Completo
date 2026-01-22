@@ -391,7 +391,7 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
         slide_id = str(uuid.uuid4())
         
         # Get background
-        bg_color, bg_image = get_slide_background(pptx_slide, assets_dir)
+        bg_color, bg_image = get_slide_background(pptx_slide, assets_dir, project_id)
         
         # Get transition
         transition = extract_transition(pptx_slide)
