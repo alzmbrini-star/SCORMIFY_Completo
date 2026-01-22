@@ -111,7 +111,16 @@ const SlideCanvas = ({
 
     // Drawing annotations
     if (isDrawing && annotationMode) {
-      setAnnotationPoints(prev => [...prev, coords]);
+      if (annotationMode === 'freehand') {
+        // For freehand, collect all points
+        setAnnotationPoints(prev => [...prev, coords]);
+      } else {
+        // For shapes (arrow, circle, rectangle), just update end point
+        setAnnotationPoints(prev => {
+          if (prev.length === 0) return [coords];
+          return [prev[0], coords];
+        });
+      }
       return;
     }
 
