@@ -424,6 +424,10 @@ export default function Editor() {
 
   const handleRemoveSlideAudio = async (audioId) => {
     if (!currentSlide) return;
+    // Stop audio if playing
+    if (playingAudioId === audioId) {
+      stopAudio();
+    }
     try {
       await removeSlideAudio(currentSlide.id, audioId);
       toast.success('Áudio removido do slide');
@@ -432,21 +436,45 @@ export default function Editor() {
     }
   };
 
-  const handleGlobalVolumeChange = async (value) => {
-    if (!currentProject?.course?.globalAudio) return;
-    try {
-      await updateGlobalAudioVolume(value[0]);
-    } catch (err) {
-      console.error('Error updating volume:', err);
+  const handleGlobalVolumeChange = (value) => {
+    const newVolume = value[0];
+    setGlobalAudioVolume(newVolume);
+    
+    // Update playing audio volume in real-time
+    if (audioPlayerRef.current && playingAudioId === 'global') {
+      audioPlayerRef.current.volume = newVolume;
     }
   };
 
-  const handleSlideAudioVolumeChange = async (audioId, value) => {
+  const handleGlobalVolumeCommit = async (value) => {
+    if (!currentProject?.course?.globalAudio) return;
+    try {
+      await updateGlobalAudioVolume(value[0]);
+      toast.success('Volume atualizado');
+    } catch (err) {
+      console.error('Error updating volume:', err);
+      toast.error('Erro ao atualizar volume');
+    }
+  };
+
+  const handleSlideAudioVolumeChange = (audioId, value) => {
+    const newVolume = value[0];
+    setSlideAudioVolumes(prev => ({ ...prev, [audioId]: newVolume }));
+    
+    // Update playing audio volume in real-time
+    if (audioPlayerRef.current && playingAudioId === audioId) {
+      audioPlayerRef.current.volume = newVolume;
+    }
+  };
+
+  const handleSlideAudioVolumeCommit = async (audioId, value) => {
     if (!currentSlide) return;
     try {
       await updateSlideAudioVolume(currentSlide.id, audioId, value[0]);
+      toast.success('Volume atualizado');
     } catch (err) {
       console.error('Error updating volume:', err);
+      toast.error('Erro ao atualizar volume');
     }
   };
 
