@@ -1,6 +1,16 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Helper to get full asset URL
+const getAssetUrl = (src) => {
+  if (!src) return '';
+  if (src.startsWith('http')) return src;
+  if (src.startsWith('/api/')) return `${API_URL}${src}`;
+  return src;
+};
+
 const SlideCanvas = ({
   slide,
   selectedElementId,
