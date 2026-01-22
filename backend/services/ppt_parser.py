@@ -150,7 +150,7 @@ def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Op
                 with open(image_path, 'wb') as f:
                     f.write(image_bytes)
                 
-                src = f"/assets/{image_filename}"
+                src = f"/api/projects/{project_id}/assets/{image_filename}"
             except Exception as e:
                 logger.warning(f"Failed to extract image: {e}")
                 return None
