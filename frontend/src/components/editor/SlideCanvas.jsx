@@ -820,7 +820,7 @@ const SlideCanvas = ({
             title="Apagar anotação"
             data-testid="delete-annotation-btn"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4 pointer-events-none" />
           </button>
         );
       })()}
