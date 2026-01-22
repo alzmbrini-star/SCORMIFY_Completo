@@ -103,20 +103,20 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: FIXED AND TESTED
 - **Note**: Projects created before this fix need to be re-imported to regenerate all slide images
 
-### Element Position/Size Not Persisting in SCORM Export - FIXED
-- **Issue**: Video/image elements were not being exported with the correct size and position as shown in the Canvas editor
+### Image Position/Size Not Correct in SCORM Export - FIXED
+- **Issue**: Images appeared at different sizes in SCORM export compared to Canvas editor
 - **Root Cause**: 
-  1. The `handleMouseUp` function in `SlideCanvas.jsx` was not explicitly saving the final position after drag/resize
-  2. During rapid mouse movements, some position updates might be lost due to async operations
+  1. The SCORM player container used fixed dimensions from the first slide only
+  2. Different slides can have different dimensions (e.g., 1280x720 vs 960x540)
+  3. When elements were positioned for a 960x540 slide but rendered in a 1280x720 container, they appeared proportionally smaller
 - **Fix Applied**:
-  1. Added `pendingUpdateRef` to track the last known position during drag/resize operations
-  2. Modified `handleMouseUp` to explicitly save the final position with `await onUpdateElement()`
-  3. Added logging to confirm the final position is saved
+  1. Modified `renderSlide()` function in `scorm_exporter.py` to dynamically adjust container dimensions
+  2. Added: `container.style.width = slideWidth + 'px'` and `container.style.height = slideHeight + 'px'`
+  3. Container now matches each slide's actual dimensions
 - **Status**: FIXED AND TESTED
 - **Verification**: 
-  - Video resized to 1100x550 in editor
-  - Exported SCORM shows: `style="left:0px; top:0px; width:1100px; height:550px"`
-  - Coverage: 85.9% width, 76.4% height of slide
+  - Image resized to 920x500 (95.8% x 92.6% coverage) 
+  - SCORM export shows correct: `style="left:20px; top:20px; width:920px; height:500px"`
 
 ## Prioritized Backlog
 
