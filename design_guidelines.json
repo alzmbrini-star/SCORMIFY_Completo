@@ -1,0 +1,165 @@
+{
+  "brand_identity": {
+    "name": "Scormify",
+    "archetype": "The Performance Pro (Editor) + Swiss High-Contrast (Dashboard)",
+    "core_values": ["Precision", "Fidelity", "Focus", "Creativity"],
+    "typography": {
+      "headings": {
+        "family": "Manrope, sans-serif",
+        "weights": ["600", "700", "800"],
+        "usage": "Dashboard titles, Modal headers, Feature highlights"
+      },
+      "body": {
+        "family": "Inter, sans-serif",
+        "weights": ["400", "500"],
+        "usage": "General UI text, form labels, descriptions"
+      },
+      "mono": {
+        "family": "JetBrains Mono, monospace",
+        "weights": ["400"],
+        "usage": "Timecodes, Layer IDs, SCORM manifest details"
+      }
+    },
+    "colors": {
+      "primary": {
+        "name": "Electric Violet",
+        "hex": "#7C3AED",
+        "tailwind": "violet-600",
+        "usage": "Primary actions, active states, focus rings"
+      },
+      "secondary": {
+        "name": "Slate",
+        "hex": "#64748B",
+        "tailwind": "slate-500",
+        "usage": "Secondary actions, muted text, borders"
+      },
+      "accent": {
+        "name": "Neon Cyan",
+        "hex": "#06B6D4",
+        "tailwind": "cyan-500",
+        "usage": "Progress bars, active timeline playhead, selection indicators"
+      },
+      "backgrounds": {
+        "dashboard_light": "#F8FAFC",
+        "dashboard_dark": "#020617",
+        "editor_canvas": "#1E293B",
+        "editor_panel": "#0F172A"
+      },
+      "semantic": {
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+        "info": "#3B82F6"
+      }
+    }
+  },
+  "layout_systems": {
+    "dashboard": {
+      "type": "Bento Grid",
+      "grid_cols": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+      "gap": "gap-6",
+      "padding": "p-8",
+      "container_style": "max-w-7xl mx-auto",
+      "card_style": "bg-card border border-border/50 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl"
+    },
+    "editor": {
+      "type": "IDE Layout (Fixed)",
+      "structure": "h-screen w-screen overflow-hidden flex flex-col",
+      "header": "h-14 border-b border-border bg-background flex items-center px-4 justify-between z-50",
+      "workspace": "flex-1 flex overflow-hidden",
+      "sidebar_left": "w-64 border-r border-border bg-card flex flex-col z-40",
+      "canvas_area": "flex-1 bg-muted/30 relative overflow-hidden flex flex-col items-center justify-center p-8",
+      "sidebar_right": "w-72 border-l border-border bg-card flex flex-col z-40",
+      "timeline_bottom": "h-64 border-t border-border bg-card z-40 absolute bottom-0 w-full"
+    }
+  },
+  "component_rules": {
+    "general": {
+      "radius": "rounded-lg",
+      "shadows": "shadow-sm",
+      "borders": "border border-border",
+      "animation": "transition-all duration-200 ease-in-out"
+    },
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "ghost": "hover:bg-accent hover:text-accent-foreground",
+      "icon": "h-9 w-9 p-0 rounded-md"
+    },
+    "inputs": {
+      "style": "bg-background border-input focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+    },
+    "cards": {
+      "dashboard": "p-6 flex flex-col gap-4",
+      "editor_panel": "p-4 border-b border-border last:border-0"
+    },
+    "timeline": {
+      "track_height": "h-8",
+      "playhead_color": "bg-red-500",
+      "clip_style": "rounded-md border border-primary/50 bg-primary/20 hover:bg-primary/30 cursor-pointer"
+    }
+  },
+  "assets": {
+    "images": {
+      "placeholders": {
+        "slide_bg_1": "https://images.unsplash.com/photo-1750727548934-0e7fab8cb304?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "slide_bg_2": "https://images.unsplash.com/photo-1758391407785-4e0ef1831f87?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "slide_bg_3": "https://images.unsplash.com/photo-1761888856976-c4bc8303f65f?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "slide_bg_4": "https://images.unsplash.com/photo-1766341055874-6541fa71db45?crop=entropy&cs=srgb&fm=jpg&q=85"
+      },
+      "content": {
+        "meeting_1": "https://images.unsplash.com/photo-1758518732175-5d608ba3abdf?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "meeting_2": "https://images.unsplash.com/photo-1760346546771-a81d986459ff?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "meeting_3": "https://images.unsplash.com/photo-1758691737543-09a1b2b715fa?crop=entropy&cs=srgb&fm=jpg&q=85"
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "usage": "Use stroke-width={1.5} for a refined look. Size 16px for UI controls, 20px for nav items."
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-md bg-background/80 border-b border-border/50 sticky top-0 z-50",
+    "gradients": {
+      "hero": "bg-gradient-to-br from-primary/20 via-background to-background",
+      "active_item": "bg-gradient-to-r from-primary/10 to-transparent border-l-2 border-primary"
+    },
+    "micro_interactions": {
+      "hover_lift": "hover:-translate-y-1 hover:shadow-lg transition-transform duration-200",
+      "button_press": "active:scale-95 transition-transform duration-75"
+    }
+  },
+  "accessibility": {
+    "contrast": "Ensure text meets WCAG AA (4.5:1). Use slate-900 for text on light backgrounds, slate-50 for text on dark backgrounds.",
+    "focus_states": "Visible focus rings on all interactive elements (ring-2 ring-primary ring-offset-2).",
+    "aria": "All icon-only buttons must have aria-label. Complex editor widgets (timeline, canvas) must have keyboard navigation support."
+  },
+  "instructions_to_main_agent": {
+    "general": "Follow the 'Anti-AI Designer' persona. Avoid generic layouts. Use the specified color palette and typography strictly.",
+    "dashboard_implementation": "Implement the Dashboard using the Bento Grid layout. Use 'Manrope' for headings. Ensure the 'New Project' button is prominent (Primary Color).",
+    "editor_implementation": "The Editor is the core feature. It must feel like a desktop application (Figma/PowerPoint). Use absolute positioning for the layout to ensure the canvas takes maximum space. The Timeline should be collapsible.",
+    "scorm_export": "The Export modal should be clean and informative. Show a progress bar during generation. Use 'JetBrains Mono' for file paths or technical details shown to the user.",
+    "theme_toggle": "Implement a theme toggle in the top navigation. It should switch between the 'dashboard_light' and 'dashboard_dark' palettes seamlessly.",
+    "canvas_interaction": "For the slide editor canvas, ensure it is centered with a subtle shadow to distinguish it from the workspace background. Use a 'checkerboard' pattern for transparent backgrounds if needed."
+  },
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy",
+    "Use glass-morphism effects with backdrop filters (12-24px blur)",
+    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
+    "Prioritize using pre-existing components from src/components/ui when applicable",
+    "Create new components that match the style and conventions of existing components when needed",
+    "Examine existing components to understand the project's component patterns before creating new ones",
+    "Components MUST use named exports (export const ComponentName = ...)",
+    "Pages MUST use default exports (export default function PageName() {...})",
+    "Use sonner for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
+  ]
+}
