@@ -689,8 +689,12 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         .image-element {{
             object-fit: contain;
+        }}
+        
+        .image-element img {{
             width: 100%;
             height: 100%;
+            object-fit: contain;
         }}
         
         .video-element {{
