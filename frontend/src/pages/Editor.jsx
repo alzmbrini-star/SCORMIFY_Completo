@@ -806,21 +806,21 @@ export default function Editor() {
                       {currentProject?.course?.globalAudio ? (
                         <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg space-y-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                              <Music className="w-5 h-5 text-primary" />
+                            <div className="w-8 h-8 flex-shrink-0 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Music className="w-4 h-4 text-primary" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <p className="text-sm font-medium truncate max-w-[140px]">
                                 {currentProject.course.globalAudio.filename}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                Plays on all slides
+                                Toca em todos os slides
                               </p>
                             </div>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className="h-8 w-8 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={handleRemoveGlobalAudio}
                               data-testid="remove-global-audio"
                             >
