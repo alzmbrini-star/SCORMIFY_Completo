@@ -105,6 +105,9 @@ export default function Editor() {
   const [annotationMode, setAnnotationMode] = useState(null);
   const [showTimeline, setShowTimeline] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [showAudioDialog, setShowAudioDialog] = useState(false);
+  const [audioFile, setAudioFile] = useState(null);
+  const [audioTarget, setAudioTarget] = useState('slide'); // 'slide' or 'global'
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
