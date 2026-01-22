@@ -334,16 +334,25 @@ var CoursePlayer = (function() {
                 
             case 'video':
                 if (element.embedUrl) {
-                    el = document.createElement('iframe');
+                    el = document.createElement('div');
                     el.className = 'slide-element video-element';
-                    el.src = element.embedUrl;
-                    el.allow = 'autoplay; fullscreen';
-                    el.frameBorder = '0';
+                    var iframe = document.createElement('iframe');
+                    iframe.src = element.embedUrl;
+                    iframe.allow = 'autoplay; fullscreen';
+                    iframe.frameBorder = '0';
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    el.appendChild(iframe);
                 } else if (element.src) {
-                    el = document.createElement('video');
+                    el = document.createElement('div');
                     el.className = 'slide-element video-element';
-                    el.src = element.src;
-                    el.controls = true;
+                    var video = document.createElement('video');
+                    video.src = element.src;
+                    video.controls = true;
+                    video.style.width = '100%';
+                    video.style.height = '100%';
+                    el.appendChild(video);
                 }
                 break;
                 
