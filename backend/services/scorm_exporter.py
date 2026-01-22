@@ -275,6 +275,9 @@ var CoursePlayer = (function() {
         
         // Render elements (filter out invisible ones)
         slide.elements.forEach(function(element, elemIndex) {
+            // Skip invisible elements (used for accessibility text)
+            if (element.visible === false) return;
+            
             var el = createElementNode(element);
             if (el) {
                 container.appendChild(el);
