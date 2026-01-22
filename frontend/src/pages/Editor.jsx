@@ -308,15 +308,46 @@ export default function Editor() {
     }
   };
 
-  const handleGlobalAudioUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleAudioUpload = async () => {
+    if (!audioFile) return;
 
     try {
-      await setGlobalAudio(file);
-      toast.success('Soundtrack added');
+      if (audioTarget === 'global') {
+        await setGlobalAudio(audioFile);
+        toast.success('Trilha sonora global adicionada!');
+      } else {
+        await uploadSlideAudio(currentSlide.id, audioFile, 'background');
+        toast.success('Áudio adicionado ao slide!');
+      }
+      setShowAudioDialog(false);
+      setAudioFile(null);
+      setAudioTarget('slide');
     } catch (err) {
-      toast.error('Failed to upload soundtrack');
+      toast.error('Erro ao fazer upload do áudio');
+    }
+  };
+
+  const handleRemoveGlobalAudio = async () => {
+    if (!currentProject) return;
+    try {
+      // Update course without global audio
+      const updatedCourse = { ...currentProject.course, globalAudio: null };
+      await saveCourse();
+      toast.success('Trilha sonora removida');
+      fetchProject(currentProject.id);
+    } catch (err) {
+      toast.error('Erro ao remover áudio');
+    }
+  };
+
+  const handleRemoveSlideAudio = async (audioId) => {
+    if (!currentSlide) return;
+    try {
+      const updatedAudio = currentSlide.audio.filter(a => a.id !== audioId);
+      await updateSlide(currentSlide.id, { audio: updatedAudio });
+      toast.success('Áudio removido do slide');
+    } catch (err) {
+      toast.error('Erro ao remover áudio');
     }
   };
 
