@@ -234,7 +234,7 @@ const SlideCanvas = ({
   }, [isDragging, isResizing, isDrawing, annotationMode, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement]);
 
   const handleCanvasMouseDown = useCallback((e) => {
-    if (annotationMode === 'freehand') {
+    if (annotationMode) {
       const coords = getCanvasCoords(e);
       setIsDrawing(true);
       setAnnotationPoints([coords]);
