@@ -252,12 +252,25 @@ var CoursePlayer = (function() {
     function renderSlide(index) {
         var slide = course.slides[index];
         var container = document.getElementById('slide-container');
+        var wrapper = document.getElementById('slide-wrapper');
         
-        // Adjust container size to match slide dimensions
+        // Get slide dimensions
         var slideWidth = slide.width || 960;
         var slideHeight = slide.height || 540;
+        
+        // Calculate scale to fit in wrapper while maintaining aspect ratio
+        var wrapperRect = wrapper.getBoundingClientRect();
+        var availableWidth = wrapperRect.width - 40; // padding
+        var availableHeight = wrapperRect.height - 40; // padding
+        
+        var scaleX = availableWidth / slideWidth;
+        var scaleY = availableHeight / slideHeight;
+        var scale = Math.min(scaleX, scaleY, 1); // Never scale up, only down
+        
+        // Apply scale and size
         container.style.width = slideWidth + 'px';
         container.style.height = slideHeight + 'px';
+        container.style.transform = 'scale(' + scale + ')';
         
         // Clear previous content
         container.innerHTML = '';
