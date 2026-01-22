@@ -102,12 +102,60 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
 
 def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str]:
     """
-    Fallback: Convert directly to PNG using LibreOffice
+    Fallback: Convert PPTX to images using multiple methods
+    1. Try LibreOffice to PDF, then pdftoppm
+    2. Try LibreOffice direct to PNG (only gets first slide)
     """
     output_path = Path(output_dir)
+    temp_dir = output_path / "temp_fallback"
+    temp_dir.mkdir(exist_ok=True)
     
     try:
-        # Direct PNG conversion
+        # Method 1: Convert to PDF first, then use pdftoppm directly
+        cmd_pdf = [
+            'libreoffice',
+            '--headless',
+            '--invisible',
+            '--convert-to', 'pdf',
+            '--outdir', str(temp_dir),
+            pptx_path
+        ]
+        
+        logger.info(f"Fallback: Converting to PDF first: {' '.join(cmd_pdf)}")
+        result = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=120)
+        
+        pdf_files = list(temp_dir.glob("*.pdf"))
+        if pdf_files:
+            pdf_path = pdf_files[0]
+            
+            # Use pdftoppm to convert PDF to images
+            output_prefix = str(output_path / "slide")
+            cmd_pdftoppm = [
+                'pdftoppm',
+                '-png',
+                '-r', '150',
+                str(pdf_path),
+                output_prefix
+            ]
+            
+            logger.info(f"Converting PDF to images: {' '.join(cmd_pdftoppm)}")
+            result = subprocess.run(cmd_pdftoppm, capture_output=True, text=True, timeout=120)
+            
+            # pdftoppm creates files like slide-1.png, slide-2.png, etc.
+            png_files = sorted(output_path.glob("slide-*.png"))
+            
+            if png_files:
+                # Rename to our format: slide_001.png, slide_002.png, etc.
+                renamed_files = []
+                for i, f in enumerate(png_files):
+                    new_name = output_path / f"slide_{i+1:03d}.png"
+                    f.rename(new_name)
+                    renamed_files.append(str(new_name))
+                    logger.info(f"Created slide image: {new_name.name}")
+                return renamed_files
+        
+        # Method 2: Direct PNG (last resort - only first slide)
+        logger.warning("PDF method failed, trying direct PNG (will only get first slide)")
         cmd = [
             'libreoffice',
             '--headless',
@@ -120,13 +168,16 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
         logger.info(f"Fallback conversion: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         
-        # LibreOffice creates PNG files for each slide
         png_files = sorted(output_path.glob("*.png"))
         return [str(f) for f in png_files]
         
     except Exception as e:
         logger.error(f"Fallback conversion failed: {e}")
         return []
+    finally:
+        # Cleanup temp directory
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) -> Course:
     """
