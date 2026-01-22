@@ -323,7 +323,7 @@ const SlideCanvas = ({
         }
       }
     }
-  }, [selectedElementId, editingElementId, slide, canvasWidth, canvasHeight, onDeleteElement, onSelectElement, onUpdateElement]);
+  }, [selectedElementId, editingElementId, selectedAnnotationId, slide, canvasWidth, canvasHeight, onDeleteElement, onSelectElement, onUpdateElement, deleteAnnotation, setSelectedAnnotationId]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
