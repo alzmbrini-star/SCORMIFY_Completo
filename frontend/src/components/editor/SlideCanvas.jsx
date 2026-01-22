@@ -12,6 +12,15 @@ const getAssetUrl = (src) => {
   return src;
 };
 
+// Debounce helper
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
 const SlideCanvas = ({
   slide,
   selectedElementId,
@@ -28,6 +37,8 @@ const SlideCanvas = ({
   const [elementStart, setElementStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [annotationPoints, setAnnotationPoints] = useState([]);
+  // Track pending update for final save
+  const pendingUpdateRef = useRef(null);
   const [editingElementId, setEditingElementId] = useState(null);
   const [scale, setScale] = useState(1);
 
