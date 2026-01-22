@@ -342,7 +342,7 @@ const SlideCanvas = ({
                 title="Video"
               />
             ) : element.src ? (
-              <video src={element.src} controls className="w-full h-full" />
+              <video src={getAssetUrl(element.src)} controls className="w-full h-full" />
             ) : null
           )}
 
