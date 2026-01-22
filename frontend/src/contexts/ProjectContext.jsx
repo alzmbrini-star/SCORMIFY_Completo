@@ -346,6 +346,62 @@ export const ProjectProvider = ({ children }) => {
     }
   }, [currentProject, fetchProject]);
 
+  const removeGlobalAudio = useCallback(async () => {
+    if (!currentProject) return;
+    try {
+      await axios.delete(`${API_URL}/projects/${currentProject.id}/global-audio`);
+      await fetchProject(currentProject.id);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [currentProject, fetchProject]);
+
+  const updateGlobalAudioVolume = useCallback(async (volume) => {
+    if (!currentProject) return;
+    try {
+      const response = await axios.put(
+        `${API_URL}/projects/${currentProject.id}/global-audio/volume`,
+        null,
+        { params: { volume } }
+      );
+      await fetchProject(currentProject.id);
+      return response.data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [currentProject, fetchProject]);
+
+  const removeSlideAudio = useCallback(async (slideId, audioId) => {
+    if (!currentProject) return;
+    try {
+      await axios.delete(
+        `${API_URL}/projects/${currentProject.id}/slides/${slideId}/audio/${audioId}`
+      );
+      await fetchProject(currentProject.id);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [currentProject, fetchProject]);
+
+  const updateSlideAudioVolume = useCallback(async (slideId, audioId, volume) => {
+    if (!currentProject) return;
+    try {
+      const response = await axios.put(
+        `${API_URL}/projects/${currentProject.id}/slides/${slideId}/audio/${audioId}/volume`,
+        null,
+        { params: { volume } }
+      );
+      await fetchProject(currentProject.id);
+      return response.data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [currentProject, fetchProject]);
+
   const addAnnotation = useCallback(async (slideId, annotationData) => {
     if (!currentProject) return;
     try {
