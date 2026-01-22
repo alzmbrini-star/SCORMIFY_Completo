@@ -682,8 +682,23 @@ const SlideCanvas = ({
                 fill="none"
               />
             )}
+            
+            {/* Selection highlight */}
+            {isSelected && (
+              <rect
+                x={bounds.minX - 5}
+                y={bounds.minY - 5}
+                width={bounds.maxX - bounds.minX + 10}
+                height={bounds.maxY - bounds.minY + 10}
+                stroke="#3B82F6"
+                strokeWidth={2}
+                strokeDasharray="5,5"
+                fill="none"
+              />
+            )}
           </g>
-        ))}
+        );
+        })}
 
         {/* Current drawing preview */}
         {isDrawing && annotationPoints.length > 0 && (
