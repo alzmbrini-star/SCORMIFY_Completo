@@ -59,6 +59,19 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ## Recent Bug Fixes (January 2026)
 
+### Annotation Tools Bug - FIXED (Jan 22, 2026)
+- **Issue**: Annotation tools (setas, círculos, retângulos) desapareciam após serem desenhadas
+- **Root Cause**: A condição `annotationPoints.length > 2` no `handleMouseUp` exigia mais de 2 pontos, mas formas como seta, círculo e retângulo usam apenas 2 pontos (início e fim)
+- **Fix Applied**:
+  1. Alterado condição para `annotationPoints.length >= minPoints` onde `minPoints` é 3 para freehand e 2 para shapes
+  2. Adicionado suporte completo para renderização de arrow, circle, rectangle na exportação SCORM (scorm_exporter.py)
+  3. Definido `includeInExport: true` como padrão e aumentado `strokeWidth` para 3
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - handleMouseUp (linhas 224-236)
+  - `/app/backend/services/scorm_exporter.py` - renderAnnotation function (expandido para todos os tipos)
+- **Status**: FIXED AND TESTED (8/8 testes passando)
+- **Verification**: Anotações agora persistem após desenho, são salvas no banco e aparecem na exportação SCORM
+
 ### Audio Management Features - ADDED
 - **New Features**: 
   1. Remove global audio (trilha sonora)
