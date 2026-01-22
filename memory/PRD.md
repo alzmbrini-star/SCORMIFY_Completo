@@ -20,6 +20,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - [x] High-fidelity slide rendering (slides as PNG images)
 - [x] Slide editor with canvas
 - [x] Text, shape, image, video elements (overlay on slide images)
+- [x] Video resize and move functionality
 - [x] Timeline for animations
 - [x] Audio recording (Web Audio API)
 - [x] Audio upload (slide-specific or global soundtrack)
@@ -52,6 +53,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - Toolbar: Text, Shape, Image, Video, Annotations, Recording
   - Timeline: Element tracks and playhead
 - **Audio Upload Dialog**: Choose between "Slide Atual" or "Todos os Slides"
+- **Video Element Controls**: Resize handles, move functionality, delete button
 - Theme toggle (dark/light)
 - Export dialog with download
 
@@ -64,6 +66,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   1. Added Audio Upload Dialog with options "Slide Atual" and "Todos os Slides"
   2. Backend adjusted to receive audio_type via Form() instead of query parameter
 - **Status**: CONFIRMED FIXED (verified by testing agent)
+
+### Video Resize/Move Bug - FIXED
+- **Issue**: Video elements were difficult to resize and move because the iframe captured all mouse events
+- **Root Cause**: The YouTube/Vimeo iframe was intercepting all click/drag events
+- **Fix Applied**:
+  1. Added transparent overlay on video elements to capture mouse events
+  2. Set `pointer-events: none` on iframe/video elements
+  3. Enlarged resize handles for easier grabbing (4x4 corners, 8x3/3x8 edges)
+  4. Added hover effects on resize handles
+  5. Added visual indicators (YouTube/Vimeo badge, "Double-click to play" hint)
+- **Status**: FIXED AND TESTED
 
 ## Prioritized Backlog
 
@@ -135,3 +148,4 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - Slides are rendered as PNG images for high fidelity
 - Editable elements are overlaid on top of slide images
 - Asset URLs differ between editor (absolute) and SCORM package (relative)
+- Video elements use transparent overlay to allow manipulation while preventing iframe event capture
