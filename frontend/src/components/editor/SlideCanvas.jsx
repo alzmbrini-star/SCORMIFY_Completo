@@ -810,8 +810,18 @@ const SlideCanvas = ({
             }}
             onClick={async (e) => {
               e.stopPropagation();
+              e.preventDefault();
+              console.log('Delete button clicked!', { slideId: slide.id, annotationId: selectedAnnotationId });
+              
+              if (!slide.id || !selectedAnnotationId) {
+                console.error('Missing slide.id or selectedAnnotationId', { slideId: slide.id, annotationId: selectedAnnotationId });
+                return;
+              }
+              
               try {
-                await deleteAnnotation(slide.id, selectedAnnotationId);
+                console.log('Calling deleteAnnotation...');
+                const result = await deleteAnnotation(slide.id, selectedAnnotationId);
+                console.log('deleteAnnotation result:', result);
                 setSelectedAnnotationId(null);
               } catch (err) {
                 console.error('Failed to delete annotation:', err);
