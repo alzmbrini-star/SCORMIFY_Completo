@@ -222,6 +222,7 @@ export default function Editor() {
   const recordingIntervalRef = useRef(null);
   const fileInputRef = useRef(null);
   const audioPlayerRef = useRef(null);
+  const isRecordingRef = useRef(false); // Track recording state for cleanup
 
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
