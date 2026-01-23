@@ -220,6 +220,7 @@ var CoursePlayer = (function() {
     var slideTimer = null;
     var audioContext = null;
     var globalAudio = null;
+    var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     
     function loadCourse(courseData) {
         course = courseData;
@@ -254,7 +255,23 @@ var CoursePlayer = (function() {
         }
     }
     
+    // Stop all currently playing slide audios
+    function stopAllSlideAudios() {
+        activeSlideAudios.forEach(function(audio) {
+            try {
+                audio.pause();
+                audio.currentTime = 0;
+            } catch(e) {
+                console.log('Error stopping audio:', e);
+            }
+        });
+        activeSlideAudios = [];
+    }
+    
     function renderSlide(index) {
+        // Stop any playing slide audio before rendering new slide
+        stopAllSlideAudios();
+        
         var slide = course.slides[index];
         var container = document.getElementById('slide-container');
         var wrapper = document.getElementById('slide-wrapper');
