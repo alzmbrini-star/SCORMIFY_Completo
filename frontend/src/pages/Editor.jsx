@@ -1324,15 +1324,11 @@ export default function Editor() {
 
 // Element Properties Panel
 function ElementProperties({ element, onUpdate }) {
-  const [localStyle, setLocalStyle] = useState(element.style || {});
-
-  useEffect(() => {
-    setLocalStyle(element.style || {});
-  }, [element]);
+  // Use element.style directly with fallback, no local state needed
+  const style = element.style || {};
 
   const handleStyleChange = (key, value) => {
-    const newStyle = { ...localStyle, [key]: value };
-    setLocalStyle(newStyle);
+    const newStyle = { ...style, [key]: value };
     onUpdate({ style: newStyle });
   };
 
