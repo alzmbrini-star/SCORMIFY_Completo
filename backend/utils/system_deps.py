@@ -79,8 +79,24 @@ def check_and_install_poppler():
         logger.info(f"✓ poppler-utils found at: {pdftoppm_path}")
         return True
     
-    logger.warning("⚠ poppler-utils not found. Will be installed with LibreOffice.")
-    return False
+    logger.warning("⚠ poppler-utils not found. Attempting to install...")
+    
+    try:
+        install_cmd = [
+            'sudo', 'apt-get', 'install', '-y', '-qq', 'poppler-utils'
+        ]
+        subprocess.run(install_cmd, check=True, capture_output=True, timeout=120)
+        
+        pdftoppm_path = shutil.which('pdftoppm')
+        if pdftoppm_path:
+            logger.info(f"✓ poppler-utils installed successfully at: {pdftoppm_path}")
+            return True
+        else:
+            logger.error("✗ poppler-utils installation failed")
+            return False
+    except Exception as e:
+        logger.error(f"✗ Error installing poppler-utils: {e}")
+        return False
 
 
 def ensure_system_dependencies():
