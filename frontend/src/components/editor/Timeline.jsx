@@ -171,15 +171,16 @@ const Timeline = ({
   };
 
   // Clip dragging handlers
-  const handleClipMouseDown = (e, element, type) => {
+  const handleClipMouseDown = (e, item, type, itemType = 'element') => {
     e.stopPropagation();
     e.preventDefault();
-    setIsDraggingClip(element.id);
+    setIsDraggingClip(item.id);
     setDragType(type);
+    setDragItemType(itemType);
     setDragStartX(e.clientX);
     setDragStartTime({
-      start: element.startTime || 0,
-      end: element.endTime ?? duration,
+      start: item.startTime || 0,
+      end: item.endTime ?? duration,
     });
   };
 
@@ -190,8 +191,14 @@ const Timeline = ({
     const deltaX = e.clientX - dragStartX;
     const deltaTime = (deltaX / rect.width) * duration;
 
-    const element = elements.find(el => el.id === isDraggingClip);
-    if (!element) return;
+    // Find the item (element or annotation)
+    let item;
+    if (dragItemType === 'annotation') {
+      item = annotations.find(a => a.id === isDraggingClip);
+    } else {
+      item = elements.find(el => el.id === isDraggingClip);
+    }
+    if (!item) return;
 
     const minDuration = 0.5; // Minimum clip duration
 
@@ -208,16 +215,25 @@ const Timeline = ({
       newEndTime = Math.max(dragStartTime.start + minDuration, Math.min(duration, dragStartTime.end + deltaTime));
     }
 
-    // Update element timing
-    if (onUpdateElement) {
-      onUpdateElement(element.id, {
+    // Update timing based on item type
+    if (dragItemType === 'annotation' && onUpdateAnnotation) {
+      onUpdateAnnotation(item.id, {
+        startTime: parseFloat(newStartTime.toFixed(2)),
+        endTime: parseFloat(newEndTime.toFixed(2)),
+      });
+    } else if (onUpdateElement) {
+      onUpdateElement(item.id, {
         startTime: parseFloat(newStartTime.toFixed(2)),
         endTime: parseFloat(newEndTime.toFixed(2)),
       });
     }
-  }, [isDraggingClip, dragType, dragStartX, dragStartTime, duration, elements, onUpdateElement]);
+  }, [isDraggingClip, dragType, dragItemType, dragStartX, dragStartTime, duration, elements, annotations, onUpdateElement, onUpdateAnnotation]);
 
   const handleMouseUp = useCallback(() => {
+    setIsDraggingClip(null);
+    setDragType(null);
+    setDragItemType(null);
+  }, []);
     setIsDraggingClip(null);
     setDragType(null);
   }, []);
