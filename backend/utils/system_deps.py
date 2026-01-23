@@ -14,22 +14,45 @@ def check_and_install_libreoffice():
     Check if LibreOffice is installed and install it if not.
     This ensures the PPT conversion always works, even after container restarts.
     """
-    # Check if libreoffice is available
+    # Check if libreoffice is available and working
     libreoffice_path = shutil.which('libreoffice')
     
     if libreoffice_path:
-        logger.info(f"✓ LibreOffice found at: {libreoffice_path}")
-        return True
+        # Verify it actually works
+        try:
+            result = subprocess.run(
+                [libreoffice_path, '--version'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0 and 'LibreOffice' in result.stdout:
+                logger.info(f"✓ LibreOffice found at: {libreoffice_path}")
+                return True
+        except Exception as e:
+            logger.warning(f"LibreOffice found but not working: {e}")
     
-    logger.warning("⚠ LibreOffice not found. Attempting to install...")
+    logger.warning("⚠ LibreOffice not found or not working. Attempting to install...")
     
     try:
-        # Update package list and install libreoffice + poppler-utils
-        install_cmd = [
-            'sudo', 'apt-get', 'update', '-qq'
-        ]
-        subprocess.run(install_cmd, check=True, capture_output=True, timeout=120)
+        # First, fix any dpkg issues
+        logger.info("Fixing any dpkg issues...")
+        subprocess.run(
+            ['sudo', 'dpkg', '--configure', '-a'],
+            capture_output=True,
+            timeout=120
+        )
         
+        # Update package list
+        logger.info("Updating package list...")
+        subprocess.run(
+            ['sudo', 'apt-get', 'update', '-qq'],
+            capture_output=True,
+            timeout=120
+        )
+        
+        # Install libreoffice and poppler-utils
+        logger.info("Installing LibreOffice and poppler-utils...")
         install_cmd = [
             'sudo', 'apt-get', 'install', '-y', '-qq',
             'libreoffice', 'poppler-utils'
