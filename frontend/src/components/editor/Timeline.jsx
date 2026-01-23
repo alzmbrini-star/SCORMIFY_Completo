@@ -233,23 +233,47 @@ const Timeline = ({
     }
   }, [isDraggingClip, handleMouseMove, handleMouseUp]);
 
-  const getElementIcon = (type) => {
+  const getElementIcon = (type, shapeType) => {
     switch (type) {
       case 'text': return <Type className="w-3 h-3" />;
       case 'image': return <Image className="w-3 h-3" />;
       case 'shape': return <Square className="w-3 h-3" />;
       case 'video': return <Video className="w-3 h-3" />;
+      // Annotation types
+      case 'arrow': return <ArrowRight className="w-3 h-3" />;
+      case 'circle': return <Circle className="w-3 h-3" />;
+      case 'rectangle': return <Square className="w-3 h-3" />;
+      case 'freehand': return <Pencil className="w-3 h-3" />;
       default: return <Square className="w-3 h-3" />;
     }
   };
 
-  const getClipColor = (type) => {
+  const getClipColor = (type, isAnnotation = false) => {
+    if (isAnnotation) {
+      switch (type) {
+        case 'arrow': return 'bg-red-500/40 border-red-500/60';
+        case 'circle': return 'bg-orange-500/40 border-orange-500/60';
+        case 'rectangle': return 'bg-yellow-500/40 border-yellow-500/60';
+        case 'freehand': return 'bg-pink-500/40 border-pink-500/60';
+        default: return 'bg-red-500/40 border-red-500/60';
+      }
+    }
     switch (type) {
       case 'text': return 'bg-blue-500/40 border-blue-500/60';
       case 'image': return 'bg-purple-500/40 border-purple-500/60';
       case 'shape': return 'bg-amber-500/40 border-amber-500/60';
       case 'video': return 'bg-rose-500/40 border-rose-500/60';
       default: return 'bg-slate-500/40 border-slate-500/60';
+    }
+  };
+
+  const getAnnotationLabel = (type) => {
+    switch (type) {
+      case 'arrow': return 'Seta';
+      case 'circle': return 'Círculo';
+      case 'rectangle': return 'Retângulo';
+      case 'freehand': return 'Desenho';
+      default: return 'Anotação';
     }
   };
 
