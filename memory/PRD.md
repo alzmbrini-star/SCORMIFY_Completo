@@ -159,6 +159,25 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - Image resized to 920x500 (95.8% x 92.6% coverage) 
   - SCORM export shows correct: `style="left:20px; top:20px; width:920px; height:500px"`
 
+### Timeline Synchronization Feature - IMPLEMENTED (Jan 23, 2026)
+- **Issue**: A Timeline era apenas um placeholder visual sem funcionalidade real
+- **Solution Implemented**:
+  1. Adicionados campos `startTime` e `endTime` ao modelo `SlideElement` no backend
+  2. Criada sincronização entre Timeline e SlideCanvas - elementos aparecem/desaparecem baseado no tempo
+  3. Implementado arrasto de clipes na timeline para ajustar tempos
+  4. Adicionados handles de início/fim para ajuste preciso
+  5. Playhead se move durante reprodução
+  6. Controles de Play/Pause/Reset funcionando
+  7. Highlight visual no clipe ativo (ring cyan)
+  8. Tooltips com informação de tempo em cada clipe
+  9. Persistência dos valores no MongoDB
+- **Files Modified**:
+  - `/app/backend/models.py` - Adicionados campos startTime/endTime ao SlideElement e ElementUpdate
+  - `/app/frontend/src/components/editor/Timeline.jsx` - Reescrito com funcionalidade completa
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - Filtro de elementos por tempo
+  - `/app/frontend/src/pages/Editor.jsx` - Estado compartilhado de timeline
+- **Status**: IMPLEMENTED AND TESTED
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
@@ -166,7 +185,8 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ### P1 (High Priority)
 - [ ] PPT animation extraction and playback
-- [ ] Drag & drop slide reordering
+- [x] Drag & drop slide reordering (DONE)
+- [x] Timeline synchronization (DONE)
 - [ ] Element copy/paste
 - [ ] Undo/redo history
 - [ ] Gravação de áudio pelo microfone (melhorias)
@@ -176,7 +196,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - [ ] WordArt support
 - [ ] Chart rendering
 - [ ] Multiple audio tracks per slide
-- [ ] Animation timeline editor
+- [x] Animation timeline editor (DONE - Timeline now functional)
 - [ ] SCORM tracking avançado (cmi.core.lesson_status, cmi.core.total_time)
 
 ### P3 (Future)
