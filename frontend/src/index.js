@@ -4,17 +4,31 @@ import "@/index.css";
 import App from "@/App";
 
 // Suppress ResizeObserver loop errors (common in React, non-critical)
-const resizeObserverErr = window.addEventListener('error', (e) => {
+window.addEventListener('error', (e) => {
   if (e.message && e.message.includes('ResizeObserver loop')) {
     e.stopImmediatePropagation();
     e.preventDefault();
   }
 });
 
-// Also handle unhandled promise rejections for ResizeObserver
+// Handle unhandled promise rejections
 window.addEventListener('unhandledrejection', (e) => {
-  if (e.reason && e.reason.message && e.reason.message.includes('ResizeObserver')) {
+  // Suppress ResizeObserver errors
+  if (e.reason?.message?.includes('ResizeObserver')) {
     e.preventDefault();
+    return;
+  }
+  // Suppress Axios 404 errors (handled by components)
+  if (e.reason?.response?.status === 404) {
+    console.warn('Unhandled 404:', e.reason?.config?.url);
+    e.preventDefault();
+    return;
+  }
+  // Suppress network errors (handled by components)
+  if (e.reason?.code === 'ERR_NETWORK' || e.reason?.message?.includes('Network Error')) {
+    console.warn('Network error suppressed');
+    e.preventDefault();
+    return;
   }
 });
 
