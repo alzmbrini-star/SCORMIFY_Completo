@@ -142,12 +142,10 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
         
         # Method 2: Direct PNG (last resort - only first slide)
         logger.warning("PDF method failed, trying direct PNG (will only get first slide)")
-        cmd = f'"{libreoffice_path}" --headless --invisible --convert-to png --outdir "{output_path}"
-            pptx_path
-        ]
+        cmd = f'"{libreoffice_path}" --headless --invisible --convert-to png --outdir "{output_path}" "{pptx_path}"'
         
-        logger.info(f"Fallback conversion: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        logger.info(f"Fallback conversion: {cmd}")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
         
         png_files = sorted(output_path.glob("*.png"))
         return [str(f) for f in png_files]
