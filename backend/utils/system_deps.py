@@ -34,7 +34,7 @@ def check_and_install_libreoffice():
             'sudo', 'apt-get', 'install', '-y', '-qq',
             'libreoffice', 'poppler-utils'
         ]
-        result = subprocess.run(install_cmd, check=True, capture_output=True, timeout=300)
+        subprocess.run(install_cmd, check=True, capture_output=True, timeout=300)
         
         # Verify installation
         libreoffice_path = shutil.which('libreoffice')
@@ -50,7 +50,7 @@ def check_and_install_libreoffice():
                     timeout=10
                 )
                 logger.info(f"  Version: {version_result.stdout.strip()}")
-            except:
+            except Exception:
                 pass
             
             return True
