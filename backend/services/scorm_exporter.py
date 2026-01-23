@@ -635,8 +635,9 @@ var CoursePlayer = (function() {
         var color = annotation.color || '#EF4444';
         var strokeWidth = annotation.strokeWidth || 3;
         var points = annotation.points || [];
+        var shapeType = annotation.shapeType || annotation.type;
         
-        if (annotation.type === 'freehand' && points.length > 0) {
+        if (shapeType === 'freehand' && points.length > 0) {
             var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             path.setAttribute('stroke', color);
             path.setAttribute('stroke-width', strokeWidth);
@@ -650,7 +651,7 @@ var CoursePlayer = (function() {
             path.setAttribute('d', d);
             svg.appendChild(path);
         }
-        else if (annotation.type === 'arrow' && points.length >= 2) {
+        else if (shapeType === 'arrow' && points.length >= 2) {
             // Create arrowhead marker
             var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
@@ -677,7 +678,7 @@ var CoursePlayer = (function() {
             line.setAttribute('marker-end', 'url(#arrowhead-' + annotation.id + ')');
             svg.appendChild(line);
         }
-        else if (annotation.type === 'circle' && points.length >= 2) {
+        else if ((shapeType === 'circle' || shapeType === 'ellipse') && points.length >= 2) {
             var cx = (points[0].x + points[1].x) / 2;
             var cy = (points[0].y + points[1].y) / 2;
             var rx = Math.abs(points[1].x - points[0].x) / 2;
@@ -692,7 +693,7 @@ var CoursePlayer = (function() {
             ellipse.setAttribute('fill', 'none');
             svg.appendChild(ellipse);
         }
-        else if (annotation.type === 'rectangle' && points.length >= 2) {
+        else if ((shapeType === 'rectangle' || shapeType === 'rect') && points.length >= 2) {
             var x = Math.min(points[0].x, points[1].x);
             var y = Math.min(points[0].y, points[1].y);
             var width = Math.abs(points[1].x - points[0].x);
@@ -709,6 +710,7 @@ var CoursePlayer = (function() {
         }
         
         container.appendChild(svg);
+        return svg; // Return the created element for timeline control
     }
     
     function playSlideAudio(audioList) {
