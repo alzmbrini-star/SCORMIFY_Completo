@@ -933,6 +933,73 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         #global-audio {{
             display: none;
         }}
+        
+        /* Start overlay styles */
+        #start-overlay {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 60px;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }}
+        
+        .start-overlay-content {{
+            text-align: center;
+            color: #fff;
+            padding: 40px;
+            max-width: 400px;
+        }}
+        
+        .start-overlay-icon {{
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }}
+        
+        @keyframes pulse {{
+            0%, 100% {{ transform: scale(1); opacity: 1; }}
+            50% {{ transform: scale(1.1); opacity: 0.8; }}
+        }}
+        
+        .start-overlay-content h2 {{
+            font-size: 24px;
+            margin: 0 0 10px 0;
+            color: #f1f5f9;
+        }}
+        
+        .start-overlay-content p {{
+            font-size: 14px;
+            color: #94a3b8;
+            margin: 0 0 30px 0;
+        }}
+        
+        .start-btn {{
+            background: linear-gradient(135deg, #7c3aed, #06b6d4);
+            border: none;
+            color: #fff;
+            padding: 16px 40px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+        }}
+        
+        .start-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(124, 58, 237, 0.6);
+        }}
+        
+        .start-btn:active {{
+            transform: translateY(0);
+        }}
     </style>
 </head>
 <body>
