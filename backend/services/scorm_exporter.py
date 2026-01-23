@@ -602,9 +602,14 @@ var CoursePlayer = (function() {
     }
     
     function playSlideAudio(audioList) {
+        // Clear any previously tracked audios
+        stopAllSlideAudios();
+        
         audioList.forEach(function(audio) {
             var audioEl = new Audio(audio.src);
             audioEl.volume = audio.volume || 1;
+            // Track this audio so we can stop it later
+            activeSlideAudios.push(audioEl);
             audioEl.play().catch(function(e) {
                 console.log('Audio autoplay blocked');
             });
