@@ -1182,7 +1182,6 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
         slide_height = int(course.slides[0].height)
     
     # Clean the course title - remove UUID prefix if present
-    import re
     clean_title = course.metadata.title or project.name
     # Remove UUID pattern at the beginning (e.g., "a87fd1a0-1338-4043-9c2f-b0cc8572a12e_")
     clean_title = re.sub(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_?', '', clean_title)
