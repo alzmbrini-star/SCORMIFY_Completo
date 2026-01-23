@@ -799,6 +799,39 @@ async def add_annotation(project_id: str, slide_id: str, data: AnnotationCreate)
     
     return annotation.model_dump()
 
+@api_router.put("/projects/{project_id}/slides/{slide_id}/annotations/{annotation_id}")
+async def update_annotation(project_id: str, slide_id: str, annotation_id: str, update_data: dict):
+    """Update annotation (for timeline settings)"""
+    from models import AnnotationUpdate
+    
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    slides = course.get('slides', [])
+    
+    slide_index = next((i for i, s in enumerate(slides) if s.get('id') == slide_id), None)
+    if slide_index is None:
+        raise HTTPException(status_code=404, detail="Slide not found")
+    
+    annotations = slides[slide_index].get('annotations', [])
+    annotation_index = next((i for i, a in enumerate(annotations) if a.get('id') == annotation_id), None)
+    if annotation_index is None:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    
+    # Update annotation with new data
+    for key, value in update_data.items():
+        if value is not None:
+            annotations[annotation_index][key] = value
+    
+    slides[slide_index]['annotations'] = annotations
+    course['slides'] = slides
+    
+    await update_project(project_id, {"course": course})
+    
+    return annotations[annotation_index]
+
 @api_router.delete("/projects/{project_id}/slides/{slide_id}/annotations/{annotation_id}")
 async def delete_annotation(project_id: str, slide_id: str, annotation_id: str):
     """Delete annotation"""
