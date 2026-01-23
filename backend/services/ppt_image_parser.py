@@ -18,6 +18,7 @@ from models import (
     Course, CourseMetadata, Slide, SlideElement, ElementStyle,
     Animation, SlideTransition
 )
+from utils.system_deps import get_libreoffice_path, ensure_system_dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,19 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
     temp_dir.mkdir(exist_ok=True)
     
     # Find libreoffice executable
-    libreoffice_path = shutil.which('libreoffice') or '/usr/bin/libreoffice'
+    libreoffice_path = get_libreoffice_path()
+    
+    # If LibreOffice not found, try to install it
+    if not libreoffice_path:
+        logger.warning("LibreOffice not found, attempting to install...")
+        ensure_system_dependencies()
+        libreoffice_path = get_libreoffice_path()
+    
+    if not libreoffice_path:
+        raise RuntimeError(
+            "LibreOffice is required for PPT conversion but could not be found or installed. "
+            "Please install LibreOffice manually: sudo apt-get install libreoffice"
+        )
     
     try:
         # First convert PPTX to PDF using LibreOffice
