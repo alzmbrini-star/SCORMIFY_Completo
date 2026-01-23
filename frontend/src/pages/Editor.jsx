@@ -208,6 +208,10 @@ export default function Editor() {
   const [audioFile, setAudioFile] = useState(null);
   const [audioTarget, setAudioTarget] = useState('slide'); // 'slide' or 'global'
   
+  // Timeline playback state (shared between Timeline and SlideCanvas)
+  const [timelineTime, setTimelineTime] = useState(0);
+  const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
+  
   // Audio playback states
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [globalAudioVolume, setGlobalAudioVolume] = useState(0.5);
