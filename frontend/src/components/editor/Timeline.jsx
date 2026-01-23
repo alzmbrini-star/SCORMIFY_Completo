@@ -167,6 +167,7 @@ const Timeline = ({
   // Clip dragging handlers
   const handleClipMouseDown = (e, element, type) => {
     e.stopPropagation();
+    e.preventDefault();
     setIsDraggingClip(element.id);
     setDragType(type);
     setDragStartX(e.clientX);
