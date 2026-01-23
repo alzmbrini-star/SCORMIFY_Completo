@@ -22,9 +22,22 @@ from models import (
 from services.ppt_parser import parse_pptx
 from services.ppt_image_parser import parse_pptx_high_fidelity
 from services.scorm_exporter import export_scorm_package
+from utils.system_deps import ensure_system_dependencies
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Check and install system dependencies (LibreOffice, poppler-utils)
+# This runs at startup to ensure PPT conversion always works
+logger.info("Starting Scormify API server...")
+ensure_system_dependencies()
 
 # Storage directories
 STORAGE_DIR = ROOT_DIR / "storage"
