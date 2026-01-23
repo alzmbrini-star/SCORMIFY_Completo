@@ -232,9 +232,6 @@ const Timeline = ({
   const handleMouseUp = useCallback(() => {
     setIsDraggingClip(null);
     setDragType(null);
-  const handleMouseUp = useCallback(() => {
-    setIsDraggingClip(null);
-    setDragType(null);
     setDragItemType(null);
   }, []);
 
