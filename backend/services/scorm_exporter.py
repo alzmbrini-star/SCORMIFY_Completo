@@ -763,7 +763,8 @@ var CoursePlayer = (function() {
         prev: prevSlide,
         goTo: goToSlide,
         fullscreen: toggleFullscreen,
-        playAudio: playGlobalAudio
+        playAudio: playGlobalAudio,
+        startCourse: hideStartOverlay
     };
 })();
 
