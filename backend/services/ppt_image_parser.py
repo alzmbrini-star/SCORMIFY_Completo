@@ -106,19 +106,15 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
     temp_dir = output_path / "temp_fallback"
     temp_dir.mkdir(exist_ok=True)
     
+    # Find libreoffice executable
+    libreoffice_path = shutil.which('libreoffice') or '/usr/bin/libreoffice'
+    
     try:
         # Method 1: Convert to PDF first, then use pdftoppm directly
-        cmd_pdf = [
-            'libreoffice',
-            '--headless',
-            '--invisible',
-            '--convert-to', 'pdf',
-            '--outdir', str(temp_dir),
-            pptx_path
-        ]
+        cmd_pdf = f'"{libreoffice_path}" --headless --invisible --convert-to pdf --outdir "{temp_dir}" "{pptx_path}"'
         
-        logger.info(f"Fallback: Converting to PDF first: {' '.join(cmd_pdf)}")
-        result = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=120)
+        logger.info(f"Fallback: Converting to PDF first: {cmd_pdf}")
+        result = subprocess.run(cmd_pdf, shell=True, capture_output=True, text=True, timeout=120)
         
         pdf_files = list(temp_dir.glob("*.pdf"))
         if pdf_files:
@@ -126,16 +122,10 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
             
             # Use pdftoppm to convert PDF to images
             output_prefix = str(output_path / "slide")
-            cmd_pdftoppm = [
-                'pdftoppm',
-                '-png',
-                '-r', '150',
-                str(pdf_path),
-                output_prefix
-            ]
+            cmd_pdftoppm = f'pdftoppm -png -r 150 "{pdf_path}" "{output_prefix}"'
             
-            logger.info(f"Converting PDF to images: {' '.join(cmd_pdftoppm)}")
-            result = subprocess.run(cmd_pdftoppm, capture_output=True, text=True, timeout=120)
+            logger.info(f"Converting PDF to images: {cmd_pdftoppm}")
+            result = subprocess.run(cmd_pdftoppm, shell=True, capture_output=True, text=True, timeout=120)
             
             # pdftoppm creates files like slide-1.png, slide-2.png, etc.
             png_files = sorted(output_path.glob("slide-*.png"))
@@ -152,12 +142,7 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
         
         # Method 2: Direct PNG (last resort - only first slide)
         logger.warning("PDF method failed, trying direct PNG (will only get first slide)")
-        cmd = [
-            'libreoffice',
-            '--headless',
-            '--invisible',
-            '--convert-to', 'png',
-            '--outdir', str(output_path),
+        cmd = f'"{libreoffice_path}" --headless --invisible --convert-to png --outdir "{output_path}"
             pptx_path
         ]
         
