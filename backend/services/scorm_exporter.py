@@ -410,11 +410,39 @@ var CoursePlayer = (function() {
             }
         });
         
-        // Render annotations if included in export
+        // Render annotations if included in export (with timeline support)
         if (slide.annotations) {
             slide.annotations.forEach(function(annotation) {
                 if (annotation.includeInExport) {
-                    renderAnnotation(container, annotation);
+                    var annotationEl = renderAnnotation(container, annotation);
+                    if (annotationEl) {
+                        // Check if annotation has timeline settings
+                        var startTime = annotation.startTime || 0;
+                        var endTime = annotation.endTime !== undefined && annotation.endTime !== null ? annotation.endTime : slideDuration;
+                        
+                        // If annotation should not appear immediately, hide it
+                        if (startTime > 0) {
+                            annotationEl.style.opacity = '0';
+                            annotationEl.style.visibility = 'hidden';
+                            annotationEl.style.transition = 'opacity 0.3s ease-in-out';
+                            
+                            // Schedule annotation to appear at startTime
+                            var showTimer = setTimeout(function() {
+                                annotationEl.style.opacity = '1';
+                                annotationEl.style.visibility = 'visible';
+                            }, startTime * 1000);
+                            window.slideTimelineTimers.push(showTimer);
+                        }
+                        
+                        // Schedule annotation to hide at endTime (if endTime is before slide duration)
+                        if (endTime < slideDuration) {
+                            var hideTimer = setTimeout(function() {
+                                annotationEl.style.opacity = '0';
+                                annotationEl.style.visibility = 'hidden';
+                            }, endTime * 1000);
+                            window.slideTimelineTimers.push(hideTimer);
+                        }
+                    }
                 }
             });
         }
