@@ -15,6 +15,9 @@ import {
   Square,
   Video,
   Music,
+  Circle,
+  ArrowRight,
+  Pencil,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -26,6 +29,7 @@ const Timeline = ({
   slide, 
   onUpdateSlide, 
   onUpdateElement,
+  onUpdateAnnotation,
   currentTime: externalTime,
   isPlaying: externalIsPlaying,
   onTimeChange,
@@ -36,6 +40,7 @@ const Timeline = ({
   const [isMuted, setIsMuted] = useState(false);
   const [isDraggingClip, setIsDraggingClip] = useState(null);
   const [dragType, setDragType] = useState(null); // 'move', 'start', 'end'
+  const [dragItemType, setDragItemType] = useState(null); // 'element' or 'annotation'
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState({ start: 0, end: 0 });
   const timelineRef = useRef(null);
@@ -51,6 +56,7 @@ const Timeline = ({
 
   const duration = slide?.duration || 10;
   const elements = slide?.elements || [];
+  const annotations = slide?.annotations || [];
   const audioList = slide?.audio || [];
 
   // Animation loop
