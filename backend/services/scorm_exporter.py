@@ -221,6 +221,7 @@ var CoursePlayer = (function() {
     var audioContext = null;
     var globalAudio = null;
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
+    var userHasInteracted = false; // Track if user has interacted with the page
     
     function loadCourse(courseData) {
         course = courseData;
@@ -240,10 +241,50 @@ var CoursePlayer = (function() {
             setupGlobalAudio();
         }
         
+        // Check if first slide has audio and show start overlay
+        checkAndShowStartOverlay();
+        
         // Recalculate scale on window resize
         window.addEventListener('resize', function() {
             renderSlide(currentSlide);
         });
+    }
+    
+    function checkAndShowStartOverlay() {
+        // Only show overlay if on first slide and it has audio (or global audio)
+        var firstSlide = course.slides[0];
+        var hasAudio = (firstSlide.audio && firstSlide.audio.length > 0) || 
+                       (course.globalAudio && course.globalAudio.src);
+        
+        if (currentSlide === 0 && hasAudio && !userHasInteracted) {
+            showStartOverlay();
+        }
+    }
+    
+    function showStartOverlay() {
+        var overlay = document.getElementById('start-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+        }
+    }
+    
+    function hideStartOverlay() {
+        var overlay = document.getElementById('start-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+        userHasInteracted = true;
+        
+        // Now play the audio
+        var firstSlide = course.slides[0];
+        if (firstSlide.audio && firstSlide.audio.length > 0) {
+            playSlideAudio(firstSlide.audio);
+        }
+        if (globalAudio) {
+            globalAudio.play().catch(function(e) {
+                console.log('Global audio play failed:', e);
+            });
+        }
     }
     
     function setupGlobalAudio() {
