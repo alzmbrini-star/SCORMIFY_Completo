@@ -808,20 +808,23 @@ const SlideCanvas = ({
               left: `${(minX - 15) * scale}px`,
               top: `${(minY - 15) * scale}px`,
             }}
+            onMouseDown={(e) => {
+              e.stopPropagation(); // Prevent canvas mousedown from deselecting
+            }}
             onClick={async (e) => {
               e.stopPropagation();
               e.preventDefault();
-              console.log('Delete button clicked!', { slideId: slide.id, annotationId: selectedAnnotationId });
               
-              if (!slide.id || !selectedAnnotationId) {
-                console.error('Missing slide.id or selectedAnnotationId', { slideId: slide.id, annotationId: selectedAnnotationId });
+              const annotationIdToDelete = selectedAnnotationId;
+              const slideIdToUse = slide.id;
+              
+              if (!slideIdToUse || !annotationIdToDelete) {
+                console.error('Missing slide.id or annotationId');
                 return;
               }
               
               try {
-                console.log('Calling deleteAnnotation...');
-                const result = await deleteAnnotation(slide.id, selectedAnnotationId);
-                console.log('deleteAnnotation result:', result);
+                await deleteAnnotation(slideIdToUse, annotationIdToDelete);
                 setSelectedAnnotationId(null);
               } catch (err) {
                 console.error('Failed to delete annotation:', err);
