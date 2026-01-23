@@ -28,6 +28,8 @@ const SlideCanvas = ({
   onUpdateElement,
   onDeleteElement,
   annotationMode,
+  timelineTime = 0,
+  timelineIsPlaying = false,
 }) => {
   const canvasRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
