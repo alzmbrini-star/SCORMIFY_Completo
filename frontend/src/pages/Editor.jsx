@@ -190,6 +190,7 @@ export default function Editor() {
     updateGlobalAudioVolume,
     removeSlideAudio,
     updateSlideAudioVolume,
+    updateAnnotation,
     exportScorm,
   } = useProject();
 
