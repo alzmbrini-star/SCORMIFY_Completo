@@ -527,8 +527,74 @@ const Timeline = ({
             );
           })}
 
+          {/* Annotation Tracks */}
+          {annotations.map((annotation) => {
+            const startTime = annotation.startTime || 0;
+            const endTime = annotation.endTime ?? duration;
+            const startPercent = (startTime / duration) * 100;
+            const widthPercent = ((endTime - startTime) / duration) * 100;
+            const isActive = currentTime >= startTime && currentTime < endTime;
+            const isDragging = isDraggingClip === annotation.id;
+            const shapeType = annotation.shapeType || annotation.type;
+
+            return (
+              <div key={annotation.id} className="h-10 relative border-b border-border/30">
+                {/* Annotation clip */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={`absolute h-7 top-1.5 rounded border flex items-center group ${getClipColor(shapeType, true)} ${
+                        isActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''
+                      } ${isDragging ? 'opacity-75' : ''}`}
+                      style={{
+                        left: `${startPercent}%`,
+                        width: `${widthPercent}%`,
+                        minWidth: '30px',
+                        cursor: isDragging ? 'grabbing' : 'grab',
+                      }}
+                      onMouseDown={(e) => handleClipMouseDown(e, annotation, 'move', 'annotation')}
+                      data-testid={`timeline-annotation-${annotation.id}`}
+                    >
+                      {/* Start handle */}
+                      <div
+                        className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/40 rounded-l flex items-center justify-center z-10"
+                        onMouseDown={(e) => handleClipMouseDown(e, annotation, 'start', 'annotation')}
+                      >
+                        <div className="w-0.5 h-4 bg-current opacity-70" />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 flex items-center px-4 min-w-0">
+                        {getElementIcon(shapeType)}
+                        <span className="text-[10px] ml-1 truncate">
+                          {getAnnotationLabel(shapeType)}
+                        </span>
+                      </div>
+
+                      {/* End handle */}
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/40 rounded-r flex items-center justify-center z-10"
+                        onMouseDown={(e) => handleClipMouseDown(e, annotation, 'end', 'annotation')}
+                      >
+                        <div className="w-0.5 h-4 bg-current opacity-70" />
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">
+                      {formatTime(startTime)} → {formatTime(endTime)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Arraste para mover • Bordas para ajustar
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            );
+          })}
+
           {/* Empty state tracks area */}
-          {elements.length === 0 && audioList.length === 0 && (
+          {elements.length === 0 && annotations.length === 0 && audioList.length === 0 && (
             <div className="h-20 flex items-center justify-center text-muted-foreground text-sm">
               Adicione elementos para ver na timeline
             </div>
