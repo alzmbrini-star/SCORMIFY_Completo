@@ -913,6 +913,8 @@ export default function Editor() {
                 onUpdateElement={(elementId, data) => updateElement(currentSlide?.id, elementId, data)}
                 onDeleteElement={(elementId) => deleteElement(currentSlide?.id, elementId)}
                 annotationMode={annotationMode}
+                timelineTime={timelineTime}
+                timelineIsPlaying={timelineIsPlaying}
               />
             </div>
 
@@ -921,6 +923,11 @@ export default function Editor() {
               <Timeline
                 slide={currentSlide}
                 onUpdateSlide={(data) => updateSlide(currentSlide?.id, data)}
+                onUpdateElement={(elementId, data) => updateElement(currentSlide?.id, elementId, data)}
+                currentTime={timelineTime}
+                isPlaying={timelineIsPlaying}
+                onTimeChange={setTimelineTime}
+                onPlayPause={setTimelineIsPlaying}
               />
             )}
           </div>
