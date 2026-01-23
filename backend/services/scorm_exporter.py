@@ -940,6 +940,19 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         <div id="slide-wrapper">
             <div id="slide-container"></div>
         </div>
+        
+        <!-- Start overlay for audio autoplay permission -->
+        <div id="start-overlay" style="display: none;">
+            <div class="start-overlay-content">
+                <div class="start-overlay-icon">🔊</div>
+                <h2>Este curso contém áudio</h2>
+                <p>Clique no botão abaixo para iniciar o curso com áudio</p>
+                <button class="start-btn" onclick="CoursePlayer.startCourse()">
+                    ▶ Iniciar Curso
+                </button>
+            </div>
+        </div>
+        
         <div id="controls">
             <div class="nav-buttons">
                 <button class="control-btn" id="prev-btn" onclick="CoursePlayer.prev()">
