@@ -66,11 +66,13 @@ const SlideCanvas = ({
   const getCanvasCoords = useCallback((e) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
+    // Calculate scale dynamically for accurate coordinates
+    const currentScale = rect.width / canvasWidth;
     return {
-      x: (e.clientX - rect.left) / scale,
-      y: (e.clientY - rect.top) / scale,
+      x: (e.clientX - rect.left) / currentScale,
+      y: (e.clientY - rect.top) / currentScale,
     };
-  }, [scale]);
+  }, [canvasWidth]);
 
   const handleElementMouseDown = useCallback((e, element) => {
     if (annotationMode || element.locked) return;
