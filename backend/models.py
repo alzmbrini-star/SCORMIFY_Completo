@@ -245,6 +245,8 @@ class ElementUpdate(BaseModel):
     style: Optional[ElementStyle] = None
     animations: Optional[List[Animation]] = None
     hyperlink: Optional[str] = None
+    startTime: Optional[float] = None
+    endTime: Optional[float] = None
 
 class JobStatus(BaseModel):
     id: str
