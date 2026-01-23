@@ -1234,7 +1234,6 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
     
     # Create ZIP file
     # Clean the project name - remove UUID prefix if present and special characters
-    import re
     clean_name = project.name
     # Remove UUID pattern at the beginning (e.g., "a87fd1a0-1338-4043-9c2f-b0cc8572a12e_")
     clean_name = re.sub(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_?', '', clean_name)
