@@ -1224,7 +1224,19 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
         f.write(IMSMD_XSD)
     
     # Create ZIP file
-    zip_filename = f"{project.name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    # Clean the project name - remove UUID prefix if present and special characters
+    import re
+    clean_name = project.name
+    # Remove UUID pattern at the beginning (e.g., "a87fd1a0-1338-4043-9c2f-b0cc8572a12e_")
+    clean_name = re.sub(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_?', '', clean_name)
+    # Replace spaces with underscores and remove other special characters
+    clean_name = re.sub(r'[^\w\s-]', '', clean_name)
+    clean_name = clean_name.replace(' ', '_').strip('_')
+    # Fallback to 'course' if name is empty
+    if not clean_name:
+        clean_name = 'course'
+    
+    zip_filename = f"{clean_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
     zip_path = Path(output_dir) / zip_filename
     
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
