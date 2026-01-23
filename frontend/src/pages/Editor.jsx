@@ -221,6 +221,50 @@ export default function Editor() {
 
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end for slide reordering
+  const handleDragEnd = useCallback(async (event) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+    
+    const slides = currentProject?.course?.slides || [];
+    const oldIndex = slides.findIndex(s => s.id === active.id);
+    const newIndex = slides.findIndex(s => s.id === over.id);
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+    
+    // Create new order
+    const newSlides = arrayMove(slides, oldIndex, newIndex);
+    const newSlideIds = newSlides.map(s => s.id);
+    
+    try {
+      await reorderSlides(newSlideIds);
+      // Update current slide index if needed
+      if (currentSlideIndex === oldIndex) {
+        setCurrentSlideIndex(newIndex);
+      } else if (currentSlideIndex > oldIndex && currentSlideIndex <= newIndex) {
+        setCurrentSlideIndex(currentSlideIndex - 1);
+      } else if (currentSlideIndex < oldIndex && currentSlideIndex >= newIndex) {
+        setCurrentSlideIndex(currentSlideIndex + 1);
+      }
+      toast.success('Slides reordenados');
+    } catch (err) {
+      toast.error('Erro ao reordenar slides');
+    }
+  }, [currentProject, currentSlideIndex, reorderSlides, setCurrentSlideIndex]);
+
   useEffect(() => {
     if (projectId) {
       fetchProject(projectId);
