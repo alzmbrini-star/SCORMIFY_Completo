@@ -68,6 +68,10 @@ class SlideElement(BaseModel):
     # Shape specific
     shapeType: Optional[str] = None  # rectangle, ellipse, arrow, etc.
     
+    # Timeline properties
+    startTime: float = 0.0  # When element appears (seconds)
+    endTime: Optional[float] = None  # When element disappears (None = until end of slide)
+    
     # Animations
     animations: List[Animation] = Field(default_factory=list)
     
