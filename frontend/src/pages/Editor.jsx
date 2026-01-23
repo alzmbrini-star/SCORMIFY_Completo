@@ -1419,7 +1419,7 @@ function ElementProperties({ element, onUpdate }) {
               <label className="text-xs text-muted-foreground">Stroke</label>
               <Input
                 type="color"
-                value={localStyle.stroke || '#000000'}
+                value={style.stroke || '#000000'}
                 onChange={(e) => handleStyleChange('stroke', e.target.value)}
                 className="h-8 p-1"
               />
