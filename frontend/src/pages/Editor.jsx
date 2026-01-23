@@ -737,54 +737,28 @@ export default function Editor() {
             </div>
             <ScrollArea className="flex-1">
               <div className="p-3 space-y-2">
-                {slides.map((slide, index) => (
-                  <div
-                    key={slide.id}
-                    className={`slide-thumbnail relative group ${
-                      index === currentSlideIndex ? 'active' : ''
-                    }`}
-                    onClick={() => setCurrentSlideIndex(index)}
-                    data-testid={`slide-${index}`}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={slides.map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <div
-                      className="w-full h-full"
-                      style={{
-                        backgroundColor: slide.background || '#fff',
-                        backgroundImage: slide.backgroundImage ? `url(${slide.backgroundImage})` : 'none',
-                        backgroundSize: 'cover',
-                      }}
-                    >
-                      <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                        {index + 1}
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="w-3 h-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleDuplicateSlide(slide.id)}>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => handleDeleteSlide(slide.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ))}
+                    {slides.map((slide, index) => (
+                      <SortableSlideItem
+                        key={slide.id}
+                        slide={slide}
+                        index={index}
+                        isActive={index === currentSlideIndex}
+                        onClick={() => setCurrentSlideIndex(index)}
+                        onDuplicate={handleDuplicateSlide}
+                        onDelete={handleDeleteSlide}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
             </ScrollArea>
           </div>
