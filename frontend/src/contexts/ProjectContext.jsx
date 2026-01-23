@@ -332,13 +332,32 @@ export const ProjectProvider = ({ children }) => {
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              audio: [...(slide.audio || []), response.data]
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
       return response.data;
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const setGlobalAudio = useCallback(async (file) => {
     if (!currentProject) return;
@@ -350,24 +369,44 @@ export const ProjectProvider = ({ children }) => {
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            globalAudio: response.data
+          }
+        };
+      });
       return response.data;
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const removeGlobalAudio = useCallback(async () => {
     if (!currentProject) return;
     try {
       await axios.delete(`${API_URL}/projects/${currentProject.id}/global-audio`);
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            globalAudio: null
+          }
+        };
+      });
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const updateGlobalAudioVolume = useCallback(async (volume) => {
     if (!currentProject) return;
@@ -377,13 +416,26 @@ export const ProjectProvider = ({ children }) => {
         null,
         { params: { volume } }
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            globalAudio: {
+              ...prev.course.globalAudio,
+              volume
+            }
+          }
+        };
+      });
       return response.data;
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const removeSlideAudio = useCallback(async (slideId, audioId) => {
     if (!currentProject) return;
@@ -391,12 +443,31 @@ export const ProjectProvider = ({ children }) => {
       await axios.delete(
         `${API_URL}/projects/${currentProject.id}/slides/${slideId}/audio/${audioId}`
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              audio: (slide.audio || []).filter(a => a.id !== audioId)
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const updateSlideAudioVolume = useCallback(async (slideId, audioId, volume) => {
     if (!currentProject) return;
@@ -406,13 +477,34 @@ export const ProjectProvider = ({ children }) => {
         null,
         { params: { volume } }
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              audio: (slide.audio || []).map(a => 
+                a.id === audioId ? { ...a, volume } : a
+              )
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
       return response.data;
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const addAnnotation = useCallback(async (slideId, annotationData) => {
     if (!currentProject) return;
