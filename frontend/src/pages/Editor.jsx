@@ -282,9 +282,10 @@ export default function Editor() {
     setTimelineIsPlaying(false);
     
     // Stop recording if active when changing slides
-    if (isRecording && mediaRecorderRef.current) {
+    if (isRecordingRef.current && mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      isRecordingRef.current = false;
       clearInterval(recordingIntervalRef.current);
       toast.info('Gravação salva automaticamente ao trocar de slide');
     }
