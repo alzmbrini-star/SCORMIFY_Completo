@@ -262,10 +262,20 @@ class JobStatus(BaseModel):
 
 class AnnotationCreate(BaseModel):
     type: str
+    shapeType: Optional[str] = None
     points: List[Dict[str, float]]
     color: str = "#EF4444"
     strokeWidth: float = 2
     includeInExport: bool = False
+    startTime: float = 0.0
+    endTime: Optional[float] = None
+
+class AnnotationUpdate(BaseModel):
+    startTime: Optional[float] = None
+    endTime: Optional[float] = None
+    color: Optional[str] = None
+    strokeWidth: Optional[float] = None
+    includeInExport: Optional[bool] = None
 
 class ReorderSlidesRequest(BaseModel):
     slideIds: List[str]
