@@ -232,10 +232,10 @@ const Timeline = ({
   const handleMouseUp = useCallback(() => {
     setIsDraggingClip(null);
     setDragType(null);
-    setDragItemType(null);
-  }, []);
+  const handleMouseUp = useCallback(() => {
     setIsDraggingClip(null);
     setDragType(null);
+    setDragItemType(null);
   }, []);
 
   useEffect(() => {
