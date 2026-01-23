@@ -86,10 +86,15 @@ class Annotation(BaseModel):
     
     id: str = Field(default_factory=generate_id)
     type: str  # arrow, circle, rectangle, freehand
+    shapeType: Optional[str] = None  # arrow, circle, rect, freehand
     points: List[Dict[str, float]] = Field(default_factory=list)
     color: str = "#EF4444"
     strokeWidth: float = 2
     includeInExport: bool = False
+    
+    # Timeline properties
+    startTime: float = 0.0  # When annotation appears (seconds)
+    endTime: Optional[float] = None  # When annotation disappears (None = until end of slide)
 
 class SlideTransition(BaseModel):
     type: str = "none"  # fade, push, wipe, etc.
