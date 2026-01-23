@@ -421,13 +421,32 @@ export const ProjectProvider = ({ children }) => {
         `${API_URL}/projects/${currentProject.id}/slides/${slideId}/annotations`,
         annotationData
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              annotations: [...(slide.annotations || []), response.data]
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
       return response.data;
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const deleteAnnotation = useCallback(async (slideId, annotationId) => {
     if (!currentProject) return;
