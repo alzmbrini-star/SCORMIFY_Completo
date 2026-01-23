@@ -544,6 +544,7 @@ export default function Editor() {
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      isRecordingRef.current = true;
       setRecordingTime(0);
       
       recordingIntervalRef.current = setInterval(() => {
@@ -558,6 +559,7 @@ export default function Editor() {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      isRecordingRef.current = false;
       clearInterval(recordingIntervalRef.current);
     }
   };
