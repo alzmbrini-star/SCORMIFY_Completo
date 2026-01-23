@@ -614,6 +614,8 @@ const SlideCanvas = ({
       <svg
         className="absolute inset-0"
         style={{ width: '100%', height: '100%', zIndex: 10, pointerEvents: 'none' }}
+        viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+        preserveAspectRatio="none"
       >
         {/* Existing annotations */}
         {slide.annotations?.map((annotation) => {
