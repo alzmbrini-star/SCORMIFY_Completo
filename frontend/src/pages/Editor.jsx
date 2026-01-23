@@ -102,6 +102,7 @@ export default function Editor() {
     updateSlide,
     deleteSlide,
     duplicateSlide,
+    reorderSlides,
     addElement,
     updateElement,
     deleteElement,
