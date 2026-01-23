@@ -275,6 +275,12 @@ export default function Editor() {
     }
   }, [projectId, fetchProject]);
 
+  // Reset timeline when slide changes
+  useEffect(() => {
+    setTimelineTime(0);
+    setTimelineIsPlaying(false);
+  }, [currentSlideIndex]);
+
   // Sync volume states with project data
   useEffect(() => {
     if (currentProject?.course?.globalAudio) {
