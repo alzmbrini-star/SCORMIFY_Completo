@@ -433,14 +433,14 @@ const Timeline = ({
                     >
                       {/* Start handle */}
                       <div
-                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 rounded-l flex items-center justify-center"
+                        className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/40 rounded-l flex items-center justify-center z-10"
                         onMouseDown={(e) => handleClipMouseDown(e, element, 'start')}
                       >
-                        <div className="w-0.5 h-3 bg-current opacity-50" />
+                        <div className="w-0.5 h-4 bg-current opacity-70" />
                       </div>
 
                       {/* Content */}
-                      <div className="flex-1 flex items-center px-3 min-w-0">
+                      <div className="flex-1 flex items-center px-4 min-w-0">
                         {getElementIcon(element.type)}
                         <span className="text-[10px] ml-1 truncate">
                           {element.content?.slice(0, 10) || element.type}
@@ -449,10 +449,10 @@ const Timeline = ({
 
                       {/* End handle */}
                       <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 rounded-r flex items-center justify-center"
+                        className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/40 rounded-r flex items-center justify-center z-10"
                         onMouseDown={(e) => handleClipMouseDown(e, element, 'end')}
                       >
-                        <div className="w-0.5 h-3 bg-current opacity-50" />
+                        <div className="w-0.5 h-4 bg-current opacity-70" />
                       </div>
                     </div>
                   </TooltipTrigger>
