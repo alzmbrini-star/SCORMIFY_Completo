@@ -391,8 +391,20 @@ const Timeline = ({
             </div>
           ))}
 
+          {/* Annotation Track Labels */}
+          {annotations.map((annotation, index) => (
+            <div key={annotation.id} className="h-10 flex items-center px-2 border-b border-border/50">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+                {getElementIcon(annotation.shapeType || annotation.type)}
+                <span className="truncate">
+                  {getAnnotationLabel(annotation.shapeType || annotation.type)} {index + 1}
+                </span>
+              </div>
+            </div>
+          ))}
+
           {/* Empty state */}
-          {elements.length === 0 && audioList.length === 0 && (
+          {elements.length === 0 && annotations.length === 0 && audioList.length === 0 && (
             <div className="h-10 flex items-center px-2 text-xs text-muted-foreground">
               Sem elementos
             </div>
