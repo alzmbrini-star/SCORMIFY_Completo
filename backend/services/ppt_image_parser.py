@@ -120,7 +120,11 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
     temp_dir.mkdir(exist_ok=True)
     
     # Find libreoffice executable
-    libreoffice_path = shutil.which('libreoffice') or '/usr/bin/libreoffice'
+    libreoffice_path = get_libreoffice_path()
+    
+    if not libreoffice_path:
+        logger.error("LibreOffice not found in fallback method")
+        raise RuntimeError("LibreOffice is required for PPT conversion")
     
     try:
         # Method 1: Convert to PDF first, then use pdftoppm directly
