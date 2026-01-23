@@ -423,12 +423,31 @@ export const ProjectProvider = ({ children }) => {
       await axios.delete(
         `${API_URL}/projects/${currentProject.id}/slides/${slideId}/annotations/${annotationId}`
       );
-      await fetchProject(currentProject.id);
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              annotations: (slide.annotations || []).filter(a => a.id !== annotationId)
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [currentProject, fetchProject]);
+  }, [currentProject]);
 
   const exportScorm = useCallback(async () => {
     if (!currentProject) return;
