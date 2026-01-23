@@ -379,7 +379,20 @@ const SlideCanvas = ({
       )}
       
       {/* Elements */}
-      {slide.elements?.filter(el => el.visible !== false).map((element) => {
+      {slide.elements?.filter(el => {
+        // Always show if not visible is explicitly false
+        if (el.visible === false) return false;
+        
+        // During timeline playback, filter by time
+        if (timelineIsPlaying) {
+          const startTime = el.startTime || 0;
+          const endTime = el.endTime ?? (slide.duration || 10);
+          return timelineTime >= startTime && timelineTime < endTime;
+        }
+        
+        // When not playing, show all elements
+        return true;
+      }).map((element) => {
         const isSelected = selectedElementId === element.id;
         const isEditing = editingElementId === element.id;
         
