@@ -42,19 +42,15 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
     temp_dir = Path(output_dir) / "temp_convert"
     temp_dir.mkdir(exist_ok=True)
     
+    # Find libreoffice executable
+    libreoffice_path = shutil.which('libreoffice') or '/usr/bin/libreoffice'
+    
     try:
         # First convert PPTX to PDF using LibreOffice
-        cmd_pdf = [
-            'libreoffice',
-            '--headless',
-            '--invisible',
-            '--convert-to', 'pdf',
-            '--outdir', str(temp_dir),
-            pptx_path
-        ]
+        cmd_pdf = f'"{libreoffice_path}" --headless --invisible --convert-to pdf --outdir "{temp_dir}" "{pptx_path}"'
         
-        logger.info(f"Converting PPTX to PDF: {' '.join(cmd_pdf)}")
-        result = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=120)
+        logger.info(f"Converting PPTX to PDF: {cmd_pdf}")
+        result = subprocess.run(cmd_pdf, shell=True, capture_output=True, text=True, timeout=120)
         
         if result.returncode != 0:
             logger.error(f"LibreOffice PDF conversion failed: {result.stderr}")
