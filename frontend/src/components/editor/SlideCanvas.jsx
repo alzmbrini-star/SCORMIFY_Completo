@@ -617,8 +617,17 @@ const SlideCanvas = ({
         viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
         preserveAspectRatio="none"
       >
-        {/* Existing annotations */}
-        {slide.annotations?.map((annotation) => {
+        {/* Existing annotations - filter by timeline when playing */}
+        {slide.annotations?.filter(annotation => {
+          // During timeline playback, filter by time
+          if (timelineIsPlaying) {
+            const startTime = annotation.startTime || 0;
+            const endTime = annotation.endTime ?? (slide.duration || 10);
+            return timelineTime >= startTime && timelineTime < endTime;
+          }
+          // When not playing, show all annotations
+          return true;
+        }).map((annotation) => {
           const isSelected = selectedAnnotationId === annotation.id;
           
           // Calculate bounding box for selection highlight
