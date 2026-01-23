@@ -661,6 +661,7 @@ export const ProjectProvider = ({ children }) => {
     removeSlideAudio,
     updateSlideAudioVolume,
     addAnnotation,
+    updateAnnotation,
     deleteAnnotation,
     exportScorm,
     clearError: () => setError(null)
