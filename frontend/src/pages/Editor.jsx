@@ -83,6 +83,83 @@ import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
 import AnnotationToolbar from '../components/editor/AnnotationToolbar';
 
+// Sortable Slide Item Component
+const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDelete }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slide.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`slide-thumbnail relative group ${isActive ? 'active' : ''} ${isDragging ? 'ring-2 ring-primary' : ''}`}
+      onClick={onClick}
+      data-testid={`slide-${index}`}
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute left-1 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 z-10 p-1 bg-background/80 rounded"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="w-3 h-3 text-muted-foreground" />
+      </div>
+      
+      <div
+        className="w-full h-full"
+        style={{
+          backgroundColor: slide.background || '#fff',
+          backgroundImage: slide.backgroundImage ? `url(${slide.backgroundImage})` : 'none',
+          backgroundSize: 'cover',
+        }}
+      >
+        <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+          {index + 1}
+        </div>
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className="w-3 h-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onDuplicate(slide.id)}>
+            <Copy className="w-4 h-4 mr-2" />
+            Duplicar
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive"
+            onClick={() => onDelete(slide.id)}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Excluir
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
 export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
