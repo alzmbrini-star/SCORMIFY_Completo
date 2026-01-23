@@ -339,6 +339,14 @@ var CoursePlayer = (function() {
         // Clear previous content
         container.innerHTML = '';
         
+        // Clear any existing timeline timers
+        if (window.slideTimelineTimers) {
+            window.slideTimelineTimers.forEach(function(timer) {
+                clearTimeout(timer);
+            });
+        }
+        window.slideTimelineTimers = [];
+        
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
         if (slide.backgroundImage) {
@@ -356,6 +364,9 @@ var CoursePlayer = (function() {
             container.appendChild(bgImg);
         }
         
+        // Get slide duration for timeline
+        var slideDuration = slide.duration || 10;
+        
         // Render elements (filter out invisible ones)
         slide.elements.forEach(function(element, elemIndex) {
             // Skip invisible elements (used for accessibility text)
@@ -363,6 +374,33 @@ var CoursePlayer = (function() {
             
             var el = createElementNode(element);
             if (el) {
+                // Check if element has timeline settings
+                var startTime = element.startTime || 0;
+                var endTime = element.endTime !== undefined && element.endTime !== null ? element.endTime : slideDuration;
+                
+                // If element should not appear immediately, hide it
+                if (startTime > 0) {
+                    el.style.opacity = '0';
+                    el.style.visibility = 'hidden';
+                    el.style.transition = 'opacity 0.3s ease-in-out';
+                    
+                    // Schedule element to appear at startTime
+                    var showTimer = setTimeout(function() {
+                        el.style.opacity = '1';
+                        el.style.visibility = 'visible';
+                    }, startTime * 1000);
+                    window.slideTimelineTimers.push(showTimer);
+                }
+                
+                // Schedule element to hide at endTime (if endTime is before slide duration)
+                if (endTime < slideDuration) {
+                    var hideTimer = setTimeout(function() {
+                        el.style.opacity = '0';
+                        el.style.visibility = 'hidden';
+                    }, endTime * 1000);
+                    window.slideTimelineTimers.push(hideTimer);
+                }
+                
                 container.appendChild(el);
                 
                 // Apply entrance animations
