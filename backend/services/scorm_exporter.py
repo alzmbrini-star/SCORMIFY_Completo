@@ -380,9 +380,11 @@ var CoursePlayer = (function() {
             });
         }
         
-        // Play slide audio
+        // Play slide audio (only if user has interacted or not first slide)
         if (slide.audio && slide.audio.length > 0) {
-            playSlideAudio(slide.audio);
+            if (userHasInteracted || index > 0) {
+                playSlideAudio(slide.audio);
+            }
         }
         
         // Update navigation
