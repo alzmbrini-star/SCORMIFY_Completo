@@ -279,6 +279,20 @@ export default function Editor() {
   useEffect(() => {
     setTimelineTime(0);
     setTimelineIsPlaying(false);
+    
+    // Stop recording if active when changing slides
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      clearInterval(recordingIntervalRef.current);
+      toast.info('Gravação salva automaticamente ao trocar de slide');
+    }
+    
+    // Stop any playing audio preview when changing slides
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current.currentTime = 0;
+    }
   }, [currentSlideIndex]);
 
   // Sync volume states with project data
