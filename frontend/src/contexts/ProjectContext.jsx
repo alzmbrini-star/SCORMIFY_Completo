@@ -540,6 +540,42 @@ export const ProjectProvider = ({ children }) => {
     }
   }, [currentProject]);
 
+  const updateAnnotation = useCallback(async (slideId, annotationId, updateData) => {
+    if (!currentProject) return;
+    try {
+      const response = await axios.put(
+        `${API_URL}/projects/${currentProject.id}/slides/${slideId}/annotations/${annotationId}`,
+        updateData
+      );
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              annotations: (slide.annotations || []).map(a => 
+                a.id === annotationId ? { ...a, ...updateData } : a
+              )
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
+      return response.data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [currentProject]);
+
   const deleteAnnotation = useCallback(async (slideId, annotationId) => {
     if (!currentProject) return;
     try {
