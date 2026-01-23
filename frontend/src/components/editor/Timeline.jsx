@@ -617,7 +617,7 @@ const Timeline = ({
       <div className="h-6 border-t border-border flex items-center px-4 gap-4 text-[10px] text-muted-foreground bg-muted/20 flex-shrink-0">
         <span>Dica: Arraste os clipes para definir quando cada elemento aparece</span>
         <span className="ml-auto">
-          {elements.length} elemento{elements.length !== 1 ? 's' : ''} • {audioList.length} áudio{audioList.length !== 1 ? 's' : ''}
+          {elements.length} elemento{elements.length !== 1 ? 's' : ''} • {annotations.length} anotaç{annotations.length !== 1 ? 'ões' : 'ão'} • {audioList.length} áudio{audioList.length !== 1 ? 's' : ''}
         </span>
       </div>
     </div>
