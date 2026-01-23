@@ -1384,7 +1384,7 @@ function ElementProperties({ element, onUpdate }) {
               <label className="text-xs text-muted-foreground">Font Size</label>
               <Input
                 type="number"
-                value={localStyle.fontSize || 16}
+                value={style.fontSize || 16}
                 onChange={(e) => handleStyleChange('fontSize', parseFloat(e.target.value))}
                 className="h-8"
               />
@@ -1393,7 +1393,7 @@ function ElementProperties({ element, onUpdate }) {
               <label className="text-xs text-muted-foreground">Color</label>
               <Input
                 type="color"
-                value={localStyle.fontColor || '#000000'}
+                value={style.fontColor || '#000000'}
                 onChange={(e) => handleStyleChange('fontColor', e.target.value)}
                 className="h-8 p-1"
               />
@@ -1410,7 +1410,7 @@ function ElementProperties({ element, onUpdate }) {
               <label className="text-xs text-muted-foreground">Fill</label>
               <Input
                 type="color"
-                value={localStyle.fill || '#7C3AED'}
+                value={style.fill || '#7C3AED'}
                 onChange={(e) => handleStyleChange('fill', e.target.value)}
                 className="h-8 p-1"
               />
