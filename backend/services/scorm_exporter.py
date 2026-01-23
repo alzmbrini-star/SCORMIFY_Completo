@@ -1180,9 +1180,18 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
         slide_width = int(course.slides[0].width)
         slide_height = int(course.slides[0].height)
     
+    # Clean the course title - remove UUID prefix if present
+    import re
+    clean_title = course.metadata.title or project.name
+    # Remove UUID pattern at the beginning (e.g., "a87fd1a0-1338-4043-9c2f-b0cc8572a12e_")
+    clean_title = re.sub(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_?', '', clean_title)
+    clean_title = clean_title.strip('_').strip()
+    if not clean_title:
+        clean_title = 'Curso SCORM'
+    
     # Generate index.html
     html_content = PLAYER_HTML_TEMPLATE.format(
-        title=course.metadata.title,
+        title=clean_title,
         lang=course.metadata.language or 'en',
         width=slide_width,
         height=slide_height
@@ -1203,7 +1212,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
     # Generate imsmanifest.xml
     manifest_content = IMS_MANIFEST_TEMPLATE.format(
         identifier=f"SCORM_{project.id}",
-        title=course.metadata.title,
+        title=clean_title,
         resource_files='\n            '.join(resource_files)
     )
     
