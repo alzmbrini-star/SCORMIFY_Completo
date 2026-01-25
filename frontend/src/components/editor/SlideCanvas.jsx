@@ -409,15 +409,21 @@ const SlideCanvas = ({
         const isSelected = selectedElementId === element.id;
         const isEditing = editingElementId === element.id;
         
+        // Convert absolute coordinates to percentages for proper scaling
+        const leftPercent = (element.x / canvasWidth) * 100;
+        const topPercent = (element.y / canvasHeight) * 100;
+        const widthPercent = (element.width / canvasWidth) * 100;
+        const heightPercent = (element.height / canvasHeight) * 100;
+        
         return (
           <div
             key={element.id}
             className={`absolute group ${isSelected ? 'ring-2 ring-cyan-500 ring-offset-1' : ''}`}
             style={{
-              left: element.x,
-              top: element.y,
-              width: element.width,
-              height: element.height,
+              left: `${leftPercent}%`,
+              top: `${topPercent}%`,
+              width: `${widthPercent}%`,
+              height: `${heightPercent}%`,
               transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
               zIndex: (element.zIndex || 0) + 1,
               opacity: element.style?.opacity ?? 1,
