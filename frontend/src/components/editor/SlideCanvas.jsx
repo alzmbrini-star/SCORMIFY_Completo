@@ -363,10 +363,8 @@ const SlideCanvas = ({
       ref={canvasRef}
       className="relative shadow-2xl overflow-hidden"
       style={{
-        width: canvasWidth,
-        height: canvasHeight,
-        maxWidth: '100%',
-        maxHeight: 'calc(100vh - 200px)',
+        width: '100%',
+        maxWidth: canvasWidth,
         aspectRatio: `${canvasWidth} / ${canvasHeight}`,
         backgroundColor: slide.background || '#FFFFFF',
         cursor: annotationMode ? 'crosshair' : 'default',
@@ -374,16 +372,24 @@ const SlideCanvas = ({
       onMouseDown={handleCanvasMouseDown}
       data-testid="slide-canvas"
     >
-      {/* Background Image Layer */}
-      {slide.backgroundImage && (
-        <img
-          src={getAssetUrl(slide.backgroundImage)}
-          alt=""
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
-          style={{ zIndex: 0 }}
-          draggable={false}
-        />
-      )}
+      {/* Inner container with original dimensions - scales to fit */}
+      <div
+        className="relative w-full h-full"
+        style={{
+          position: 'absolute',
+          inset: 0,
+        }}
+      >
+        {/* Background Image Layer */}
+        {slide.backgroundImage && (
+          <img
+            src={getAssetUrl(slide.backgroundImage)}
+            alt=""
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+            style={{ zIndex: 0 }}
+            draggable={false}
+          />
+        )}
       
       {/* Elements */}
       {slide.elements?.filter(el => {
