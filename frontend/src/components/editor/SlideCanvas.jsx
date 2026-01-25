@@ -281,6 +281,11 @@ const SlideCanvas = ({
 
   const handleDeleteElement = useCallback((e, elementId) => {
     e.stopPropagation();
+    if (!elementId) {
+      console.error('handleDeleteElement: No elementId provided');
+      return;
+    }
+    console.log('handleDeleteElement: Deleting element', elementId);
     onDeleteElement(elementId);
   }, [onDeleteElement]);
 
