@@ -178,6 +178,25 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/frontend/src/pages/Editor.jsx` - Estado compartilhado de timeline
 - **Status**: IMPLEMENTED AND TESTED
 
+### Element Delete Bug (404 Error) - FIXED (Jan 25, 2026)
+- **Issue**: Users reported "Request failed with status code 404" when trying to delete images
+- **Root Cause**: 
+  1. Elements with `visible: false` were not being rendered in the canvas, making them impossible to select and delete
+  2. Elements with `opacity: 0.0` in their style were completely invisible
+  3. The filter condition `if (el.visible === false) return false` was hiding elements during editing
+- **Fix Applied**:
+  1. Modified `SlideCanvas.jsx` to show all elements during editing (only filter by visibility during timeline playback)
+  2. Hidden elements (`visible: false`) now render with 30% minimum opacity and yellow dashed border
+  3. Added validation and logging in `deleteElement` function in `ProjectContext.jsx`
+  4. Added error handling in `Editor.jsx` for undefined `currentSlide.id`
+  5. Elements now use `scale` factor for proper responsive positioning
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - Element visibility filter, opacity handling
+  - `/app/frontend/src/contexts/ProjectContext.jsx` - Added ID validation and console logging
+  - `/app/frontend/src/pages/Editor.jsx` - Added validation for delete/update operations
+- **Status**: FIXED AND TESTED
+- **Verification**: Elements can now be selected and deleted without 404 errors
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
