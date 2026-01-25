@@ -404,7 +404,7 @@ const SlideCanvas = ({
         return (
           <div
             key={element.id}
-            className={`absolute group ${isSelected ? 'ring-2 ring-cyan-500 ring-offset-1' : ''}`}
+            className={`absolute group ${isSelected ? 'ring-2 ring-cyan-500 ring-offset-1' : ''} ${element.visible === false ? 'border border-dashed border-yellow-500' : ''}`}
             style={{
               left: element.x * scale,
               top: element.y * scale,
@@ -412,7 +412,8 @@ const SlideCanvas = ({
               height: element.height * scale,
               transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
               zIndex: (element.zIndex || 0) + 1,
-              opacity: element.style?.opacity ?? 1,
+              // Show at least 30% opacity for hidden elements during editing
+              opacity: element.visible === false ? Math.max(0.3, element.style?.opacity ?? 1) : (element.style?.opacity ?? 1),
               cursor: isDragging && isSelected ? 'grabbing' : 'grab',
             }}
             onMouseDown={(e) => handleElementMouseDown(e, element)}
