@@ -935,8 +935,21 @@ export default function Editor() {
                 slide={currentSlide}
                 selectedElementId={selectedElementId}
                 onSelectElement={setSelectedElementId}
-                onUpdateElement={(elementId, data) => updateElement(currentSlide?.id, elementId, data)}
-                onDeleteElement={(elementId) => deleteElement(currentSlide?.id, elementId)}
+                onUpdateElement={(elementId, data) => {
+                  if (currentSlide?.id) {
+                    updateElement(currentSlide.id, elementId, data);
+                  } else {
+                    console.error('Cannot update element: currentSlide.id is undefined');
+                  }
+                }}
+                onDeleteElement={(elementId) => {
+                  if (currentSlide?.id) {
+                    deleteElement(currentSlide.id, elementId);
+                  } else {
+                    console.error('Cannot delete element: currentSlide.id is undefined');
+                    toast.error('Erro ao excluir: slide não encontrado');
+                  }
+                }}
                 annotationMode={annotationMode}
                 timelineTime={timelineTime}
                 timelineIsPlaying={timelineIsPlaying}
