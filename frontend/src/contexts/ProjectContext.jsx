@@ -281,8 +281,20 @@ export const ProjectProvider = ({ children }) => {
   }, [currentProject]);
 
   const deleteElement = useCallback(async (slideId, elementId) => {
-    if (!currentProject) return;
+    if (!currentProject) {
+      console.error('deleteElement: No current project');
+      return;
+    }
+    if (!slideId) {
+      console.error('deleteElement: No slideId provided');
+      return;
+    }
+    if (!elementId) {
+      console.error('deleteElement: No elementId provided');
+      return;
+    }
     try {
+      console.log('deleteElement: Deleting element', { projectId: currentProject.id, slideId, elementId });
       await axios.delete(
         `${API_URL}/projects/${currentProject.id}/slides/${slideId}/elements/${elementId}`
       );
@@ -292,13 +304,15 @@ export const ProjectProvider = ({ children }) => {
           ...prev.course,
           slides: prev.course.slides.map(s => 
             s.id === slideId 
-              ? { ...s, elements: s.elements.filter(e => e.id !== elementId) }
+              ? { ...s, elements: (s.elements || []).filter(e => e.id !== elementId) }
               : s
           )
         }
       }));
       setSelectedElementId(null);
+      console.log('deleteElement: Element deleted successfully');
     } catch (err) {
+      console.error('deleteElement: Error', err.response?.status, err.response?.data || err.message);
       setError(err.message);
       throw err;
     }
