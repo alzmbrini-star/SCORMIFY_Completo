@@ -1437,6 +1437,15 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
 </head>
 <body>
     <div id="player-container">
+        <!-- Sidebar Navigation -->
+        <div id="slide-sidebar">
+            <div class="sidebar-header">
+                <h3>📚 Navegação</h3>
+                <button class="sidebar-close" onclick="CoursePlayer.toggleSidebar()" title="Fechar menu">✕</button>
+            </div>
+            <div id="sidebar-slides"></div>
+        </div>
+        
         <div id="slide-wrapper">
             <div id="slide-container"></div>
         </div>
@@ -1455,11 +1464,14 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         <div id="controls">
             <div class="nav-buttons">
+                <button class="icon-btn" onclick="CoursePlayer.toggleSidebar()" title="Menu de Navegação">
+                    ☰
+                </button>
                 <button class="control-btn" id="prev-btn" onclick="CoursePlayer.prev()">
-                    ← Previous
+                    ← Anterior
                 </button>
                 <button class="control-btn" id="next-btn" onclick="CoursePlayer.next()">
-                    Next →
+                    Próximo →
                 </button>
             </div>
             <div id="progress-container">
@@ -1477,7 +1489,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
                         <span id="volume-value">100%</span>
                     </div>
                 </div>
-                <button class="icon-btn" onclick="CoursePlayer.fullscreen()" title="Fullscreen">
+                <button class="icon-btn" onclick="CoursePlayer.fullscreen()" title="Tela Cheia">
                     ⛶
                 </button>
             </div>
