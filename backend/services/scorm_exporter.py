@@ -990,7 +990,8 @@ var CoursePlayer = (function() {
         startCourse: hideStartOverlay,
         toggleMute: toggleMute,
         setVolume: setVolume,
-        toggleVolumeSlider: toggleVolumeSlider
+        toggleVolumeSlider: toggleVolumeSlider,
+        toggleSidebar: toggleSidebar
     };
 })();
 
