@@ -764,6 +764,9 @@ var CoursePlayer = (function() {
         if (slideCounter) {
             slideCounter.textContent = (currentSlide + 1) + ' / ' + totalSlides;
         }
+        
+        // Update sidebar
+        updateSidebar();
     }
     
     function updateNavigation() {
