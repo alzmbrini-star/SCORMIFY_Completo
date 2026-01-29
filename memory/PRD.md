@@ -178,6 +178,19 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/frontend/src/pages/Editor.jsx` - Estado compartilhado de timeline
 - **Status**: IMPLEMENTED AND TESTED
 
+### SCORM Volume Control - IMPLEMENTED (Jan 29, 2026)
+- **Issue**: Volume button in exported SCORM was not functional (icon only, no action)
+- **Fix Applied**:
+  1. Added `toggleVolumeSlider()` function to show/hide volume slider popup
+  2. Added `setVolume(value)` function to adjust volume (0-100%)
+  3. Added `toggleMute()` function for mute/unmute
+  4. Added CSS styles for volume slider popup with gradient thumb
+  5. Volume control affects both global audio and slide-specific audios
+  6. Dynamic icon changes: 🔊 (high) → 🔉 (medium) → 🔇 (muted)
+- **Files Modified**:
+  - `/app/backend/services/scorm_exporter.py` - Added volume control functions and UI
+- **Status**: IMPLEMENTED AND TESTED
+
 ### Element Delete Bug (404 Error) - FIXED (Jan 25, 2026)
 - **Issue**: Users reported "Request failed with status code 404" when trying to delete images
 - **Root Cause**: 
