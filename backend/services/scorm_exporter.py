@@ -1031,6 +1031,134 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             flex-direction: column;
         }}
         
+        /* Sidebar Navigation Styles */
+        #slide-sidebar {{
+            position: fixed;
+            left: -280px;
+            top: 0;
+            width: 280px;
+            height: calc(100vh - 60px);
+            background: #16213e;
+            z-index: 500;
+            transition: left 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+        }}
+        
+        #slide-sidebar.open {{
+            left: 0;
+        }}
+        
+        .sidebar-header {{
+            padding: 20px;
+            background: #0f3460;
+            border-bottom: 1px solid #1a4980;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        
+        .sidebar-header h3 {{
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }}
+        
+        .sidebar-close {{
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }}
+        
+        .sidebar-close:hover {{
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }}
+        
+        #sidebar-slides {{
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }}
+        
+        #sidebar-slides::-webkit-scrollbar {{
+            width: 6px;
+        }}
+        
+        #sidebar-slides::-webkit-scrollbar-track {{
+            background: #0f3460;
+        }}
+        
+        #sidebar-slides::-webkit-scrollbar-thumb {{
+            background: #1a4980;
+            border-radius: 3px;
+        }}
+        
+        .sidebar-slide-item {{
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #0f3460;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }}
+        
+        .sidebar-slide-item:hover {{
+            background: #1a4980;
+        }}
+        
+        .sidebar-slide-item.active {{
+            border-color: #7c3aed;
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(6, 182, 212, 0.1));
+        }}
+        
+        .sidebar-thumbnail {{
+            width: 80px;
+            height: 45px;
+            border-radius: 4px;
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+        }}
+        
+        .sidebar-slide-info {{
+            margin-left: 12px;
+            flex: 1;
+            min-width: 0;
+        }}
+        
+        .sidebar-slide-title {{
+            font-size: 14px;
+            font-weight: 500;
+            color: #f1f5f9;
+            margin-bottom: 4px;
+        }}
+        
+        .sidebar-slide-status {{
+            font-size: 12px;
+            color: #64748b;
+        }}
+        
+        .sidebar-slide-status.completed {{
+            color: #22c55e;
+        }}
+        
+        .sidebar-slide-status.current {{
+            color: #7c3aed;
+        }}
+        
+        /* Adjust main content when sidebar is open */
         #slide-wrapper {{
             flex: 1;
             display: flex;
@@ -1038,7 +1166,12 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             justify-content: center;
             padding: 20px;
             background: #0f0f1a;
-            overflow: hidden; /* Clip at wrapper level */
+            overflow: hidden;
+            transition: margin-left 0.3s ease;
+        }}
+        
+        #slide-wrapper.sidebar-open {{
+            margin-left: 280px;
         }}
         
         #slide-container {{
