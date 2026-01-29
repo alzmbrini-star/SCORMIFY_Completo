@@ -888,7 +888,10 @@ var CoursePlayer = (function() {
         goTo: goToSlide,
         fullscreen: toggleFullscreen,
         playAudio: playGlobalAudio,
-        startCourse: hideStartOverlay
+        startCourse: hideStartOverlay,
+        toggleMute: toggleMute,
+        setVolume: setVolume,
+        toggleVolumeSlider: toggleVolumeSlider
     };
 })();
 
