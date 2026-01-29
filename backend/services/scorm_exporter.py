@@ -1234,9 +1234,16 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             </div>
             <span id="slide-counter">1 / 1</span>
             <div class="nav-buttons">
-                <button class="icon-btn" onclick="CoursePlayer.playAudio()" title="Play Audio">
-                    🔊
-                </button>
+                <div class="volume-wrapper">
+                    <button class="icon-btn" id="volume-btn" onclick="CoursePlayer.toggleVolumeSlider()" title="Volume">
+                        🔊
+                    </button>
+                    <div id="volume-control">
+                        <input type="range" id="volume-slider" min="0" max="100" value="100" 
+                               oninput="CoursePlayer.setVolume(this.value); document.getElementById('volume-value').textContent = this.value + '%'">
+                        <span id="volume-value">100%</span>
+                    </div>
+                </div>
                 <button class="icon-btn" onclick="CoursePlayer.fullscreen()" title="Fullscreen">
                     ⛶
                 </button>
