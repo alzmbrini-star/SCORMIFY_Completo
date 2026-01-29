@@ -851,6 +851,101 @@ var CoursePlayer = (function() {
         }
     }
     
+    function toggleSidebar() {
+        var sidebar = document.getElementById('slide-sidebar');
+        var wrapper = document.getElementById('slide-wrapper');
+        if (sidebar) {
+            var isOpen = sidebar.classList.contains('open');
+            if (isOpen) {
+                sidebar.classList.remove('open');
+                wrapper.classList.remove('sidebar-open');
+            } else {
+                sidebar.classList.add('open');
+                wrapper.classList.add('sidebar-open');
+            }
+        }
+    }
+    
+    function renderSidebar() {
+        var sidebarList = document.getElementById('sidebar-slides');
+        if (!sidebarList || !course) return;
+        
+        sidebarList.innerHTML = '';
+        
+        course.slides.forEach(function(slide, index) {
+            var item = document.createElement('div');
+            item.className = 'sidebar-slide-item' + (index === currentSlide ? ' active' : '');
+            item.onclick = function() {
+                goToSlide(index);
+            };
+            
+            // Create thumbnail using background image or placeholder
+            var thumbnail = document.createElement('div');
+            thumbnail.className = 'sidebar-thumbnail';
+            if (slide.backgroundImage) {
+                thumbnail.style.backgroundImage = 'url(' + slide.backgroundImage + ')';
+            } else {
+                thumbnail.style.backgroundColor = slide.background || '#f0f0f0';
+            }
+            
+            // Create slide info
+            var info = document.createElement('div');
+            info.className = 'sidebar-slide-info';
+            
+            var title = document.createElement('div');
+            title.className = 'sidebar-slide-title';
+            title.textContent = 'Slide ' + (index + 1);
+            
+            var status = document.createElement('div');
+            status.className = 'sidebar-slide-status';
+            if (index < currentSlide) {
+                status.innerHTML = '✓ Concluído';
+                status.classList.add('completed');
+            } else if (index === currentSlide) {
+                status.innerHTML = '● Atual';
+                status.classList.add('current');
+            } else {
+                status.innerHTML = '○ Pendente';
+            }
+            
+            info.appendChild(title);
+            info.appendChild(status);
+            item.appendChild(thumbnail);
+            item.appendChild(info);
+            sidebarList.appendChild(item);
+        });
+    }
+    
+    function updateSidebar() {
+        var items = document.querySelectorAll('.sidebar-slide-item');
+        items.forEach(function(item, index) {
+            item.classList.remove('active');
+            if (index === currentSlide) {
+                item.classList.add('active');
+            }
+            
+            var status = item.querySelector('.sidebar-slide-status');
+            if (status) {
+                status.classList.remove('completed', 'current');
+                if (index < currentSlide) {
+                    status.innerHTML = '✓ Concluído';
+                    status.classList.add('completed');
+                } else if (index === currentSlide) {
+                    status.innerHTML = '● Atual';
+                    status.classList.add('current');
+                } else {
+                    status.innerHTML = '○ Pendente';
+                }
+            }
+        });
+        
+        // Scroll active item into view
+        var activeItem = document.querySelector('.sidebar-slide-item.active');
+        if (activeItem) {
+            activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+    
     // Keyboard navigation
     document.addEventListener('keydown', function(e) {
         switch (e.key) {
