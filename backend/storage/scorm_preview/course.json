@@ -1,0 +1,404 @@
+{
+  "id": "b65dce82-95db-4913-ab73-6b6a67ae4910",
+  "metadata": {
+    "title": "PptxGenJS Presentation",
+    "description": "PptxGenJS Presentation",
+    "author": "PptxGenJS",
+    "organization": "",
+    "version": "1.0",
+    "language": "pt-BR",
+    "keywords": []
+  },
+  "slides": [
+    {
+      "id": "045abad9-015f-4f47-9585-6463718bbf5f",
+      "title": "Slide 1",
+      "order": 0,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_001.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "e7f1401a-3684-428a-8c95-4449842c8745",
+      "title": "Slide 2",
+      "order": 1,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_002.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "fbc8503f-4500-49a6-80b6-b0575d90c9ec",
+      "title": "Slide 3",
+      "order": 2,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_003.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "a2c22783-7566-410e-b444-c3200554a4d3",
+      "title": "Slide 4",
+      "order": 3,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_004.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "f5090b4a-2b67-4bb7-9e3e-3edcf4a3a894",
+      "title": "Slide 5",
+      "order": 4,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_005.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "bf4f5df1-848f-4a95-9c83-1d78d41e92db",
+      "title": "Slide 6",
+      "order": 5,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_006.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "1125d597-104b-4a37-80d8-161bd8008c82",
+      "title": "Slide 7",
+      "order": 6,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_007.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "c54d8ba6-473c-4e76-a103-2aba91e4219e",
+      "title": "Slide 8",
+      "order": 7,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_008.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "e4b25ffc-3961-4164-a52d-2f1f1882a714",
+      "title": "Slide 9",
+      "order": 8,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_009.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "19c9ea6a-5f58-4032-b71c-0b35c6a4e75e",
+      "title": "Slide 10",
+      "order": 9,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_010.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "1d348dc7-11b2-4eb4-8a92-a4e5bfc1e77f",
+      "title": "Slide 11",
+      "order": 10,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_011.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "0ecefb6b-906a-43f5-aa8b-85d7718dae84",
+      "title": "Slide 12",
+      "order": 11,
+      "width": 1280.0,
+      "height": 720.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_012.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "8ca08d55-bddf-467d-9284-809842954aea",
+      "title": "New Slide",
+      "order": 12,
+      "width": 960.0,
+      "height": 540.0,
+      "background": "#FFFFFF",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "bd438133-966a-4f2d-952d-c167d90cea32",
+          "type": "video",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 960.0,
+          "height": 540.0,
+          "rotation": 0.0,
+          "zIndex": 0,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": null,
+          "embedUrl": "https://player.vimeo.com/video/1158537191",
+          "embedType": "vimeo",
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "e79e8efa-952c-4f38-87f9-001a7712affe",
+      "title": "New Slide",
+      "order": 13,
+      "width": 960.0,
+      "height": 540.0,
+      "background": "#FFFFFF",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "6d15f243-0f3d-4520-acf7-d6f115b67a47",
+          "type": "image",
+          "x": 0.0,
+          "y": 15.0,
+          "width": 960.0,
+          "height": 540.0,
+          "rotation": 0.0,
+          "zIndex": 0,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": "assets/1536ab69-a04a-4d32-baa9-7e9f3954fc18.png",
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 5.0
+    }
+  ],
+  "globalAudio": {
+    "id": "cff57a0e-782f-4395-ac9d-aa4f4c0bb20a",
+    "src": "assets/global_audio_cff57a0e-782f-4395-ac9d-aa4f4c0bb20a.mp3",
+    "filename": "global_audio_cff57a0e-782f-4395-ac9d-aa4f4c0bb20a.mp3",
+    "duration": 0.0,
+    "volume": 0.2,
+    "fadeIn": 0,
+    "fadeOut": 0,
+    "loop": true
+  },
+  "originalFilename": "b99cdac3-eaa3-4a5e-b017-8dee93db62d6_Images_WideScreen.pptx",
+  "conversionReport": {
+    "success": [
+      "Slide 1: Rendered as image",
+      "Slide 2: Rendered as image",
+      "Slide 3: Rendered as image",
+      "Slide 4: Rendered as image",
+      "Slide 5: Rendered as image",
+      "Slide 6: Rendered as image",
+      "Slide 7: Rendered as image",
+      "Slide 8: Rendered as image",
+      "Slide 9: Rendered as image",
+      "Slide 10: Rendered as image",
+      "Slide 11: Rendered as image",
+      "Slide 12: Rendered as image"
+    ],
+    "warnings": [],
+    "errors": [],
+    "method": "high_fidelity_image"
+  },
+  "createdAt": "2026-01-27T11:38:52.147781+00:00",
+  "updatedAt": "2026-01-27T11:38:52.147784+00:00"
+}
