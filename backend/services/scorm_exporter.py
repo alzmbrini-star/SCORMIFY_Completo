@@ -236,6 +236,7 @@ var CoursePlayer = (function() {
         
         renderSlide(currentSlide);
         updateProgress();
+        renderSidebar();
         
         // Setup global audio if exists
         if (course.globalAudio && course.globalAudio.src) {
