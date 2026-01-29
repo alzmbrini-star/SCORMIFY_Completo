@@ -796,6 +796,61 @@ var CoursePlayer = (function() {
         }
     }
     
+    function toggleMute() {
+        var volumeBtn = document.getElementById('volume-btn');
+        var volumeSlider = document.getElementById('volume-slider');
+        
+        if (globalAudio) {
+            if (globalAudio.muted) {
+                globalAudio.muted = false;
+                if (volumeBtn) volumeBtn.innerHTML = '🔊';
+                if (volumeSlider) volumeSlider.value = globalAudio.volume * 100;
+            } else {
+                globalAudio.muted = true;
+                if (volumeBtn) volumeBtn.innerHTML = '🔇';
+            }
+        }
+        
+        // Also mute/unmute active slide audios
+        activeSlideAudios.forEach(function(audio) {
+            audio.muted = globalAudio ? globalAudio.muted : !audio.muted;
+        });
+    }
+    
+    function setVolume(value) {
+        var volume = value / 100;
+        var volumeBtn = document.getElementById('volume-btn');
+        
+        if (globalAudio) {
+            globalAudio.volume = volume;
+            globalAudio.muted = false;
+        }
+        
+        // Update volume for active slide audios
+        activeSlideAudios.forEach(function(audio) {
+            audio.volume = volume;
+            audio.muted = false;
+        });
+        
+        // Update button icon based on volume level
+        if (volumeBtn) {
+            if (volume === 0) {
+                volumeBtn.innerHTML = '🔇';
+            } else if (volume < 0.5) {
+                volumeBtn.innerHTML = '🔉';
+            } else {
+                volumeBtn.innerHTML = '🔊';
+            }
+        }
+    }
+    
+    function toggleVolumeSlider() {
+        var slider = document.getElementById('volume-control');
+        if (slider) {
+            slider.style.display = slider.style.display === 'none' ? 'flex' : 'none';
+        }
+    }
+    
     // Keyboard navigation
     document.addEventListener('keydown', function(e) {
         switch (e.key) {
