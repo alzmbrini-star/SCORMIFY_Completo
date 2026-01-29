@@ -1061,6 +1061,79 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             display: none;
         }}
         
+        /* Volume control styles */
+        .volume-wrapper {{
+            position: relative;
+            display: flex;
+            align-items: center;
+        }}
+        
+        #volume-control {{
+            display: none;
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #16213e;
+            padding: 15px 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+        }}
+        
+        #volume-control::after {{
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 8px solid #16213e;
+        }}
+        
+        #volume-slider {{
+            -webkit-appearance: none;
+            width: 100px;
+            height: 6px;
+            border-radius: 3px;
+            background: #0f3460;
+            outline: none;
+        }}
+        
+        #volume-slider::-webkit-slider-thumb {{
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7c3aed, #06b6d4);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }}
+        
+        #volume-slider::-webkit-slider-thumb:hover {{
+            transform: scale(1.2);
+        }}
+        
+        #volume-slider::-moz-range-thumb {{
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7c3aed, #06b6d4);
+            cursor: pointer;
+            border: none;
+        }}
+        
+        #volume-value {{
+            font-size: 12px;
+            color: #94a3b8;
+            min-width: 40px;
+            text-align: center;
+        }}
+        
         /* Start overlay styles */
         #start-overlay {{
             position: absolute;
