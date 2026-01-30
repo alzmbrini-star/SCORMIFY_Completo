@@ -420,6 +420,20 @@ const SlideCanvas = ({
             onDoubleClick={(e) => handleDoubleClick(e, element)}
             data-testid={`element-${element.id}`}
           >
+            {/* Drag indicator showing position */}
+            {isDragging && isSelected && (
+              <div className="absolute -top-8 left-0 px-2 py-1 bg-cyan-600 text-white text-xs rounded shadow-lg pointer-events-none z-50 whitespace-nowrap">
+                X: {Math.round(element.x)} | Y: {Math.round(element.y)}
+              </div>
+            )}
+            
+            {/* Move hint on hover */}
+            {isSelected && !isDragging && !isResizing && (
+              <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                ✥ Arraste para mover
+              </div>
+            )}
+            
             {/* Element Content */}
             <div className="w-full h-full overflow-hidden">
               {/* Text Element */}
