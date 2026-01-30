@@ -543,6 +543,95 @@ export default function Editor() {
     }
   };
 
+  // Add Button element
+  const handleAddButton = async () => {
+    if (!buttonConfig.url) {
+      toast.error('Por favor, insira uma URL para o botão');
+      return;
+    }
+
+    try {
+      await addElement(currentSlide.id, {
+        type: 'button',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 50,
+        buttonText: buttonConfig.text || 'Clique aqui',
+        buttonIcon: buttonConfig.icon,
+        buttonStyle: buttonConfig.style,
+        buttonUrl: buttonConfig.url,
+        openInNewTab: buttonConfig.openInNewTab,
+        style: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          borderRadius: 8,
+        },
+      });
+      setShowButtonDialog(false);
+      setButtonConfig({
+        text: 'Clique aqui',
+        url: '',
+        icon: '',
+        style: 'primary',
+        openInNewTab: true,
+      });
+      toast.success('Botão adicionado');
+    } catch (err) {
+      toast.error('Falha ao adicionar botão');
+    }
+  };
+
+  // Add HTML element
+  const handleAddHtml = async () => {
+    if (!htmlConfig.content) {
+      toast.error('Por favor, insira o código HTML');
+      return;
+    }
+
+    try {
+      await addElement(currentSlide.id, {
+        type: 'html',
+        x: 50,
+        y: 50,
+        width: 400,
+        height: 300,
+        htmlContent: htmlConfig.content,
+      });
+      setShowHtmlDialog(false);
+      setHtmlConfig({ content: '' });
+      toast.success('Elemento HTML adicionado');
+    } catch (err) {
+      toast.error('Falha ao adicionar HTML');
+    }
+  };
+
+  // Add Flipbook element
+  const handleAddFlipbook = async () => {
+    if (flipbookConfig.type === 'external' && !flipbookConfig.url) {
+      toast.error('Por favor, insira a URL do flipbook');
+      return;
+    }
+
+    try {
+      await addElement(currentSlide.id, {
+        type: 'flipbook',
+        x: 50,
+        y: 50,
+        width: 600,
+        height: 400,
+        flipbookType: flipbookConfig.type,
+        flipbookUrl: flipbookConfig.url,
+        flipbookPages: flipbookConfig.pages,
+      });
+      setShowFlipbookDialog(false);
+      setFlipbookConfig({ type: 'external', url: '', pages: [] });
+      toast.success('Flipbook adicionado');
+    } catch (err) {
+      toast.error('Falha ao adicionar flipbook');
+    }
+  };
+
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
