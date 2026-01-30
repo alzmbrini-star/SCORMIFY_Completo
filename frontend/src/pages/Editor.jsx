@@ -996,6 +996,54 @@ export default function Editor() {
 
               <Separator orientation="vertical" className="h-6" />
 
+              {/* New Elements: Button, HTML, Flipbook */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowButtonDialog(true)}
+                    data-testid="add-button-btn"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Adicionar Botão/Link</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowHtmlDialog(true)}
+                    data-testid="add-html-btn"
+                  >
+                    <Code className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Adicionar HTML</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowFlipbookDialog(true)}
+                    data-testid="add-flipbook-btn"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Adicionar Flipbook</TooltipContent>
+              </Tooltip>
+
+              <Separator orientation="vertical" className="h-6" />
+
               <AnnotationToolbar
                 annotationMode={annotationMode}
                 setAnnotationMode={setAnnotationMode}
