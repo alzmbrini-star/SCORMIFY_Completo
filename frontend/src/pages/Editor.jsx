@@ -1185,8 +1185,14 @@ export default function Editor() {
                             {element.type === 'image' && <Image className="w-4 h-4" />}
                             {element.type === 'shape' && <Square className="w-4 h-4" />}
                             {element.type === 'video' && <Video className="w-4 h-4" />}
+                            {element.type === 'button' && <ExternalLink className="w-4 h-4" />}
+                            {element.type === 'html' && <Code className="w-4 h-4" />}
+                            {element.type === 'flipbook' && <BookOpen className="w-4 h-4" />}
                             <span className="text-sm truncate flex-1">
-                              {element.type} {element.id.slice(0, 4)}
+                              {element.type === 'button' ? (element.buttonText || 'Botão') : 
+                               element.type === 'html' ? 'HTML' :
+                               element.type === 'flipbook' ? 'Flipbook' :
+                               `${element.type} ${element.id.slice(0, 4)}`}
                             </span>
                           </div>
                         ))}
