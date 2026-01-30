@@ -561,7 +561,7 @@ const SlideCanvas = ({
 
               {/* Button Element */}
               {element.type === 'button' && (
-                <div className="w-full h-full flex items-center justify-center">
+                <div className="w-full h-full flex items-center justify-center relative">
                   <button
                     className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${
                       element.buttonStyle === 'primary' 
@@ -581,8 +581,13 @@ const SlideCanvas = ({
                     {element.buttonIcon && <span>{element.buttonIcon}</span>}
                     {element.buttonText || 'Clique aqui'}
                   </button>
+                  {/* Overlay to capture mouse events for drag/resize */}
+                  <div 
+                    className="absolute inset-0 bg-transparent"
+                    style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
+                  />
                   {isSelected && (
-                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-purple-600/90 text-white text-xs rounded pointer-events-none">
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-purple-600/90 text-white text-xs rounded pointer-events-none z-10">
                       Link: {element.buttonUrl?.slice(0, 30)}...
                     </div>
                   )}
