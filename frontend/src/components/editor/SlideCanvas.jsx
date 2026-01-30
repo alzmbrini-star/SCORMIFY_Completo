@@ -596,16 +596,21 @@ const SlideCanvas = ({
 
               {/* HTML Element */}
               {element.type === 'html' && (
-                <div className="w-full h-full bg-white rounded overflow-hidden">
+                <div className="w-full h-full bg-white rounded overflow-hidden relative">
                   <iframe
                     srcDoc={element.htmlContent || '<p>HTML Content</p>'}
                     className="w-full h-full border-0"
                     sandbox="allow-scripts allow-same-origin"
                     title="HTML Content"
-                    style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Overlay to capture mouse events for drag/resize */}
+                  <div 
+                    className="absolute inset-0 bg-transparent"
+                    style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
                   />
                   {isSelected && (
-                    <div className="absolute top-2 left-2 px-2 py-1 bg-blue-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none">
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-blue-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none z-10">
                       <span className="font-mono">&lt;/&gt;</span> HTML
                     </div>
                   )}
