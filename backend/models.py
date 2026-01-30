@@ -42,7 +42,7 @@ class SlideElement(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     id: str = Field(default_factory=generate_id)
-    type: str  # text, image, shape, video, audio, smartart, wordart, table, chart
+    type: str  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook
     x: float = 0
     y: float = 0
     width: float = 100
@@ -67,6 +67,22 @@ class SlideElement(BaseModel):
     
     # Shape specific
     shapeType: Optional[str] = None  # rectangle, ellipse, arrow, etc.
+    
+    # Button specific
+    buttonText: Optional[str] = None
+    buttonIcon: Optional[str] = None  # icon name or emoji
+    buttonStyle: Optional[str] = "primary"  # primary, secondary, outline, ghost
+    buttonUrl: Optional[str] = None
+    openInNewTab: bool = True
+    
+    # HTML specific
+    htmlContent: Optional[str] = None  # raw HTML code
+    
+    # Flipbook specific
+    flipbookType: Optional[str] = None  # pdf, images, external
+    flipbookUrl: Optional[str] = None  # external flipbook URL
+    flipbookPages: Optional[List[str]] = None  # list of image URLs for pages
+    flipbookPdfUrl: Optional[str] = None  # PDF file URL
     
     # Timeline properties
     startTime: float = 0.0  # When element appears (seconds)
