@@ -78,6 +78,9 @@ import {
   StopCircle,
   MoreVertical,
   Volume2,
+  ExternalLink,
+  Code,
+  BookOpen,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
