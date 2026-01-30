@@ -212,6 +212,26 @@ export default function Editor() {
   const [audioFile, setAudioFile] = useState(null);
   const [audioTarget, setAudioTarget] = useState('slide'); // 'slide' or 'global'
   
+  // New element dialogs
+  const [showButtonDialog, setShowButtonDialog] = useState(false);
+  const [showHtmlDialog, setShowHtmlDialog] = useState(false);
+  const [showFlipbookDialog, setShowFlipbookDialog] = useState(false);
+  const [buttonConfig, setButtonConfig] = useState({
+    text: 'Clique aqui',
+    url: '',
+    icon: '',
+    style: 'primary',
+    openInNewTab: true,
+  });
+  const [htmlConfig, setHtmlConfig] = useState({
+    content: '',
+  });
+  const [flipbookConfig, setFlipbookConfig] = useState({
+    type: 'external', // 'external', 'images', 'pdf'
+    url: '',
+    pages: [],
+  });
+  
   // Timeline playback state (shared between Timeline and SlideCanvas)
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
