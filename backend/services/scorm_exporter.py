@@ -1324,6 +1324,101 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             border: none !important;
         }}
         
+        /* Button Element Styles */
+        .button-element {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        
+        .scorm-button {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }}
+        
+        .scorm-button.primary {{
+            background: linear-gradient(135deg, #7c3aed, #06b6d4);
+            color: white;
+        }}
+        
+        .scorm-button.primary:hover {{
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+        }}
+        
+        .scorm-button.secondary {{
+            background: #4b5563;
+            color: white;
+        }}
+        
+        .scorm-button.secondary:hover {{
+            background: #374151;
+        }}
+        
+        .scorm-button.outline {{
+            background: transparent;
+            border: 2px solid #7c3aed;
+            color: #7c3aed;
+        }}
+        
+        .scorm-button.outline:hover {{
+            background: rgba(124, 58, 237, 0.1);
+        }}
+        
+        .scorm-button.ghost {{
+            background: transparent;
+            color: #374151;
+        }}
+        
+        .scorm-button.ghost:hover {{
+            background: rgba(0, 0, 0, 0.05);
+        }}
+        
+        .scorm-button .btn-icon {{
+            font-size: 1.2em;
+        }}
+        
+        /* HTML Element Styles */
+        .html-element {{
+            background: white;
+            border-radius: 4px;
+            overflow: hidden;
+        }}
+        
+        .html-element iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+        }}
+        
+        /* Flipbook Element Styles */
+        .flipbook-element {{
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }}
+        
+        .flipbook-element iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+        }}
+        
+        .flipbook-images-container {{
+            width: 100%;
+            height: 100%;
+        }}
+        
         #controls {{
             height: 60px;
             background: #16213e;
