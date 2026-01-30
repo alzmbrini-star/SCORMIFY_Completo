@@ -522,6 +522,113 @@ var CoursePlayer = (function() {
                     el.appendChild(video);
                 }
                 break;
+            
+            case 'button':
+                el = document.createElement('div');
+                el.className = 'slide-element button-element';
+                el.style.display = 'flex';
+                el.style.alignItems = 'center';
+                el.style.justifyContent = 'center';
+                
+                var btn = document.createElement('button');
+                btn.className = 'scorm-button ' + (element.buttonStyle || 'primary');
+                btn.innerHTML = (element.buttonIcon ? '<span class="btn-icon">' + element.buttonIcon + '</span>' : '') + 
+                               '<span>' + (element.buttonText || 'Clique aqui') + '</span>';
+                btn.onclick = function(e) {
+                    e.preventDefault();
+                    if (element.buttonUrl) {
+                        window.open(element.buttonUrl, element.openInNewTab !== false ? '_blank' : '_self');
+                    }
+                };
+                el.appendChild(btn);
+                break;
+            
+            case 'html':
+                el = document.createElement('div');
+                el.className = 'slide-element html-element';
+                var htmlIframe = document.createElement('iframe');
+                htmlIframe.srcdoc = element.htmlContent || '<p>HTML Content</p>';
+                htmlIframe.style.width = '100%';
+                htmlIframe.style.height = '100%';
+                htmlIframe.style.border = 'none';
+                htmlIframe.sandbox = 'allow-scripts allow-same-origin';
+                el.appendChild(htmlIframe);
+                break;
+            
+            case 'flipbook':
+                el = document.createElement('div');
+                el.className = 'slide-element flipbook-element';
+                
+                if (element.flipbookType === 'external' && element.flipbookUrl) {
+                    var flipIframe = document.createElement('iframe');
+                    flipIframe.src = element.flipbookUrl;
+                    flipIframe.style.width = '100%';
+                    flipIframe.style.height = '100%';
+                    flipIframe.style.border = 'none';
+                    flipIframe.allow = 'fullscreen';
+                    el.appendChild(flipIframe);
+                } else if (element.flipbookType === 'pdf' && element.flipbookUrl) {
+                    var pdfIframe = document.createElement('iframe');
+                    pdfIframe.src = element.flipbookUrl;
+                    pdfIframe.style.width = '100%';
+                    pdfIframe.style.height = '100%';
+                    pdfIframe.style.border = 'none';
+                    el.appendChild(pdfIframe);
+                } else if (element.flipbookType === 'images' && element.flipbookPages && element.flipbookPages.length > 0) {
+                    // Simple image flipbook viewer
+                    var flipContainer = document.createElement('div');
+                    flipContainer.className = 'flipbook-images-container';
+                    flipContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;background:#222;';
+                    
+                    var flipImg = document.createElement('img');
+                    flipImg.src = element.flipbookPages[0];
+                    flipImg.style.cssText = 'flex:1;object-fit:contain;max-height:calc(100% - 40px);';
+                    flipImg.dataset.pages = JSON.stringify(element.flipbookPages);
+                    flipImg.dataset.currentPage = '0';
+                    
+                    var flipNav = document.createElement('div');
+                    flipNav.style.cssText = 'height:40px;display:flex;align-items:center;justify-content:center;gap:10px;background:#333;';
+                    
+                    var prevBtn = document.createElement('button');
+                    prevBtn.innerHTML = '◀ Anterior';
+                    prevBtn.style.cssText = 'padding:5px 10px;border:none;background:#555;color:#fff;border-radius:4px;cursor:pointer;';
+                    prevBtn.onclick = function() {
+                        var pages = JSON.parse(flipImg.dataset.pages);
+                        var current = parseInt(flipImg.dataset.currentPage);
+                        if (current > 0) {
+                            flipImg.dataset.currentPage = current - 1;
+                            flipImg.src = pages[current - 1];
+                            pageInfo.textContent = (current) + ' / ' + pages.length;
+                        }
+                    };
+                    
+                    var pageInfo = document.createElement('span');
+                    pageInfo.style.cssText = 'color:#fff;font-size:14px;';
+                    pageInfo.textContent = '1 / ' + element.flipbookPages.length;
+                    
+                    var nextBtn = document.createElement('button');
+                    nextBtn.innerHTML = 'Próximo ▶';
+                    nextBtn.style.cssText = 'padding:5px 10px;border:none;background:#555;color:#fff;border-radius:4px;cursor:pointer;';
+                    nextBtn.onclick = function() {
+                        var pages = JSON.parse(flipImg.dataset.pages);
+                        var current = parseInt(flipImg.dataset.currentPage);
+                        if (current < pages.length - 1) {
+                            flipImg.dataset.currentPage = current + 1;
+                            flipImg.src = pages[current + 1];
+                            pageInfo.textContent = (current + 2) + ' / ' + pages.length;
+                        }
+                    };
+                    
+                    flipNav.appendChild(prevBtn);
+                    flipNav.appendChild(pageInfo);
+                    flipNav.appendChild(nextBtn);
+                    flipContainer.appendChild(flipImg);
+                    flipContainer.appendChild(flipNav);
+                    el.appendChild(flipContainer);
+                } else {
+                    el.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;color:#666;">Flipbook</div>';
+                }
+                break;
                 
             default:
                 el = document.createElement('div');
