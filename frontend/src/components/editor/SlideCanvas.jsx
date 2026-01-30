@@ -544,6 +544,89 @@ const SlideCanvas = ({
                   )}
                 </div>
               )}
+
+              {/* Button Element */}
+              {element.type === 'button' && (
+                <div className="w-full h-full flex items-center justify-center">
+                  <button
+                    className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${
+                      element.buttonStyle === 'primary' 
+                        ? 'bg-gradient-to-r from-purple-600 to-cyan-500 text-white hover:opacity-90' 
+                        : element.buttonStyle === 'secondary'
+                        ? 'bg-gray-600 text-white hover:bg-gray-700'
+                        : element.buttonStyle === 'outline'
+                        ? 'border-2 border-purple-600 text-purple-600 bg-transparent hover:bg-purple-50'
+                        : 'bg-transparent text-gray-700 hover:bg-gray-100'
+                    }`}
+                    style={{
+                      fontSize: element.style?.fontSize || 16,
+                      borderRadius: element.style?.borderRadius || 8,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {element.buttonIcon && <span>{element.buttonIcon}</span>}
+                    {element.buttonText || 'Clique aqui'}
+                  </button>
+                  {isSelected && (
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-purple-600/90 text-white text-xs rounded pointer-events-none">
+                      Link: {element.buttonUrl?.slice(0, 30)}...
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* HTML Element */}
+              {element.type === 'html' && (
+                <div className="w-full h-full bg-white rounded overflow-hidden">
+                  <iframe
+                    srcDoc={element.htmlContent || '<p>HTML Content</p>'}
+                    className="w-full h-full border-0"
+                    sandbox="allow-scripts allow-same-origin"
+                    title="HTML Content"
+                    style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                  />
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-blue-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none">
+                      <span className="font-mono">&lt;/&gt;</span> HTML
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Flipbook Element */}
+              {element.type === 'flipbook' && (
+                <div className="w-full h-full bg-gray-100 rounded overflow-hidden">
+                  {element.flipbookType === 'external' && element.flipbookUrl ? (
+                    <iframe
+                      src={element.flipbookUrl}
+                      className="w-full h-full border-0"
+                      allow="fullscreen"
+                      title="Flipbook"
+                      style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                    />
+                  ) : element.flipbookType === 'pdf' && element.flipbookUrl ? (
+                    <iframe
+                      src={element.flipbookUrl}
+                      className="w-full h-full border-0"
+                      title="PDF Viewer"
+                      style={{ pointerEvents: isSelected ? 'none' : 'auto' }}
+                    />
+                  ) : element.flipbookType === 'images' && element.flipbookPages?.length > 0 ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-800 text-white">
+                      <span className="text-sm">Flipbook ({element.flipbookPages.length} páginas)</span>
+                    </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-600">
+                      <span className="text-sm">Flipbook</span>
+                    </div>
+                  )}
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-green-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none">
+                      📖 Flipbook
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Selection Controls - Only show when selected */}
