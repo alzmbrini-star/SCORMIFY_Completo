@@ -1516,6 +1516,186 @@ export default function Editor() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Button Dialog */}
+        <Dialog open={showButtonDialog} onOpenChange={setShowButtonDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Adicionar Botão/Link</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <label className="text-sm font-medium">Texto do Botão</label>
+                <Input
+                  placeholder="Clique aqui"
+                  value={buttonConfig.text}
+                  onChange={(e) => setButtonConfig({ ...buttonConfig, text: e.target.value })}
+                  data-testid="button-text-input"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">URL de Destino *</label>
+                <Input
+                  placeholder="https://exemplo.com"
+                  value={buttonConfig.url}
+                  onChange={(e) => setButtonConfig({ ...buttonConfig, url: e.target.value })}
+                  data-testid="button-url-input"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Ícone (emoji ou texto)</label>
+                <Input
+                  placeholder="🔗 ou →"
+                  value={buttonConfig.icon}
+                  onChange={(e) => setButtonConfig({ ...buttonConfig, icon: e.target.value })}
+                  data-testid="button-icon-input"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Estilo do Botão</label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border bg-background"
+                  value={buttonConfig.style}
+                  onChange={(e) => setButtonConfig({ ...buttonConfig, style: e.target.value })}
+                  data-testid="button-style-select"
+                >
+                  <option value="primary">Primário (Colorido)</option>
+                  <option value="secondary">Secundário (Cinza)</option>
+                  <option value="outline">Contorno</option>
+                  <option value="ghost">Transparente</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="openNewTab"
+                  checked={buttonConfig.openInNewTab}
+                  onChange={(e) => setButtonConfig({ ...buttonConfig, openInNewTab: e.target.checked })}
+                  className="rounded"
+                />
+                <label htmlFor="openNewTab" className="text-sm">Abrir em nova aba</label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowButtonDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddButton} data-testid="confirm-add-button">
+                Adicionar Botão
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* HTML Dialog */}
+        <Dialog open={showHtmlDialog} onOpenChange={setShowHtmlDialog}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Adicionar HTML Personalizado</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <label className="text-sm font-medium">Código HTML</label>
+                <textarea
+                  className="w-full h-64 p-3 rounded-md border bg-background font-mono text-sm"
+                  placeholder="<div>Seu código HTML aqui...</div>"
+                  value={htmlConfig.content}
+                  onChange={(e) => setHtmlConfig({ ...htmlConfig, content: e.target.value })}
+                  data-testid="html-content-input"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Suporta HTML, CSS inline e JavaScript básico. O código será renderizado dentro de um iframe isolado.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowHtmlDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddHtml} data-testid="confirm-add-html">
+                Adicionar HTML
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Flipbook Dialog */}
+        <Dialog open={showFlipbookDialog} onOpenChange={setShowFlipbookDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Adicionar Flipbook</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <label className="text-sm font-medium">Tipo de Flipbook</label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border bg-background"
+                  value={flipbookConfig.type}
+                  onChange={(e) => setFlipbookConfig({ ...flipbookConfig, type: e.target.value })}
+                  data-testid="flipbook-type-select"
+                >
+                  <option value="external">URL Externa (FlipHTML5, Issuu, etc.)</option>
+                  <option value="pdf">Upload de PDF</option>
+                  <option value="images">Múltiplas Imagens</option>
+                </select>
+              </div>
+              
+              {flipbookConfig.type === 'external' && (
+                <div>
+                  <label className="text-sm font-medium">URL do Flipbook</label>
+                  <Input
+                    placeholder="https://fliphtml5.com/..."
+                    value={flipbookConfig.url}
+                    onChange={(e) => setFlipbookConfig({ ...flipbookConfig, url: e.target.value })}
+                    data-testid="flipbook-url-input"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cole a URL de embed do seu flipbook (FlipHTML5, Issuu, Flipsnack, etc.)
+                  </p>
+                </div>
+              )}
+              
+              {flipbookConfig.type === 'pdf' && (
+                <div>
+                  <label className="text-sm font-medium">URL do PDF</label>
+                  <Input
+                    placeholder="https://exemplo.com/documento.pdf"
+                    value={flipbookConfig.url}
+                    onChange={(e) => setFlipbookConfig({ ...flipbookConfig, url: e.target.value })}
+                    data-testid="flipbook-pdf-input"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    O PDF será exibido em um visualizador integrado.
+                  </p>
+                </div>
+              )}
+              
+              {flipbookConfig.type === 'images' && (
+                <div>
+                  <label className="text-sm font-medium">URLs das Imagens (uma por linha)</label>
+                  <textarea
+                    className="w-full h-32 p-3 rounded-md border bg-background text-sm"
+                    placeholder="https://exemplo.com/pagina1.jpg&#10;https://exemplo.com/pagina2.jpg"
+                    value={flipbookConfig.pages.join('\n')}
+                    onChange={(e) => setFlipbookConfig({ 
+                      ...flipbookConfig, 
+                      pages: e.target.value.split('\n').filter(url => url.trim()) 
+                    })}
+                    data-testid="flipbook-images-input"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowFlipbookDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddFlipbook} data-testid="confirm-add-flipbook">
+                Adicionar Flipbook
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
