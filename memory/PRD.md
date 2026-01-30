@@ -178,6 +178,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/frontend/src/pages/Editor.jsx` - Estado compartilhado de timeline
 - **Status**: IMPLEMENTED AND TESTED
 
+### New Elements: Button, HTML, Flipbook - IMPLEMENTED (Jan 30, 2026)
+- **Feature**: Added 3 new element types to slides
+- **Implementation**:
+  1. **Button Element** (🔗): Configurable link buttons with text, URL, icon, 4 styles (primary/secondary/outline/ghost), new tab option
+  2. **HTML Element** (`</>`): Custom HTML/CSS/JS code rendered in isolated iframe
+  3. **Flipbook Element** (📖): Support for external URLs (FlipHTML5, Issuu), PDF, or multiple images with navigation
+- **Editor**: New toolbar buttons + configuration dialogs for each type
+- **SCORM Export**: Full support with styled buttons and embedded content
+- **Files Modified**:
+  - `/app/backend/models.py` - Added buttonText, buttonUrl, buttonIcon, buttonStyle, htmlContent, flipbookType, flipbookUrl, flipbookPages fields
+  - `/app/frontend/src/pages/Editor.jsx` - Added 3 dialogs and toolbar buttons
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - Render logic for new elements
+  - `/app/backend/services/scorm_exporter.py` - SCORM export with CSS styles
+- **Status**: IMPLEMENTED AND TESTED
+
 ### SCORM Sidebar Navigation - IMPLEMENTED (Jan 29, 2026)
 - **Feature**: Added slide navigation sidebar menu for students
 - **Implementation**:
