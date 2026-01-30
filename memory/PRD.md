@@ -178,6 +178,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/frontend/src/pages/Editor.jsx` - Estado compartilhado de timeline
 - **Status**: IMPLEMENTED AND TESTED
 
+### SCORM Sidebar Navigation - IMPLEMENTED (Jan 29, 2026)
+- **Feature**: Added slide navigation sidebar menu for students
+- **Implementation**:
+  1. Hamburger menu button (☰) in controls bar
+  2. Slide-out sidebar with all slides listed
+  3. Thumbnail preview for each slide using background image
+  4. Status indicators: ✓ Completed | ● Current | ○ Pending
+  5. Direct navigation by clicking any slide
+  6. Auto-scroll to keep current slide visible
+  7. Smooth open/close animation
+  8. Translated buttons to Portuguese (Anterior/Próximo)
+- **Files Modified**:
+  - `/app/backend/services/scorm_exporter.py` - Added sidebar HTML, CSS, and JS functions
+- **Status**: IMPLEMENTED
+
 ### SCORM Volume Control - IMPLEMENTED (Jan 29, 2026)
 - **Issue**: Volume button in exported SCORM was not functional (icon only, no action)
 - **Fix Applied**:
