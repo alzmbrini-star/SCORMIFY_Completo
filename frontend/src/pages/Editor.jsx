@@ -81,6 +81,8 @@ import {
   ExternalLink,
   Code,
   BookOpen,
+  User,
+  Sparkles,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
