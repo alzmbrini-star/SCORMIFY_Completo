@@ -251,6 +251,7 @@ export default function Editor() {
     voiceId: '',
     script: '',
     title: 'Avatar Video',
+    transparentBackground: true, // Default to transparent
   });
   
   // Ref for HeyGen timer interval
