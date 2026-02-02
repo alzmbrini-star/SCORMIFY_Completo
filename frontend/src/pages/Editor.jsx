@@ -487,6 +487,28 @@ export default function Editor() {
     }
   };
 
+  const handleDeleteAnnotation = async (annotationId) => {
+    if (!currentSlide) return;
+    try {
+      await deleteAnnotation(currentSlide.id, annotationId);
+      setSelectedAnnotationId(null);
+      toast.success('Anotação excluída');
+    } catch (err) {
+      toast.error('Falha ao excluir anotação');
+    }
+  };
+
+  const handleDeleteElement = async (elementId) => {
+    if (!currentSlide) return;
+    try {
+      await deleteElement(currentSlide.id, elementId);
+      setSelectedElementId(null);
+      toast.success('Elemento excluído');
+    } catch (err) {
+      toast.error('Falha ao excluir elemento');
+    }
+  };
+
   const handleAddElement = async (type) => {
     if (!currentSlide) return;
     
