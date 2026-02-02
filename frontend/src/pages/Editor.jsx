@@ -1042,7 +1042,13 @@ export default function Editor() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+            <Dialog open={showExportDialog} onOpenChange={(open) => {
+              setShowExportDialog(open);
+              if (!open) {
+                // Reset downloadUrl when dialog closes so next time shows Generate button
+                setDownloadUrl(null);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 btn-primary" data-testid="export-btn">
                   <Download className="w-4 h-4" />
