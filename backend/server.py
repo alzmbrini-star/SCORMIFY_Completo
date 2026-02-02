@@ -1097,6 +1097,73 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
+# AI Script Generation
+from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+class GenerateScriptRequest(BaseModel):
+    topic: str
+    style: Optional[str] = "educational"  # educational, conversational, formal, friendly
+    duration: Optional[str] = "medium"  # short (30s), medium (1-2min), long (3-5min)
+    language: Optional[str] = "português brasileiro"
+
+@api_router.post("/ai/generate-script")
+async def generate_ai_script(request: GenerateScriptRequest):
+    """Generate a video script using AI"""
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI key not configured")
+    
+    # Define duration guidelines
+    duration_guide = {
+        "short": "30 segundos a 1 minuto (aproximadamente 75-150 palavras)",
+        "medium": "1 a 2 minutos (aproximadamente 150-300 palavras)",
+        "long": "3 a 5 minutos (aproximadamente 450-750 palavras)"
+    }
+    
+    style_guide = {
+        "educational": "tom educativo e didático, explicando conceitos de forma clara",
+        "conversational": "tom conversacional e descontraído, como se estivesse falando com um amigo",
+        "formal": "tom formal e profissional, adequado para ambientes corporativos",
+        "friendly": "tom amigável e acolhedor, criando conexão com o espectador"
+    }
+    
+    try:
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"script-gen-{uuid.uuid4()}",
+            system_message=f"""Você é um roteirista profissional especializado em criar scripts para vídeos com avatares de IA.
+
+Suas diretrizes:
+1. Escreva em {request.language}
+2. Use {style_guide.get(request.style, style_guide['educational'])}
+3. O script deve ter {duration_guide.get(request.duration, duration_guide['medium'])}
+4. Escreva de forma natural e fluida, como se fosse uma pessoa real falando
+5. Use pausas naturais (vírgulas, pontos) para dar ritmo ao texto
+6. Evite jargões técnicos complexos, a menos que sejam explicados
+7. Comece com uma saudação ou gancho que prenda a atenção
+8. Termine com uma conclusão clara ou call-to-action
+
+IMPORTANTE: Retorne APENAS o script, sem títulos, numeração de cenas ou instruções de direção."""
+        ).with_model("openai", "gpt-4o")
+        
+        user_message = UserMessage(
+            text=f"Crie um script de vídeo sobre o seguinte tema:\n\n{request.topic}"
+        )
+        
+        response = await chat.send_message(user_message)
+        
+        return {
+            "script": response,
+            "topic": request.topic,
+            "style": request.style,
+            "duration": request.duration,
+            "language": request.language
+        }
+    except Exception as e:
+        logger.error(f"AI script generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate script: {str(e)}")
+
 @api_router.get("/heygen/video-status/{video_id}")
 async def get_heygen_video_status(video_id: str):
     """Check the status of a HeyGen video generation"""
