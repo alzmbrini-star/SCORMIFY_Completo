@@ -178,6 +178,26 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/frontend/src/pages/Editor.jsx` - Estado compartilhado de timeline
 - **Status**: IMPLEMENTED AND TESTED
 
+### HeyGen Avatar Video Integration - IMPLEMENTED (Feb 2, 2026)
+- **Feature**: Generate AI avatar videos with lip-sync from text scripts
+- **Implementation**:
+  1. Backend endpoints for HeyGen API (avatars, voices, video generation, status)
+  2. Frontend dialog with avatar grid, voice selector, script editor
+  3. Progress indicator during video generation
+  4. Video preview and add-to-slide functionality
+  5. Portuguese voices filter (49 voices available)
+- **API Key**: Configured in backend/.env (user provided)
+- **Endpoints Added**:
+  - `GET /api/heygen/avatars` - Lists 100 avatars with previews
+  - `GET /api/heygen/voices` - Lists voices filtered by language
+  - `POST /api/heygen/generate-video` - Starts video generation
+  - `GET /api/heygen/video-status/{id}` - Polls generation status
+- **Files Modified**:
+  - `/app/backend/server.py` - Added HeyGen API routes
+  - `/app/backend/.env` - Added HEYGEN_API_KEY
+  - `/app/frontend/src/pages/Editor.jsx` - Added avatar button and dialog
+- **Status**: IMPLEMENTED
+
 ### New Elements: Button, HTML, Flipbook - IMPLEMENTED (Jan 30, 2026)
 - **Feature**: Added 3 new element types to slides
 - **Implementation**:
