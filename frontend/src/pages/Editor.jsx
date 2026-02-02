@@ -1971,22 +1971,128 @@ export default function Editor() {
 
                 {/* Script Input */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Script do Vídeo
-                    <span className="text-muted-foreground ml-2 text-xs">
-                      ({heygenConfig.script.length}/5000 caracteres)
-                    </span>
-                  </label>
-                  <textarea
-                    className="w-full h-40 p-3 rounded-md border bg-background text-sm"
-                    placeholder="Digite o texto que o avatar irá narrar..."
-                    value={heygenConfig.script}
-                    onChange={(e) => setHeygenConfig({ ...heygenConfig, script: e.target.value.slice(0, 5000) })}
-                    data-testid="heygen-script-input"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    💡 Dica: Escreva de forma natural, como se estivesse conversando. O avatar irá falar com sincronismo labial realista.
-                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium">
+                      Script do Vídeo
+                      <span className="text-muted-foreground ml-2 text-xs">
+                        ({heygenConfig.script.length}/5000 caracteres)
+                      </span>
+                    </label>
+                    <div className="flex gap-1 bg-muted rounded-lg p-1">
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-all ${
+                          scriptMode === 'manual' 
+                            ? 'bg-background shadow-sm font-medium' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setScriptMode('manual')}
+                      >
+                        ✍️ Digitar
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-all ${
+                          scriptMode === 'ai' 
+                            ? 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white font-medium' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setScriptMode('ai')}
+                      >
+                        ✨ Gerar com IA
+                      </button>
+                    </div>
+                  </div>
+
+                  {scriptMode === 'manual' ? (
+                    <>
+                      <textarea
+                        className="w-full h-40 p-3 rounded-md border bg-background text-sm"
+                        placeholder="Digite o texto que o avatar irá narrar..."
+                        value={heygenConfig.script}
+                        onChange={(e) => setHeygenConfig({ ...heygenConfig, script: e.target.value.slice(0, 5000) })}
+                        data-testid="heygen-script-input"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        💡 Dica: Escreva de forma natural, como se estivesse conversando. O avatar irá falar com sincronismo labial realista.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-4 p-4 border rounded-lg bg-gradient-to-br from-purple-500/5 to-cyan-500/5">
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Tema do Vídeo</label>
+                        <textarea
+                          className="w-full h-24 p-3 rounded-md border bg-background text-sm"
+                          placeholder="Descreva o tema do vídeo. Ex: Explique os benefícios do trabalho em equipe para empresas modernas, focando em produtividade e bem-estar..."
+                          value={aiScriptTopic}
+                          onChange={(e) => setAiScriptTopic(e.target.value)}
+                          data-testid="ai-script-topic"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Estilo</label>
+                          <select
+                            className="w-full h-10 px-3 rounded-md border bg-background text-sm"
+                            value={aiScriptStyle}
+                            onChange={(e) => setAiScriptStyle(e.target.value)}
+                          >
+                            <option value="educational">📚 Educativo</option>
+                            <option value="conversational">💬 Conversacional</option>
+                            <option value="formal">👔 Formal</option>
+                            <option value="friendly">😊 Amigável</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Duração</label>
+                          <select
+                            className="w-full h-10 px-3 rounded-md border bg-background text-sm"
+                            value={aiScriptDuration}
+                            onChange={(e) => setAiScriptDuration(e.target.value)}
+                          >
+                            <option value="short">⚡ Curto (30s-1min)</option>
+                            <option value="medium">📝 Médio (1-2min)</option>
+                            <option value="long">📖 Longo (3-5min)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handleGenerateAiScript}
+                        disabled={aiGeneratingScript || !aiScriptTopic.trim()}
+                        className="w-full bg-gradient-to-r from-purple-600 to-cyan-500"
+                        data-testid="generate-ai-script-btn"
+                      >
+                        {aiGeneratingScript ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Gerando script...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Gerar Script com IA
+                          </>
+                        )}
+                      </Button>
+
+                      {heygenConfig.script && (
+                        <div className="mt-3 p-3 bg-background rounded-md border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-green-600">✓ Script gerado</span>
+                            <button
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() => setScriptMode('manual')}
+                            >
+                              Editar →
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-3">
+                            {heygenConfig.script.slice(0, 200)}...
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Video Title */}
