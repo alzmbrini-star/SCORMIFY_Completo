@@ -27,52 +27,45 @@ Criar um aplicativo web (Front-end + Back-end) que:
 **User's preferred language**: Português. O próximo agente DEVE responder em português.
 
 **what currently exists?**
-Um aplicativo full-stack (React + FastAPI) que converte PPTX para imagens PNG (usando LibreOffice) e as empacota em um formato SCORM 1.2. A aplicação possui um dashboard e um editor onde os usuários podem adicionar e sincronizar elementos (vídeos, imagens, texto, anotações) sobre os slides.
-
-Funcionalidades implementadas incluem:
-- Upload e conversão de PPTX.
-- Adição de mídias (vídeos do YouTube, imagens, áudios).
-- Ferramentas de anotação (desenho de setas, círculos, retângulos) com persistência.
-- Reordenação de slides via arrastar e soltar (drag & drop).
-- Gerenciamento de áudio (global e por slide).
-- Exportação para SCORM 1.2.
-- **Timeline Funcional:** Uma timeline completa foi implementada, permitindo sincronizar o aparecimento/desaparecimento de elementos e anotações. Os tempos (, ) podem ser editados visualmente e são persistidos no banco de dados e refletidos no SCORM exportado.
-- **Auto-instalação de Dependências:** Foi criado um script no backend que verifica e instala automaticamente o LibreOffice e o  na inicialização, mitigando problemas causados por reinicializações do ambiente.
+Um aplicativo web full-stack (React + FastAPI) que converte PPTX em imagens e as empacota em um formato SCORM 1.2. O sistema possui um editor avançado que permite aos usuários adicionar e sincronizar diversos tipos de elementos sobre os slides, incluindo:
+-   **Mídias Básicas**: Vídeos do YouTube, imagens, áudios.
+-   **Anotações**: Ferramentas de desenho (setas, círculos).
+-   **Elementos Interativos**: Botões com links externos, snippets de HTML e Flipbooks (via URL).
+-   **Vídeos com Avatar de IA**: Integração com a HeyGen para gerar vídeos de avatares a partir de texto. Inclui a capacidade de gerar o roteiro usando IA (via Emergent LLM Key).
+-   **Funcionalidades do Editor**: Reordenação de slides, timeline visual para sincronização de elementos.
+-   **Exportação SCORM**: O pacote SCORM inclui um player com controle de volume funcional e um menu de navegação lateral com thumbnails dos slides.
+-   **Infraestrutura**: O backend possui um script de auto-instalação para a dependência  para mitigar problemas de reinicialização do ambiente.
 
 **Last working item**:
-    - Last item agent was working: O agente estava prestes a investigar um novo bug relatado pelo usuário. Ao tentar excluir uma imagem, o frontend recebe um erro Request failed with status code 404.
-    - Status: NOT STARTED
+    - Last item agent was working: O agente estava investigando por que o usuário recebe uma mensagem de Tempo Limite Excedido ao tentar gerar um vídeo com avatar da HeyGen. O agente identificou que o mecanismo de polling no frontend tem um tempo limite fixo de 5 minutos, que pode ser insuficiente para a HeyGen processar vídeos mais longos.
+    - Status: IN PROGRESS
     - Agent Testing Done: N
     - Which testing method agent to use? Backend e Frontend.
-      1.  **Backend:** Usar  para testar o endpoint  e verificar se está funcionando corretamente e se a rota está definida no .
-      2.  **Frontend:** Inspecionar a função de exclusão de elemento no  para garantir que ela está construindo a URL da API corretamente e fazendo a chamada .
+      1.  **Backend:** A solução ideal é mudar de um sistema de polling para uma abordagem baseada em webhooks, se a API da HeyGen suportar. Como alternativa, aumentar o tempo limite do polling no frontend e melhorar o feedback ao usuário.
+      2.  **Frontend:** Melhorar a experiência do usuário no  para indicar que a geração do vídeo é um processo longo e que pode levar vários minutos. Em vez de bloquear a interface, deve-se mostrar um status de processando e notificar o usuário quando estiver concluído.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: Erro 404 ao excluir uma imagem. (Prioridade: P0)
-  - Issue 2: Desalinhamento do ponteiro do mouse ao desenhar anotações. (Prioridade: P1)
-  - Issue 3: Discrepância de posicionamento de elementos no SCORM exportado. (Prioridade: P1)
-  - Issue 4: Fragilidade da dependência . (Prioridade: P2)
+  - Issue 1: Tempo limite excedido na geração de vídeo HeyGen (Prioridade: P0)
+  - Issue 2: Desalinhamento do ponteiro do mouse ao desenhar anotações (Prioridade: P1)
+  - Issue 3: Discrepância de posicionamento de elementos no SCORM exportado (Prioridade: P1)
+  - Issue 4: Fragilidade do ambiente (reinicializações frequentes) (Prioridade: P2)
   
   Issues Detail:
-  - **Issue 1: Erro 404 ao excluir uma imagem.**
-     - **Attempted fixes:** Nenhuma. O bug foi recém-relatado.
+  - **Issue 1: Tempo limite excedido na geração de vídeo HeyGen.**
+     - **Attempted fixes:** O agente diagnosticou que o problema não é um erro na API, mas sim o mecanismo de polling do frontend () que desiste após 5 minutos. Uma correção anterior para um erro de geração foi feita no backend () para forçar a resolução de 720p, que é compatível com o plano do usuário.
      - **Next debug checklist:**
-       1. Verificar o  para garantir que a rota  para excluir elementos () existe e está correta.
-       2. Inspecionar o  para analisar a função que lida com a exclusão de elementos e confirmar que a URL da requisição está sendo montada corretamente.
-       3. Usar  para testar o endpoint da API diretamente para isolar o problema (backend ou frontend).
-     - **Why fix this issue and what will be achieved with the fix?** A exclusão de elementos é uma funcionalidade básica do editor e está atualmente quebrada.
-     - **Status:** NOT STARTED
-     - **Is recurring issue?** N
+       1.  No , na função , aumentar significativamente o  ou remover o limite, implementando uma melhor comunicação de status para o usuário (ex: Processando, isso pode levar até 10 minutos...).
+       2.  No , pesquisar por , o loop de polling, e aumentar o  de 60 para um valor maior (ex: 120 para 10 minutos).
+       3.  Considerar uma solução de longo prazo no backend para usar webhooks da HeyGen, o que eliminaria a necessidade de polling.
+     - **Why fix this issue and what will be achieved with the fix?** Permitirá que vídeos mais longos sejam gerados com sucesso, tornando a funcionalidade de avatar de IA confiável.
+     - **Status:** IN PROGRESS
+     - **Is recurring issue?** Y
      - **Should Test frontend/backend/both after fix?** both
      - **Blocked on other issue:** None
 
   - **Issue 2: Desalinhamento do ponteiro do mouse ao desenhar anotações.**
-     - **Attempted fixes:** O agente implementou uma correção em  adicionando um  ao SVG das anotações e tornando o cálculo da escala dinâmico na função .
-     - **Next debug checklist:**
-       1. Testar manualmente o desenho de diferentes formas (seta, círculo) em um slide que esteja visivelmente redimensionado (não em sua resolução original).
-       2. Verificar se o traço segue o ponteiro do mouse com precisão do início ao fim.
-       3. Se o problema persistir, investigar se  ou  nos containers pai do canvas estão interferindo no cálculo de .
+     - **Attempted fixes:** Uma correção foi implementada em  (adicionando  e escala dinâmica).
      - **Why fix this issue and what will be achieved with the fix?** Melhora drasticamente a usabilidade da ferramenta de anotações.
      - **Status:** USER VERIFICATION PENDING
      - **Is recurring issue?** N
@@ -80,24 +73,19 @@ Funcionalidades implementadas incluem:
      - **Blocked on other issue:** None
 
   - **Issue 3: Discrepância de posicionamento de elementos no SCORM exportado.**
-     - **Attempted fixes:** Várias tentativas foram feitas, como o uso de , CSS com  e . A implementação da timeline no SCORM é o passo mais recente, mas o problema fundamental de layout pode persistir.
-     - **Next debug checklist:**
-       1. Adicionar um elemento e posicioná-lo/redimensioná-lo em um local não padrão.
-       2. Exportar o SCORM e abrir o .
-       3. Comparar o resultado visual com o editor e inspecionar o CSS no player SCORM para identificar regras conflitantes.
+     - **Attempted fixes:** Várias. A causa raiz ainda não foi totalmente resolvida.
      - **Why fix this issue and what will be achieved with the fix?** É um requisito central do projeto (tem que ficar idêntico).
      - **Status:** IN PROGRESS
      - **Is recurring issue?** Y
      - **Should Test frontend/backend/both after fix?** both
      - **Blocked on other issue:** None
 
-  - **Issue 4: Fragilidade da dependência .**
-     - **Attempted fixes:** Foi criado um script robusto em  que verifica e instala o  e  na inicialização do backend, inclusive tratando locks do .
-     - **Next debug checklist:** N/A. A solução está implementada. O problema é ambiental. O agente deve estar ciente de que reinicializações do ambiente são frequentes e causam uma indisponibilidade temporária da API (~1-2 min) enquanto as dependências são reinstaladas. É importante comunicar isso ao usuário caso ele relate que a API está fora do ar.
-     - **Why fix this issue and what will be achieved with the fix?** Garante que a funcionalidade principal de upload de PPTX funcione de forma mais confiável apesar das reinicializações do ambiente.
-     - **Status:** IN PROGRESS (Solução implementada, mas o problema ambiental raiz persiste).
+  - **Issue 4: Fragilidade do ambiente (reinicializações frequentes).**
+     - **Attempted fixes:** Um script de auto-instalação para o  foi criado em , o que torna o sistema resiliente. No entanto, o problema ambiental das reinicializações persiste.
+     - **Why fix this issue and what will be achieved with the fix?** O problema é ambiental. O agente deve estar ciente de que reinicializações causam uma indisponibilidade temporária da API (~1-2 min) e deve comunicar isso ao usuário se ele relatar que os projetos sumiram.
+     - **Status:** IN PROGRESS (Solução de mitigação implementada, mas o problema ambiental raiz persiste).
      - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** backend
+     - **Should Test frontend/backend/both after fix?** N/A (problema ambiental)
      - **Blocked on other issue:** None
 
 **In progress Task List**:
@@ -106,142 +94,116 @@ Funcionalidades implementadas incluem:
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - **CRUD de Slides (P1):** Implementar as funcionalidades de Criar Slide em Branco e Duplicar Slide.
-    - **Aba Layers (P1):** Adicionar as anotações (Seta, Círculo, etc.) à aba Layers para permitir seleção e manipulação, conforme sugerido pelo agente.
+    - **Aba Layers (P1):** Adicionar as anotações (Seta, Círculo, etc.) à aba Layers para permitir seleção e manipulação.
     - **Gravação de Áudio (P1):** Implementar a funcionalidade completa de gravação de áudio pelo microfone diretamente no editor.
     
     Future Tasks:
+    - **Melhorias na Integração HeyGen (P2):**
+        - Implementar webhooks para substituir o polling de status de vídeo.
+        - Verificar o saldo de créditos da API HeyGen antes de iniciar a geração.
+    - **Melhorias no Flipbook (P2):**
+        - Adicionar um visualizador de imagens com efeito de virada de página.
+        - Permitir upload direto de PDF/imagens.
     - **Extração de Animações do PPT (P2).**
     - **SCORM Tracking Avançado (P2):** Implementar  e .
     - **Suporte a SmartArt/WordArt (P2).**
     - **Paleta de Cores para Anotações (P2).**
 
 **Completed work in this session**
-- **Funcionalidade da Timeline (Implementada):** Uma timeline totalmente funcional foi criada, permitindo a sincronização de elementos e anotações (, ) com edição visual e persistência no banco de dados.
-- **Sincronização da Timeline no SCORM (Implementada):** A lógica da timeline foi adicionada ao player SCORM exportado, fazendo com que elementos e anotações apareçam e desapareçam nos tempos corretos.
-- **Anotações na Timeline (Implementada):** Anotações (setas, círculos, etc.) agora são tratadas como elementos na timeline, permitindo a sincronização de seu tempo.
-- **Solução para Dependência do LibreOffice (Implementada):** Criado um script de auto-instalação no backend para reinstalar o LibreOffice após reinicializações do ambiente, tornando a aplicação mais resiliente.
-- **Correção de Bugs de Áudio (Resolvido):** Corrigido o problema de sobreposição de áudios ao navegar entre slides, tanto no editor quanto no SCORM.
-- **Correção de Bugs de Redirecionamento (Resolvido):** Corrigido o bug recorrente que redirecionava o usuário para o primeiro slide ao realizar ações como adicionar anotações. O problema estava em chamadas desnecessárias a .
-- **Funcionalidade Clique para Iniciar no SCORM (Implementada):** Adicionado um overlay no player SCORM para cumprir as políticas de autoplay de áudio dos navegadores.
-- **Correção do Nome do Arquivo SCORM (Resolvido):** O nome do arquivo  exportado agora usa o nome limpo do projeto, sem UUIDs.
+- **Bug de Exclusão de Elementos (404) Corrigido:** O problema raiz era que elementos com  não eram renderizados, impedindo sua seleção. A correção os torna visíveis no editor com um estilo distinto, permitindo sua exclusão.
+- **Funcionalidade de Restauração de Projetos:** O agente lidou com múltiplas solicitações do usuário para restaurar projetos, diagnosticando corretamente que a causa era a reinicialização do ambiente e o tempo de reinstalação das dependências.
+- **Controle de Volume no SCORM:** Implementado um controle deslizante de volume funcional no player SCORM exportado.
+- **Menu de Navegação Lateral no SCORM:** Adicionado um menu lateral retrátil ao player SCORM com thumbnails e status dos slides para facilitar a navegação.
+- **Novos Elementos no Editor (Botão, HTML, Flipbook):** Adicionada a capacidade de inserir botões com links, snippets de HTML e flipbooks (via URL) nos slides.
+- **Correção de Reposicionamento/Redimensionamento:** Corrigido um bug que impedia o reposicionamento e redimensionamento dos novos tipos de elementos (botão, HTML, flipbook) pela falta de um overlay para captura de eventos do mouse.
+- **Integração com HeyGen para Vídeos de Avatar:**
+    - Implementada a integração completa com a API da HeyGen.
+    - Adicionado um diálogo no editor para selecionar um avatar, voz, e inserir um script para gerar um vídeo de avatar.
+    - Implementada a geração de script com IA usando a Emergent LLM Key.
+- **Correção de Geração de Vídeo HeyGen:** Corrigido um erro de geração de vídeo ajustando a resolução para 720p, compatível com o plano da API do usuário.
 
 **Earlier issues found/mentioned but not fixed**
-   - A aba Layers no editor ainda não lista as anotações para seleção e manipulação. O agente propôs isso, mas foi interrompido por outro bug.
+   - A aba Layers no editor ainda não lista as anotações (formas desenhadas) para seleção e manipulação.
 
 **Known issue recurrence from previous fork**
-  - **Discrepância no layout do SCORM:** Continua sendo um problema em aberto e um requisito central não totalmente atendido.
-  - **Dependência  ausente:** Embora uma solução de auto-instalação tenha sido implementada, o ambiente reinicia com frequência, causando curtos períodos de inatividade da API e confusão para o usuário, que percebe os projetos sumindo temporariamente.
+  - **Discrepância no layout do SCORM:** Continua sendo um problema em aberto.
+  - **Ambiente Volátil:** O usuário encontrou o problema de projetos desaparecidos várias vezes devido às reinicializações do ambiente. A solução de auto-instalação funciona, mas causa um atraso de 1-2 minutos que confunde o usuário.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, Pydantic, pymongo,  para chamar  e comandos de sistema (apt 2.6.1 (arm64)
-Usage: apt-get [options] command
-       apt-get [options] install|remove pkg1 [pkg2 ...]
-       apt-get [options] source pkg1 [pkg2 ...]
-
-apt-get is a command line interface for retrieval of packages
-and information about them from authenticated sources and
-for installation, upgrade and removal of packages together
-with their dependencies.
-
-Most used commands:
-  update - Retrieve new lists of packages
-  upgrade - Perform an upgrade
-  install - Install new packages (pkg is libc6 not libc6.deb)
-  reinstall - Reinstall packages (pkg is libc6 not libc6.deb)
-  remove - Remove packages
-  purge - Remove packages and config files
-  autoremove - Remove automatically all unused packages
-  dist-upgrade - Distribution upgrade, see apt-get(8)
-  dselect-upgrade - Follow dselect selections
-  build-dep - Configure build-dependencies for source packages
-  satisfy - Satisfy dependency strings
-  clean - Erase downloaded archive files
-  autoclean - Erase old downloaded archive files
-  check - Verify that there are no broken dependencies
-  source - Download source archives
-  download - Download the binary package into the current directory
-  changelog - Download and display the changelog for the given package
-
-See apt-get(8) for more information about the available commands.
-Configuration options and syntax is detailed in apt.conf(5).
-Information about how to configure sources can be found in sources.list(5).
-Package and version choices can be expressed via apt_preferences(5).
-Security details are available in apt-secure(8).
-                                        This APT has Super Cow Powers., ).
-- **Frontend:** React, Context API para gerenciamento de estado, Tailwind CSS, Shadcn UI, . O componente da Timeline usa ,  e manipulação de eventos de mouse para arrastar e redimensionar clipes.
+- **Backend:** FastAPI, Pydantic, pymongo, .
+- **Frontend:** React, Context API, Tailwind CSS, Shadcn UI, .
 - **Database:** MongoDB.
-- **Conversão de PPT:** LibreOffice e  ().
-- **DevOps Leve:** Script de inicialização para garantir a presença de dependências do sistema em um ambiente de container não persistente.
+- **Conversão de PPT:** LibreOffice, .
+- **Integrações de Terceiros:**
+    - **HeyGen API**: Para geração de vídeo com avatar. O sistema faz chamadas REST para listar avatares/vozes e para gerar/verificar o status dos vídeos.
+    - **Emergent LLM Key**: Usada através da biblioteca  para gerar roteiros de vídeo com IA.
 
 **key DB schema**
-  - **projects**: 
-  - **Slide**: 
-  - **SlideElement**: 
-  - **Annotation**:  (campos de tempo foram adicionados).
+  - **SlideElement (em )**: O modelo foi estendido para suportar novos tipos de elementos: , , . Foram adicionados campos como , , e .
 
 **changes in tech stack**
-  - Nenhuma nova biblioteca, mas foi introduzido um script de gerenciamento de dependências do sistema no backend.
+  - Adicionada a dependência  ao  para a geração de script com IA.
 
 **All files of reference**
-- : Componente central da funcionalidade de timeline, fortemente modificado.
-- : Modificado para evitar recarregamentos desnecessários () e para adicionar a função .
-- : Modificado para sincronizar a visibilidade das anotações com a timeline e corrigir a precisão do desenho.
-- : Fortemente modificado para adicionar a lógica da timeline ao player SCORM, corrigir sobreposição de áudio e limpar o nome do arquivo/curso.
-- : Novo arquivo que contém a lógica para instalar automaticamente o LibreOffice na inicialização.
-- : Modificado para executar o script de dependências e adicionar a rota  para atualizar anotações.
-- : Modificado para adicionar  e  ao modelo de .
-- : Modificado para integrar a timeline e passar os novos handlers.
+- : Adicionados endpoints para a integração HeyGen () e geração de script com IA. Corrigida a resolução do vídeo para 720p.
+- : Fortemente modificado para adicionar a interface do usuário para os novos elementos (Botão, HTML, Flipbook) e a integração completa com HeyGen, incluindo o diálogo de configuração e a lógica de geração de script com IA.
+- : Modificado para corrigir o bug de exclusão (renderizando elementos invisíveis) e para adicionar overlays de interação aos novos tipos de elementos, permitindo seu reposicionamento.
+- : Atualizado para renderizar os novos elementos (Botão, HTML, Flipbook) e para adicionar o controle de volume e o menu de navegação lateral ao player SCORM.
+- : Atualizado para incluir as propriedades dos novos tipos de elementos.
+- : Adicionadas as chaves  e .
 
 **Areas that need refactoring**:
-- O arquivo  continua sendo um grande bloco de strings de HTML/CSS/JS, o que dificulta a manutenção.
-- O arquivo  está se tornando muito grande e centraliza muitas responsabilidades.
+- O arquivo  tornou-se excessivamente grande e complexo. Ele gerencia o estado e a lógica para múltiplos tipos de elementos, modais e várias integrações de API. Deve ser decomposto em componentes menores e hooks customizados para melhorar a manutenibilidade.
+- O mecanismo de polling para a API da HeyGen no  é frágil e oferece uma má experiência ao usuário para vídeos longos. Ele deve ser substituído por uma solução mais robusta (webhooks, se possível) ou, no mínimo, o tempo de espera deve ser aumentado e a interface do usuário deve fornecer um feedback melhor.
 
 **key api endpoints**
-- : (NOVO) Atualiza os dados de uma anotação, incluindo  e .
-- : (QUEBRADO) Rota que provavelmente está sendo chamada para excluir imagens e está retornando 404.
-- : Faz o upload e processa um arquivo PPTX.
+- : Inicia a geração de um vídeo na HeyGen.
+- : Verifica o status de um vídeo sendo gerado.
+- : Lista os avatares disponíveis na HeyGen.
+- : Lista as vozes disponíveis na HeyGen.
+- : Gera um roteiro para o vídeo de avatar usando IA.
 
 **Critical Info for New Agent**
-- **O ambiente é volátil:** O container reinicia com frequência. A API ficará indisponível por ~1-2 minutos durante a reinstalação automática do LibreOffice. Se o usuário reclamar que os projetos sumiram, explique que é temporário e peça para aguardar.
-- **Evite o padrão :** Chamar  após ações locais (como adicionar/atualizar um elemento) causa um bug de usabilidade que redireciona o usuário para o primeiro slide. Sempre prefira atualizar o estado localmente com .
-- **A sincronização é complexa:** A lógica da timeline agora existe em três lugares:  (UI),  (visibilidade no editor) e  (visibilidade no SCORM). Mudanças em um podem exigir ajustes nos outros.
-- **O usuário é sensível a problemas de fidelidade visual e usabilidade:** Bugs relacionados a posicionamento no SCORM e precisão das ferramentas de desenho são de alta prioridade para o usuário.
+- **A questão do timeout da HeyGen é a prioridade máxima.** A solução atual de polling no frontend é inadequada para processos longos. Aumentar o timeout é uma correção rápida, mas o ideal seria reformular para uma solução mais robusta (webhooks) e melhorar a UX para gerenciar a expectativa do usuário durante o tempo de espera.
+- **O plano da API HeyGen do usuário tem limitações.** A geração de vídeo foi corrigida para usar 720p. Esteja ciente de que outras limitações podem existir (ex: número de vídeos, minutos por mês).
+- **O ambiente é volátil.** Esteja preparado para explicar ao usuário que as reinicializações periódicas causam uma indisponibilidade temporária de ~2 minutos enquanto o LibreOffice é reinstalado, e que seus projetos estão seguros.
 
 **documents and test reports created in this job**
   - /app/memory/PRD.md (atualizado)
 
-**Last 10 User Messages and any pending HUMAN messages**
-- **PENDENTE - BUG:** Ao tentar excluir uma imagem, o usuário recebe um erro 404.
-- **RESOLVIDO (PENDENTE DE VERIFICAÇÃO):** O usuário reclamou que a timeline não estava funcionando no SCORM para objetos. O agente implementou a sincronização no player SCORM.
-- **RESOLVIDO (PENDENTE DE VERIFICAÇÃO):** O usuário pediu para que as anotações (Seta, Círculo, etc.) aparecessem na timeline. O agente implementou a funcionalidade.
-- **RESOLVIDO:** O usuário pediu para que o nome do arquivo SCORM exportado fosse limpo (sem UUID). O agente corrigiu.
-- **RESOLVIDO (PENDENTE DE VERIFICAÇÃO):** O usuário reclamou de imprecisão ao desenhar anotações. O agente implementou uma correção.
-- **RESOLVIDO (PENDENTE DE VERIFICAÇÃO):** O usuário relatou que ao desenhar uma anotação, era redirecionado para o primeiro slide. O agente corrigiu o problema.
-- **RESOLVIDO:** O usuário reportou que o LibreOffice estava inativo. O agente corrigiu um problema com  e melhorou o script de auto-instalação.
-- **RESOLVIDO:** O usuário questionou por que os projetos sumiram. O agente explicou que era uma reinicialização do ambiente e que os projetos estavam seguros.
-- **RESOLVIDO:** O usuário pediu para que a gravação de áudio parasse ao avançar para o próximo slide. O agente corrigiu no editor e no SCORM.
-- **RESOLVIDO:** O usuário pediu um overlay de Clique para iniciar no SCORM para áudios. O agente implementou.
+**Last 10 User Messages and any pending HUMAN messages** 
+ -  **Pendente:** Usuário reportou Tempo Limite excedido! ao gerar vídeo com HeyGen.
+ -  Usuário perguntou se era possível gerar o texto do avatar com IA. (Implementado)
+ -  Usuário perguntou sobre a possibilidade de integrar com a HeyGen para criar vídeos com avatares. (Implementado)
+ -  Usuário reportou que não conseguia redimensionar/reposicionar os elementos recém-adicionados (botões). (Corrigido)
+ -  Usuário pediu para poder reposicionar elementos dentro dos slides. (Funcionalidade já existia, agente demonstrou e melhorou o feedback visual).
+ -  Usuário pediu para adicionar elementos como HTML, botões e Flipbooks. (Implementado)
+ -  Usuário pediu um menu de navegação lateral no SCORM. (Implementado)
+ -  Usuário pediu que o botão de volume funcionasse no SCORM exportado. (Implementado)
+ -  Usuário pediu para restaurar seus projetos (múltiplas vezes). (Resolvido a cada vez)
+ -  Usuário reportou um erro 404 ao tentar excluir uma imagem. (Corrigido)
 
 **Project Health Check:**
-- **Broken:** A exclusão de imagens está quebrada (erro 404).
-- **Mocked:** A aba Layers ainda não inclui anotações.
-- **Needs Verification:** A correção para o desalinhamento do ponteiro do mouse ao desenhar anotações e a sincronização completa da timeline no SCORM.
+- **Broken:** A geração de vídeo da HeyGen pode falhar para vídeos longos devido a um tempo limite de polling muito curto no frontend.
+- **Mocked:** N/A.
+- **Needs Verification:** A correção para o desalinhamento do ponteiro do mouse ao desenhar anotações.
 
 **3rd Party Integrations**
-- Nenhuma.
+- **HeyGen API:** Usada para gerar vídeos com avatares de IA a partir de texto. Requer uma chave de API do usuário ().
+- **Emergent LLM Key:** Usada para a funcionalidade de Gerar Script com IA para os vídeos da HeyGen, através da biblioteca .
 
 **Testing status**
   - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: O problema de posicionamento de elementos no SCORM é um problema recorrente. A falha do LibreOffice é um problema ambiental recorrente, embora agora tenha um mecanismo de recuperação automática.
+  - Known regressions: Discrepância de layout no SCORM.
 
 **Credentials to test flow:**
-N/A
+A chave da API HeyGen e a Emergent LLM Key estão configuradas no arquivo .
 
 **What agent forgot to execute**
-- O agente não implementou a funcionalidade para adicionar anotações à aba Layers.
-- As tarefas de Criar Slide e Duplicar Slide do plano original ainda estão pendentes.</analysis>
+- A funcionalidade de adicionar anotações (desenhos) à aba Layers para seleção e manipulação, que foi proposta em um fork anterior, ainda não foi implementada.
+- As tarefas de Criar Slide em Branco e Duplicar Slide do plano original ainda estão pendentes.</analysis>
