@@ -694,6 +694,34 @@ export default function Editor() {
     setHeygenVideoUrl(null);
   };
 
+  // AI Script Generation
+  const handleGenerateAiScript = async () => {
+    if (!aiScriptTopic.trim()) {
+      toast.error('Por favor, descreva o tema do vídeo');
+      return;
+    }
+
+    setAiGeneratingScript(true);
+    
+    try {
+      const response = await axios.post(`${API_URL}/api/ai/generate-script`, {
+        topic: aiScriptTopic,
+        style: aiScriptStyle,
+        duration: aiScriptDuration,
+        language: 'português brasileiro'
+      });
+      
+      setHeygenConfig(prev => ({ ...prev, script: response.data.script }));
+      toast.success('Script gerado com sucesso!');
+      setScriptMode('manual'); // Switch back to show the generated script
+    } catch (err) {
+      console.error('Error generating script:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao gerar script');
+    } finally {
+      setAiGeneratingScript(false);
+    }
+  };
+
   const handleGenerateHeygenVideo = async () => {
     if (!heygenConfig.avatarId || !heygenConfig.voiceId || !heygenConfig.script) {
       toast.error('Por favor, preencha todos os campos');
