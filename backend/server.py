@@ -936,6 +936,235 @@ async def serve_export(filename: str):
         filename=filename
     )
 
+# ============================================
+# HeyGen API Endpoints
+# ============================================
+
+@api_router.get("/heygen/avatars")
+async def list_heygen_avatars():
+    """List available HeyGen avatars"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response = await http_client.get(
+                f"{HEYGEN_BASE_URL}/v2/avatars",
+                headers=HEYGEN_HEADERS
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"HeyGen avatars error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch avatars from HeyGen")
+            
+            data = response.json()
+            avatars = data.get("data", {}).get("avatars", [])
+            
+            # Filter and format avatars for frontend
+            formatted_avatars = []
+            for avatar in avatars:
+                formatted_avatars.append({
+                    "avatar_id": avatar.get("avatar_id"),
+                    "avatar_name": avatar.get("avatar_name"),
+                    "preview_image_url": avatar.get("preview_image_url"),
+                    "preview_video_url": avatar.get("preview_video_url"),
+                    "gender": avatar.get("gender"),
+                })
+            
+            return {"avatars": formatted_avatars}
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+@api_router.get("/heygen/voices")
+async def list_heygen_voices(language: Optional[str] = None):
+    """List available HeyGen voices"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response = await http_client.get(
+                f"{HEYGEN_BASE_URL}/v2/voices",
+                headers=HEYGEN_HEADERS
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"HeyGen voices error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch voices from HeyGen")
+            
+            data = response.json()
+            voices = data.get("data", {}).get("voices", [])
+            
+            # Filter by language if specified
+            if language:
+                voices = [v for v in voices if language.lower() in v.get("language", "").lower()]
+            
+            # Format voices for frontend
+            formatted_voices = []
+            for voice in voices:
+                formatted_voices.append({
+                    "voice_id": voice.get("voice_id"),
+                    "name": voice.get("name"),
+                    "language": voice.get("language"),
+                    "gender": voice.get("gender"),
+                    "preview_audio": voice.get("preview_audio"),
+                    "support_pause": voice.get("support_pause", False),
+                })
+            
+            return {"voices": formatted_voices}
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+from pydantic import BaseModel
+
+class HeyGenVideoRequest(BaseModel):
+    avatar_id: str
+    voice_id: str
+    script: str
+    title: Optional[str] = "Generated Video"
+    aspect_ratio: Optional[str] = "16:9"
+
+@api_router.post("/heygen/generate-video")
+async def generate_heygen_video(request: HeyGenVideoRequest):
+    """Generate a video using HeyGen API"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    if len(request.script) > 5000:
+        raise HTTPException(status_code=400, detail="Script exceeds 5000 character limit")
+    
+    try:
+        # Build the video generation payload
+        payload = {
+            "video_inputs": [
+                {
+                    "character": {
+                        "type": "avatar",
+                        "avatar_id": request.avatar_id,
+                        "avatar_style": "normal"
+                    },
+                    "voice": {
+                        "type": "text",
+                        "input_text": request.script,
+                        "voice_id": request.voice_id
+                    }
+                }
+            ],
+            "dimension": {
+                "width": 1920 if request.aspect_ratio == "16:9" else 1080,
+                "height": 1080 if request.aspect_ratio == "16:9" else 1920
+            },
+            "title": request.title
+        }
+        
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            response = await http_client.post(
+                f"{HEYGEN_BASE_URL}/v2/video/generate",
+                headers=HEYGEN_HEADERS,
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"HeyGen generate error: {response.status_code} - {response.text}")
+                error_detail = response.json().get("error", {}).get("message", "Failed to generate video")
+                raise HTTPException(status_code=response.status_code, detail=error_detail)
+            
+            data = response.json()
+            video_id = data.get("data", {}).get("video_id")
+            
+            if not video_id:
+                raise HTTPException(status_code=500, detail="No video ID returned from HeyGen")
+            
+            # Store video generation request in database
+            await db.heygen_videos.insert_one({
+                "video_id": video_id,
+                "avatar_id": request.avatar_id,
+                "voice_id": request.voice_id,
+                "script": request.script,
+                "title": request.title,
+                "status": "processing",
+                "created_at": now_utc()
+            })
+            
+            return {
+                "video_id": video_id,
+                "status": "processing",
+                "message": "Video generation started. Poll status endpoint for updates."
+            }
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+@api_router.get("/heygen/video-status/{video_id}")
+async def get_heygen_video_status(video_id: str):
+    """Check the status of a HeyGen video generation"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response = await http_client.get(
+                f"{HEYGEN_BASE_URL}/v1/video_status.get",
+                headers=HEYGEN_HEADERS,
+                params={"video_id": video_id}
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"HeyGen status error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail="Failed to get video status")
+            
+            data = response.json()
+            video_data = data.get("data", {})
+            
+            status = video_data.get("status", "unknown")
+            video_url = video_data.get("video_url")
+            thumbnail_url = video_data.get("thumbnail_url")
+            duration = video_data.get("duration")
+            
+            # Update database
+            await db.heygen_videos.update_one(
+                {"video_id": video_id},
+                {"$set": {
+                    "status": status,
+                    "video_url": video_url,
+                    "thumbnail_url": thumbnail_url,
+                    "duration": duration,
+                    "updated_at": now_utc()
+                }}
+            )
+            
+            return {
+                "video_id": video_id,
+                "status": status,
+                "video_url": video_url,
+                "thumbnail_url": thumbnail_url,
+                "duration": duration
+            }
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+@api_router.get("/heygen/videos")
+async def list_heygen_videos():
+    """List all generated HeyGen videos"""
+    videos = await db.heygen_videos.find().sort("created_at", -1).to_list(100)
+    
+    formatted_videos = []
+    for video in videos:
+        formatted_videos.append({
+            "video_id": video.get("video_id"),
+            "title": video.get("title"),
+            "status": video.get("status"),
+            "video_url": video.get("video_url"),
+            "thumbnail_url": video.get("thumbnail_url"),
+            "duration": video.get("duration"),
+            "created_at": video.get("created_at").isoformat() if video.get("created_at") else None
+        })
+    
+    return {"videos": formatted_videos}
+
 # Include router
 app.include_router(api_router)
 
