@@ -941,7 +941,7 @@ async def serve_export(filename: str):
 # ============================================
 
 @api_router.get("/heygen/avatars")
-async def list_heygen_avatars():
+async def list_heygen_avatars(limit: int = 100):
     """List available HeyGen avatars"""
     if not HEYGEN_API_KEY:
         raise HTTPException(status_code=500, detail="HeyGen API key not configured")
@@ -960,9 +960,9 @@ async def list_heygen_avatars():
             data = response.json()
             avatars = data.get("data", {}).get("avatars", [])
             
-            # Filter and format avatars for frontend
+            # Filter and format avatars for frontend (limit to improve performance)
             formatted_avatars = []
-            for avatar in avatars:
+            for avatar in avatars[:limit]:
                 formatted_avatars.append({
                     "avatar_id": avatar.get("avatar_id"),
                     "avatar_name": avatar.get("avatar_name"),
@@ -971,7 +971,7 @@ async def list_heygen_avatars():
                     "gender": avatar.get("gender"),
                 })
             
-            return {"avatars": formatted_avatars}
+            return {"avatars": formatted_avatars, "total": len(avatars)}
     except httpx.RequestError as e:
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
