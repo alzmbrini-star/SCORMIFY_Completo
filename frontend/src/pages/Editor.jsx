@@ -2138,16 +2138,43 @@ export default function Editor() {
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                     <div className="flex items-center gap-3">
                       <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
-                      <div>
-                        <div className="font-medium text-purple-700">Gerando vídeo...</div>
+                      <div className="flex-1">
+                        <div className="font-medium text-purple-700">Gerando vídeo com avatar...</div>
                         <div className="text-sm text-muted-foreground">
-                          Status: {heygenVideoStatus || 'Iniciando...'}
+                          Status: <span className="capitalize">{heygenVideoStatus === 'processing' ? 'Processando' : heygenVideoStatus || 'Iniciando...'}</span>
                         </div>
                       </div>
+                      <div className="text-right">
+                        <div className="text-lg font-mono font-bold text-purple-600">
+                          {formatTime(heygenElapsedTime)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">decorrido</div>
+                      </div>
                     </div>
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      ⏱️ Isso pode levar de 1 a 5 minutos dependendo do tamanho do script.
+                    
+                    {/* Progress indicator */}
+                    <div className="mt-3 space-y-2">
+                      <div className="h-1.5 bg-purple-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full animate-pulse"
+                          style={{ width: '100%', animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+                        />
+                      </div>
+                      <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <span className="text-amber-600">⏱️</span>
+                        <span>
+                          A HeyGen está renderizando seu vídeo. Isso geralmente leva de <strong>2 a 10 minutos</strong> dependendo do tamanho do script. 
+                          Você pode minimizar esta janela e continuar editando - será notificado quando estiver pronto.
+                        </span>
+                      </div>
                     </div>
+                    
+                    {/* Tips while waiting */}
+                    {heygenElapsedTime > 120 && (
+                      <div className="mt-3 p-2 bg-blue-500/10 rounded text-xs text-blue-700">
+                        💡 <strong>Dica:</strong> Vídeos mais longos podem levar mais tempo. O tempo limite máximo é de 15 minutos.
+                      </div>
+                    )}
                   </div>
                 )}
 
