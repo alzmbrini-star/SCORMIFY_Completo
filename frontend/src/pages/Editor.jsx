@@ -234,6 +234,22 @@ export default function Editor() {
     pages: [],
   });
   
+  // HeyGen Avatar Video states
+  const [showHeygenDialog, setShowHeygenDialog] = useState(false);
+  const [heygenAvatars, setHeygenAvatars] = useState([]);
+  const [heygenVoices, setHeygenVoices] = useState([]);
+  const [heygenLoading, setHeygenLoading] = useState(false);
+  const [heygenGenerating, setHeygenGenerating] = useState(false);
+  const [heygenVideoId, setHeygenVideoId] = useState(null);
+  const [heygenVideoStatus, setHeygenVideoStatus] = useState(null);
+  const [heygenVideoUrl, setHeygenVideoUrl] = useState(null);
+  const [heygenConfig, setHeygenConfig] = useState({
+    avatarId: '',
+    voiceId: '',
+    script: '',
+    title: 'Avatar Video',
+  });
+  
   // Timeline playback state (shared between Timeline and SlideCanvas)
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
