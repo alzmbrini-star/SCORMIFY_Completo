@@ -365,12 +365,16 @@ export default function Editor() {
     }
   }, [currentProject?.course?.globalAudio, currentSlide?.audio]);
 
-  // Cleanup audio on unmount
+  // Cleanup audio and HeyGen timer on unmount
   useEffect(() => {
     return () => {
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
         audioPlayerRef.current = null;
+      }
+      if (heygenTimerRef.current) {
+        clearInterval(heygenTimerRef.current);
+        heygenTimerRef.current = null;
       }
     };
   }, []);
