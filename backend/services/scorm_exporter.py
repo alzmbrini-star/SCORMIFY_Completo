@@ -514,11 +514,14 @@ var CoursePlayer = (function() {
                 } else if (element.src) {
                     el = document.createElement('div');
                     el.className = 'slide-element video-element';
+                    el.style.background = 'transparent';
                     var video = document.createElement('video');
                     video.src = element.src;
                     video.controls = true;
                     video.style.width = '100%';
                     video.style.height = '100%';
+                    video.style.background = 'transparent';
+                    video.style.objectFit = 'contain';
                     el.appendChild(video);
                 }
                 break;
