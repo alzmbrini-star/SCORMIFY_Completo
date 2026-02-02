@@ -2155,6 +2155,24 @@ export default function Editor() {
                   />
                 </div>
 
+                {/* Transparent Background Option */}
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="transparent-bg"
+                    checked={heygenConfig.transparentBackground}
+                    onChange={(e) => setHeygenConfig({ ...heygenConfig, transparentBackground: e.target.checked })}
+                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    data-testid="heygen-transparent-bg"
+                  />
+                  <label htmlFor="transparent-bg" className="flex-1 cursor-pointer">
+                    <span className="text-sm font-medium">Fundo Transparente</span>
+                    <p className="text-xs text-muted-foreground">
+                      Gera o vídeo com fundo transparente (WebM) para sobrepor em slides
+                    </p>
+                  </label>
+                </div>
+
                 {/* Status Display */}
                 {heygenGenerating && (
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
