@@ -753,7 +753,8 @@ export default function Editor() {
         voice_id: heygenConfig.voiceId,
         script: heygenConfig.script,
         title: heygenConfig.title,
-        aspect_ratio: '16:9'
+        aspect_ratio: '16:9',
+        transparent_background: heygenConfig.transparentBackground
       });
       
       setHeygenVideoId(response.data.video_id);
