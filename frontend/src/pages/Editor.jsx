@@ -1049,12 +1049,6 @@ export default function Editor() {
                 setDownloadUrl(null);
               }
             }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 btn-primary" data-testid="export-btn">
-                  <Download className="w-4 h-4" />
-                  Export SCORM
-                </Button>
-              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Export SCORM 1.2 Package</DialogTitle>
