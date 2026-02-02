@@ -1042,6 +1042,10 @@ export default function Editor() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
+            <Button className="gap-2 btn-primary" onClick={() => setShowExportDialog(true)} data-testid="export-btn">
+              <Download className="w-4 h-4" />
+              Export SCORM
+            </Button>
             <Dialog open={showExportDialog} onOpenChange={(open) => {
               setShowExportDialog(open);
               if (!open) {
