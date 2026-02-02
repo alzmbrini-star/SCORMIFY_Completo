@@ -4,17 +4,30 @@ import "@/index.css";
 import App from "@/App";
 
 // Suppress ResizeObserver loop errors (common in React, non-critical)
+// This error is benign and happens when resize observations can't be delivered in a single animation frame
+const resizeObserverErr = /ResizeObserver loop/;
+
 window.addEventListener('error', (e) => {
-  if (e.message && e.message.includes('ResizeObserver loop')) {
+  if (e.message && resizeObserverErr.test(e.message)) {
     e.stopImmediatePropagation();
     e.preventDefault();
+    return false;
   }
 });
+
+// Also suppress via the global error handler
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  if (args[0] && typeof args[0] === 'string' && resizeObserverErr.test(args[0])) {
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
 
 // Handle unhandled promise rejections
 window.addEventListener('unhandledrejection', (e) => {
   // Suppress ResizeObserver errors
-  if (e.reason?.message?.includes('ResizeObserver')) {
+  if (e.reason?.message && resizeObserverErr.test(e.reason.message)) {
     e.preventDefault();
     return;
   }
