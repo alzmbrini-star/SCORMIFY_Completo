@@ -244,12 +244,16 @@ export default function Editor() {
   const [heygenVideoId, setHeygenVideoId] = useState(null);
   const [heygenVideoStatus, setHeygenVideoStatus] = useState(null);
   const [heygenVideoUrl, setHeygenVideoUrl] = useState(null);
+  const [heygenElapsedTime, setHeygenElapsedTime] = useState(0);
   const [heygenConfig, setHeygenConfig] = useState({
     avatarId: '',
     voiceId: '',
     script: '',
     title: 'Avatar Video',
   });
+  
+  // Ref for HeyGen timer interval
+  const heygenTimerRef = useRef(null);
   
   // AI Script Generation states
   const [scriptMode, setScriptMode] = useState('manual'); // 'manual' or 'ai'
