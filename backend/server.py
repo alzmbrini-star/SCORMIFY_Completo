@@ -1025,6 +1025,7 @@ class HeyGenVideoRequest(BaseModel):
     script: str
     title: Optional[str] = "Generated Video"
     aspect_ratio: Optional[str] = "16:9"
+    transparent_background: Optional[bool] = True  # Default to transparent
 
 @api_router.post("/heygen/generate-video")
 async def generate_heygen_video(request: HeyGenVideoRequest):
@@ -1050,7 +1051,11 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                         "type": "text",
                         "input_text": request.script,
                         "voice_id": request.voice_id
-                    }
+                    },
+                    "background": {
+                        "type": "color",
+                        "value": "#00FF00"  # Green screen for chroma key
+                    } if not request.transparent_background else None
                 }
             ],
             "dimension": {
@@ -1059,6 +1064,12 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
             },
             "title": request.title
         }
+        
+        # For transparent background, use WebM format with alpha channel
+        if request.transparent_background:
+            payload["video_inputs"][0]["background"] = {
+                "type": "transparent"
+            }
         
         async with httpx.AsyncClient(timeout=60.0) as http_client:
             response = await http_client.post(
