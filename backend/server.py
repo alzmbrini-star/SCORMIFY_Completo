@@ -57,6 +57,15 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# HeyGen API Configuration
+HEYGEN_API_KEY = os.environ.get('HEYGEN_API_KEY', '')
+HEYGEN_BASE_URL = "https://api.heygen.com"
+HEYGEN_HEADERS = {
+    "X-Api-Key": HEYGEN_API_KEY,
+    "Accept": "application/json",
+    "Content-Type": "application/json"
+}
+
 # Create the main app
 app = FastAPI(title="Scormify API", version="1.0.0")
 
