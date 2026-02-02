@@ -66,6 +66,8 @@ import {
   MicOff,
   Pencil,
   ArrowUpRight,
+  ArrowRight,
+  Minus,
   MousePointer,
   Undo2,
   Redo2,
