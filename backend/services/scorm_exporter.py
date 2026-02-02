@@ -1824,7 +1824,6 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
             # Handle external video URLs (like HeyGen videos)
             elif element.get('type') == 'video' and element.get('src') and element['src'].startswith('http'):
                 try:
-                    import httpx
                     import hashlib
                     # Generate a unique filename based on the URL
                     url_hash = hashlib.md5(element['src'].encode()).hexdigest()[:12]
