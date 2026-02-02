@@ -9,6 +9,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Database**: MongoDB
 - **File Storage**: Local filesystem (/app/backend/storage)
 - **PPT Conversion**: LibreOffice (headless) + pdf2image
+- **Third-Party Integrations**: HeyGen API (avatares de IA), Emergent LLM Key (geração de scripts)
+
+## Changelog (Recent Updates)
+
+### 2025-02-02
+- **CORREÇÃO: Timeout HeyGen** - Aumentado o tempo limite de polling de 5 para 15 minutos
+  - Adicionado contador de tempo decorrido na interface
+  - Melhorado feedback visual com barra de progresso animada
+  - Mensagens mais claras sobre tempo de espera (2-10 minutos)
+  - Dica dinâmica após 2 minutos de espera
+  - Limpeza adequada do timer quando o diálogo é fechado
 
 ## User Personas
 1. **Instructional Designers** - Create e-learning content from existing PPT presentations
