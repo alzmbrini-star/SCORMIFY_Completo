@@ -1865,6 +1865,179 @@ export default function Editor() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* HeyGen Avatar Video Dialog */}
+        <Dialog open={showHeygenDialog} onOpenChange={setShowHeygenDialog}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                🎭 Criar Vídeo com Avatar (HeyGen)
+              </DialogTitle>
+            </DialogHeader>
+            
+            {heygenLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                <span className="ml-3">Carregando avatares e vozes...</span>
+              </div>
+            ) : (
+              <div className="space-y-6 py-4">
+                {/* Avatar Selection */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Selecionar Avatar</label>
+                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg">
+                    {heygenAvatars.map((avatar) => (
+                      <div
+                        key={avatar.avatar_id}
+                        className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                          heygenConfig.avatarId === avatar.avatar_id 
+                            ? 'border-purple-500 ring-2 ring-purple-500/30' 
+                            : 'border-transparent hover:border-gray-300'
+                        }`}
+                        onClick={() => setHeygenConfig({ ...heygenConfig, avatarId: avatar.avatar_id })}
+                      >
+                        <img
+                          src={avatar.preview_image_url}
+                          alt={avatar.avatar_name}
+                          className="w-full aspect-square object-cover"
+                        />
+                        <div className="text-xs text-center py-1 truncate px-1">
+                          {avatar.avatar_name}
+                        </div>
+                      </div>
+                    ))}
+                    {heygenAvatars.length === 0 && (
+                      <div className="col-span-4 text-center py-8 text-muted-foreground">
+                        Nenhum avatar disponível. Verifique sua API Key.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Voice Selection */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Selecionar Voz</label>
+                  <select
+                    className="w-full h-10 px-3 rounded-md border bg-background"
+                    value={heygenConfig.voiceId}
+                    onChange={(e) => setHeygenConfig({ ...heygenConfig, voiceId: e.target.value })}
+                    data-testid="heygen-voice-select"
+                  >
+                    <option value="">Selecione uma voz...</option>
+                    {heygenVoices.map((voice) => (
+                      <option key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name} ({voice.language}) - {voice.gender}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Script Input */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Script do Vídeo
+                    <span className="text-muted-foreground ml-2 text-xs">
+                      ({heygenConfig.script.length}/5000 caracteres)
+                    </span>
+                  </label>
+                  <textarea
+                    className="w-full h-40 p-3 rounded-md border bg-background text-sm"
+                    placeholder="Digite o texto que o avatar irá narrar..."
+                    value={heygenConfig.script}
+                    onChange={(e) => setHeygenConfig({ ...heygenConfig, script: e.target.value.slice(0, 5000) })}
+                    data-testid="heygen-script-input"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Dica: Escreva de forma natural, como se estivesse conversando. O avatar irá falar com sincronismo labial realista.
+                  </p>
+                </div>
+
+                {/* Video Title */}
+                <div>
+                  <label className="text-sm font-medium">Título do Vídeo</label>
+                  <Input
+                    placeholder="Ex: Introdução ao Curso"
+                    value={heygenConfig.title}
+                    onChange={(e) => setHeygenConfig({ ...heygenConfig, title: e.target.value })}
+                    data-testid="heygen-title-input"
+                  />
+                </div>
+
+                {/* Status Display */}
+                {heygenGenerating && (
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                      <div>
+                        <div className="font-medium text-purple-700">Gerando vídeo...</div>
+                        <div className="text-sm text-muted-foreground">
+                          Status: {heygenVideoStatus || 'Iniciando...'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      ⏱️ Isso pode levar de 1 a 5 minutos dependendo do tamanho do script.
+                    </div>
+                  </div>
+                )}
+
+                {/* Video Ready */}
+                {heygenVideoUrl && !heygenGenerating && (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white">
+                        ✓
+                      </div>
+                      <div className="font-medium text-green-700">Vídeo gerado com sucesso!</div>
+                    </div>
+                    <video
+                      src={heygenVideoUrl}
+                      controls
+                      className="w-full rounded-lg"
+                      style={{ maxHeight: '200px' }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setShowHeygenDialog(false)}>
+                Cancelar
+              </Button>
+              {heygenVideoUrl ? (
+                <Button 
+                  onClick={handleAddHeygenVideoToSlide}
+                  className="bg-gradient-to-r from-purple-600 to-cyan-500"
+                  data-testid="add-heygen-video-btn"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar ao Slide
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleGenerateHeygenVideo}
+                  disabled={heygenGenerating || !heygenConfig.avatarId || !heygenConfig.voiceId || !heygenConfig.script}
+                  className="bg-gradient-to-r from-purple-600 to-cyan-500"
+                  data-testid="generate-heygen-video-btn"
+                >
+                  {heygenGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Gerar Vídeo
+                    </>
+                  )}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
