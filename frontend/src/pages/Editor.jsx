@@ -852,7 +852,7 @@ export default function Editor() {
         embedType: null,
       });
       setShowHeygenDialog(false);
-      setHeygenConfig({ avatarId: '', voiceId: '', script: '', title: 'Avatar Video' });
+      setHeygenConfig({ avatarId: '', voiceId: '', script: '', title: 'Avatar Video', transparentBackground: true });
       setHeygenVideoId(null);
       setHeygenVideoStatus(null);
       setHeygenVideoUrl(null);
