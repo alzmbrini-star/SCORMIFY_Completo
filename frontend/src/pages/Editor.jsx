@@ -657,8 +657,8 @@ export default function Editor() {
     try {
       // Load avatars and voices in parallel
       const [avatarsRes, voicesRes] = await Promise.all([
-        axios.get(`${API_URL}/heygen/avatars`),
-        axios.get(`${API_URL}/heygen/voices?language=portuguese`)
+        axios.get(`${API_URL}/api/heygen/avatars`),
+        axios.get(`${API_URL}/api/heygen/voices?language=portuguese`)
       ]);
       
       setHeygenAvatars(avatarsRes.data.avatars || []);
