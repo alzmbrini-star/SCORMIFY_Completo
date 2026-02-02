@@ -700,6 +700,12 @@ export default function Editor() {
     setHeygenVideoId(null);
     setHeygenVideoStatus(null);
     setHeygenVideoUrl(null);
+    setHeygenElapsedTime(0);
+    // Clear any existing timer
+    if (heygenTimerRef.current) {
+      clearInterval(heygenTimerRef.current);
+      heygenTimerRef.current = null;
+    }
   };
 
   // AI Script Generation
