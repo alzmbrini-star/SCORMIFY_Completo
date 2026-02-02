@@ -1056,6 +1056,9 @@ export default function Editor() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Export SCORM 1.2 Package</DialogTitle>
+                  <DialogDescription>
+                    Generate a SCORM 1.2 compatible package for your LMS.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   {downloadUrl ? (
