@@ -724,7 +724,7 @@ export default function Editor() {
     
     const poll = async () => {
       try {
-        const response = await axios.get(`${API_URL}/heygen/video-status/${videoId}`);
+        const response = await axios.get(`${API_URL}/api/heygen/video-status/${videoId}`);
         const status = response.data.status;
         setHeygenVideoStatus(status);
         
