@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/ui/button';
