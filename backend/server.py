@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 import shutil
 import aiofiles
+import httpx
 
 from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
