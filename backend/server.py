@@ -1037,6 +1037,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
     
     try:
         # Build the video generation payload
+        # Note: Using 720p resolution as higher resolutions may require premium plan
         payload = {
             "video_inputs": [
                 {
@@ -1053,8 +1054,8 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                 }
             ],
             "dimension": {
-                "width": 1920 if request.aspect_ratio == "16:9" else 1080,
-                "height": 1080 if request.aspect_ratio == "16:9" else 1920
+                "width": 1280 if request.aspect_ratio == "16:9" else 720,
+                "height": 720 if request.aspect_ratio == "16:9" else 1280
             },
             "title": request.title
         }
