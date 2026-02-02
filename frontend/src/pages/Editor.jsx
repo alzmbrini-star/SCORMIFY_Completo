@@ -758,8 +758,24 @@ export default function Editor() {
   };
 
   const pollHeygenVideoStatus = async (videoId) => {
-    const maxAttempts = 60; // 5 minutes max (5s intervals)
+    const maxAttempts = 180; // 15 minutes max (5s intervals)
     let attempts = 0;
+    
+    // Start elapsed time counter
+    setHeygenElapsedTime(0);
+    if (heygenTimerRef.current) {
+      clearInterval(heygenTimerRef.current);
+    }
+    heygenTimerRef.current = setInterval(() => {
+      setHeygenElapsedTime(prev => prev + 1);
+    }, 1000);
+    
+    const stopTimer = () => {
+      if (heygenTimerRef.current) {
+        clearInterval(heygenTimerRef.current);
+        heygenTimerRef.current = null;
+      }
+    };
     
     const poll = async () => {
       try {
@@ -768,13 +784,15 @@ export default function Editor() {
         setHeygenVideoStatus(status);
         
         if (status === 'completed') {
+          stopTimer();
           setHeygenVideoUrl(response.data.video_url);
           setHeygenGenerating(false);
           toast.success('Vídeo gerado com sucesso!');
           return;
         } else if (status === 'failed' || status === 'error') {
+          stopTimer();
           setHeygenGenerating(false);
-          toast.error('Falha na geração do vídeo');
+          toast.error('Falha na geração do vídeo. Tente novamente.');
           return;
         }
         
@@ -783,14 +801,19 @@ export default function Editor() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 5000);
         } else {
+          stopTimer();
           setHeygenGenerating(false);
-          toast.error('Tempo limite excedido. Verifique o status manualmente.');
+          toast.error('Tempo limite excedido (15 min). O vídeo pode ainda estar sendo processado. Tente novamente mais tarde.');
         }
       } catch (err) {
         console.error('Error polling status:', err);
         attempts++;
         if (attempts < maxAttempts) {
           setTimeout(poll, 5000);
+        } else {
+          stopTimer();
+          setHeygenGenerating(false);
+          toast.error('Erro de conexão. Verifique sua internet e tente novamente.');
         }
       }
     };
