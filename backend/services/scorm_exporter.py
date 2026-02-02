@@ -1314,7 +1314,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         .video-element {{
             border: none !important;
-            background: #000 !important;
+            background: transparent !important;
         }}
         
         .video-element iframe,
@@ -1322,6 +1322,12 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             width: 100% !important;
             height: 100% !important;
             border: none !important;
+            background: transparent !important;
+        }}
+        
+        /* WebM videos with transparent background */
+        .video-element video[src*=".webm"] {{
+            background: transparent !important;
         }}
         
         /* Button Element Styles */
