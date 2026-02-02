@@ -697,7 +697,7 @@ export default function Editor() {
     setHeygenVideoStatus('processing');
     
     try {
-      const response = await axios.post(`${API_URL}/heygen/generate-video`, {
+      const response = await axios.post(`${API_URL}/api/heygen/generate-video`, {
         avatar_id: heygenConfig.avatarId,
         voice_id: heygenConfig.voiceId,
         script: heygenConfig.script,
