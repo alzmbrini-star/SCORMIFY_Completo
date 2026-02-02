@@ -1043,10 +1043,12 @@ export default function Editor() {
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
-              <Button className="gap-2 btn-primary" onClick={() => setShowExportDialog(true)} data-testid="export-btn">
-                <Download className="w-4 h-4" />
-                Export SCORM
-              </Button>
+              <DialogTrigger asChild>
+                <Button className="gap-2 btn-primary" data-testid="export-btn">
+                  <Download className="w-4 h-4" />
+                  Export SCORM
+                </Button>
+              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Export SCORM 1.2 Package</DialogTitle>
