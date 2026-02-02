@@ -251,6 +251,13 @@ export default function Editor() {
     title: 'Avatar Video',
   });
   
+  // AI Script Generation states
+  const [scriptMode, setScriptMode] = useState('manual'); // 'manual' or 'ai'
+  const [aiScriptTopic, setAiScriptTopic] = useState('');
+  const [aiScriptStyle, setAiScriptStyle] = useState('educational');
+  const [aiScriptDuration, setAiScriptDuration] = useState('medium');
+  const [aiGeneratingScript, setAiGeneratingScript] = useState(false);
+  
   // Timeline playback state (shared between Timeline and SlideCanvas)
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
