@@ -650,6 +650,142 @@ export default function Editor() {
     }
   };
 
+  // HeyGen Functions
+  const loadHeygenData = async () => {
+    setHeygenLoading(true);
+    try {
+      // Load avatars and voices in parallel
+      const [avatarsRes, voicesRes] = await Promise.all([
+        axios.get(`${API_URL}/heygen/avatars`),
+        axios.get(`${API_URL}/heygen/voices?language=portuguese`)
+      ]);
+      
+      setHeygenAvatars(avatarsRes.data.avatars || []);
+      setHeygenVoices(voicesRes.data.voices || []);
+      
+      // Set defaults if available
+      if (avatarsRes.data.avatars?.length > 0 && !heygenConfig.avatarId) {
+        setHeygenConfig(prev => ({ ...prev, avatarId: avatarsRes.data.avatars[0].avatar_id }));
+      }
+      if (voicesRes.data.voices?.length > 0 && !heygenConfig.voiceId) {
+        setHeygenConfig(prev => ({ ...prev, voiceId: voicesRes.data.voices[0].voice_id }));
+      }
+    } catch (err) {
+      console.error('Error loading HeyGen data:', err);
+      toast.error('Falha ao carregar dados do HeyGen. Verifique a API Key.');
+    } finally {
+      setHeygenLoading(false);
+    }
+  };
+
+  const handleOpenHeygenDialog = () => {
+    setShowHeygenDialog(true);
+    loadHeygenData();
+    setHeygenVideoId(null);
+    setHeygenVideoStatus(null);
+    setHeygenVideoUrl(null);
+  };
+
+  const handleGenerateHeygenVideo = async () => {
+    if (!heygenConfig.avatarId || !heygenConfig.voiceId || !heygenConfig.script) {
+      toast.error('Por favor, preencha todos os campos');
+      return;
+    }
+
+    setHeygenGenerating(true);
+    setHeygenVideoStatus('processing');
+    
+    try {
+      const response = await axios.post(`${API_URL}/heygen/generate-video`, {
+        avatar_id: heygenConfig.avatarId,
+        voice_id: heygenConfig.voiceId,
+        script: heygenConfig.script,
+        title: heygenConfig.title,
+        aspect_ratio: '16:9'
+      });
+      
+      setHeygenVideoId(response.data.video_id);
+      toast.success('Geração de vídeo iniciada! Aguarde...');
+      
+      // Start polling for status
+      pollHeygenVideoStatus(response.data.video_id);
+    } catch (err) {
+      console.error('Error generating video:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao gerar vídeo');
+      setHeygenGenerating(false);
+      setHeygenVideoStatus(null);
+    }
+  };
+
+  const pollHeygenVideoStatus = async (videoId) => {
+    const maxAttempts = 60; // 5 minutes max (5s intervals)
+    let attempts = 0;
+    
+    const poll = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/heygen/video-status/${videoId}`);
+        const status = response.data.status;
+        setHeygenVideoStatus(status);
+        
+        if (status === 'completed') {
+          setHeygenVideoUrl(response.data.video_url);
+          setHeygenGenerating(false);
+          toast.success('Vídeo gerado com sucesso!');
+          return;
+        } else if (status === 'failed' || status === 'error') {
+          setHeygenGenerating(false);
+          toast.error('Falha na geração do vídeo');
+          return;
+        }
+        
+        // Continue polling
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000);
+        } else {
+          setHeygenGenerating(false);
+          toast.error('Tempo limite excedido. Verifique o status manualmente.');
+        }
+      } catch (err) {
+        console.error('Error polling status:', err);
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000);
+        }
+      }
+    };
+    
+    poll();
+  };
+
+  const handleAddHeygenVideoToSlide = async () => {
+    if (!heygenVideoUrl) {
+      toast.error('Vídeo ainda não está pronto');
+      return;
+    }
+
+    try {
+      await addElement(currentSlide.id, {
+        type: 'video',
+        x: 50,
+        y: 50,
+        width: 640,
+        height: 360,
+        src: heygenVideoUrl,
+        embedUrl: null,
+        embedType: null,
+      });
+      setShowHeygenDialog(false);
+      setHeygenConfig({ avatarId: '', voiceId: '', script: '', title: 'Avatar Video' });
+      setHeygenVideoId(null);
+      setHeygenVideoStatus(null);
+      setHeygenVideoUrl(null);
+      toast.success('Vídeo do avatar adicionado ao slide!');
+    } catch (err) {
+      toast.error('Falha ao adicionar vídeo ao slide');
+    }
+  };
+
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
