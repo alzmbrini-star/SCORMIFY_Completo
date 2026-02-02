@@ -1037,50 +1037,59 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
         raise HTTPException(status_code=400, detail="Script exceeds 5000 character limit")
     
     try:
-        # Build the video generation payload
-        # Note: Using 720p resolution as higher resolutions may require premium plan
-        payload = {
-            "video_inputs": [
-                {
-                    "character": {
-                        "type": "avatar",
-                        "avatar_id": request.avatar_id,
-                        "avatar_style": "normal"
-                    },
-                    "voice": {
-                        "type": "text",
-                        "input_text": request.script,
-                        "voice_id": request.voice_id
-                    },
-                    "background": {
-                        "type": "color",
-                        "value": "#00FF00"  # Green screen for chroma key
-                    } if not request.transparent_background else None
-                }
-            ],
-            "dimension": {
-                "width": 1280 if request.aspect_ratio == "16:9" else 720,
-                "height": 720 if request.aspect_ratio == "16:9" else 1280
-            },
-            "title": request.title
-        }
-        
-        # For transparent background, use WebM format with alpha channel
-        if request.transparent_background:
-            payload["video_inputs"][0]["background"] = {
-                "type": "transparent"
-            }
-        
         async with httpx.AsyncClient(timeout=60.0) as http_client:
-            response = await http_client.post(
-                f"{HEYGEN_BASE_URL}/v2/video/generate",
-                headers=HEYGEN_HEADERS,
-                json=payload
-            )
+            
+            # For transparent background, use the WebM endpoint (v1/video.webm)
+            if request.transparent_background:
+                payload = {
+                    "avatar_pose_id": request.avatar_id,
+                    "avatar_style": "normal",
+                    "input_text": request.script,
+                    "voice_id": request.voice_id,
+                    "dimension": {
+                        "width": 1280 if request.aspect_ratio == "16:9" else 720,
+                        "height": 720 if request.aspect_ratio == "16:9" else 1280
+                    }
+                }
+                
+                response = await http_client.post(
+                    f"{HEYGEN_BASE_URL}/v1/video.webm",
+                    headers=HEYGEN_HEADERS,
+                    json=payload
+                )
+            else:
+                # Standard video with background (v2/video/generate)
+                payload = {
+                    "video_inputs": [
+                        {
+                            "character": {
+                                "type": "avatar",
+                                "avatar_id": request.avatar_id,
+                                "avatar_style": "normal"
+                            },
+                            "voice": {
+                                "type": "text",
+                                "input_text": request.script,
+                                "voice_id": request.voice_id
+                            }
+                        }
+                    ],
+                    "dimension": {
+                        "width": 1280 if request.aspect_ratio == "16:9" else 720,
+                        "height": 720 if request.aspect_ratio == "16:9" else 1280
+                    },
+                    "title": request.title
+                }
+                
+                response = await http_client.post(
+                    f"{HEYGEN_BASE_URL}/v2/video/generate",
+                    headers=HEYGEN_HEADERS,
+                    json=payload
+                )
             
             if response.status_code != 200:
                 logger.error(f"HeyGen generate error: {response.status_code} - {response.text}")
-                error_detail = response.json().get("error", {}).get("message", "Failed to generate video")
+                error_detail = response.json().get("error", {}).get("message", response.text)
                 raise HTTPException(status_code=response.status_code, detail=error_detail)
             
             data = response.json()
@@ -1097,6 +1106,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                 "script": request.script,
                 "title": request.title,
                 "status": "processing",
+                "transparent": request.transparent_background,
                 "created_at": now_utc()
             })
             
