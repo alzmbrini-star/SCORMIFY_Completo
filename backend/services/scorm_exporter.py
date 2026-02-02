@@ -1820,6 +1820,36 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
             if element.get('src') and '/assets/' in element.get('src', ''):
                 filename = element['src'].split('/assets/')[-1]
                 element['src'] = f"assets/{filename}"
+            # Handle external video URLs (like HeyGen videos)
+            elif element.get('type') == 'video' and element.get('src') and element['src'].startswith('http'):
+                try:
+                    import httpx
+                    import hashlib
+                    # Generate a unique filename based on the URL
+                    url_hash = hashlib.md5(element['src'].encode()).hexdigest()[:12]
+                    # Determine extension from URL or default to webm for HeyGen
+                    if '.webm' in element['src'].lower():
+                        ext = '.webm'
+                    elif '.mp4' in element['src'].lower():
+                        ext = '.mp4'
+                    else:
+                        ext = '.webm'  # Default to webm for HeyGen videos
+                    video_filename = f"video_{url_hash}{ext}"
+                    video_path = package_dir / "assets" / video_filename
+                    
+                    # Download the video
+                    logger.info(f"Downloading external video: {element['src'][:100]}...")
+                    with httpx.Client(timeout=120.0, follow_redirects=True) as client:
+                        response = client.get(element['src'])
+                        if response.status_code == 200:
+                            with open(video_path, 'wb') as vf:
+                                vf.write(response.content)
+                            element['src'] = f"assets/{video_filename}"
+                            logger.info(f"Downloaded video as: {video_filename}")
+                        else:
+                            logger.warning(f"Failed to download video: {response.status_code}")
+                except Exception as e:
+                    logger.error(f"Error downloading external video: {e}")
             
             # Fix audio URLs
         for audio in slide.get('audio', []):
