@@ -247,9 +247,34 @@ var CoursePlayer = (function() {
         // Check if first slide has audio and show start overlay
         checkAndShowStartOverlay();
         
-        // Recalculate scale on window resize
+        // Recalculate scale on window resize (but not during video fullscreen)
+        var resizeTimeout;
         window.addEventListener('resize', function() {
-            renderSlide(currentSlide);
+            // Skip re-render if a video is in fullscreen mode
+            var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+            if (fullscreenElement && fullscreenElement.tagName === 'VIDEO') {
+                return;
+            }
+            // Also check if any video element triggered the fullscreen
+            var videos = document.querySelectorAll('#slide-content video');
+            var videoInFullscreen = false;
+            videos.forEach(function(v) {
+                if (document.fullscreenElement === v || document.webkitFullscreenElement === v) {
+                    videoInFullscreen = true;
+                }
+            });
+            if (videoInFullscreen) {
+                return;
+            }
+            
+            // Debounce resize to avoid multiple re-renders
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+                // Only re-render if not in fullscreen
+                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                    renderSlide(currentSlide);
+                }
+            }, 150);
         });
     }
     
