@@ -520,6 +520,42 @@ export const ProjectProvider = ({ children }) => {
     }
   }, [currentProject]);
 
+  const updateSlideAudioTiming = useCallback(async (slideId, audioId, timingData) => {
+    if (!currentProject) return;
+    try {
+      const response = await axios.put(
+        `${API_URL}/projects/${currentProject.id}/slides/${slideId}/audio/${audioId}/timing`,
+        timingData
+      );
+      // Update local state without resetting slide index
+      setCurrentProject(prev => {
+        if (!prev) return prev;
+        const updatedSlides = prev.course.slides.map(slide => {
+          if (slide.id === slideId) {
+            return {
+              ...slide,
+              audio: (slide.audio || []).map(a => 
+                a.id === audioId ? { ...a, ...timingData } : a
+              )
+            };
+          }
+          return slide;
+        });
+        return {
+          ...prev,
+          course: {
+            ...prev.course,
+            slides: updatedSlides
+          }
+        };
+      });
+      return response.data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [currentProject]);
+
   const addAnnotation = useCallback(async (slideId, annotationData) => {
     if (!currentProject) return;
     try {
