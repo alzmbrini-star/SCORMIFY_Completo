@@ -988,14 +988,12 @@ var CoursePlayer = (function() {
             // Pause all videos on current slide before changing
             pauseAllVideos(true);
             
+            // Clear saved video states when changing slides
+            videoStates = {};
+            
             currentSlide = index;
             renderSlide(currentSlide);
             updateProgress();
-            
-            // Autoplay videos on new slide after a short delay
-            setTimeout(function() {
-                autoplayVideosOnSlide();
-            }, 300);
         }
     }
     
@@ -1006,7 +1004,6 @@ var CoursePlayer = (function() {
             // Only reset position if explicitly requested (slide change)
             if (resetPosition) {
                 video.currentTime = 0;
-                video.dataset.isUserInteracting = 'false';
             }
         });
     }
@@ -1014,17 +1011,17 @@ var CoursePlayer = (function() {
     function autoplayVideosOnSlide() {
         var videos = document.querySelectorAll('#slide-content video');
         videos.forEach(function(video) {
-            // Only reset if user hasn't been interacting
-            if (video.dataset.isUserInteracting !== 'true') {
+            var elementId = video.dataset.elementId;
+            // Only autoplay if no saved state exists for this video
+            if (!videoStates[elementId]) {
                 video.currentTime = 0;
-            }
-            video.play().catch(function() {
-                // Try muted autoplay as fallback
-                video.muted = true;
                 video.play().catch(function() {
-                    console.log('Autoplay blocked');
+                    video.muted = true;
+                    video.play().catch(function() {
+                        console.log('Autoplay blocked');
+                    });
                 });
-            });
+            }
         });
     }
     
