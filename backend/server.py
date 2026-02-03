@@ -567,50 +567,61 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
     # Optimize images automatically
     image_extensions = {'.png', '.jpg', '.jpeg', '.webp'}
     optimized = False
+    final_content = content
     
     if ext in image_extensions:
         try:
             # Open image with Pillow
             img = Image.open(io.BytesIO(content))
+            original_width, original_height = img.size
             
-            # Convert RGBA to RGB for JPEG (remove alpha channel)
-            if img.mode == 'RGBA' and ext in {'.jpg', '.jpeg'}:
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                background.paste(img, mask=img.split()[3])
-                img = background
-            elif img.mode == 'RGBA':
-                pass  # Keep alpha for PNG/WebP
-            elif img.mode != 'RGB':
-                img = img.convert('RGB')
+            # Only optimize if image is large (> 500KB or dimensions > 1920px)
+            should_optimize = original_size > 500 * 1024 or img.width > 1920 or img.height > 1080
             
-            # Calculate max dimensions (Full HD)
-            max_width = 1920
-            max_height = 1080
-            
-            # Resize if image is larger than max dimensions
-            if img.width > max_width or img.height > max_height:
-                ratio = min(max_width / img.width, max_height / img.height)
-                new_size = (int(img.width * ratio), int(img.height * ratio))
-                img = img.resize(new_size, Image.Resampling.LANCZOS)
-                logger.info(f"Resized image from {img.width}x{img.height} to {new_size[0]}x{new_size[1]}")
-            
-            # Save optimized image to buffer
-            output = io.BytesIO()
-            
-            if ext == '.png':
-                # For PNG, use optimize and reduce colors if possible
-                img.save(output, format='PNG', optimize=True)
-            elif ext == '.webp':
-                # WebP with quality compression
-                img.save(output, format='WEBP', quality=85, method=6)
-            else:
-                # JPEG with quality compression
-                img.save(output, format='JPEG', quality=85, optimize=True)
-            
-            content = output.getvalue()
-            optimized = True
-            
-            logger.info(f"Image optimized: {original_size} bytes -> {len(content)} bytes ({100 - (len(content)/original_size*100):.1f}% reduction)")
+            if should_optimize:
+                # Convert RGBA to RGB for JPEG (remove alpha channel)
+                if img.mode == 'RGBA' and ext in {'.jpg', '.jpeg'}:
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    background.paste(img, mask=img.split()[3])
+                    img = background
+                elif img.mode == 'RGBA':
+                    pass  # Keep alpha for PNG/WebP
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Calculate max dimensions (Full HD)
+                max_width = 1920
+                max_height = 1080
+                
+                # Resize if image is larger than max dimensions
+                if img.width > max_width or img.height > max_height:
+                    ratio = min(max_width / img.width, max_height / img.height)
+                    new_size = (int(img.width * ratio), int(img.height * ratio))
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                    logger.info(f"Resized image from {original_width}x{original_height} to {new_size[0]}x{new_size[1]}")
+                
+                # Save optimized image to buffer
+                output = io.BytesIO()
+                
+                if ext == '.png':
+                    # For PNG, use optimize and reduce colors if possible
+                    img.save(output, format='PNG', optimize=True)
+                elif ext == '.webp':
+                    # WebP with quality compression
+                    img.save(output, format='WEBP', quality=85, method=6)
+                else:
+                    # JPEG with quality compression
+                    img.save(output, format='JPEG', quality=85, optimize=True)
+                
+                optimized_content = output.getvalue()
+                
+                # Only use optimized version if it's actually smaller
+                if len(optimized_content) < original_size:
+                    final_content = optimized_content
+                    optimized = True
+                    logger.info(f"Image optimized: {original_size} bytes -> {len(final_content)} bytes ({100 - (len(final_content)/original_size*100):.1f}% reduction)")
+                else:
+                    logger.info(f"Optimization skipped: optimized size ({len(optimized_content)}) >= original ({original_size})")
             
         except Exception as e:
             logger.warning(f"Image optimization failed, using original: {e}")
@@ -622,13 +633,13 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
     file_path = PROJECTS_DIR / project_id / "assets" / filename
     
     async with aiofiles.open(file_path, 'wb') as f:
-        await f.write(content)
+        await f.write(final_content)
     
     return {
         "id": file_id,
         "filename": filename,
         "url": f"/api/projects/{project_id}/assets/{filename}",
-        "size": len(content),
+        "size": len(final_content),
         "originalSize": original_size,
         "optimized": optimized,
         "type": ext[1:]
