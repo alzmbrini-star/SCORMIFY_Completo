@@ -872,10 +872,40 @@ var CoursePlayer = (function() {
     
     function goToSlide(index) {
         if (index >= 0 && index < totalSlides) {
+            // Pause all videos on current slide before changing
+            pauseAllVideos();
+            
             currentSlide = index;
             renderSlide(currentSlide);
             updateProgress();
+            
+            // Autoplay videos on new slide after a short delay
+            setTimeout(function() {
+                autoplayVideosOnSlide();
+            }, 300);
         }
+    }
+    
+    function pauseAllVideos() {
+        var videos = document.querySelectorAll('#slide-content video');
+        videos.forEach(function(video) {
+            video.pause();
+            video.currentTime = 0;
+        });
+    }
+    
+    function autoplayVideosOnSlide() {
+        var videos = document.querySelectorAll('#slide-content video');
+        videos.forEach(function(video) {
+            video.currentTime = 0;
+            video.play().catch(function() {
+                // Try muted autoplay as fallback
+                video.muted = true;
+                video.play().catch(function() {
+                    console.log('Autoplay blocked');
+                });
+            });
+        });
     }
     
     function updateProgress() {
