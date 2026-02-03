@@ -519,11 +519,25 @@ var CoursePlayer = (function() {
                     var video = document.createElement('video');
                     video.src = element.src;
                     video.controls = true;
+                    video.autoplay = true;
+                    video.muted = false;
+                    video.playsInline = true;
                     video.style.width = '100%';
                     video.style.height = '100%';
                     video.style.background = 'transparent';
                     video.style.objectFit = 'contain';
+                    
+                    // Store video reference for slide change handling
+                    video.dataset.elementId = element.id;
                     el.appendChild(video);
+                    
+                    // Try to autoplay with sound, fallback to muted if blocked
+                    video.play().catch(function() {
+                        video.muted = true;
+                        video.play().catch(function() {
+                            console.log('Autoplay blocked by browser');
+                        });
+                    });
                 }
                 break;
             
