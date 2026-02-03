@@ -30,6 +30,7 @@ const Timeline = ({
   onUpdateSlide, 
   onUpdateElement,
   onUpdateAnnotation,
+  onUpdateAudio,
   currentTime: externalTime,
   isPlaying: externalIsPlaying,
   onTimeChange,
@@ -40,7 +41,7 @@ const Timeline = ({
   const [isMuted, setIsMuted] = useState(false);
   const [isDraggingClip, setIsDraggingClip] = useState(null);
   const [dragType, setDragType] = useState(null); // 'move', 'start', 'end'
-  const [dragItemType, setDragItemType] = useState(null); // 'element' or 'annotation'
+  const [dragItemType, setDragItemType] = useState(null); // 'element', 'annotation', or 'audio'
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState({ start: 0, end: 0 });
   const timelineRef = useRef(null);
