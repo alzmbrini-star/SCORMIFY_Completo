@@ -276,6 +276,22 @@ var CoursePlayer = (function() {
                 }
             }, 150);
         });
+        
+        // Listen for fullscreen changes to prevent re-renders
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    }
+    
+    var isVideoFullscreen = false;
+    
+    function handleFullscreenChange() {
+        var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+        if (fullscreenElement && fullscreenElement.tagName === 'VIDEO') {
+            isVideoFullscreen = true;
+        } else {
+            isVideoFullscreen = false;
+        }
     }
     
     function checkAndShowStartOverlay() {
