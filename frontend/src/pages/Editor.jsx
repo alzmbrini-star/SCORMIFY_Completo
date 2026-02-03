@@ -687,7 +687,9 @@ export default function Editor() {
     const slideHeight = currentSlide?.height || 540;
 
     try {
+      console.log('Starting image upload for slide:', currentSlide?.id);
       const media = await uploadMedia(file);
+      console.log('Upload successful:', media);
       await addElement(currentSlide.id, {
         type: 'image',
         x: 0,
@@ -698,7 +700,8 @@ export default function Editor() {
       });
       toast.success('Imagem adicionada (100% do slide)');
     } catch (err) {
-      toast.error('Failed to upload image');
+      console.error('Image upload error:', err);
+      toast.error('Falha ao enviar imagem: ' + (err.response?.data?.detail || err.message));
     }
   };
 
