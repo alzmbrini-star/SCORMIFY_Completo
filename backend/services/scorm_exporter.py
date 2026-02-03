@@ -529,6 +529,23 @@ var CoursePlayer = (function() {
                     
                     // Store video reference for slide change handling
                     video.dataset.elementId = element.id;
+                    video.dataset.isUserInteracting = 'false';
+                    
+                    // Track when user is interacting with video (to prevent auto-reset)
+                    video.addEventListener('play', function() {
+                        this.dataset.isUserInteracting = 'true';
+                    });
+                    video.addEventListener('pause', function() {
+                        // Keep interacting flag true to preserve position
+                    });
+                    video.addEventListener('fullscreenchange', function() {
+                        // Prevent any reset during fullscreen changes
+                        this.dataset.isUserInteracting = 'true';
+                    });
+                    video.addEventListener('webkitfullscreenchange', function() {
+                        this.dataset.isUserInteracting = 'true';
+                    });
+                    
                     el.appendChild(video);
                     
                     // Try to autoplay with sound, fallback to muted if blocked
