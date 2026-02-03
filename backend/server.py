@@ -782,10 +782,6 @@ async def update_slide_audio_volume(project_id: str, slide_id: str, audio_id: st
     return audio_list[audio_index]
 
 
-class AudioTimingUpdate(BaseModel):
-    startTime: Optional[float] = None
-    duration: Optional[float] = None
-
 @api_router.put("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}/timing")
 async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: str, data: dict):
     """Update slide audio timing (startTime and duration for trimming)"""
