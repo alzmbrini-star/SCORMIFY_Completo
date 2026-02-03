@@ -439,25 +439,70 @@ const Timeline = ({
 
           {/* Audio Tracks */}
           {audioList.map((audio) => {
-            const startPercent = ((audio.startTime || 0) / duration) * 100;
+            const startTime = audio.startTime || 0;
             const clipDuration = audio.duration || duration;
+            const endTime = startTime + clipDuration;
+            const startPercent = (startTime / duration) * 100;
             const widthPercent = Math.min((clipDuration / duration) * 100, 100 - startPercent);
+            const isActive = currentTime >= startTime && currentTime < endTime;
+            const isDragging = isDraggingClip === audio.id;
             
             return (
               <div key={audio.id} className="h-10 relative border-b border-border/30">
-                <div
-                  className="absolute h-7 top-1.5 bg-green-500/30 border border-green-500/50 rounded flex items-center px-2"
-                  style={{
-                    left: `${startPercent}%`,
-                    width: `${widthPercent}%`,
-                    minWidth: '20px',
-                  }}
-                >
-                  <Music className="w-3 h-3 text-green-600 mr-1 flex-shrink-0" />
-                  <span className="text-[10px] truncate text-green-800 dark:text-green-200">
-                    {audio.filename?.slice(0, 15) || audio.type}
-                  </span>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={`absolute h-7 top-1.5 bg-green-500/30 border border-green-500/50 rounded flex items-center group ${
+                        isActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''
+                      } ${isDragging ? 'opacity-75' : ''}`}
+                      style={{
+                        left: `${startPercent}%`,
+                        width: `${widthPercent}%`,
+                        minWidth: '40px',
+                        cursor: isDragging ? 'grabbing' : 'grab',
+                      }}
+                      onMouseDown={(e) => handleClipMouseDown(e, { ...audio, endTime }, 'move', 'audio')}
+                      data-testid={`timeline-audio-${audio.id}`}
+                    >
+                      {/* Start handle */}
+                      <div
+                        className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/40 rounded-l flex items-center justify-center z-10"
+                        onMouseDown={(e) => handleClipMouseDown(e, { ...audio, endTime }, 'start', 'audio')}
+                      >
+                        <div className="w-0.5 h-4 bg-green-600 opacity-70" />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 flex items-center px-4 min-w-0">
+                        <Music className="w-3 h-3 text-green-600 flex-shrink-0" />
+                        <span className="text-[10px] ml-1 truncate text-green-800 dark:text-green-200">
+                          {audio.filename?.slice(0, 12) || (audio.type === 'narration' ? 'Narração' : 'Áudio')}
+                        </span>
+                      </div>
+
+                      {/* End handle */}
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/40 rounded-r flex items-center justify-center z-10"
+                        onMouseDown={(e) => handleClipMouseDown(e, { ...audio, endTime }, 'end', 'audio')}
+                      >
+                        <div className="w-0.5 h-4 bg-green-600 opacity-70" />
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">
+                      {formatTime(startTime)} → {formatTime(endTime)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Arraste para mover • Bordas para ajustar duração
+                    </p>
+                    {clipDuration < (audio.originalDuration || clipDuration) && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ Áudio cortado ({formatTime(clipDuration)} de {formatTime(audio.originalDuration)})
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
                 
                 {/* Hidden audio element for playback */}
                 <audio
