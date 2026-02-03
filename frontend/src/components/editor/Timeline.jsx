@@ -192,10 +192,12 @@ const Timeline = ({
     const deltaX = e.clientX - dragStartX;
     const deltaTime = (deltaX / rect.width) * duration;
 
-    // Find the item (element or annotation)
+    // Find the item (element, annotation, or audio)
     let item;
     if (dragItemType === 'annotation') {
       item = annotations.find(a => a.id === isDraggingClip);
+    } else if (dragItemType === 'audio') {
+      item = audioList.find(a => a.id === isDraggingClip);
     } else {
       item = elements.find(el => el.id === isDraggingClip);
     }
@@ -222,13 +224,20 @@ const Timeline = ({
         startTime: parseFloat(newStartTime.toFixed(2)),
         endTime: parseFloat(newEndTime.toFixed(2)),
       });
+    } else if (dragItemType === 'audio' && onUpdateAudio) {
+      // For audio, we update startTime and duration (which effectively controls endTime)
+      const newDuration = parseFloat((newEndTime - newStartTime).toFixed(2));
+      onUpdateAudio(item.id, {
+        startTime: parseFloat(newStartTime.toFixed(2)),
+        duration: newDuration,
+      });
     } else if (onUpdateElement) {
       onUpdateElement(item.id, {
         startTime: parseFloat(newStartTime.toFixed(2)),
         endTime: parseFloat(newEndTime.toFixed(2)),
       });
     }
-  }, [isDraggingClip, dragType, dragItemType, dragStartX, dragStartTime, duration, elements, annotations, onUpdateElement, onUpdateAnnotation]);
+  }, [isDraggingClip, dragType, dragItemType, dragStartX, dragStartTime, duration, elements, annotations, audioList, onUpdateElement, onUpdateAnnotation, onUpdateAudio]);
 
   const handleMouseUp = useCallback(() => {
     setIsDraggingClip(null);
