@@ -363,8 +363,8 @@ var CoursePlayer = (function() {
     }
     
     function renderSlide(index) {
-        // Don't re-render if a video is in fullscreen
-        if (isVideoFullscreen) {
+        // Don't re-render if a video is in fullscreen or just exited fullscreen
+        if (isVideoFullscreen || fullscreenExitProtection) {
             return;
         }
         
