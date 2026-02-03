@@ -1452,47 +1452,36 @@ export default function Editor() {
                 <ScrollArea className="h-[calc(100vh-200px)]">
                   {(currentSlide?.elements?.length > 0 || currentSlide?.annotations?.length > 0) ? (
                     <div className="p-2 space-y-1">
-                      {/* Elements */}
+                      {/* Elements - Sortable */}
                       {currentSlide.elements?.length > 0 && (
                         <div className="mb-2">
-                          <div className="text-xs font-medium text-muted-foreground px-2 py-1">Elementos</div>
-                          {[...currentSlide.elements]
-                            .sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0))
-                            .map((element) => (
-                              <div
-                                key={element.id}
-                                className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
-                                  selectedElementId === element.id ? 'bg-primary/10' : 'hover:bg-muted'
-                                }`}
-                                onClick={() => setSelectedElementId(element.id)}
-                              >
-                                <GripVertical className="w-4 h-4 text-muted-foreground" />
-                                {element.type === 'text' && <Type className="w-4 h-4" />}
-                                {element.type === 'image' && <Image className="w-4 h-4" />}
-                                {element.type === 'shape' && <Square className="w-4 h-4" />}
-                                {element.type === 'video' && <Video className="w-4 h-4" />}
-                                {element.type === 'button' && <ExternalLink className="w-4 h-4" />}
-                                {element.type === 'html' && <Code className="w-4 h-4" />}
-                                {element.type === 'flipbook' && <BookOpen className="w-4 h-4" />}
-                                <span className="text-sm truncate flex-1">
-                                  {element.type === 'button' ? (element.buttonText || 'Botão') : 
-                                   element.type === 'html' ? 'HTML' :
-                                   element.type === 'flipbook' ? 'Flipbook' :
-                                   `${element.type} ${element.id.slice(0, 4)}`}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteElement(element.id);
-                                  }}
-                                >
-                                  <Trash2 className="w-3 h-3 text-destructive" />
-                                </Button>
-                              </div>
-                            ))}
+                          <div className="text-xs font-medium text-muted-foreground px-2 py-1 flex items-center justify-between">
+                            <span>Elementos</span>
+                            <span className="text-[10px] opacity-60">Arraste para reordenar</span>
+                          </div>
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleLayerDragEnd}
+                          >
+                            <SortableContext
+                              items={[...currentSlide.elements].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0)).map(e => e.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {[...currentSlide.elements]
+                                .sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0))
+                                .map((element, index) => (
+                                  <SortableLayerItem
+                                    key={element.id}
+                                    element={element}
+                                    index={index}
+                                    isSelected={selectedElementId === element.id}
+                                    onClick={() => setSelectedElementId(element.id)}
+                                    onDelete={() => handleDeleteElement(element.id)}
+                                  />
+                                ))}
+                            </SortableContext>
+                          </DndContext>
                         </div>
                       )}
                       
@@ -1503,7 +1492,7 @@ export default function Editor() {
                           {currentSlide.annotations.map((annotation, idx) => (
                             <div
                               key={annotation.id}
-                              className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
+                              className={`flex items-center gap-2 p-2 rounded cursor-pointer group ${
                                 selectedAnnotationId === annotation.id ? 'bg-primary/10' : 'hover:bg-muted'
                               }`}
                               onClick={() => setSelectedAnnotationId(annotation.id)}
@@ -1524,7 +1513,7 @@ export default function Editor() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteAnnotation(annotation.id);
