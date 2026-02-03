@@ -787,7 +787,7 @@ class AudioTimingUpdate(BaseModel):
     duration: Optional[float] = None
 
 @api_router.put("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}/timing")
-async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: str, data: AudioTimingUpdate):
+async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: str, data: dict):
     """Update slide audio timing (startTime and duration for trimming)"""
     project = await get_project_by_id(project_id)
     if not project:
@@ -810,10 +810,10 @@ async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: st
         audio_list[audio_index]['originalDuration'] = audio_list[audio_index].get('duration', 10)
     
     # Update timing
-    if data.startTime is not None:
-        audio_list[audio_index]['startTime'] = max(0, data.startTime)
-    if data.duration is not None:
-        audio_list[audio_index]['duration'] = max(0.5, data.duration)
+    if data.get('startTime') is not None:
+        audio_list[audio_index]['startTime'] = max(0, data['startTime'])
+    if data.get('duration') is not None:
+        audio_list[audio_index]['duration'] = max(0.5, data['duration'])
     
     slides[slide_index]['audio'] = audio_list
     course['slides'] = slides
