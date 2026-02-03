@@ -710,6 +710,7 @@ export const ProjectProvider = ({ children }) => {
     updateGlobalAudioVolume,
     removeSlideAudio,
     updateSlideAudioVolume,
+    updateSlideAudioTiming,
     addAnnotation,
     updateAnnotation,
     deleteAnnotation,
