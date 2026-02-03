@@ -247,33 +247,25 @@ var CoursePlayer = (function() {
         // Check if first slide has audio and show start overlay
         checkAndShowStartOverlay();
         
-        // Recalculate scale on window resize (but not during video fullscreen)
+        // Recalculate scale on window resize - only update scale, don't re-render
         var resizeTimeout;
         window.addEventListener('resize', function() {
-            // Skip re-render if a video is in fullscreen mode
+            // Skip completely if a video is in fullscreen mode
             var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
-            if (fullscreenElement && fullscreenElement.tagName === 'VIDEO') {
-                return;
-            }
-            // Also check if any video element triggered the fullscreen
-            var videos = document.querySelectorAll('#slide-content video');
-            var videoInFullscreen = false;
-            videos.forEach(function(v) {
-                if (document.fullscreenElement === v || document.webkitFullscreenElement === v) {
-                    videoInFullscreen = true;
-                }
-            });
-            if (videoInFullscreen) {
+            if (fullscreenElement) {
                 return;
             }
             
-            // Debounce resize to avoid multiple re-renders
+            // Skip if we just exited fullscreen
+            if (fullscreenExitProtection) {
+                return;
+            }
+            
+            // Debounce resize
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(function() {
-                // Only re-render if not in fullscreen
-                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                    renderSlide(currentSlide);
-                }
+                // Only update scale, don't re-render the entire slide
+                updateSlideScale();
             }, 150);
         });
         
@@ -281,6 +273,29 @@ var CoursePlayer = (function() {
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
         document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    }
+    
+    function updateSlideScale() {
+        // Just update the transform scale without re-rendering elements
+        var slideContainer = document.getElementById('slide-container');
+        var slideContent = document.getElementById('slide-content');
+        if (!slideContainer || !slideContent) return;
+        
+        var slide = course.slides[currentSlide];
+        if (!slide) return;
+        
+        var slideWidth = slide.width || 960;
+        var slideHeight = slide.height || 540;
+        
+        var containerRect = slideContainer.getBoundingClientRect();
+        var containerWidth = containerRect.width || slideContainer.clientWidth;
+        var containerHeight = containerRect.height || slideContainer.clientHeight;
+        
+        var scaleX = containerWidth / slideWidth;
+        var scaleY = containerHeight / slideHeight;
+        var scale = Math.min(scaleX, scaleY, 1);
+        
+        slideContent.style.transform = 'scale(' + scale + ')';
     }
     
     var isVideoFullscreen = false;
@@ -326,17 +341,17 @@ var CoursePlayer = (function() {
             // Save state of ALL videos when entering fullscreen
             saveAllVideoStates();
         } else if (isVideoFullscreen) {
-            // Video just exited fullscreen - protect from re-render
+            // Video just exited fullscreen
             isVideoFullscreen = false;
             fullscreenExitProtection = true;
             
-            // Save states again in case they changed during fullscreen
+            // Save states again
             saveAllVideoStates();
             
-            // Remove protection after a delay, but keep video states for restoration
+            // Keep protection for longer to ensure no re-render happens
             setTimeout(function() {
                 fullscreenExitProtection = false;
-            }, 1000);
+            }, 2000);
         }
     }
     
