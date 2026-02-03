@@ -546,7 +546,7 @@ async def delete_element(project_id: str, slide_id: str, element_id: str):
 
 @api_router.post("/projects/{project_id}/media")
 async def upload_media(project_id: str, file: UploadFile = File(...)):
-    """Upload media file (image, audio, video)"""
+    """Upload media file (image, audio, video) with automatic image optimization"""
     project = await get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -559,9 +559,62 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
     
     # Read and validate size
     content = await file.read()
+    original_size = len(content)
     max_size = 100 * 1024 * 1024  # 100MB
-    if len(content) > max_size:
+    if original_size > max_size:
         raise HTTPException(status_code=400, detail="File too large")
+    
+    # Optimize images automatically
+    image_extensions = {'.png', '.jpg', '.jpeg', '.webp'}
+    optimized = False
+    
+    if ext in image_extensions:
+        try:
+            # Open image with Pillow
+            img = Image.open(io.BytesIO(content))
+            
+            # Convert RGBA to RGB for JPEG (remove alpha channel)
+            if img.mode == 'RGBA' and ext in {'.jpg', '.jpeg'}:
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])
+                img = background
+            elif img.mode == 'RGBA':
+                pass  # Keep alpha for PNG/WebP
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Calculate max dimensions (Full HD)
+            max_width = 1920
+            max_height = 1080
+            
+            # Resize if image is larger than max dimensions
+            if img.width > max_width or img.height > max_height:
+                ratio = min(max_width / img.width, max_height / img.height)
+                new_size = (int(img.width * ratio), int(img.height * ratio))
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+                logger.info(f"Resized image from {img.width}x{img.height} to {new_size[0]}x{new_size[1]}")
+            
+            # Save optimized image to buffer
+            output = io.BytesIO()
+            
+            if ext == '.png':
+                # For PNG, use optimize and reduce colors if possible
+                img.save(output, format='PNG', optimize=True)
+            elif ext == '.webp':
+                # WebP with quality compression
+                img.save(output, format='WEBP', quality=85, method=6)
+            else:
+                # JPEG with quality compression
+                img.save(output, format='JPEG', quality=85, optimize=True)
+            
+            content = output.getvalue()
+            optimized = True
+            
+            logger.info(f"Image optimized: {original_size} bytes -> {len(content)} bytes ({100 - (len(content)/original_size*100):.1f}% reduction)")
+            
+        except Exception as e:
+            logger.warning(f"Image optimization failed, using original: {e}")
+            # Use original content if optimization fails
     
     # Save file
     file_id = str(uuid.uuid4())
@@ -576,6 +629,8 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
         "filename": filename,
         "url": f"/api/projects/{project_id}/assets/{filename}",
         "size": len(content),
+        "originalSize": original_size,
+        "optimized": optimized,
         "type": ext[1:]
     }
 
