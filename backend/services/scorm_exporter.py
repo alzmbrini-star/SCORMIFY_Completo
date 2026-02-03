@@ -890,7 +890,7 @@ var CoursePlayer = (function() {
     function goToSlide(index) {
         if (index >= 0 && index < totalSlides) {
             // Pause all videos on current slide before changing
-            pauseAllVideos();
+            pauseAllVideos(true);
             
             currentSlide = index;
             renderSlide(currentSlide);
@@ -903,18 +903,25 @@ var CoursePlayer = (function() {
         }
     }
     
-    function pauseAllVideos() {
+    function pauseAllVideos(resetPosition) {
         var videos = document.querySelectorAll('#slide-content video');
         videos.forEach(function(video) {
             video.pause();
-            video.currentTime = 0;
+            // Only reset position if explicitly requested (slide change)
+            if (resetPosition) {
+                video.currentTime = 0;
+                video.dataset.isUserInteracting = 'false';
+            }
         });
     }
     
     function autoplayVideosOnSlide() {
         var videos = document.querySelectorAll('#slide-content video');
         videos.forEach(function(video) {
-            video.currentTime = 0;
+            // Only reset if user hasn't been interacting
+            if (video.dataset.isUserInteracting !== 'true') {
+                video.currentTime = 0;
+            }
             video.play().catch(function() {
                 // Try muted autoplay as fallback
                 video.muted = true;
