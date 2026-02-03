@@ -1404,6 +1404,7 @@ export default function Editor() {
                 onUpdateSlide={(data) => updateSlide(currentSlide?.id, data)}
                 onUpdateElement={(elementId, data) => updateElement(currentSlide?.id, elementId, data)}
                 onUpdateAnnotation={(annotationId, data) => updateAnnotation(currentSlide?.id, annotationId, data)}
+                onUpdateAudio={(audioId, data) => updateSlideAudioTiming(currentSlide?.id, audioId, data)}
                 currentTime={timelineTime}
                 isPlaying={timelineIsPlaying}
                 onTimeChange={setTimelineTime}
