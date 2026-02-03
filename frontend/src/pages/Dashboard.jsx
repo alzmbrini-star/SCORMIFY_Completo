@@ -161,9 +161,9 @@ export default function Dashboard() {
             <img 
               src="/didaxis-logo.png" 
               alt="Didaxis" 
-              className="h-10 object-contain"
+              className="h-14 object-contain"
             />
-            <div className="h-8 w-px bg-border" />
+            <div className="h-10 w-px bg-border" />
             <h1 className="text-2xl font-bold tracking-tight">Scormify</h1>
           </div>
           <div className="flex items-center gap-3">
