@@ -284,13 +284,22 @@ var CoursePlayer = (function() {
     }
     
     var isVideoFullscreen = false;
+    var fullscreenExitProtection = false;
     
     function handleFullscreenChange() {
         var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
         if (fullscreenElement && fullscreenElement.tagName === 'VIDEO') {
             isVideoFullscreen = true;
-        } else {
+            fullscreenExitProtection = false;
+        } else if (isVideoFullscreen) {
+            // Video just exited fullscreen - protect from re-render for a moment
             isVideoFullscreen = false;
+            fullscreenExitProtection = true;
+            
+            // Remove protection after a short delay
+            setTimeout(function() {
+                fullscreenExitProtection = false;
+            }, 500);
         }
     }
     
