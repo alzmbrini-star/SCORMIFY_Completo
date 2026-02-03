@@ -392,6 +392,41 @@ export default function Editor() {
     }
   }, [currentProject, currentSlideIndex, reorderSlides, setCurrentSlideIndex]);
 
+  // Handle layer reordering (zIndex)
+  const handleLayerDragEnd = useCallback(async (event) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id || !currentSlide) return;
+    
+    const elements = currentSlide.elements || [];
+    // Sort by zIndex descending (top to bottom in UI)
+    const sortedElements = [...elements].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+    
+    const oldIndex = sortedElements.findIndex(e => e.id === active.id);
+    const newIndex = sortedElements.findIndex(e => e.id === over.id);
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+    
+    // Reorder the array
+    const reorderedElements = arrayMove(sortedElements, oldIndex, newIndex);
+    
+    // Assign new zIndex values (higher index = lower in list = lower zIndex)
+    const updates = reorderedElements.map((el, idx) => ({
+      id: el.id,
+      zIndex: reorderedElements.length - idx // Top item gets highest zIndex
+    }));
+    
+    // Update each element's zIndex
+    try {
+      for (const update of updates) {
+        await updateElement(currentSlide.id, update.id, { zIndex: update.zIndex });
+      }
+      toast.success('Camadas reordenadas');
+    } catch (err) {
+      toast.error('Erro ao reordenar camadas');
+    }
+  }, [currentSlide, updateElement]);
+
   useEffect(() => {
     if (projectId) {
       fetchProject(projectId);
