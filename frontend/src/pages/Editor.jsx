@@ -1139,19 +1139,19 @@ export default function Editor() {
     <TooltipProvider>
       <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
         {/* Header */}
-        <header className="h-14 border-b border-border bg-card flex items-center px-4 justify-between z-50">
+        <header className="h-16 border-b border-border bg-card flex items-center px-4 justify-between z-50">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate('/')} data-testid="back-btn">
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-8" />
             <img 
               src="/didaxis-logo.png" 
               alt="Didaxis" 
-              className="h-8 object-contain"
+              className="h-12 object-contain"
             />
             <span className="text-sm font-medium text-muted-foreground">Scormify</span>
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-8" />
             <h1 className="font-semibold truncate max-w-[200px]">
               {currentProject?.name || 'Loading...'}
             </h1>
