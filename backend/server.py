@@ -782,6 +782,47 @@ async def update_slide_audio_volume(project_id: str, slide_id: str, audio_id: st
     return audio_list[audio_index]
 
 
+class AudioTimingUpdate(BaseModel):
+    startTime: Optional[float] = None
+    duration: Optional[float] = None
+
+@api_router.put("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}/timing")
+async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: str, data: AudioTimingUpdate):
+    """Update slide audio timing (startTime and duration for trimming)"""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    slides = course.get('slides', [])
+    
+    slide_index = next((i for i, s in enumerate(slides) if s.get('id') == slide_id), None)
+    if slide_index is None:
+        raise HTTPException(status_code=404, detail="Slide not found")
+    
+    audio_list = slides[slide_index].get('audio', [])
+    audio_index = next((i for i, a in enumerate(audio_list) if a.get('id') == audio_id), None)
+    if audio_index is None:
+        raise HTTPException(status_code=404, detail="Audio not found")
+    
+    # Store original duration if not already stored
+    if 'originalDuration' not in audio_list[audio_index]:
+        audio_list[audio_index]['originalDuration'] = audio_list[audio_index].get('duration', 10)
+    
+    # Update timing
+    if data.startTime is not None:
+        audio_list[audio_index]['startTime'] = max(0, data.startTime)
+    if data.duration is not None:
+        audio_list[audio_index]['duration'] = max(0.5, data.duration)
+    
+    slides[slide_index]['audio'] = audio_list
+    course['slides'] = slides
+    
+    await update_project(project_id, {"course": course})
+    
+    return audio_list[audio_index]
+
+
 # Annotations
 
 @api_router.post("/projects/{project_id}/slides/{slide_id}/annotations")
