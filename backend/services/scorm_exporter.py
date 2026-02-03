@@ -354,6 +354,11 @@ var CoursePlayer = (function() {
     }
     
     function renderSlide(index) {
+        // Don't re-render if a video is in fullscreen
+        if (isVideoFullscreen) {
+            return;
+        }
+        
         // Stop any playing slide audio before rendering new slide
         stopAllSlideAudios();
         
