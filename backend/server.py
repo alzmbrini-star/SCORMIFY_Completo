@@ -1076,7 +1076,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
     try:
         async with httpx.AsyncClient(timeout=60.0) as http_client:
             
-            # For transparent background, use the WebM endpoint (v1/video.webm)
+            # For transparent background, try the WebM endpoint first (v1/video.webm)
             if request.transparent_background:
                 payload = {
                     "avatar_pose_id": request.avatar_id,
@@ -1094,8 +1094,26 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                     headers=HEYGEN_HEADERS,
                     json=payload
                 )
-            else:
-                # Standard video with background (v2/video/generate)
+                
+                # If WebM endpoint fails (avatar not supported), fall back to standard endpoint
+                if response.status_code != 200:
+                    error_data = response.json()
+                    error_code = error_data.get("data", {}).get("error", {}).get("code", "")
+                    
+                    # Check if it's an avatar compatibility issue
+                    if "AVATAR_NOT_FOUND" in str(error_code) or "avatar" in str(error_data).lower():
+                        logger.warning(f"Avatar not compatible with WebM, falling back to standard video")
+                        # Fall back to standard endpoint without transparent background
+                        request.transparent_background = False
+                    else:
+                        logger.error(f"HeyGen WebM error: {response.status_code} - {response.text}")
+                        error_msg = error_data.get("error", {}).get("message", "")
+                        if not error_msg:
+                            error_msg = error_data.get("data", {}).get("error", {}).get("message", response.text)
+                        raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
+            
+            # Standard video (either requested or fallback from WebM)
+            if not request.transparent_background:
                 payload = {
                     "video_inputs": [
                         {
@@ -1126,8 +1144,11 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
             
             if response.status_code != 200:
                 logger.error(f"HeyGen generate error: {response.status_code} - {response.text}")
-                error_detail = response.json().get("error", {}).get("message", response.text)
-                raise HTTPException(status_code=response.status_code, detail=error_detail)
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", "")
+                if not error_msg:
+                    error_msg = error_data.get("data", {}).get("error", {}).get("message", response.text)
+                raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
             
             data = response.json()
             video_id = data.get("data", {}).get("video_id")
