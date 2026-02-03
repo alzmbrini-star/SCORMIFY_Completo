@@ -285,21 +285,58 @@ var CoursePlayer = (function() {
     
     var isVideoFullscreen = false;
     var fullscreenExitProtection = false;
+    var videoStates = {}; // Store video states by element ID
+    
+    function saveAllVideoStates() {
+        var videos = document.querySelectorAll('#slide-content video');
+        videos.forEach(function(video) {
+            var elementId = video.dataset.elementId;
+            if (elementId) {
+                videoStates[elementId] = {
+                    currentTime: video.currentTime,
+                    paused: video.paused,
+                    muted: video.muted,
+                    volume: video.volume
+                };
+            }
+        });
+    }
+    
+    function restoreVideoState(video) {
+        var elementId = video.dataset.elementId;
+        if (elementId && videoStates[elementId]) {
+            var state = videoStates[elementId];
+            video.currentTime = state.currentTime;
+            video.muted = state.muted;
+            video.volume = state.volume;
+            if (!state.paused) {
+                video.play().catch(function() {
+                    video.muted = true;
+                    video.play().catch(function() {});
+                });
+            }
+        }
+    }
     
     function handleFullscreenChange() {
         var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
         if (fullscreenElement && fullscreenElement.tagName === 'VIDEO') {
             isVideoFullscreen = true;
             fullscreenExitProtection = false;
+            // Save state of ALL videos when entering fullscreen
+            saveAllVideoStates();
         } else if (isVideoFullscreen) {
-            // Video just exited fullscreen - protect from re-render for a moment
+            // Video just exited fullscreen - protect from re-render
             isVideoFullscreen = false;
             fullscreenExitProtection = true;
             
-            // Remove protection after a short delay
+            // Save states again in case they changed during fullscreen
+            saveAllVideoStates();
+            
+            // Remove protection after a delay, but keep video states for restoration
             setTimeout(function() {
                 fullscreenExitProtection = false;
-            }, 500);
+            }, 1000);
         }
     }
     
