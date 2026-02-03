@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 import shutil
 import aiofiles
 import httpx
+import io
+from PIL import Image
 
 from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
