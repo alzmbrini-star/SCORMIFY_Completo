@@ -199,6 +199,7 @@ export default function Editor() {
     updateGlobalAudioVolume,
     removeSlideAudio,
     updateSlideAudioVolume,
+    updateSlideAudioTiming,
     updateAnnotation,
     deleteAnnotation,
     exportScorm,
