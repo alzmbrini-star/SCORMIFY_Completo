@@ -1145,6 +1145,13 @@ export default function Editor() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <Separator orientation="vertical" className="h-6" />
+            <img 
+              src="/didaxis-logo.png" 
+              alt="Didaxis" 
+              className="h-8 object-contain"
+            />
+            <span className="text-sm font-medium text-muted-foreground">Scormify</span>
+            <Separator orientation="vertical" className="h-6" />
             <h1 className="font-semibold truncate max-w-[200px]">
               {currentProject?.name || 'Loading...'}
             </h1>
