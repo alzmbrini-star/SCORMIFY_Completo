@@ -611,8 +611,6 @@ var CoursePlayer = (function() {
                     var video = document.createElement('video');
                     video.src = element.src;
                     video.controls = true;
-                    video.autoplay = true;
-                    video.muted = false;
                     video.playsInline = true;
                     video.style.width = '100%';
                     video.style.height = '100%';
@@ -621,32 +619,38 @@ var CoursePlayer = (function() {
                     
                     // Store video reference for slide change handling
                     video.dataset.elementId = element.id;
-                    video.dataset.isUserInteracting = 'false';
                     
-                    // Track when user is interacting with video (to prevent auto-reset)
-                    video.addEventListener('play', function() {
-                        this.dataset.isUserInteracting = 'true';
-                    });
-                    video.addEventListener('pause', function() {
-                        // Keep interacting flag true to preserve position
-                    });
-                    video.addEventListener('fullscreenchange', function() {
-                        // Prevent any reset during fullscreen changes
-                        this.dataset.isUserInteracting = 'true';
-                    });
-                    video.addEventListener('webkitfullscreenchange', function() {
-                        this.dataset.isUserInteracting = 'true';
-                    });
+                    // Check if we have saved state for this video
+                    var hasSavedState = videoStates && videoStates[element.id];
                     
                     el.appendChild(video);
                     
-                    // Try to autoplay with sound, fallback to muted if blocked
-                    video.play().catch(function() {
-                        video.muted = true;
-                        video.play().catch(function() {
-                            console.log('Autoplay blocked by browser');
-                        });
+                    // Wait for video to be ready, then restore state or autoplay
+                    video.addEventListener('loadedmetadata', function() {
+                        if (hasSavedState) {
+                            restoreVideoState(this);
+                        } else {
+                            // Autoplay only if no saved state
+                            this.play().catch(function() {
+                                video.muted = true;
+                                video.play().catch(function() {
+                                    console.log('Autoplay blocked by browser');
+                                });
+                            });
+                        }
                     });
+                    
+                    // Also try immediate restore/autoplay for cached videos
+                    if (video.readyState >= 1) {
+                        if (hasSavedState) {
+                            restoreVideoState(video);
+                        } else {
+                            video.play().catch(function() {
+                                video.muted = true;
+                                video.play().catch(function() {});
+                            });
+                        }
+                    }
                 }
                 break;
             
