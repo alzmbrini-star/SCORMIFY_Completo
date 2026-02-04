@@ -343,3 +343,34 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - Editable elements are overlaid on top of slide images
 - Asset URLs differ between editor (absolute) and SCORM package (relative)
 - Video elements use transparent overlay to allow manipulation while preventing iframe event capture
+
+## Recent Fixes (February 4, 2026)
+
+### Image Insertion Dimensioning Fix
+- **Issue**: Imagens inseridas usavam dimensões percentuais ('100%', '100%') que quebravam drag/resize
+- **Root Cause**: Strings percentuais não eram compatíveis com o sistema de manipulação de elementos
+- **Fix Applied**: Imagens agora usam dimensões em pixels (960x540) para cobrir o slide
+- **Files Modified**: `/app/frontend/src/pages/Editor.jsx` - handleImageUpload function
+- **Status**: FIXED
+
+### Fullscreen Multiple Videos Fix
+- **Issue**: Sair do fullscreen em um vídeo reiniciava todos os outros vídeos no slide
+- **Root Cause**: O evento de resize após fullscreen causava re-render do slide inteiro
+- **Fix Applied**: 
+  1. Adicionada função `restoreAllVideoStates()` para restaurar estados de todos os vídeos
+  2. Extendido tempo de proteção de re-render para 3 segundos após sair do fullscreen
+  3. Adicionado logging para debug
+- **Files Modified**: `/app/backend/services/scorm_exporter.py` - handleFullscreenChange function
+- **Status**: FIXED (requires export to apply)
+
+### Mobile Orientation Overlay Fix
+- **Issue**: A overlay de orientação mobile não aparecia em dispositivos móveis no modo retrato
+- **Root Cause**: Detecção via JavaScript não funcionava corretamente em iframes de LMS
+- **Fix Applied**: Adicionadas media queries CSS que forçam a exibição da overlay em modo retrato
+  - `@media screen and (orientation: portrait) and (max-width: 900px)`
+  - `@media screen and (max-aspect-ratio: 4/5) and (max-width: 900px)`
+- **Files Modified**: `/app/backend/services/scorm_exporter.py` - CSS styles
+- **Status**: FIXED (requires user testing on real mobile device)
+
+### Annotation Pointer Alignment
+- **Status**: CONFIRMED FIXED by user (Feb 4, 2026)
