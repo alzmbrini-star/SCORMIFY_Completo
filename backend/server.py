@@ -1192,7 +1192,7 @@ async def list_heygen_voices(language: Optional[str] = None):
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class HeyGenVideoRequest(BaseModel):
     avatar_id: str
