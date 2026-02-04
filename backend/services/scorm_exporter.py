@@ -237,44 +237,37 @@ function checkMobileOrientation() {
         overlay.style.display = 'none';
         playerContainer.style.display = 'flex';
         
-        // If player was hidden and is now visible, we need to update scale
-        // Set a flag to update scale multiple times after visibility change
-        if (wasHidden) {
-            pendingScaleUpdate = true;
-            // Schedule multiple scale updates to handle browser layout timing
-            scheduleScaleUpdates();
+        // If player was hidden and is now visible, we need to RE-RENDER the slide
+        // because the initial render happened with zero dimensions
+        if (wasHidden && typeof CoursePlayer !== 'undefined' && CoursePlayer.refresh) {
+            // Schedule multiple refresh attempts to handle browser layout timing
+            [50, 150, 300, 500].forEach(function(delay) {
+                setTimeout(function() {
+                    CoursePlayer.refresh();
+                }, delay);
+            });
         }
     }
-}
-
-function scheduleScaleUpdates() {
-    // Update scale multiple times with increasing delays
-    // This ensures we catch the moment when the browser has calculated final dimensions
-    [0, 50, 100, 200, 350, 500].forEach(function(delay) {
-        setTimeout(function() {
-            if (typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
-                CoursePlayer.updateScale();
-            }
-        }, delay);
-    });
 }
 
 // Listen for orientation changes
 window.addEventListener('orientationchange', function() {
     setTimeout(checkMobileOrientation, 100);
-    setTimeout(checkMobileOrientation, 200);
+    setTimeout(checkMobileOrientation, 250);
 });
 
 // Listen for resize events
 window.addEventListener('resize', function() {
     checkMobileOrientation();
+    // Also update scale on resize
+    if (typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
+        CoursePlayer.updateScale();
+    }
 });
 
 // Initial check on load
 window.addEventListener('load', function() {
     setTimeout(checkMobileOrientation, 100);
-    // Also schedule scale updates on initial load
-    scheduleScaleUpdates();
 });
 
 // Also check on DOMContentLoaded
