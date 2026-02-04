@@ -357,10 +357,9 @@ var CoursePlayer = (function() {
     
     function updateSlideScale() {
         // Just update the transform scale without re-rendering elements
-        var slideContainer = document.getElementById('slide-container');
-        var slideContent = document.getElementById('slide-content');
+        var container = document.getElementById('slide-container');
         var wrapper = document.getElementById('slide-wrapper');
-        if (!slideContainer || !slideContent || !wrapper) return;
+        if (!container || !wrapper) return;
         
         var slide = course.slides[currentSlide];
         if (!slide) return;
@@ -377,12 +376,14 @@ var CoursePlayer = (function() {
         var availableWidth = wrapperRect.width - paddingX;
         var availableHeight = wrapperRect.height - paddingY;
         
+        // Skip if dimensions are invalid
+        if (availableWidth < 100 || availableHeight < 100) return;
+        
         // Calculate scale to fit available space
         var scaleX = availableWidth / slideWidth;
         var scaleY = availableHeight / slideHeight;
         
         // Use the smaller scale to maintain aspect ratio
-        // Allow scaling above 1.0 on mobile to fill the screen better
         var scale = Math.min(scaleX, scaleY);
         
         // On desktop, cap at 1.0 to avoid pixelation
@@ -391,11 +392,11 @@ var CoursePlayer = (function() {
         var maxScale = isMobile ? 1.5 : 1.0;
         scale = Math.min(scale, maxScale);
         
-        slideContent.style.transform = 'scale(' + scale + ')';
-        
-        // Also update the container visual size to match scaled content
-        slideContainer.style.width = slideWidth + 'px';
-        slideContainer.style.height = slideHeight + 'px';
+        // Apply scale to container
+        container.style.width = slideWidth + 'px';
+        container.style.height = slideHeight + 'px';
+        container.style.transform = 'scale(' + scale + ')';
+        container.style.transformOrigin = 'center center';
     }
     
     var isVideoFullscreen = false;
