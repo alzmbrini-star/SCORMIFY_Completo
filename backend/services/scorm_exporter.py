@@ -215,34 +215,43 @@ PLAYER_JS = '''/**
  * SCORM Course Player
  */
 
-// Mobile orientation detection
+// Mobile orientation detection - Show overlay when in portrait mode on small screens
 function checkMobileOrientation() {
     var overlay = document.getElementById('orientation-overlay');
-    if (!overlay) return;
+    var playerContainer = document.getElementById('player-container');
+    if (!overlay || !playerContainer) return;
     
-    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    // Check if screen is in portrait mode and is a small screen (mobile/tablet)
     var isPortrait = window.innerHeight > window.innerWidth;
-    var isSmallScreen = window.innerWidth < 768;
+    var isSmallScreen = window.innerWidth < 900; // Increased threshold
+    var aspectRatio = window.innerWidth / window.innerHeight;
     
-    if (isMobile && isPortrait && isSmallScreen) {
+    // Show overlay if portrait mode on small screen with poor aspect ratio for slides
+    if (isPortrait && isSmallScreen && aspectRatio < 0.8) {
         overlay.style.display = 'flex';
-        document.getElementById('player-container').style.display = 'none';
+        playerContainer.style.display = 'none';
     } else {
         overlay.style.display = 'none';
-        document.getElementById('player-container').style.display = 'flex';
+        playerContainer.style.display = 'flex';
     }
 }
 
 // Listen for orientation changes
 window.addEventListener('orientationchange', function() {
-    setTimeout(checkMobileOrientation, 100);
+    setTimeout(checkMobileOrientation, 150);
 });
 
+// Listen for resize events
 window.addEventListener('resize', function() {
     checkMobileOrientation();
 });
 
-// Initial check
+// Initial check on load
+window.addEventListener('load', function() {
+    setTimeout(checkMobileOrientation, 100);
+});
+
+// Also check on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
     checkMobileOrientation();
 });
