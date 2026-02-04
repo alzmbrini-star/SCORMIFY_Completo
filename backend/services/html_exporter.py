@@ -203,9 +203,21 @@ async def generate_standalone_html(
 def generate_html_template(title: str, course_data: Dict, width: int, height: int) -> str:
     """Generate the complete HTML template with embedded player"""
     
+    # Create a deep copy and sanitize htmlContent fields to prevent JSON/JS issues
+    import copy
+    sanitized_data = copy.deepcopy(course_data)
+    
+    for slide in sanitized_data.get('slides', []):
+        for element in slide.get('elements', []):
+            # Sanitize htmlContent - encode as base64 to prevent issues
+            if element.get('htmlContent'):
+                # Convert the HTML content to base64 to avoid escaping issues
+                html_b64 = base64.b64encode(element['htmlContent'].encode('utf-8')).decode('utf-8')
+                element['htmlContent'] = f"__B64__:{html_b64}"
+    
     # Escape special characters that could break the script tag
     # First dump to JSON, then escape </script> and other problematic sequences
-    course_json = json.dumps(course_data, ensure_ascii=False)
+    course_json = json.dumps(sanitized_data, ensure_ascii=False)
     # Escape </script> to prevent breaking the script block
     course_json = course_json.replace('</script>', '<\\/script>')
     course_json = course_json.replace('</Script>', '<\\/Script>')
