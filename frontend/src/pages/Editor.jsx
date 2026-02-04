@@ -516,6 +516,22 @@ export default function Editor() {
     }
   };
 
+  const handleExportHTML = async () => {
+    try {
+      setExportLoading(true);
+      const response = await axios.post(
+        `${process.env.REACT_APP_BACKEND_URL}/api/course/${currentProject.id}/export-html`
+      );
+      setDownloadUrl(`${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`);
+      toast.success('HTML file ready!');
+    } catch (err) {
+      console.error('HTML export error:', err);
+      toast.error('Export failed: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   // Audio playback functions
   const playAudio = (audioUrl, audioId) => {
     // Stop any currently playing audio
