@@ -392,3 +392,28 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Files Modified**:
   - `/app/frontend/src/pages/Editor.jsx` - Added preview button and state
 - **Status**: IMPLEMENTED AND TESTED
+
+### HeyGen Integration Improvements - IMPLEMENTED (Feb 4, 2026)
+- **Feature 1**: Credit balance check before video generation
+  - New endpoint: `GET /api/heygen/credits` - Returns remaining quota
+  - UI shows credits in dialog header with visual indicator (green/red)
+  - Prevents video generation if no credits available
+- **Feature 2**: Webhook support for video completion notifications
+  - New endpoint: `POST /api/heygen/webhook` - Receives HeyGen callbacks
+  - New endpoint: `GET /api/heygen/webhook-url` - Returns webhook URL and setup instructions
+  - Automatically updates video status in database when webhook received
+- **Files Modified**:
+  - `/app/backend/server.py` - Added 3 new endpoints
+  - `/app/frontend/src/pages/Editor.jsx` - Added credits display and validation
+- **Status**: IMPLEMENTED
+
+### Slide Dimension Normalization - IMPLEMENTED (Feb 4, 2026)
+- **Feature**: Normalize all slides to consistent dimensions
+  - New endpoint: `POST /api/projects/{id}/normalize-dimensions`
+  - Scales element positions and sizes proportionally
+  - New slides inherit dimensions from first slide
+- **Files Modified**:
+  - `/app/backend/server.py` - Added normalization endpoint
+  - `/app/backend/models.py` - Added width/height to SlideCreate
+  - `/app/frontend/src/contexts/ProjectContext.jsx` - Inherit dimensions on addSlide
+- **Status**: IMPLEMENTED
