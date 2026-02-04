@@ -1905,6 +1905,26 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             flex-direction: column;
         }}
         
+        /* Force display on mobile portrait mode using CSS media query */
+        @media screen and (orientation: portrait) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Also detect by aspect ratio for devices that don't report orientation correctly */
+        @media screen and (max-aspect-ratio: 4/5) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
         .orientation-content {{
             text-align: center;
             padding: 30px;
