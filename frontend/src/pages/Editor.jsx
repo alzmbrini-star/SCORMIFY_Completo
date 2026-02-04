@@ -811,14 +811,20 @@ export default function Editor() {
   const loadHeygenData = async () => {
     setHeygenLoading(true);
     try {
-      // Load avatars and voices in parallel
-      const [avatarsRes, voicesRes] = await Promise.all([
+      // Load avatars, voices, and credits in parallel
+      const [avatarsRes, voicesRes, creditsRes] = await Promise.all([
         axios.get(`${API_URL}/api/heygen/avatars`),
-        axios.get(`${API_URL}/api/heygen/voices?language=portuguese`)
+        axios.get(`${API_URL}/api/heygen/voices?language=portuguese`),
+        axios.get(`${API_URL}/api/heygen/credits`).catch(() => ({ data: null }))
       ]);
       
       setHeygenAvatars(avatarsRes.data.avatars || []);
       setHeygenVoices(voicesRes.data.voices || []);
+      
+      // Set credits info
+      if (creditsRes.data) {
+        setHeygenCredits(creditsRes.data);
+      }
       
       // Set defaults if available
       if (avatarsRes.data.avatars?.length > 0 && !heygenConfig.avatarId) {
