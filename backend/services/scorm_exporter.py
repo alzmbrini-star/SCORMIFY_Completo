@@ -1717,9 +1717,30 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             border-top: 1px solid #0f3460;
         }}
         
+        /* Mobile: smaller controls */
+        @media screen and (max-width: 900px) {{
+            #controls {{
+                height: 50px;
+                padding: 0 10px;
+            }}
+        }}
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {{
+            #controls {{
+                height: 44px;
+                padding: 0 8px;
+            }}
+        }}
+        
         .nav-buttons {{
             display: flex;
             gap: 10px;
+        }}
+        
+        @media screen and (max-width: 900px) {{
+            .nav-buttons {{
+                gap: 5px;
+            }}
         }}
         
         .control-btn {{
@@ -1731,6 +1752,22 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             cursor: pointer;
             font-size: 14px;
             transition: background 0.2s;
+        }}
+        
+        /* Mobile: smaller buttons */
+        @media screen and (max-width: 900px) {{
+            .control-btn {{
+                padding: 8px 12px;
+                font-size: 12px;
+                border-radius: 4px;
+            }}
+        }}
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {{
+            .control-btn {{
+                padding: 6px 10px;
+                font-size: 11px;
+            }}
         }}
         
         .control-btn:hover:not(:disabled) {{
