@@ -143,9 +143,19 @@ export const ProjectProvider = ({ children }) => {
   const addSlide = useCallback(async (slideData = {}) => {
     if (!currentProject) return;
     try {
+      // Get dimensions from first slide to maintain consistency
+      const firstSlide = currentProject.course?.slides?.[0];
+      const defaultWidth = firstSlide?.width || 1280;
+      const defaultHeight = firstSlide?.height || 720;
+      
       const response = await axios.post(
         `${API_URL}/projects/${currentProject.id}/slides`,
-        { title: slideData.title || 'New Slide', background: slideData.background || '#FFFFFF' }
+        { 
+          title: slideData.title || 'New Slide', 
+          background: slideData.background || '#FFFFFF',
+          width: slideData.width || defaultWidth,
+          height: slideData.height || defaultHeight
+        }
       );
       setCurrentProject(prev => ({
         ...prev,
