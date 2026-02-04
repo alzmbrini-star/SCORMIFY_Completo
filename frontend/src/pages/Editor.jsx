@@ -1239,49 +1239,96 @@ export default function Editor() {
                 setDownloadUrl(null);
               }
             }}>
-              <DialogContent>
+              <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Export SCORM 1.2 Package</DialogTitle>
+                  <DialogTitle>Exportar Curso</DialogTitle>
                   <DialogDescription>
-                    Generate a SCORM 1.2 compatible package for your LMS.
+                    Escolha o formato de exportação do seu curso.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
+                <div className="py-4 space-y-4">
                   {downloadUrl ? (
                     <div className="text-center">
                       <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                         <Download className="w-8 h-8 text-green-500" />
                       </div>
-                      <p className="mb-4">Your SCORM package is ready!</p>
+                      <p className="mb-4">Seu arquivo está pronto!</p>
                       <Button asChild className="w-full">
-                        <a href={downloadUrl} download data-testid="download-scorm-btn">
-                          Download Package
+                        <a href={downloadUrl} download data-testid="download-export-btn">
+                          Baixar Arquivo
                         </a>
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-center">
-                      <p className="text-muted-foreground mb-4">
-                        Export your course as a SCORM 1.2 package that can be imported into any LMS.
-                      </p>
-                      <Button
-                        onClick={handleExport}
-                        disabled={exportLoading}
-                        className="w-full gap-2"
-                        data-testid="generate-scorm-btn"
-                      >
-                        {exportLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4" />
-                            Generate Package
-                          </>
-                        )}
-                      </Button>
+                    <div className="space-y-3">
+                      {/* SCORM Export Option */}
+                      <div className="p-4 border rounded-lg hover:border-primary/50 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-xl">📦</span>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium mb-1">SCORM 1.2</h4>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              Pacote compatível com LMS (Moodle, Blackboard, etc.)
+                            </p>
+                            <Button
+                              onClick={handleExport}
+                              disabled={exportLoading}
+                              className="w-full gap-2"
+                              size="sm"
+                              data-testid="generate-scorm-btn"
+                            >
+                              {exportLoading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Gerando...
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="w-4 h-4" />
+                                  Gerar SCORM
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* HTML Standalone Export Option */}
+                      <div className="p-4 border rounded-lg hover:border-primary/50 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-xl">🌐</span>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium mb-1">HTML Standalone</h4>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              Arquivo único para visualizar em qualquer navegador
+                            </p>
+                            <Button
+                              onClick={handleExportHTML}
+                              disabled={exportLoading}
+                              variant="outline"
+                              className="w-full gap-2"
+                              size="sm"
+                              data-testid="generate-html-btn"
+                            >
+                              {exportLoading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Gerando...
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="w-4 h-4" />
+                                  Gerar HTML
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
