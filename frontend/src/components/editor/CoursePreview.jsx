@@ -150,14 +150,14 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     }
   }, [isPlaying]);
   
-  const goToSlide = (index) => {
+  const goToSlide = useCallback((index) => {
     if (index >= 0 && index < slides.length) {
-      setCurrentSlideIndex(index);
+      handleSlideChange(index);
     }
-  };
+  }, [slides.length, handleSlideChange]);
   
-  const prevSlide = () => goToSlide(currentSlideIndex - 1);
-  const nextSlide = () => goToSlide(currentSlideIndex + 1);
+  const prevSlide = useCallback(() => goToSlide(currentSlideIndex - 1), [goToSlide, currentSlideIndex]);
+  const nextSlide = useCallback(() => goToSlide(currentSlideIndex + 1), [goToSlide, currentSlideIndex]);
   
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
