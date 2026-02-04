@@ -346,9 +346,10 @@ var CoursePlayer = (function() {
     var isVideoFullscreen = false;
     var fullscreenExitProtection = false;
     var videoStates = {}; // Store video states by element ID
+    var lastFullscreenVideoId = null; // Track which video was in fullscreen
     
     function saveAllVideoStates() {
-        var videos = document.querySelectorAll('#slide-content video');
+        var videos = document.querySelectorAll('#slide-container video');
         videos.forEach(function(video) {
             var elementId = video.dataset.elementId;
             if (elementId) {
@@ -356,8 +357,10 @@ var CoursePlayer = (function() {
                     currentTime: video.currentTime,
                     paused: video.paused,
                     muted: video.muted,
-                    volume: video.volume
+                    volume: video.volume,
+                    src: video.src
                 };
+                console.log('Saved video state:', elementId, videoStates[elementId]);
             }
         });
     }
@@ -366,37 +369,57 @@ var CoursePlayer = (function() {
         var elementId = video.dataset.elementId;
         if (elementId && videoStates[elementId]) {
             var state = videoStates[elementId];
-            video.currentTime = state.currentTime;
-            video.muted = state.muted;
-            video.volume = state.volume;
-            if (!state.paused) {
-                video.play().catch(function() {
-                    video.muted = true;
-                    video.play().catch(function() {});
-                });
+            console.log('Restoring video state:', elementId, state);
+            try {
+                video.currentTime = state.currentTime;
+                video.muted = state.muted;
+                video.volume = state.volume;
+                if (!state.paused) {
+                    video.play().catch(function() {
+                        video.muted = true;
+                        video.play().catch(function() {});
+                    });
+                }
+            } catch (e) {
+                console.log('Error restoring video state:', e);
             }
         }
     }
     
+    function restoreAllVideoStates() {
+        var videos = document.querySelectorAll('#slide-container video');
+        videos.forEach(function(video) {
+            restoreVideoState(video);
+        });
+    }
+    
     function handleFullscreenChange() {
         var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+        
         if (fullscreenElement && fullscreenElement.tagName === 'VIDEO') {
+            // Video entering fullscreen
             isVideoFullscreen = true;
             fullscreenExitProtection = false;
+            lastFullscreenVideoId = fullscreenElement.dataset.elementId;
             // Save state of ALL videos when entering fullscreen
             saveAllVideoStates();
+            console.log('Entered fullscreen:', lastFullscreenVideoId);
         } else if (isVideoFullscreen) {
             // Video just exited fullscreen
+            console.log('Exited fullscreen:', lastFullscreenVideoId);
             isVideoFullscreen = false;
             fullscreenExitProtection = true;
             
-            // Save states again
-            saveAllVideoStates();
+            // Immediately restore all video states after exit
+            setTimeout(function() {
+                restoreAllVideoStates();
+            }, 100);
             
             // Keep protection for longer to ensure no re-render happens
             setTimeout(function() {
                 fullscreenExitProtection = false;
-            }, 2000);
+                lastFullscreenVideoId = null;
+            }, 3000);
         }
     }
     
