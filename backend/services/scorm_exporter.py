@@ -214,6 +214,39 @@ window.addEventListener('beforeunload', function() {
 PLAYER_JS = '''/**
  * SCORM Course Player
  */
+
+// Mobile orientation detection
+function checkMobileOrientation() {
+    var overlay = document.getElementById('orientation-overlay');
+    if (!overlay) return;
+    
+    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    var isPortrait = window.innerHeight > window.innerWidth;
+    var isSmallScreen = window.innerWidth < 768;
+    
+    if (isMobile && isPortrait && isSmallScreen) {
+        overlay.style.display = 'flex';
+        document.getElementById('player-container').style.display = 'none';
+    } else {
+        overlay.style.display = 'none';
+        document.getElementById('player-container').style.display = 'flex';
+    }
+}
+
+// Listen for orientation changes
+window.addEventListener('orientationchange', function() {
+    setTimeout(checkMobileOrientation, 100);
+});
+
+window.addEventListener('resize', function() {
+    checkMobileOrientation();
+});
+
+// Initial check
+document.addEventListener('DOMContentLoaded', function() {
+    checkMobileOrientation();
+});
+
 var CoursePlayer = (function() {
     var course = null;
     var currentSlide = 0;
@@ -228,6 +261,9 @@ var CoursePlayer = (function() {
     function loadCourse(courseData) {
         course = courseData;
         totalSlides = course.slides.length;
+        
+        // Check orientation on load
+        checkMobileOrientation();
         
         // Restore position from SCORM
         var savedPosition = ScormAPI.getLocation();
