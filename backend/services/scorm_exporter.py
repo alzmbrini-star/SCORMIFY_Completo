@@ -1884,21 +1884,21 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         .orientation-content {{
             text-align: center;
-            padding: 40px;
+            padding: 30px;
             color: white;
             max-width: 90%;
         }}
         
         .orientation-icon {{
-            font-size: 80px;
+            font-size: 70px;
             margin-bottom: 10px;
             animation: shake 1.5s ease-in-out infinite;
         }}
         
         .orientation-arrow {{
-            font-size: 60px;
+            font-size: 50px;
             color: #7c3aed;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             animation: rotate-hint 2s ease-in-out infinite;
         }}
         
@@ -1913,28 +1913,28 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         .orientation-content h2 {{
-            font-size: 28px;
-            margin-bottom: 15px;
+            font-size: 24px;
+            margin-bottom: 12px;
             color: #fff;
         }}
         
         .orientation-content p {{
-            font-size: 16px;
+            font-size: 14px;
             color: #a0aec0;
-            margin-bottom: 30px;
-            line-height: 1.6;
+            margin-bottom: 25px;
+            line-height: 1.5;
         }}
         
         .orientation-hint {{
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 20px;
-            margin-top: 20px;
+            gap: 15px;
+            margin-top: 15px;
         }}
         
         .phone-icon {{
-            font-size: 50px;
+            font-size: 40px;
             transition: all 0.3s ease;
         }}
         
@@ -1948,7 +1948,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         .orientation-hint .arrow {{
-            font-size: 30px;
+            font-size: 24px;
             color: #7c3aed;
             animation: pulse-arrow 1s ease-in-out infinite;
         }}
@@ -1956,25 +1956,6 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         @keyframes pulse-arrow {{
             0%, 100% {{ transform: translateX(0); opacity: 1; }}
             50% {{ transform: translateX(10px); opacity: 0.5; }}
-        }}
-        
-        /* Show orientation overlay only on mobile portrait */
-        @media screen and (max-width: 768px) and (orientation: portrait) {{
-            #orientation-overlay {{
-                display: flex !important;
-            }}
-            #player-container {{
-                display: none !important;
-            }}
-        }}
-        
-        @media screen and (max-width: 768px) and (orientation: landscape) {{
-            #orientation-overlay {{
-                display: none !important;
-            }}
-            #player-container {{
-                display: flex !important;
-            }}
         }}
     </style>
 </head>
