@@ -76,7 +76,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     });
   }, [volume, isMuted, course?.globalAudio?.volume]);
   
-  // Handle slide change - use refs to avoid cascading renders
+  // Handle slide change - stop audio and clear timeline
   const prevSlideIndexRef = useRef(currentSlideIndex);
   useEffect(() => {
     // Only run on actual slide change, not initial mount
@@ -99,13 +99,6 @@ const CoursePreview = ({ course, projectId, onClose }) => {
       }
     }
   }, [currentSlideIndex]);
-  
-  // Reset timeline when slide changes (using callback in state setter to avoid lint warning)
-  const handleSlideChange = useCallback((newIndex) => {
-    setCurrentSlideIndex(newIndex);
-    setCurrentTime(0);
-    setIsPlaying(false);
-  }, []);
   
   // Timeline playback
   useEffect(() => {
