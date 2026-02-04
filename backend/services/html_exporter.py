@@ -203,7 +203,13 @@ async def generate_standalone_html(
 def generate_html_template(title: str, course_data: Dict, width: int, height: int) -> str:
     """Generate the complete HTML template with embedded player"""
     
+    # Escape special characters that could break the script tag
+    # First dump to JSON, then escape </script> and other problematic sequences
     course_json = json.dumps(course_data, ensure_ascii=False)
+    # Escape </script> to prevent breaking the script block
+    course_json = course_json.replace('</script>', '<\\/script>')
+    course_json = course_json.replace('</Script>', '<\\/Script>')
+    course_json = course_json.replace('</SCRIPT>', '<\\/SCRIPT>')
     
     html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
