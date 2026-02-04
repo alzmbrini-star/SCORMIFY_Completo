@@ -314,8 +314,30 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
         }}
         
-        /* AUTO FULLSCREEN on mobile landscape */
-        @media screen and (orientation: landscape) and (max-width: 1024px) {{
+        /* AUTO FULLSCREEN on mobile landscape - only for actual mobile devices 
+           Using max-height to ensure we're on a true mobile screen in landscape,
+           not just a resized desktop window. Mobile landscape typically has height < 500px */
+        @media screen and (orientation: landscape) and (max-height: 450px) and (max-width: 950px) {{
+            #header {{
+                display: none !important;
+            }}
+            #controls {{
+                display: none !important;
+            }}
+            #sidebar {{
+                display: none !important;
+            }}
+            #slide-wrapper {{
+                padding: 5px !important;
+                background: #000 !important;
+            }}
+            #mobile-float-controls {{
+                display: flex !important;
+            }}
+        }}
+        
+        /* Also apply for touch devices with coarse pointer in landscape mode */
+        @media screen and (orientation: landscape) and (max-width: 950px) and (pointer: coarse) {{
             #header {{
                 display: none !important;
             }}
