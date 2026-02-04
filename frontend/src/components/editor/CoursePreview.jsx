@@ -151,9 +151,6 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     }
   };
   
-  const prevSlide = () => goToSlide(currentSlideIndex - 1);
-  const nextSlide = () => goToSlide(currentSlideIndex + 1);
-  
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
@@ -176,17 +173,24 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'ArrowLeft') prevSlide();
-      else if (e.key === 'ArrowRight') nextSlide();
-      else if (e.key === 'Escape') onClose();
-      else if (e.key === ' ') {
+      if (e.key === 'ArrowLeft') {
+        setCurrentSlideIndex(prev => Math.max(0, prev - 1));
+        setCurrentTime(0);
+        setIsPlaying(false);
+      } else if (e.key === 'ArrowRight') {
+        setCurrentSlideIndex(prev => Math.min(slides.length - 1, prev + 1));
+        setCurrentTime(0);
+        setIsPlaying(false);
+      } else if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === ' ') {
         e.preventDefault();
         setIsPlaying(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [prevSlide, nextSlide, onClose]);
+  }, [slides.length, onClose]);
   
   // Check if element should be visible based on timeline
   const isElementVisible = (element) => {
