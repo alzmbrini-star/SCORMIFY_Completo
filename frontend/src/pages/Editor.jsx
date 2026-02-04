@@ -288,6 +288,7 @@ export default function Editor() {
   const [showAudioDialog, setShowAudioDialog] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [audioTarget, setAudioTarget] = useState('slide'); // 'slide' or 'global'
+  const [showPreview, setShowPreview] = useState(false); // Preview mode state
   
   // New element dialogs
   const [showButtonDialog, setShowButtonDialog] = useState(false);
