@@ -191,7 +191,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentSlideIndex]);
+  }, [prevSlide, nextSlide, onClose]);
   
   // Check if element should be visible based on timeline
   const isElementVisible = (element) => {
