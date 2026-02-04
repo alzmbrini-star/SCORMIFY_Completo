@@ -401,15 +401,43 @@ const SlideCanvas = ({
         const isSelected = selectedElementId === element.id;
         const isEditing = editingElementId === element.id;
         
+        // Handle percentage or pixel values for dimensions
+        const getScaledValue = (value, slideSize) => {
+          if (typeof value === 'string' && value.endsWith('%')) {
+            return value; // Keep percentage as-is
+          }
+          return (value || 0) * scale;
+        };
+        
+        const getPositionValue = (value) => {
+          if (typeof value === 'string' && value.endsWith('%')) {
+            return value;
+          }
+          return (value || 0) * scale;
+        };
+        
+        const elementWidth = typeof element.width === 'string' && element.width.endsWith('%') 
+          ? element.width 
+          : (element.width || 100) * scale;
+        const elementHeight = typeof element.height === 'string' && element.height.endsWith('%')
+          ? element.height
+          : (element.height || 100) * scale;
+        const elementX = typeof element.x === 'string' && element.x.endsWith('%')
+          ? element.x
+          : (element.x || 0) * scale;
+        const elementY = typeof element.y === 'string' && element.y.endsWith('%')
+          ? element.y
+          : (element.y || 0) * scale;
+        
         return (
           <div
             key={element.id}
             className={`absolute group ${isSelected ? 'ring-2 ring-cyan-500 ring-offset-1' : ''} ${element.visible === false ? 'border border-dashed border-yellow-500' : ''}`}
             style={{
-              left: element.x * scale,
-              top: element.y * scale,
-              width: element.width * scale,
-              height: element.height * scale,
+              left: elementX,
+              top: elementY,
+              width: elementWidth,
+              height: elementHeight,
               transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
               zIndex: (element.zIndex || 0) + 1,
               // Show at least 30% opacity for hidden elements during editing
