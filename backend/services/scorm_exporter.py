@@ -550,9 +550,12 @@ var CoursePlayer = (function() {
         var container = document.getElementById('slide-container');
         var wrapper = document.getElementById('slide-wrapper');
         
-        // Get slide dimensions
+        // Get slide dimensions - use the slide's own dimensions
         var slideWidth = slide.width || 960;
         var slideHeight = slide.height || 540;
+        
+        // Calculate the aspect ratio of the slide
+        var slideAspectRatio = slideWidth / slideHeight;
         
         // Calculate scale to fit in wrapper while maintaining aspect ratio
         var wrapperRect = wrapper.getBoundingClientRect();
@@ -564,9 +567,10 @@ var CoursePlayer = (function() {
         var availableHeight = wrapperRect.height - paddingY;
         
         // If dimensions are invalid (container hidden), use a reasonable default scale
-        // This will be corrected later when container becomes visible
         var scale = 1;
         if (availableWidth > 100 && availableHeight > 100) {
+            // Calculate what size the slide would be at scale 1.0
+            // Then scale down to fit the available space
             var scaleX = availableWidth / slideWidth;
             var scaleY = availableHeight / slideHeight;
             scale = Math.min(scaleX, scaleY);
@@ -577,15 +581,14 @@ var CoursePlayer = (function() {
             var maxScale = isMobile ? 1.5 : 1.0;
             scale = Math.min(scale, maxScale);
         } else {
-            // Container not ready yet, use a placeholder scale
-            // Will be updated by updateSlideScale when container is visible
             scale = 0.5;
         }
         
-        // Apply scale and size
+        // Apply the actual slide dimensions and scale
         container.style.width = slideWidth + 'px';
         container.style.height = slideHeight + 'px';
         container.style.transform = 'scale(' + scale + ')';
+        container.style.transformOrigin = 'center center';
         
         // Clear previous content
         container.innerHTML = '';
