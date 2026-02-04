@@ -22,9 +22,40 @@
             width: 100%;
             height: 100vh;
             display: flex;
+            flex-direction: column;
+            background: #0f0f1a;
+        }
+        
+        .slide-wrapper {
+            flex: 1;
+            display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            .slide-wrapper {
+                padding: 5px;
+            }
+        }
+        
+        .slide-container {
+            width: 960px;
+            height: 540px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+            transform-origin: center center;
+        }
+        
+        @media screen and (max-width: 900px) {
+            .slide-container {
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            }
         }
         
         .content {
@@ -41,6 +72,62 @@
         .content p {
             font-size: 16px;
             opacity: 0.8;
+        }
+        
+        .controls {
+            height: 60px;
+            background: #16213e;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-top: 1px solid #0f3460;
+        }
+        
+        @media screen and (max-width: 900px) {
+            .controls {
+                height: 50px;
+                padding: 0 10px;
+            }
+        }
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            .controls {
+                height: 44px;
+                padding: 0 8px;
+            }
+        }
+        
+        .control-btn {
+            background: #0f3460;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        @media screen and (max-width: 900px) {
+            .control-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+        }
+        
+        .progress-bar {
+            flex: 1;
+            margin: 0 20px;
+            height: 6px;
+            background: #0f3460;
+            border-radius: 3px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            width: 30%;
+            background: linear-gradient(90deg, #7c3aed, #06b6d4);
+            border-radius: 3px;
         }
         
         /* Mobile Orientation Overlay */
