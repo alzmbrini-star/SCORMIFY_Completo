@@ -176,6 +176,16 @@ async def generate_standalone_html(
             local_path = os.path.join(assets_dir, asset_filename)
             if os.path.exists(local_path):
                 processed_global_audio['src'] = file_to_base64(local_path)
+            else:
+                # Try downloading from full URL
+                full_url = f"{base_url}{src}" if not src.startswith('http') else src
+                b64 = await url_to_base64(full_url)
+                if b64:
+                    processed_global_audio['src'] = b64
+        elif src.startswith('http'):
+            b64 = await url_to_base64(src)
+            if b64:
+                processed_global_audio['src'] = b64
     
     # Build course JSON
     course_data = {
