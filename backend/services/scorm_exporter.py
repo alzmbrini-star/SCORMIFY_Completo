@@ -1824,6 +1824,21 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
     </style>
 </head>
 <body>
+    <!-- Mobile Orientation Overlay -->
+    <div id="orientation-overlay">
+        <div class="orientation-content">
+            <div class="orientation-icon">📱</div>
+            <div class="orientation-arrow">↻</div>
+            <h2>Rotacione seu dispositivo</h2>
+            <p>Para uma melhor experiência, por favor visualize este conteúdo no modo horizontal (paisagem)</p>
+            <div class="orientation-hint">
+                <span class="phone-icon vertical">📱</span>
+                <span class="arrow">→</span>
+                <span class="phone-icon horizontal">📱</span>
+            </div>
+        </div>
+    </div>
+    
     <div id="player-container">
         <!-- Sidebar Navigation -->
         <div id="slide-sidebar">
