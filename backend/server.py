@@ -1089,6 +1089,50 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
         jobs[job_id]['message'] = str(e)
         raise HTTPException(status_code=500, detail=str(e))
 
+# HTML Standalone Export
+from services.html_exporter import generate_standalone_html
+
+@api_router.post("/course/{project_id}/export-html")
+async def export_html(project_id: str):
+    """Export project as standalone HTML file"""
+    project_doc = await get_project_by_id(project_id)
+    if not project_doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    try:
+        # Get assets directory
+        assets_dir = str(PROJECTS_DIR / project_id / "assets")
+        
+        # Get base URL for external assets
+        base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+        
+        # Generate HTML
+        html_content = await generate_standalone_html(
+            project_doc,
+            assets_dir,
+            base_url
+        )
+        
+        # Save HTML file
+        project_name = project_doc.get('name', 'course')
+        safe_name = re.sub(r'[^\w\s-]', '', project_name).replace(' ', '_')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_name}_{timestamp}.html"
+        
+        html_path = EXPORTS_DIR / filename
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        return {
+            "downloadUrl": f"/api/exports/{filename}",
+            "filename": filename,
+            "message": "HTML standalone file generated successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"HTML export error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Static file serving
 
 @api_router.get("/projects/{project_id}/assets/{filename}")
