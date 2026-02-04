@@ -1525,6 +1525,13 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             transition: margin-left 0.3s ease;
         }}
         
+        /* Mobile landscape optimization */
+        @media screen and (orientation: landscape) and (max-height: 500px) {{
+            #slide-wrapper {{
+                padding: 5px;
+            }}
+        }}
+        
         #slide-wrapper.sidebar-open {{
             margin-left: 280px;
         }}
@@ -1538,6 +1545,13 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             box-shadow: 0 10px 50px rgba(0,0,0,0.5);
             transform-origin: center center;
             /* Scale will be calculated dynamically by JS */
+        }}
+        
+        /* Mobile: reduce shadow for cleaner look */
+        @media screen and (max-width: 900px) {{
+            #slide-container {{
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            }}
         }}
         
         .slide-element {{
