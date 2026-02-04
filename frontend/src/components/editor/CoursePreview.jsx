@@ -151,6 +151,9 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     }
   };
   
+  const prevSlide = () => goToSlide(currentSlideIndex - 1);
+  const nextSlide = () => goToSlide(currentSlideIndex + 1);
+  
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
