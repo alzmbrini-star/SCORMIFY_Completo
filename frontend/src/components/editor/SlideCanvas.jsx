@@ -503,7 +503,10 @@ const SlideCanvas = ({
                 <img
                   src={getAssetUrl(element.src)}
                   alt=""
-                  className="w-full h-full object-contain pointer-events-none select-none"
+                  className="w-full h-full pointer-events-none select-none"
+                  style={{
+                    objectFit: element.objectFit || 'contain',
+                  }}
                   draggable={false}
                 />
               )}
