@@ -216,6 +216,8 @@ PLAYER_JS = '''/**
  */
 
 // Mobile orientation detection - Show overlay when in portrait mode on small screens
+var pendingScaleUpdate = false;
+
 function checkMobileOrientation() {
     var overlay = document.getElementById('orientation-overlay');
     var playerContainer = document.getElementById('player-container');
@@ -225,6 +227,7 @@ function checkMobileOrientation() {
     var isPortrait = window.innerHeight > window.innerWidth;
     var isSmallScreen = window.innerWidth < 900; // Increased threshold
     var aspectRatio = window.innerWidth / window.innerHeight;
+    var wasHidden = playerContainer.style.display === 'none';
     
     // Show overlay if portrait mode on small screen with poor aspect ratio for slides
     if (isPortrait && isSmallScreen && aspectRatio < 0.8) {
@@ -233,12 +236,33 @@ function checkMobileOrientation() {
     } else {
         overlay.style.display = 'none';
         playerContainer.style.display = 'flex';
+        
+        // If player was hidden and is now visible, we need to update scale
+        // Set a flag to update scale multiple times after visibility change
+        if (wasHidden) {
+            pendingScaleUpdate = true;
+            // Schedule multiple scale updates to handle browser layout timing
+            scheduleScaleUpdates();
+        }
     }
+}
+
+function scheduleScaleUpdates() {
+    // Update scale multiple times with increasing delays
+    // This ensures we catch the moment when the browser has calculated final dimensions
+    [0, 50, 100, 200, 350, 500].forEach(function(delay) {
+        setTimeout(function() {
+            if (typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
+                CoursePlayer.updateScale();
+            }
+        }, delay);
+    });
 }
 
 // Listen for orientation changes
 window.addEventListener('orientationchange', function() {
-    setTimeout(checkMobileOrientation, 150);
+    setTimeout(checkMobileOrientation, 100);
+    setTimeout(checkMobileOrientation, 200);
 });
 
 // Listen for resize events
@@ -249,6 +273,8 @@ window.addEventListener('resize', function() {
 // Initial check on load
 window.addEventListener('load', function() {
     setTimeout(checkMobileOrientation, 100);
+    // Also schedule scale updates on initial load
+    scheduleScaleUpdates();
 });
 
 // Also check on DOMContentLoaded
