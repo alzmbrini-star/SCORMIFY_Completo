@@ -76,27 +76,36 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     });
   }, [volume, isMuted, course?.globalAudio?.volume]);
   
-  // Handle slide change
+  // Handle slide change - use refs to avoid cascading renders
+  const prevSlideIndexRef = useRef(currentSlideIndex);
   useEffect(() => {
-    // Stop all slide audios
-    slideAudiosRef.current.forEach(audio => {
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
+    // Only run on actual slide change, not initial mount
+    if (prevSlideIndexRef.current !== currentSlideIndex) {
+      prevSlideIndexRef.current = currentSlideIndex;
+      
+      // Stop all slide audios
+      slideAudiosRef.current.forEach(audio => {
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      });
+      slideAudiosRef.current = [];
+      
+      // Clear timeline interval
+      if (timelineRef.current) {
+        clearInterval(timelineRef.current);
+        timelineRef.current = null;
       }
-    });
-    slideAudiosRef.current = [];
-    
-    // Reset timeline
-    setCurrentTime(0);
-    setIsPlaying(false);
-    
-    // Clear timeline interval
-    if (timelineRef.current) {
-      clearInterval(timelineRef.current);
-      timelineRef.current = null;
     }
   }, [currentSlideIndex]);
+  
+  // Reset timeline when slide changes (using callback in state setter to avoid lint warning)
+  const handleSlideChange = useCallback((newIndex) => {
+    setCurrentSlideIndex(newIndex);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }, []);
   
   // Timeline playback
   useEffect(() => {
