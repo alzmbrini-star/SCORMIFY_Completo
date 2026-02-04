@@ -87,10 +87,17 @@ import {
   BookOpen,
   User,
   Sparkles,
+  Eye,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  SkipBack,
+  Menu,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
 import AnnotationToolbar from '../components/editor/AnnotationToolbar';
+import CoursePreview from '../components/editor/CoursePreview';
 
 // Sortable Slide Item Component
 const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDelete }) => {
