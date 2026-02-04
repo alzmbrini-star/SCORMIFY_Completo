@@ -1,0 +1,652 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Button } from '../ui/button';
+import { ScrollArea } from '../ui/scroll-area';
+import { Slider } from '../ui/slider';
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  Volume2,
+  VolumeX,
+  Play,
+  Pause,
+  SkipBack,
+  Maximize,
+  Minimize,
+} from 'lucide-react';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Helper to get full asset URL
+const getAssetUrl = (src, projectId) => {
+  if (!src) return '';
+  if (src.startsWith('http')) return src;
+  if (src.startsWith('/api/')) return `${API_URL}${src}`;
+  // For relative paths stored in course data
+  if (src.startsWith('assets/')) return `${API_URL}/api/projects/${projectId}/assets/${src.replace('assets/', '')}`;
+  return src;
+};
+
+const CoursePreview = ({ course, projectId, onClose }) => {
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [volume, setVolume] = useState(0.7);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  const containerRef = useRef(null);
+  const globalAudioRef = useRef(null);
+  const slideAudiosRef = useRef([]);
+  const timelineRef = useRef(null);
+  const slideContainerRef = useRef(null);
+  
+  const slides = course?.slides || [];
+  const currentSlide = slides[currentSlideIndex];
+  const slideDuration = currentSlide?.duration || 10;
+  
+  // Initialize global audio
+  useEffect(() => {
+    if (course?.globalAudio?.src) {
+      const audioUrl = getAssetUrl(course.globalAudio.src, projectId);
+      globalAudioRef.current = new Audio(audioUrl);
+      globalAudioRef.current.loop = true;
+      globalAudioRef.current.volume = (course.globalAudio.volume || 0.5) * volume;
+    }
+    
+    return () => {
+      if (globalAudioRef.current) {
+        globalAudioRef.current.pause();
+        globalAudioRef.current = null;
+      }
+    };
+  }, [course?.globalAudio, projectId, volume]);
+  
+  // Update global audio volume when volume changes
+  useEffect(() => {
+    if (globalAudioRef.current) {
+      globalAudioRef.current.volume = isMuted ? 0 : (course?.globalAudio?.volume || 0.5) * volume;
+    }
+    slideAudiosRef.current.forEach(audio => {
+      if (audio) {
+        audio.volume = isMuted ? 0 : volume;
+      }
+    });
+  }, [volume, isMuted, course?.globalAudio?.volume]);
+  
+  // Handle slide change
+  useEffect(() => {
+    // Stop all slide audios
+    slideAudiosRef.current.forEach(audio => {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    });
+    slideAudiosRef.current = [];
+    
+    // Reset timeline
+    setCurrentTime(0);
+    setIsPlaying(false);
+    
+    // Clear timeline interval
+    if (timelineRef.current) {
+      clearInterval(timelineRef.current);
+      timelineRef.current = null;
+    }
+  }, [currentSlideIndex]);
+  
+  // Timeline playback
+  useEffect(() => {
+    if (isPlaying) {
+      timelineRef.current = setInterval(() => {
+        setCurrentTime(prev => {
+          const newTime = prev + 0.1;
+          if (newTime >= slideDuration) {
+            // Auto-advance to next slide
+            if (currentSlideIndex < slides.length - 1) {
+              setCurrentSlideIndex(currentSlideIndex + 1);
+            } else {
+              setIsPlaying(false);
+            }
+            return 0;
+          }
+          return newTime;
+        });
+      }, 100);
+    } else {
+      if (timelineRef.current) {
+        clearInterval(timelineRef.current);
+        timelineRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (timelineRef.current) {
+        clearInterval(timelineRef.current);
+      }
+    };
+  }, [isPlaying, slideDuration, currentSlideIndex, slides.length]);
+  
+  // Start/stop global audio with playback
+  useEffect(() => {
+    if (globalAudioRef.current) {
+      if (isPlaying) {
+        globalAudioRef.current.play().catch(() => {});
+      } else {
+        globalAudioRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+  
+  const goToSlide = (index) => {
+    if (index >= 0 && index < slides.length) {
+      setCurrentSlideIndex(index);
+    }
+  };
+  
+  const prevSlide = () => goToSlide(currentSlideIndex - 1);
+  const nextSlide = () => goToSlide(currentSlideIndex + 1);
+  
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+  
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+  
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') prevSlide();
+      else if (e.key === 'ArrowRight') nextSlide();
+      else if (e.key === 'Escape') onClose();
+      else if (e.key === ' ') {
+        e.preventDefault();
+        setIsPlaying(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentSlideIndex]);
+  
+  // Check if element should be visible based on timeline
+  const isElementVisible = (element) => {
+    const startTime = element.startTime || 0;
+    const endTime = element.endTime ?? slideDuration;
+    return currentTime >= startTime && currentTime < endTime;
+  };
+  
+  if (!course || !currentSlide) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
+        <p className="text-white">Nenhum curso para visualizar</p>
+        <Button variant="ghost" className="absolute top-4 right-4 text-white" onClick={onClose}>
+          <X className="w-6 h-6" />
+        </Button>
+      </div>
+    );
+  }
+  
+  const slideWidth = currentSlide.width || 960;
+  const slideHeight = currentSlide.height || 540;
+  
+  return (
+    <div 
+      ref={containerRef}
+      className="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col"
+      data-testid="course-preview"
+    >
+      {/* Header */}
+      <div className="h-12 bg-black/50 backdrop-blur-sm flex items-center justify-between px-4 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white/80 hover:text-white hover:bg-white/10"
+            onClick={() => setShowSidebar(!showSidebar)}
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+          <h2 className="text-white font-medium truncate max-w-[300px]">
+            {course.metadata?.title || 'Visualização do Curso'}
+          </h2>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-white/60 text-sm">
+            Slide {currentSlideIndex + 1} de {slides.length}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white/80 hover:text-white hover:bg-white/10"
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white/80 hover:text-white hover:bg-white/10"
+            onClick={onClose}
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+      
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <div className={`
+          ${showSidebar ? 'w-64' : 'w-0'} 
+          transition-all duration-300 overflow-hidden
+          bg-black/30 backdrop-blur-sm border-r border-white/10
+        `}>
+          <ScrollArea className="h-full">
+            <div className="p-3 space-y-2">
+              <h3 className="text-white/60 text-xs uppercase tracking-wider mb-3">Navegação</h3>
+              {slides.map((slide, index) => (
+                <div
+                  key={slide.id}
+                  className={`
+                    relative rounded-lg overflow-hidden cursor-pointer
+                    transition-all duration-200 group
+                    ${index === currentSlideIndex 
+                      ? 'ring-2 ring-cyan-500 ring-offset-2 ring-offset-slate-900' 
+                      : 'hover:ring-2 hover:ring-white/30'}
+                  `}
+                  onClick={() => goToSlide(index)}
+                >
+                  <div 
+                    className="aspect-video bg-slate-800"
+                    style={{
+                      backgroundImage: slide.backgroundImage 
+                        ? `url(${getAssetUrl(slide.backgroundImage, projectId)})` 
+                        : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundColor: slide.background || '#fff',
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-end p-2 bg-gradient-to-t from-black/70 to-transparent">
+                    <div className="flex items-center gap-2 w-full">
+                      <span className={`
+                        w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
+                        ${index === currentSlideIndex 
+                          ? 'bg-cyan-500 text-white' 
+                          : index < currentSlideIndex 
+                            ? 'bg-green-500 text-white' 
+                            : 'bg-white/20 text-white/60'}
+                      `}>
+                        {index < currentSlideIndex ? '✓' : index + 1}
+                      </span>
+                      <span className="text-white text-xs truncate flex-1">
+                        {slide.title || `Slide ${index + 1}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+        
+        {/* Main Slide Area */}
+        <div className="flex-1 flex items-center justify-center p-6 overflow-hidden">
+          <div 
+            ref={slideContainerRef}
+            className="relative shadow-2xl rounded-lg overflow-hidden"
+            style={{
+              width: slideWidth,
+              height: slideHeight,
+              maxWidth: '100%',
+              maxHeight: '100%',
+              aspectRatio: `${slideWidth} / ${slideHeight}`,
+              backgroundColor: currentSlide.background || '#FFFFFF',
+            }}
+          >
+            {/* Background Image */}
+            {currentSlide.backgroundImage && (
+              <img
+                src={getAssetUrl(currentSlide.backgroundImage, projectId)}
+                alt=""
+                className="absolute inset-0 w-full h-full object-contain"
+                style={{ zIndex: 0 }}
+              />
+            )}
+            
+            {/* Elements */}
+            {currentSlide.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => (
+              <div
+                key={element.id}
+                className="absolute"
+                style={{
+                  left: element.x || 0,
+                  top: element.y || 0,
+                  width: element.width || 100,
+                  height: element.height || 100,
+                  zIndex: (element.zIndex || 0) + 1,
+                  opacity: element.style?.opacity ?? 1,
+                  transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+                }}
+              >
+                {/* Text */}
+                {element.type === 'text' && (
+                  <div
+                    className="w-full h-full p-2 whitespace-pre-wrap overflow-hidden"
+                    style={{
+                      fontSize: element.style?.fontSize || 16,
+                      fontFamily: element.style?.fontFamily || 'inherit',
+                      fontWeight: element.style?.fontWeight || 'normal',
+                      color: element.style?.fontColor || '#000000',
+                      textAlign: element.style?.textAlign || 'left',
+                      backgroundColor: 'rgba(255,255,255,0.9)',
+                      borderRadius: 4,
+                    }}
+                  >
+                    {element.content}
+                  </div>
+                )}
+                
+                {/* Image */}
+                {element.type === 'image' && (
+                  <img
+                    src={getAssetUrl(element.src, projectId)}
+                    alt=""
+                    className="w-full h-full"
+                    style={{ objectFit: element.objectFit || 'contain' }}
+                  />
+                )}
+                
+                {/* Shape */}
+                {element.type === 'shape' && (
+                  <div
+                    className="w-full h-full flex items-center justify-center"
+                    style={{
+                      backgroundColor: element.style?.fill || '#7C3AED',
+                      border: element.style?.stroke ? `2px solid ${element.style.stroke}` : 'none',
+                      borderRadius: element.shapeType === 'ellipse' ? '50%' : 
+                                    element.shapeType === 'rounded_rectangle' ? 8 : 0,
+                    }}
+                  >
+                    {element.content && (
+                      <span style={{ color: element.style?.fontColor || '#fff', fontSize: element.style?.fontSize || 14 }}>
+                        {element.content}
+                      </span>
+                    )}
+                  </div>
+                )}
+                
+                {/* Video */}
+                {element.type === 'video' && (
+                  <div className="w-full h-full bg-black rounded overflow-hidden">
+                    {element.embedUrl ? (
+                      <iframe
+                        src={element.embedUrl}
+                        className="w-full h-full border-0"
+                        allow="autoplay; fullscreen"
+                        title="Video"
+                      />
+                    ) : element.src ? (
+                      <video
+                        src={getAssetUrl(element.src, projectId)}
+                        controls
+                        autoPlay
+                        muted={isMuted}
+                        className="w-full h-full"
+                        style={{ objectFit: 'contain', background: 'transparent' }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white">
+                        Vídeo
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Button */}
+                {element.type === 'button' && (
+                  <a
+                    href={element.buttonUrl}
+                    target={element.openInNewTab ? '_blank' : '_self'}
+                    rel="noopener noreferrer"
+                    className="w-full h-full flex items-center justify-center"
+                  >
+                    <button
+                      className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${
+                        element.buttonStyle === 'primary' 
+                          ? 'bg-gradient-to-r from-purple-600 to-cyan-500 text-white' 
+                          : element.buttonStyle === 'secondary'
+                          ? 'bg-gray-600 text-white'
+                          : element.buttonStyle === 'outline'
+                          ? 'border-2 border-purple-600 text-purple-600 bg-transparent'
+                          : 'bg-transparent text-gray-700'
+                      }`}
+                      style={{ fontSize: element.style?.fontSize || 16 }}
+                    >
+                      {element.buttonIcon && <span>{element.buttonIcon}</span>}
+                      {element.buttonText || 'Clique aqui'}
+                    </button>
+                  </a>
+                )}
+                
+                {/* HTML */}
+                {element.type === 'html' && (
+                  <iframe
+                    srcDoc={element.htmlContent || '<p>HTML</p>'}
+                    className="w-full h-full border-0 bg-white rounded"
+                    sandbox="allow-scripts allow-same-origin"
+                    title="HTML Content"
+                  />
+                )}
+                
+                {/* Flipbook */}
+                {element.type === 'flipbook' && element.flipbookUrl && (
+                  <iframe
+                    src={element.flipbookUrl}
+                    className="w-full h-full border-0 bg-gray-100 rounded"
+                    allow="fullscreen"
+                    title="Flipbook"
+                  />
+                )}
+              </div>
+            ))}
+            
+            {/* Annotations */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              style={{ width: '100%', height: '100%', zIndex: 100 }}
+              viewBox={`0 0 ${slideWidth} ${slideHeight}`}
+              preserveAspectRatio="none"
+            >
+              {currentSlide.annotations?.filter(a => {
+                const startTime = a.startTime || 0;
+                const endTime = a.endTime ?? slideDuration;
+                return currentTime >= startTime && currentTime < endTime;
+              }).map((annotation) => (
+                <g key={annotation.id}>
+                  {annotation.type === 'freehand' && annotation.points?.length > 0 && (
+                    <path
+                      d={`M ${annotation.points[0].x} ${annotation.points[0].y} ${annotation.points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}`}
+                      stroke={annotation.color || '#EF4444'}
+                      strokeWidth={annotation.strokeWidth || 3}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                  {annotation.type === 'arrow' && annotation.points?.length >= 2 && (
+                    <>
+                      <defs>
+                        <marker
+                          id={`preview-arrow-${annotation.id}`}
+                          markerWidth="10"
+                          markerHeight="7"
+                          refX="9"
+                          refY="3.5"
+                          orient="auto"
+                        >
+                          <polygon points="0 0, 10 3.5, 0 7" fill={annotation.color || '#EF4444'} />
+                        </marker>
+                      </defs>
+                      <line
+                        x1={annotation.points[0].x}
+                        y1={annotation.points[0].y}
+                        x2={annotation.points[1].x}
+                        y2={annotation.points[1].y}
+                        stroke={annotation.color || '#EF4444'}
+                        strokeWidth={annotation.strokeWidth || 3}
+                        markerEnd={`url(#preview-arrow-${annotation.id})`}
+                      />
+                    </>
+                  )}
+                  {annotation.type === 'circle' && annotation.points?.length >= 2 && (() => {
+                    const cx = (annotation.points[0].x + annotation.points[1].x) / 2;
+                    const cy = (annotation.points[0].y + annotation.points[1].y) / 2;
+                    const rx = Math.abs(annotation.points[1].x - annotation.points[0].x) / 2;
+                    const ry = Math.abs(annotation.points[1].y - annotation.points[0].y) / 2;
+                    return (
+                      <ellipse
+                        cx={cx}
+                        cy={cy}
+                        rx={rx}
+                        ry={ry}
+                        stroke={annotation.color || '#EF4444'}
+                        strokeWidth={annotation.strokeWidth || 3}
+                        fill="none"
+                      />
+                    );
+                  })()}
+                  {annotation.type === 'rectangle' && annotation.points?.length >= 2 && (
+                    <rect
+                      x={Math.min(annotation.points[0].x, annotation.points[1].x)}
+                      y={Math.min(annotation.points[0].y, annotation.points[1].y)}
+                      width={Math.abs(annotation.points[1].x - annotation.points[0].x)}
+                      height={Math.abs(annotation.points[1].y - annotation.points[0].y)}
+                      stroke={annotation.color || '#EF4444'}
+                      strokeWidth={annotation.strokeWidth || 3}
+                      fill="none"
+                    />
+                  )}
+                </g>
+              ))}
+            </svg>
+          </div>
+        </div>
+      </div>
+      
+      {/* Controls Bar */}
+      <div className="h-20 bg-black/50 backdrop-blur-sm border-t border-white/10 flex flex-col">
+        {/* Progress Bar */}
+        <div className="h-1 bg-white/10 relative cursor-pointer" onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const percent = x / rect.width;
+          setCurrentTime(percent * slideDuration);
+        }}>
+          <div 
+            className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 transition-all"
+            style={{ width: `${(currentTime / slideDuration) * 100}%` }}
+          />
+        </div>
+        
+        <div className="flex-1 flex items-center justify-between px-6">
+          {/* Left controls */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white/80 hover:text-white hover:bg-white/10"
+              onClick={() => { setCurrentTime(0); setIsPlaying(false); }}
+            >
+              <SkipBack className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white/80 hover:text-white hover:bg-white/10 w-12 h-12"
+              onClick={() => setIsPlaying(!isPlaying)}
+            >
+              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+            </Button>
+            <span className="text-white/60 text-sm font-mono min-w-[80px]">
+              {currentTime.toFixed(1)}s / {slideDuration}s
+            </span>
+          </div>
+          
+          {/* Center - Navigation */}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10"
+              onClick={prevSlide}
+              disabled={currentSlideIndex === 0}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Anterior
+            </Button>
+            <div className="flex items-center gap-2">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    index === currentSlideIndex 
+                      ? 'bg-cyan-500 scale-125' 
+                      : 'bg-white/30 hover:bg-white/50'
+                  }`}
+                  onClick={() => goToSlide(index)}
+                />
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10"
+              onClick={nextSlide}
+              disabled={currentSlideIndex === slides.length - 1}
+            >
+              Próximo
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+          
+          {/* Right - Volume */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white/80 hover:text-white hover:bg-white/10"
+              onClick={() => setIsMuted(!isMuted)}
+            >
+              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </Button>
+            <Slider
+              value={[isMuted ? 0 : volume * 100]}
+              min={0}
+              max={100}
+              step={1}
+              onValueChange={(v) => { setVolume(v[0] / 100); setIsMuted(false); }}
+              className="w-24"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CoursePreview;
