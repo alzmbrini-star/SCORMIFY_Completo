@@ -1450,6 +1450,122 @@ async def list_heygen_videos():
     
     return {"videos": formatted_videos}
 
+# HeyGen Credits/Quota Check
+@api_router.get("/heygen/credits")
+async def get_heygen_credits():
+    """Check remaining HeyGen API credits/quota"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response = await http_client.get(
+                f"{HEYGEN_BASE_URL}/v2/user/remaining_quota",
+                headers=HEYGEN_HEADERS
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"HeyGen credits error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch credits from HeyGen")
+            
+            data = response.json()
+            quota_data = data.get("data", {})
+            
+            return {
+                "remaining_quota": quota_data.get("remaining_quota", 0),
+                "used_quota": quota_data.get("used_quota"),
+                "plan": quota_data.get("plan"),
+                "has_credits": quota_data.get("remaining_quota", 0) > 0
+            }
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen credits request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+# HeyGen Webhook Endpoint
+class HeyGenWebhookPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    event_type: Optional[str] = None
+    video_id: Optional[str] = None
+    status: Optional[str] = None
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    duration: Optional[float] = None
+
+@api_router.post("/heygen/webhook")
+async def heygen_webhook(request: Request):
+    """Receive webhook notifications from HeyGen when video processing completes"""
+    try:
+        # Get raw body for signature verification if needed
+        body = await request.json()
+        logger.info(f"HeyGen webhook received: {body}")
+        
+        # Extract relevant data
+        event_type = body.get("event_type") or body.get("event") or "video.status"
+        video_id = body.get("video_id") or body.get("data", {}).get("video_id")
+        status = body.get("status") or body.get("data", {}).get("status")
+        video_url = body.get("video_url") or body.get("data", {}).get("video_url")
+        thumbnail_url = body.get("thumbnail_url") or body.get("data", {}).get("thumbnail_url")
+        duration = body.get("duration") or body.get("data", {}).get("duration")
+        
+        if video_id:
+            # Update video status in database
+            update_data = {
+                "webhook_received": True,
+                "webhook_received_at": now_utc(),
+                "updated_at": now_utc()
+            }
+            
+            if status:
+                update_data["status"] = status
+            if video_url:
+                update_data["video_url"] = video_url
+            if thumbnail_url:
+                update_data["thumbnail_url"] = thumbnail_url
+            if duration:
+                update_data["duration"] = duration
+            
+            result = await db.heygen_videos.update_one(
+                {"video_id": video_id},
+                {"$set": update_data}
+            )
+            
+            logger.info(f"HeyGen webhook processed: video_id={video_id}, status={status}, matched={result.matched_count}")
+            
+            return {
+                "success": True,
+                "video_id": video_id,
+                "status": status,
+                "message": "Webhook processed successfully"
+            }
+        else:
+            logger.warning(f"HeyGen webhook received without video_id: {body}")
+            return {"success": True, "message": "Webhook received but no video_id found"}
+            
+    except Exception as e:
+        logger.error(f"HeyGen webhook error: {e}")
+        # Always return 200 to acknowledge receipt (avoid retries)
+        return {"success": False, "error": str(e)}
+
+# HeyGen Webhook Configuration Helper
+@api_router.get("/heygen/webhook-url")
+async def get_heygen_webhook_url(request: Request):
+    """Get the webhook URL to configure in HeyGen dashboard"""
+    # Get the base URL from the request or environment
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', str(request.base_url).rstrip('/'))
+    webhook_url = f"{base_url}/api/heygen/webhook"
+    
+    return {
+        "webhook_url": webhook_url,
+        "instructions": [
+            "1. Acesse o dashboard da HeyGen",
+            "2. Vá em Settings > Webhooks",
+            "3. Clique em 'Add Webhook Endpoint'",
+            "4. Cole a URL acima no campo 'Endpoint URL'",
+            "5. Selecione os eventos: 'video.completed', 'video.failed'",
+            "6. Salve as configurações"
+        ]
+    }
+
 # Include router
 app.include_router(api_router)
 
