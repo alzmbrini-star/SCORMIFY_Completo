@@ -1108,10 +1108,6 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     exitPresentationMode();
                 }}
             }});
-                }} else {{
-                    document.exitFullscreen();
-                }}
-            }}
             
             // Initialize on load
             document.addEventListener('DOMContentLoaded', init);
