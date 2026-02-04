@@ -314,6 +314,17 @@ var CoursePlayer = (function() {
             }, 150);
         });
         
+        // Handle orientation change specifically - needs multiple updates due to browser timing
+        window.addEventListener('orientationchange', function() {
+            // Update immediately
+            updateSlideScale();
+            // Update again after a short delay (browser may not have finished layout)
+            setTimeout(updateSlideScale, 100);
+            // And again after layout is definitely complete
+            setTimeout(updateSlideScale, 300);
+            setTimeout(updateSlideScale, 500);
+        });
+        
         // Listen for fullscreen changes to prevent re-renders
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
