@@ -299,11 +299,37 @@
                 Orientation: ${orientation}<br>
                 Portrait: ${h > w ? 'YES' : 'NO'}
             `;
+            
+            // Scale the slide to fit
+            const slideContainer = document.getElementById('slide-container');
+            const slideWrapper = document.querySelector('.slide-wrapper');
+            if (slideContainer && slideWrapper) {
+                const slideWidth = 960;
+                const slideHeight = 540;
+                
+                const wrapperRect = slideWrapper.getBoundingClientRect();
+                const padding = w < 900 ? 10 : 40;
+                const availableWidth = wrapperRect.width - padding;
+                const availableHeight = wrapperRect.height - padding;
+                
+                const scaleX = availableWidth / slideWidth;
+                const scaleY = availableHeight / slideHeight;
+                let scale = Math.min(scaleX, scaleY);
+                
+                // On mobile, allow up to 1.5x for better visibility
+                const isMobile = w < 900 || h < 600;
+                const maxScale = isMobile ? 1.5 : 1.0;
+                scale = Math.min(scale, maxScale);
+                
+                slideContainer.style.transform = 'scale(' + scale + ')';
+            }
         }
         
         updateDebug();
         window.addEventListener('resize', updateDebug);
-        window.addEventListener('orientationchange', updateDebug);
+        window.addEventListener('orientationchange', function() {
+            setTimeout(updateDebug, 100);
+        });
     </script>
 </body>
 </html>
