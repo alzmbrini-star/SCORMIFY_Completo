@@ -327,8 +327,22 @@
         
         updateDebug();
         window.addEventListener('resize', updateDebug);
+        
+        // Handle orientation change with multiple updates
         window.addEventListener('orientationchange', function() {
+            // Update immediately
+            updateDebug();
+            // Update again after delays to ensure correct sizing
             setTimeout(updateDebug, 100);
+            setTimeout(updateDebug, 300);
+            setTimeout(updateDebug, 500);
+        });
+        
+        // Also update after page is fully loaded
+        window.addEventListener('load', function() {
+            setTimeout(updateDebug, 50);
+            setTimeout(updateDebug, 150);
+            setTimeout(updateDebug, 300);
         });
     </script>
 </body>
