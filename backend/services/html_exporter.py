@@ -1028,7 +1028,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 toggleSidebar: toggleSidebar,
                 toggleMute: toggleMute,
                 setVolume: setVolume,
-                fullscreen: fullscreen
+                fullscreen: fullscreen,
+                startCourse: hideStartOverlay
             }};
         }})();
     </script>
