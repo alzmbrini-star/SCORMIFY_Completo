@@ -939,6 +939,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 updateProgress();
                 renderSidebar();
                 updateSlideScale();
+                updateFloatingProgress();
             }}
             
             function updateSlideScale() {{
@@ -951,8 +952,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var slideHeight = slide.height || {height};
                 
                 var wrapperRect = wrapper.getBoundingClientRect();
-                var availableWidth = wrapperRect.width - 40;
-                var availableHeight = wrapperRect.height - 40;
+                
+                // In presentation mode, use full available space
+                var padding = isPresentationMode ? 10 : 40;
+                var availableWidth = wrapperRect.width - padding;
+                var availableHeight = wrapperRect.height - padding;
                 
                 if (availableWidth < 100 || availableHeight < 100) return;
                 
@@ -960,8 +964,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var scaleY = availableHeight / slideHeight;
                 var scale = Math.min(scaleX, scaleY);
                 
+                // In presentation mode, allow much higher scale for mobile readability
                 var isMobile = window.innerWidth < 900 || window.innerHeight < 600;
-                var maxScale = isMobile ? 1.5 : 1.0;
+                var maxScale;
+                if (isPresentationMode) {{
+                    maxScale = 3.0; // Allow up to 3x in presentation mode
+                }} else {{
+                    maxScale = isMobile ? 1.5 : 1.0;
+                }}
                 scale = Math.min(scale, maxScale);
                 
                 container.style.transform = 'scale(' + scale + ')';
