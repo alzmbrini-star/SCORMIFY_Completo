@@ -1821,6 +1821,116 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         .start-btn:active {{
             transform: translateY(0);
         }}
+        
+        /* Mobile Orientation Overlay */
+        #orientation-overlay {{
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            z-index: 99999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }}
+        
+        .orientation-content {{
+            text-align: center;
+            padding: 40px;
+            color: white;
+            max-width: 90%;
+        }}
+        
+        .orientation-icon {{
+            font-size: 80px;
+            margin-bottom: 10px;
+            animation: shake 1.5s ease-in-out infinite;
+        }}
+        
+        .orientation-arrow {{
+            font-size: 60px;
+            color: #7c3aed;
+            margin-bottom: 20px;
+            animation: rotate-hint 2s ease-in-out infinite;
+        }}
+        
+        @keyframes rotate-hint {{
+            0%, 100% {{ transform: rotate(0deg); }}
+            50% {{ transform: rotate(90deg); }}
+        }}
+        
+        @keyframes shake {{
+            0%, 100% {{ transform: rotate(-10deg); }}
+            50% {{ transform: rotate(10deg); }}
+        }}
+        
+        .orientation-content h2 {{
+            font-size: 28px;
+            margin-bottom: 15px;
+            color: #fff;
+        }}
+        
+        .orientation-content p {{
+            font-size: 16px;
+            color: #a0aec0;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }}
+        
+        .orientation-hint {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }}
+        
+        .phone-icon {{
+            font-size: 50px;
+            transition: all 0.3s ease;
+        }}
+        
+        .phone-icon.vertical {{
+            opacity: 0.5;
+        }}
+        
+        .phone-icon.horizontal {{
+            transform: rotate(90deg);
+            color: #7c3aed;
+        }}
+        
+        .orientation-hint .arrow {{
+            font-size: 30px;
+            color: #7c3aed;
+            animation: pulse-arrow 1s ease-in-out infinite;
+        }}
+        
+        @keyframes pulse-arrow {{
+            0%, 100% {{ transform: translateX(0); opacity: 1; }}
+            50% {{ transform: translateX(10px); opacity: 0.5; }}
+        }}
+        
+        /* Show orientation overlay only on mobile portrait */
+        @media screen and (max-width: 768px) and (orientation: portrait) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        @media screen and (max-width: 768px) and (orientation: landscape) {{
+            #orientation-overlay {{
+                display: none !important;
+            }}
+            #player-container {{
+                display: flex !important;
+            }}
+        }}
     </style>
 </head>
 <body>
