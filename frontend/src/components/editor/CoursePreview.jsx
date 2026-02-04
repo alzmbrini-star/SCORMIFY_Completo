@@ -347,24 +347,23 @@ const CoursePreview = ({ course, projectId, onClose }) => {
         </div>
         
         {/* Main Slide Area */}
-        <div className="flex-1 flex items-center justify-center p-6 overflow-hidden">
+        <div 
+          ref={slideWrapperRef}
+          className="flex-1 flex items-center justify-center p-6 overflow-hidden"
+        >
           <div 
             ref={slideContainerRef}
             className="relative shadow-2xl rounded-lg overflow-hidden"
             style={{
-              width: slideWidth,
-              height: slideHeight,
-              backgroundColor: currentSlide.background || '#FFFFFF',
-              transform: `scale(${Math.min(
-                (window.innerWidth - 300) / slideWidth,
-                (window.innerHeight - 200) / slideHeight,
-                1
-              )})`,
+              width: currentSlide?.width || 960,
+              height: currentSlide?.height || 540,
+              backgroundColor: currentSlide?.background || '#FFFFFF',
+              transform: `scale(${slideScale})`,
               transformOrigin: 'center center',
             }}
           >
             {/* Background Image */}
-            {currentSlide.backgroundImage && (
+            {currentSlide?.backgroundImage && (
               <img
                 src={getAssetUrl(currentSlide.backgroundImage, projectId)}
                 alt=""
@@ -374,7 +373,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             )}
             
             {/* Elements - positioned absolutely within slide dimensions */}
-            {currentSlide.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => (
+            {currentSlide?.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => (
               <div
                 key={element.id}
                 className="absolute"
