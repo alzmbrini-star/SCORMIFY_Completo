@@ -677,6 +677,22 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 renderSlide(0);
                 updateProgress();
                 
+                // Show start overlay if there's any audio
+                var hasAudio = (course.globalAudio && course.globalAudio.src);
+                if (!hasAudio) {{
+                    // Check if any slide has audio
+                    for (var i = 0; i < course.slides.length; i++) {{
+                        if (course.slides[i].audio && course.slides[i].audio.length > 0) {{
+                            hasAudio = true;
+                            break;
+                        }}
+                    }}
+                }}
+                
+                if (hasAudio) {{
+                    showStartOverlay();
+                }}
+                
                 // Keyboard navigation
                 document.addEventListener('keydown', function(e) {{
                     if (e.key === 'ArrowLeft') prev();
@@ -689,6 +705,52 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 // Handle resize
                 window.addEventListener('resize', updateSlideScale);
                 updateSlideScale();
+            }}
+            
+            function showStartOverlay() {{
+                var overlay = document.createElement('div');
+                overlay.id = 'start-overlay';
+                overlay.innerHTML = '<div class="start-content">' +
+                    '<div class="start-icon">🎵</div>' +
+                    '<h2>Este curso contém áudio</h2>' +
+                    '<p>Clique para iniciar com som</p>' +
+                    '<button class="start-btn" onclick="Player.startCourse()">▶ Iniciar Curso</button>' +
+                    '</div>';
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                document.body.appendChild(overlay);
+                
+                // Add styles for overlay
+                var style = document.createElement('style');
+                style.textContent = '.start-content{{text-align:center;color:#fff;}}.start-icon{{font-size:60px;margin-bottom:20px;}}.start-content h2{{font-size:24px;margin-bottom:10px;}}.start-content p{{opacity:0.7;margin-bottom:20px;}}.start-btn{{background:linear-gradient(135deg,#7c3aed,#06b6d4);border:none;color:#fff;padding:15px 40px;border-radius:8px;font-size:18px;cursor:pointer;transition:transform 0.2s;}}.start-btn:hover{{transform:scale(1.05);}}';
+                document.head.appendChild(style);
+            }}
+            
+            function hideStartOverlay() {{
+                var overlay = document.getElementById('start-overlay');
+                if (overlay) {{
+                    overlay.remove();
+                    
+                    // Start global audio
+                    if (globalAudio) {{
+                        globalAudio.play().catch(function() {{
+                            globalAudio.muted = true;
+                            globalAudio.play().catch(function() {{}});
+                        }});
+                    }}
+                    
+                    // Also try to play current slide audio
+                    var slide = course.slides[currentSlide];
+                    if (slide && slide.audio && slide.audio.length > 0) {{
+                        slide.audio.forEach(function(audioData) {{
+                            if (audioData.src) {{
+                                var audio = new Audio(audioData.src);
+                                audio.volume = isMuted ? 0 : volume;
+                                slideAudios.push(audio);
+                                audio.play().catch(function() {{}});
+                            }}
+                        }});
+                    }}
+                }}
             }}
             
             function renderSidebar() {{
