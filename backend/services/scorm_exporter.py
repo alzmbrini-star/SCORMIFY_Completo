@@ -556,12 +556,31 @@ var CoursePlayer = (function() {
         
         // Calculate scale to fit in wrapper while maintaining aspect ratio
         var wrapperRect = wrapper.getBoundingClientRect();
-        var availableWidth = wrapperRect.width - 40; // padding
-        var availableHeight = wrapperRect.height - 40; // padding
+        var wrapperStyle = window.getComputedStyle(wrapper);
+        var paddingX = parseFloat(wrapperStyle.paddingLeft) + parseFloat(wrapperStyle.paddingRight);
+        var paddingY = parseFloat(wrapperStyle.paddingTop) + parseFloat(wrapperStyle.paddingBottom);
         
-        var scaleX = availableWidth / slideWidth;
-        var scaleY = availableHeight / slideHeight;
-        var scale = Math.min(scaleX, scaleY, 1); // Never scale up, only down
+        var availableWidth = wrapperRect.width - paddingX;
+        var availableHeight = wrapperRect.height - paddingY;
+        
+        // If dimensions are invalid (container hidden), use a reasonable default scale
+        // This will be corrected later when container becomes visible
+        var scale = 1;
+        if (availableWidth > 100 && availableHeight > 100) {
+            var scaleX = availableWidth / slideWidth;
+            var scaleY = availableHeight / slideHeight;
+            scale = Math.min(scaleX, scaleY);
+            
+            // On mobile, allow scaling up to 1.5x to fill screen better
+            // On desktop, cap at 1.0 to avoid pixelation
+            var isMobile = window.innerWidth < 900 || window.innerHeight < 600;
+            var maxScale = isMobile ? 1.5 : 1.0;
+            scale = Math.min(scale, maxScale);
+        } else {
+            // Container not ready yet, use a placeholder scale
+            // Will be updated by updateSlideScale when container is visible
+            scale = 0.5;
+        }
         
         // Apply scale and size
         container.style.width = slideWidth + 'px';
