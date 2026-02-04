@@ -1004,6 +1004,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             function toggleSidebar() {{
                 sidebarOpen = !sidebarOpen;
                 document.getElementById('sidebar').classList.toggle('open', sidebarOpen);
+                updateSlideScale();
             }}
             
             function toggleMute() {{
@@ -1029,10 +1030,74 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 }});
             }}
             
+            var isPresentationMode = false;
+            
             function fullscreen() {{
                 var elem = document.getElementById('player-container');
                 if (!document.fullscreenElement) {{
-                    elem.requestFullscreen().catch(function() {{}});
+                    // Enter fullscreen and presentation mode
+                    elem.requestFullscreen().then(function() {{
+                        enterPresentationMode();
+                    }}).catch(function() {{
+                        // If fullscreen fails, still enter presentation mode
+                        enterPresentationMode();
+                    }});
+                }} else {{
+                    document.exitFullscreen().then(function() {{
+                        exitPresentationMode();
+                    }});
+                }}
+            }}
+            
+            function enterPresentationMode() {{
+                isPresentationMode = true;
+                document.getElementById('header').style.display = 'none';
+                document.getElementById('controls').style.display = 'none';
+                document.getElementById('slide-wrapper').style.padding = '0';
+                document.body.classList.add('presentation-mode');
+                
+                // Add floating controls
+                if (!document.getElementById('floating-controls')) {{
+                    var floatDiv = document.createElement('div');
+                    floatDiv.id = 'floating-controls';
+                    floatDiv.innerHTML = '<button onclick="Player.prev()">←</button>' +
+                        '<span id="float-progress"></span>' +
+                        '<button onclick="Player.next()">→</button>' +
+                        '<button onclick="Player.fullscreen()" style="margin-left:10px;">✕</button>';
+                    document.body.appendChild(floatDiv);
+                }}
+                updateFloatingProgress();
+                
+                // Update scale for presentation mode
+                setTimeout(updateSlideScale, 100);
+            }}
+            
+            function exitPresentationMode() {{
+                isPresentationMode = false;
+                document.getElementById('header').style.display = 'flex';
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('slide-wrapper').style.padding = '20px';
+                document.body.classList.remove('presentation-mode');
+                
+                var floatDiv = document.getElementById('floating-controls');
+                if (floatDiv) floatDiv.remove();
+                
+                setTimeout(updateSlideScale, 100);
+            }}
+            
+            function updateFloatingProgress() {{
+                var floatProgress = document.getElementById('float-progress');
+                if (floatProgress) {{
+                    floatProgress.textContent = (currentSlide + 1) + ' / ' + totalSlides;
+                }}
+            }}
+            
+            // Listen for fullscreen change
+            document.addEventListener('fullscreenchange', function() {{
+                if (!document.fullscreenElement && isPresentationMode) {{
+                    exitPresentationMode();
+                }}
+            }});
                 }} else {{
                     document.exitFullscreen();
                 }}
