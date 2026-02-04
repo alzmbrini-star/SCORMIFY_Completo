@@ -687,16 +687,20 @@ export default function Editor() {
       const media = await uploadMedia(file);
       console.log('Upload successful:', media);
       
+      // Get slide dimensions for full coverage
+      const slideWidth = currentSlide?.width || 960;
+      const slideHeight = currentSlide?.height || 540;
+      
       // Add image element that covers 100% of the slide
-      // Using percentage-based positioning for full coverage
+      // Using actual pixel dimensions (same as slide) for proper drag/resize support
       await addElement(currentSlide.id, {
         type: 'image',
         x: 0,
         y: 0,
-        width: '100%',
-        height: '100%',
+        width: slideWidth,
+        height: slideHeight,
         src: `${process.env.REACT_APP_BACKEND_URL}${media.url}`,
-        objectFit: 'contain', // Maintain aspect ratio
+        objectFit: 'contain', // Maintain aspect ratio within the container
       });
       toast.success('Imagem adicionada (100% do slide)');
     } catch (err) {
