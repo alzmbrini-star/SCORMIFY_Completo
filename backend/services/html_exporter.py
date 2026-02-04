@@ -607,6 +607,74 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             0%, 100% {{ transform: scale(1); }}
             50% {{ transform: scale(1.1); }}
         }}
+        
+        /* Presentation Mode - Fullscreen optimized */
+        .presentation-mode #slide-wrapper {{
+            padding: 5px !important;
+            background: #000 !important;
+        }}
+        
+        .presentation-mode #sidebar {{
+            display: none !important;
+        }}
+        
+        /* Floating controls for presentation mode */
+        #floating-controls {{
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 25px;
+            border-radius: 30px;
+            z-index: 10001;
+            backdrop-filter: blur(10px);
+        }}
+        
+        #floating-controls button {{
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: #fff;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }}
+        
+        #floating-controls button:hover {{
+            background: rgba(255, 255, 255, 0.3);
+        }}
+        
+        #floating-controls button:active {{
+            transform: scale(0.95);
+        }}
+        
+        #float-progress {{
+            color: #fff;
+            font-size: 16px;
+            font-weight: 500;
+            min-width: 60px;
+            text-align: center;
+        }}
+        
+        /* Touch-friendly on mobile */
+        @media screen and (max-width: 900px) {{
+            #floating-controls {{
+                bottom: 15px;
+                padding: 10px 20px;
+            }}
+            
+            #floating-controls button {{
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }}
+        }}
     </style>
 </head>
 <body>
