@@ -1046,7 +1046,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             html += '</a>';
                         }}
                         else if (elem.type === 'html' && elem.htmlContent) {{
-                            html += '<iframe srcdoc="' + elem.htmlContent.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;"></iframe>';
+                            var htmlContent = elem.htmlContent;
+                            // Check if content is base64 encoded (to avoid JS escaping issues)
+                            if (htmlContent.startsWith('__B64__:')) {{
+                                try {{
+                                    htmlContent = atob(htmlContent.substring(8));
+                                }} catch(e) {{
+                                    console.error('Failed to decode htmlContent:', e);
+                                }}
+                            }}
+                            html += '<iframe srcdoc="' + htmlContent.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
                             html += '<iframe src="' + elem.flipbookUrl + '" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>';
