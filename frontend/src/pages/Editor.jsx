@@ -1149,6 +1149,15 @@ export default function Editor() {
 
   return (
     <TooltipProvider>
+      {/* Course Preview Modal */}
+      {showPreview && (
+        <CoursePreview
+          course={currentProject?.course}
+          projectId={currentProject?.id}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+      
       <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
         {/* Header */}
         <header className="h-16 border-b border-border bg-card flex items-center px-4 justify-between z-50">
