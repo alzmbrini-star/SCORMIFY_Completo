@@ -1408,7 +1408,8 @@ var CoursePlayer = (function() {
         toggleMute: toggleMute,
         setVolume: setVolume,
         toggleVolumeSlider: toggleVolumeSlider,
-        toggleSidebar: toggleSidebar
+        toggleSidebar: toggleSidebar,
+        updateScale: updateSlideScale
     };
 })();
 
