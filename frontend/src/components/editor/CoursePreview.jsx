@@ -36,16 +36,45 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [slideScale, setSlideScale] = useState(1);
   
   const containerRef = useRef(null);
   const globalAudioRef = useRef(null);
   const slideAudiosRef = useRef([]);
   const timelineRef = useRef(null);
   const slideContainerRef = useRef(null);
+  const slideWrapperRef = useRef(null);
   
   const slides = course?.slides || [];
   const currentSlide = slides[currentSlideIndex];
   const slideDuration = currentSlide?.duration || 10;
+  
+  // Calculate slide scale to fit in the available space
+  const calculateScale = useCallback(() => {
+    if (!slideWrapperRef.current || !currentSlide) return;
+    
+    const wrapper = slideWrapperRef.current;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const slideWidth = currentSlide.width || 960;
+    const slideHeight = currentSlide.height || 540;
+    
+    // Account for padding
+    const availableWidth = wrapperRect.width - 48; // p-6 = 24px * 2
+    const availableHeight = wrapperRect.height - 48;
+    
+    const scaleX = availableWidth / slideWidth;
+    const scaleY = availableHeight / slideHeight;
+    const scale = Math.min(scaleX, scaleY, 1);
+    
+    setSlideScale(scale);
+  }, [currentSlide]);
+  
+  // Update scale on mount, resize, and slide change
+  useEffect(() => {
+    calculateScale();
+    window.addEventListener('resize', calculateScale);
+    return () => window.removeEventListener('resize', calculateScale);
+  }, [calculateScale, currentSlideIndex]);
   
   // Initialize global audio
   useEffect(() => {
