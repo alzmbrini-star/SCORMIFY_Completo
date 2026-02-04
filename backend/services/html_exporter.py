@@ -1107,7 +1107,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
             
             function isMobileLandscape() {{
-                return window.innerWidth <= 1024 && window.innerWidth > window.innerHeight;
+                // More restrictive check: must be landscape AND have mobile-like dimensions
+                // Typical mobile landscape: width < 950px AND height < 450px
+                var isLandscape = window.innerWidth > window.innerHeight;
+                var hasMobileDimensions = window.innerWidth <= 950 && window.innerHeight <= 450;
+                var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                // Return true only if definitely on mobile landscape
+                return isLandscape && (hasMobileDimensions || (isTouchDevice && window.innerWidth <= 950));
             }}
             
             function updateSlideScale() {{
