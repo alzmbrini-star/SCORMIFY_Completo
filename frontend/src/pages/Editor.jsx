@@ -889,6 +889,12 @@ export default function Editor() {
       return;
     }
 
+    // Check credits before generating
+    if (heygenCredits && !heygenCredits.has_credits) {
+      toast.error('Você não possui créditos suficientes na HeyGen. Por favor, recarregue sua conta.');
+      return;
+    }
+
     setHeygenGenerating(true);
     setHeygenVideoStatus('processing');
     
@@ -904,6 +910,14 @@ export default function Editor() {
       
       setHeygenVideoId(response.data.video_id);
       toast.success('Geração de vídeo iniciada! Aguarde...');
+      
+      // Refresh credits after starting generation
+      try {
+        const creditsRes = await axios.get(`${API_URL}/api/heygen/credits`);
+        setHeygenCredits(creditsRes.data);
+      } catch (e) {
+        // Ignore credits refresh error
+      }
       
       // Start polling for status
       pollHeygenVideoStatus(response.data.video_id);
