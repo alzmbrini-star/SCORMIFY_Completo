@@ -417,3 +417,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/backend/models.py` - Added width/height to SlideCreate
   - `/app/frontend/src/contexts/ProjectContext.jsx` - Inherit dimensions on addSlide
 - **Status**: IMPLEMENTED
+
+### HTML Export Desktop Blank Screen Fix - FIXED (Feb 4, 2026)
+- **Issue**: O player HTML exportado aparecia em branco no desktop após adicionar recurso de "auto fullscreen" para mobile landscape
+- **Root Cause**: 
+  1. O media query CSS `@media screen and (orientation: landscape) and (max-width: 1024px)` era muito amplo e afetava janelas de desktop redimensionadas
+  2. O endpoint `serve_export` retornava `application/zip` para todos os arquivos, forçando download do HTML
+- **Fix Applied**:
+  1. Modificados os media queries CSS para detectar apenas dispositivos móveis reais:
+     - Adicionado `max-height: 450px` (telas móveis em landscape têm altura limitada)
+     - Adicionado `max-width: 950px` (mais restritivo)
+     - Adicionado `pointer: coarse` para detectar dispositivos touch
+  2. Atualizada função `isMobileLandscape()` em JavaScript para usar detecção mais precisa
+  3. Corrigido `FileResponse` para retornar `text/html` para arquivos HTML e `application/zip` para ZIPs
+- **Files Modified**:
+  - `/app/backend/services/html_exporter.py` - CSS media queries (linhas 311-357) e função isMobileLandscape()
+  - `/app/backend/server.py` - Endpoint serve_export (linha 1147)
+- **Status**: FIXED AND TESTED (100% success rate)
+- **Verification**: Player HTML funciona corretamente em viewports 1920x800 e 1024x768
