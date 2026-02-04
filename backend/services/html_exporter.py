@@ -792,6 +792,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         </div>
     </div>
     
+    <!-- Mobile Floating Controls (shown automatically on mobile landscape) -->
+    <div id="mobile-float-controls">
+        <button onclick="Player.prev()">←</button>
+        <span class="progress-text" id="mobile-progress">1/1</span>
+        <button onclick="Player.next()">→</button>
+    </div>
+    
     <script>
         // Course data embedded
         var courseData = {course_json};
