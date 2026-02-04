@@ -221,6 +221,8 @@ class ProjectUpdate(BaseModel):
 class SlideCreate(BaseModel):
     title: str = "New Slide"
     background: str = "#FFFFFF"
+    width: int = 1280
+    height: int = 720
 
 class SlideUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
