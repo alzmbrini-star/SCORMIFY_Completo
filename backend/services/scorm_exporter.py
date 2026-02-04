@@ -324,7 +324,8 @@ var CoursePlayer = (function() {
         // Just update the transform scale without re-rendering elements
         var slideContainer = document.getElementById('slide-container');
         var slideContent = document.getElementById('slide-content');
-        if (!slideContainer || !slideContent) return;
+        var wrapper = document.getElementById('slide-wrapper');
+        if (!slideContainer || !slideContent || !wrapper) return;
         
         var slide = course.slides[currentSlide];
         if (!slide) return;
@@ -332,15 +333,34 @@ var CoursePlayer = (function() {
         var slideWidth = slide.width || 960;
         var slideHeight = slide.height || 540;
         
-        var containerRect = slideContainer.getBoundingClientRect();
-        var containerWidth = containerRect.width || slideContainer.clientWidth;
-        var containerHeight = containerRect.height || slideContainer.clientHeight;
+        // Get available space from wrapper, accounting for padding
+        var wrapperRect = wrapper.getBoundingClientRect();
+        var wrapperStyle = window.getComputedStyle(wrapper);
+        var paddingX = parseFloat(wrapperStyle.paddingLeft) + parseFloat(wrapperStyle.paddingRight);
+        var paddingY = parseFloat(wrapperStyle.paddingTop) + parseFloat(wrapperStyle.paddingBottom);
         
-        var scaleX = containerWidth / slideWidth;
-        var scaleY = containerHeight / slideHeight;
-        var scale = Math.min(scaleX, scaleY, 1);
+        var availableWidth = wrapperRect.width - paddingX;
+        var availableHeight = wrapperRect.height - paddingY;
+        
+        // Calculate scale to fit available space
+        var scaleX = availableWidth / slideWidth;
+        var scaleY = availableHeight / slideHeight;
+        
+        // Use the smaller scale to maintain aspect ratio
+        // Allow scaling above 1.0 on mobile to fill the screen better
+        var scale = Math.min(scaleX, scaleY);
+        
+        // On desktop, cap at 1.0 to avoid pixelation
+        // On mobile (smaller screens), allow up to 1.5x for better visibility
+        var isMobile = window.innerWidth < 900 || window.innerHeight < 600;
+        var maxScale = isMobile ? 1.5 : 1.0;
+        scale = Math.min(scale, maxScale);
         
         slideContent.style.transform = 'scale(' + scale + ')';
+        
+        // Also update the container visual size to match scaled content
+        slideContainer.style.width = slideWidth + 'px';
+        slideContainer.style.height = slideHeight + 'px';
     }
     
     var isVideoFullscreen = false;
