@@ -320,6 +320,7 @@ export default function Editor() {
   const [heygenVideoStatus, setHeygenVideoStatus] = useState(null);
   const [heygenVideoUrl, setHeygenVideoUrl] = useState(null);
   const [heygenElapsedTime, setHeygenElapsedTime] = useState(0);
+  const [heygenCredits, setHeygenCredits] = useState(null); // Credits info
   const [heygenConfig, setHeygenConfig] = useState({
     avatarId: '',
     voiceId: '',
