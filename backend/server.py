@@ -341,9 +341,16 @@ async def create_slide(project_id: str, data: SlideCreate):
     course = project.get('course', {})
     slides = course.get('slides', [])
     
+    # Get dimensions from first slide if not provided, to maintain consistency
+    first_slide = slides[0] if slides else None
+    slide_width = data.width or (first_slide.get('width') if first_slide else 1280)
+    slide_height = data.height or (first_slide.get('height') if first_slide else 720)
+    
     new_slide = Slide(
         title=data.title,
         background=data.background,
+        width=slide_width,
+        height=slide_height,
         order=len(slides)
     )
     
