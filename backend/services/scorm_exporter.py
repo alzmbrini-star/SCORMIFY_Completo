@@ -1402,7 +1402,13 @@ var CoursePlayer = (function() {
         setVolume: setVolume,
         toggleVolumeSlider: toggleVolumeSlider,
         toggleSidebar: toggleSidebar,
-        updateScale: updateSlideScale
+        updateScale: updateSlideScale,
+        refresh: function() {
+            // Re-render current slide completely (used after orientation change)
+            if (course && course.slides) {
+                renderSlide(currentSlide);
+            }
+        }
     };
 })();
 
