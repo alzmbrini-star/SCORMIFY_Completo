@@ -1146,14 +1146,23 @@ async def serve_asset(project_id: str, filename: str):
 
 @api_router.get("/exports/{filename}")
 async def serve_export(filename: str):
-    """Serve exported SCORM package"""
+    """Serve exported files (SCORM zip or HTML)"""
     file_path = EXPORTS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine media type based on file extension
+    if filename.endswith('.html'):
+        media_type = 'text/html'
+    elif filename.endswith('.zip'):
+        media_type = 'application/zip'
+    else:
+        media_type = 'application/octet-stream'
+    
     return FileResponse(
         file_path,
-        media_type='application/zip',
-        filename=filename
+        media_type=media_type,
+        filename=filename if media_type == 'application/zip' else None  # Only force download for zip files
     )
 
 # ============================================
