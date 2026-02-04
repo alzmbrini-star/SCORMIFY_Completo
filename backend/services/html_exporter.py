@@ -314,6 +314,65 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
         }}
         
+        /* AUTO FULLSCREEN on mobile landscape */
+        @media screen and (orientation: landscape) and (max-width: 1024px) {{
+            #header {{
+                display: none !important;
+            }}
+            #controls {{
+                display: none !important;
+            }}
+            #sidebar {{
+                display: none !important;
+            }}
+            #slide-wrapper {{
+                padding: 5px !important;
+                background: #000 !important;
+            }}
+            #mobile-float-controls {{
+                display: flex !important;
+            }}
+        }}
+        
+        /* Mobile floating controls - always available on mobile landscape */
+        #mobile-float-controls {{
+            display: none;
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 10px 20px;
+            border-radius: 25px;
+            z-index: 10001;
+        }}
+        
+        #mobile-float-controls button {{
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: #fff;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }}
+        
+        #mobile-float-controls button:active {{
+            background: rgba(255, 255, 255, 0.4);
+        }}
+        
+        #mobile-float-controls .progress-text {{
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: center;
+        }}
+        
         #slide-container {{
             width: {width}px;
             height: {height}px;
