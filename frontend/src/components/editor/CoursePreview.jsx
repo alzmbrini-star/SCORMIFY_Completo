@@ -325,10 +325,13 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             style={{
               width: slideWidth,
               height: slideHeight,
-              maxWidth: '100%',
-              maxHeight: '100%',
-              aspectRatio: `${slideWidth} / ${slideHeight}`,
               backgroundColor: currentSlide.background || '#FFFFFF',
+              transform: `scale(${Math.min(
+                (window.innerWidth - 300) / slideWidth,
+                (window.innerHeight - 200) / slideHeight,
+                1
+              )})`,
+              transformOrigin: 'center center',
             }}
           >
             {/* Background Image */}
@@ -341,16 +344,16 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               />
             )}
             
-            {/* Elements */}
+            {/* Elements - positioned absolutely within slide dimensions */}
             {currentSlide.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => (
               <div
                 key={element.id}
                 className="absolute"
                 style={{
-                  left: element.x || 0,
-                  top: element.y || 0,
-                  width: element.width || 100,
-                  height: element.height || 100,
+                  left: `${element.x || 0}px`,
+                  top: `${element.y || 0}px`,
+                  width: `${element.width || 100}px`,
+                  height: `${element.height || 100}px`,
                   zIndex: (element.zIndex || 0) + 1,
                   opacity: element.style?.opacity ?? 1,
                   transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
