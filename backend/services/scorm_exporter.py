@@ -284,6 +284,11 @@ var CoursePlayer = (function() {
         updateProgress();
         renderSidebar();
         
+        // Force scale update after initial render (ensures correct size after orientation)
+        setTimeout(updateSlideScale, 50);
+        setTimeout(updateSlideScale, 150);
+        setTimeout(updateSlideScale, 300);
+        
         // Setup global audio if exists
         if (course.globalAudio && course.globalAudio.src) {
             setupGlobalAudio();
