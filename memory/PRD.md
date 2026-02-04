@@ -435,3 +435,19 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/backend/server.py` - Endpoint serve_export (linha 1147)
 - **Status**: FIXED AND TESTED (100% success rate)
 - **Verification**: Player HTML funciona corretamente em viewports 1920x800 e 1024x768
+
+### HTML Export JSON Parsing Fix - FIXED (Feb 4, 2026)
+- **Issue**: Alguns projetos exportados como HTML mostravam slide em branco (1/1) mesmo tendo múltiplos slides
+- **Root Cause**: 
+  1. Elementos com `htmlContent` (código HTML embutido) continham caracteres especiais (quebras de linha, aspas, `</script>`) que quebravam o JSON embutido no HTML
+  2. O JSON ficava inválido e o player não conseguia ler os slides
+- **Fix Applied**:
+  1. Adicionado encoding Base64 para campos `htmlContent` durante a exportação
+  2. O conteúdo HTML é prefixado com `__B64__:` para identificação
+  3. Adicionada decodificação automática no JavaScript do player usando `atob()`
+  4. Mantido escape de `</script>` para segurança adicional
+- **Files Modified**:
+  - `/app/backend/services/html_exporter.py` - Função `generate_html_template()` (linhas 203-220)
+  - `/app/backend/services/html_exporter.py` - Renderização de elementos HTML (linhas 1048-1060)
+- **Status**: FIXED AND TESTED
+- **Verification**: Projeto "Ferramenta de Criação de Rapid Learning" com 11 slides agora exporta e renderiza corretamente
