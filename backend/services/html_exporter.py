@@ -1074,6 +1074,18 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 renderSidebar();
                 updateSlideScale();
                 updateFloatingProgress();
+                updateMobileProgress();
+            }}
+            
+            function updateMobileProgress() {{
+                var mobileProgress = document.getElementById('mobile-progress');
+                if (mobileProgress) {{
+                    mobileProgress.textContent = (currentSlide + 1) + '/' + totalSlides;
+                }}
+            }}
+            
+            function isMobileLandscape() {{
+                return window.innerWidth <= 1024 && window.innerWidth > window.innerHeight;
             }}
             
             function updateSlideScale() {{
@@ -1087,24 +1099,30 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 var wrapperRect = wrapper.getBoundingClientRect();
                 
-                // In presentation mode, use full available space
-                var padding = isPresentationMode ? 10 : 40;
+                // Use minimal padding on mobile landscape for maximum slide size
+                var isMobileLand = isMobileLandscape();
+                var padding = (isPresentationMode || isMobileLand) ? 10 : 40;
                 var availableWidth = wrapperRect.width - padding;
                 var availableHeight = wrapperRect.height - padding;
                 
-                if (availableWidth < 100 || availableHeight < 100) return;
+                // On mobile landscape, account for the floating controls at bottom
+                if (isMobileLand) {{
+                    availableHeight -= 70; // Space for mobile float controls
+                }}
+                
+                if (availableWidth < 50 || availableHeight < 50) return;
                 
                 var scaleX = availableWidth / slideWidth;
                 var scaleY = availableHeight / slideHeight;
                 var scale = Math.min(scaleX, scaleY);
                 
-                // In presentation mode, allow much higher scale for mobile readability
-                var isMobile = window.innerWidth < 900 || window.innerHeight < 600;
+                // Allow higher scale on mobile/presentation for better readability
+                // No upper limit on mobile landscape - fill the screen!
                 var maxScale;
-                if (isPresentationMode) {{
-                    maxScale = 3.0; // Allow up to 3x in presentation mode
+                if (isPresentationMode || isMobileLand) {{
+                    maxScale = 5.0; // Virtually no limit
                 }} else {{
-                    maxScale = isMobile ? 1.5 : 1.0;
+                    maxScale = 1.0;
                 }}
                 scale = Math.min(scale, maxScale);
                 
