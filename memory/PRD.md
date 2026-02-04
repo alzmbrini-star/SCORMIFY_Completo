@@ -374,3 +374,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ### Annotation Pointer Alignment
 - **Status**: CONFIRMED FIXED by user (Feb 4, 2026)
+
+### Course Preview Mode - IMPLEMENTED (Feb 4, 2026)
+- **Feature**: Preview the course directly in the editor before exporting SCORM
+- **Implementation**:
+  1. Full-screen preview modal with dark theme
+  2. Slide navigation (prev/next buttons, keyboard arrows, sidebar thumbnails)
+  3. Sidebar menu with all slides, thumbnails, and progress indicators
+  4. Timeline playback with play/pause controls
+  5. Volume control for global and slide audio
+  6. Fullscreen mode support
+  7. Element visibility based on timeline settings
+  8. Annotations rendering with all shapes (freehand, arrow, circle, rectangle)
+  9. Support for all element types (text, image, shape, video, button, HTML, flipbook)
+- **Files Created**:
+  - `/app/frontend/src/components/editor/CoursePreview.jsx`
+- **Files Modified**:
+  - `/app/frontend/src/pages/Editor.jsx` - Added preview button and state
+- **Status**: IMPLEMENTED AND TESTED
