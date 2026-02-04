@@ -2193,6 +2193,31 @@ export default function Editor() {
               </DialogTitle>
             </DialogHeader>
             
+            {/* Credits Display */}
+            {heygenCredits && (
+              <div className={`flex items-center justify-between p-3 rounded-lg border ${
+                heygenCredits.has_credits 
+                  ? 'bg-green-500/10 border-green-500/30' 
+                  : 'bg-red-500/10 border-red-500/30'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {heygenCredits.has_credits ? '✅' : '⚠️'} Créditos HeyGen:
+                  </span>
+                  <span className={`font-bold ${heygenCredits.has_credits ? 'text-green-500' : 'text-red-500'}`}>
+                    {typeof heygenCredits.remaining_quota === 'number' 
+                      ? `${heygenCredits.remaining_quota.toFixed(1)} minutos`
+                      : 'N/A'}
+                  </span>
+                </div>
+                {!heygenCredits.has_credits && (
+                  <span className="text-xs text-red-500">
+                    Recarregue para gerar vídeos
+                  </span>
+                )}
+              </div>
+            )}
+            
             {heygenLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
