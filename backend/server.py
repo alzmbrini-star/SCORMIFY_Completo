@@ -430,6 +430,69 @@ async def duplicate_slide(project_id: str, slide_id: str):
     
     return new_slide
 
+@api_router.post("/projects/{project_id}/normalize-dimensions")
+async def normalize_slide_dimensions(project_id: str, target_width: int = 1280, target_height: int = 720):
+    """Normalize all slides to the same dimensions, scaling elements proportionally"""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    course = project.get('course', {})
+    slides = course.get('slides', [])
+    
+    normalized_count = 0
+    
+    for slide in slides:
+        current_width = slide.get('width', 960)
+        current_height = slide.get('height', 540)
+        
+        # Skip if already the target dimensions
+        if current_width == target_width and current_height == target_height:
+            continue
+        
+        # Calculate scale factors
+        scale_x = target_width / current_width
+        scale_y = target_height / current_height
+        
+        # Update slide dimensions
+        slide['width'] = target_width
+        slide['height'] = target_height
+        
+        # Scale all elements proportionally
+        for element in slide.get('elements', []):
+            # Scale position
+            if 'x' in element:
+                element['x'] = element['x'] * scale_x
+            if 'y' in element:
+                element['y'] = element['y'] * scale_y
+            
+            # Scale size
+            if 'width' in element:
+                element['width'] = element['width'] * scale_x
+            if 'height' in element:
+                element['height'] = element['height'] * scale_y
+        
+        # Scale annotations if present
+        for annotation in slide.get('annotations', []):
+            if 'points' in annotation:
+                for point in annotation['points']:
+                    if 'x' in point:
+                        point['x'] = point['x'] * scale_x
+                    if 'y' in point:
+                        point['y'] = point['y'] * scale_y
+        
+        normalized_count += 1
+    
+    # Save updated course
+    course['slides'] = slides
+    await update_project(project_id, {"course": course})
+    
+    return {
+        "message": f"Normalized {normalized_count} slides to {target_width}x{target_height}",
+        "normalized_count": normalized_count,
+        "target_dimensions": {"width": target_width, "height": target_height}
+    }
+
 @api_router.post("/projects/{project_id}/slides/reorder")
 async def reorder_slides(project_id: str, data: ReorderSlidesRequest):
     """Reorder slides"""
