@@ -341,6 +341,12 @@ export default function Editor() {
   // Ref for HeyGen timer interval
   const heygenTimerRef = useRef(null);
   
+  // Video Library states
+  const [showVideoLibrary, setShowVideoLibrary] = useState(false);
+  const [videoLibraryItems, setVideoLibraryItems] = useState([]);
+  const [videoLibraryLoading, setVideoLibraryLoading] = useState(false);
+  const [refreshingVideoId, setRefreshingVideoId] = useState(null);
+  
   // AI Script Generation states
   const [scriptMode, setScriptMode] = useState('manual'); // 'manual' or 'ai'
   const [aiScriptTopic, setAiScriptTopic] = useState('');
