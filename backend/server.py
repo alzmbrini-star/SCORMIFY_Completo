@@ -1320,24 +1320,24 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
                     seen_languages.add(lang)
                     # Create a simplified label
                     if "brazil" in lang.lower():
-                        language_options.append({"value": lang, "label": f"🇧🇷 Português (Brasil)", "code": "pt-BR"})
+                        language_options.append({"value": lang, "label": "🇧🇷 Português (Brasil)", "code": "pt-BR"})
                     elif "portugal" in lang.lower():
-                        language_options.append({"value": lang, "label": f"🇵🇹 Português (Portugal)", "code": "pt-PT"})
+                        language_options.append({"value": lang, "label": "🇵🇹 Português (Portugal)", "code": "pt-PT"})
                     elif "english" in lang.lower():
                         if "us" in lang.lower() or "american" in lang.lower():
-                            language_options.append({"value": lang, "label": f"🇺🇸 English (US)", "code": "en-US"})
+                            language_options.append({"value": lang, "label": "🇺🇸 English (US)", "code": "en-US"})
                         elif "uk" in lang.lower() or "british" in lang.lower():
-                            language_options.append({"value": lang, "label": f"🇬🇧 English (UK)", "code": "en-GB"})
+                            language_options.append({"value": lang, "label": "🇬🇧 English (UK)", "code": "en-GB"})
                         else:
-                            language_options.append({"value": lang, "label": f"🇺🇸 English", "code": "en"})
+                            language_options.append({"value": lang, "label": "🇺🇸 English", "code": "en"})
                     elif "spanish" in lang.lower():
-                        language_options.append({"value": lang, "label": f"🇪🇸 Español", "code": "es"})
+                        language_options.append({"value": lang, "label": "🇪🇸 Español", "code": "es"})
                     elif "french" in lang.lower():
-                        language_options.append({"value": lang, "label": f"🇫🇷 Français", "code": "fr"})
+                        language_options.append({"value": lang, "label": "🇫🇷 Français", "code": "fr"})
                     elif "german" in lang.lower():
-                        language_options.append({"value": lang, "label": f"🇩🇪 Deutsch", "code": "de"})
+                        language_options.append({"value": lang, "label": "🇩🇪 Deutsch", "code": "de"})
                     elif "italian" in lang.lower():
-                        language_options.append({"value": lang, "label": f"🇮🇹 Italiano", "code": "it"})
+                        language_options.append({"value": lang, "label": "🇮🇹 Italiano", "code": "it"})
                     else:
                         language_options.append({"value": lang, "label": lang, "code": ""})
             
