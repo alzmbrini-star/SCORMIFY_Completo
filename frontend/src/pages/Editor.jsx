@@ -1842,6 +1842,7 @@ export default function Editor() {
                 annotationMode={annotationMode}
                 timelineTime={timelineTime}
                 timelineIsPlaying={timelineIsPlaying}
+                onEditHtmlElement={handleEditHtmlElement}
               />
             </div>
 
