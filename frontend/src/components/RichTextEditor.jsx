@@ -27,6 +27,17 @@ const FONTS = [
   { name: 'Comic Sans MS', value: '"Comic Sans MS", cursive' },
 ];
 
+// Font sizes
+const FONT_SIZES = [
+  { name: '10px', value: '1' },
+  { name: '12px', value: '2' },
+  { name: '14px', value: '3' },
+  { name: '16px', value: '4' },
+  { name: '18px', value: '5' },
+  { name: '24px', value: '6' },
+  { name: '36px', value: '7' },
+];
+
 // Preset colors
 const COLORS = [
   '#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF',
