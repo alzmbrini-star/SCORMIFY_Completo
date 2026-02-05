@@ -552,3 +552,27 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: IMPLEMENTED AND TESTED
 - **Verification**: Testing agent confirmou 100% de sucesso em todos os testes frontend
 
+### Floating Image Feature - IMPLEMENTED (Feb 5, 2026)
+- **Feature**: Capacidade de inserir imagens flutuantes ao lado do texto e movimentá-las arrastando
+- **Implementation**:
+  1. **Popover de imagem atualizado** com duas opções:
+     - "Em linha" - imagem segue o fluxo do texto (comportamento padrão)
+     - "Flutuante" - posição livre, pode ser arrastada
+  2. **Imagens flutuantes** usam CSS class `floating-image` com:
+     - `position: absolute`
+     - `cursor: move`
+     - `box-shadow` para efeito visual
+     - Posição inicial: left: 20px, top: 20px
+  3. **Funcionalidade de arraste**:
+     - Clique na imagem para selecionar
+     - Arraste para mover para qualquer posição
+     - Posição salva no atributo style
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx`:
+    - `addImage(floating)` - Parâmetro para modo flutuante
+    - `handleDragStart()` - Captura posição inicial
+    - Effect para mouse move/up durante arraste
+    - CSS styles para `.floating-image` e `.floating-image.selected-image`
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Testing agent confirmou drag de left:20px/top:20px para left:100px/top:60px
+
