@@ -322,6 +322,12 @@ export default function Editor() {
   const [heygenVideoUrl, setHeygenVideoUrl] = useState(null);
   const [heygenElapsedTime, setHeygenElapsedTime] = useState(0);
   const [heygenCredits, setHeygenCredits] = useState(null); // Credits info
+  // Filter states
+  const [heygenAvatarGenderFilter, setHeygenAvatarGenderFilter] = useState('all');
+  const [heygenVoiceLanguageFilter, setHeygenVoiceLanguageFilter] = useState('all');
+  const [heygenVoiceGenderFilter, setHeygenVoiceGenderFilter] = useState('all');
+  const [heygenAvailableGenders, setHeygenAvailableGenders] = useState([]);
+  const [heygenAvailableLanguages, setHeygenAvailableLanguages] = useState([]);
   const [heygenConfig, setHeygenConfig] = useState({
     avatarId: '',
     voiceId: '',
