@@ -360,6 +360,7 @@ export default function Editor() {
   const [showRichTextDialog, setShowRichTextDialog] = useState(false);
   const [richTextContent, setRichTextContent] = useState('');
   const [richTextGenerating, setRichTextGenerating] = useState(false);
+  const [editingHtmlElementId, setEditingHtmlElementId] = useState(null); // Track which HTML element is being edited
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
