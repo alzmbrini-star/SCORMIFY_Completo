@@ -1611,6 +1611,27 @@ async def heygen_webhook(request: Request):
             
             logger.info(f"HeyGen webhook processed: video_id={video_id}, status={status}, matched={result.matched_count}")
             
+            # Notify SSE subscribers waiting for this video
+            if video_id in heygen_sse_subscribers:
+                event_data = {
+                    "event": "video_update",
+                    "video_id": video_id,
+                    "status": status,
+                    "video_url": video_url,
+                    "thumbnail_url": thumbnail_url,
+                    "duration": duration
+                }
+                for queue in heygen_sse_subscribers[video_id]:
+                    try:
+                        queue.put_nowait(event_data)
+                    except asyncio.QueueFull:
+                        pass
+                logger.info(f"Notified {len(heygen_sse_subscribers[video_id])} SSE subscribers for video {video_id}")
+            
+            # Invalidate credits cache after video generation
+            heygen_credits_cache["data"] = None
+            heygen_credits_cache["timestamp"] = None
+            
             return {
                 "success": True,
                 "video_id": video_id,
