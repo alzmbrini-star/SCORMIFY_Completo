@@ -44,16 +44,27 @@ export const RichTextEditor = ({
   const [showImageInput, setShowImageInput] = useState(false);
   const [internalContent, setInternalContent] = useState(content || '');
   const editorRef = useRef(null);
+  const initializedRef = useRef(false);
 
   // Sync content from parent
   useEffect(() => {
-    if (content !== undefined && content !== internalContent) {
-      setInternalContent(content);
-      if (editorRef.current) {
+    if (editorRef.current && content) {
+      // Set content when it changes or on initial load
+      if (!initializedRef.current || content !== internalContent) {
         editorRef.current.innerHTML = content;
+        setInternalContent(content);
+        initializedRef.current = true;
       }
     }
   }, [content]);
+
+  // Reset when dialog opens with new content
+  useEffect(() => {
+    if (content && editorRef.current) {
+      editorRef.current.innerHTML = content;
+      setInternalContent(content);
+    }
+  }, []);
 
   const saveSelection = useCallback(() => {
     const selection = window.getSelection();
