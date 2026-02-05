@@ -1519,10 +1519,17 @@ async def list_heygen_videos():
 
 # HeyGen Credits/Quota Check
 @api_router.get("/heygen/credits")
-async def get_heygen_credits():
-    """Check remaining HeyGen API credits/quota"""
+async def get_heygen_credits(force_refresh: bool = False):
+    """Check remaining HeyGen API credits/quota (with caching)"""
     if not HEYGEN_API_KEY:
         raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    # Check cache first (unless force refresh requested)
+    if not force_refresh and heygen_credits_cache["data"] is not None:
+        cache_age = (datetime.now(timezone.utc) - heygen_credits_cache["timestamp"]).total_seconds()
+        if cache_age < heygen_credits_cache["ttl"]:
+            logger.info(f"Returning cached HeyGen credits (age: {cache_age:.1f}s)")
+            return heygen_credits_cache["data"]
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
@@ -1538,12 +1545,18 @@ async def get_heygen_credits():
             data = response.json()
             quota_data = data.get("data", {})
             
-            return {
+            result = {
                 "remaining_quota": quota_data.get("remaining_quota", 0),
                 "used_quota": quota_data.get("used_quota"),
                 "plan": quota_data.get("plan"),
                 "has_credits": quota_data.get("remaining_quota", 0) > 0
             }
+            
+            # Update cache
+            heygen_credits_cache["data"] = result
+            heygen_credits_cache["timestamp"] = datetime.now(timezone.utc)
+            
+            return result
     except httpx.RequestError as e:
         logger.error(f"HeyGen credits request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
