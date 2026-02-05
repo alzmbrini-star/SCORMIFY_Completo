@@ -115,10 +115,33 @@ export const RichTextEditor = ({
 
   const addLink = useCallback(() => {
     if (!linkUrl.trim()) return;
-    execCommand('createLink', linkUrl);
+    
+    // Focus the editor first
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    
+    // Get the selected text
+    const selection = window.getSelection();
+    if (selection && selection.toString()) {
+      // Wrap selected text with link
+      document.execCommand('createLink', false, linkUrl);
+    } else {
+      // Insert link with URL as text
+      const linkHtml = `<a href="${linkUrl}" target="_blank" style="color: #22d3ee; text-decoration: underline;">${linkUrl}</a>`;
+      document.execCommand('insertHTML', false, linkHtml);
+    }
+    
+    // Update content
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      lastContentRef.current = newContent;
+      onChange?.(newContent);
+    }
+    
     setLinkUrl('');
     setShowLinkInput(false);
-  }, [linkUrl, execCommand]);
+  }, [linkUrl, onChange]);
 
   const addImage = useCallback(() => {
     if (!imageUrl.trim()) return;
