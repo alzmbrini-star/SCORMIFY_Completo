@@ -1183,8 +1183,8 @@ async def serve_export(filename: str):
 # ============================================
 
 @api_router.get("/heygen/avatars")
-async def list_heygen_avatars(limit: int = 100):
-    """List available HeyGen avatars"""
+async def list_heygen_avatars(limit: int = 200, gender: Optional[str] = None):
+    """List available HeyGen avatars with optional gender filter"""
     if not HEYGEN_API_KEY:
         raise HTTPException(status_code=500, detail="HeyGen API key not configured")
     
@@ -1202,7 +1202,11 @@ async def list_heygen_avatars(limit: int = 100):
             data = response.json()
             avatars = data.get("data", {}).get("avatars", [])
             
-            # Filter and format avatars for frontend (limit to improve performance)
+            # Filter by gender if specified
+            if gender and gender.lower() != 'all':
+                avatars = [a for a in avatars if a.get("gender", "").lower() == gender.lower()]
+            
+            # Format avatars for frontend
             formatted_avatars = []
             for avatar in avatars[:limit]:
                 formatted_avatars.append({
@@ -1213,7 +1217,14 @@ async def list_heygen_avatars(limit: int = 100):
                     "gender": avatar.get("gender"),
                 })
             
-            return {"avatars": formatted_avatars, "total": len(avatars)}
+            # Get unique genders for filter options
+            all_genders = list(set(a.get("gender", "unknown") for a in data.get("data", {}).get("avatars", []) if a.get("gender")))
+            
+            return {
+                "avatars": formatted_avatars, 
+                "total": len(avatars),
+                "available_genders": sorted(all_genders)
+            }
     except httpx.RequestError as e:
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
