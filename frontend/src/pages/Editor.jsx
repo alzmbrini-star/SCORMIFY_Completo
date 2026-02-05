@@ -2335,7 +2335,12 @@ export default function Editor() {
             </DialogHeader>
             
             {/* Credits Display */}
-            {heygenCredits && (
+            {heygenCreditsLoading ? (
+              <div className="flex items-center justify-center p-3 rounded-lg border bg-slate-500/10 border-slate-500/30">
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <span className="text-sm text-slate-400">Verificando créditos...</span>
+              </div>
+            ) : heygenCredits ? (
               <div className={`flex items-center justify-between p-3 rounded-lg border ${
                 heygenCredits.has_credits 
                   ? 'bg-green-500/10 border-green-500/30' 
@@ -2357,7 +2362,7 @@ export default function Editor() {
                   </span>
                 )}
               </div>
-            )}
+            ) : null}
             
             {heygenLoading ? (
               <div className="flex items-center justify-center py-12">
