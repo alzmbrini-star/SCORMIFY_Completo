@@ -1580,7 +1580,6 @@ async def heygen_webhook(request: Request):
         logger.info(f"HeyGen webhook received: {body}")
         
         # Extract relevant data
-        event_type = body.get("event_type") or body.get("event") or "video.status"
         video_id = body.get("video_id") or body.get("data", {}).get("video_id")
         status = body.get("status") or body.get("data", {}).get("status")
         video_url = body.get("video_url") or body.get("data", {}).get("video_url")
