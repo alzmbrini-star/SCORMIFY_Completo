@@ -456,9 +456,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         }}
         
         .slide-element.video-element {{
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
+            background: transparent;
+            border-radius: 0;
+            overflow: visible;
         }}
         
         .slide-element.video-element video,
@@ -466,6 +466,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             width: 100%;
             height: 100%;
             border: 0;
+            background: transparent;
+        }}
+        
+        /* WebM videos with alpha channel transparency */
+        .slide-element.video-element video {{
+            object-fit: contain;
+            background-color: transparent !important;
         }}
         
         .slide-element.button-element {{
