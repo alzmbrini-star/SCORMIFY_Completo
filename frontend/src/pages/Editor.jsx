@@ -1885,6 +1885,21 @@ export default function Editor() {
                 <TooltipContent>🎭 Criar Vídeo com Avatar (HeyGen)</TooltipContent>
               </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-cyan-500/10 to-green-500/10 hover:from-cyan-500/20 hover:to-green-500/20"
+                    onClick={handleOpenVideoLibrary}
+                    data-testid="video-library-btn"
+                  >
+                    <Film className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>📹 Biblioteca de Vídeos</TooltipContent>
+              </Tooltip>
+
               <Separator orientation="vertical" className="h-6" />
 
               <AnnotationToolbar
