@@ -1,17 +1,14 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
-import TextStyle from '@tiptap/extension-text-style';
-import Color from '@tiptap/extension-color';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
-import Placeholder from '@tiptap/extension-placeholder';
 import { 
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -59,17 +56,11 @@ export const RichTextEditor = ({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3],
-        },
-      }),
+      StarterKit,
       Underline,
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
-      TextStyle,
-      Color,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -86,15 +77,19 @@ export const RichTextEditor = ({
       TableRow,
       TableCell,
       TableHeader,
-      Placeholder.configure({
-        placeholder,
-      }),
     ],
     content: content || '',
     onUpdate: ({ editor }) => {
       onChange?.(editor.getHTML());
     },
   });
+
+  // Update editor content when prop changes
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content || '');
+    }
+  }, [content, editor]);
 
   const handleAIGenerate = useCallback(async () => {
     if (!aiPrompt.trim() || !onGenerateAI) return;
@@ -112,7 +107,7 @@ export const RichTextEditor = ({
   }, [aiPrompt, onGenerateAI, editor]);
 
   const addLink = useCallback(() => {
-    if (!linkUrl.trim()) return;
+    if (!linkUrl.trim() || !editor) return;
     
     editor
       .chain()
@@ -126,7 +121,7 @@ export const RichTextEditor = ({
   }, [editor, linkUrl]);
 
   const addImage = useCallback(() => {
-    if (!imageUrl.trim()) return;
+    if (!imageUrl.trim() || !editor) return;
     
     editor.chain().focus().setImage({ src: imageUrl }).run();
     
@@ -135,6 +130,7 @@ export const RichTextEditor = ({
   }, [editor, imageUrl]);
 
   const insertTable = useCallback(() => {
+    if (!editor) return;
     editor
       .chain()
       .focus()
@@ -143,7 +139,12 @@ export const RichTextEditor = ({
   }, [editor]);
 
   if (!editor) {
-    return null;
+    return (
+      <div className={`border rounded-lg overflow-hidden bg-slate-900 p-8 text-center ${className}`}>
+        <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" />
+        <p className="text-slate-400 mt-2">Carregando editor...</p>
+      </div>
+    );
   }
 
   return (
@@ -280,28 +281,6 @@ export const RichTextEditor = ({
           <Strikethrough className="w-4 h-4" />
         </MenuButton>
 
-        {/* Color picker */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="p-1.5 rounded hover:bg-slate-700 text-slate-300" title="Cor do texto">
-              <Palette className="w-4 h-4" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto bg-slate-800 border-slate-700 p-2">
-            <div className="grid grid-cols-5 gap-1">
-              {COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => editor.chain().focus().setColor(color).run()}
-                  className="w-6 h-6 rounded border border-slate-600 hover:scale-110 transition-transform"
-                  style={{ backgroundColor: color }}
-                  title={color}
-                />
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Alignment */}
@@ -423,23 +402,67 @@ export const RichTextEditor = ({
       {/* Editor Content */}
       <EditorContent 
         editor={editor} 
-        className="prose prose-invert max-w-none p-4 min-h-[200px] focus:outline-none
-          [&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:outline-none
-          [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]
-          [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-slate-500
-          [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left
-          [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none
-          [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:w-full
-          [&_.ProseMirror_th]:bg-slate-700 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-slate-600 [&_.ProseMirror_th]:p-2
-          [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-slate-600 [&_.ProseMirror_td]:p-2
-          [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded
-          [&_.ProseMirror_h1]:text-2xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-4
-          [&_.ProseMirror_h2]:text-xl [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mb-3
-          [&_.ProseMirror_h3]:text-lg [&_.ProseMirror_h3]:font-bold [&_.ProseMirror_h3]:mb-2
-          [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5
-          [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5
-        "
+        className="prose prose-invert max-w-none p-4 min-h-[200px] focus:outline-none"
       />
+
+      {/* Custom styles for TipTap */}
+      <style>{`
+        .ProseMirror {
+          min-height: 180px;
+          outline: none;
+        }
+        .ProseMirror p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          color: #64748b;
+          float: left;
+          pointer-events: none;
+        }
+        .ProseMirror table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 1rem 0;
+        }
+        .ProseMirror th {
+          background: #334155;
+          border: 1px solid #475569;
+          padding: 0.5rem;
+          font-weight: bold;
+        }
+        .ProseMirror td {
+          border: 1px solid #475569;
+          padding: 0.5rem;
+        }
+        .ProseMirror img {
+          max-width: 100%;
+          border-radius: 0.25rem;
+        }
+        .ProseMirror h1 {
+          font-size: 1.5rem;
+          font-weight: bold;
+          margin-bottom: 1rem;
+        }
+        .ProseMirror h2 {
+          font-size: 1.25rem;
+          font-weight: bold;
+          margin-bottom: 0.75rem;
+        }
+        .ProseMirror h3 {
+          font-size: 1.1rem;
+          font-weight: bold;
+          margin-bottom: 0.5rem;
+        }
+        .ProseMirror ul {
+          list-style: disc;
+          padding-left: 1.25rem;
+        }
+        .ProseMirror ol {
+          list-style: decimal;
+          padding-left: 1.25rem;
+        }
+        .ProseMirror p {
+          margin-bottom: 0.75rem;
+        }
+      `}</style>
     </div>
   );
 };
