@@ -122,10 +122,26 @@ export const RichTextEditor = ({
 
   const addImage = useCallback(() => {
     if (!imageUrl.trim()) return;
-    execCommand('insertImage', imageUrl);
+    
+    // Focus the editor first
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    
+    // Use insertHTML with an img tag for better control
+    const imgHtml = `<img src="${imageUrl}" alt="image" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`;
+    document.execCommand('insertHTML', false, imgHtml);
+    
+    // Update content
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      lastContentRef.current = newContent;
+      onChange?.(newContent);
+    }
+    
     setImageUrl('');
     setShowImageInput(false);
-  }, [imageUrl, execCommand]);
+  }, [imageUrl, onChange]);
 
   const insertTable = useCallback(() => {
     const table = `
