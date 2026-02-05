@@ -1230,8 +1230,8 @@ async def list_heygen_avatars(limit: int = 200, gender: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
 @api_router.get("/heygen/voices")
-async def list_heygen_voices(language: Optional[str] = None):
-    """List available HeyGen voices"""
+async def list_heygen_voices(language: Optional[str] = None, gender: Optional[str] = None):
+    """List available HeyGen voices with optional language and gender filters"""
     if not HEYGEN_API_KEY:
         raise HTTPException(status_code=500, detail="HeyGen API key not configured")
     
@@ -1247,25 +1247,112 @@ async def list_heygen_voices(language: Optional[str] = None):
                 raise HTTPException(status_code=response.status_code, detail="Failed to fetch voices from HeyGen")
             
             data = response.json()
-            voices = data.get("data", {}).get("voices", [])
+            all_voices = data.get("data", {}).get("voices", [])
+            voices = all_voices.copy()
             
             # Filter by language if specified
-            if language:
-                voices = [v for v in voices if language.lower() in v.get("language", "").lower()]
+            if language and language.lower() != 'all':
+                # Support specific language codes like "pt-BR", "pt-PT", "en-US"
+                if '-' in language:
+                    # Exact match for language code
+                    voices = [v for v in voices if v.get("language", "").lower() == language.lower()]
+                else:
+                    # Partial match (e.g., "portuguese" matches "Portuguese (Brazil)")
+                    voices = [v for v in voices if language.lower() in v.get("language", "").lower()]
+            
+            # Filter by gender if specified
+            if gender and gender.lower() != 'all':
+                voices = [v for v in voices if v.get("gender", "").lower() == gender.lower()]
             
             # Format voices for frontend
             formatted_voices = []
             for voice in voices:
+                lang = voice.get("language", "")
+                # Determine language code and country
+                lang_code = ""
+                country_flag = ""
+                if "brazil" in lang.lower() or "brasileiro" in lang.lower():
+                    lang_code = "pt-BR"
+                    country_flag = "🇧🇷"
+                elif "portugal" in lang.lower() or "português" in lang.lower():
+                    lang_code = "pt-PT"
+                    country_flag = "🇵🇹"
+                elif "english" in lang.lower():
+                    if "us" in lang.lower() or "american" in lang.lower():
+                        lang_code = "en-US"
+                        country_flag = "🇺🇸"
+                    elif "uk" in lang.lower() or "british" in lang.lower():
+                        lang_code = "en-GB"
+                        country_flag = "🇬🇧"
+                    else:
+                        lang_code = "en"
+                        country_flag = "🇺🇸"
+                elif "spanish" in lang.lower() or "español" in lang.lower():
+                    lang_code = "es"
+                    country_flag = "🇪🇸"
+                elif "french" in lang.lower():
+                    lang_code = "fr"
+                    country_flag = "🇫🇷"
+                elif "german" in lang.lower():
+                    lang_code = "de"
+                    country_flag = "🇩🇪"
+                elif "italian" in lang.lower():
+                    lang_code = "it"
+                    country_flag = "🇮🇹"
+                
                 formatted_voices.append({
                     "voice_id": voice.get("voice_id"),
                     "name": voice.get("name"),
-                    "language": voice.get("language"),
+                    "language": lang,
+                    "language_code": lang_code,
+                    "country_flag": country_flag,
                     "gender": voice.get("gender"),
                     "preview_audio": voice.get("preview_audio"),
                     "support_pause": voice.get("support_pause", False),
                 })
             
-            return {"voices": formatted_voices}
+            # Get unique languages for filter options
+            language_options = []
+            seen_languages = set()
+            for v in all_voices:
+                lang = v.get("language", "")
+                if lang and lang not in seen_languages:
+                    seen_languages.add(lang)
+                    # Create a simplified label
+                    if "brazil" in lang.lower():
+                        language_options.append({"value": lang, "label": f"🇧🇷 Português (Brasil)", "code": "pt-BR"})
+                    elif "portugal" in lang.lower():
+                        language_options.append({"value": lang, "label": f"🇵🇹 Português (Portugal)", "code": "pt-PT"})
+                    elif "english" in lang.lower():
+                        if "us" in lang.lower() or "american" in lang.lower():
+                            language_options.append({"value": lang, "label": f"🇺🇸 English (US)", "code": "en-US"})
+                        elif "uk" in lang.lower() or "british" in lang.lower():
+                            language_options.append({"value": lang, "label": f"🇬🇧 English (UK)", "code": "en-GB"})
+                        else:
+                            language_options.append({"value": lang, "label": f"🇺🇸 English", "code": "en"})
+                    elif "spanish" in lang.lower():
+                        language_options.append({"value": lang, "label": f"🇪🇸 Español", "code": "es"})
+                    elif "french" in lang.lower():
+                        language_options.append({"value": lang, "label": f"🇫🇷 Français", "code": "fr"})
+                    elif "german" in lang.lower():
+                        language_options.append({"value": lang, "label": f"🇩🇪 Deutsch", "code": "de"})
+                    elif "italian" in lang.lower():
+                        language_options.append({"value": lang, "label": f"🇮🇹 Italiano", "code": "it"})
+                    else:
+                        language_options.append({"value": lang, "label": lang, "code": ""})
+            
+            # Sort by label
+            language_options.sort(key=lambda x: x["label"])
+            
+            # Get unique genders
+            available_genders = list(set(v.get("gender", "unknown") for v in all_voices if v.get("gender")))
+            
+            return {
+                "voices": formatted_voices,
+                "total": len(voices),
+                "available_languages": language_options,
+                "available_genders": sorted(available_genders)
+            }
     except httpx.RequestError as e:
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
