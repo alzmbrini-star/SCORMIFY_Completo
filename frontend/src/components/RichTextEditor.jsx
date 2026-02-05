@@ -257,31 +257,28 @@ export const RichTextEditor = ({
   }, [imageUrl, onChange]);
 
   const insertTable = useCallback(() => {
-    const table = `
-      <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
-        <thead>
-          <tr>
-            <th style="background: #334155; border: 1px solid #475569; padding: 0.5rem;">Coluna 1</th>
-            <th style="background: #334155; border: 1px solid #475569; padding: 0.5rem;">Coluna 2</th>
-            <th style="background: #334155; border: 1px solid #475569; padding: 0.5rem;">Coluna 3</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 1</td>
-            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 2</td>
-            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 3</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 4</td>
-            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 5</td>
-            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 6</td>
-          </tr>
-        </tbody>
-      </table>
-    `;
+    const rows = Math.max(1, Math.min(10, tableRows));
+    const cols = Math.max(1, Math.min(10, tableCols));
+    
+    let headerCells = '';
+    let bodyCells = '';
+    
+    for (let c = 0; c < cols; c++) {
+      headerCells += `<th>Coluna ${c + 1}</th>`;
+    }
+    
+    for (let r = 0; r < rows - 1; r++) {
+      let rowCells = '';
+      for (let c = 0; c < cols; c++) {
+        rowCells += `<td>Dado ${r * cols + c + 1}</td>`;
+      }
+      bodyCells += `<tr>${rowCells}</tr>`;
+    }
+    
+    const table = `<table class="rtf-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyCells}</tbody></table>`;
     execCommand('insertHTML', table);
-  }, [execCommand]);
+    setShowTableConfig(false);
+  }, [execCommand, tableRows, tableCols]);
 
   const formatBlock = useCallback((tag) => {
     execCommand('formatBlock', tag);
