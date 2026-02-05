@@ -42,29 +42,19 @@ export const RichTextEditor = ({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
-  const [internalContent, setInternalContent] = useState(content || '');
   const editorRef = useRef(null);
-  const initializedRef = useRef(false);
+  const lastContentRef = useRef(content);
 
-  // Sync content from parent
+  // Set initial content when editor mounts or content prop changes
   useEffect(() => {
-    if (editorRef.current && content) {
-      // Set content when it changes or on initial load
-      if (!initializedRef.current || content !== internalContent) {
-        editorRef.current.innerHTML = content;
-        setInternalContent(content);
-        initializedRef.current = true;
+    if (editorRef.current) {
+      // Only update if content changed from parent (not from typing)
+      if (content !== lastContentRef.current) {
+        editorRef.current.innerHTML = content || '';
+        lastContentRef.current = content;
       }
     }
   }, [content]);
-
-  // Reset when dialog opens with new content
-  useEffect(() => {
-    if (content && editorRef.current) {
-      editorRef.current.innerHTML = content;
-      setInternalContent(content);
-    }
-  }, []);
 
   const saveSelection = useCallback(() => {
     const selection = window.getSelection();
