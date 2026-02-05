@@ -108,6 +108,60 @@ export const RichTextEditor = ({
     });
   }, [selectedImage]);
 
+  // Handle image drag start
+  const handleDragStart = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedImage) return;
+    
+    // Get current position
+    const currentLeft = parseInt(selectedImage.style.left) || 0;
+    const currentTop = parseInt(selectedImage.style.top) || 0;
+    
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      imgX: currentLeft,
+      imgY: currentTop
+    });
+  }, [selectedImage]);
+
+  // Handle mouse move for drag
+  useEffect(() => {
+    if (!isDragging || !selectedImage) return;
+
+    const handleMouseMove = (e) => {
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      
+      const newX = dragStart.imgX + dx;
+      const newY = dragStart.imgY + dy;
+      
+      // Update position
+      selectedImage.style.left = `${newX}px`;
+      selectedImage.style.top = `${newY}px`;
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      // Update content after drag
+      if (editorRef.current) {
+        const newContent = editorRef.current.innerHTML;
+        lastContentRef.current = newContent;
+        onChange?.(newContent);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, selectedImage, dragStart, onChange]);
+
   // Handle mouse move for resize
   useEffect(() => {
     if (!isResizing || !selectedImage) return;
