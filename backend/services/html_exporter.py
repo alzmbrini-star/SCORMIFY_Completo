@@ -1032,13 +1032,6 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         if (initiallyHidden) style += 'display:none;'; // Hide initially if has startTime > 0
                         
                         html += '<div class="slide-element ' + elem.type + '-element" id="element-' + elemIndex + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" style="' + style + '">';
-                        style += 'width:' + (elem.width || 100) + 'px;';
-                        style += 'height:' + (elem.height || 100) + 'px;';
-                        style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
-                        if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
-                        if (elem.style && elem.style.opacity !== undefined) style += 'opacity:' + elem.style.opacity + ';';
-                        
-                        html += '<div class="slide-element ' + elem.type + '-element" style="' + style + '">';
                         
                         if (elem.type === 'text') {{
                             var textStyle = '';
