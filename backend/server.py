@@ -1307,7 +1307,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                     
                     # Check if it's an avatar compatibility issue
                     if "AVATAR_NOT_FOUND" in str(error_code) or "avatar" in str(error_data).lower():
-                        logger.warning(f"Avatar not compatible with WebM, falling back to standard video")
+                        logger.warning("Avatar not compatible with WebM, falling back to standard video")
                         # Fall back to standard endpoint without transparent background
                         request.transparent_background = False
                     else:
