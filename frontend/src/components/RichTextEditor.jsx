@@ -44,7 +44,18 @@ export const RichTextEditor = ({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(!content);
   const editorRef = useRef(null);
+  const isInitialized = useRef(false);
+
+  // Initialize content only once
+  useEffect(() => {
+    if (editorRef.current && !isInitialized.current && content) {
+      editorRef.current.innerHTML = content;
+      setIsEmpty(false);
+      isInitialized.current = true;
+    }
+  }, [content]);
 
   const execCommand = useCallback((command, value = null) => {
     document.execCommand(command, false, value);
@@ -52,6 +63,7 @@ export const RichTextEditor = ({
     // Trigger onChange
     if (editorRef.current) {
       onChange?.(editorRef.current.innerHTML);
+      setIsEmpty(!editorRef.current.innerHTML || editorRef.current.innerHTML === '<br>');
     }
   }, [onChange]);
 
