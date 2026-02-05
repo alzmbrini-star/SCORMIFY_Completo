@@ -714,6 +714,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             50% {{ transform: scale(1.1); }}
         }}
         
+        @keyframes fadeIn {{
+            from {{ opacity: 0; transform: translateY(10px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        @keyframes fadeOut {{
+            from {{ opacity: 1; transform: translateY(0); }}
+            to {{ opacity: 0; transform: translateY(-10px); }}
+        }}
+        
         /* Presentation Mode - Fullscreen optimized */
         .presentation-mode #slide-wrapper {{
             padding: 5px !important;
