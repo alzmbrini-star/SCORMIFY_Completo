@@ -892,8 +892,18 @@ export const RichTextEditor = ({
           color: #64748b;
           pointer-events: none;
         }
-        .rich-text-editor * {
+        .rich-text-editor *,
+        .rich-text-editor p,
+        .rich-text-editor span,
+        .rich-text-editor div,
+        .rich-text-editor font,
+        .rich-text-editor b,
+        .rich-text-editor i,
+        .rich-text-editor u,
+        .rich-text-editor strong,
+        .rich-text-editor em {
           background-color: transparent !important;
+          background: transparent !important;
         }
         .rich-text-editor h1 {
           font-size: 1.5rem;
