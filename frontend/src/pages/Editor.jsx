@@ -93,6 +93,7 @@ import {
   ChevronRight,
   SkipBack,
   Menu,
+  Check,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
