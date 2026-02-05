@@ -576,3 +576,29 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: IMPLEMENTED AND TESTED
 - **Verification**: Testing agent confirmou drag de left:20px/top:20px para left:100px/top:60px
 
+### Font and Color Selectors + Transparent Background - IMPLEMENTED (Feb 5, 2026)
+- **Feature 1: Fundo Transparente**
+  - CSS rules para `.rich-text-editor` e todos os filhos com `background-color: transparent !important`
+  - Permite que o texto destaque com a cor do slide
+  
+- **Feature 2: Seletor de Fonte**
+  - 10 fontes disponíveis: Arial, Helvetica, Verdana, Tahoma, Trebuchet MS, Georgia, Times New Roman, Courier New, Impact, Comic Sans MS
+  - Cada fonte exibida no seu próprio estilo na lista
+  - Aplicação via `document.execCommand('fontName')`
+  
+- **Feature 3: Seletor de Cor**
+  - 20 cores predefinidas em grade 5x4
+  - Cores incluem: branco, preto, primárias, secundárias, e tons modernos (#22d3ee, #a855f7, #ec4899, etc)
+  - Color picker nativo do navegador para cor personalizada
+  - Campo HEX para entrada manual (#FFFFFF)
+  - Indicador de cor atual ao lado do ícone de paleta
+  
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx`:
+    - FONTS array com 10 fontes
+    - COLORS array com 20 cores
+    - applyFont() e applyColor() functions
+    - CSS styles para fundo transparente
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Testing agent confirmou todas as funcionalidades (17 testes passaram)
+
