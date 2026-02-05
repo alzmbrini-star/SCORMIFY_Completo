@@ -539,11 +539,41 @@ export const RichTextEditor = ({
         contentEditable="true"
         onInput={handleInput}
         onPaste={handlePaste}
-        className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100"
+        onClick={handleEditorClick}
+        className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100 relative"
         style={{ lineHeight: '1.6' }}
         data-placeholder={placeholder}
         suppressContentEditableWarning={true}
       />
+      
+      {/* Image Resize Handles */}
+      {selectedImage && !isResizing && (
+        <div 
+          className="resize-handles-container"
+          style={{
+            position: 'absolute',
+            pointerEvents: 'none'
+          }}
+        >
+          <div 
+            className="resize-handle resize-handle-se"
+            onMouseDown={(e) => handleResizeStart(e, 'corner')}
+            style={{
+              position: 'fixed',
+              width: '12px',
+              height: '12px',
+              background: '#22d3ee',
+              border: '2px solid #0e7490',
+              borderRadius: '2px',
+              cursor: 'nwse-resize',
+              pointerEvents: 'auto',
+              left: selectedImage.getBoundingClientRect().right - 6,
+              top: selectedImage.getBoundingClientRect().bottom - 6,
+              zIndex: 9999
+            }}
+          />
+        </div>
+      )}
 
       {/* Custom styles */}
       <style>{`
