@@ -620,6 +620,38 @@ export const RichTextEditor = ({
           </PopoverContent>
         </Popover>
 
+        {/* Font Size Selector */}
+        <Popover open={showFontSizeSelect} onOpenChange={setShowFontSizeSelect}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-300 flex items-center gap-1 text-xs font-medium min-w-[40px] justify-center"
+              title="Tamanho da fonte"
+            >
+              {FONT_SIZES.find(s => s.value === currentFontSize)?.name || '14px'}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-28 bg-slate-800 border-slate-700 p-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-400">Tamanho</Label>
+              <div className="space-y-1">
+                {FONT_SIZES.map((size) => (
+                  <button
+                    key={size.value}
+                    type="button"
+                    onClick={() => applyFontSize(size.value)}
+                    className={`w-full text-left px-2 py-1 rounded text-sm hover:bg-slate-700 ${
+                      currentFontSize === size.value ? 'bg-slate-700 text-cyan-400' : 'text-slate-200'
+                    }`}
+                  >
+                    {size.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Undo/Redo */}
