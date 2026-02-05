@@ -1039,9 +1039,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         }}
                         else if (elem.type === 'video') {{
                             if (elem.embedUrl) {{
-                                html += '<iframe src="' + elem.embedUrl + '" allow="autoplay; fullscreen" allowfullscreen></iframe>';
+                                html += '<iframe src="' + elem.embedUrl + '" allow="autoplay; fullscreen" allowfullscreen style="background:transparent;"></iframe>';
                             }} else if (elem.src) {{
-                                html += '<video src="' + elem.src + '" controls></video>';
+                                // Check if video is WebM (likely has alpha channel for transparency)
+                                var isWebM = elem.src && elem.src.toLowerCase().includes('.webm');
+                                var videoStyle = isWebM ? 'style="background:transparent !important;"' : '';
+                                html += '<video src="' + elem.src + '" controls ' + videoStyle + '></video>';
                             }}
                         }}
                         else if (elem.type === 'button') {{
