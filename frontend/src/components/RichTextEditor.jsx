@@ -726,6 +726,23 @@ export const RichTextEditor = ({
           box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.2);
           cursor: nwse-resize;
         }
+        /* Floating image styles */
+        .rich-text-editor img.floating-image {
+          position: absolute;
+          cursor: move;
+          z-index: 10;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .rich-text-editor img.floating-image:hover {
+          outline: 2px dashed #22d3ee;
+          outline-offset: 2px;
+        }
+        .rich-text-editor img.floating-image.selected-image {
+          outline: 3px solid #22d3ee;
+          outline-offset: 2px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 4px rgba(34, 211, 238, 0.2);
+          cursor: move;
+        }
         /* Enhanced Table Styles */
         .rich-text-editor table,
         .rich-text-editor table.rtf-table {
