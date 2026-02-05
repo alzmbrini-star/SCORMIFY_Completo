@@ -663,11 +663,12 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Verification**: Exportar SCORM novamente para verificar fundo transparente e acentos corretos
 
 ### Video Library (Biblioteca de Vídeos) - IMPLEMENTED (Feb 5, 2026)
-- **Feature**: Permite recuperar e reutilizar vídeos HeyGen gerados anteriormente
+- **Feature**: Permite recuperar, reutilizar e excluir vídeos HeyGen gerados anteriormente
 - **Implementation**:
   1. **Backend**:
      - Endpoint `GET /api/heygen/videos` atualizado para incluir mais campos (script, avatar_id, voice_id, project_id)
      - Novo endpoint `GET /api/heygen/videos/{video_id}/refresh` para atualizar status de vídeo pendente
+     - Novo endpoint `DELETE /api/heygen/videos/{video_id}` para excluir vídeos da biblioteca
      - `POST /api/heygen/generate-video` agora aceita `project_id` opcional
   2. **Frontend**:
      - Novo botão "📹 Biblioteca de Vídeos" (Film icon) na toolbar do editor
@@ -680,15 +681,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
        - Preview de vídeo no hover (para vídeos completos)
      - Botão "Adicionar" para adicionar vídeos completos ao slide atual
      - Botão "Atualizar" para verificar status de vídeos em processamento
+     - Botão "Excluir" (vermelho) para remover vídeos indesejados da biblioteca
      - Botão "Atualizar Lista" para recarregar lista
 - **Files Modified**:
   - `/app/backend/server.py`:
     - `HeyGenVideoRequest` - adicionado campo `project_id`
     - `list_heygen_videos` - expandido com mais campos e filtro por projeto
     - `refresh_heygen_video_status` - novo endpoint para atualizar status
+    - `delete_heygen_video` - novo endpoint para excluir vídeos
   - `/app/frontend/src/pages/Editor.jsx`:
     - Estados: `showVideoLibrary`, `videoLibraryItems`, `videoLibraryLoading`, `refreshingVideoId`
-    - Funções: `loadVideoLibrary`, `refreshVideoStatus`, `handleAddLibraryVideoToSlide`, `handleOpenVideoLibrary`, `formatDuration`, `formatDateTime`, `getStatusBadge`
-    - UI: Botão na toolbar (data-testid="video-library-btn"), Diálogo completo
+    - Funções: `loadVideoLibrary`, `refreshVideoStatus`, `handleAddLibraryVideoToSlide`, `handleDeleteLibraryVideo`, `handleOpenVideoLibrary`, `formatDuration`, `formatDateTime`, `getStatusBadge`
+    - UI: Botão na toolbar (data-testid="video-library-btn"), Diálogo completo com botões Adicionar/Excluir
 - **Status**: IMPLEMENTED AND TESTED (100% success rate)
-- **Verification**: Testing agent confirmou todas as funcionalidades funcionando corretamente
+- **Verification**: Testing agent e testes manuais confirmaram todas as funcionalidades funcionando corretamente
