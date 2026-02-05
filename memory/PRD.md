@@ -644,3 +644,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: IMPLEMENTED
 - **Verification**: Caracteres como "utilização", "navegação", "áreas", "decisões" agora aparecem corretamente
 
+### SCORM Export Transparent Background + UTF-8 Fix - IMPLEMENTED (Feb 5, 2026)
+- **Issues Fixed**:
+  1. Fundo branco nos elementos HTML no SCORM export
+  2. Caracteres acentuados corrompidos na exportação SCORM
+  
+- **Fixes Applied**:
+  1. CSS `.html-element { background: white; }` → `background: transparent;`
+  2. CSS `.html-element iframe` adicionado `background: transparent;`
+  3. JavaScript: srcdoc envolve conteúdo em HTML completo com CSS transparente
+  4. JavaScript: Decodificação base64 com `TextDecoder('utf-8')` para UTF-8 correto
+  
+- **File Modified**:
+  - `/app/backend/services/scorm_exporter.py`
+    - Linhas ~838-865: Novo case 'html' com decodificação UTF-8 e wrapping HTML
+    - Linhas ~1764-1775: CSS com fundo transparente
+- **Status**: IMPLEMENTED
+- **Verification**: Exportar SCORM novamente para verificar fundo transparente e acentos corretos
+
