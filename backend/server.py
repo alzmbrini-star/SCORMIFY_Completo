@@ -1872,6 +1872,80 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ============================================
+# AI Text Generation Endpoint
+# ============================================
+from pydantic import BaseModel
+
+class AITextGenerateRequest(BaseModel):
+    prompt: str
+    context: Optional[str] = None
+    format: str = "html"  # html, plain, markdown
+
+@api_router.post("/ai/generate-text")
+async def generate_text_with_ai(request: AITextGenerateRequest):
+    """Generate formatted text content using AI (GPT-4o)"""
+    
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI API key not configured")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # System message for text generation
+        system_message = """Você é um assistente especializado em criar conteúdo educacional formatado em HTML.
+
+Regras:
+1. SEMPRE responda em português brasileiro
+2. Use tags HTML para formatação: <h1>, <h2>, <h3>, <p>, <strong>, <em>, <ul>, <ol>, <li>, <table>, <tr>, <td>, <th>
+3. Crie conteúdo bem estruturado com títulos, parágrafos e listas quando apropriado
+4. Use tabelas para dados comparativos ou estruturados
+5. Seja conciso mas informativo
+6. NÃO inclua tags <html>, <head> ou <body> - apenas o conteúdo interno
+7. NÃO use markdown, apenas HTML puro
+
+Exemplo de resposta formatada:
+<h2>Título do Tópico</h2>
+<p>Parágrafo introdutório explicando o conceito.</p>
+<h3>Subtópico</h3>
+<ul>
+  <li><strong>Item 1:</strong> Descrição do item</li>
+  <li><strong>Item 2:</strong> Descrição do item</li>
+</ul>"""
+
+        # Initialize chat with GPT-4o
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"text-gen-{uuid.uuid4()}",
+            system_message=system_message
+        ).with_model("openai", "gpt-4o")
+        
+        # Build the prompt
+        full_prompt = f"Gere conteúdo formatado sobre: {request.prompt}"
+        if request.context:
+            full_prompt += f"\n\nContexto adicional: {request.context}"
+        
+        # Send message and get response
+        user_message = UserMessage(text=full_prompt)
+        response = await chat.send_message(user_message)
+        
+        logger.info(f"AI text generated successfully for prompt: {request.prompt[:50]}...")
+        
+        return {
+            "success": True,
+            "content": response,
+            "format": request.format
+        }
+        
+    except ImportError:
+        logger.error("emergentintegrations library not installed")
+        raise HTTPException(status_code=500, detail="AI integration library not available. Install with: pip install emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/")
+    except Exception as e:
+        logger.error(f"AI text generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate text: {str(e)}")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
