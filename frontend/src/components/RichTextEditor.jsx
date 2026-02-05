@@ -538,17 +538,40 @@ export const RichTextEditor = ({
               <ImageIcon className="w-4 h-4" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 bg-slate-800 border-slate-700">
-            <div className="space-y-2">
+          <PopoverContent className="w-72 bg-slate-800 border-slate-700">
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm text-slate-100">Inserir Imagem</h4>
               <Input
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="URL da imagem..."
                 className="bg-slate-900 border-slate-700"
               />
-              <Button onClick={addImage} size="sm" type="button" className="w-full">
-                Inserir Imagem
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  onClick={() => addImage(false)} 
+                  size="sm" 
+                  type="button" 
+                  variant="outline"
+                  className="text-xs"
+                  disabled={!imageUrl.trim()}
+                >
+                  Em linha
+                </Button>
+                <Button 
+                  onClick={() => addImage(true)} 
+                  size="sm" 
+                  type="button" 
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700"
+                  disabled={!imageUrl.trim()}
+                >
+                  Flutuante
+                </Button>
+              </div>
+              <p className="text-xs text-slate-400">
+                <strong>Em linha:</strong> segue o fluxo do texto<br/>
+                <strong>Flutuante:</strong> posição livre, arraste para mover
+              </p>
             </div>
           </PopoverContent>
         </Popover>
