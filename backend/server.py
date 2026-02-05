@@ -1813,6 +1813,8 @@ async def heygen_video_events(video_id: str, request: Request):
             # Wait for updates from webhook
             timeout_seconds = 900  # 15 minutes max
             start_time = datetime.now(timezone.utc)
+            last_api_check = start_time
+            api_check_interval = 10  # Check API every 10 seconds if no webhook
             
             while True:
                 # Check if client disconnected
@@ -1828,7 +1830,7 @@ async def heygen_video_events(video_id: str, request: Request):
                 
                 try:
                     # Wait for event with timeout
-                    event_data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    event_data = await asyncio.wait_for(queue.get(), timeout=5.0)
                     yield f"data: {json.dumps(event_data)}\n\n"
                     
                     # If video is done, close the stream
@@ -1836,8 +1838,49 @@ async def heygen_video_events(video_id: str, request: Request):
                         break
                         
                 except asyncio.TimeoutError:
-                    # Send keepalive ping every 30 seconds
-                    yield f"data: {json.dumps({'event': 'ping', 'elapsed': int(elapsed)})}\n\n"
+                    # No webhook received, check API directly as fallback
+                    time_since_last_check = (datetime.now(timezone.utc) - last_api_check).total_seconds()
+                    
+                    if time_since_last_check >= api_check_interval:
+                        last_api_check = datetime.now(timezone.utc)
+                        
+                        # Check status from HeyGen API directly
+                        try:
+                            async with httpx.AsyncClient() as client:
+                                headers = {"X-Api-Key": os.getenv("HEYGEN_API_KEY", "")}
+                                resp = await client.get(
+                                    f"https://api.heygen.com/v1/video_status.get?video_id={video_id}",
+                                    headers=headers,
+                                    timeout=10.0
+                                )
+                                if resp.status_code == 200:
+                                    api_data = resp.json().get("data", {})
+                                    api_status = api_data.get("status", "processing")
+                                    api_video_url = api_data.get("video_url")
+                                    
+                                    # Update database
+                                    if api_status in ["completed", "failed", "error"]:
+                                        await db.heygen_videos.update_one(
+                                            {"video_id": video_id},
+                                            {"$set": {
+                                                "status": api_status,
+                                                "video_url": api_video_url,
+                                                "api_checked_at": now_utc()
+                                            }}
+                                        )
+                                        
+                                        yield f"data: {json.dumps({'event': 'status_update', 'video_id': video_id, 'status': api_status, 'video_url': api_video_url})}\n\n"
+                                        break
+                                    else:
+                                        # Send progress update
+                                        yield f"data: {json.dumps({'event': 'ping', 'elapsed': int(elapsed), 'status': api_status})}\n\n"
+                        except Exception as e:
+                            logger.error(f"Error checking HeyGen API: {e}")
+                            # Send keepalive ping
+                            yield f"data: {json.dumps({'event': 'ping', 'elapsed': int(elapsed)})}\n\n"
+                    else:
+                        # Just send keepalive
+                        yield f"data: {json.dumps({'event': 'ping', 'elapsed': int(elapsed)})}\n\n"
                     
         finally:
             # Unregister subscriber
