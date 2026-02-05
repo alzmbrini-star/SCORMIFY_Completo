@@ -83,7 +83,7 @@ export const RichTextEditor = ({
     setTimeout(() => {
       if (editorRef.current) {
         const newContent = editorRef.current.innerHTML;
-        setInternalContent(newContent);
+        lastContentRef.current = newContent;
         onChange?.(newContent);
       }
     }, 0);
@@ -95,10 +95,10 @@ export const RichTextEditor = ({
     try {
       const generatedContent = await onGenerateAI(aiPrompt);
       if (generatedContent) {
-        setInternalContent(generatedContent);
         if (editorRef.current) {
           editorRef.current.innerHTML = generatedContent;
         }
+        lastContentRef.current = generatedContent;
         onChange?.(generatedContent);
       }
       setShowAIPrompt(false);
