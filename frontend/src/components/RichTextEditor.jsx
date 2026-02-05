@@ -386,6 +386,40 @@ export const RichTextEditor = ({
     setShowTableConfig(false);
   }, [onChange, tableRows, tableCols]);
 
+  // Apply font family to selection
+  const applyFont = useCallback((fontFamily) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    document.execCommand('fontName', false, fontFamily);
+    setCurrentFont(fontFamily);
+    setShowFontSelect(false);
+    
+    // Update content
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      lastContentRef.current = newContent;
+      onChange?.(newContent);
+    }
+  }, [onChange]);
+
+  // Apply text color to selection
+  const applyColor = useCallback((color) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    document.execCommand('foreColor', false, color);
+    setCurrentColor(color);
+    setShowColorPicker(false);
+    
+    // Update content
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      lastContentRef.current = newContent;
+      onChange?.(newContent);
+    }
+  }, [onChange]);
+
   const formatBlock = useCallback((tag) => {
     execCommand('formatBlock', tag);
   }, [execCommand]);
