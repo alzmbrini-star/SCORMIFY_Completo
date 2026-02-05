@@ -131,9 +131,18 @@ export const RichTextEditor = ({
 
   const handleInput = useCallback(() => {
     if (editorRef.current) {
-      onChange?.(editorRef.current.innerHTML);
+      const html = editorRef.current.innerHTML;
+      onChange?.(html);
+      setIsEmpty(!html || html === '<br>' || html === '');
     }
   }, [onChange]);
+
+  // Handle focus to remove placeholder
+  const handleFocus = useCallback(() => {
+    if (editorRef.current && isEmpty) {
+      // Clear placeholder state on focus
+    }
+  }, [isEmpty]);
 
   return (
     <div className={`border rounded-lg overflow-hidden bg-slate-900 ${className}`}>
