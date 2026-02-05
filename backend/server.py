@@ -1698,6 +1698,29 @@ async def refresh_heygen_video_status(video_id: str):
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
+
+@api_router.delete("/heygen/videos/{video_id}")
+async def delete_heygen_video(video_id: str):
+    """Delete a video from the library (database only, not from HeyGen)"""
+    # Check if video exists
+    video_doc = await db.heygen_videos.find_one({"video_id": video_id})
+    if not video_doc:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Delete from database
+    result = await db.heygen_videos.delete_one({"video_id": video_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to delete video")
+    
+    logger.info(f"Deleted video {video_id} from library")
+    
+    return {
+        "message": "Video deleted successfully",
+        "video_id": video_id
+    }
+
+
 # HeyGen Credits/Quota Check
 @api_router.get("/heygen/credits")
 async def get_heygen_credits(force_refresh: bool = False):
