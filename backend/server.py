@@ -71,6 +71,17 @@ HEYGEN_HEADERS = {
     "Content-Type": "application/json"
 }
 
+# HeyGen Credits Cache (to avoid slow repeated API calls)
+heygen_credits_cache: Dict[str, Any] = {
+    "data": None,
+    "timestamp": None,
+    "ttl": 60  # Cache for 60 seconds
+}
+
+# SSE Event Store for HeyGen webhook notifications
+# Maps video_id to list of asyncio.Event objects waiting for updates
+heygen_sse_subscribers: Dict[str, List[asyncio.Queue]] = {}
+
 # Create the main app
 app = FastAPI(title="Scormify API", version="1.0.0")
 
