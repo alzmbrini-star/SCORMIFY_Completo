@@ -619,20 +619,24 @@ export const RichTextEditor = ({
         onPaste={handlePaste}
         onClick={handleEditorClick}
         onMouseDown={(e) => {
-          // Check if clicking on resize handle
           const img = e.target.closest('img.selected-image');
           if (img && selectedImage === img) {
             const rect = img.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
+            
             // Check if in bottom-right corner (resize zone - 20px)
             if (x > rect.width - 20 && y > rect.height - 20) {
               handleResizeStart(e, 'corner');
+            } 
+            // Check if it's a floating image - allow drag
+            else if (img.classList.contains('floating-image')) {
+              handleDragStart(e);
             }
           }
         }}
         className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100 relative"
-        style={{ lineHeight: '1.6' }}
+        style={{ lineHeight: '1.6', position: 'relative' }}
         data-placeholder={placeholder}
         suppressContentEditableWarning={true}
       />
