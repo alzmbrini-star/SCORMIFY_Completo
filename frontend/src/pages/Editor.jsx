@@ -3143,6 +3143,21 @@ export default function Editor() {
                                     <span className="ml-1 text-xs">Adicionar</span>
                                   </Button>
                                 )}
+                                
+                                {/* Delete button - always visible */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteLibraryVideo(video.video_id, video.title);
+                                  }}
+                                  data-testid={`delete-video-${video.video_id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span className="ml-1 text-xs">Excluir</span>
+                                </Button>
                               </div>
                             </div>
                             
