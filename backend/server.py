@@ -1614,9 +1614,13 @@ async def get_heygen_video_status(video_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
 @api_router.get("/heygen/videos")
-async def list_heygen_videos():
-    """List all generated HeyGen videos"""
-    videos = await db.heygen_videos.find().sort("created_at", -1).to_list(100)
+async def list_heygen_videos(project_id: Optional[str] = None):
+    """List all generated HeyGen videos, optionally filtered by project"""
+    query = {}
+    if project_id:
+        query["project_id"] = project_id
+    
+    videos = await db.heygen_videos.find(query).sort("created_at", -1).to_list(100)
     
     formatted_videos = []
     for video in videos:
@@ -1627,10 +1631,72 @@ async def list_heygen_videos():
             "video_url": video.get("video_url"),
             "thumbnail_url": video.get("thumbnail_url"),
             "duration": video.get("duration"),
+            "script": video.get("script"),
+            "avatar_id": video.get("avatar_id"),
+            "voice_id": video.get("voice_id"),
+            "project_id": video.get("project_id"),
+            "transparent": video.get("transparent"),
             "created_at": video.get("created_at").isoformat() if video.get("created_at") else None
         })
     
     return {"videos": formatted_videos}
+
+
+@api_router.get("/heygen/videos/{video_id}/refresh")
+async def refresh_heygen_video_status(video_id: str):
+    """Refresh video status from HeyGen API and update database"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response = await http_client.get(
+                f"{HEYGEN_BASE_URL}/v1/video_status.get?video_id={video_id}",
+                headers=HEYGEN_HEADERS
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"HeyGen status error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch video status")
+            
+            data = response.json()
+            video_data = data.get("data", {})
+            status = video_data.get("status", "unknown")
+            video_url = video_data.get("video_url")
+            thumbnail_url = video_data.get("thumbnail_url")
+            duration = video_data.get("duration")
+            
+            # Update database with fresh status
+            update_data = {"status": status}
+            if video_url:
+                update_data["video_url"] = video_url
+            if thumbnail_url:
+                update_data["thumbnail_url"] = thumbnail_url
+            if duration:
+                update_data["duration"] = duration
+            
+            await db.heygen_videos.update_one(
+                {"video_id": video_id},
+                {"$set": update_data}
+            )
+            
+            # Get full video data from database
+            video_doc = await db.heygen_videos.find_one({"video_id": video_id})
+            
+            return {
+                "video_id": video_id,
+                "status": status,
+                "video_url": video_url,
+                "thumbnail_url": thumbnail_url,
+                "duration": duration,
+                "title": video_doc.get("title") if video_doc else None,
+                "script": video_doc.get("script") if video_doc else None,
+                "project_id": video_doc.get("project_id") if video_doc else None,
+                "created_at": video_doc.get("created_at").isoformat() if video_doc and video_doc.get("created_at") else None
+            }
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
 # HeyGen Credits/Quota Check
 @api_router.get("/heygen/credits")
