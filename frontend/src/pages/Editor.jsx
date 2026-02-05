@@ -1258,6 +1258,22 @@ export default function Editor() {
     }
   };
 
+  const handleDeleteLibraryVideo = async (videoId, videoTitle) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o vídeo "${videoTitle || 'Sem título'}"?\n\nEsta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/api/heygen/videos/${videoId}`);
+      // Remove from local state
+      setVideoLibraryItems(prev => prev.filter(v => v.video_id !== videoId));
+      toast.success('Vídeo excluído com sucesso!');
+    } catch (err) {
+      console.error('Error deleting video:', err);
+      toast.error('Falha ao excluir vídeo');
+    }
+  };
+
   const handleOpenVideoLibrary = () => {
     loadVideoLibrary();
     setShowVideoLibrary(true);
