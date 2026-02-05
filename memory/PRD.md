@@ -695,3 +695,16 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
     - UI: Botão na toolbar (data-testid="video-library-btn"), Diálogo completo com botões Adicionar/Excluir
 - **Status**: IMPLEMENTED AND TESTED (100% success rate)
 - **Verification**: Testing agent e testes manuais confirmaram todas as funcionalidades funcionando corretamente
+
+### HTML Export Video Transparency Fix - IMPLEMENTED (Feb 5, 2026)
+- **Issue**: Vídeos WebM com fundo transparente (HeyGen avatars) apareciam com fundo preto na exportação HTML
+- **Root Cause**: CSS `.video-element` tinha `background: #000` que sobrepunha a transparência do vídeo
+- **Fix Applied**:
+  1. CSS `.video-element` alterado para `background: transparent`
+  2. CSS `.video-element video` adicionado `background-color: transparent !important`
+  3. JavaScript: vídeos WebM recebem style inline `background:transparent !important`
+  4. Removido `border-radius` e `overflow:hidden` que causavam artefatos
+- **File Modified**:
+  - `/app/backend/services/html_exporter.py` (linhas ~458-480 CSS, linhas ~1040-1050 JS)
+- **Status**: IMPLEMENTED
+- **Note**: Vídeos WebM da HeyGen gerados com `transparent_background: true` agora exibem fundo transparente corretamente
