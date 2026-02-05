@@ -2866,6 +2866,49 @@ export default function Editor() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Rich Text Editor with AI Dialog */}
+        <Dialog open={showRichTextDialog} onOpenChange={setShowRichTextDialog}>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-500" />
+                Editor de Texto com IA
+              </DialogTitle>
+              <DialogDescription>
+                Escreva seu texto ou use a IA para gerar conteúdo formatado automaticamente
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="py-4">
+              <RichTextEditor
+                content={richTextContent}
+                onChange={setRichTextContent}
+                onGenerateAI={generateTextWithAI}
+                isGenerating={richTextGenerating}
+                placeholder="Digite seu texto ou clique em 'Gerar com IA' para criar conteúdo..."
+                className="min-h-[400px]"
+              />
+            </div>
+
+            <DialogFooter className="flex justify-between">
+              <Button variant="ghost" onClick={() => {
+                setShowRichTextDialog(false);
+                setRichTextContent('');
+              }}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleAddRichTextToSlide}
+                disabled={!richTextContent.trim()}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Adicionar ao Slide
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
