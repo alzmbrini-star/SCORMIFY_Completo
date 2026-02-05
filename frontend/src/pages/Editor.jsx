@@ -2889,15 +2889,24 @@ export default function Editor() {
         </Dialog>
 
         {/* Rich Text Editor with AI Dialog */}
-        <Dialog open={showRichTextDialog} onOpenChange={setShowRichTextDialog}>
+        <Dialog open={showRichTextDialog} onOpenChange={(open) => {
+          setShowRichTextDialog(open);
+          if (!open) {
+            setEditingHtmlElementId(null);
+            setRichTextContent('');
+          }
+        }}>
           <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-500" />
-                Editor de Texto com IA
+                {editingHtmlElementId ? 'Editar Texto' : 'Criar Texto com IA'}
               </DialogTitle>
               <DialogDescription>
-                Escreva seu texto ou use a IA para gerar conteúdo formatado automaticamente
+                {editingHtmlElementId 
+                  ? 'Edite o texto existente ou gere novo conteúdo com IA'
+                  : 'Escreva seu texto ou use a IA para gerar conteúdo formatado automaticamente'
+                }
               </DialogDescription>
             </DialogHeader>
             
@@ -2916,6 +2925,7 @@ export default function Editor() {
               <Button variant="ghost" onClick={() => {
                 setShowRichTextDialog(false);
                 setRichTextContent('');
+                setEditingHtmlElementId(null);
               }}>
                 Cancelar
               </Button>
@@ -2924,8 +2934,17 @@ export default function Editor() {
                 disabled={!richTextContent.trim()}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Adicionar ao Slide
+                {editingHtmlElementId ? (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Salvar Alterações
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar ao Slide
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
