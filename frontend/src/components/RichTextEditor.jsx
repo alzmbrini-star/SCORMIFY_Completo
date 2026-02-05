@@ -44,22 +44,19 @@ export const RichTextEditor = ({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
-  const [isEmpty, setIsEmpty] = useState(!content);
+  const [isEmpty, setIsEmpty] = useState(true);
   const editorRef = useRef(null);
   const isInitialized = useRef(false);
 
-  // Initialize content only once
+  // Initialize content only once when editor mounts
   useEffect(() => {
-    if (editorRef.current && !isInitialized.current && content) {
-      editorRef.current.innerHTML = content;
-      isInitialized.current = true;
+    if (editorRef.current && !isInitialized.current) {
+      if (content) {
+        editorRef.current.innerHTML = content;
+        isInitialized.current = true;
+      }
     }
   }, [content]);
-
-  // Track empty state separately
-  useEffect(() => {
-    setIsEmpty(!content);
-  }, []);
 
   const execCommand = useCallback((command, value = null) => {
     document.execCommand(command, false, value);
