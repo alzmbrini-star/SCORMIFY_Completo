@@ -1,20 +1,10 @@
-import React, { useCallback, useState, useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import TextAlign from '@tiptap/extension-text-align';
-import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
-import Table from '@tiptap/extension-table';
-import TableRow from '@tiptap/extension-table-row';
-import TableCell from '@tiptap/extension-table-cell';
-import TableHeader from '@tiptap/extension-table-header';
+import React, { useState, useRef, useCallback } from 'react';
 import { 
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Link as LinkIcon, Image as ImageIcon,
   Table as TableIcon, Undo, Redo, Heading1, Heading2, Heading3,
-  Sparkles, Loader2, Palette
+  Sparkles, Loader2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -26,6 +16,7 @@ const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
     onClick={onClick}
     disabled={disabled}
     title={title}
+    type="button"
     className={`p-1.5 rounded hover:bg-slate-700 transition-colors ${
       isActive ? 'bg-slate-700 text-cyan-400' : 'text-slate-300'
     } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -53,99 +44,83 @@ export const RichTextEditor = ({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
+  const editorRef = useRef(null);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Underline,
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-cyan-400 underline cursor-pointer',
-        },
-      }),
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-      }),
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableCell,
-      TableHeader,
-    ],
-    content: content || '',
-    onUpdate: ({ editor }) => {
-      onChange?.(editor.getHTML());
-    },
-  });
-
-  // Update editor content when prop changes
-  useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content || '');
+  const execCommand = useCallback((command, value = null) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+    // Trigger onChange
+    if (editorRef.current) {
+      onChange?.(editorRef.current.innerHTML);
     }
-  }, [content, editor]);
+  }, [onChange]);
 
   const handleAIGenerate = useCallback(async () => {
     if (!aiPrompt.trim() || !onGenerateAI) return;
     
     try {
       const generatedContent = await onGenerateAI(aiPrompt);
-      if (generatedContent && editor) {
-        editor.commands.setContent(generatedContent);
+      if (generatedContent && editorRef.current) {
+        editorRef.current.innerHTML = generatedContent;
+        onChange?.(generatedContent);
       }
       setShowAIPrompt(false);
       setAIPrompt('');
     } catch (error) {
       console.error('Error generating AI content:', error);
     }
-  }, [aiPrompt, onGenerateAI, editor]);
+  }, [aiPrompt, onGenerateAI, onChange]);
 
   const addLink = useCallback(() => {
-    if (!linkUrl.trim() || !editor) return;
-    
-    editor
-      .chain()
-      .focus()
-      .extendMarkRange('link')
-      .setLink({ href: linkUrl })
-      .run();
-    
+    if (!linkUrl.trim()) return;
+    execCommand('createLink', linkUrl);
     setLinkUrl('');
     setShowLinkInput(false);
-  }, [editor, linkUrl]);
+  }, [linkUrl, execCommand]);
 
   const addImage = useCallback(() => {
-    if (!imageUrl.trim() || !editor) return;
-    
-    editor.chain().focus().setImage({ src: imageUrl }).run();
-    
+    if (!imageUrl.trim()) return;
+    execCommand('insertImage', imageUrl);
     setImageUrl('');
     setShowImageInput(false);
-  }, [editor, imageUrl]);
+  }, [imageUrl, execCommand]);
 
   const insertTable = useCallback(() => {
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-      .run();
-  }, [editor]);
+    const table = `
+      <table style="border-collapse: collapse; width: 100%; margin: 1rem 0;">
+        <thead>
+          <tr>
+            <th style="background: #334155; border: 1px solid #475569; padding: 0.5rem;">Coluna 1</th>
+            <th style="background: #334155; border: 1px solid #475569; padding: 0.5rem;">Coluna 2</th>
+            <th style="background: #334155; border: 1px solid #475569; padding: 0.5rem;">Coluna 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 1</td>
+            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 2</td>
+            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 3</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 4</td>
+            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 5</td>
+            <td style="border: 1px solid #475569; padding: 0.5rem;">Dado 6</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    execCommand('insertHTML', table);
+  }, [execCommand]);
 
-  if (!editor) {
-    return (
-      <div className={`border rounded-lg overflow-hidden bg-slate-900 p-8 text-center ${className}`}>
-        <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" />
-        <p className="text-slate-400 mt-2">Carregando editor...</p>
-      </div>
-    );
-  }
+  const formatBlock = useCallback((tag) => {
+    execCommand('formatBlock', tag);
+  }, [execCommand]);
+
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      onChange?.(editorRef.current.innerHTML);
+    }
+  }, [onChange]);
 
   return (
     <div className={`border rounded-lg overflow-hidden bg-slate-900 ${className}`}>
@@ -157,6 +132,7 @@ export const RichTextEditor = ({
             <Button
               variant="ghost"
               size="sm"
+              type="button"
               className="gap-1 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20"
               disabled={isGenerating}
             >
@@ -181,6 +157,7 @@ export const RichTextEditor = ({
                 <Button
                   onClick={handleAIGenerate}
                   disabled={!aiPrompt.trim() || isGenerating}
+                  type="button"
                   className="flex-1 bg-purple-600 hover:bg-purple-700"
                 >
                   {isGenerating ? (
@@ -197,6 +174,7 @@ export const RichTextEditor = ({
                 </Button>
                 <Button
                   variant="ghost"
+                  type="button"
                   onClick={() => setShowAIPrompt(false)}
                 >
                   Cancelar
@@ -209,125 +187,65 @@ export const RichTextEditor = ({
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Undo/Redo */}
-        <MenuButton
-          onClick={() => editor.chain().focus().undo().run()}
-          disabled={!editor.can().undo()}
-          title="Desfazer"
-        >
+        <MenuButton onClick={() => execCommand('undo')} title="Desfazer">
           <Undo className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().redo().run()}
-          disabled={!editor.can().redo()}
-          title="Refazer"
-        >
+        <MenuButton onClick={() => execCommand('redo')} title="Refazer">
           <Redo className="w-4 h-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Headings */}
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          isActive={editor.isActive('heading', { level: 1 })}
-          title="Título 1"
-        >
+        <MenuButton onClick={() => formatBlock('h1')} title="Título 1">
           <Heading1 className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          isActive={editor.isActive('heading', { level: 2 })}
-          title="Título 2"
-        >
+        <MenuButton onClick={() => formatBlock('h2')} title="Título 2">
           <Heading2 className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          isActive={editor.isActive('heading', { level: 3 })}
-          title="Título 3"
-        >
+        <MenuButton onClick={() => formatBlock('h3')} title="Título 3">
           <Heading3 className="w-4 h-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Text formatting */}
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          isActive={editor.isActive('bold')}
-          title="Negrito"
-        >
+        <MenuButton onClick={() => execCommand('bold')} title="Negrito">
           <Bold className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          isActive={editor.isActive('italic')}
-          title="Itálico"
-        >
+        <MenuButton onClick={() => execCommand('italic')} title="Itálico">
           <Italic className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-          isActive={editor.isActive('underline')}
-          title="Sublinhado"
-        >
+        <MenuButton onClick={() => execCommand('underline')} title="Sublinhado">
           <UnderlineIcon className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-          isActive={editor.isActive('strike')}
-          title="Riscado"
-        >
+        <MenuButton onClick={() => execCommand('strikeThrough')} title="Riscado">
           <Strikethrough className="w-4 h-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Alignment */}
-        <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('left').run()}
-          isActive={editor.isActive({ textAlign: 'left' })}
-          title="Alinhar à esquerda"
-        >
+        <MenuButton onClick={() => execCommand('justifyLeft')} title="Alinhar à esquerda">
           <AlignLeft className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('center').run()}
-          isActive={editor.isActive({ textAlign: 'center' })}
-          title="Centralizar"
-        >
+        <MenuButton onClick={() => execCommand('justifyCenter')} title="Centralizar">
           <AlignCenter className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('right').run()}
-          isActive={editor.isActive({ textAlign: 'right' })}
-          title="Alinhar à direita"
-        >
+        <MenuButton onClick={() => execCommand('justifyRight')} title="Alinhar à direita">
           <AlignRight className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-          isActive={editor.isActive({ textAlign: 'justify' })}
-          title="Justificar"
-        >
+        <MenuButton onClick={() => execCommand('justifyFull')} title="Justificar">
           <AlignJustify className="w-4 h-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
         {/* Lists */}
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          isActive={editor.isActive('bulletList')}
-          title="Lista"
-        >
+        <MenuButton onClick={() => execCommand('insertUnorderedList')} title="Lista">
           <List className="w-4 h-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          isActive={editor.isActive('orderedList')}
-          title="Lista numerada"
-        >
+        <MenuButton onClick={() => execCommand('insertOrderedList')} title="Lista numerada">
           <ListOrdered className="w-4 h-4" />
         </MenuButton>
 
@@ -337,9 +255,8 @@ export const RichTextEditor = ({
         <Popover open={showLinkInput} onOpenChange={setShowLinkInput}>
           <PopoverTrigger asChild>
             <button
-              className={`p-1.5 rounded hover:bg-slate-700 transition-colors ${
-                editor.isActive('link') ? 'bg-slate-700 text-cyan-400' : 'text-slate-300'
-              }`}
+              type="button"
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-300"
               title="Inserir link"
             >
               <LinkIcon className="w-4 h-4" />
@@ -353,20 +270,9 @@ export const RichTextEditor = ({
                 placeholder="https://..."
                 className="bg-slate-900 border-slate-700"
               />
-              <div className="flex gap-2">
-                <Button onClick={addLink} size="sm" className="flex-1">
-                  Inserir
-                </Button>
-                {editor.isActive('link') && (
-                  <Button
-                    onClick={() => editor.chain().focus().unsetLink().run()}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    Remover
-                  </Button>
-                )}
-              </div>
+              <Button onClick={addLink} size="sm" type="button" className="w-full">
+                Inserir Link
+              </Button>
             </div>
           </PopoverContent>
         </Popover>
@@ -374,7 +280,11 @@ export const RichTextEditor = ({
         {/* Image */}
         <Popover open={showImageInput} onOpenChange={setShowImageInput}>
           <PopoverTrigger asChild>
-            <button className="p-1.5 rounded hover:bg-slate-700 text-slate-300" title="Inserir imagem">
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-300"
+              title="Inserir imagem"
+            >
               <ImageIcon className="w-4 h-4" />
             </button>
           </PopoverTrigger>
@@ -386,7 +296,7 @@ export const RichTextEditor = ({
                 placeholder="URL da imagem..."
                 className="bg-slate-900 border-slate-700"
               />
-              <Button onClick={addImage} size="sm" className="w-full">
+              <Button onClick={addImage} size="sm" type="button" className="w-full">
                 Inserir Imagem
               </Button>
             </div>
@@ -400,67 +310,89 @@ export const RichTextEditor = ({
       </div>
 
       {/* Editor Content */}
-      <EditorContent 
-        editor={editor} 
-        className="prose prose-invert max-w-none p-4 min-h-[200px] focus:outline-none"
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={handleInput}
+        dangerouslySetInnerHTML={{ __html: content || '' }}
+        className="p-4 min-h-[300px] outline-none text-slate-100"
+        style={{
+          lineHeight: '1.6',
+        }}
+        data-placeholder={placeholder}
       />
 
-      {/* Custom styles for TipTap */}
+      {/* Custom styles */}
       <style>{`
-        .ProseMirror {
-          min-height: 180px;
-          outline: none;
-        }
-        .ProseMirror p.is-editor-empty:first-child::before {
+        [contenteditable]:empty:before {
           content: attr(data-placeholder);
           color: #64748b;
-          float: left;
           pointer-events: none;
         }
-        .ProseMirror table {
+        [contenteditable] h1 {
+          font-size: 1.5rem;
+          font-weight: bold;
+          margin-bottom: 1rem;
+          color: #f1f5f9;
+        }
+        [contenteditable] h2 {
+          font-size: 1.25rem;
+          font-weight: bold;
+          margin-bottom: 0.75rem;
+          color: #f1f5f9;
+        }
+        [contenteditable] h3 {
+          font-size: 1.1rem;
+          font-weight: bold;
+          margin-bottom: 0.5rem;
+          color: #f1f5f9;
+        }
+        [contenteditable] p {
+          margin-bottom: 0.75rem;
+        }
+        [contenteditable] ul {
+          list-style: disc;
+          padding-left: 1.5rem;
+          margin-bottom: 0.75rem;
+        }
+        [contenteditable] ol {
+          list-style: decimal;
+          padding-left: 1.5rem;
+          margin-bottom: 0.75rem;
+        }
+        [contenteditable] li {
+          margin-bottom: 0.25rem;
+        }
+        [contenteditable] a {
+          color: #22d3ee;
+          text-decoration: underline;
+        }
+        [contenteditable] img {
+          max-width: 100%;
+          border-radius: 0.25rem;
+          margin: 0.5rem 0;
+        }
+        [contenteditable] table {
           border-collapse: collapse;
           width: 100%;
           margin: 1rem 0;
         }
-        .ProseMirror th {
+        [contenteditable] th {
           background: #334155;
           border: 1px solid #475569;
           padding: 0.5rem;
           font-weight: bold;
+          text-align: left;
         }
-        .ProseMirror td {
+        [contenteditable] td {
           border: 1px solid #475569;
           padding: 0.5rem;
         }
-        .ProseMirror img {
-          max-width: 100%;
-          border-radius: 0.25rem;
-        }
-        .ProseMirror h1 {
-          font-size: 1.5rem;
+        [contenteditable] strong {
           font-weight: bold;
-          margin-bottom: 1rem;
         }
-        .ProseMirror h2 {
-          font-size: 1.25rem;
-          font-weight: bold;
-          margin-bottom: 0.75rem;
-        }
-        .ProseMirror h3 {
-          font-size: 1.1rem;
-          font-weight: bold;
-          margin-bottom: 0.5rem;
-        }
-        .ProseMirror ul {
-          list-style: disc;
-          padding-left: 1.25rem;
-        }
-        .ProseMirror ol {
-          list-style: decimal;
-          padding-left: 1.25rem;
-        }
-        .ProseMirror p {
-          margin-bottom: 0.75rem;
+        [contenteditable] em {
+          font-style: italic;
         }
       `}</style>
     </div>
