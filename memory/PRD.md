@@ -451,3 +451,31 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/backend/services/html_exporter.py` - Renderização de elementos HTML (linhas 1048-1060)
 - **Status**: FIXED AND TESTED
 - **Verification**: Projeto "Ferramenta de Criação de Rapid Learning" com 11 slides agora exporta e renderiza corretamente
+
+### HeyGen Integration Improvements - IMPLEMENTED (Feb 5, 2026)
+- **Feature**: Melhorias na integração com HeyGen para geração de vídeos com avatar
+- **Improvements Applied**:
+  1. **Cache de Créditos**: Créditos são cacheados por 60 segundos para evitar chamadas repetidas à API lenta da HeyGen
+  2. **Loading Separado**: O carregamento de créditos agora é separado do carregamento de avatares/vozes, não bloqueando a UI
+  3. **Server-Sent Events (SSE)**: Implementado endpoint SSE para receber atualizações em tempo real do webhook
+  4. **Webhook Melhorado**: Webhook agora notifica subscribers SSE quando um vídeo é concluído
+  5. **Fallback para Polling**: Se SSE falhar, o sistema automaticamente volta ao polling tradicional
+- **Files Modified**:
+  - `/app/backend/server.py`:
+    - Adicionado cache para créditos (linhas 72-80)
+    - Adicionado sistema de subscribers SSE (linha 81)
+    - Atualizado endpoint `/api/heygen/credits` para usar cache
+    - Atualizado endpoint `/api/heygen/webhook` para notificar SSE subscribers
+    - Novo endpoint `/api/heygen/video-events/{video_id}` para SSE
+  - `/app/frontend/src/pages/Editor.jsx`:
+    - Adicionado estado `heygenCreditsLoading` separado
+    - Atualizado `loadHeygenData()` para carregar créditos separadamente
+    - Atualizado `pollHeygenVideoStatus()` para usar SSE com fallback para polling
+    - UI atualizada para mostrar "Verificando créditos..." durante loading
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Dialog do HeyGen carrega instantaneamente com avatares/vozes, créditos são exibidos assim que disponíveis
+
+### Webhook Configuration Helper - AVAILABLE
+- **Endpoint**: `GET /api/heygen/webhook-url`
+- **Returns**: URL do webhook e instruções para configurar no dashboard da HeyGen
+- **Note**: O usuário precisa configurar o webhook no dashboard da HeyGen para receber notificações em tempo real
