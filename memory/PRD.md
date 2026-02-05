@@ -524,3 +524,31 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - Frontend: ContentEditable nativo (sem dependências externas pesadas)
 - **Status**: IMPLEMENTED AND TESTED
 - **Verification**: Geração de texto formatado funcionando com títulos, listas e negrito
+
+### Rich Text Editor Improvements - IMPLEMENTED (Feb 5, 2026)
+- **Feature 1: Enhanced Table Formatting**
+  - Configuração de tabela com seletor de linhas/colunas
+  - Preview visual da grade antes de inserir
+  - Header com gradiente escuro (#475569 → #334155)
+  - Borda cyan abaixo do header (border-bottom: 2px solid #22d3ee)
+  - Linhas alternadas (zebra striping: #1e293b e #1a2433)
+  - Bordas arredondadas (border-radius: 8px)
+  - Sombra elegante (box-shadow)
+  - Classe CSS: `rtf-table`
+  
+- **Feature 2: Image Resize Functionality**
+  - Seleção de imagem ao clicar (adiciona classe `selected-image`)
+  - Borda cyan e box-shadow na imagem selecionada
+  - Cursor de redimensionamento (nwse-resize)
+  - Arrasto no canto inferior direito (zona de 20px)
+  - Preservação do aspect ratio durante redimensionamento
+  
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx` - Componente completo reescrito com:
+    - Estado para configuração de tabela (tableRows, tableCols)
+    - Estados para seleção/redimensionamento de imagem
+    - Handlers para clique, seleção e arrasto
+    - CSS avançado para tabelas e imagens
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Testing agent confirmou 100% de sucesso em todos os testes frontend
+
