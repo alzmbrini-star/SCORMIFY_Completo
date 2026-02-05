@@ -355,6 +355,11 @@ export default function Editor() {
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [globalAudioVolume, setGlobalAudioVolume] = useState(0.5);
   const [slideAudioVolumes, setSlideAudioVolumes] = useState({});
+  
+  // Rich Text Editor with AI states
+  const [showRichTextDialog, setShowRichTextDialog] = useState(false);
+  const [richTextContent, setRichTextContent] = useState('');
+  const [richTextGenerating, setRichTextGenerating] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
