@@ -827,21 +827,17 @@ export default function Editor() {
   // HeyGen Functions
   const loadHeygenData = async () => {
     setHeygenLoading(true);
+    setHeygenCreditsLoading(true);
+    
     try {
-      // Load avatars, voices, and credits in parallel
-      const [avatarsRes, voicesRes, creditsRes] = await Promise.all([
+      // Load avatars and voices first (they're needed for the UI)
+      const [avatarsRes, voicesRes] = await Promise.all([
         axios.get(`${API_URL}/api/heygen/avatars`),
-        axios.get(`${API_URL}/api/heygen/voices?language=portuguese`),
-        axios.get(`${API_URL}/api/heygen/credits`).catch(() => ({ data: null }))
+        axios.get(`${API_URL}/api/heygen/voices?language=portuguese`)
       ]);
       
       setHeygenAvatars(avatarsRes.data.avatars || []);
       setHeygenVoices(voicesRes.data.voices || []);
-      
-      // Set credits info
-      if (creditsRes.data) {
-        setHeygenCredits(creditsRes.data);
-      }
       
       // Set defaults if available
       if (avatarsRes.data.avatars?.length > 0 && !heygenConfig.avatarId) {
@@ -850,11 +846,27 @@ export default function Editor() {
       if (voicesRes.data.voices?.length > 0 && !heygenConfig.voiceId) {
         setHeygenConfig(prev => ({ ...prev, voiceId: voicesRes.data.voices[0].voice_id }));
       }
+      
+      setHeygenLoading(false);
+      
+      // Load credits separately (don't block UI if it's slow)
+      try {
+        const creditsRes = await axios.get(`${API_URL}/api/heygen/credits`);
+        if (creditsRes.data) {
+          setHeygenCredits(creditsRes.data);
+        }
+      } catch (creditsErr) {
+        console.warn('Could not load HeyGen credits:', creditsErr);
+        // Don't show error - credits info is optional
+      } finally {
+        setHeygenCreditsLoading(false);
+      }
+      
     } catch (err) {
       console.error('Error loading HeyGen data:', err);
       toast.error('Falha ao carregar dados do HeyGen. Verifique a API Key.');
-    } finally {
       setHeygenLoading(false);
+      setHeygenCreditsLoading(false);
     }
   };
 
