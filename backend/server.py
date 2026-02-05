@@ -1268,10 +1268,25 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
             formatted_voices = []
             for voice in voices:
                 lang = voice.get("language", "")
+                voice_name = voice.get("name", "")
                 # Determine language code and country
                 lang_code = ""
                 country_flag = ""
-                if "brazil" in lang.lower() or "brasileiro" in lang.lower():
+                
+                # Check if Portuguese and determine variant
+                if "portuguese" in lang.lower():
+                    # Check voice name for Brazil indicators
+                    if "brazil" in voice_name.lower() or "brasil" in voice_name.lower():
+                        lang_code = "pt-BR"
+                        country_flag = "🇧🇷"
+                    elif "portugal" in voice_name.lower():
+                        lang_code = "pt-PT"
+                        country_flag = "🇵🇹"
+                    else:
+                        # Default Portuguese to Brazil (most common in LatAm)
+                        lang_code = "pt"
+                        country_flag = "🇧🇷"
+                elif "brazil" in lang.lower() or "brasileiro" in lang.lower():
                     lang_code = "pt-BR"
                     country_flag = "🇧🇷"
                 elif "portugal" in lang.lower() or "português" in lang.lower():
@@ -1302,7 +1317,7 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
                 
                 formatted_voices.append({
                     "voice_id": voice.get("voice_id"),
-                    "name": voice.get("name"),
+                    "name": voice_name,
                     "language": lang,
                     "language_code": lang_code,
                     "country_flag": country_flag,
