@@ -501,3 +501,26 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
     - UI atualizada com dropdowns de filtro e contadores
 - **Status**: IMPLEMENTED AND TESTED
 - **Verification**: Filtros funcionando - 689 avatares femininos, 49 vozes em português com bandeiras
+
+### Rich Text Editor with AI Generation - IMPLEMENTED (Feb 5, 2026)
+- **Feature**: Editor de texto rico com geração de conteúdo por IA (GPT-4o)
+- **Capabilities**:
+  1. **Geração de Texto com IA**: Botão "Gerar com IA" abre prompt para descrever o conteúdo desejado
+  2. **Formatação Avançada**: Títulos (H1, H2, H3), Negrito, Itálico, Sublinhado, Riscado
+  3. **Alinhamento**: Esquerda, Centro, Direita, Justificado
+  4. **Listas**: Com bullets e numeradas
+  5. **Inserção de Mídia**: Links, Imagens, Tabelas
+  6. **Undo/Redo**: Histórico de alterações
+  7. **Texto em Português**: IA configurada para gerar conteúdo em PT-BR
+- **API Endpoint**: `POST /api/ai/generate-text`
+  - Request: `{ "prompt": "string", "context": "string?", "format": "html" }`
+  - Response: `{ "success": true, "content": "<html>..." }`
+- **Files Created/Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx` - Componente do editor RTF
+  - `/app/backend/server.py` - Endpoint `/api/ai/generate-text` usando emergentintegrations com GPT-4o
+  - `/app/frontend/src/pages/Editor.jsx` - Integração do editor no fluxo de criação de slides
+- **Dependencies**:
+  - Backend: `emergentintegrations` (instalado)
+  - Frontend: ContentEditable nativo (sem dependências externas pesadas)
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Geração de texto formatado funcionando com títulos, listas e negrito
