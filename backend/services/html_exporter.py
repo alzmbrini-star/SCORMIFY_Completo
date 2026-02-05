@@ -976,6 +976,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var slide = course.slides[index];
                 var container = document.getElementById('slide-container');
                 
+                // Clear any existing timeline timers
+                timelineTimers.forEach(function(timer) {{
+                    clearTimeout(timer);
+                }});
+                timelineTimers = [];
+                
                 // Stop previous audio
                 slideAudios.forEach(function(audio) {{
                     if (audio) {{
@@ -990,6 +996,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var slideHeight = slide.height || {height};
                 container.style.width = slideWidth + 'px';
                 container.style.height = slideHeight + 'px';
+                
+                // Get slide duration for timeline
+                var slideDuration = slide.duration || 5;
                 
                 // Build slide HTML
                 var html = '';
@@ -1006,8 +1015,23 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     slide.elements.forEach(function(elem, elemIndex) {{
                         if (elem.visible === false) return;
                         
+                        // Check if element has timeline settings
+                        var startTime = elem.startTime || 0;
+                        var endTime = (elem.endTime !== undefined && elem.endTime !== null) ? elem.endTime : slideDuration;
+                        
+                        // Determine initial visibility based on startTime
+                        var initiallyHidden = startTime > 0;
+                        
                         var style = 'left:' + (elem.x || 0) + 'px;';
                         style += 'top:' + (elem.y || 0) + 'px;';
+                        style += 'width:' + (elem.width || 100) + 'px;';
+                        style += 'height:' + (elem.height || 100) + 'px;';
+                        style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
+                        if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
+                        if (elem.style && elem.style.opacity !== undefined) style += 'opacity:' + elem.style.opacity + ';';
+                        if (initiallyHidden) style += 'display:none;'; // Hide initially if has startTime > 0
+                        
+                        html += '<div class="slide-element ' + elem.type + '-element" id="element-' + elemIndex + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" style="' + style + '">';
                         style += 'width:' + (elem.width || 100) + 'px;';
                         style += 'height:' + (elem.height || 100) + 'px;';
                         style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
