@@ -1762,7 +1762,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         /* HTML Element Styles */
         .html-element {{
-            background: white;
+            background: transparent;
             border-radius: 4px;
             overflow: hidden;
         }}
@@ -1771,6 +1771,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             width: 100%;
             height: 100%;
             border: none;
+            background: transparent;
         }}
         
         /* Flipbook Element Styles */
