@@ -4,12 +4,13 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Link as LinkIcon, Image as ImageIcon,
   Table as TableIcon, Undo, Redo, Heading1, Heading2, Heading3,
-  Sparkles, Loader2
+  Sparkles, Loader2, Grid3X3
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
 
 const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
   <button
