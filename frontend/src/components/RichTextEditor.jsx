@@ -75,6 +75,7 @@ export const RichTextEditor = ({
       if (generatedContent && editorRef.current) {
         editorRef.current.innerHTML = generatedContent;
         onChange?.(generatedContent);
+        setIsEmpty(false);
       }
       setShowAIPrompt(false);
       setAIPrompt('');
