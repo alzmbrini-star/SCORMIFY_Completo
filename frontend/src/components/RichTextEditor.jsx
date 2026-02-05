@@ -336,12 +336,13 @@ export const RichTextEditor = ({
         ref={editorRef}
         contentEditable
         onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: content || '' }}
-        className="p-4 min-h-[300px] outline-none text-slate-100"
+        onFocus={handleFocus}
+        className={`p-4 min-h-[300px] outline-none text-slate-100 ${isEmpty ? 'before:content-[attr(data-placeholder)] before:text-slate-500 before:pointer-events-none' : ''}`}
         style={{
           lineHeight: '1.6',
         }}
         data-placeholder={placeholder}
+        suppressContentEditableWarning={true}
       />
 
       {/* Custom styles */}
