@@ -289,7 +289,7 @@ export const RichTextEditor = ({
     setShowLinkInput(false);
   }, [linkUrl, onChange]);
 
-  const addImage = useCallback(() => {
+  const addImage = useCallback((floating = false) => {
     if (!imageUrl.trim()) return;
     
     // Focus the editor first
@@ -297,8 +297,14 @@ export const RichTextEditor = ({
       editorRef.current.focus();
     }
     
-    // Use insertHTML with an img tag for better control
-    const imgHtml = `<img src="${imageUrl}" alt="image" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`;
+    let imgHtml;
+    if (floating) {
+      // Floating image - can be positioned freely
+      imgHtml = `<img src="${imageUrl}" alt="image" class="floating-image" style="position: absolute; left: 20px; top: 20px; max-width: 300px; height: auto; border-radius: 4px; cursor: move; z-index: 10;" />`;
+    } else {
+      // Inline image
+      imgHtml = `<img src="${imageUrl}" alt="image" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`;
+    }
     document.execCommand('insertHTML', false, imgHtml);
     
     // Update content
