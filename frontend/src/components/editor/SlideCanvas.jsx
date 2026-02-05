@@ -269,8 +269,11 @@ const SlideCanvas = ({
     e.stopPropagation();
     if (element.type === 'text') {
       setEditingElementId(element.id);
+    } else if (element.type === 'html' && onEditHtmlElement) {
+      // Open RTF editor for HTML elements
+      onEditHtmlElement(element);
     }
-  }, []);
+  }, [onEditHtmlElement]);
 
   const handleTextChange = useCallback((e, elementId) => {
     onUpdateElement(elementId, { content: e.target.value });
