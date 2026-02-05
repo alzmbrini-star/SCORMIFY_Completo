@@ -68,6 +68,89 @@ export const RichTextEditor = ({
     }
   }, [content]);
 
+  // Handle image click for selection
+  const handleEditorClick = useCallback((e) => {
+    const img = e.target.closest('img');
+    if (img && editorRef.current?.contains(img)) {
+      e.preventDefault();
+      // Remove selection from all images
+      editorRef.current.querySelectorAll('img.selected-image').forEach(i => {
+        i.classList.remove('selected-image');
+      });
+      // Select this image
+      img.classList.add('selected-image');
+      setSelectedImage(img);
+    } else if (!e.target.closest('.resize-handle')) {
+      // Deselect if clicking outside
+      if (selectedImage) {
+        selectedImage.classList.remove('selected-image');
+        setSelectedImage(null);
+      }
+    }
+  }, [selectedImage]);
+
+  // Handle image resize start
+  const handleResizeStart = useCallback((e, direction) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedImage) return;
+    
+    const rect = selectedImage.getBoundingClientRect();
+    setIsResizing(true);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: rect.width,
+      height: rect.height,
+      direction
+    });
+  }, [selectedImage]);
+
+  // Handle mouse move for resize
+  useEffect(() => {
+    if (!isResizing || !selectedImage) return;
+
+    const handleMouseMove = (e) => {
+      const dx = e.clientX - resizeStart.x;
+      const dy = e.clientY - resizeStart.y;
+      const aspectRatio = resizeStart.width / resizeStart.height;
+      
+      let newWidth = resizeStart.width;
+      let newHeight = resizeStart.height;
+      
+      // Maintain aspect ratio while resizing
+      if (resizeStart.direction === 'se' || resizeStart.direction === 'corner') {
+        newWidth = Math.max(50, resizeStart.width + dx);
+        newHeight = newWidth / aspectRatio;
+      } else if (resizeStart.direction === 'e') {
+        newWidth = Math.max(50, resizeStart.width + dx);
+      } else if (resizeStart.direction === 's') {
+        newHeight = Math.max(50, resizeStart.height + dy);
+      }
+      
+      selectedImage.style.width = `${newWidth}px`;
+      selectedImage.style.height = `${newHeight}px`;
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      // Update content after resize
+      if (editorRef.current) {
+        const newContent = editorRef.current.innerHTML;
+        lastContentRef.current = newContent;
+        onChange?.(newContent);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, selectedImage, resizeStart, onChange]);
+
   const saveSelection = useCallback(() => {
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
