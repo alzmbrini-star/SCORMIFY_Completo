@@ -1667,6 +1667,87 @@ async def get_heygen_webhook_url(request: Request):
         ]
     }
 
+# SSE endpoint for real-time video status updates
+@api_router.get("/heygen/video-events/{video_id}")
+async def heygen_video_events(video_id: str, request: Request):
+    """Server-Sent Events stream for real-time video status updates.
+    The frontend connects to this endpoint to receive webhook notifications without polling."""
+    
+    async def event_generator():
+        queue = asyncio.Queue(maxsize=10)
+        
+        # Register subscriber
+        if video_id not in heygen_sse_subscribers:
+            heygen_sse_subscribers[video_id] = []
+        heygen_sse_subscribers[video_id].append(queue)
+        logger.info(f"SSE subscriber connected for video {video_id}")
+        
+        try:
+            # Send initial connection confirmation
+            yield f"data: {json.dumps({'event': 'connected', 'video_id': video_id})}\n\n"
+            
+            # Check current status from database immediately
+            video_doc = await db.heygen_videos.find_one({"video_id": video_id})
+            if video_doc:
+                current_status = video_doc.get("status", "processing")
+                current_url = video_doc.get("video_url")
+                yield f"data: {json.dumps({'event': 'current_status', 'video_id': video_id, 'status': current_status, 'video_url': current_url})}\n\n"
+                
+                # If already completed, close stream
+                if current_status in ["completed", "failed", "error"]:
+                    yield f"data: {json.dumps({'event': 'final', 'video_id': video_id, 'status': current_status, 'video_url': current_url})}\n\n"
+                    return
+            
+            # Wait for updates from webhook
+            timeout_seconds = 900  # 15 minutes max
+            start_time = datetime.now(timezone.utc)
+            
+            while True:
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    logger.info(f"SSE client disconnected for video {video_id}")
+                    break
+                
+                # Check timeout
+                elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+                if elapsed > timeout_seconds:
+                    yield f"data: {json.dumps({'event': 'timeout', 'video_id': video_id})}\n\n"
+                    break
+                
+                try:
+                    # Wait for event with timeout
+                    event_data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield f"data: {json.dumps(event_data)}\n\n"
+                    
+                    # If video is done, close the stream
+                    if event_data.get("status") in ["completed", "failed", "error"]:
+                        break
+                        
+                except asyncio.TimeoutError:
+                    # Send keepalive ping every 30 seconds
+                    yield f"data: {json.dumps({'event': 'ping', 'elapsed': int(elapsed)})}\n\n"
+                    
+        finally:
+            # Unregister subscriber
+            if video_id in heygen_sse_subscribers:
+                try:
+                    heygen_sse_subscribers[video_id].remove(queue)
+                    if not heygen_sse_subscribers[video_id]:
+                        del heygen_sse_subscribers[video_id]
+                except ValueError:
+                    pass
+            logger.info(f"SSE subscriber disconnected for video {video_id}")
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
 # Include router
 app.include_router(api_router)
 
