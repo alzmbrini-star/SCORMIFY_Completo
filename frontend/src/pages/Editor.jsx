@@ -315,6 +315,7 @@ export default function Editor() {
   const [heygenAvatars, setHeygenAvatars] = useState([]);
   const [heygenVoices, setHeygenVoices] = useState([]);
   const [heygenLoading, setHeygenLoading] = useState(false);
+  const [heygenCreditsLoading, setHeygenCreditsLoading] = useState(false); // Separate loading state for credits
   const [heygenGenerating, setHeygenGenerating] = useState(false);
   const [heygenVideoId, setHeygenVideoId] = useState(null);
   const [heygenVideoStatus, setHeygenVideoStatus] = useState(null);
