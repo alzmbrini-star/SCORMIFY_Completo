@@ -708,3 +708,24 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/backend/services/html_exporter.py` (linhas ~458-480 CSS, linhas ~1040-1050 JS)
 - **Status**: IMPLEMENTED
 - **Note**: Vídeos WebM da HeyGen gerados com `transparent_background: true` agora exibem fundo transparente corretamente
+
+### HTML Export Timeline Fix - IMPLEMENTED (Feb 5, 2026)
+- **Issue**: A timeline não funcionava na exportação HTML - elementos não apareciam/desapareciam baseado em startTime/endTime
+- **Root Cause**: O exportador HTML não tinha implementação de timeline
+- **Fix Applied**:
+  1. Adicionada variável `timelineTimers` para armazenar timers
+  2. Adicionada variável `slideDuration` para calcular a duração total do slide
+  3. Elementos com `startTime > 0` iniciam ocultos (`display:none`)
+  4. Timers JavaScript agendam `fadeIn` quando `startTime` é atingido
+  5. Timers JavaScript agendam `fadeOut` quando `endTime` é atingido
+  6. Adicionado suporte a timeline para annotations também
+  7. Adicionadas keyframes CSS `fadeIn` e `fadeOut` com animações suaves
+  8. Timers são limpos ao trocar de slide
+- **File Modified**:
+  - `/app/backend/services/html_exporter.py`
+    - Linhas ~860: variável `timelineTimers` e `isPresentationMode`
+    - Linhas ~718-726: keyframes CSS fadeIn/fadeOut
+    - Linhas ~990-1020: lógica de startTime/endTime na renderização de elementos
+    - Linhas ~1160-1230: setup de timers para elementos e annotations
+- **Status**: IMPLEMENTED
+- **Note**: Elementos e anotações agora aparecem/desaparecem conforme configurado na timeline
