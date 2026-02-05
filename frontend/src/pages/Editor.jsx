@@ -1623,6 +1623,21 @@ export default function Editor() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 text-purple-400 hover:text-purple-300"
+                    onClick={() => setShowRichTextDialog(true)}
+                    data-testid="add-rich-text-btn"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Texto com IA</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8"
                     onClick={() => fileInputRef.current?.click()}
                     data-testid="add-image-btn"
