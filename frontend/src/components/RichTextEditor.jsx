@@ -13,7 +13,10 @@ import { Textarea } from './ui/textarea';
 
 const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
   <button
-    onClick={onClick}
+    onClick={(e) => {
+      e.preventDefault();
+      onClick?.();
+    }}
     disabled={disabled}
     title={title}
     type="button"
@@ -24,11 +27,6 @@ const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
     {children}
   </button>
 );
-
-const COLORS = [
-  '#ffffff', '#000000', '#ef4444', '#f97316', '#eab308', 
-  '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'
-];
 
 export const RichTextEditor = ({ 
   content, 
@@ -44,39 +42,63 @@ export const RichTextEditor = ({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
-  const [isEmpty, setIsEmpty] = useState(true);
+  const [internalContent, setInternalContent] = useState(content || '');
   const editorRef = useRef(null);
-  const isInitialized = useRef(false);
 
-  // Initialize content only once when editor mounts
+  // Sync content from parent
   useEffect(() => {
-    if (editorRef.current && !isInitialized.current) {
-      if (content) {
+    if (content !== undefined && content !== internalContent) {
+      setInternalContent(content);
+      if (editorRef.current) {
         editorRef.current.innerHTML = content;
-        isInitialized.current = true;
       }
     }
   }, [content]);
 
-  const execCommand = useCallback((command, value = null) => {
-    document.execCommand(command, false, value);
-    editorRef.current?.focus();
-    // Trigger onChange
-    if (editorRef.current) {
-      onChange?.(editorRef.current.innerHTML);
-      setIsEmpty(!editorRef.current.innerHTML || editorRef.current.innerHTML === '<br>');
+  const saveSelection = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      return selection.getRangeAt(0).cloneRange();
     }
-  }, [onChange]);
+    return null;
+  }, []);
+
+  const restoreSelection = useCallback((range) => {
+    if (range) {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+  }, []);
+
+  const execCommand = useCallback((command, value = null) => {
+    const savedRange = saveSelection();
+    document.execCommand(command, false, value);
+    restoreSelection(savedRange);
+    
+    // Update content after command
+    setTimeout(() => {
+      if (editorRef.current) {
+        const newContent = editorRef.current.innerHTML;
+        setInternalContent(newContent);
+        onChange?.(newContent);
+      }
+    }, 0);
+  }, [onChange, saveSelection, restoreSelection]);
 
   const handleAIGenerate = useCallback(async () => {
     if (!aiPrompt.trim() || !onGenerateAI) return;
     
     try {
       const generatedContent = await onGenerateAI(aiPrompt);
-      if (generatedContent && editorRef.current) {
-        editorRef.current.innerHTML = generatedContent;
+      if (generatedContent) {
+        setInternalContent(generatedContent);
+        if (editorRef.current) {
+          editorRef.current.innerHTML = generatedContent;
+        }
         onChange?.(generatedContent);
-        setIsEmpty(false);
       }
       setShowAIPrompt(false);
       setAIPrompt('');
@@ -130,20 +152,15 @@ export const RichTextEditor = ({
     execCommand('formatBlock', tag);
   }, [execCommand]);
 
-  const handleInput = useCallback(() => {
-    if (editorRef.current) {
-      const html = editorRef.current.innerHTML;
-      onChange?.(html);
-      setIsEmpty(!html || html === '<br>' || html === '');
-    }
+  const handleInput = useCallback((e) => {
+    const newContent = e.currentTarget.innerHTML;
+    setInternalContent(newContent);
+    onChange?.(newContent);
   }, [onChange]);
 
-  // Handle focus to remove placeholder
-  const handleFocus = useCallback(() => {
-    if (editorRef.current && isEmpty) {
-      // Clear placeholder state on focus
-    }
-  }, [isEmpty]);
+  const handlePaste = useCallback((e) => {
+    // Allow default paste behavior - it works correctly
+  }, []);
 
   return (
     <div className={`border rounded-lg overflow-hidden bg-slate-900 ${className}`}>
@@ -335,87 +352,85 @@ export const RichTextEditor = ({
       {/* Editor Content */}
       <div
         ref={editorRef}
-        contentEditable
+        contentEditable="true"
         onInput={handleInput}
-        onFocus={handleFocus}
-        className={`p-4 min-h-[300px] outline-none text-slate-100 ${isEmpty ? 'before:content-[attr(data-placeholder)] before:text-slate-500 before:pointer-events-none' : ''}`}
-        style={{
-          lineHeight: '1.6',
-        }}
+        onPaste={handlePaste}
+        className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100"
+        style={{ lineHeight: '1.6' }}
         data-placeholder={placeholder}
         suppressContentEditableWarning={true}
       />
 
       {/* Custom styles */}
       <style>{`
-        [contenteditable]:empty:before {
+        .rich-text-editor:empty:before {
           content: attr(data-placeholder);
           color: #64748b;
           pointer-events: none;
         }
-        [contenteditable] h1 {
+        .rich-text-editor h1 {
           font-size: 1.5rem;
           font-weight: bold;
           margin-bottom: 1rem;
           color: #f1f5f9;
         }
-        [contenteditable] h2 {
+        .rich-text-editor h2 {
           font-size: 1.25rem;
           font-weight: bold;
           margin-bottom: 0.75rem;
           color: #f1f5f9;
         }
-        [contenteditable] h3 {
+        .rich-text-editor h3 {
           font-size: 1.1rem;
           font-weight: bold;
           margin-bottom: 0.5rem;
           color: #f1f5f9;
         }
-        [contenteditable] p {
+        .rich-text-editor p {
           margin-bottom: 0.75rem;
         }
-        [contenteditable] ul {
+        .rich-text-editor ul {
           list-style: disc;
           padding-left: 1.5rem;
           margin-bottom: 0.75rem;
         }
-        [contenteditable] ol {
+        .rich-text-editor ol {
           list-style: decimal;
           padding-left: 1.5rem;
           margin-bottom: 0.75rem;
         }
-        [contenteditable] li {
+        .rich-text-editor li {
           margin-bottom: 0.25rem;
         }
-        [contenteditable] a {
+        .rich-text-editor a {
           color: #22d3ee;
           text-decoration: underline;
         }
-        [contenteditable] img {
+        .rich-text-editor img {
           max-width: 100%;
           border-radius: 0.25rem;
           margin: 0.5rem 0;
         }
-        [contenteditable] table {
+        .rich-text-editor table {
           border-collapse: collapse;
           width: 100%;
           margin: 1rem 0;
         }
-        [contenteditable] th {
+        .rich-text-editor th {
           background: #334155;
           border: 1px solid #475569;
           padding: 0.5rem;
           font-weight: bold;
           text-align: left;
         }
-        [contenteditable] td {
+        .rich-text-editor td {
           border: 1px solid #475569;
           padding: 0.5rem;
         }
-        [contenteditable] strong {
+        .rich-text-editor strong {
           font-weight: bold;
         }
-        [contenteditable] em {
+        .rich-text-editor em {
           font-style: italic;
         }
       `}</style>
