@@ -498,6 +498,100 @@ export const RichTextEditor = ({
 
         <div className="w-px h-6 bg-slate-700 mx-1" />
 
+        {/* Font Selector */}
+        <Popover open={showFontSelect} onOpenChange={setShowFontSelect}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-300 flex items-center gap-1"
+              title="Fonte"
+            >
+              <Type className="w-4 h-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 bg-slate-800 border-slate-700 p-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-400">Selecionar Fonte</Label>
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {FONTS.map((font) => (
+                  <button
+                    key={font.name}
+                    type="button"
+                    onClick={() => applyFont(font.value)}
+                    className={`w-full text-left px-2 py-1.5 rounded text-sm hover:bg-slate-700 ${
+                      currentFont === font.value ? 'bg-slate-700 text-cyan-400' : 'text-slate-200'
+                    }`}
+                    style={{ fontFamily: font.value }}
+                  >
+                    {font.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Color Picker */}
+        <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-300 flex items-center gap-1"
+              title="Cor do texto"
+            >
+              <Palette className="w-4 h-4" />
+              <div 
+                className="w-3 h-3 rounded-sm border border-slate-500" 
+                style={{ backgroundColor: currentColor }}
+              />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 bg-slate-800 border-slate-700 p-3">
+            <div className="space-y-3">
+              <Label className="text-xs text-slate-400">Cor do Texto</Label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => applyColor(color)}
+                    className={`w-8 h-8 rounded border-2 transition-transform hover:scale-110 ${
+                      currentColor === color ? 'border-cyan-400 ring-2 ring-cyan-400/50' : 'border-slate-600'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="color"
+                  value={customColor}
+                  onChange={(e) => setCustomColor(e.target.value)}
+                  className="w-10 h-8 p-0 border-slate-600 cursor-pointer"
+                />
+                <Input
+                  type="text"
+                  value={customColor}
+                  onChange={(e) => setCustomColor(e.target.value)}
+                  placeholder="#FFFFFF"
+                  className="flex-1 h-8 bg-slate-900 border-slate-600 text-xs"
+                />
+                <Button 
+                  size="sm" 
+                  type="button"
+                  onClick={() => applyColor(customColor)}
+                  className="h-8 px-2 text-xs"
+                >
+                  Aplicar
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <div className="w-px h-6 bg-slate-700 mx-1" />
+
         {/* Undo/Redo */}
         <MenuButton onClick={() => execCommand('undo')} title="Desfazer">
           <Undo className="w-4 h-4" />
