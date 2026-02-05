@@ -2433,7 +2433,22 @@ export default function Editor() {
               <div className="space-y-6 py-4">
                 {/* Avatar Selection */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Selecionar Avatar</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium">Selecionar Avatar</label>
+                    <select
+                      className="text-xs px-2 py-1 rounded border bg-background"
+                      value={heygenAvatarGenderFilter}
+                      onChange={(e) => {
+                        setHeygenAvatarGenderFilter(e.target.value);
+                        reloadHeygenAvatars(e.target.value);
+                      }}
+                      data-testid="heygen-avatar-gender-filter"
+                    >
+                      <option value="all">👥 Todos</option>
+                      <option value="male">👨 Masculino</option>
+                      <option value="female">👩 Feminino</option>
+                    </select>
+                  </div>
                   <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg">
                     {heygenAvatars.map((avatar) => (
                       <div
@@ -2445,11 +2460,16 @@ export default function Editor() {
                         }`}
                         onClick={() => setHeygenConfig({ ...heygenConfig, avatarId: avatar.avatar_id })}
                       >
-                        <img
-                          src={avatar.preview_image_url}
-                          alt={avatar.avatar_name}
-                          className="w-full aspect-square object-cover"
-                        />
+                        <div className="relative">
+                          <img
+                            src={avatar.preview_image_url}
+                            alt={avatar.avatar_name}
+                            className="w-full aspect-square object-cover"
+                          />
+                          <span className="absolute top-1 right-1 text-xs bg-black/50 px-1 rounded">
+                            {avatar.gender === 'male' ? '♂' : avatar.gender === 'female' ? '♀' : ''}
+                          </span>
+                        </div>
                         <div className="text-xs text-center py-1 truncate px-1">
                           {avatar.avatar_name}
                         </div>
@@ -2461,11 +2481,47 @@ export default function Editor() {
                       </div>
                     )}
                   </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {heygenAvatars.length} avatares disponíveis
+                  </div>
                 </div>
 
                 {/* Voice Selection */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Selecionar Voz</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium">Selecionar Voz</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="text-xs px-2 py-1 rounded border bg-background"
+                        value={heygenVoiceLanguageFilter}
+                        onChange={(e) => {
+                          setHeygenVoiceLanguageFilter(e.target.value);
+                          reloadHeygenVoices(e.target.value, heygenVoiceGenderFilter);
+                        }}
+                        data-testid="heygen-voice-language-filter"
+                      >
+                        <option value="all">🌐 Todos idiomas</option>
+                        {heygenAvailableLanguages.map((lang) => (
+                          <option key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="text-xs px-2 py-1 rounded border bg-background"
+                        value={heygenVoiceGenderFilter}
+                        onChange={(e) => {
+                          setHeygenVoiceGenderFilter(e.target.value);
+                          reloadHeygenVoices(heygenVoiceLanguageFilter, e.target.value);
+                        }}
+                        data-testid="heygen-voice-gender-filter"
+                      >
+                        <option value="all">👥 Todos</option>
+                        <option value="male">👨 Masculino</option>
+                        <option value="female">👩 Feminino</option>
+                      </select>
+                    </div>
+                  </div>
                   <select
                     className="w-full h-10 px-3 rounded-md border bg-background"
                     value={heygenConfig.voiceId}
@@ -2475,10 +2531,13 @@ export default function Editor() {
                     <option value="">Selecione uma voz...</option>
                     {heygenVoices.map((voice) => (
                       <option key={voice.voice_id} value={voice.voice_id}>
-                        {voice.name} ({voice.language}) - {voice.gender}
+                        {voice.country_flag} {voice.name} ({voice.language}) - {voice.gender === 'male' ? '♂ Masc' : voice.gender === 'female' ? '♀ Fem' : voice.gender}
                       </option>
                     ))}
                   </select>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {heygenVoices.length} vozes disponíveis
+                  </div>
                 </div>
 
                 {/* Script Input */}
