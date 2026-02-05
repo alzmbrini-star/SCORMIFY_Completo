@@ -476,9 +476,61 @@ export const RichTextEditor = ({
         </Popover>
 
         {/* Table */}
-        <MenuButton onClick={insertTable} title="Inserir tabela">
-          <TableIcon className="w-4 h-4" />
-        </MenuButton>
+        <Popover open={showTableConfig} onOpenChange={setShowTableConfig}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-300"
+              title="Inserir tabela"
+            >
+              <TableIcon className="w-4 h-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 bg-slate-800 border-slate-700">
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm text-slate-100">Configurar Tabela</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-slate-400">Linhas</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={tableRows}
+                    onChange={(e) => setTableRows(parseInt(e.target.value) || 2)}
+                    className="bg-slate-900 border-slate-700 h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-slate-400">Colunas</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={tableCols}
+                    onChange={(e) => setTableCols(parseInt(e.target.value) || 2)}
+                    className="bg-slate-900 border-slate-700 h-8"
+                  />
+                </div>
+              </div>
+              {/* Visual preview */}
+              <div className="flex justify-center py-2">
+                <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(tableCols, 5)}, 1fr)` }}>
+                  {Array.from({ length: Math.min(tableRows, 4) * Math.min(tableCols, 5) }).map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`w-4 h-3 border border-slate-600 ${i < Math.min(tableCols, 5) ? 'bg-slate-600' : 'bg-slate-700'}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <Button onClick={insertTable} size="sm" type="button" className="w-full">
+                <Grid3X3 className="w-4 h-4 mr-2" />
+                Inserir Tabela
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Editor Content */}
