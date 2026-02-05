@@ -815,17 +815,23 @@ export const RichTextEditor = ({
           }
         }}
         className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100 relative"
-        style={{ lineHeight: '1.6', position: 'relative' }}
+        style={{ lineHeight: '1.6', position: 'relative', backgroundColor: 'transparent' }}
         data-placeholder={placeholder}
         suppressContentEditableWarning={true}
       />
 
       {/* Custom styles */}
       <style>{`
+        .rich-text-editor {
+          background-color: transparent !important;
+        }
         .rich-text-editor:empty:before {
           content: attr(data-placeholder);
           color: #64748b;
           pointer-events: none;
+        }
+        .rich-text-editor * {
+          background-color: transparent !important;
         }
         .rich-text-editor h1 {
           font-size: 1.5rem;
