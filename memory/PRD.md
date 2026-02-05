@@ -602,3 +602,27 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: IMPLEMENTED AND TESTED
 - **Verification**: Testing agent confirmou todas as funcionalidades (17 testes passaram)
 
+### Font Size Selector + Transparent Background Fix - IMPLEMENTED (Feb 5, 2026)
+- **Feature 1: Seletor de Tamanho de Fonte**
+  - 7 tamanhos disponíveis: 10px, 12px, 14px, 16px, 18px, 24px, 36px
+  - Botão mostra tamanho atual na toolbar
+  - Usa `document.execCommand('fontSize')` com valores 1-7
+  
+- **Feature 2: Correção do Fundo Transparente**
+  - Removido `bg-white` do container do elemento HTML no SlideCanvas
+  - iframe srcDoc envolve conteúdo em HTML completo com CSS:
+    - `body { background: transparent !important; }`
+    - `* { background: transparent !important; }`
+  - Texto agora aparece diretamente sobre o fundo do slide
+  
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx`:
+    - FONT_SIZES array com 7 tamanhos
+    - applyFontSize() function
+    - Popover UI para seleção de tamanho
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx`:
+    - iframe srcDoc com CSS de fundo transparente
+    - Container div com background: transparent
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Testing agent confirmou fundo transparente e tamanhos funcionando (12 testes passaram)
+
