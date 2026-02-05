@@ -1181,6 +1181,55 @@ export default function Editor() {
     }
   };
 
+  // AI Text Generation function
+  const generateTextWithAI = async (prompt) => {
+    setRichTextGenerating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/ai/generate-text`, {
+        prompt: prompt,
+        format: 'html'
+      });
+      
+      if (response.data.success && response.data.content) {
+        setRichTextContent(response.data.content);
+        toast.success('Texto gerado com sucesso!');
+        return response.data.content;
+      } else {
+        throw new Error('No content returned');
+      }
+    } catch (err) {
+      console.error('Error generating text:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao gerar texto com IA');
+      throw err;
+    } finally {
+      setRichTextGenerating(false);
+    }
+  };
+
+  // Add rich text as element to slide
+  const handleAddRichTextToSlide = async () => {
+    if (!richTextContent.trim()) {
+      toast.error('Escreva ou gere um texto primeiro');
+      return;
+    }
+
+    try {
+      await addElement(currentSlide.id, {
+        type: 'html',
+        x: 50,
+        y: 50,
+        width: 600,
+        height: 400,
+        htmlContent: richTextContent,
+      });
+      setShowRichTextDialog(false);
+      setRichTextContent('');
+      toast.success('Texto adicionado ao slide!');
+    } catch (err) {
+      toast.error('Falha ao adicionar texto ao slide');
+    }
+  };
+
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
