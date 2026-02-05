@@ -836,16 +836,30 @@ export default function Editor() {
     setHeygenCreditsLoading(true);
     
     try {
-      // Load avatars and voices first (they're needed for the UI)
+      // Load avatars and voices with current filters
+      const avatarParams = heygenAvatarGenderFilter !== 'all' ? `?gender=${heygenAvatarGenderFilter}` : '';
+      const voiceParams = new URLSearchParams();
+      if (heygenVoiceLanguageFilter !== 'all') voiceParams.append('language', heygenVoiceLanguageFilter);
+      if (heygenVoiceGenderFilter !== 'all') voiceParams.append('gender', heygenVoiceGenderFilter);
+      const voiceQuery = voiceParams.toString() ? `?${voiceParams.toString()}` : '';
+      
       const [avatarsRes, voicesRes] = await Promise.all([
-        axios.get(`${API_URL}/api/heygen/avatars`),
-        axios.get(`${API_URL}/api/heygen/voices?language=portuguese`)
+        axios.get(`${API_URL}/api/heygen/avatars${avatarParams}`),
+        axios.get(`${API_URL}/api/heygen/voices${voiceQuery}`)
       ]);
       
       setHeygenAvatars(avatarsRes.data.avatars || []);
       setHeygenVoices(voicesRes.data.voices || []);
       
-      // Set defaults if available
+      // Set available filter options (only on first load)
+      if (avatarsRes.data.available_genders) {
+        setHeygenAvailableGenders(avatarsRes.data.available_genders);
+      }
+      if (voicesRes.data.available_languages) {
+        setHeygenAvailableLanguages(voicesRes.data.available_languages);
+      }
+      
+      // Set defaults if available and not already set
       if (avatarsRes.data.avatars?.length > 0 && !heygenConfig.avatarId) {
         setHeygenConfig(prev => ({ ...prev, avatarId: avatarsRes.data.avatars[0].avatar_id }));
       }
@@ -873,6 +887,46 @@ export default function Editor() {
       toast.error('Falha ao carregar dados do HeyGen. Verifique a API Key.');
       setHeygenLoading(false);
       setHeygenCreditsLoading(false);
+    }
+  };
+  
+  // Reload avatars when gender filter changes
+  const reloadHeygenAvatars = async (gender) => {
+    try {
+      const params = gender !== 'all' ? `?gender=${gender}` : '';
+      const response = await axios.get(`${API_URL}/api/heygen/avatars${params}`);
+      setHeygenAvatars(response.data.avatars || []);
+      // Reset avatar selection if current avatar is not in filtered list
+      if (heygenConfig.avatarId && !response.data.avatars?.find(a => a.avatar_id === heygenConfig.avatarId)) {
+        setHeygenConfig(prev => ({ 
+          ...prev, 
+          avatarId: response.data.avatars?.[0]?.avatar_id || '' 
+        }));
+      }
+    } catch (err) {
+      console.error('Error reloading avatars:', err);
+    }
+  };
+  
+  // Reload voices when filters change
+  const reloadHeygenVoices = async (language, gender) => {
+    try {
+      const params = new URLSearchParams();
+      if (language !== 'all') params.append('language', language);
+      if (gender !== 'all') params.append('gender', gender);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      
+      const response = await axios.get(`${API_URL}/api/heygen/voices${query}`);
+      setHeygenVoices(response.data.voices || []);
+      // Reset voice selection if current voice is not in filtered list
+      if (heygenConfig.voiceId && !response.data.voices?.find(v => v.voice_id === heygenConfig.voiceId)) {
+        setHeygenConfig(prev => ({ 
+          ...prev, 
+          voiceId: response.data.voices?.[0]?.voice_id || '' 
+        }));
+      }
+    } catch (err) {
+      console.error('Error reloading voices:', err);
     }
   };
 
