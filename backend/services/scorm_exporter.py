@@ -839,10 +839,29 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element html-element';
                 var htmlIframe = document.createElement('iframe');
-                htmlIframe.srcdoc = element.htmlContent || '<p>HTML Content</p>';
+                var htmlContent = element.htmlContent || '<p>HTML Content</p>';
+                
+                // Check if content is base64 encoded
+                if (htmlContent.startsWith('__B64__:')) {{
+                    try {{
+                        var binaryString = atob(htmlContent.substring(8));
+                        var bytes = new Uint8Array(binaryString.length);
+                        for (var i = 0; i < binaryString.length; i++) {{
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }}
+                        htmlContent = new TextDecoder('utf-8').decode(bytes);
+                    }} catch(e) {{
+                        console.error('Failed to decode htmlContent:', e);
+                    }}
+                }}
+                
+                // Wrap in full HTML with transparent background
+                var wrappedHtml = '<html><head><style>body{{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;}}*{{background:transparent!important;}}</style></head><body>' + htmlContent + '</body></html>';
+                htmlIframe.srcdoc = wrappedHtml;
                 htmlIframe.style.width = '100%';
                 htmlIframe.style.height = '100%';
                 htmlIframe.style.border = 'none';
+                htmlIframe.style.background = 'transparent';
                 htmlIframe.sandbox = 'allow-scripts allow-same-origin';
                 el.appendChild(htmlIframe);
                 break;
