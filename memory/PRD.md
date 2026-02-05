@@ -626,3 +626,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: IMPLEMENTED AND TESTED
 - **Verification**: Testing agent confirmou fundo transparente e tamanhos funcionando (12 testes passaram)
 
+### HTML Export UTF-8 Encoding Fix - IMPLEMENTED (Feb 5, 2026)
+- **Issue**: Caracteres acentuados (ç, ã, é, á, etc) apareciam corrompidos na exportação HTML
+- **Root Cause**: `atob()` em JavaScript decodifica base64 para string binária, não UTF-8
+- **Fix Applied**:
+  - Substituído `atob(htmlContent.substring(8))` por:
+    ```javascript
+    var binaryString = atob(htmlContent.substring(8));
+    var bytes = new Uint8Array(binaryString.length);
+    for (var i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    htmlContent = new TextDecoder('utf-8').decode(bytes);
+    ```
+- **File Modified**:
+  - `/app/backend/services/html_exporter.py` (linha ~1050-1065)
+- **Status**: IMPLEMENTED
+- **Verification**: Caracteres como "utilização", "navegação", "áreas", "decisões" agora aparecem corretamente
+
