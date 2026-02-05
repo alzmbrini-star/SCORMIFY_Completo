@@ -44,11 +44,22 @@ export const RichTextEditor = ({
   const [showImageInput, setShowImageInput] = useState(false);
   const editorRef = useRef(null);
   const lastContentRef = useRef(content);
+  const initializedRef = useRef(false);
 
-  // Set initial content when editor mounts or content prop changes
+  // Initialize content on mount
   useEffect(() => {
-    if (editorRef.current) {
-      // Only update if content changed from parent (not from typing)
+    if (editorRef.current && !initializedRef.current) {
+      if (content) {
+        editorRef.current.innerHTML = content;
+        lastContentRef.current = content;
+      }
+      initializedRef.current = true;
+    }
+  }, []);
+
+  // Handle content prop changes after init
+  useEffect(() => {
+    if (editorRef.current && initializedRef.current) {
       if (content !== lastContentRef.current) {
         editorRef.current.innerHTML = content || '';
         lastContentRef.current = content;
