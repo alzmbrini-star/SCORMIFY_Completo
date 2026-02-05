@@ -1050,7 +1050,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             // Check if content is base64 encoded (to avoid JS escaping issues)
                             if (htmlContent.startsWith('__B64__:')) {{
                                 try {{
-                                    htmlContent = atob(htmlContent.substring(8));
+                                    // Decode base64 and properly handle UTF-8
+                                    var binaryString = atob(htmlContent.substring(8));
+                                    var bytes = new Uint8Array(binaryString.length);
+                                    for (var i = 0; i < binaryString.length; i++) {{
+                                        bytes[i] = binaryString.charCodeAt(i);
+                                    }}
+                                    htmlContent = new TextDecoder('utf-8').decode(bytes);
                                 }} catch(e) {{
                                     console.error('Failed to decode htmlContent:', e);
                                 }}
