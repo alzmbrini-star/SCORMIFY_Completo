@@ -479,3 +479,25 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Endpoint**: `GET /api/heygen/webhook-url`
 - **Returns**: URL do webhook e instruções para configurar no dashboard da HeyGen
 - **Note**: O usuário precisa configurar o webhook no dashboard da HeyGen para receber notificações em tempo real
+
+### HeyGen Avatar and Voice Filters - IMPLEMENTED (Feb 5, 2026)
+- **Feature**: Filtros avançados para avatares e vozes no diálogo HeyGen
+- **Improvements Applied**:
+  1. **Filtro de Gênero para Avatares**: Dropdown para filtrar por Masculino/Feminino/Todos
+  2. **Mais Avatares**: Limite aumentado de 100 para 200 avatares
+  3. **Indicador Visual de Gênero**: Símbolo ♂/♀ no canto de cada avatar
+  4. **Filtro de Idioma para Vozes**: Dropdown com bandeirinhas (🇧🇷🇵🇹🇺🇸🇬🇧🇪🇸🇫🇷🇩🇪🇮🇹)
+  5. **Filtro de Gênero para Vozes**: Dropdown separado para gênero
+  6. **Contador de Itens**: Mostra quantidade de avatares/vozes disponíveis
+  7. **Bandeira na Lista de Vozes**: Cada voz mostra bandeira do país + indicador de gênero
+- **Files Modified**:
+  - `/app/backend/server.py`:
+    - Endpoint `/api/heygen/avatars` - Adicionado parâmetro `gender` e retorna `available_genders`
+    - Endpoint `/api/heygen/voices` - Adicionado parâmetros `language` e `gender`, retorna `available_languages` e `available_genders` com bandeirinhas
+    - Lógica para detectar PT-BR vs PT-PT pelo nome da voz (ex: "Sofia Brazil")
+  - `/app/frontend/src/pages/Editor.jsx`:
+    - Novos estados: `heygenAvatarGenderFilter`, `heygenVoiceLanguageFilter`, `heygenVoiceGenderFilter`, `heygenAvailableGenders`, `heygenAvailableLanguages`
+    - Novas funções: `reloadHeygenAvatars()`, `reloadHeygenVoices()`
+    - UI atualizada com dropdowns de filtro e contadores
+- **Status**: IMPLEMENTED AND TESTED
+- **Verification**: Filtros funcionando - 689 avatares femininos, 49 vozes em português com bandeiras
