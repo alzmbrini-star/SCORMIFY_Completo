@@ -626,7 +626,6 @@ export const RichTextEditor = ({
           margin: 0.5rem 0;
           cursor: pointer;
           transition: box-shadow 0.2s, outline 0.2s;
-          position: relative;
         }
         .rich-text-editor img:hover {
           outline: 2px dashed #64748b;
@@ -637,17 +636,6 @@ export const RichTextEditor = ({
           outline-offset: 2px;
           box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.2);
           cursor: nwse-resize;
-        }
-        /* Resize handle indicator via gradient overlay */
-        .rich-text-editor img.selected-image::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          right: 0;
-          width: 20px;
-          height: 20px;
-          background: linear-gradient(135deg, transparent 50%, #22d3ee 50%);
-          pointer-events: none;
         }
         /* Enhanced Table Styles */
         .rich-text-editor table,
