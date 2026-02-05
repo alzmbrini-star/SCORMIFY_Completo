@@ -275,10 +275,26 @@ export const RichTextEditor = ({
       bodyCells += `<tr>${rowCells}</tr>`;
     }
     
-    const table = `<table class="rtf-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyCells}</tbody></table>`;
-    execCommand('insertHTML', table);
+    const table = `<table class="rtf-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyCells}</tbody></table><p><br></p>`;
+    
+    // Focus editor first
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    
+    // Small delay to ensure focus, then insert
+    setTimeout(() => {
+      document.execCommand('insertHTML', false, table);
+      // Update content
+      if (editorRef.current) {
+        const newContent = editorRef.current.innerHTML;
+        lastContentRef.current = newContent;
+        onChange?.(newContent);
+      }
+    }, 50);
+    
     setShowTableConfig(false);
-  }, [execCommand, tableRows, tableCols]);
+  }, [onChange, tableRows, tableCols]);
 
   const formatBlock = useCallback((tag) => {
     execCommand('formatBlock', tag);
