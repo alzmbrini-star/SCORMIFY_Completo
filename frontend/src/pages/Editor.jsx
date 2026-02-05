@@ -1207,7 +1207,7 @@ export default function Editor() {
     }
   };
 
-  // Add rich text as element to slide
+  // Add or update rich text element
   const handleAddRichTextToSlide = async () => {
     if (!richTextContent.trim()) {
       toast.error('Escreva ou gere um texto primeiro');
@@ -1215,19 +1215,38 @@ export default function Editor() {
     }
 
     try {
-      await addElement(currentSlide.id, {
-        type: 'html',
-        x: 50,
-        y: 50,
-        width: 600,
-        height: 400,
-        htmlContent: richTextContent,
-      });
+      if (editingHtmlElementId) {
+        // Update existing element
+        await updateElement(currentSlide.id, editingHtmlElementId, {
+          htmlContent: richTextContent,
+        });
+        toast.success('Texto atualizado!');
+      } else {
+        // Create new element
+        await addElement(currentSlide.id, {
+          type: 'html',
+          x: 50,
+          y: 50,
+          width: 600,
+          height: 400,
+          htmlContent: richTextContent,
+        });
+        toast.success('Texto adicionado ao slide!');
+      }
       setShowRichTextDialog(false);
       setRichTextContent('');
-      toast.success('Texto adicionado ao slide!');
+      setEditingHtmlElementId(null);
     } catch (err) {
-      toast.error('Falha ao adicionar texto ao slide');
+      toast.error('Falha ao salvar texto');
+    }
+  };
+
+  // Open RTF editor to edit existing HTML element
+  const handleEditHtmlElement = (element) => {
+    if (element.type === 'html' && element.htmlContent) {
+      setRichTextContent(element.htmlContent);
+      setEditingHtmlElementId(element.id);
+      setShowRichTextDialog(true);
     }
   };
 
