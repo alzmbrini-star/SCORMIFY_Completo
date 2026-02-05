@@ -624,22 +624,72 @@ export const RichTextEditor = ({
           max-width: 100%;
           border-radius: 0.25rem;
           margin: 0.5rem 0;
+          cursor: pointer;
+          transition: box-shadow 0.2s, outline 0.2s;
         }
-        .rich-text-editor table {
-          border-collapse: collapse;
+        .rich-text-editor img:hover {
+          outline: 2px dashed #64748b;
+          outline-offset: 2px;
+        }
+        .rich-text-editor img.selected-image {
+          outline: 3px solid #22d3ee;
+          outline-offset: 2px;
+          box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.2);
+        }
+        /* Enhanced Table Styles */
+        .rich-text-editor table,
+        .rich-text-editor table.rtf-table {
+          border-collapse: separate;
+          border-spacing: 0;
           width: 100%;
           margin: 1rem 0;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
         }
         .rich-text-editor th {
-          background: #334155;
-          border: 1px solid #475569;
-          padding: 0.5rem;
-          font-weight: bold;
+          background: linear-gradient(to bottom, #475569, #334155);
+          border: none;
+          border-bottom: 2px solid #22d3ee;
+          padding: 0.75rem 1rem;
+          font-weight: 600;
           text-align: left;
+          color: #f1f5f9;
+          font-size: 0.875rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .rich-text-editor th:first-child {
+          border-top-left-radius: 8px;
+        }
+        .rich-text-editor th:last-child {
+          border-top-right-radius: 8px;
         }
         .rich-text-editor td {
-          border: 1px solid #475569;
-          padding: 0.5rem;
+          border: none;
+          border-bottom: 1px solid #334155;
+          padding: 0.75rem 1rem;
+          background: #1e293b;
+          color: #e2e8f0;
+          transition: background-color 0.2s;
+        }
+        .rich-text-editor tr:hover td {
+          background: #263347;
+        }
+        .rich-text-editor tr:last-child td {
+          border-bottom: none;
+        }
+        .rich-text-editor tr:last-child td:first-child {
+          border-bottom-left-radius: 8px;
+        }
+        .rich-text-editor tr:last-child td:last-child {
+          border-bottom-right-radius: 8px;
+        }
+        .rich-text-editor tr:nth-child(even) td {
+          background: #1a2433;
+        }
+        .rich-text-editor tr:nth-child(even):hover td {
+          background: #243247;
         }
         .rich-text-editor strong {
           font-weight: bold;
