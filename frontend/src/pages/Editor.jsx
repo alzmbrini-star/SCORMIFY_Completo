@@ -946,9 +946,6 @@ export default function Editor() {
   };
 
   const pollHeygenVideoStatus = async (videoId) => {
-    const maxAttempts = 180; // 15 minutes max (5s intervals)
-    let attempts = 0;
-    
     // Start elapsed time counter
     setHeygenElapsedTime(0);
     if (heygenTimerRef.current) {
@@ -964,6 +961,74 @@ export default function Editor() {
         heygenTimerRef.current = null;
       }
     };
+    
+    // Use Server-Sent Events (SSE) for real-time updates instead of polling
+    try {
+      const eventSource = new EventSource(`${API_URL}/api/heygen/video-events/${videoId}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('SSE event:', data);
+          
+          if (data.event === 'ping') {
+            // Keepalive ping, ignore
+            return;
+          }
+          
+          if (data.status) {
+            setHeygenVideoStatus(data.status);
+          }
+          
+          if (data.status === 'completed' && data.video_url) {
+            stopTimer();
+            setHeygenVideoUrl(data.video_url);
+            setHeygenGenerating(false);
+            toast.success('Vídeo gerado com sucesso!');
+            eventSource.close();
+          } else if (data.status === 'failed' || data.status === 'error') {
+            stopTimer();
+            setHeygenGenerating(false);
+            toast.error('Falha na geração do vídeo. Tente novamente.');
+            eventSource.close();
+          } else if (data.event === 'timeout') {
+            stopTimer();
+            setHeygenGenerating(false);
+            toast.error('Tempo limite excedido (15 min). O vídeo pode ainda estar sendo processado.');
+            eventSource.close();
+          }
+        } catch (e) {
+          console.error('Error parsing SSE event:', e);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('SSE error:', error);
+        eventSource.close();
+        // Fallback to polling if SSE fails
+        fallbackToPoll(videoId, stopTimer);
+      };
+      
+      // Store eventSource reference for cleanup
+      const currentEventSource = eventSource;
+      
+      // Cleanup on unmount or dialog close
+      return () => {
+        currentEventSource.close();
+        stopTimer();
+      };
+      
+    } catch (e) {
+      console.error('Error setting up SSE:', e);
+      // Fallback to polling
+      fallbackToPoll(videoId, stopTimer);
+    }
+  };
+  
+  // Fallback polling function if SSE doesn't work
+  const fallbackToPoll = async (videoId, stopTimer) => {
+    const maxAttempts = 180; // 15 minutes max (5s intervals)
+    let attempts = 0;
     
     const poll = async () => {
       try {
@@ -991,7 +1056,7 @@ export default function Editor() {
         } else {
           stopTimer();
           setHeygenGenerating(false);
-          toast.error('Tempo limite excedido (15 min). O vídeo pode ainda estar sendo processado. Tente novamente mais tarde.');
+          toast.error('Tempo limite excedido (15 min). O vídeo pode ainda estar sendo processado.');
         }
       } catch (err) {
         console.error('Error polling status:', err);
