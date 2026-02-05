@@ -1012,7 +1012,8 @@ export default function Editor() {
         script: heygenConfig.script,
         title: heygenConfig.title,
         aspect_ratio: '16:9',
-        transparent_background: heygenConfig.transparentBackground
+        transparent_background: heygenConfig.transparentBackground,
+        project_id: id // Associate video with current project
       });
       
       setHeygenVideoId(response.data.video_id);
