@@ -433,6 +433,23 @@ export const RichTextEditor = ({
     }
   }, [onChange]);
 
+  // Apply font size to selection
+  const applyFontSize = useCallback((size) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    document.execCommand('fontSize', false, size);
+    setCurrentFontSize(size);
+    setShowFontSizeSelect(false);
+    
+    // Update content
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      lastContentRef.current = newContent;
+      onChange?.(newContent);
+    }
+  }, [onChange]);
+
   const formatBlock = useCallback((tag) => {
     execCommand('formatBlock', tag);
   }, [execCommand]);
