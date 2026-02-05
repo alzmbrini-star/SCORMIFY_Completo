@@ -1113,36 +1113,43 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 // Annotations SVG
                 if (slide.annotations && slide.annotations.length > 0) {{
                     html += '<svg class="annotations-layer" viewBox="0 0 ' + slideWidth + ' ' + slideHeight + '" preserveAspectRatio="none">';
-                    slide.annotations.forEach(function(ann) {{
+                    slide.annotations.forEach(function(ann, annIndex) {{
                         var color = ann.color || '#EF4444';
                         var strokeWidth = ann.strokeWidth || 3;
+                        
+                        // Check if annotation has timeline settings
+                        var startTime = ann.startTime || 0;
+                        var endTime = (ann.endTime !== undefined && ann.endTime !== null) ? ann.endTime : slideDuration;
+                        var initiallyHidden = startTime > 0;
+                        var hideStyle = initiallyHidden ? ' style="display:none;"' : '';
+                        var annId = 'annotation-' + annIndex;
                         
                         if (ann.type === 'freehand' && ann.points && ann.points.length > 0) {{
                             var d = 'M ' + ann.points[0].x + ' ' + ann.points[0].y;
                             for (var i = 1; i < ann.points.length; i++) {{
                                 d += ' L ' + ann.points[i].x + ' ' + ann.points[i].y;
                             }}
-                            html += '<path d="' + d + '" stroke="' + color + '" stroke-width="' + strokeWidth + '" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+                            html += '<path id="' + annId + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" d="' + d + '" stroke="' + color + '" stroke-width="' + strokeWidth + '" fill="none" stroke-linecap="round" stroke-linejoin="round"' + hideStyle + '/>';
                         }}
                         else if (ann.type === 'arrow' && ann.points && ann.points.length >= 2) {{
                             html += '<defs><marker id="arrow-' + ann.id + '" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">';
                             html += '<polygon points="0 0, 10 3.5, 0 7" fill="' + color + '"/></marker></defs>';
-                            html += '<line x1="' + ann.points[0].x + '" y1="' + ann.points[0].y + '" x2="' + ann.points[1].x + '" y2="' + ann.points[1].y + '" ';
-                            html += 'stroke="' + color + '" stroke-width="' + strokeWidth + '" marker-end="url(#arrow-' + ann.id + ')"/>';
+                            html += '<line id="' + annId + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" x1="' + ann.points[0].x + '" y1="' + ann.points[0].y + '" x2="' + ann.points[1].x + '" y2="' + ann.points[1].y + '" ';
+                            html += 'stroke="' + color + '" stroke-width="' + strokeWidth + '" marker-end="url(#arrow-' + ann.id + ')"' + hideStyle + '/>';
                         }}
                         else if (ann.type === 'circle' && ann.points && ann.points.length >= 2) {{
                             var cx = (ann.points[0].x + ann.points[1].x) / 2;
                             var cy = (ann.points[0].y + ann.points[1].y) / 2;
                             var rx = Math.abs(ann.points[1].x - ann.points[0].x) / 2;
                             var ry = Math.abs(ann.points[1].y - ann.points[0].y) / 2;
-                            html += '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" stroke="' + color + '" stroke-width="' + strokeWidth + '" fill="none"/>';
+                            html += '<ellipse id="' + annId + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" cx="' + cx + '" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" stroke="' + color + '" stroke-width="' + strokeWidth + '" fill="none"' + hideStyle + '/>';
                         }}
                         else if (ann.type === 'rectangle' && ann.points && ann.points.length >= 2) {{
                             var x = Math.min(ann.points[0].x, ann.points[1].x);
                             var y = Math.min(ann.points[0].y, ann.points[1].y);
                             var w = Math.abs(ann.points[1].x - ann.points[0].x);
                             var h = Math.abs(ann.points[1].y - ann.points[0].y);
-                            html += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" stroke="' + color + '" stroke-width="' + strokeWidth + '" fill="none"/>';
+                            html += '<rect id="' + annId + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" stroke="' + color + '" stroke-width="' + strokeWidth + '" fill="none"' + hideStyle + '/>';
                         }}
                     }});
                     html += '</svg>';
