@@ -1193,6 +1193,109 @@ export default function Editor() {
     }
   };
 
+  // Video Library functions
+  const loadVideoLibrary = async () => {
+    setVideoLibraryLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/heygen/videos`);
+      setVideoLibraryItems(response.data.videos || []);
+    } catch (err) {
+      console.error('Error loading video library:', err);
+      toast.error('Falha ao carregar biblioteca de vídeos');
+    } finally {
+      setVideoLibraryLoading(false);
+    }
+  };
+
+  const refreshVideoStatus = async (videoId) => {
+    setRefreshingVideoId(videoId);
+    try {
+      const response = await axios.get(`${API_URL}/api/heygen/videos/${videoId}/refresh`);
+      // Update the video in the list
+      setVideoLibraryItems(prev => prev.map(v => 
+        v.video_id === videoId 
+          ? { ...v, ...response.data }
+          : v
+      ));
+      
+      if (response.data.status === 'completed') {
+        toast.success('Vídeo pronto para uso!');
+      } else if (response.data.status === 'failed') {
+        toast.error('Vídeo falhou na geração');
+      } else {
+        toast.info(`Status: ${response.data.status}`);
+      }
+    } catch (err) {
+      console.error('Error refreshing video status:', err);
+      toast.error('Falha ao atualizar status do vídeo');
+    } finally {
+      setRefreshingVideoId(null);
+    }
+  };
+
+  const handleAddLibraryVideoToSlide = async (video) => {
+    if (!video.video_url) {
+      toast.error('Este vídeo ainda não está pronto. Clique em "Atualizar Status".');
+      return;
+    }
+
+    try {
+      await addElement(currentSlide.id, {
+        type: 'video',
+        x: 50,
+        y: 50,
+        width: 640,
+        height: 360,
+        src: video.video_url,
+        embedUrl: null,
+        embedType: null,
+      });
+      setShowVideoLibrary(false);
+      toast.success('Vídeo adicionado ao slide!');
+    } catch (err) {
+      toast.error('Falha ao adicionar vídeo ao slide');
+    }
+  };
+
+  const handleOpenVideoLibrary = () => {
+    loadVideoLibrary();
+    setShowVideoLibrary(true);
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return '--:--';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return 'Data desconhecida';
+    const date = new Date(isoString);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'completed':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Concluído</span>;
+      case 'processing':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">Processando</span>;
+      case 'failed':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Falhou</span>;
+      case 'pending':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400">Pendente</span>;
+      default:
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">{status || 'Desconhecido'}</span>;
+    }
+  };
+
   // AI Text Generation function
   const generateTextWithAI = async (prompt) => {
     setRichTextGenerating(true);
