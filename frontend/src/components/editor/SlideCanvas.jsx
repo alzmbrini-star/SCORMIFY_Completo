@@ -30,6 +30,7 @@ const SlideCanvas = ({
   annotationMode,
   timelineTime = 0,
   timelineIsPlaying = false,
+  onEditHtmlElement, // New prop for editing HTML elements
 }) => {
   const canvasRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
