@@ -1140,6 +1140,39 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 container.innerHTML = html;
                 
+                // Setup timeline for elements with startTime/endTime
+                if (slide.elements) {{
+                    slide.elements.forEach(function(elem, elemIndex) {{
+                        if (elem.visible === false) return;
+                        
+                        var startTime = elem.startTime || 0;
+                        var endTime = (elem.endTime !== undefined && elem.endTime !== null) ? elem.endTime : slideDuration;
+                        var element = document.getElementById('element-' + elemIndex);
+                        
+                        if (element) {{
+                            // Schedule element to appear at startTime
+                            if (startTime > 0) {{
+                                var showTimer = setTimeout(function() {{
+                                    element.style.display = '';
+                                    element.style.animation = 'fadeIn 0.3s ease-out';
+                                }}, startTime * 1000);
+                                timelineTimers.push(showTimer);
+                            }}
+                            
+                            // Schedule element to hide at endTime (if before slide ends)
+                            if (endTime < slideDuration) {{
+                                var hideTimer = setTimeout(function() {{
+                                    element.style.animation = 'fadeOut 0.3s ease-out';
+                                    setTimeout(function() {{
+                                        element.style.display = 'none';
+                                    }}, 300);
+                                }}, endTime * 1000);
+                                timelineTimers.push(hideTimer);
+                            }}
+                        }}
+                    }});
+                }}
+                
                 // Start slide audio if exists
                 if (slide.audio && slide.audio.length > 0) {{
                     slide.audio.forEach(function(audioData) {{
