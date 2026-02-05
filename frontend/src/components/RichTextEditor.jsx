@@ -155,7 +155,7 @@ export const RichTextEditor = ({
 
   const handleInput = useCallback((e) => {
     const newContent = e.currentTarget.innerHTML;
-    setInternalContent(newContent);
+    lastContentRef.current = newContent;
     onChange?.(newContent);
   }, [onChange]);
 
