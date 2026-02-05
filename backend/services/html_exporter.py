@@ -860,6 +860,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             var isMuted = false;
             var volume = 0.7;
             var sidebarOpen = false;
+            var timelineTimers = []; // Timeline timers for showing/hiding elements
+            var isPresentationMode = false;
             
             function init() {{
                 course = courseData;
