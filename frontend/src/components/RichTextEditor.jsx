@@ -52,10 +52,14 @@ export const RichTextEditor = ({
   useEffect(() => {
     if (editorRef.current && !isInitialized.current && content) {
       editorRef.current.innerHTML = content;
-      setIsEmpty(false);
       isInitialized.current = true;
     }
   }, [content]);
+
+  // Track empty state separately
+  useEffect(() => {
+    setIsEmpty(!content);
+  }, []);
 
   const execCommand = useCallback((command, value = null) => {
     document.execCommand(command, false, value);
