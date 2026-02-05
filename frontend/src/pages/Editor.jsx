@@ -2913,6 +2913,7 @@ export default function Editor() {
             
             <div className="py-4">
               <RichTextEditor
+                key={editingHtmlElementId || 'new'}
                 content={richTextContent}
                 onChange={setRichTextContent}
                 onGenerateAI={generateTextWithAI}
