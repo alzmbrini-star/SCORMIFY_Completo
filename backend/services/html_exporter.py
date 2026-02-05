@@ -1190,6 +1190,37 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     }});
                 }}
                 
+                // Setup timeline for annotations with startTime/endTime
+                if (slide.annotations) {{
+                    slide.annotations.forEach(function(ann, annIndex) {{
+                        var startTime = ann.startTime || 0;
+                        var endTime = (ann.endTime !== undefined && ann.endTime !== null) ? ann.endTime : slideDuration;
+                        var annotation = document.getElementById('annotation-' + annIndex);
+                        
+                        if (annotation) {{
+                            // Schedule annotation to appear at startTime
+                            if (startTime > 0) {{
+                                var showTimer = setTimeout(function() {{
+                                    annotation.style.display = '';
+                                    annotation.style.opacity = '1';
+                                }}, startTime * 1000);
+                                timelineTimers.push(showTimer);
+                            }}
+                            
+                            // Schedule annotation to hide at endTime (if before slide ends)
+                            if (endTime < slideDuration) {{
+                                var hideTimer = setTimeout(function() {{
+                                    annotation.style.opacity = '0';
+                                    setTimeout(function() {{
+                                        annotation.style.display = 'none';
+                                    }}, 300);
+                                }}, endTime * 1000);
+                                timelineTimers.push(hideTimer);
+                            }}
+                        }}
+                    }});
+                }}
+                
                 // Start slide audio if exists
                 if (slide.audio && slide.audio.length > 0) {{
                     slide.audio.forEach(function(audioData) {{
