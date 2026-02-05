@@ -1484,6 +1484,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                 "title": request.title,
                 "status": "processing",
                 "transparent": request.transparent_background,
+                "project_id": request.project_id,
                 "created_at": now_utc()
             })
             
