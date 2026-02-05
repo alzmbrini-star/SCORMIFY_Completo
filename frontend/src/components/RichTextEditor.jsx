@@ -4,13 +4,36 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Link as LinkIcon, Image as ImageIcon,
   Table as TableIcon, Undo, Redo, Heading1, Heading2, Heading3,
-  Sparkles, Loader2, Grid3X3
+  Sparkles, Loader2, Grid3X3, Type, Palette
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+
+// Available fonts
+const FONTS = [
+  { name: 'Arial', value: 'Arial, sans-serif' },
+  { name: 'Helvetica', value: 'Helvetica, sans-serif' },
+  { name: 'Verdana', value: 'Verdana, sans-serif' },
+  { name: 'Tahoma', value: 'Tahoma, sans-serif' },
+  { name: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
+  { name: 'Georgia', value: 'Georgia, serif' },
+  { name: 'Times New Roman', value: '"Times New Roman", serif' },
+  { name: 'Courier New', value: '"Courier New", monospace' },
+  { name: 'Impact', value: 'Impact, sans-serif' },
+  { name: 'Comic Sans MS', value: '"Comic Sans MS", cursive' },
+];
+
+// Preset colors
+const COLORS = [
+  '#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF',
+  '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080',
+  '#008000', '#000080', '#808080', '#C0C0C0', '#FFD700',
+  '#22d3ee', '#a855f7', '#ec4899', '#f97316', '#84cc16',
+];
 
 const MenuButton = ({ onClick, isActive, disabled, children, title }) => (
   <button
