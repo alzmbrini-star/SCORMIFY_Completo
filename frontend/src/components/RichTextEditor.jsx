@@ -44,26 +44,20 @@ export const RichTextEditor = ({
   const [showImageInput, setShowImageInput] = useState(false);
   const editorRef = useRef(null);
   const lastContentRef = useRef(content);
-  const initializedRef = useRef(false);
+  const initialContentRef = useRef(content);
 
   // Initialize content on mount
   useEffect(() => {
-    if (editorRef.current && !initializedRef.current) {
-      if (content) {
-        editorRef.current.innerHTML = content;
-        lastContentRef.current = content;
-      }
-      initializedRef.current = true;
+    if (editorRef.current && initialContentRef.current) {
+      editorRef.current.innerHTML = initialContentRef.current;
     }
   }, []);
 
   // Handle content prop changes after init
   useEffect(() => {
-    if (editorRef.current && initializedRef.current) {
-      if (content !== lastContentRef.current) {
-        editorRef.current.innerHTML = content || '';
-        lastContentRef.current = content;
-      }
+    if (editorRef.current && content !== lastContentRef.current) {
+      editorRef.current.innerHTML = content || '';
+      lastContentRef.current = content;
     }
   }, [content]);
 
