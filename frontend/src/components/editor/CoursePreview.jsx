@@ -197,11 +197,28 @@ const CoursePreview = ({ course, projectId, onClose }) => {
           return newTime;
         });
       }, 100);
+      
+      // Start slide audios based on their startTime
+      slideAudiosRef.current.forEach(audio => {
+        if (audio && !audio.playing) {
+          const audioStartTime = parseFloat(audio.dataset.startTime || 0);
+          if (currentTime >= audioStartTime && audio.paused) {
+            audio.currentTime = currentTime - audioStartTime;
+            audio.play().catch(() => {});
+          }
+        }
+      });
     } else {
       if (timelineRef.current) {
         clearInterval(timelineRef.current);
         timelineRef.current = null;
       }
+      // Pause all slide audios when not playing
+      slideAudiosRef.current.forEach(audio => {
+        if (audio) {
+          audio.pause();
+        }
+      });
     }
     
     return () => {
@@ -209,7 +226,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
         clearInterval(timelineRef.current);
       }
     };
-  }, [isPlaying, slideDuration, currentSlideIndex, slides.length]);
+  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, currentTime]);
   
   // Start/stop global audio with playback
   useEffect(() => {
