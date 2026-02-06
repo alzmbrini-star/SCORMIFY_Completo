@@ -1928,18 +1928,50 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         #progress-container {{
             flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             margin: 0 20px;
-            height: 6px;
-            background: #0f3460;
-            border-radius: 3px;
-            overflow: hidden;
         }}
         
-        #progress-bar {{
-            height: 100%;
-            background: linear-gradient(90deg, #7c3aed, #06b6d4);
-            width: 0%;
-            transition: width 0.3s ease;
+        .progress-dots {{
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }}
+        
+        .progress-dot {{
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }}
+        
+        .progress-dot:hover {{
+            background: rgba(255, 255, 255, 0.5);
+        }}
+        
+        .progress-dot.active {{
+            background: #06b6d4;
+            transform: scale(1.2);
+        }}
+        
+        .progress-dot.completed {{
+            background: #10b981;
+        }}
+        
+        @media screen and (max-width: 900px) {{
+            .progress-dots {{
+                gap: 4px;
+            }}
+            .progress-dot {{
+                width: 8px;
+                height: 8px;
+            }}
         }}
         
         #slide-counter {{
