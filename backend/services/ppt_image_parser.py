@@ -327,14 +327,6 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                 background_image = f"/api/projects/{project_id}/assets/{img_filename}"
                 conversion_report["success"].append(f"Slide {slide_idx + 1}: Rendered as image (no animations)")
             logger.info(f"Slide {slide_idx + 1}: No animations, using image only")
-                
-                # For animated slides, we need to hide the background image parts that will be animated
-                # This is done by setting the background to show only non-animated content
-                # For now, we keep the background and overlay animated elements
-        else:
-            # For slides WITHOUT animations: just use the image background
-            # No need to extract individual elements
-            logger.info(f"Slide {slide_idx + 1}: No animations, using image only")
         
         # Get slide title
         title = f"Slide {slide_idx + 1}"
