@@ -1227,8 +1227,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             }}
                             html += '</div>';
                         }}
+                        else if (elem.type === 'animation_clip') {{
+                            // Animation clip element - uses backdrop-filter blur to hide content initially
+                            // This element will be removed/revealed via animation
+                            html += '<div class="animation-clip" style="width:100%;height:100%;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(255,255,255,0.95);"></div>';
+                        }}
                         else if (elem.type === 'animation_mask') {{
-                            // Animation mask - covers content and fades out to reveal, or fades in to hide
+                            // Legacy animation mask (kept for compatibility)
                             var maskBg = (elem.style && elem.style.fill) || '#FFFFFF';
                             var maskOpacity = (elem.style && elem.style.opacity !== undefined) ? elem.style.opacity : 1;
                             html += '<div class="animation-mask" style="width:100%;height:100%;background:' + maskBg + ';opacity:' + maskOpacity + ';pointer-events:none;"></div>';
