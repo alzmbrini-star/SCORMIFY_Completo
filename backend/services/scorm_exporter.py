@@ -1276,7 +1276,7 @@ var CoursePlayer = (function() {
                 var cls = 'progress-dot';
                 if (i === currentSlide) cls += ' active';
                 else if (i < currentSlide) cls += ' completed';
-                html += '<div class="' + cls + '" onclick="CoursePlayer.goToSlide(' + i + ')"></div>';
+                html += '<div class="' + cls + '" onclick="CoursePlayer.goTo(' + i + ')"></div>';
             }
             dotsContainer.innerHTML = html;
         }
