@@ -92,6 +92,7 @@ export const RichTextEditor = ({
   const [currentColor, setCurrentColor] = useState('#FFFFFF');
   const [currentFontSize, setCurrentFontSize] = useState('3');
   const [customColor, setCustomColor] = useState('#FFFFFF');
+  const [imageControlsPosition, setImageControlsPosition] = useState({ top: 0, left: 0, width: 0 });
   const editorRef = useRef(null);
   const lastContentRef = useRef(content);
   const initialContentRef = useRef(content);
@@ -110,6 +111,50 @@ export const RichTextEditor = ({
       lastContentRef.current = content;
     }
   }, [content]);
+
+  // Update image controls position when image is selected
+  useEffect(() => {
+    if (selectedImage && editorRef.current) {
+      const updatePosition = () => {
+        const imgRect = selectedImage.getBoundingClientRect();
+        const editorRect = editorRef.current.getBoundingClientRect();
+        setImageControlsPosition({
+          top: imgRect.top - editorRect.top,
+          left: imgRect.left - editorRect.left,
+          width: imgRect.width,
+          height: imgRect.height
+        });
+      };
+      updatePosition();
+      // Update on scroll/resize
+      window.addEventListener('scroll', updatePosition);
+      window.addEventListener('resize', updatePosition);
+      return () => {
+        window.removeEventListener('scroll', updatePosition);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [selectedImage, isResizing]);
+
+  // Delete selected image
+  const deleteSelectedImage = useCallback(() => {
+    if (!selectedImage || !editorRef.current) return;
+    
+    // Check if image is inside a wrapper div (for centered images)
+    const parentDiv = selectedImage.parentElement;
+    if (parentDiv && parentDiv.tagName === 'DIV' && parentDiv.style.textAlign === 'center') {
+      parentDiv.remove();
+    } else {
+      selectedImage.remove();
+    }
+    
+    setSelectedImage(null);
+    
+    // Update content
+    const newContent = editorRef.current.innerHTML;
+    lastContentRef.current = newContent;
+    onChange?.(newContent);
+  }, [selectedImage, onChange]);
 
   // Handle image click for selection
   const handleEditorClick = useCallback((e) => {
