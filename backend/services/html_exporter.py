@@ -456,6 +456,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             transition: opacity 0.5s ease;
         }}
         
+        .slide-element.animation_clip-element {{
+            position: absolute;
+            pointer-events: none;
+            overflow: hidden;
+        }}
+        
+        .slide-element.animation_clip-element .animation-clip {{
+            transition: opacity 0.5s ease, backdrop-filter 0.5s ease;
+        }}
+        
         .slide-element.animation_highlight-element {{
             position: absolute;
             pointer-events: none;
