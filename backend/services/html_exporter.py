@@ -1422,26 +1422,21 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     }}
                                     
                                     if (isClip) {{
-                                        // CLIP ANIMATION: Fade out the blur/cover to reveal content underneath
+                                        // CLIP ANIMATION: Fade out the dark overlay to reveal content
                                         var clipInner = element.querySelector('.animation-clip');
                                         if (clipInner) {{
                                             if (anim.type === 'entrance') {{
-                                                // Entrance: start with blur cover, then fade it out
+                                                // Entrance: start with dark cover, then fade it out
                                                 var revealTimer = setTimeout(function() {{
                                                     clipInner.style.opacity = '0';
-                                                    clipInner.style.backdropFilter = 'blur(0px)';
-                                                    clipInner.style.webkitBackdropFilter = 'blur(0px)';
                                                 }}, actualDelay * 1000);
                                                 timelineTimers.push(revealTimer);
                                                 
                                             }} else if (anim.type === 'exit') {{
-                                                // Exit: start visible, then add blur cover
+                                                // Exit: start transparent, then fade in the cover
                                                 clipInner.style.opacity = '0';
-                                                clipInner.style.backdropFilter = 'blur(0px)';
                                                 var hideTimer = setTimeout(function() {{
                                                     clipInner.style.opacity = '1';
-                                                    clipInner.style.backdropFilter = 'blur(20px)';
-                                                    clipInner.style.webkitBackdropFilter = 'blur(20px)';
                                                 }}, actualDelay * 1000);
                                                 timelineTimers.push(hideTimer);
                                             }}
