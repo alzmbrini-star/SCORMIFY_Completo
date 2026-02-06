@@ -248,10 +248,6 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     const startTime = element.startTime != null ? element.startTime : 0;
     const endTime = element.endTime != null ? element.endTime : slideDuration;
     const isVisible = currentTime >= startTime - 0.05 && currentTime <= endTime + 0.05;
-    // Debug log
-    if (element.type === 'image' || element.type === 'animationMask' || element.type === 'clip') {
-      console.log(`Element ${element.type}: currentTime=${currentTime.toFixed(2)}, startTime=${startTime}, endTime=${endTime}, visible=${isVisible}`);
-    }
     return isVisible;
   };
   
