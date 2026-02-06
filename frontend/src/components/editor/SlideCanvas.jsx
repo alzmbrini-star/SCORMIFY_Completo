@@ -642,8 +642,87 @@ const SlideCanvas = ({
                               padding: 8px; 
                               background: transparent !important; 
                               font-family: Arial, sans-serif;
+                              color: #f1f5f9;
+                              line-height: 1.6;
                             }
                             * { background: transparent !important; }
+                            /* Rich Text Editor Image Float Styles */
+                            img.rtf-image-float-left {
+                              float: left !important;
+                              clear: left;
+                              max-width: 45%;
+                              height: auto;
+                              border-radius: 4px;
+                              margin: 0 16px 12px 0 !important;
+                            }
+                            img.rtf-image-float-right {
+                              float: right !important;
+                              clear: right;
+                              max-width: 45%;
+                              height: auto;
+                              border-radius: 4px;
+                              margin: 0 0 12px 16px !important;
+                            }
+                            img.rtf-image-center {
+                              display: inline-block;
+                              max-width: 80%;
+                            }
+                            img.rtf-image-inline {
+                              display: block;
+                              max-width: 100%;
+                              margin: 8px 0;
+                            }
+                            /* Legacy float support via inline styles */
+                            img[style*="float: left"] {
+                              float: left !important;
+                              margin-right: 16px !important;
+                              margin-bottom: 12px !important;
+                            }
+                            img[style*="float: right"] {
+                              float: right !important;
+                              margin-left: 16px !important;
+                              margin-bottom: 12px !important;
+                            }
+                            /* Clear floats at the end */
+                            body::after {
+                              content: '';
+                              display: table;
+                              clear: both;
+                            }
+                            /* Table styles */
+                            table, table.rtf-table {
+                              border-collapse: separate;
+                              border-spacing: 0;
+                              width: 100%;
+                              margin: 1rem 0;
+                              border-radius: 8px;
+                              overflow: hidden;
+                              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+                            }
+                            th {
+                              background: linear-gradient(to bottom, #475569, #334155);
+                              border-bottom: 2px solid #22d3ee;
+                              padding: 0.75rem 1rem;
+                              font-weight: 600;
+                              text-align: left;
+                              color: #f1f5f9;
+                            }
+                            td {
+                              border-bottom: 1px solid #334155;
+                              padding: 0.75rem 1rem;
+                              background: #1e293b;
+                              color: #e2e8f0;
+                            }
+                            tr:nth-child(even) td { background: #1a2433; }
+                            /* Typography */
+                            h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
+                            h2 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.75rem; }
+                            h3 { font-size: 1.1rem; font-weight: bold; margin-bottom: 0.5rem; }
+                            p { margin-bottom: 0.75rem; }
+                            ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+                            ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+                            li { margin-bottom: 0.25rem; }
+                            a { color: #22d3ee; text-decoration: underline; }
                           </style>
                         </head>
                         <body>${element.htmlContent || '<p>HTML Content</p>'}</body>
