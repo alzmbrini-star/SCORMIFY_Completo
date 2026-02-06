@@ -147,6 +147,37 @@ const CoursePreview = ({ course, projectId, onClose }) => {
       }
     }
   }, [currentSlideIndex]);
+
+  // Initialize slide audios when slide changes
+  useEffect(() => {
+    if (currentSlide?.audio && currentSlide.audio.length > 0) {
+      // Create audio elements for this slide
+      const audios = currentSlide.audio.map(audioData => {
+        if (audioData.src) {
+          const audioUrl = getAssetUrl(audioData.src, projectId);
+          const audio = new Audio(audioUrl);
+          audio.volume = isMuted ? 0 : (audioData.volume || 1) * volume;
+          audio.preload = 'auto';
+          // Store the startTime for this audio
+          audio.dataset.startTime = audioData.startTime || 0;
+          return audio;
+        }
+        return null;
+      }).filter(Boolean);
+      
+      slideAudiosRef.current = audios;
+    }
+    
+    return () => {
+      // Cleanup audios when slide changes
+      slideAudiosRef.current.forEach(audio => {
+        if (audio) {
+          audio.pause();
+          audio.src = '';
+        }
+      });
+    };
+  }, [currentSlide?.audio, projectId, volume, isMuted]);
   
   // Timeline playback
   useEffect(() => {
