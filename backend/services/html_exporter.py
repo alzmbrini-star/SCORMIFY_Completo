@@ -1148,8 +1148,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var startTime = elem.startTime || 0;
                         var endTime = (elem.endTime !== undefined && elem.endTime !== null) ? elem.endTime : slideDuration;
                         
-                        // Determine initial visibility based on startTime
-                        var initiallyHidden = startTime > 0;
+                        // Check if element has animations
+                        var hasAnimations = elem.animations && elem.animations.length > 0;
+                        var hasEntranceAnimation = hasAnimations && elem.animations.some(function(a) {{ return a.type === 'entrance'; }});
+                        
+                        // Determine initial visibility - hidden if has startTime > 0 OR has entrance animation
+                        var initiallyHidden = startTime > 0 || hasEntranceAnimation;
                         
                         var style = 'left:' + (elem.x || 0) + 'px;';
                         style += 'top:' + (elem.y || 0) + 'px;';
@@ -1157,8 +1161,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         style += 'height:' + (elem.height || 100) + 'px;';
                         style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
                         if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
-                        if (elem.style && elem.style.opacity !== undefined) style += 'opacity:' + elem.style.opacity + ';';
-                        if (initiallyHidden) style += 'display:none;'; // Hide initially if has startTime > 0
+                        // Don't apply style opacity for elements with animations - they should start hidden
+                        if (!hasAnimations && elem.style && elem.style.opacity !== undefined) style += 'opacity:' + elem.style.opacity + ';';
+                        if (initiallyHidden) style += 'visibility:hidden;opacity:0;'; // Hide initially
                         
                         html += '<div class="slide-element ' + elem.type + '-element" id="element-' + elemIndex + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" style="' + style + '">';
                         
