@@ -624,7 +624,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 {/* Button */}
                 {element.type === 'button' && (
                   <a
-                    href={element.buttonUrl}
+                    href={getAssetUrl(element.buttonUrl, projectId)}
                     target={element.openInNewTab ? '_blank' : '_self'}
                     rel="noopener noreferrer"
                     className="w-full h-full flex items-center justify-center"
