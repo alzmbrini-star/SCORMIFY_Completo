@@ -439,14 +439,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         .slide-element.text-element {{
             padding: 10px;
             overflow: hidden;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 4px;
+            background: transparent;
+            border-radius: 0;
         }}
         
         .slide-element.shape-element {{
             display: flex;
             align-items: center;
             justify-content: center;
+            background: transparent;
         }}
         
         .slide-element.image-element img {{
