@@ -578,16 +578,6 @@ def extract_animation_masks(pptx_slide) -> List[dict]:
     return masks
 
 
-# EMU to pixels conversion (for mask extraction)
-EMU_PER_INCH = 914400
-DPI = 96
-
-def emu_to_px(emu: int) -> float:
-    if emu is None:
-        return 0
-    return (emu / EMU_PER_INCH) * DPI
-
-
 def extract_animations(pptx_slide, elements: List[SlideElement]) -> List[Animation]:
     """Extract animations from slide XML"""
     animations = []
