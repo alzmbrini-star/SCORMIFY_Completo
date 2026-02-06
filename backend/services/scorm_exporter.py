@@ -579,7 +579,7 @@ var CoursePlayer = (function() {
             // On mobile, allow scaling up to 1.5x to fill screen better
             // On desktop, cap at 1.0 to avoid pixelation
             var isMobile = window.innerWidth < 900 || window.innerHeight < 600;
-            var maxScale = isMobile ? 1.5 : 1.0;
+            var maxScale = isMobile ? 1.5 : 1.5;  // Allow larger slides to scale up
             scale = Math.min(scale, maxScale);
         } else {
             scale = 0.5;
