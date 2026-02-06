@@ -249,9 +249,6 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
     logger.info("Converting slides to images...")
     slide_images = convert_pptx_to_images(file_path, str(assets_dir))
     
-    # Import detailed parser for slides with animations
-    from services.ppt_parser import shape_to_element
-    
     slides = []
     num_slides = len(prs.slides)
     
