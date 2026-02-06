@@ -601,7 +601,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             tr:nth-child(even) td { background: #1a2433; }
                           </style>
                         </head>
-                        <body>${element.htmlContent || '<p>HTML</p>'}</body>
+                        <body>${processHtmlContent(element.htmlContent, projectId)}</body>
                       </html>
                     `}
                     className="w-full h-full border-0 rounded"
