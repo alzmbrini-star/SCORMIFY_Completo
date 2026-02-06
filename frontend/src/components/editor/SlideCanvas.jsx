@@ -7,7 +7,18 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 // Helper to get full asset URL
 const getAssetUrl = (src) => {
   if (!src) return '';
-  if (src.startsWith('http')) return src;
+  
+  // Replace old domain with current domain for assets
+  if (src.startsWith('http')) {
+    // Check if it's an asset URL from an old/different domain
+    const assetMatch = src.match(/https?:\/\/[^/]+\/api\/projects\/([^/]+)\/assets\/(.+)/);
+    if (assetMatch) {
+      // Redirect to current server
+      return `${API_URL}/api/projects/${assetMatch[1]}/assets/${assetMatch[2]}`;
+    }
+    return src;
+  }
+  
   if (src.startsWith('/api/')) return `${API_URL}${src}`;
   return src;
 };
