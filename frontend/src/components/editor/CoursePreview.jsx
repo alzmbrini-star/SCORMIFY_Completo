@@ -28,6 +28,25 @@ const getAssetUrl = (src, projectId) => {
   return src;
 };
 
+// Helper to process HTML content and fix image URLs
+const processHtmlContent = (htmlContent, projectId) => {
+  if (!htmlContent) return '<p>HTML</p>';
+  
+  // Fix image src URLs that start with /api/ or assets/
+  let processed = htmlContent;
+  
+  // Replace /api/ URLs with full API_URL
+  processed = processed.replace(/src="(\/api\/[^"]+)"/g, `src="${API_URL}$1"`);
+  
+  // Replace assets/ URLs
+  processed = processed.replace(
+    /src="(assets\/[^"]+)"/g, 
+    (match, path) => `src="${API_URL}/api/projects/${projectId}/assets/${path.replace('assets/', '')}"`
+  );
+  
+  return processed;
+};
+
 const CoursePreview = ({ course, projectId, onClose }) => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [showSidebar, setShowSidebar] = useState(false);
