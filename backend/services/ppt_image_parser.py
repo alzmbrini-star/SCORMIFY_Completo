@@ -248,28 +248,33 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             except Exception as e:
                 logger.warning(f"Error processing slide image: {e}")
         
-        # Extract text elements for accessibility/search (overlay on image)
+        # Extract ALL elements (visible for animations, hidden for accessibility)
+        # We need to track shape_idx to element mapping for animation extraction
         for shape_idx, shape in enumerate(pptx_slide.shapes):
-            if hasattr(shape, 'text_frame') and shape.text_frame:
-                try:
+            try:
+                # Create element for this shape (visible, for animations)
+                element = SlideElement(
+                    id=str(uuid.uuid4()),
+                    type="shape",  # Generic type
+                    x=emu_to_px(shape.left) if shape.left else 0,
+                    y=emu_to_px(shape.top) if shape.top else 0,
+                    width=emu_to_px(shape.width) if shape.width else 100,
+                    height=emu_to_px(shape.height) if shape.height else 50,
+                    visible=True,  # Visible to receive animations
+                    zIndex=shape_idx,
+                    style=ElementStyle(opacity=0)  # Transparent - background image shows content
+                )
+                
+                # Extract text if available
+                if hasattr(shape, 'text_frame') and shape.text_frame:
                     text = shape.text_frame.text
                     if text and text.strip():
-                        # Create invisible text element for accessibility
-                        element = SlideElement(
-                            id=str(uuid.uuid4()),
-                            type="text",
-                            x=emu_to_px(shape.left) if shape.left else 0,
-                            y=emu_to_px(shape.top) if shape.top else 0,
-                            width=emu_to_px(shape.width) if shape.width else 100,
-                            height=emu_to_px(shape.height) if shape.height else 50,
-                            content=text,
-                            visible=False,  # Hidden - image provides visual
-                            zIndex=shape_idx,
-                            style=ElementStyle(opacity=0)  # Invisible for accessibility
-                        )
-                        elements.append(element)
-                except:
-                    pass
+                        element.type = "text"
+                        element.content = text
+                
+                elements.append(element)
+            except:
+                pass
         
         # Get slide title
         title = f"Slide {slide_idx + 1}"
