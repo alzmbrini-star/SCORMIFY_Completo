@@ -245,16 +245,16 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   
   // Check if element should be visible based on timeline
   const isElementVisible = (element) => {
-    const startTime = element.startTime ?? 0;
-    const endTime = element.endTime ?? slideDuration;
+    const startTime = element.startTime != null ? element.startTime : 0;
+    const endTime = element.endTime != null ? element.endTime : slideDuration;
     // Use small epsilon for floating point comparison
     return currentTime >= startTime - 0.05 && currentTime <= endTime + 0.05;
   };
   
   // Get animation styles for element based on current time
   const getElementAnimationStyle = (element) => {
-    const startTime = element.startTime ?? 0;
-    const endTime = element.endTime ?? slideDuration;
+    const startTime = element.startTime != null ? element.startTime : 0;
+    const endTime = element.endTime != null ? element.endTime : slideDuration;
     const entranceAnim = element.animation?.entrance;
     const exitAnim = element.animation?.exit;
     const animDuration = 0.5; // Animation duration in seconds
