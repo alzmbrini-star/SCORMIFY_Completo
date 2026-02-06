@@ -331,7 +331,7 @@ export const RichTextEditor = ({
     setShowLinkInput(false);
   }, [linkUrl, onChange]);
 
-  const addImage = useCallback((floating = false) => {
+  const addImage = useCallback((alignment = 'inline') => {
     if (!imageUrl.trim()) return;
     
     // Focus the editor first
@@ -340,12 +340,24 @@ export const RichTextEditor = ({
     }
     
     let imgHtml;
-    if (floating) {
-      // Floating image - can be positioned freely
-      imgHtml = `<img src="${imageUrl}" alt="image" class="floating-image" style="position: absolute; left: 20px; top: 20px; max-width: 300px; height: auto; border-radius: 4px; cursor: move; z-index: 10;" />`;
-    } else {
-      // Inline image
-      imgHtml = `<img src="${imageUrl}" alt="image" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`;
+    switch (alignment) {
+      case 'left':
+        // Float left - text wraps around on the right
+        imgHtml = `<img src="${imageUrl}" alt="image" class="rtf-image-float-left" style="float: left; max-width: 45%; height: auto; border-radius: 4px; margin: 0 16px 12px 0; clear: left;" />`;
+        break;
+      case 'right':
+        // Float right - text wraps around on the left
+        imgHtml = `<img src="${imageUrl}" alt="image" class="rtf-image-float-right" style="float: right; max-width: 45%; height: auto; border-radius: 4px; margin: 0 0 12px 16px; clear: right;" />`;
+        break;
+      case 'center':
+        // Centered image - text above and below only
+        imgHtml = `<div style="text-align: center; width: 100%; margin: 12px 0; clear: both;"><img src="${imageUrl}" alt="image" class="rtf-image-center" style="max-width: 80%; height: auto; border-radius: 4px; display: inline-block;" /></div>`;
+        break;
+      case 'inline':
+      default:
+        // Inline image - follows text flow
+        imgHtml = `<img src="${imageUrl}" alt="image" class="rtf-image-inline" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block;" />`;
+        break;
     }
     document.execCommand('insertHTML', false, imgHtml);
     
