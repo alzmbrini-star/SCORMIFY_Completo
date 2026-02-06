@@ -32,6 +32,37 @@ def emu_to_px(emu: int) -> float:
         return 0
     return (emu / EMU_PER_INCH) * DPI
 
+
+def check_slide_has_animations(pptx_slide) -> bool:
+    """Check if a slide has any animations defined"""
+    try:
+        slide_xml = pptx_slide.part._element
+        
+        # PowerPoint animations are in the timing element
+        nsmap = {
+            'p': 'http://schemas.openxmlformats.org/presentationml/2006/main'
+        }
+        
+        timing = slide_xml.find('.//p:timing', nsmap)
+        if timing is None:
+            return False
+        
+        # Check for any cTn (common time node) with presetClass (indicates animation)
+        ctn_with_preset = timing.findall('.//p:cTn[@presetClass]', nsmap)
+        if ctn_with_preset:
+            return True
+        
+        # Also check for animEffect elements
+        anim_effects = timing.findall('.//p:animEffect', nsmap)
+        if anim_effects:
+            return True
+        
+        return False
+    except Exception as e:
+        logger.debug(f"Error checking animations: {e}")
+        return False
+
+
 def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> List[str]:
     """
     Convert PPTX to PNG images using LibreOffice
