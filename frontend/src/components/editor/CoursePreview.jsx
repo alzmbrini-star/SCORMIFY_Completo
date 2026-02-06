@@ -752,7 +752,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 {/* Flipbook */}
                 {element.type === 'flipbook' && element.flipbookUrl && (
                   <iframe
-                    src={element.flipbookUrl}
+                    src={getAssetUrl(element.flipbookUrl, projectId)}
                     className="w-full h-full border-0 bg-gray-100 rounded"
                     allow="fullscreen"
                     title="Flipbook"
