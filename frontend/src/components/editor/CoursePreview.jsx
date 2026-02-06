@@ -461,6 +461,10 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             {/* Elements - positioned absolutely within slide dimensions */}
             {currentSlide?.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => {
               const animStyle = getElementAnimationStyle(element);
+              // Use element opacity only if > 0, otherwise default to 1
+              const elementOpacity = element.style?.opacity != null && element.style.opacity > 0 
+                ? element.style.opacity 
+                : 1;
               return (
               <div
                 key={element.id}
@@ -471,7 +475,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                   width: `${element.width || 100}px`,
                   height: `${element.height || 100}px`,
                   zIndex: (element.zIndex || 0) + 1,
-                  opacity: animStyle.opacity ?? (element.style?.opacity ?? 1),
+                  opacity: animStyle.opacity ?? elementOpacity,
                   transform: animStyle.transform || (element.rotation ? `rotate(${element.rotation}deg)` : undefined),
                 }}
               >
