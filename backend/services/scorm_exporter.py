@@ -2302,15 +2302,14 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
                 <button class="control-btn" id="prev-btn" onclick="CoursePlayer.prev()">
                     ← Anterior
                 </button>
+            </div>
+            <div id="progress-container">
+                <div class="progress-dots" id="progress-dots"></div>
+            </div>
+            <div class="nav-buttons">
                 <button class="control-btn" id="next-btn" onclick="CoursePlayer.next()">
                     Próximo →
                 </button>
-            </div>
-            <div id="progress-container">
-                <div id="progress-bar"></div>
-            </div>
-            <span id="slide-counter">1 / 1</span>
-            <div class="nav-buttons">
                 <div class="volume-wrapper">
                     <button class="icon-btn" id="volume-btn" onclick="CoursePlayer.toggleVolumeSlider()" title="Volume">
                         🔊
