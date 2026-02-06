@@ -760,3 +760,35 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
      - Renderização de SmartArt como imagem com texto alt para acessibilidade
 - **Status**: IMPLEMENTED
 - **Note**: SmartArt complexo é renderizado como imagem; texto é preservado para search/accessibility
+
+
+### Text Wrapping para Imagens no Editor RTF - IMPLEMENTED (Feb 6, 2026)
+- **Feature**: Contorno de texto ao redor de imagens com 4 modos de posicionamento
+- **Implementation**:
+  1. **Em linha** (`rtf-image-inline`): Imagem segue o fluxo normal do texto
+  2. **Centralizada** (`rtf-image-center`): Imagem centralizada com texto acima/abaixo
+  3. **Flutuar Esquerda** (`rtf-image-float-left`): `float: left`, texto flui à direita
+  4. **Flutuar Direita** (`rtf-image-float-right`): `float: right`, texto flui à esquerda
+- **UI Improvements**:
+  - Popover redesenhado com ícones visuais representando cada modo
+  - Botões "Flutuar" destacados em cyan para indicar wrapping
+  - Descrições explicativas abaixo dos botões
+- **CSS Properties Applied**:
+  - Float: `float: left/right`, `clear: left/right`
+  - Margins: `margin: 0 16px 12px 0` (left) / `margin: 0 0 12px 16px` (right)
+  - Max-width: 45% para imagens flutuantes, 80% para centralizadas
+  - `shape-outside: margin-box` para contorno suave
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx`:
+    - Função `addImage(alignment)` atualizada para aceitar 4 modos
+    - CSS classes adicionadas para cada tipo de posicionamento
+    - Popover UI redesenhado com grid 2x2
+- **Test IDs Added**:
+  - `rtf-image-btn`: Botão de inserir imagem
+  - `rtf-image-url-input`: Campo de URL
+  - `rtf-image-inline-btn`: Botão Em linha
+  - `rtf-image-center-btn`: Botão Centralizada
+  - `rtf-image-float-left-btn`: Botão Flutuar Esquerda
+  - `rtf-image-float-right-btn`: Botão Flutuar Direita
+- **Status**: IMPLEMENTED AND TESTED (100% success rate)
+- **Verification**: Testing agent confirmou todos os 18 testes passando
