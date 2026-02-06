@@ -631,7 +631,7 @@ const SlideCanvas = ({
 
               {/* HTML Element */}
               {element.type === 'html' && (
-                <div className="w-full h-full rounded overflow-hidden relative" style={{ background: 'transparent' }}>
+                <div className="w-full h-full rounded relative" style={{ background: 'transparent', overflow: 'visible' }}>
                   <iframe
                     srcDoc={`
                       <html>
@@ -644,33 +644,40 @@ const SlideCanvas = ({
                               font-family: Arial, sans-serif;
                               color: #f1f5f9;
                               line-height: 1.6;
+                              overflow: visible;
                             }
                             * { background: transparent !important; }
-                            /* Rich Text Editor Image Float Styles */
-                            img.rtf-image-float-left {
+                            /* Rich Text Editor Image Float Styles - HIGH SPECIFICITY */
+                            img.rtf-image-float-left,
+                            body img.rtf-image-float-left,
+                            html body img.rtf-image-float-left {
                               float: left !important;
-                              clear: left;
-                              max-width: 45%;
-                              height: auto;
-                              border-radius: 4px;
+                              clear: left !important;
+                              max-width: 45% !important;
+                              height: auto !important;
+                              border-radius: 4px !important;
                               margin: 0 16px 12px 0 !important;
+                              display: block !important;
                             }
-                            img.rtf-image-float-right {
+                            img.rtf-image-float-right,
+                            body img.rtf-image-float-right,
+                            html body img.rtf-image-float-right {
                               float: right !important;
-                              clear: right;
-                              max-width: 45%;
-                              height: auto;
-                              border-radius: 4px;
+                              clear: right !important;
+                              max-width: 45% !important;
+                              height: auto !important;
+                              border-radius: 4px !important;
                               margin: 0 0 12px 16px !important;
+                              display: block !important;
                             }
                             img.rtf-image-center {
-                              display: inline-block;
-                              max-width: 80%;
+                              display: inline-block !important;
+                              max-width: 80% !important;
                             }
                             img.rtf-image-inline {
-                              display: block;
-                              max-width: 100%;
-                              margin: 8px 0;
+                              display: block !important;
+                              max-width: 100% !important;
+                              margin: 8px 0 !important;
                             }
                             /* Legacy float support via inline styles */
                             img[style*="float: left"] {
@@ -683,11 +690,15 @@ const SlideCanvas = ({
                               margin-left: 16px !important;
                               margin-bottom: 12px !important;
                             }
-                            /* Clear floats at the end */
+                            /* Clear floats properly */
                             body::after {
                               content: '';
                               display: table;
                               clear: both;
+                            }
+                            /* Ensure paragraphs and other elements flow around floats */
+                            p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 {
+                              overflow: visible !important;
                             }
                             /* Table styles */
                             table, table.rtf-table {
