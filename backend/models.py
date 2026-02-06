@@ -136,8 +136,8 @@ class Slide(BaseModel):
     id: str = Field(default_factory=generate_id)
     title: str = "Slide"
     order: int = 0
-    width: float = 960
-    height: float = 540
+    width: float = 1280
+    height: float = 720
     background: Optional[str] = "#FFFFFF"
     backgroundImage: Optional[str] = None
     
