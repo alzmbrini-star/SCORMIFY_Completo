@@ -1389,7 +1389,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var element = document.getElementById('element-' + elemIndex);
                         
                         if (element) {{
-                            // Check if this is an animation mask element
+                            // Check if this is an animation clip or mask element
+                            var isClip = elem.type === 'animation_clip';
                             var isMask = elem.type === 'animation_mask';
                             var isHighlight = elem.type === 'animation_highlight';
                             
@@ -1403,10 +1404,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     var animDuration = anim.duration || 0.5;
                                     var animDelay = anim.delay || 0;
                                     
-                                    // For masks, the delay is already the start time
-                                    var actualDelay = isMask ? animDelay : animDelay;
+                                    // For clips/masks, the delay is already the start time
+                                    var actualDelay = (isClip || isMask) ? animDelay : animDelay;
                                     
-                                    if (!isMask) {{
+                                    if (!isClip && !isMask) {{
                                         // Calculate actual delay based on trigger for non-mask elements
                                         if (anim.trigger === 'afterPrevious') {{
                                             actualDelay = animationDelay + animDelay;
@@ -1418,7 +1419,33 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                         }}
                                     }}
                                     
-                                    if (isMask) {{
+                                    if (isClip) {{
+                                        // CLIP ANIMATION: Fade out the blur/cover to reveal content underneath
+                                        var clipInner = element.querySelector('.animation-clip');
+                                        if (clipInner) {{
+                                            if (anim.type === 'entrance') {{
+                                                // Entrance: start with blur cover, then fade it out
+                                                var revealTimer = setTimeout(function() {{
+                                                    clipInner.style.opacity = '0';
+                                                    clipInner.style.backdropFilter = 'blur(0px)';
+                                                    clipInner.style.webkitBackdropFilter = 'blur(0px)';
+                                                }}, actualDelay * 1000);
+                                                timelineTimers.push(revealTimer);
+                                                
+                                            }} else if (anim.type === 'exit') {{
+                                                // Exit: start visible, then add blur cover
+                                                clipInner.style.opacity = '0';
+                                                clipInner.style.backdropFilter = 'blur(0px)';
+                                                var hideTimer = setTimeout(function() {{
+                                                    clipInner.style.opacity = '1';
+                                                    clipInner.style.backdropFilter = 'blur(20px)';
+                                                    clipInner.style.webkitBackdropFilter = 'blur(20px)';
+                                                }}, actualDelay * 1000);
+                                                timelineTimers.push(hideTimer);
+                                            }}
+                                        }}
+                                        
+                                    }} else if (isMask) {{
                                         // MASK ANIMATION: For entrance, fade mask OUT to reveal content
                                         // For exit, fade mask IN to hide content
                                         if (anim.type === 'entrance') {{
