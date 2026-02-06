@@ -1175,6 +1175,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         else if (elem.type === 'image' && elem.src) {{
                             html += '<img src="' + elem.src + '" alt="" style="object-fit:' + (elem.objectFit || 'contain') + ';">';
                         }}
+                        else if (elem.type === 'smartart' && elem.src) {{
+                            // SmartArt rendered as image with fallback content for accessibility
+                            html += '<img src="' + elem.src + '" alt="SmartArt: ' + (elem.content || 'Diagram') + '" style="object-fit:contain;">';
+                        }}
                         else if (elem.type === 'shape') {{
                             var shapeBg = (elem.style && elem.style.fill) || '#7c3aed';
                             var shapeRadius = elem.shapeType === 'ellipse' ? '50%' : (elem.shapeType === 'rounded_rectangle' ? '8px' : '0');
