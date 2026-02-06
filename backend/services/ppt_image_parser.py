@@ -263,7 +263,7 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
         has_animations = check_slide_has_animations(pptx_slide)
         logger.info(f"Slide {slide_idx + 1}: has_animations={has_animations}")
         
-        # Get slide image path if available
+        # Get slide image path if available - ALWAYS use image background now
         background_image = None
         img_path = None
         img_filename = None
@@ -274,58 +274,134 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             # Resize image to match slide dimensions
             try:
                 with Image.open(img_path) as img:
-                    # Calculate proper dimensions maintaining aspect ratio
                     target_width = int(slide_width)
                     target_height = int(slide_height)
                     
-                    # Resize if needed
                     if img.size != (target_width, target_height):
                         img_resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
                         img_resized.save(img_path)
+                
+                background_image = f"/api/projects/{project_id}/assets/{img_filename}"
             except Exception as e:
                 logger.warning(f"Error processing slide image: {e}")
         
         if has_animations:
-            # For slides WITH animations: use detailed parser WITHOUT background image
-            # This prevents duplicate text appearing
-            logger.info(f"Slide {slide_idx + 1}: Using detailed parser for animations (NO background image)")
+            # NEW APPROACH: Use background image + mask elements for animations
+            # The background image shows everything, masks cover animated areas and reveal them with animations
+            logger.info(f"Slide {slide_idx + 1}: Using MASK-BASED animations with background image")
             
-            # Don't use background image for animated slides - extract all elements instead
-            background_image = None
+            # Extract animation masks (positions and timing from XML)
+            animation_masks = extract_animation_masks(pptx_slide)
             
-            # Extract slide background color
-            slide_background = "#FFFFFF"  # Default white
-            try:
-                if pptx_slide.background.fill.type is not None:
-                    fill = pptx_slide.background.fill
-                    if hasattr(fill, 'fore_color') and fill.fore_color:
-                        rgb = fill.fore_color.rgb
-                        if rgb:
-                            slide_background = f"#{rgb}"
-            except:
-                pass
-            
-            # Extract elements using the detailed parser
-            for shape_idx, shape in enumerate(pptx_slide.shapes):
+            if animation_masks:
+                # Get slide background color for masks
+                slide_bg_color = "#FFFFFF"
                 try:
-                    element = shape_to_element(shape, shape_idx, assets_dir, project_id)
-                    if element:
-                        # Initially all elements are visible (will be hidden by animation logic)
-                        element.visible = True
-                        elements.append(element)
-                except Exception as e:
-                    logger.debug(f"Error extracting shape {shape_idx}: {e}")
-            
-            # Extract animations and attach to elements
-            slide_animations = extract_animations(pptx_slide, elements)
-            if slide_animations:
-                conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations, using vector elements")
-                logger.info(f"Extracted {len(slide_animations)} animations from slide {slide_idx + 1}")
+                    if pptx_slide.background.fill.type is not None:
+                        fill = pptx_slide.background.fill
+                        if hasattr(fill, 'fore_color') and fill.fore_color and fill.fore_color.rgb:
+                            slide_bg_color = f"#{fill.fore_color.rgb}"
+                except:
+                    pass
+                
+                # Create mask elements for each animation
+                for mask in animation_masks:
+                    # For ENTRANCE animations: create an opaque mask that will fade out to reveal content
+                    # For EXIT animations: create a transparent mask that will fade in to hide content
+                    # For EMPHASIS animations: create a highlight effect without masking
+                    
+                    is_entrance = mask['animation_type'] == 'entrance'
+                    is_exit = mask['animation_type'] == 'exit'
+                    is_emphasis = mask['animation_type'] == 'emphasis'
+                    
+                    if is_entrance:
+                        # Entrance: mask starts OPAQUE (covering the element) and becomes TRANSPARENT
+                        mask_element = SlideElement(
+                            id=mask['id'],
+                            type="animation_mask",
+                            x=mask['x'],
+                            y=mask['y'],
+                            width=mask['width'],
+                            height=mask['height'],
+                            visible=True,
+                            zIndex=1000 + len(elements),  # High z-index to be on top
+                            style=ElementStyle(
+                                fill=slide_bg_color,
+                                opacity=1.0  # Start opaque
+                            ),
+                            animations=[Animation(
+                                id=str(uuid.uuid4()),
+                                type='entrance',  # We use entrance to fade OUT the mask (revealing content)
+                                effect=mask['effect'],
+                                trigger=mask['trigger'],
+                                duration=mask['duration'],
+                                delay=mask['start_time'],
+                                easing='ease'
+                            )]
+                        )
+                        elements.append(mask_element)
+                        
+                    elif is_exit:
+                        # Exit: mask starts TRANSPARENT and becomes OPAQUE (hiding the element)
+                        mask_element = SlideElement(
+                            id=mask['id'],
+                            type="animation_mask",
+                            x=mask['x'],
+                            y=mask['y'],
+                            width=mask['width'],
+                            height=mask['height'],
+                            visible=True,
+                            zIndex=1000 + len(elements),
+                            style=ElementStyle(
+                                fill=slide_bg_color,
+                                opacity=0.0  # Start transparent
+                            ),
+                            animations=[Animation(
+                                id=str(uuid.uuid4()),
+                                type='exit',
+                                effect=mask['effect'],
+                                trigger=mask['trigger'],
+                                duration=mask['duration'],
+                                delay=mask['start_time'],
+                                easing='ease'
+                            )]
+                        )
+                        elements.append(mask_element)
+                        
+                    elif is_emphasis:
+                        # Emphasis: create a highlight overlay effect
+                        mask_element = SlideElement(
+                            id=mask['id'],
+                            type="animation_highlight",
+                            x=mask['x'],
+                            y=mask['y'],
+                            width=mask['width'],
+                            height=mask['height'],
+                            visible=True,
+                            zIndex=1000 + len(elements),
+                            style=ElementStyle(
+                                fill="transparent",
+                                opacity=0.0
+                            ),
+                            animations=[Animation(
+                                id=str(uuid.uuid4()),
+                                type='emphasis',
+                                effect=mask['effect'],
+                                trigger=mask['trigger'],
+                                duration=mask['duration'],
+                                delay=mask['start_time'],
+                                easing='ease'
+                            )]
+                        )
+                        elements.append(mask_element)
+                
+                conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(animation_masks)} animation masks with background image")
+                logger.info(f"Created {len(animation_masks)} animation masks for slide {slide_idx + 1}")
+            else:
+                conversion_report["success"].append(f"Slide {slide_idx + 1}: Rendered as image (animations detected but no masks extracted)")
         else:
-            # For slides WITHOUT animations: use the image background only
-            if img_filename:
-                background_image = f"/api/projects/{project_id}/assets/{img_filename}"
-                conversion_report["success"].append(f"Slide {slide_idx + 1}: Rendered as image (no animations)")
+            # For slides WITHOUT animations: just use the image background
+            conversion_report["success"].append(f"Slide {slide_idx + 1}: Rendered as image (no animations)")
             logger.info(f"Slide {slide_idx + 1}: No animations, using image only")
         
         # Get slide title
