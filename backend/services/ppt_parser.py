@@ -792,6 +792,11 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
                 elements.append(element)
                 conversion_report["success"].append(f"Slide {slide_idx + 1}: {element.type}")
         
+        # Extract animations and attach to elements
+        slide_animations = extract_animations(pptx_slide, elements)
+        if slide_animations:
+            conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations")
+        
         # Get slide title
         title = f"Slide {slide_idx + 1}"
         if pptx_slide.shapes.title:
