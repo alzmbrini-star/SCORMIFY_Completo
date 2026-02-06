@@ -459,18 +459,20 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             )}
             
             {/* Elements - positioned absolutely within slide dimensions */}
-            {currentSlide?.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => (
+            {currentSlide?.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => {
+              const animStyle = getElementAnimationStyle(element);
+              return (
               <div
                 key={element.id}
-                className="absolute"
+                className="absolute transition-all duration-100"
                 style={{
                   left: `${element.x || 0}px`,
                   top: `${element.y || 0}px`,
                   width: `${element.width || 100}px`,
                   height: `${element.height || 100}px`,
                   zIndex: (element.zIndex || 0) + 1,
-                  opacity: element.style?.opacity ?? 1,
-                  transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+                  opacity: animStyle.opacity ?? (element.style?.opacity ?? 1),
+                  transform: animStyle.transform || (element.rotation ? `rotate(${element.rotation}deg)` : undefined),
                 }}
               >
                 {/* Text */}
