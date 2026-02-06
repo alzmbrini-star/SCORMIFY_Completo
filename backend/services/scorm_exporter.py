@@ -757,26 +757,70 @@ var CoursePlayer = (function() {
                 if (element.embedUrl) {
                     el = document.createElement('div');
                     el.className = 'slide-element video-element';
-                    var iframe = document.createElement('iframe');
                     
-                    // Fix YouTube embed URLs for local file playback
+                    // Extract video ID for YouTube/Vimeo
                     var embedUrl = element.embedUrl;
-                    if (embedUrl.indexOf('youtube.com') !== -1) {
-                        embedUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
-                    }
-                    if (embedUrl.indexOf('youtube') !== -1 || embedUrl.indexOf('youtu.be') !== -1) {
-                        var separator = embedUrl.indexOf('?') !== -1 ? '&' : '?';
-                        embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1';
+                    var videoId = '';
+                    var isYouTube = embedUrl.indexOf('youtube') !== -1 || embedUrl.indexOf('youtu.be') !== -1;
+                    var isVimeo = embedUrl.indexOf('vimeo') !== -1;
+                    
+                    if (isYouTube) {
+                        var ytMatch = embedUrl.match(/(?:embed\/|v=|youtu\.be\/)([^?&"'>]+)/);
+                        if (ytMatch) videoId = ytMatch[1];
                     }
                     
-                    iframe.src = embedUrl;
-                    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-                    iframe.allowFullscreen = true;
-                    iframe.frameBorder = '0';
-                    iframe.style.width = '100%';
-                    iframe.style.height = '100%';
-                    iframe.style.border = 'none';
-                    el.appendChild(iframe);
+                    // Check if running from local file
+                    var isLocalFile = window.location.protocol === 'file:';
+                    
+                    if (isYouTube && videoId && isLocalFile) {
+                        // Show thumbnail with play button for local files
+                        el.style.cursor = 'pointer';
+                        el.style.position = 'relative';
+                        el.style.background = '#000';
+                        el.onclick = function() {
+                            window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+                        };
+                        
+                        var thumb = document.createElement('img');
+                        thumb.src = 'https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg';
+                        thumb.onerror = function() {
+                            this.src = 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg';
+                        };
+                        thumb.style.width = '100%';
+                        thumb.style.height = '100%';
+                        thumb.style.objectFit = 'cover';
+                        el.appendChild(thumb);
+                        
+                        // Play button overlay
+                        var playBtn = document.createElement('div');
+                        playBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.9);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;';
+                        playBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
+                        el.appendChild(playBtn);
+                        
+                        // Label
+                        var label = document.createElement('div');
+                        label.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:8px 16px;border-radius:4px;font-size:12px;white-space:nowrap;';
+                        label.textContent = 'Clique para assistir no YouTube';
+                        el.appendChild(label);
+                    } else {
+                        // Normal iframe embed
+                        var iframe = document.createElement('iframe');
+                        
+                        if (isYouTube) {
+                            embedUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
+                            var separator = embedUrl.indexOf('?') !== -1 ? '&' : '?';
+                            embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1';
+                        }
+                        
+                        iframe.src = embedUrl;
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                        iframe.allowFullscreen = true;
+                        iframe.frameBorder = '0';
+                        iframe.style.width = '100%';
+                        iframe.style.height = '100%';
+                        iframe.style.border = 'none';
+                        el.appendChild(iframe);
+                    }
                 } else if (element.src) {
                     el = document.createElement('div');
                     el.className = 'slide-element video-element';
