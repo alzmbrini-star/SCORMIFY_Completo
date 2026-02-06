@@ -1240,9 +1240,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             html += '</div>';
                         }}
                         else if (elem.type === 'animation_clip') {{
-                            // Animation clip element - uses backdrop-filter blur to hide content initially
-                            // This element will be removed/revealed via animation
-                            html += '<div class="animation-clip" style="width:100%;height:100%;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:rgba(255,255,255,0.95);"></div>';
+                            // Animation clip - invisible overlay that controls when content is revealed
+                            // Uses a semi-transparent dark overlay that fades out
+                            html += '<div class="animation-clip" style="width:100%;height:100%;background:rgba(0,0,0,0.85);transition:opacity 0.5s ease;"></div>';
                         }}
                         else if (elem.type === 'animation_mask') {{
                             // Legacy animation mask (kept for compatibility)
