@@ -1031,7 +1031,46 @@ export const RichTextEditor = ({
           box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.2);
           cursor: nwse-resize;
         }
-        /* Floating image styles */
+        /* Float Left Image - text wraps on right */
+        .rich-text-editor img.rtf-image-float-left {
+          float: left;
+          clear: left;
+          margin: 0 16px 12px 0;
+          max-width: 45%;
+          shape-outside: margin-box;
+        }
+        .rich-text-editor img.rtf-image-float-left:hover {
+          outline: 2px dashed #22d3ee;
+          outline-offset: 2px;
+        }
+        /* Float Right Image - text wraps on left */
+        .rich-text-editor img.rtf-image-float-right {
+          float: right;
+          clear: right;
+          margin: 0 0 12px 16px;
+          max-width: 45%;
+          shape-outside: margin-box;
+        }
+        .rich-text-editor img.rtf-image-float-right:hover {
+          outline: 2px dashed #22d3ee;
+          outline-offset: 2px;
+        }
+        /* Center Image - full width block */
+        .rich-text-editor img.rtf-image-center {
+          display: inline-block;
+          max-width: 80%;
+        }
+        .rich-text-editor img.rtf-image-center:hover {
+          outline: 2px dashed #22d3ee;
+          outline-offset: 2px;
+        }
+        /* Inline Image */
+        .rich-text-editor img.rtf-image-inline {
+          display: block;
+          max-width: 100%;
+          margin: 8px 0;
+        }
+        /* Floating image styles (legacy - absolute positioned) */
         .rich-text-editor img.floating-image {
           position: absolute;
           cursor: move;
@@ -1047,6 +1086,12 @@ export const RichTextEditor = ({
           outline-offset: 2px;
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 4px rgba(34, 211, 238, 0.2);
           cursor: move;
+        }
+        /* Clear float after floated images */
+        .rich-text-editor::after {
+          content: '';
+          display: table;
+          clear: both;
         }
         /* Enhanced Table Styles */
         .rich-text-editor table,
