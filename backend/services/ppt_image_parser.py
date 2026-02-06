@@ -248,11 +248,11 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             except Exception as e:
                 logger.warning(f"Error processing slide image: {e}")
         
-        # Extract ALL elements (visible for animations, hidden for accessibility)
-        # We need to track shape_idx to element mapping for animation extraction
+        # Extract ALL elements for animation mapping
+        # Elements are initially invisible - only shown if they have animations
         for shape_idx, shape in enumerate(pptx_slide.shapes):
             try:
-                # Create element for this shape (visible, for animations)
+                # Create element for this shape (invisible by default)
                 element = SlideElement(
                     id=str(uuid.uuid4()),
                     type="shape",  # Generic type
@@ -260,12 +260,12 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                     y=emu_to_px(shape.top) if shape.top else 0,
                     width=emu_to_px(shape.width) if shape.width else 100,
                     height=emu_to_px(shape.height) if shape.height else 50,
-                    visible=True,  # Visible to receive animations
+                    visible=False,  # Hidden by default - background image shows content
                     zIndex=shape_idx,
-                    style=ElementStyle(opacity=0)  # Transparent - background image shows content
+                    style=ElementStyle(opacity=0)
                 )
                 
-                # Extract text if available
+                # Extract text if available (for accessibility/search)
                 if hasattr(shape, 'text_frame') and shape.text_frame:
                     text = shape.text_frame.text
                     if text and text.strip():
