@@ -389,7 +389,7 @@ var CoursePlayer = (function() {
         // On desktop, cap at 1.0 to avoid pixelation
         // On mobile (smaller screens), allow up to 1.5x for better visibility
         var isMobile = window.innerWidth < 900 || window.innerHeight < 600;
-        var maxScale = isMobile ? 1.5 : 1.0;
+        var maxScale = isMobile ? 1.5 : 1.5;  // Allow larger slides to scale up
         scale = Math.min(scale, maxScale);
         
         // Apply scale to container
