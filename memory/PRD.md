@@ -822,3 +822,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
     - Image Controls Overlay UI com botões e handles
 - **Status**: IMPLEMENTED AND TESTED (100% success rate)
 - **Verification**: Testing agent confirmou 11 testes passando incluindo resize com aspect ratio mantido
+
+
+### Correção do Text Wrapping no SlideCanvas - FIX (Feb 6, 2026)
+- **Issue:** O float das imagens não estava sendo aplicado no SlideCanvas iframe, causando discrepância entre o editor RTF e a visualização do slide
+- **Root Cause:** Os CSS inline do HTML salvo tinham muitas propriedades Tailwind que conflitavam com os estilos de float. A especificidade CSS do iframe era insuficiente.
+- **Fix Applied:**
+  1. Aumentada especificidade CSS com seletores múltiplos (`body img.rtf-image-float-right`)
+  2. Adicionado `!important` em todas as propriedades relevantes (float, clear, display, margin)
+  3. Removido `overflow: hidden` do container que bloqueava o fluxo de texto
+  4. Adicionado `overflow: visible` em elementos de texto (p, div, span, etc.)
+- **Files Modified:**
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx`: CSS do srcDoc do iframe atualizado
+- **Status**: FIXED AND VERIFIED
+- **Verification**: Screenshot visual confirmou que o texto agora contorna a imagem corretamente no slide
