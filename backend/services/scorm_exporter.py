@@ -1268,15 +1268,17 @@ var CoursePlayer = (function() {
     }
     
     function updateProgress() {
-        var progress = ((currentSlide + 1) / totalSlides) * 100;
-        var progressBar = document.getElementById('progress-bar');
-        var slideCounter = document.getElementById('slide-counter');
+        var dotsContainer = document.getElementById('progress-dots');
         
-        if (progressBar) {
-            progressBar.style.width = progress + '%';
-        }
-        if (slideCounter) {
-            slideCounter.textContent = (currentSlide + 1) + ' / ' + totalSlides;
+        if (dotsContainer) {
+            var html = '';
+            for (var i = 0; i < totalSlides; i++) {
+                var cls = 'progress-dot';
+                if (i === currentSlide) cls += ' active';
+                else if (i < currentSlide) cls += ' completed';
+                html += '<div class="' + cls + '" onclick="CoursePlayer.goToSlide(' + i + ')"></div>';
+            }
+            dotsContainer.innerHTML = html;
         }
         
         // Update sidebar
