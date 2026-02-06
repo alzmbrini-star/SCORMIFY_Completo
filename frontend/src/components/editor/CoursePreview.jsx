@@ -436,22 +436,31 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 
                 {/* Video */}
                 {element.type === 'video' && (
-                  <div className="w-full h-full bg-black rounded overflow-hidden">
+                  <div 
+                    className="w-full h-full rounded overflow-hidden"
+                    style={{ background: 'transparent' }}
+                  >
                     {element.embedUrl ? (
                       <iframe
                         src={element.embedUrl}
                         className="w-full h-full border-0"
+                        style={{ background: 'transparent' }}
                         allow="autoplay; fullscreen"
                         title="Video"
                       />
                     ) : element.src ? (
                       <video
                         src={getAssetUrl(element.src, projectId)}
-                        controls
                         autoPlay
+                        loop
                         muted={isMuted}
+                        playsInline
                         className="w-full h-full"
-                        style={{ objectFit: 'contain', background: 'transparent' }}
+                        style={{ 
+                          objectFit: 'contain', 
+                          background: 'transparent',
+                          backgroundColor: 'transparent'
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white">
