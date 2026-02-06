@@ -833,12 +833,13 @@ var CoursePlayer = (function() {
                     el.style.background = 'transparent';
                     var video = document.createElement('video');
                     video.src = element.src;
-                    video.controls = true;
+                    video.controls = false;  // Hide video controls
                     video.playsInline = true;
                     video.style.width = '100%';
                     video.style.height = '100%';
                     video.style.background = 'transparent';
                     video.style.objectFit = 'contain';
+                    video.style.pointerEvents = 'none';  // Prevent interaction
                     
                     // Store video reference for slide change handling
                     video.dataset.elementId = element.id;
