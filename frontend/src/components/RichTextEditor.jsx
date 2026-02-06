@@ -968,34 +968,94 @@ export const RichTextEditor = ({
       </div>
 
       {/* Editor Content */}
-      <div
-        ref={editorRef}
-        contentEditable="true"
-        onInput={handleInput}
-        onPaste={handlePaste}
-        onClick={handleEditorClick}
-        onMouseDown={(e) => {
-          const img = e.target.closest('img.selected-image');
-          if (img && selectedImage === img) {
-            const rect = img.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            // Check if in bottom-right corner (resize zone - 20px)
-            if (x > rect.width - 20 && y > rect.height - 20) {
-              handleResizeStart(e, 'corner');
-            } 
-            // Check if it's a floating image - allow drag
-            else if (img.classList.contains('floating-image')) {
-              handleDragStart(e);
+      <div className="relative">
+        <div
+          ref={editorRef}
+          contentEditable="true"
+          onInput={handleInput}
+          onPaste={handlePaste}
+          onClick={handleEditorClick}
+          onMouseDown={(e) => {
+            const img = e.target.closest('img.selected-image');
+            if (img && selectedImage === img) {
+              const rect = img.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const y = e.clientY - rect.top;
+              
+              // Check if in bottom-right corner (resize zone - 20px)
+              if (x > rect.width - 20 && y > rect.height - 20) {
+                handleResizeStart(e, 'corner');
+              } 
+              // Check if it's a floating image - allow drag
+              else if (img.classList.contains('floating-image')) {
+                handleDragStart(e);
+              }
             }
-          }
-        }}
-        className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100 relative"
-        style={{ lineHeight: '1.6', position: 'relative', backgroundColor: 'transparent' }}
-        data-placeholder={placeholder}
-        suppressContentEditableWarning={true}
-      />
+          }}
+          className="rich-text-editor p-4 min-h-[300px] outline-none text-slate-100 relative"
+          style={{ lineHeight: '1.6', position: 'relative', backgroundColor: 'transparent' }}
+          data-placeholder={placeholder}
+          suppressContentEditableWarning={true}
+        />
+
+        {/* Image Controls Overlay - shown when image is selected */}
+        {selectedImage && !isResizing && (
+          <div 
+            className="absolute pointer-events-none"
+            style={{
+              top: imageControlsPosition.top,
+              left: imageControlsPosition.left,
+              width: imageControlsPosition.width,
+              height: imageControlsPosition.height
+            }}
+          >
+            {/* Delete Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                deleteSelectedImage();
+              }}
+              className="absolute -top-3 -right-3 w-7 h-7 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-colors pointer-events-auto z-50"
+              title="Excluir imagem"
+              data-testid="rtf-image-delete-btn"
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+            </button>
+
+            {/* Resize Handle - Bottom Right Corner */}
+            <div
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleResizeStart(e, 'corner');
+              }}
+              className="absolute -bottom-2 -right-2 w-5 h-5 bg-cyan-500 hover:bg-cyan-400 rounded-sm cursor-nwse-resize flex items-center justify-center shadow-lg pointer-events-auto z-50"
+              title="Redimensionar"
+              data-testid="rtf-image-resize-handle"
+            >
+              <Maximize2 className="w-3 h-3 text-white" />
+            </div>
+
+            {/* Move Indicator for floating images */}
+            {selectedImage?.classList?.contains('floating-image') && (
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDragStart(e);
+                }}
+                className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 bg-slate-600 hover:bg-slate-500 rounded-full flex items-center justify-center shadow-lg cursor-move pointer-events-auto z-50"
+                title="Mover imagem"
+                data-testid="rtf-image-move-handle"
+              >
+                <Move className="w-4 h-4 text-white" />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Custom styles */}
       <style>{`
