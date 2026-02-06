@@ -218,12 +218,19 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
     logger.info("Converting slides to images...")
     slide_images = convert_pptx_to_images(file_path, str(assets_dir))
     
+    # Import detailed parser for slides with animations
+    from services.ppt_parser import shape_to_element
+    
     slides = []
     num_slides = len(prs.slides)
     
     for slide_idx, pptx_slide in enumerate(prs.slides):
         slide_id = str(uuid.uuid4())
         elements = []
+        
+        # First, check if this slide has animations
+        has_animations = check_slide_has_animations(pptx_slide)
+        logger.info(f"Slide {slide_idx + 1}: has_animations={has_animations}")
         
         # Get slide image if available
         background_image = None
@@ -248,16 +255,37 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             except Exception as e:
                 logger.warning(f"Error processing slide image: {e}")
         
-        # Extract ALL elements for animation mapping
-        # Elements are initially invisible - only shown if they have animations
-        for shape_idx, shape in enumerate(pptx_slide.shapes):
-            try:
-                # Create element for this shape (invisible by default)
-                element = SlideElement(
-                    id=str(uuid.uuid4()),
-                    type="shape",  # Generic type
-                    x=emu_to_px(shape.left) if shape.left else 0,
-                    y=emu_to_px(shape.top) if shape.top else 0,
+        if has_animations:
+            # For slides WITH animations: use detailed parser to extract each element
+            # The background image will show static elements, animated ones will be overlaid
+            logger.info(f"Slide {slide_idx + 1}: Using detailed parser for animations")
+            
+            # Extract elements using the detailed parser
+            for shape_idx, shape in enumerate(pptx_slide.shapes):
+                try:
+                    element = shape_to_element(shape, shape_idx, assets_dir, project_id)
+                    if element:
+                        # Initially hide all elements - they will be shown by animations
+                        element.visible = False
+                        elements.append(element)
+                except Exception as e:
+                    logger.debug(f"Error extracting shape {shape_idx}: {e}")
+            
+            # Extract animations and mark animated elements as visible
+            slide_animations = extract_animations(pptx_slide, elements)
+            if slide_animations:
+                conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations")
+                logger.info(f"Extracted {len(slide_animations)} animations from slide {slide_idx + 1}")
+                
+                # For animated slides, we need to hide the background image parts that will be animated
+                # This is done by setting the background to show only non-animated content
+                # For now, we keep the background and overlay animated elements
+        else:
+            # For slides WITHOUT animations: just use the image background
+            # No need to extract individual elements
+            logger.info(f"Slide {slide_idx + 1}: No animations, using image only")
+        
+        # Get slide title
                     width=emu_to_px(shape.width) if shape.width else 100,
                     height=emu_to_px(shape.height) if shape.height else 50,
                     visible=False,  # Hidden by default - background image shows content
