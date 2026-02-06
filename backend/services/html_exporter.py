@@ -1149,12 +1149,24 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var startTime = elem.startTime || 0;
                         var endTime = (elem.endTime !== undefined && elem.endTime !== null) ? elem.endTime : slideDuration;
                         
+                        // Check element type
+                        var isMaskElement = elem.type === 'animation_mask';
+                        var isHighlightElement = elem.type === 'animation_highlight';
+                        
                         // Check if element has animations
                         var hasAnimations = elem.animations && elem.animations.length > 0;
                         var hasEntranceAnimation = hasAnimations && elem.animations.some(function(a) {{ return a.type === 'entrance'; }});
                         
-                        // Determine initial visibility - hidden if has startTime > 0 OR has entrance animation
-                        var initiallyHidden = startTime > 0 || hasEntranceAnimation;
+                        // Determine initial visibility
+                        // For masks: they should START VISIBLE (to cover content) then fade out
+                        // For other elements with entrance animations: start hidden
+                        var initiallyHidden = false;
+                        if (isMaskElement) {{
+                            // Masks with entrance animation should start VISIBLE (opaque)
+                            initiallyHidden = false;
+                        }} else if (startTime > 0 || hasEntranceAnimation) {{
+                            initiallyHidden = true;
+                        }}
                         
                         var style = 'left:' + (elem.x || 0) + 'px;';
                         style += 'top:' + (elem.y || 0) + 'px;';
@@ -1162,9 +1174,17 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         style += 'height:' + (elem.height || 100) + 'px;';
                         style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
                         if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
-                        // Don't apply style opacity for elements with animations - they should start hidden
-                        if (!hasAnimations && elem.style && elem.style.opacity !== undefined) style += 'opacity:' + elem.style.opacity + ';';
-                        if (initiallyHidden) style += 'visibility:hidden;opacity:0;'; // Hide initially
+                        
+                        // Handle opacity based on element type
+                        if (isMaskElement) {{
+                            // Masks: start visible/opaque for entrance animations
+                            var maskOpacity = (elem.style && elem.style.opacity !== undefined) ? elem.style.opacity : 1;
+                            style += 'opacity:' + maskOpacity + ';';
+                        }} else if (!hasAnimations && elem.style && elem.style.opacity !== undefined) {{
+                            style += 'opacity:' + elem.style.opacity + ';';
+                        }} else if (initiallyHidden) {{
+                            style += 'visibility:hidden;opacity:0;';
+                        }}
                         
                         html += '<div class="slide-element ' + elem.type + '-element" id="element-' + elemIndex + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" style="' + style + '">';
                         
