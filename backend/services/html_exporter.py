@@ -724,6 +724,125 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             to {{ opacity: 0; transform: translateY(-10px); }}
         }}
         
+        /* PowerPoint Animation Effects */
+        @keyframes ppt-appear {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+        
+        @keyframes ppt-fade {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+        
+        @keyframes ppt-fly-left {{
+            from {{ opacity: 0; transform: translateX(-100%); }}
+            to {{ opacity: 1; transform: translateX(0); }}
+        }}
+        
+        @keyframes ppt-fly-right {{
+            from {{ opacity: 0; transform: translateX(100%); }}
+            to {{ opacity: 1; transform: translateX(0); }}
+        }}
+        
+        @keyframes ppt-fly-top {{
+            from {{ opacity: 0; transform: translateY(-100%); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        @keyframes ppt-fly-bottom {{
+            from {{ opacity: 0; transform: translateY(100%); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        @keyframes ppt-zoom {{
+            from {{ opacity: 0; transform: scale(0.3); }}
+            to {{ opacity: 1; transform: scale(1); }}
+        }}
+        
+        @keyframes ppt-grow {{
+            from {{ transform: scale(0); }}
+            to {{ transform: scale(1); }}
+        }}
+        
+        @keyframes ppt-shrink {{
+            from {{ transform: scale(1.5); }}
+            to {{ transform: scale(1); }}
+        }}
+        
+        @keyframes ppt-spin {{
+            from {{ opacity: 0; transform: rotate(-360deg) scale(0.5); }}
+            to {{ opacity: 1; transform: rotate(0deg) scale(1); }}
+        }}
+        
+        @keyframes ppt-swivel {{
+            from {{ opacity: 0; transform: rotateY(-90deg); }}
+            to {{ opacity: 1; transform: rotateY(0deg); }}
+        }}
+        
+        @keyframes ppt-bounce {{
+            0% {{ opacity: 0; transform: translateY(-100%); }}
+            50% {{ transform: translateY(10%); }}
+            70% {{ transform: translateY(-5%); }}
+            100% {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        @keyframes ppt-float {{
+            from {{ opacity: 0; transform: translateY(50px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        @keyframes ppt-wipe-left {{
+            from {{ clip-path: inset(0 100% 0 0); }}
+            to {{ clip-path: inset(0 0 0 0); }}
+        }}
+        
+        @keyframes ppt-wipe-right {{
+            from {{ clip-path: inset(0 0 0 100%); }}
+            to {{ clip-path: inset(0 0 0 0); }}
+        }}
+        
+        @keyframes ppt-wipe-top {{
+            from {{ clip-path: inset(100% 0 0 0); }}
+            to {{ clip-path: inset(0 0 0 0); }}
+        }}
+        
+        @keyframes ppt-wipe-bottom {{
+            from {{ clip-path: inset(0 0 100% 0); }}
+            to {{ clip-path: inset(0 0 0 0); }}
+        }}
+        
+        @keyframes ppt-blinds {{
+            from {{ opacity: 0; clip-path: polygon(0% 0%, 10% 0%, 10% 100%, 0% 100%, 0% 0%, 20% 0%, 20% 100%, 30% 0%, 30% 100%, 40% 0%, 40% 100%, 50% 0%, 50% 100%); }}
+            to {{ opacity: 1; clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%); }}
+        }}
+        
+        @keyframes ppt-emphasis-pulse {{
+            0%, 100% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.1); }}
+        }}
+        
+        @keyframes ppt-emphasis-teeter {{
+            0%, 100% {{ transform: rotate(0deg); }}
+            25% {{ transform: rotate(3deg); }}
+            75% {{ transform: rotate(-3deg); }}
+        }}
+        
+        @keyframes ppt-exit-fade {{
+            from {{ opacity: 1; }}
+            to {{ opacity: 0; }}
+        }}
+        
+        @keyframes ppt-exit-fly {{
+            from {{ opacity: 1; transform: translateY(0); }}
+            to {{ opacity: 0; transform: translateY(-100%); }}
+        }}
+        
+        @keyframes ppt-exit-zoom {{
+            from {{ opacity: 1; transform: scale(1); }}
+            to {{ opacity: 0; transform: scale(0.3); }}
+        }}
+        
         /* Presentation Mode - Fullscreen optimized */
         .presentation-mode #slide-wrapper {{
             padding: 5px !important;
