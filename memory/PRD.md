@@ -792,3 +792,33 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `rtf-image-float-right-btn`: Botão Flutuar Direita
 - **Status**: IMPLEMENTED AND TESTED (100% success rate)
 - **Verification**: Testing agent confirmou todos os 18 testes passando
+
+
+### Redimensionamento e Exclusão de Imagens no RTF - IMPLEMENTED (Feb 6, 2026)
+- **Feature**: Controles visuais para editar imagens diretamente no editor RTF
+- **Implementation**:
+  1. **Seleção de Imagem**: Clicar na imagem adiciona classe `selected-image` com borda cyan
+  2. **Botão Excluir**: Botão vermelho (Trash2 icon) no canto superior direito remove a imagem
+  3. **Handle Redimensionar**: Handle cyan (Maximize2 icon) no canto inferior direito permite arrastar para redimensionar
+  4. **Handle Mover**: Para imagens flutuantes, handle cinza (Move icon) no centro superior permite arrastar posição
+  5. **Desmarcar**: Clicar fora da imagem remove seleção e esconde controles
+- **UI Controls**:
+  - Botão excluir: `bg-red-500`, círculo 7x7px, `-3px offset`
+  - Handle redimensionar: `bg-cyan-500`, quadrado 5x5px, cursor `nwse-resize`
+  - Handle mover: `bg-slate-600`, círculo 7x7px, cursor `move`
+- **Aspect Ratio**: Redimensionamento mantém proporção original da imagem
+- **State Management**:
+  - `selectedImage`: Referência ao elemento img selecionado
+  - `imageControlsPosition`: Posição calculada dos controles overlay
+  - `isResizing`: Flag durante operação de resize
+- **Test IDs Added**:
+  - `rtf-image-delete-btn`: Botão de excluir
+  - `rtf-image-resize-handle`: Handle de redimensionar
+  - `rtf-image-move-handle`: Handle de mover (para floating images)
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx`:
+    - Função `deleteSelectedImage()` para remover imagens
+    - useEffect para calcular posição dos controles
+    - Image Controls Overlay UI com botões e handles
+- **Status**: IMPLEMENTED AND TESTED (100% success rate)
+- **Verification**: Testing agent confirmou 11 testes passando incluindo resize com aspect ratio mantido
