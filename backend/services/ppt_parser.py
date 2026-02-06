@@ -110,6 +110,114 @@ def extract_text_properties(paragraph) -> Dict[str, Any]:
     
     return props
 
+def extract_smartart(shape, assets_dir: Path, project_id: str) -> Optional[Tuple[str, str, List[str]]]:
+    """
+    Extract SmartArt graphic and convert to image
+    Returns: (image_url, smartart_type, text_content_list) or None
+    """
+    try:
+        from pptx.oxml.ns import qn
+        
+        shape_xml = shape._element
+        
+        # Check if this shape contains a SmartArt graphic (dgm:relIds)
+        # SmartArt is typically in graphicFrame elements with dgm namespace
+        dgm_rels = shape_xml.findall('.//' + qn('dgm:relIds'))
+        
+        if not dgm_rels:
+            # Also check for graphicData with SmartArt
+            graphic_data = shape_xml.find('.//' + qn('a:graphicData'))
+            if graphic_data is not None:
+                uri = graphic_data.get('uri', '')
+                if 'dgm' not in uri.lower() and 'smartart' not in uri.lower():
+                    return None
+            else:
+                return None
+        
+        logger.info(f"Found SmartArt graphic")
+        
+        # Extract text content from SmartArt for accessibility
+        text_content = []
+        
+        # SmartArt text is often in t elements
+        text_elements = shape_xml.findall('.//' + qn('a:t'))
+        for t_elem in text_elements:
+            if t_elem.text:
+                text_content.append(t_elem.text.strip())
+        
+        # Also try to find text in dgm:t elements
+        dgm_texts = shape_xml.findall('.//' + qn('dgm:t'))
+        for dgm_t in dgm_texts:
+            if dgm_t.text:
+                text_content.append(dgm_t.text.strip())
+        
+        # Try to determine SmartArt type
+        smartart_type = "diagram"
+        
+        # Look for layout definition
+        layout_node = shape_xml.find('.//' + qn('dgm:layoutNode'))
+        if layout_node is not None:
+            name = layout_node.get('name', '')
+            if name:
+                smartart_type = name.lower()
+        
+        # Try to extract embedded image representation
+        blips = shape_xml.findall('.//' + qn('a:blip'))
+        for blip in blips:
+            embed_id = blip.get(qn('r:embed'))
+            if embed_id:
+                try:
+                    part = shape.part
+                    image_part = part.related_part(embed_id)
+                    if image_part:
+                        image_bytes = image_part.blob
+                        content_type = image_part.content_type
+                        ext_map = {
+                            'image/png': 'png',
+                            'image/jpeg': 'jpg',
+                            'image/gif': 'gif',
+                            'image/emf': 'emf',
+                            'image/wmf': 'wmf'
+                        }
+                        ext = ext_map.get(content_type, 'png')
+                        image_filename = f"smartart_{uuid.uuid4()}.{ext}"
+                        image_path = assets_dir / image_filename
+                        
+                        with open(image_path, 'wb') as f:
+                            f.write(image_bytes)
+                        
+                        # Convert EMF/WMF to PNG if needed
+                        if ext in ['emf', 'wmf']:
+                            try:
+                                from PIL import Image
+                                png_filename = f"smartart_{uuid.uuid4()}.png"
+                                png_path = assets_dir / png_filename
+                                
+                                # Try to convert using PIL (may not work for all EMF)
+                                with Image.open(image_path) as img:
+                                    img.save(png_path, 'PNG')
+                                
+                                # Use the PNG version
+                                os.remove(image_path)
+                                image_filename = png_filename
+                            except Exception as e:
+                                logger.debug(f"Could not convert EMF/WMF to PNG: {e}")
+                        
+                        image_url = f"/api/projects/{project_id}/assets/{image_filename}"
+                        logger.info(f"Extracted SmartArt image: {image_filename}")
+                        return (image_url, smartart_type, text_content)
+                        
+                except Exception as e:
+                    logger.debug(f"Error extracting SmartArt image: {e}")
+        
+        # If no embedded image, return None (will need fallback rendering)
+        return (None, smartart_type, text_content)
+        
+    except Exception as e:
+        logger.debug(f"Error extracting SmartArt: {e}")
+        return None
+
+
 def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Optional[SlideElement]:
     """Convert a PowerPoint shape to a SlideElement"""
     try:
