@@ -809,7 +809,13 @@ var CoursePlayer = (function() {
                         if (isYouTube) {
                             embedUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
                             var separator = embedUrl.indexOf('?') !== -1 ? '&' : '?';
-                            embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1';
+                            embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1&autoplay=1&mute=1';
+                        }
+                        
+                        // Add Vimeo autoplay parameters
+                        if (embedUrl.indexOf('vimeo') !== -1) {
+                            var vimeoSep = embedUrl.indexOf('?') !== -1 ? '&' : '?';
+                            embedUrl += vimeoSep + 'autoplay=1&muted=1&background=0';
                         }
                         
                         iframe.src = embedUrl;
