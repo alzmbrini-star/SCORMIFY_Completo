@@ -1301,7 +1301,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     'appear': 'ppt-appear',
                     'fade': 'ppt-fade',
                     'fly': 'ppt-fly-bottom',
+                    'fly_in': 'ppt-fly-bottom',
                     'float': 'ppt-float',
+                    'float_up': 'ppt-float',
                     'zoom': 'ppt-zoom',
                     'grow': 'ppt-grow',
                     'shrink': 'ppt-shrink',
@@ -1311,7 +1313,21 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     'wipe': 'ppt-wipe-left',
                     'blinds': 'ppt-blinds',
                     'pulse': 'ppt-emphasis-pulse',
-                    'teeter': 'ppt-emphasis-teeter'
+                    'teeter': 'ppt-emphasis-teeter',
+                    'box': 'ppt-zoom',
+                    'circle': 'ppt-zoom',
+                    'diamond': 'ppt-zoom',
+                    'dissolve': 'ppt-fade',
+                    'peek': 'ppt-wipe-bottom',
+                    'random_bars': 'ppt-blinds',
+                    'split': 'ppt-wipe-left',
+                    'strips': 'ppt-blinds',
+                    'wedge': 'ppt-wipe-left',
+                    'wheel': 'ppt-spin',
+                    'checkerboard': 'ppt-blinds',
+                    'crawl': 'ppt-fly-left',
+                    'glide': 'ppt-float',
+                    'rise_up': 'ppt-fly-bottom'
                 }};
                 
                 // Setup timeline for elements with startTime/endTime and animations
@@ -1326,6 +1342,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var element = document.getElementById('element-' + elemIndex);
                         
                         if (element) {{
+                            // Check if this is an animation mask element
+                            var isMask = elem.type === 'animation_mask';
+                            var isHighlight = elem.type === 'animation_highlight';
+                            
                             // Check if element has PPT animations
                             var hasAnimations = elem.animations && elem.animations.length > 0;
                             
@@ -1336,19 +1356,64 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     var animDuration = anim.duration || 0.5;
                                     var animDelay = anim.delay || 0;
                                     
-                                    // Calculate actual delay based on trigger
-                                    var actualDelay = animDelay;
-                                    if (anim.trigger === 'afterPrevious') {{
-                                        actualDelay = animationDelay + animDelay;
-                                    }} else if (anim.trigger === 'withPrevious') {{
-                                        // Use same timing as previous
-                                    }} else if (anim.trigger === 'onClick') {{
-                                        // Skip auto-play for onClick animations
-                                        return;
+                                    // For masks, the delay is already the start time
+                                    var actualDelay = isMask ? animDelay : animDelay;
+                                    
+                                    if (!isMask) {{
+                                        // Calculate actual delay based on trigger for non-mask elements
+                                        if (anim.trigger === 'afterPrevious') {{
+                                            actualDelay = animationDelay + animDelay;
+                                        }} else if (anim.trigger === 'withPrevious') {{
+                                            // Use same timing as previous
+                                        }} else if (anim.trigger === 'onClick') {{
+                                            // Skip auto-play for onClick animations
+                                            return;
+                                        }}
                                     }}
                                     
-                                    if (anim.type === 'entrance') {{
-                                        // Hide element initially
+                                    if (isMask) {{
+                                        // MASK ANIMATION: For entrance, fade mask OUT to reveal content
+                                        // For exit, fade mask IN to hide content
+                                        if (anim.type === 'entrance') {{
+                                            // Mask starts visible (covering content)
+                                            element.style.opacity = '1';
+                                            
+                                            // Fade out mask to reveal content underneath
+                                            var revealTimer = setTimeout(function() {{
+                                                element.style.transition = 'opacity ' + animDuration + 's ' + (anim.easing || 'ease');
+                                                element.style.opacity = '0';
+                                            }}, actualDelay * 1000);
+                                            timelineTimers.push(revealTimer);
+                                            
+                                        }} else if (anim.type === 'exit') {{
+                                            // Mask starts transparent
+                                            element.style.opacity = '0';
+                                            
+                                            // Fade in mask to hide content
+                                            var hideTimer = setTimeout(function() {{
+                                                element.style.transition = 'opacity ' + animDuration + 's ' + (anim.easing || 'ease');
+                                                element.style.opacity = '1';
+                                            }}, actualDelay * 1000);
+                                            timelineTimers.push(hideTimer);
+                                        }}
+                                        
+                                    }} else if (isHighlight) {{
+                                        // HIGHLIGHT ANIMATION: Pulse or glow effect
+                                        var highlightTimer = setTimeout(function() {{
+                                            element.style.borderColor = '#FFD700';
+                                            element.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.7)';
+                                            element.style.animation = 'ppt-emphasis-pulse ' + animDuration + 's ' + (anim.easing || 'ease');
+                                            
+                                            // Remove highlight after animation
+                                            setTimeout(function() {{
+                                                element.style.borderColor = 'transparent';
+                                                element.style.boxShadow = 'none';
+                                            }}, animDuration * 1000);
+                                        }}, actualDelay * 1000);
+                                        timelineTimers.push(highlightTimer);
+                                        
+                                    }} else if (anim.type === 'entrance') {{
+                                        // Regular entrance animation
                                         element.style.opacity = '0';
                                         element.style.visibility = 'hidden';
                                         
