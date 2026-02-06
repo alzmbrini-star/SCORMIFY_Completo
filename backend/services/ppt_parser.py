@@ -420,6 +420,174 @@ def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Op
         logger.error(f"Error converting shape: {e}")
         return None
 
+def extract_animation_masks(pptx_slide) -> List[dict]:
+    """
+    Extract animation information with shape positions for mask-based animations.
+    Returns a list of mask dictionaries with position and animation info.
+    """
+    masks = []
+    
+    try:
+        slide_part = pptx_slide.part
+        slide_xml = slide_part._element
+        
+        nsmap = {
+            'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
+            'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+        }
+        
+        timing = slide_xml.find('.//p:timing', nsmap)
+        if timing is None:
+            return masks
+        
+        # Build shape info map: shape_id -> {x, y, width, height, name}
+        shape_info = {}
+        for shape in pptx_slide.shapes:
+            if hasattr(shape, 'shape_id'):
+                shape_info[str(shape.shape_id)] = {
+                    'x': emu_to_px(shape.left) if shape.left else 0,
+                    'y': emu_to_px(shape.top) if shape.top else 0,
+                    'width': emu_to_px(shape.width) if shape.width else 100,
+                    'height': emu_to_px(shape.height) if shape.height else 50,
+                    'name': shape.name if hasattr(shape, 'name') else ''
+                }
+        
+        # Animation effect and type maps
+        preset_effect_map = {
+            '1': 'appear', '2': 'fly', '3': 'blinds', '4': 'box', '5': 'checkerboard',
+            '6': 'circle', '7': 'crawl', '8': 'diamond', '9': 'dissolve', '10': 'fade',
+            '11': 'flash_once', '12': 'flip', '13': 'float', '14': 'fly_in', '15': 'fold',
+            '16': 'glide', '17': 'grow_and_turn', '18': 'newsflash', '19': 'peek', '20': 'pinwheel',
+            '21': 'plus', '22': 'random_bars', '23': 'random_effects', '24': 'rise_up',
+            '25': 'shapes', '26': 'sling', '27': 'spinner', '28': 'split', '29': 'stretch',
+            '30': 'strips', '31': 'swish', '32': 'swivel', '33': 'wedge', '34': 'wheel',
+            '35': 'wipe', '36': 'zoom', '37': 'bounce', '38': 'credits', '39': 'curve_up',
+            '40': 'drop', '41': 'elastic', '42': 'float_down', '43': 'float_up',
+            '44': 'basic_swivel', '45': 'basic_zoom', '46': 'boomerang', '47': 'basic_bounce',
+            '48': 'compress', '49': 'curve_down', '50': 'curve_left', '51': 'curve_right',
+            '52': 'expand', '53': 'magnify', '54': 'pulse', '55': 'spin', '56': 'spiral_in',
+            '57': 'spiral_out', '58': 'teeter', '59': 'thread', '60': 'unfold',
+        }
+        
+        animation_type_map = {
+            'entr': 'entrance',
+            'exit': 'exit', 
+            'emph': 'emphasis',
+            'path': 'motion',
+            'mediacall': 'media'
+        }
+        
+        # Track cumulative delay for sequential animations
+        cumulative_delay = 0.0
+        
+        # Find all cTn (common time node) elements with presetClass
+        all_ctn = timing.findall('.//p:cTn[@presetClass]', nsmap)
+        
+        for ctn in all_ctn:
+            try:
+                preset_class = ctn.get('presetClass', 'entr')
+                preset_id = ctn.get('presetID', '10')
+                duration = ctn.get('dur')
+                delay_val = ctn.get('delay')
+                node_type = ctn.get('nodeType', '')
+                
+                # Find target element
+                tgtEl = ctn.find('.//p:tgtEl', nsmap)
+                if tgtEl is None:
+                    continue
+                
+                spTgt = tgtEl.find('.//p:spTgt', nsmap)
+                if spTgt is None:
+                    continue
+                
+                shape_id = spTgt.get('spid')
+                if not shape_id or shape_id not in shape_info:
+                    continue
+                
+                # Get shape position info
+                pos = shape_info[shape_id]
+                
+                # Calculate duration
+                anim_duration = 0.5
+                if duration and duration != 'indefinite':
+                    try:
+                        anim_duration = int(duration) / 1000.0
+                    except:
+                        pass
+                
+                # Calculate delay
+                anim_delay = 0.0
+                if delay_val:
+                    try:
+                        anim_delay = int(delay_val) / 1000.0
+                    except:
+                        pass
+                
+                # Determine trigger and start time
+                trigger = 'afterPrevious'
+                start_time = cumulative_delay + anim_delay
+                
+                if node_type == 'clickEffect':
+                    trigger = 'onClick'
+                    start_time = anim_delay  # Reset for click
+                elif node_type == 'withEffect':
+                    trigger = 'withPrevious'
+                    # Use same start time as previous
+                elif node_type == 'afterEffect':
+                    trigger = 'afterPrevious'
+                    start_time = cumulative_delay + anim_delay
+                
+                # Update cumulative delay for next animation
+                if trigger != 'withPrevious':
+                    cumulative_delay = start_time + anim_duration
+                
+                # Get animation type and effect
+                anim_type = animation_type_map.get(preset_class, 'entrance')
+                effect = preset_effect_map.get(preset_id, 'fade')
+                
+                # Create mask info
+                mask = {
+                    'id': str(uuid.uuid4()),
+                    'shape_id': shape_id,
+                    'x': pos['x'],
+                    'y': pos['y'],
+                    'width': pos['width'],
+                    'height': pos['height'],
+                    'animation_type': anim_type,
+                    'effect': effect,
+                    'trigger': trigger,
+                    'start_time': start_time,
+                    'duration': anim_duration,
+                    'delay': anim_delay
+                }
+                
+                masks.append(mask)
+                logger.info(f"Animation mask: {anim_type}/{effect} at ({pos['x']}, {pos['y']}) size {pos['width']}x{pos['height']}, start={start_time}s")
+                
+            except Exception as e:
+                logger.debug(f"Error processing animation cTn: {e}")
+                continue
+        
+        logger.info(f"Extracted {len(masks)} animation masks")
+        
+    except Exception as e:
+        logger.error(f"Error extracting animation masks: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return masks
+
+
+# EMU to pixels conversion (for mask extraction)
+EMU_PER_INCH = 914400
+DPI = 96
+
+def emu_to_px(emu: int) -> float:
+    if emu is None:
+        return 0
+    return (emu / EMU_PER_INCH) * DPI
+
+
 def extract_animations(pptx_slide, elements: List[SlideElement]) -> List[Animation]:
     """Extract animations from slide XML"""
     animations = []
