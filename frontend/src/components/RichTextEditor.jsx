@@ -753,11 +753,12 @@ export const RichTextEditor = ({
               type="button"
               className="p-1.5 rounded hover:bg-slate-700 text-slate-300"
               title="Inserir imagem"
+              data-testid="rtf-image-btn"
             >
               <ImageIcon className="w-4 h-4" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-72 bg-slate-800 border-slate-700">
+          <PopoverContent className="w-80 bg-slate-800 border-slate-700">
             <div className="space-y-3">
               <h4 className="font-medium text-sm text-slate-100">Inserir Imagem</h4>
               <Input
@@ -765,32 +766,89 @@ export const RichTextEditor = ({
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="URL da imagem..."
                 className="bg-slate-900 border-slate-700"
+                data-testid="rtf-image-url-input"
               />
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  onClick={() => addImage(false)} 
-                  size="sm" 
-                  type="button" 
-                  variant="outline"
-                  className="text-xs"
-                  disabled={!imageUrl.trim()}
-                >
-                  Em linha
-                </Button>
-                <Button 
-                  onClick={() => addImage(true)} 
-                  size="sm" 
-                  type="button" 
-                  className="text-xs bg-cyan-600 hover:bg-cyan-700"
-                  disabled={!imageUrl.trim()}
-                >
-                  Flutuante
-                </Button>
+              
+              {/* Image Alignment Options */}
+              <div className="space-y-2">
+                <Label className="text-xs text-slate-400">Posicionamento</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={() => addImage('inline')} 
+                    size="sm" 
+                    type="button" 
+                    variant="outline"
+                    className="text-xs h-auto py-2 flex flex-col items-center gap-1"
+                    disabled={!imageUrl.trim()}
+                    data-testid="rtf-image-inline-btn"
+                  >
+                    <div className="w-8 h-6 border border-slate-500 rounded flex items-center justify-center">
+                      <div className="w-4 h-3 bg-slate-500 rounded-sm"></div>
+                    </div>
+                    Em linha
+                  </Button>
+                  <Button 
+                    onClick={() => addImage('center')} 
+                    size="sm" 
+                    type="button" 
+                    variant="outline"
+                    className="text-xs h-auto py-2 flex flex-col items-center gap-1"
+                    disabled={!imageUrl.trim()}
+                    data-testid="rtf-image-center-btn"
+                  >
+                    <div className="w-8 h-6 border border-slate-500 rounded flex flex-col items-center justify-center gap-0.5">
+                      <div className="w-6 h-0.5 bg-slate-600 rounded"></div>
+                      <div className="w-4 h-2 bg-cyan-500 rounded-sm"></div>
+                      <div className="w-6 h-0.5 bg-slate-600 rounded"></div>
+                    </div>
+                    Centralizada
+                  </Button>
+                  <Button 
+                    onClick={() => addImage('left')} 
+                    size="sm" 
+                    type="button" 
+                    className="text-xs h-auto py-2 flex flex-col items-center gap-1 bg-cyan-600 hover:bg-cyan-700"
+                    disabled={!imageUrl.trim()}
+                    data-testid="rtf-image-float-left-btn"
+                  >
+                    <div className="w-8 h-6 border border-cyan-400 rounded flex items-start gap-0.5 p-0.5">
+                      <div className="w-2 h-3 bg-cyan-400 rounded-sm flex-shrink-0"></div>
+                      <div className="flex flex-col gap-0.5 flex-1">
+                        <div className="w-full h-0.5 bg-slate-400 rounded"></div>
+                        <div className="w-full h-0.5 bg-slate-400 rounded"></div>
+                        <div className="w-full h-0.5 bg-slate-400 rounded"></div>
+                      </div>
+                    </div>
+                    Flutuar Esquerda
+                  </Button>
+                  <Button 
+                    onClick={() => addImage('right')} 
+                    size="sm" 
+                    type="button" 
+                    className="text-xs h-auto py-2 flex flex-col items-center gap-1 bg-cyan-600 hover:bg-cyan-700"
+                    disabled={!imageUrl.trim()}
+                    data-testid="rtf-image-float-right-btn"
+                  >
+                    <div className="w-8 h-6 border border-cyan-400 rounded flex items-start gap-0.5 p-0.5">
+                      <div className="flex flex-col gap-0.5 flex-1">
+                        <div className="w-full h-0.5 bg-slate-400 rounded"></div>
+                        <div className="w-full h-0.5 bg-slate-400 rounded"></div>
+                        <div className="w-full h-0.5 bg-slate-400 rounded"></div>
+                      </div>
+                      <div className="w-2 h-3 bg-cyan-400 rounded-sm flex-shrink-0"></div>
+                    </div>
+                    Flutuar Direita
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-slate-400">
-                <strong>Em linha:</strong> segue o fluxo do texto<br/>
-                <strong>Flutuante:</strong> posição livre, arraste para mover
-              </p>
+              
+              <div className="border-t border-slate-700 pt-2">
+                <p className="text-xs text-slate-400">
+                  <strong>Em linha:</strong> segue o fluxo do texto<br/>
+                  <strong>Centralizada:</strong> imagem centralizada com texto acima/abaixo<br/>
+                  <strong>Flutuar Esquerda/Direita:</strong> texto contorna a imagem
+                </p>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
