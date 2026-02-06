@@ -4,7 +4,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Link as LinkIcon, Image as ImageIcon,
   Table as TableIcon, Undo, Redo, Heading1, Heading2, Heading3,
-  Sparkles, Loader2, Grid3X3, Type, Palette
+  Sparkles, Loader2, Grid3X3, Type, Palette, Trash2, Move, Maximize2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
