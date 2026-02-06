@@ -690,7 +690,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                   />
                 )}
               </div>
-            ))}
+            );
+            })}
             
             {/* Annotations */}
             <svg
