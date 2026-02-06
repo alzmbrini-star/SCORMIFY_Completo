@@ -337,9 +337,32 @@ def shape_to_element(shape, index: int, assets_dir: Path, project_id: str) -> Op
         elif shape.shape_type == MSO_SHAPE_TYPE.CHART:
             element_type = "chart"
             # Charts are complex - render as image fallback
+            # Try to extract chart image
+            chart_img = extract_placeholder_image(shape, assets_dir, project_id)
+            if chart_img:
+                src = chart_img
+                element_type = "image"  # Render as image
             
         elif shape.shape_type == MSO_SHAPE_TYPE.MEDIA:
             element_type = "video"
+        
+        # Check for SmartArt (can be in different shape types)
+        smartart_result = extract_smartart(shape, assets_dir, project_id)
+        if smartart_result:
+            smartart_url, smartart_type, smartart_texts = smartart_result
+            if smartart_url:
+                element_type = "smartart"
+                src = smartart_url
+                content = ' | '.join(smartart_texts) if smartart_texts else None
+                # Store SmartArt type in style
+                if not style:
+                    style = ElementStyle()
+                style.smartartType = smartart_type
+                logger.info(f"SmartArt extracted: type={smartart_type}, texts={len(smartart_texts)}")
+            elif smartart_texts:
+                # No image but has text - create text element with SmartArt content
+                element_type = "text"
+                content = '\n'.join(smartart_texts)
         
         elif shape.shape_type == MSO_SHAPE_TYPE.PLACEHOLDER:
             # Placeholder might contain image
