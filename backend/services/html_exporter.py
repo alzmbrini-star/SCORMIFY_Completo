@@ -1276,8 +1276,28 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 container.innerHTML = html;
                 
-                // Setup timeline for elements with startTime/endTime
+                // Animation effect map for PPT animations
+                var animationEffectMap = {{
+                    'appear': 'ppt-appear',
+                    'fade': 'ppt-fade',
+                    'fly': 'ppt-fly-bottom',
+                    'float': 'ppt-float',
+                    'zoom': 'ppt-zoom',
+                    'grow': 'ppt-grow',
+                    'shrink': 'ppt-shrink',
+                    'spin': 'ppt-spin',
+                    'swivel': 'ppt-swivel',
+                    'bounce': 'ppt-bounce',
+                    'wipe': 'ppt-wipe-left',
+                    'blinds': 'ppt-blinds',
+                    'pulse': 'ppt-emphasis-pulse',
+                    'teeter': 'ppt-emphasis-teeter'
+                }};
+                
+                // Setup timeline for elements with startTime/endTime and animations
                 if (slide.elements) {{
+                    var animationDelay = 0; // Cumulative delay for sequential animations
+                    
                     slide.elements.forEach(function(elem, elemIndex) {{
                         if (elem.visible === false) return;
                         
@@ -1286,24 +1306,79 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var element = document.getElementById('element-' + elemIndex);
                         
                         if (element) {{
-                            // Schedule element to appear at startTime
-                            if (startTime > 0) {{
-                                var showTimer = setTimeout(function() {{
-                                    element.style.display = '';
-                                    element.style.animation = 'fadeIn 0.3s ease-out';
-                                }}, startTime * 1000);
-                                timelineTimers.push(showTimer);
-                            }}
+                            // Check if element has PPT animations
+                            var hasAnimations = elem.animations && elem.animations.length > 0;
                             
-                            // Schedule element to hide at endTime (if before slide ends)
-                            if (endTime < slideDuration) {{
-                                var hideTimer = setTimeout(function() {{
-                                    element.style.animation = 'fadeOut 0.3s ease-out';
-                                    setTimeout(function() {{
-                                        element.style.display = 'none';
-                                    }}, 300);
-                                }}, endTime * 1000);
-                                timelineTimers.push(hideTimer);
+                            if (hasAnimations) {{
+                                // Process each animation
+                                elem.animations.forEach(function(anim, animIdx) {{
+                                    var animEffect = animationEffectMap[anim.effect] || 'ppt-fade';
+                                    var animDuration = anim.duration || 0.5;
+                                    var animDelay = anim.delay || 0;
+                                    
+                                    // Calculate actual delay based on trigger
+                                    var actualDelay = animDelay;
+                                    if (anim.trigger === 'afterPrevious') {{
+                                        actualDelay = animationDelay + animDelay;
+                                    }} else if (anim.trigger === 'withPrevious') {{
+                                        // Use same timing as previous
+                                    }} else if (anim.trigger === 'onClick') {{
+                                        // Skip auto-play for onClick animations
+                                        return;
+                                    }}
+                                    
+                                    if (anim.type === 'entrance') {{
+                                        // Hide element initially
+                                        element.style.opacity = '0';
+                                        element.style.visibility = 'hidden';
+                                        
+                                        var showTimer = setTimeout(function() {{
+                                            element.style.visibility = 'visible';
+                                            element.style.opacity = '1';
+                                            element.style.animation = animEffect + ' ' + animDuration + 's ' + (anim.easing || 'ease') + ' forwards';
+                                        }}, (startTime + actualDelay) * 1000);
+                                        timelineTimers.push(showTimer);
+                                        
+                                        // Update cumulative delay
+                                        animationDelay = actualDelay + animDuration;
+                                        
+                                    }} else if (anim.type === 'exit') {{
+                                        var exitEffect = 'ppt-exit-' + (anim.effect || 'fade');
+                                        var hideTimer = setTimeout(function() {{
+                                            element.style.animation = exitEffect + ' ' + animDuration + 's ' + (anim.easing || 'ease') + ' forwards';
+                                            setTimeout(function() {{
+                                                element.style.visibility = 'hidden';
+                                            }}, animDuration * 1000);
+                                        }}, (startTime + actualDelay) * 1000);
+                                        timelineTimers.push(hideTimer);
+                                        
+                                    }} else if (anim.type === 'emphasis') {{
+                                        var emphasisTimer = setTimeout(function() {{
+                                            element.style.animation = animEffect + ' ' + animDuration + 's ' + (anim.easing || 'ease');
+                                        }}, (startTime + actualDelay) * 1000);
+                                        timelineTimers.push(emphasisTimer);
+                                    }}
+                                }});
+                                
+                            }} else {{
+                                // No PPT animations - use timeline startTime/endTime
+                                if (startTime > 0) {{
+                                    var showTimer = setTimeout(function() {{
+                                        element.style.display = '';
+                                        element.style.animation = 'fadeIn 0.3s ease-out';
+                                    }}, startTime * 1000);
+                                    timelineTimers.push(showTimer);
+                                }}
+                                
+                                if (endTime < slideDuration) {{
+                                    var hideTimer = setTimeout(function() {{
+                                        element.style.animation = 'fadeOut 0.3s ease-out';
+                                        setTimeout(function() {{
+                                            element.style.display = 'none';
+                                        }}, 300);
+                                    }}, endTime * 1000);
+                                    timelineTimers.push(hideTimer);
+                                }}
                             }}
                         }}
                     }});
