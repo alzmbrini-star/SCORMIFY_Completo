@@ -450,6 +450,18 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             background: transparent;
         }}
         
+        .slide-element.animation_mask-element {{
+            position: absolute;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }}
+        
+        .slide-element.animation_highlight-element {{
+            position: absolute;
+            pointer-events: none;
+            box-sizing: border-box;
+        }}
+        
         .slide-element.image-element img {{
             width: 100%;
             height: 100%;
