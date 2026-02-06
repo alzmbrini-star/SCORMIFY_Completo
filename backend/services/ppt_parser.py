@@ -425,98 +425,211 @@ def extract_animations(pptx_slide, elements: List[SlideElement]) -> List[Animati
     animations = []
     
     try:
-        from pptx.oxml.ns import qn
         slide_part = pptx_slide.part
         slide_xml = slide_part._element
         
+        # Namespace for PowerPoint
+        nsmap = {
+            'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
+            'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+        }
+        
         # PowerPoint animations are stored in the timing tree (p:timing)
-        timing = slide_xml.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}timing')
+        timing = slide_xml.find('.//p:timing', nsmap)
         if timing is None:
+            logger.debug("No timing element found in slide")
             return animations
         
-        # Find all animation sequences (p:seq)
-        sequences = timing.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}seq')
+        logger.info(f"Found timing element, extracting animations...")
         
-        # Also find individual effects in childTnLst (p:childTnLst)
-        child_tn_lists = timing.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}childTnLst')
-        
-        # Map of shape IDs to element IDs
+        # Map of shape IDs to element indices
         shape_to_element = {}
         for idx, shape in enumerate(pptx_slide.shapes):
             if hasattr(shape, 'shape_id'):
                 shape_to_element[str(shape.shape_id)] = idx
+                logger.debug(f"Shape {shape.shape_id} -> element {idx}")
         
-        # Animation effect type mapping
-        effect_map = {
-            'appear': 'appear',
-            'fade': 'fade',
-            'fly': 'fly',
-            'float': 'float',
-            'split': 'split',
-            'wipe': 'wipe',
-            'shape': 'shape',
-            'wheel': 'wheel',
-            'randomBars': 'randomBars',
-            'grow': 'grow',
-            'shrink': 'shrink',
-            'zoom': 'zoom',
-            'swivel': 'swivel',
-            'bounce': 'bounce',
-            'pulse': 'pulse',
-            'colorPulse': 'colorPulse',
-            'teeter': 'teeter',
-            'spin': 'spin',
-            'blink': 'blink',
-            'blinds': 'blinds',
-            'box': 'box',
-            'checkerboard': 'checkerboard',
-            'circle': 'circle',
-            'crawl': 'crawl',
-            'diamond': 'diamond',
-            'dissolve': 'dissolve',
-            'peek': 'peek',
-            'plus': 'plus',
-            'random': 'random',
-            'strips': 'strips',
-            'wedge': 'wedge',
-            'glide': 'glide',
-            'sling': 'sling',
-            'stretch': 'stretch'
+        # Animation effect type mapping (based on preset ID)
+        # From: https://docs.microsoft.com/en-us/openspecs/office_standards/ms-pptx/
+        preset_effect_map = {
+            '1': 'appear', '2': 'fly', '3': 'blinds', '4': 'box', '5': 'checkerboard',
+            '6': 'circle', '7': 'crawl', '8': 'diamond', '9': 'dissolve', '10': 'fade',
+            '11': 'flash_once', '12': 'flip', '13': 'float', '14': 'fly_in', '15': 'fold',
+            '16': 'glide', '17': 'grow_and_turn', '18': 'newsflash', '19': 'peek', '20': 'pinwheel',
+            '21': 'plus', '22': 'random_bars', '23': 'random_effects', '24': 'rise_up',
+            '25': 'shapes', '26': 'sling', '27': 'spinner', '28': 'split', '29': 'stretch',
+            '30': 'strips', '31': 'swish', '32': 'swivel', '33': 'wedge', '34': 'wheel',
+            '35': 'wipe', '36': 'zoom', '37': 'bounce', '38': 'credits', '39': 'curve_up',
+            '40': 'drop', '41': 'elastic', '42': 'float_down', '43': 'float_up',
+            '44': 'basic_swivel', '45': 'basic_zoom', '46': 'boomerang', '47': 'basic_bounce',
+            '48': 'compress', '49': 'curve_down', '50': 'curve_left', '51': 'curve_right',
+            '52': 'expand', '53': 'magnify', '54': 'pulse', '55': 'spin', '56': 'spiral_in',
+            '57': 'spiral_out', '58': 'teeter', '59': 'thread', '60': 'unfold',
         }
         
-        # Animation type mapping (entrance, exit, emphasis)
+        # Animation type based on presetClass
         animation_type_map = {
             'entr': 'entrance',
             'exit': 'exit',
             'emph': 'emphasis',
-            'path': 'motion'
+            'path': 'motion',
+            'mediacall': 'media'
         }
         
-        # Process each timing node
-        for tn_list in child_tn_lists:
-            # Find animation nodes (p:anim, p:set, p:animEffect)
-            for anim_node in tn_list:
-                tag = anim_node.tag.split('}')[-1]
+        # Find all par (parallel) and seq (sequential) animation containers
+        # The structure is: p:timing/p:tnLst/p:par/p:cTn/p:childTnLst/...
+        
+        # Find all cTn (common time node) elements with presetClass
+        all_ctn = timing.findall('.//p:cTn[@presetClass]', nsmap)
+        
+        for ctn in all_ctn:
+            try:
+                preset_class = ctn.get('presetClass', 'entr')
+                preset_id = ctn.get('presetID', '10')  # Default to fade
+                duration = ctn.get('dur')
+                delay_val = ctn.get('delay')
+                node_type = ctn.get('nodeType', '')
                 
-                if tag in ['anim', 'animEffect', 'set', 'animClr', 'animMotion', 'animRot', 'animScale']:
+                # Find target element
+                tgtEl = ctn.find('.//p:tgtEl', nsmap)
+                if tgtEl is None:
+                    continue
+                
+                spTgt = tgtEl.find('.//p:spTgt', nsmap)
+                if spTgt is None:
+                    continue
+                
+                shape_id = spTgt.get('spid')
+                if not shape_id:
+                    continue
+                
+                # Find element index
+                elem_idx = shape_to_element.get(shape_id)
+                if elem_idx is None:
+                    logger.debug(f"Shape {shape_id} not found in element map")
+                    continue
+                
+                if elem_idx >= len(elements):
+                    logger.debug(f"Element index {elem_idx} out of range")
+                    continue
+                
+                element = elements[elem_idx]
+                
+                # Get effect name
+                effect = preset_effect_map.get(preset_id, 'fade')
+                
+                # Calculate duration (in milliseconds, convert to seconds)
+                anim_duration = 0.5
+                if duration and duration != 'indefinite':
                     try:
-                        # Get target shape ID
-                        target = anim_node.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}tgtEl')
-                        if target is None:
-                            continue
-                        
-                        spTgt = target.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}spTgt')
-                        if spTgt is None:
-                            continue
-                        
-                        shape_id = spTgt.get('spid')
-                        if not shape_id:
-                            continue
-                        
-                        # Find element index
-                        elem_idx = shape_to_element.get(shape_id)
-                        if elem_idx is None or elem_idx >= len(elements):
-                            continue
+                        anim_duration = int(duration) / 1000.0
+                    except:
+                        pass
+                
+                # Calculate delay
+                anim_delay = 0.0
+                if delay_val:
+                    try:
+                        anim_delay = int(delay_val) / 1000.0
+                    except:
+                        pass
+                
+                # Determine trigger type
+                trigger = 'afterPrevious'
+                if node_type == 'clickEffect':
+                    trigger = 'onClick'
+                elif node_type == 'withEffect':
+                    trigger = 'withPrevious'
+                elif node_type == 'afterEffect':
+                    trigger = 'afterPrevious'
+                
+                # Get animation type
+                anim_type = animation_type_map.get(preset_class, 'entrance')
+                
+                # Create animation object
+                animation = Animation(
+                    id=str(uuid.uuid4()),
+                    type=anim_type,
+                    effect=effect,
+                    trigger=trigger,
+                    duration=anim_duration,
+                    delay=anim_delay,
+                    easing='ease'
+                )
+                
+                # Add animation to element
+                if element.animations is None:
+                    element.animations = []
+                element.animations.append(animation)
+                
+                animations.append(animation)
+                logger.info(f"Extracted animation: {anim_type}/{effect} (duration={anim_duration}s, delay={anim_delay}s) for element {elem_idx}")
+                
+            except Exception as e:
+                logger.debug(f"Error processing animation node: {e}")
+                continue
+        
+        if not animations:
+            # Try alternative method - look for animEffect elements directly
+            anim_effects = timing.findall('.//p:animEffect', nsmap)
+            for anim_effect in anim_effects:
+                try:
+                    filter_val = anim_effect.get('filter', 'fade')
+                    # Extract effect name
+                    effect = filter_val.split('(')[0] if '(' in filter_val else filter_val
+                    
+                    # Find parent cTn for timing info
+                    parent = anim_effect.getparent()
+                    while parent is not None and parent.tag != '{http://schemas.openxmlformats.org/presentationml/2006/main}cTn':
+                        parent = parent.getparent()
+                    
+                    duration = 0.5
+                    delay = 0.0
+                    if parent is not None:
+                        dur = parent.get('dur')
+                        if dur and dur != 'indefinite':
+                            try:
+                                duration = int(dur) / 1000.0
+                            except:
+                                pass
+                    
+                    # Try to find target
+                    tgtEl = anim_effect.find('.//p:tgtEl', nsmap)
+                    if tgtEl is not None:
+                        spTgt = tgtEl.find('.//p:spTgt', nsmap)
+                        if spTgt is not None:
+                            shape_id = spTgt.get('spid')
+                            elem_idx = shape_to_element.get(shape_id)
+                            if elem_idx is not None and elem_idx < len(elements):
+                                element = elements[elem_idx]
+                                
+                                animation = Animation(
+                                    id=str(uuid.uuid4()),
+                                    type='entrance',
+                                    effect=effect,
+                                    trigger='afterPrevious',
+                                    duration=duration,
+                                    delay=delay,
+                                    easing='ease'
+                                )
+                                
+                                if element.animations is None:
+                                    element.animations = []
+                                element.animations.append(animation)
+                                animations.append(animation)
+                                logger.info(f"Extracted animEffect: {effect} for element {elem_idx}")
+                except Exception as e:
+                    logger.debug(f"Error in animEffect extraction: {e}")
+                    continue
+        
+        logger.info(f"Total animations extracted: {len(animations)}")
+        
+    except Exception as e:
+        logger.error(f"Error extracting animations: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return animations
                         
                         element = elements[elem_idx]
                         
