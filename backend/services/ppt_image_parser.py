@@ -19,6 +19,7 @@ from models import (
     Animation, SlideTransition
 )
 from utils.system_deps import get_libreoffice_path, ensure_system_dependencies
+from services.ppt_parser import extract_animations, extract_smartart
 
 logger = logging.getLogger(__name__)
 
