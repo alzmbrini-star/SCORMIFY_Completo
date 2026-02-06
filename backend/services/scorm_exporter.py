@@ -758,8 +758,20 @@ var CoursePlayer = (function() {
                     el = document.createElement('div');
                     el.className = 'slide-element video-element';
                     var iframe = document.createElement('iframe');
-                    iframe.src = element.embedUrl;
-                    iframe.allow = 'autoplay; fullscreen';
+                    
+                    // Fix YouTube embed URLs for local file playback
+                    var embedUrl = element.embedUrl;
+                    if (embedUrl.indexOf('youtube.com') !== -1) {
+                        embedUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
+                    }
+                    if (embedUrl.indexOf('youtube') !== -1 || embedUrl.indexOf('youtu.be') !== -1) {
+                        var separator = embedUrl.indexOf('?') !== -1 ? '&' : '?';
+                        embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1';
+                    }
+                    
+                    iframe.src = embedUrl;
+                    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                    iframe.allowFullscreen = true;
                     iframe.frameBorder = '0';
                     iframe.style.width = '100%';
                     iframe.style.height = '100%';
