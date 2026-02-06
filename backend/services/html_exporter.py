@@ -1299,7 +1299,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 // Check if video is WebM (likely has alpha channel for transparency)
                                 var isWebM = elem.src && elem.src.toLowerCase().includes('.webm');
                                 var videoStyle = isWebM ? 'style="background:transparent !important;"' : '';
-                                html += '<video src="' + elem.src + '" controls ' + videoStyle + '></video>';
+                                html += '<video src="' + elem.src + '" controls autoplay playsinline muted ' + videoStyle + ' onloadeddata="this.muted=false"></video>';
                             }}
                         }}
                         else if (elem.type === 'button') {{
