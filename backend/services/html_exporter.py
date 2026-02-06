@@ -1703,6 +1703,42 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 // Update nav buttons
                 document.getElementById('prev-btn').disabled = currentSlide === 0;
                 document.getElementById('next-btn').disabled = currentSlide === totalSlides - 1;
+                
+                // Fix YouTube embeds if running locally
+                fixYouTubeEmbeds();
+            }}
+            
+            function fixYouTubeEmbeds() {{
+                // Check if running from local file
+                var isLocalFile = window.location.protocol === 'file:';
+                
+                // Find all video embed containers
+                var containers = document.querySelectorAll('.video-embed-container');
+                containers.forEach(function(container) {{
+                    var isYouTube = container.dataset.isYoutube === 'true';
+                    var videoId = container.dataset.videoId;
+                    var fallback = container.querySelector('.video-fallback');
+                    var iframe = container.querySelector('.video-iframe');
+                    
+                    if (isYouTube && videoId) {{
+                        if (isLocalFile) {{
+                            // Show fallback, hide iframe
+                            if (fallback) fallback.style.display = 'block';
+                            if (iframe) iframe.style.display = 'none';
+                        }} else {{
+                            // Show iframe, hide fallback
+                            if (fallback) fallback.style.display = 'none';
+                            if (iframe) {{
+                                iframe.style.display = 'block';
+                                // Add error handler to show fallback if iframe fails
+                                iframe.onerror = function() {{
+                                    if (fallback) fallback.style.display = 'block';
+                                    iframe.style.display = 'none';
+                                }};
+                            }}
+                        }}
+                    }}
+                }});
             }}
             
             function next() {{
