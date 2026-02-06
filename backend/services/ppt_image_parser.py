@@ -286,37 +286,12 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             logger.info(f"Slide {slide_idx + 1}: No animations, using image only")
         
         # Get slide title
-                    width=emu_to_px(shape.width) if shape.width else 100,
-                    height=emu_to_px(shape.height) if shape.height else 50,
-                    visible=False,  # Hidden by default - background image shows content
-                    zIndex=shape_idx,
-                    style=ElementStyle(opacity=0)
-                )
-                
-                # Extract text if available (for accessibility/search)
-                if hasattr(shape, 'text_frame') and shape.text_frame:
-                    text = shape.text_frame.text
-                    if text and text.strip():
-                        element.type = "text"
-                        element.content = text
-                
-                elements.append(element)
-            except:
-                pass
-        
-        # Get slide title
         title = f"Slide {slide_idx + 1}"
         if pptx_slide.shapes.title:
             try:
                 title = pptx_slide.shapes.title.text or title
             except:
                 pass
-        
-        # Extract animations from the slide and attach to elements
-        slide_animations = extract_animations(pptx_slide, elements)
-        if slide_animations:
-            conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations")
-            logger.info(f"Extracted {len(slide_animations)} animations from slide {slide_idx + 1}")
         
         # Get notes
         notes = None
