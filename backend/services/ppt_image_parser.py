@@ -301,34 +301,30 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                 except:
                     pass
                 
-                # Create mask elements for each animation
+                # Create animation elements using clip-path approach
+                # This works with any background (color or image)
                 for mask in animation_masks:
-                    # For ENTRANCE animations: create an opaque mask that will fade out to reveal content
-                    # For EXIT animations: create a transparent mask that will fade in to hide content
-                    # For EMPHASIS animations: create a highlight effect without masking
-                    
                     is_entrance = mask['animation_type'] == 'entrance'
                     is_exit = mask['animation_type'] == 'exit'
                     is_emphasis = mask['animation_type'] == 'emphasis'
                     
                     if is_entrance:
-                        # Entrance: mask starts OPAQUE (covering the element) and becomes TRANSPARENT
+                        # Entrance animation using clip-path reveal
                         mask_element = SlideElement(
                             id=mask['id'],
-                            type="animation_mask",
+                            type="animation_clip",  # New type - uses clip-path
                             x=mask['x'],
                             y=mask['y'],
                             width=mask['width'],
                             height=mask['height'],
                             visible=True,
-                            zIndex=1000 + len(elements),  # High z-index to be on top
+                            zIndex=1000 + len(elements),
                             style=ElementStyle(
-                                fill=slide_bg_color,
-                                opacity=1.0  # Start opaque
+                                opacity=1.0
                             ),
                             animations=[Animation(
                                 id=str(uuid.uuid4()),
-                                type='entrance',  # We use entrance to fade OUT the mask (revealing content)
+                                type='entrance',
                                 effect=mask['effect'],
                                 trigger=mask['trigger'],
                                 duration=mask['duration'],
@@ -339,10 +335,10 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                         elements.append(mask_element)
                         
                     elif is_exit:
-                        # Exit: mask starts TRANSPARENT and becomes OPAQUE (hiding the element)
+                        # Exit animation using clip-path hide
                         mask_element = SlideElement(
                             id=mask['id'],
-                            type="animation_mask",
+                            type="animation_clip",
                             x=mask['x'],
                             y=mask['y'],
                             width=mask['width'],
@@ -350,8 +346,7 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                             visible=True,
                             zIndex=1000 + len(elements),
                             style=ElementStyle(
-                                fill=slide_bg_color,
-                                opacity=0.0  # Start transparent
+                                opacity=1.0
                             ),
                             animations=[Animation(
                                 id=str(uuid.uuid4()),
