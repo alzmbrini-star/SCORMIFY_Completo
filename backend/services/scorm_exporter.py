@@ -920,8 +920,14 @@ var CoursePlayer = (function() {
                 
                 // Wrap in full HTML with proper CSS for text wrapping around images
                 var wrappedHtml = '<html><head><style>' +
-                    'body{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:visible;}' +
+                    'body{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;}' +
                     '*{background:transparent!important;}' +
+                    /* Thin scrollbar styles */
+                    'html,body{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.3) transparent;}' +
+                    '::-webkit-scrollbar{width:4px;height:4px;}' +
+                    '::-webkit-scrollbar-track{background:transparent;}' +
+                    '::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.3);border-radius:4px;}' +
+                    '::-webkit-scrollbar-thumb:hover{background:rgba(100,116,139,0.5);}' +
                     'img.rtf-image-float-left,body img.rtf-image-float-left{float:left!important;clear:left!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 16px 12px 0!important;display:block!important;}' +
                     'img.rtf-image-float-right,body img.rtf-image-float-right{float:right!important;clear:right!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;}' +
                     'img.rtf-image-center{display:inline-block!important;max-width:80%!important;}' +
@@ -947,6 +953,7 @@ var CoursePlayer = (function() {
                 htmlIframe.style.height = '100%';
                 htmlIframe.style.border = 'none';
                 htmlIframe.style.background = 'transparent';
+                htmlIframe.style.overflow = 'auto';
                 htmlIframe.sandbox = 'allow-scripts allow-same-origin';
                 el.appendChild(htmlIframe);
                 break;
