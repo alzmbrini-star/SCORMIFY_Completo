@@ -1290,7 +1290,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 if (isYouTube) {{
                                     iframeUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
                                     var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
-                                    iframeUrl += sep + 'enablejsapi=1&rel=0&modestbranding=1';
+                                    iframeUrl += sep + 'enablejsapi=1&rel=0&modestbranding=1&autoplay=1&mute=1';
+                                }} else if (isVimeo) {{
+                                    // Add Vimeo autoplay parameters
+                                    var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
+                                    iframeUrl += sep + 'autoplay=1&muted=1&background=0';
                                 }}
                                 html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
                                 
