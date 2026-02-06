@@ -1256,7 +1256,23 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         }}
                         else if (elem.type === 'video') {{
                             if (elem.embedUrl) {{
-                                html += '<iframe src="' + elem.embedUrl + '" allow="autoplay; fullscreen" allowfullscreen style="background:transparent;"></iframe>';
+                                // Fix YouTube embed URLs for local file playback
+                                var embedUrl = elem.embedUrl;
+                                
+                                // Convert youtube.com to youtube-nocookie.com for privacy and local file support
+                                if (embedUrl.indexOf('youtube.com') !== -1) {{
+                                    embedUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
+                                }}
+                                
+                                // Add required parameters for YouTube embeds
+                                if (embedUrl.indexOf('youtube') !== -1 || embedUrl.indexOf('youtu.be') !== -1) {{
+                                    var separator = embedUrl.indexOf('?') !== -1 ? '&' : '?';
+                                    // origin parameter helps with local file playback
+                                    // enablejsapi allows JavaScript control
+                                    embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1';
+                                }}
+                                
+                                html += '<iframe src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="background:transparent;"></iframe>';
                             }} else if (elem.src) {{
                                 // Check if video is WebM (likely has alpha channel for transparency)
                                 var isWebM = elem.src && elem.src.toLowerCase().includes('.webm');
