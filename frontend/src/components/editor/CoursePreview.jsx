@@ -593,7 +593,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                   >
                     {element.embedUrl ? (
                       <iframe
-                        src={element.embedUrl}
+                        src={getAssetUrl(element.embedUrl, projectId)}
                         className="w-full h-full border-0"
                         style={{ background: 'transparent' }}
                         allow="autoplay; fullscreen"
