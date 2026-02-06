@@ -245,9 +245,76 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   
   // Check if element should be visible based on timeline
   const isElementVisible = (element) => {
-    const startTime = element.startTime || 0;
+    const startTime = element.startTime ?? 0;
     const endTime = element.endTime ?? slideDuration;
-    return currentTime >= startTime && currentTime < endTime;
+    // Use small epsilon for floating point comparison
+    return currentTime >= startTime - 0.05 && currentTime <= endTime + 0.05;
+  };
+  
+  // Get animation styles for element based on current time
+  const getElementAnimationStyle = (element) => {
+    const startTime = element.startTime ?? 0;
+    const endTime = element.endTime ?? slideDuration;
+    const entranceAnim = element.animation?.entrance;
+    const exitAnim = element.animation?.exit;
+    const animDuration = 0.5; // Animation duration in seconds
+    
+    let animStyle = {};
+    
+    // Entrance animation (first 0.5s after startTime)
+    if (entranceAnim && currentTime >= startTime && currentTime < startTime + animDuration) {
+      const progress = (currentTime - startTime) / animDuration;
+      switch (entranceAnim) {
+        case 'fadeIn':
+          animStyle = { opacity: progress };
+          break;
+        case 'slideFromLeft':
+          animStyle = { transform: `translateX(${(1 - progress) * -100}%)`, opacity: progress };
+          break;
+        case 'slideFromRight':
+          animStyle = { transform: `translateX(${(1 - progress) * 100}%)`, opacity: progress };
+          break;
+        case 'slideFromTop':
+          animStyle = { transform: `translateY(${(1 - progress) * -100}%)`, opacity: progress };
+          break;
+        case 'slideFromBottom':
+          animStyle = { transform: `translateY(${(1 - progress) * 100}%)`, opacity: progress };
+          break;
+        case 'zoomIn':
+          animStyle = { transform: `scale(${0.5 + progress * 0.5})`, opacity: progress };
+          break;
+        default:
+          break;
+      }
+    }
+    // Exit animation (last 0.5s before endTime)
+    else if (exitAnim && currentTime > endTime - animDuration && currentTime <= endTime) {
+      const progress = (endTime - currentTime) / animDuration;
+      switch (exitAnim) {
+        case 'fadeOut':
+          animStyle = { opacity: progress };
+          break;
+        case 'slideToLeft':
+          animStyle = { transform: `translateX(${(1 - progress) * -100}%)`, opacity: progress };
+          break;
+        case 'slideToRight':
+          animStyle = { transform: `translateX(${(1 - progress) * 100}%)`, opacity: progress };
+          break;
+        case 'slideToTop':
+          animStyle = { transform: `translateY(${(1 - progress) * -100}%)`, opacity: progress };
+          break;
+        case 'slideToBottom':
+          animStyle = { transform: `translateY(${(1 - progress) * 100}%)`, opacity: progress };
+          break;
+        case 'zoomOut':
+          animStyle = { transform: `scale(${0.5 + progress * 0.5})`, opacity: progress };
+          break;
+        default:
+          break;
+      }
+    }
+    
+    return animStyle;
   };
   
   if (!course || !currentSlide) {
