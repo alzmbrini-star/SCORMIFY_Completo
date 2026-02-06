@@ -648,6 +648,12 @@ const SlideCanvas = ({
                             }
                             * { background: transparent !important; }
                             /* Rich Text Editor Image Float Styles - HIGH SPECIFICITY */
+                            /* Remove borders/outlines from all images */
+                            img {
+                              border: none !important;
+                              outline: none !important;
+                              box-shadow: none !important;
+                            }
                             img.rtf-image-float-left,
                             body img.rtf-image-float-left,
                             html body img.rtf-image-float-left {
@@ -658,6 +664,8 @@ const SlideCanvas = ({
                               border-radius: 4px !important;
                               margin: 0 16px 12px 0 !important;
                               display: block !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             img.rtf-image-float-right,
                             body img.rtf-image-float-right,
@@ -669,26 +677,36 @@ const SlideCanvas = ({
                               border-radius: 4px !important;
                               margin: 0 0 12px 16px !important;
                               display: block !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             img.rtf-image-center {
                               display: inline-block !important;
                               max-width: 80% !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             img.rtf-image-inline {
                               display: block !important;
                               max-width: 100% !important;
                               margin: 8px 0 !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             /* Legacy float support via inline styles */
                             img[style*="float: left"] {
                               float: left !important;
                               margin-right: 16px !important;
                               margin-bottom: 12px !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             img[style*="float: right"] {
                               float: right !important;
                               margin-left: 16px !important;
                               margin-bottom: 12px !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             /* Clear floats properly */
                             body::after {
