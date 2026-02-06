@@ -284,9 +284,8 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             except:
                 pass
         
-        # Extract animations from the slide
-        visible_elements = [e for e in elements if e.visible != False]
-        slide_animations = extract_animations(pptx_slide, visible_elements)
+        # Extract animations from the slide and attach to elements
+        slide_animations = extract_animations(pptx_slide, elements)
         if slide_animations:
             conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations")
             logger.info(f"Extracted {len(slide_animations)} animations from slide {slide_idx + 1}")
