@@ -1653,13 +1653,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var scaleY = availableHeight / slideHeight;
                 var scale = Math.min(scaleX, scaleY);
                 
-                // Allow higher scale on mobile/presentation for better readability
+                // Allow higher scale for better visibility
                 // No upper limit on mobile landscape - fill the screen!
                 var maxScale;
                 if (isPresentationMode || isMobileLand) {{
                     maxScale = 5.0; // Virtually no limit
                 }} else {{
-                    maxScale = 1.0;
+                    // Allow scale up to 1.5 to accommodate smaller slides
+                    maxScale = 1.5;
                 }}
                 scale = Math.min(scale, maxScale);
                 
