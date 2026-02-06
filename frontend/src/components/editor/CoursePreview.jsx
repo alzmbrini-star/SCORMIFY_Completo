@@ -43,8 +43,20 @@ const getAssetUrl = (src, projectId) => {
 const processHtmlContent = (htmlContent, projectId) => {
   if (!htmlContent) return '<p>HTML</p>';
   
-  // Fix image src URLs that start with /api/ or assets/
+  // Fix image src URLs
   let processed = htmlContent;
+  
+  // Replace old domain URLs with current domain
+  processed = processed.replace(
+    /src="(https?:\/\/[^"]+\/api\/projects\/[^"]+\/assets\/[^"]+)"/g,
+    (match, url) => {
+      const assetMatch = url.match(/https?:\/\/[^/]+\/api\/projects\/([^/]+)\/assets\/(.+)/);
+      if (assetMatch) {
+        return `src="${API_URL}/api/projects/${assetMatch[1]}/assets/${assetMatch[2]}"`;
+      }
+      return match;
+    }
+  );
   
   // Replace /api/ URLs with full API_URL
   processed = processed.replace(/src="(\/api\/[^"]+)"/g, `src="${API_URL}$1"`);
