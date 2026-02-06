@@ -263,8 +263,10 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
         has_animations = check_slide_has_animations(pptx_slide)
         logger.info(f"Slide {slide_idx + 1}: has_animations={has_animations}")
         
-        # Get slide image if available
+        # Get slide image path if available
         background_image = None
+        img_path = None
+        img_filename = None
         if slide_idx < len(slide_images):
             img_path = slide_images[slide_idx]
             img_filename = Path(img_path).name
@@ -280,33 +282,51 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                     if img.size != (target_width, target_height):
                         img_resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
                         img_resized.save(img_path)
-                
-                background_image = f"/api/projects/{project_id}/assets/{img_filename}"
-                conversion_report["success"].append(f"Slide {slide_idx + 1}: Rendered as image")
             except Exception as e:
                 logger.warning(f"Error processing slide image: {e}")
         
         if has_animations:
-            # For slides WITH animations: use detailed parser to extract each element
-            # The background image will show static elements, animated ones will be overlaid
-            logger.info(f"Slide {slide_idx + 1}: Using detailed parser for animations")
+            # For slides WITH animations: use detailed parser WITHOUT background image
+            # This prevents duplicate text appearing
+            logger.info(f"Slide {slide_idx + 1}: Using detailed parser for animations (NO background image)")
+            
+            # Don't use background image for animated slides - extract all elements instead
+            background_image = None
+            
+            # Extract slide background color
+            slide_background = "#FFFFFF"  # Default white
+            try:
+                if pptx_slide.background.fill.type is not None:
+                    fill = pptx_slide.background.fill
+                    if hasattr(fill, 'fore_color') and fill.fore_color:
+                        rgb = fill.fore_color.rgb
+                        if rgb:
+                            slide_background = f"#{rgb}"
+            except:
+                pass
             
             # Extract elements using the detailed parser
             for shape_idx, shape in enumerate(pptx_slide.shapes):
                 try:
                     element = shape_to_element(shape, shape_idx, assets_dir, project_id)
                     if element:
-                        # Initially hide all elements - they will be shown by animations
-                        element.visible = False
+                        # Initially all elements are visible (will be hidden by animation logic)
+                        element.visible = True
                         elements.append(element)
                 except Exception as e:
                     logger.debug(f"Error extracting shape {shape_idx}: {e}")
             
-            # Extract animations and mark animated elements as visible
+            # Extract animations and attach to elements
             slide_animations = extract_animations(pptx_slide, elements)
             if slide_animations:
-                conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations")
+                conversion_report["success"].append(f"Slide {slide_idx + 1}: {len(slide_animations)} animations, using vector elements")
                 logger.info(f"Extracted {len(slide_animations)} animations from slide {slide_idx + 1}")
+        else:
+            # For slides WITHOUT animations: use the image background only
+            if img_filename:
+                background_image = f"/api/projects/{project_id}/assets/{img_filename}"
+                conversion_report["success"].append(f"Slide {slide_idx + 1}: Rendered as image (no animations)")
+            logger.info(f"Slide {slide_idx + 1}: No animations, using image only")
                 
                 # For animated slides, we need to hide the background image parts that will be animated
                 # This is done by setting the background to show only non-animated content
