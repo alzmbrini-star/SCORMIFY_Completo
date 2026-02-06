@@ -620,6 +620,10 @@ def extract_animations(pptx_slide, elements: List[SlideElement]) -> List[Animati
                                 if element.animations is None:
                                     element.animations = []
                                 element.animations.append(animation)
+                                
+                                # Mark element as visible since it has animations
+                                element.visible = True
+                                
                                 animations.append(animation)
                                 logger.info(f"Extracted animEffect: {effect} for element {elem_idx}")
                 except Exception as e:
