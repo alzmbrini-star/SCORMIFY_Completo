@@ -1332,8 +1332,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             }}
                             // Wrap htmlContent with proper CSS for text wrapping around images
                             var wrappedHtml = '<html><head><style>' +
-                                'body{{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:visible;}}' +
+                                'body{{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;}}' +
                                 '*{{background:transparent!important;}}' +
+                                /* Thin scrollbar styles */
+                                'html,body{{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.3) transparent;}}' +
+                                '::-webkit-scrollbar{{width:4px;height:4px;}}' +
+                                '::-webkit-scrollbar-track{{background:transparent;}}' +
+                                '::-webkit-scrollbar-thumb{{background:rgba(100,116,139,0.3);border-radius:4px;}}' +
+                                '::-webkit-scrollbar-thumb:hover{{background:rgba(100,116,139,0.5);}}' +
                                 'img.rtf-image-float-left,body img.rtf-image-float-left{{float:left!important;clear:left!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 16px 12px 0!important;display:block!important;}}' +
                                 'img.rtf-image-float-right,body img.rtf-image-float-right{{float:right!important;clear:right!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;}}' +
                                 'img.rtf-image-center{{display:inline-block!important;max-width:80%!important;}}' +
@@ -1354,7 +1360,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 'td{{border-bottom:1px solid #334155;padding:0.75rem 1rem;background:#1e293b;color:#e2e8f0;}}' +
                                 'tr:nth-child(even) td{{background:#1a2433;}}' +
                                 '</style></head><body>' + htmlContent + '</body></html>';
-                            html += '<iframe srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:visible;"></iframe>';
+                            html += '<iframe srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:auto;"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
                             html += '<iframe src="' + elem.flipbookUrl + '" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>';
