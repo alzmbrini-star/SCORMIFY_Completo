@@ -1172,19 +1172,21 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var endTime = (elem.endTime !== undefined && elem.endTime !== null) ? elem.endTime : slideDuration;
                         
                         // Check element type
+                        var isClipElement = elem.type === 'animation_clip';
                         var isMaskElement = elem.type === 'animation_mask';
                         var isHighlightElement = elem.type === 'animation_highlight';
+                        var isAnimationElement = isClipElement || isMaskElement || isHighlightElement;
                         
                         // Check if element has animations
                         var hasAnimations = elem.animations && elem.animations.length > 0;
                         var hasEntranceAnimation = hasAnimations && elem.animations.some(function(a) {{ return a.type === 'entrance'; }});
                         
                         // Determine initial visibility
-                        // For masks: they should START VISIBLE (to cover content) then fade out
+                        // For clips/masks: they should START VISIBLE (to cover content)
                         // For other elements with entrance animations: start hidden
                         var initiallyHidden = false;
-                        if (isMaskElement) {{
-                            // Masks with entrance animation should start VISIBLE (opaque)
+                        if (isClipElement || isMaskElement) {{
+                            // Clips and masks should start VISIBLE
                             initiallyHidden = false;
                         }} else if (startTime > 0 || hasEntranceAnimation) {{
                             initiallyHidden = true;
@@ -1198,8 +1200,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
                         
                         // Handle opacity based on element type
-                        if (isMaskElement) {{
-                            // Masks: start visible/opaque for entrance animations
+                        if (isClipElement || isMaskElement) {{
+                            // Clips and masks: start visible/opaque
                             var maskOpacity = (elem.style && elem.style.opacity !== undefined) ? elem.style.opacity : 1;
                             style += 'opacity:' + maskOpacity + ';';
                         }} else if (!hasAnimations && elem.style && elem.style.opacity !== undefined) {{
