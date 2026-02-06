@@ -77,6 +77,7 @@ export const RichTextEditor = ({
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
+  const [imageAlignment, setImageAlignment] = useState('inline'); // inline, left, right, center
   const [showTableConfig, setShowTableConfig] = useState(false);
   const [tableRows, setTableRows] = useState(3);
   const [tableCols, setTableCols] = useState(3);
