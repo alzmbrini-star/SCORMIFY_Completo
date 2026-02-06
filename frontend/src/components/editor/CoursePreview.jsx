@@ -610,6 +610,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             ::-webkit-scrollbar-track { background: transparent; }
                             ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 4px; }
                             ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
+                            /* Remove borders/outlines from all images */
+                            img { border: none !important; outline: none !important; box-shadow: none !important; }
                             /* Image float styles */
                             img.rtf-image-float-left, body img.rtf-image-float-left {
                               float: left !important;
@@ -619,6 +621,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               border-radius: 4px !important;
                               margin: 0 16px 12px 0 !important;
                               display: block !important;
+                              border: none !important;
+                              outline: none !important;
                             }
                             img.rtf-image-float-right, body img.rtf-image-float-right {
                               float: right !important;
@@ -628,11 +632,13 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               border-radius: 4px !important;
                               margin: 0 0 12px 16px !important;
                               display: block !important;
+                              border: none !important;
+                              outline: none !important;
                             }
-                            img.rtf-image-center { display: inline-block !important; max-width: 80% !important; }
-                            img.rtf-image-inline { display: block !important; max-width: 100% !important; margin: 8px 0 !important; }
-                            img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; }
-                            img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; }
+                            img.rtf-image-center { display: inline-block !important; max-width: 80% !important; border: none !important; outline: none !important; }
+                            img.rtf-image-inline { display: block !important; max-width: 100% !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
+                            img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; border: none !important; outline: none !important; }
+                            img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; border: none !important; outline: none !important; }
                             body::after { content: ''; display: table; clear: both; }
                             p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; }
                             /* Typography */
