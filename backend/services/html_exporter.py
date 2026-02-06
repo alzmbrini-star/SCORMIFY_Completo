@@ -1195,6 +1195,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             }}
                             html += '</div>';
                         }}
+                        else if (elem.type === 'animation_mask') {{
+                            // Animation mask - covers content and fades out to reveal, or fades in to hide
+                            var maskBg = (elem.style && elem.style.fill) || '#FFFFFF';
+                            var maskOpacity = (elem.style && elem.style.opacity !== undefined) ? elem.style.opacity : 1;
+                            html += '<div class="animation-mask" style="width:100%;height:100%;background:' + maskBg + ';opacity:' + maskOpacity + ';pointer-events:none;"></div>';
+                        }}
+                        else if (elem.type === 'animation_highlight') {{
+                            // Animation highlight for emphasis effects
+                            html += '<div class="animation-highlight" style="width:100%;height:100%;background:transparent;pointer-events:none;border:3px solid transparent;box-sizing:border-box;"></div>';
+                        }}
                         else if (elem.type === 'video') {{
                             if (elem.embedUrl) {{
                                 html += '<iframe src="' + elem.embedUrl + '" allow="autoplay; fullscreen" allowfullscreen style="background:transparent;"></iframe>';
