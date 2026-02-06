@@ -557,10 +557,14 @@ def extract_animations(pptx_slide, elements: List[SlideElement]) -> List[Animati
                     easing='ease'
                 )
                 
-                # Add animation to element
+                # Add animation to element and make it visible
                 if element.animations is None:
                     element.animations = []
                 element.animations.append(animation)
+                
+                # Mark element as visible since it has animations
+                # It will appear with the animation effect
+                element.visible = True
                 
                 animations.append(animation)
                 logger.info(f"Extracted animation: {anim_type}/{effect} (duration={anim_duration}s, delay={anim_delay}s) for element {elem_idx}")
