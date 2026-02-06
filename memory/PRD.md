@@ -729,3 +729,34 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
     - Linhas ~1160-1230: setup de timers para elementos e annotations
 - **Status**: IMPLEMENTED
 - **Note**: Elementos e anotações agora aparecem/desaparecem conforme configurado na timeline
+
+### PPT Animations Extraction & Playback - IMPLEMENTED (Feb 6, 2026)
+- **Feature**: Extrair animações originais do PowerPoint e reproduzi-las na exportação HTML
+- **Implementation**:
+  1. **Backend - Extração** (`/app/backend/services/ppt_parser.py`):
+     - Nova função `extract_animations()` que analisa o XML de timing do slide
+     - Detecta tipos de animação: entrance, exit, emphasis, motion
+     - Extrai propriedades: effect, trigger, duration, delay, easing
+     - Mapeia efeitos PPT para nomes padronizados (fade, fly, zoom, bounce, etc.)
+     - Animações são anexadas aos elementos via `element.animations`
+  2. **Frontend - Playback** (`/app/backend/services/html_exporter.py`):
+     - 23 novas keyframes CSS para efeitos PPT (ppt-appear, ppt-fade, ppt-fly-*, ppt-zoom, ppt-bounce, ppt-spin, ppt-swivel, ppt-wipe-*, etc.)
+     - Lógica JavaScript para processar animações por elemento
+     - Suporte a triggers: afterPrevious, withPrevious (onClick não implementado)
+     - Animações de entrada, saída e ênfase funcionando
+- **Status**: IMPLEMENTED
+- **Note**: Animações são extraídas do PPTX e reproduzidas automaticamente na exportação HTML
+
+### SmartArt Extraction - IMPLEMENTED (Feb 6, 2026)
+- **Feature**: Detectar e extrair gráficos SmartArt do PowerPoint
+- **Implementation**:
+  1. **Backend** (`/app/backend/services/ppt_parser.py`):
+     - Nova função `extract_smartart()` que detecta elementos SmartArt via namespace dgm
+     - Extrai imagem embutida do SmartArt (quando disponível)
+     - Extrai texto do SmartArt para acessibilidade
+     - Converte EMF/WMF para PNG quando possível
+     - SmartArt é salvo como tipo de elemento `smartart`
+  2. **Frontend** (`/app/backend/services/html_exporter.py`):
+     - Renderização de SmartArt como imagem com texto alt para acessibilidade
+- **Status**: IMPLEMENTED
+- **Note**: SmartArt complexo é renderizado como imagem; texto é preservado para search/accessibility
