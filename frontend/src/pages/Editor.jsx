@@ -3308,6 +3308,14 @@ export default function Editor() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Quiz Generator Dialog */}
+        <QuizGenerator
+          open={showQuizDialog}
+          onOpenChange={setShowQuizDialog}
+          projectId={currentProject?.id}
+          onQuizCreated={handleQuizCreated}
+        />
       </div>
     </TooltipProvider>
   );
