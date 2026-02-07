@@ -1367,6 +1367,18 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
                             html += '<iframe src="' + elem.flipbookUrl + '" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>';
                         }}
+                        else if (elem.type === 'quiz' && elem.quizConfig) {{
+                            // Quiz element - render container for QuizController
+                            var quizContainer = '<div class="quiz-player-container" data-element-id="' + elem.id + '" data-quiz-config=\\'' + JSON.stringify(elem.quizConfig).replace(/'/g, "\\\\'") + '\\' style="width:100%;height:100%;display:flex;flex-direction:column;">';
+                            quizContainer += '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;border:2px solid rgba(34,211,238,0.3);">';
+                            quizContainer += '<div style="font-size:48px;margin-bottom:16px;">📝</div>';
+                            quizContainer += '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + (elem.quizConfig.title || 'Quiz') + '</h3>';
+                            quizContainer += '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + (elem.quizConfig.questionIds ? elem.quizConfig.questionIds.length : 0) + ' questões</p>';
+                            quizContainer += '<button class="quiz-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ';
+                            quizContainer += 'onclick="QuizController.startQuiz(\\'' + elem.id + '\\')">Iniciar Quiz</button>';
+                            quizContainer += '</div></div>';
+                            html += quizContainer;
+                        }}
                         
                         html += '</div>';
                     }});
