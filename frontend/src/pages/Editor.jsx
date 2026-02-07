@@ -98,12 +98,14 @@ import {
   RefreshCw,
   Clock,
   FileText,
+  HelpCircle,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
 import AnnotationToolbar from '../components/editor/AnnotationToolbar';
 import CoursePreview from '../components/editor/CoursePreview';
 import RichTextEditor from '../components/RichTextEditor';
+import QuizGenerator from '../components/quiz/QuizGenerator';
 
 // Sortable Slide Item Component
 const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDelete }) => {
