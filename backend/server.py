@@ -1150,11 +1150,32 @@ async def export_html(project_id: str):
         # Get base URL for external assets
         base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
         
-        # Generate HTML
+        # Collect question IDs from quiz elements
+        question_ids = set()
+        course_data = project_doc.get('course', {})
+        for slide in course_data.get('slides', []):
+            for element in slide.get('elements', []):
+                if element.get('type') == 'quiz' and element.get('quizConfig'):
+                    quiz_config = element.get('quizConfig')
+                    if quiz_config and isinstance(quiz_config, dict):
+                        question_ids.update(quiz_config.get('questionIds', []))
+        
+        # Load questions from database if there are quiz elements
+        questions = []
+        if question_ids:
+            question_docs = await db.questions.find(
+                {"id": {"$in": list(question_ids)}},
+                {"_id": 0}
+            ).to_list(500)
+            questions = question_docs
+            logger.info(f"Loaded {len(questions)} questions for HTML export")
+        
+        # Generate HTML with questions
         html_content = await generate_standalone_html(
             project_doc,
             assets_dir,
-            base_url
+            base_url,
+            questions=questions
         )
         
         # Save HTML file
