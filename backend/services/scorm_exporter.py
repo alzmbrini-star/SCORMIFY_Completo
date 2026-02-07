@@ -1690,7 +1690,8 @@ var QuizController = (function() {
             var current = quiz.currentIndex + 1;
             var progress = (current / total) * 100;
             
-            var html = '<div style="display:flex;flex-direction:column;height:100%;background:#1e293b;color:#fff;font-family:system-ui,-apple-system,sans-serif;">' +
+            var html = '<style>.quiz-scroll::-webkit-scrollbar{width:4px;height:4px;}.quiz-scroll::-webkit-scrollbar-track{background:transparent;}.quiz-scroll::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.4);border-radius:4px;}.quiz-scroll::-webkit-scrollbar-thumb:hover{background:rgba(100,116,139,0.6);}.quiz-scroll{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.4) transparent;}</style>' +
+                '<div style="display:flex;flex-direction:column;height:100%;background:#1e293b;color:#fff;font-family:system-ui,-apple-system,sans-serif;">' +
                 // Progress header - compact with question type inline
                 '<div style="padding:10px 16px 8px;border-bottom:1px solid #334155;">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
@@ -1705,8 +1706,8 @@ var QuizController = (function() {
                 '<div style="height:100%;width:' + progress + '%;background:#06b6d4;transition:width 0.3s;"></div>' +
                 '</div></div>' +
                 
-                // Question content - compact
-                '<div style="flex:1;padding:12px 16px;overflow:auto;">' +
+                // Question content - compact with thin scrollbar
+                '<div class="quiz-scroll" style="flex:1;padding:12px 16px;overflow:auto;">' +
                 '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#f1f5f9;line-height:1.4;">' + question.text + '</h3>' +
                 
                 // Alternatives in 2x2 grid - smaller
