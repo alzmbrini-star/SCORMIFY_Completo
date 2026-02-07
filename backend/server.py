@@ -201,6 +201,9 @@ async def create_project(data: ProjectCreate):
         description=data.description
     )
     
+    # Set course metadata title to project name
+    project.course.metadata.title = data.name
+    
     # Create default first slide
     default_slide = Slide(
         title="Slide 1",
