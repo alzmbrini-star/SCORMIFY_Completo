@@ -375,6 +375,9 @@ export default function Editor() {
   const [richTextGenerating, setRichTextGenerating] = useState(false);
   const [editingHtmlElementId, setEditingHtmlElementId] = useState(null); // Track which HTML element is being edited
 
+  // Quiz Generator states
+  const [showQuizDialog, setShowQuizDialog] = useState(false);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingIntervalRef = useRef(null);
