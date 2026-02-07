@@ -272,8 +272,8 @@ export default function QuizPlayer({
       {/* Question Content */}
       <div className="flex-1 p-6 overflow-auto">
         {/* Question Type Badge */}
-        <div className="mb-4">
-          <span className={`px-3 py-1 text-xs rounded-full ${
+        <div className="mb-3">
+          <span className={`px-2 py-0.5 text-xs rounded-full ${
             currentQuestion.type === 'true_false'
               ? 'bg-purple-500/20 text-purple-400'
               : 'bg-cyan-500/20 text-cyan-400'
@@ -283,28 +283,28 @@ export default function QuizPlayer({
         </div>
 
         {/* Question Text */}
-        <h3 className="text-xl font-semibold mb-6">{currentQuestion.text}</h3>
+        <h3 className="text-lg font-semibold mb-4">{currentQuestion.text}</h3>
 
         {/* Alternatives */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {currentQuestion.alternatives?.map((alt, idx) => {
             const isSelected = selectedAnswer === alt.id;
             const isCorrectAlt = alt.isCorrect;
             
-            let altStyles = `p-4 rounded-lg border-2 cursor-pointer transition-all ${borderColor}`;
+            let altStyles = `px-3 py-2.5 rounded-lg border-2 cursor-pointer transition-all ${borderColor}`;
             
             if (showFeedback) {
               if (isCorrectAlt) {
-                altStyles = `p-4 rounded-lg border-2 bg-green-500/20 border-green-500 ${textColor}`;
+                altStyles = `px-3 py-2.5 rounded-lg border-2 bg-green-500/20 border-green-500 ${textColor}`;
               } else if (isSelected && !isCorrectAlt) {
-                altStyles = `p-4 rounded-lg border-2 bg-red-500/20 border-red-500 ${textColor}`;
+                altStyles = `px-3 py-2.5 rounded-lg border-2 bg-red-500/20 border-red-500 ${textColor}`;
               } else {
-                altStyles = `p-4 rounded-lg border-2 ${borderColor} opacity-50`;
+                altStyles = `px-3 py-2.5 rounded-lg border-2 ${borderColor} opacity-50`;
               }
             } else if (isSelected) {
-              altStyles = `p-4 rounded-lg border-2 border-cyan-500 bg-cyan-500/10 ${textColor}`;
+              altStyles = `px-3 py-2.5 rounded-lg border-2 border-cyan-500 bg-cyan-500/10 ${textColor}`;
             } else {
-              altStyles = `p-4 rounded-lg border-2 ${borderColor} hover:border-cyan-500/50 ${textColor}`;
+              altStyles = `px-3 py-2.5 rounded-lg border-2 ${borderColor} hover:border-cyan-500/50 ${textColor}`;
             }
 
             return (
@@ -315,18 +315,18 @@ export default function QuizPlayer({
                 disabled={showFeedback}
                 data-testid={`quiz-alt-${idx}`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                     showFeedback && isCorrectAlt ? 'bg-green-500 text-white' :
                     showFeedback && isSelected && !isCorrectAlt ? 'bg-red-500 text-white' :
                     isSelected ? 'bg-cyan-500 text-white' :
                     darkMode ? 'bg-slate-600' : 'bg-slate-200'
                   }`}>
-                    {showFeedback && isCorrectAlt && <Check className="w-4 h-4" />}
-                    {showFeedback && isSelected && !isCorrectAlt && <X className="w-4 h-4" />}
+                    {showFeedback && isCorrectAlt && <Check className="w-3.5 h-3.5" />}
+                    {showFeedback && isSelected && !isCorrectAlt && <X className="w-3.5 h-3.5" />}
                     {!showFeedback && String.fromCharCode(65 + idx)}
                   </div>
-                  <span className="flex-1 text-left">{alt.text}</span>
+                  <span className="flex-1 text-left text-sm">{alt.text}</span>
                 </div>
               </button>
             );
@@ -335,7 +335,7 @@ export default function QuizPlayer({
 
         {/* Feedback / Explanation */}
         {showFeedback && (
-          <div className={`mt-6 p-4 rounded-lg ${
+          <div className={`mt-4 p-3 rounded-lg ${
             selectedAlt?.isCorrect 
               ? 'bg-green-500/10 border border-green-500/30' 
               : 'bg-red-500/10 border border-red-500/30'
