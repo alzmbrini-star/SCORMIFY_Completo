@@ -196,6 +196,11 @@ async def generate_standalone_html(
         "globalAudio": processed_global_audio
     }
     
+    # Add questions for quiz support
+    if questions:
+        course_data["questions"] = questions
+        logger.info(f"Added {len(questions)} questions to HTML export")
+    
     # Generate HTML
     html = generate_html_template(title, course_data, default_width, default_height)
     
