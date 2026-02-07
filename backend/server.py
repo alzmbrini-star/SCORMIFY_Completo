@@ -2067,6 +2067,385 @@ Exemplo de resposta formatada:
         logger.error(f"AI text generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate text: {str(e)}")
 
+# ============================================
+# Quiz Generator Endpoints
+# ============================================
+
+@api_router.get("/questions")
+async def list_questions(project_id: Optional[str] = None, tag: Optional[str] = None):
+    """List all questions, optionally filtered by project or tag"""
+    query = {}
+    if project_id:
+        query["projectId"] = project_id
+    if tag:
+        query["tags"] = tag
+    
+    questions = await db.questions.find(query, {"_id": 0}).sort("createdAt", -1).to_list(500)
+    return questions
+
+@api_router.get("/questions/{question_id}")
+async def get_question(question_id: str):
+    """Get a single question by ID"""
+    question = await db.questions.find_one({"id": question_id}, {"_id": 0})
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question
+
+@api_router.post("/questions")
+async def create_question(data: QuizQuestionCreate):
+    """Create a new question manually"""
+    # Build alternatives with IDs
+    alternatives = []
+    for alt in data.alternatives:
+        alternatives.append(QuizAlternative(
+            text=alt.get("text", ""),
+            isCorrect=alt.get("isCorrect", False)
+        ).model_dump())
+    
+    question = QuizQuestion(
+        projectId=data.projectId,
+        type=data.type,
+        text=data.text,
+        alternatives=alternatives,
+        explanation=data.explanation,
+        points=data.points,
+        tags=data.tags
+    )
+    
+    question_dict = question.model_dump()
+    question_dict['createdAt'] = question.createdAt.isoformat()
+    question_dict['updatedAt'] = question.updatedAt.isoformat()
+    
+    await db.questions.insert_one(question_dict)
+    return serialize_doc(question_dict)
+
+@api_router.put("/questions/{question_id}")
+async def update_question(question_id: str, data: QuizQuestionUpdate):
+    """Update an existing question"""
+    question = await db.questions.find_one({"id": question_id})
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    
+    update_data = data.model_dump(exclude_unset=True)
+    
+    # Handle alternatives update
+    if "alternatives" in update_data and update_data["alternatives"]:
+        alternatives = []
+        for alt in update_data["alternatives"]:
+            if "id" in alt:
+                alternatives.append(alt)
+            else:
+                alternatives.append(QuizAlternative(
+                    text=alt.get("text", ""),
+                    isCorrect=alt.get("isCorrect", False)
+                ).model_dump())
+        update_data["alternatives"] = alternatives
+    
+    update_data["updatedAt"] = now_utc().isoformat()
+    
+    await db.questions.update_one({"id": question_id}, {"$set": update_data})
+    return await db.questions.find_one({"id": question_id}, {"_id": 0})
+
+@api_router.delete("/questions/{question_id}")
+async def delete_question(question_id: str):
+    """Delete a question"""
+    result = await db.questions.delete_one({"id": question_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return {"message": "Question deleted"}
+
+@api_router.post("/questions/generate")
+async def generate_questions_with_ai(request: QuizGenerateRequest):
+    """Generate quiz questions using AI from prompt or document content"""
+    
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI API key not configured")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Determine question type instructions
+        if request.questionType == "true_false":
+            type_instruction = """Gere APENAS questões de Verdadeiro ou Falso.
+Cada questão deve ter exatamente 2 alternativas: "Verdadeiro" e "Falso"."""
+        elif request.questionType == "multiple_choice":
+            type_instruction = """Gere APENAS questões de Múltipla Escolha.
+Cada questão deve ter exatamente 4 alternativas, sendo apenas 1 correta."""
+        else:  # mixed
+            type_instruction = """Gere uma mistura de questões de Múltipla Escolha e Verdadeiro/Falso.
+- Questões de múltipla escolha: 4 alternativas, 1 correta
+- Questões Verdadeiro/Falso: 2 alternativas ("Verdadeiro" e "Falso")"""
+        
+        system_message = f"""Você é um especialista em criar questões de quiz educacionais.
+
+{type_instruction}
+
+REGRAS IMPORTANTES:
+1. SEMPRE responda em português brasileiro
+2. Crie questões claras e objetivas
+3. Evite pegadinhas ou ambiguidades
+4. Inclua uma breve explicação para cada resposta correta
+5. As questões devem testar compreensão, não memorização
+
+FORMATO DE RESPOSTA (JSON válido):
+{{
+  "questions": [
+    {{
+      "type": "multiple_choice",
+      "text": "Pergunta aqui?",
+      "alternatives": [
+        {{"text": "Alternativa A", "isCorrect": false}},
+        {{"text": "Alternativa B", "isCorrect": true}},
+        {{"text": "Alternativa C", "isCorrect": false}},
+        {{"text": "Alternativa D", "isCorrect": false}}
+      ],
+      "explanation": "Explicação de por que B é correta..."
+    }},
+    {{
+      "type": "true_false",
+      "text": "Afirmação verdadeira ou falsa?",
+      "alternatives": [
+        {{"text": "Verdadeiro", "isCorrect": true}},
+        {{"text": "Falso", "isCorrect": false}}
+      ],
+      "explanation": "Explicação..."
+    }}
+  ]
+}}
+
+RESPONDA APENAS COM O JSON, SEM TEXTO ADICIONAL."""
+
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"quiz-gen-{uuid.uuid4()}",
+            system_message=system_message
+        ).with_model("openai", "gpt-4o")
+        
+        # Build the prompt based on source
+        if request.source == "document" and request.documentContent:
+            full_prompt = f"""Com base no seguinte conteúdo de documento, gere {request.count} questões de quiz:
+
+CONTEÚDO DO DOCUMENTO:
+{request.documentContent}
+
+Gere questões que testem a compreensão deste conteúdo."""
+        else:
+            full_prompt = f"""Gere {request.count} questões de quiz sobre o seguinte tema:
+
+TEMA: {request.prompt}"""
+            if request.context:
+                full_prompt += f"\n\nCONTEXTO ADICIONAL: {request.context}"
+        
+        user_message = UserMessage(text=full_prompt)
+        response = await chat.send_message(user_message)
+        
+        # Parse the JSON response
+        try:
+            # Clean up response if needed (remove markdown code blocks)
+            cleaned_response = response.strip()
+            if cleaned_response.startswith("```"):
+                cleaned_response = cleaned_response.split("```")[1]
+                if cleaned_response.startswith("json"):
+                    cleaned_response = cleaned_response[4:]
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+            
+            parsed = json.loads(cleaned_response.strip())
+            questions_data = parsed.get("questions", [])
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse AI response as JSON: {e}")
+            logger.error(f"Response was: {response[:500]}")
+            raise HTTPException(status_code=500, detail="AI returned invalid format. Please try again.")
+        
+        # Save questions to database
+        saved_questions = []
+        for q_data in questions_data:
+            # Build alternatives with IDs
+            alternatives = []
+            for alt in q_data.get("alternatives", []):
+                alternatives.append(QuizAlternative(
+                    text=alt.get("text", ""),
+                    isCorrect=alt.get("isCorrect", False)
+                ).model_dump())
+            
+            question = QuizQuestion(
+                projectId=request.projectId,
+                type=q_data.get("type", "multiple_choice"),
+                text=q_data.get("text", ""),
+                alternatives=alternatives,
+                explanation=q_data.get("explanation"),
+                tags=["ai-generated"]
+            )
+            
+            question_dict = question.model_dump()
+            question_dict['createdAt'] = question.createdAt.isoformat()
+            question_dict['updatedAt'] = question.updatedAt.isoformat()
+            
+            await db.questions.insert_one(question_dict)
+            saved_questions.append(serialize_doc(question_dict))
+        
+        logger.info(f"Generated {len(saved_questions)} quiz questions via AI")
+        
+        return {
+            "success": True,
+            "questions": saved_questions,
+            "count": len(saved_questions)
+        }
+        
+    except ImportError:
+        logger.error("emergentintegrations library not installed")
+        raise HTTPException(status_code=500, detail="AI integration library not available")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Quiz generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate questions: {str(e)}")
+
+@api_router.post("/questions/parse-doc")
+async def parse_doc_file(file: UploadFile = File(...)):
+    """Parse a .doc/.docx file and extract text for quiz generation"""
+    
+    if not file.filename.lower().endswith(('.doc', '.docx')):
+        raise HTTPException(status_code=400, detail="Only .doc and .docx files are accepted")
+    
+    try:
+        from docx import Document
+        
+        content = await file.read()
+        
+        # Save temporarily
+        temp_path = UPLOADS_DIR / f"temp_{uuid.uuid4()}_{file.filename}"
+        async with aiofiles.open(temp_path, 'wb') as f:
+            await f.write(content)
+        
+        # Parse the document
+        doc = Document(str(temp_path))
+        
+        # Extract all text
+        full_text = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                full_text.append(para.text.strip())
+        
+        # Also extract from tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        full_text.append(cell.text.strip())
+        
+        # Clean up temp file
+        os.remove(temp_path)
+        
+        extracted_text = "\n\n".join(full_text)
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "text": extracted_text,
+            "wordCount": len(extracted_text.split())
+        }
+        
+    except ImportError:
+        raise HTTPException(status_code=500, detail="python-docx library not installed")
+    except Exception as e:
+        logger.error(f"Doc parsing error: {e}")
+        # Clean up temp file if it exists
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
+
+@api_router.post("/quiz/submit")
+async def submit_quiz(request: QuizSubmitRequest):
+    """Submit quiz answers and calculate score"""
+    
+    # Get all questions for this quiz
+    question_ids = [a["questionId"] for a in request.answers]
+    questions = await db.questions.find({"id": {"$in": question_ids}}, {"_id": 0}).to_list(100)
+    questions_map = {q["id"]: q for q in questions}
+    
+    # Calculate score
+    total_points = 0
+    earned_points = 0
+    results = []
+    
+    for answer in request.answers:
+        question = questions_map.get(answer["questionId"])
+        if not question:
+            continue
+        
+        total_points += question.get("points", 1)
+        
+        # Find the correct alternative
+        correct_alt = None
+        selected_alt = None
+        for alt in question.get("alternatives", []):
+            if alt.get("isCorrect"):
+                correct_alt = alt
+            if alt.get("id") == answer.get("selectedAlternativeId"):
+                selected_alt = alt
+        
+        is_correct = selected_alt and selected_alt.get("isCorrect", False)
+        if is_correct:
+            earned_points += question.get("points", 1)
+        
+        results.append({
+            "questionId": answer["questionId"],
+            "questionText": question.get("text"),
+            "selectedAlternativeId": answer.get("selectedAlternativeId"),
+            "selectedText": selected_alt.get("text") if selected_alt else None,
+            "correctAlternativeId": correct_alt.get("id") if correct_alt else None,
+            "correctText": correct_alt.get("text") if correct_alt else None,
+            "isCorrect": is_correct,
+            "explanation": question.get("explanation")
+        })
+    
+    # Calculate percentage and final score (0-10)
+    percentage = (earned_points / total_points * 100) if total_points > 0 else 0
+    final_score = round(percentage / 10, 1)  # Convert to 0-10 scale
+    
+    # Determine if passed (default passing score is 60%)
+    passed = percentage >= 60
+    
+    # Save attempt to database
+    attempt = QuizAttempt(
+        quizId=request.quizId,
+        projectId="",  # Could be extracted from quiz config
+        answers=results,
+        score=final_score,
+        percentage=round(percentage, 1),
+        passed=passed,
+        completedAt=now_utc()
+    )
+    
+    attempt_dict = attempt.model_dump()
+    attempt_dict['createdAt'] = attempt.createdAt.isoformat()
+    attempt_dict['completedAt'] = attempt.completedAt.isoformat() if attempt.completedAt else None
+    
+    await db.quiz_attempts.insert_one(attempt_dict)
+    
+    return {
+        "success": True,
+        "attemptId": attempt.id,
+        "score": final_score,
+        "percentage": round(percentage, 1),
+        "passed": passed,
+        "totalQuestions": len(results),
+        "correctAnswers": sum(1 for r in results if r["isCorrect"]),
+        "results": results
+    }
+
+@api_router.get("/quiz/attempts/{project_id}")
+async def get_quiz_attempts(project_id: str, quiz_id: Optional[str] = None):
+    """Get quiz attempts for a project"""
+    query = {"projectId": project_id}
+    if quiz_id:
+        query["quizId"] = quiz_id
+    
+    attempts = await db.quiz_attempts.find(query, {"_id": 0}).sort("createdAt", -1).to_list(100)
+    return attempts
+
 # Include router
 app.include_router(api_router)
 
