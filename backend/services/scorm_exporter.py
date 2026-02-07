@@ -1595,6 +1595,343 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 '''
 
+QUIZ_CONTROLLER_JS = '''/**
+ * Quiz Controller - Handles quiz functionality in SCORM package
+ */
+var QuizController = (function() {
+    var quizzes = {};
+    var questions = {};
+    
+    // Shuffle array helper
+    function shuffleArray(array) {
+        var shuffled = array.slice();
+        for (var i = shuffled.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var temp = shuffled[i];
+            shuffled[i] = shuffled[j];
+            shuffled[j] = temp;
+        }
+        return shuffled;
+    }
+    
+    return {
+        // Initialize with course data
+        init: function(courseData) {
+            questions = {};
+            if (courseData && courseData.questions) {
+                courseData.questions.forEach(function(q) {
+                    questions[q.id] = q;
+                });
+            }
+        },
+        
+        // Start a quiz
+        startQuiz: function(elementId) {
+            var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
+            if (!container) {
+                console.error('Quiz container not found:', elementId);
+                return;
+            }
+            
+            var config = JSON.parse(container.dataset.quizConfig || '{}');
+            var questionIds = config.questionIds || [];
+            var quizQuestions = questionIds.map(function(id) { return questions[id]; }).filter(Boolean);
+            
+            if (quizQuestions.length === 0) {
+                container.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fbbf24;"><span style="font-size:48px;">⚠️</span><p style="margin-left:16px;">Nenhuma questão encontrada para este quiz</p></div>';
+                return;
+            }
+            
+            // Apply shuffle if configured
+            if (config.shuffleQuestions !== false) {
+                quizQuestions = shuffleArray(quizQuestions);
+            }
+            
+            // Limit to question count
+            var count = Math.min(config.questionCount || quizQuestions.length, quizQuestions.length);
+            quizQuestions = quizQuestions.slice(0, count);
+            
+            // Shuffle alternatives if configured
+            if (config.shuffleAlternatives !== false) {
+                quizQuestions = quizQuestions.map(function(q) {
+                    return Object.assign({}, q, { alternatives: shuffleArray(q.alternatives || []) });
+                });
+            }
+            
+            // Store quiz state
+            quizzes[elementId] = {
+                config: config,
+                questions: quizQuestions,
+                currentIndex: 0,
+                answers: [],
+                showingFeedback: false
+            };
+            
+            this.renderQuestion(elementId);
+        },
+        
+        // Render current question
+        renderQuestion: function(elementId) {
+            var quiz = quizzes[elementId];
+            if (!quiz) return;
+            
+            var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
+            if (!container) return;
+            
+            var question = quiz.questions[quiz.currentIndex];
+            var total = quiz.questions.length;
+            var current = quiz.currentIndex + 1;
+            var progress = (current / total) * 100;
+            
+            var html = '<div style="display:flex;flex-direction:column;height:100%;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;">' +
+                // Progress header
+                '<div style="padding:16px;border-bottom:1px solid #334155;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+                '<span style="font-weight:500;">' + (quiz.config.title || 'Quiz') + '</span>' +
+                '<span style="color:#94a3b8;">Questão ' + current + ' de ' + total + '</span>' +
+                '</div>' +
+                '<div style="height:8px;background:#334155;border-radius:4px;overflow:hidden;">' +
+                '<div style="height:100%;width:' + progress + '%;background:#06b6d4;transition:width 0.3s;"></div>' +
+                '</div></div>' +
+                
+                // Question content
+                '<div style="flex:1;padding:24px;overflow:auto;">' +
+                '<div style="margin-bottom:16px;">' +
+                '<span style="padding:6px 12px;font-size:12px;border-radius:999px;' + 
+                (question.type === 'true_false' ? 'background:rgba(168,85,247,0.2);color:#c084fc;' : 'background:rgba(6,182,212,0.2);color:#22d3ee;') + '">' +
+                (question.type === 'true_false' ? 'Verdadeiro ou Falso' : 'Múltipla Escolha') + '</span></div>' +
+                '<h3 style="font-size:18px;font-weight:600;margin-bottom:24px;">' + question.text + '</h3>' +
+                
+                // Alternatives
+                '<div style="display:flex;flex-direction:column;gap:12px;">';
+            
+            question.alternatives.forEach(function(alt, idx) {
+                var letter = String.fromCharCode(65 + idx);
+                var isSelected = quiz.selectedAnswer === alt.id;
+                var isCorrect = alt.isCorrect;
+                var showingFeedback = quiz.showingFeedback;
+                
+                var altStyle = 'padding:16px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;';
+                var circleStyle = 'width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;';
+                
+                if (showingFeedback) {
+                    if (isCorrect) {
+                        altStyle += 'background:rgba(34,197,94,0.2);border:2px solid #22c55e;';
+                        circleStyle += 'background:#22c55e;color:#fff;';
+                    } else if (isSelected && !isCorrect) {
+                        altStyle += 'background:rgba(239,68,68,0.2);border:2px solid #ef4444;';
+                        circleStyle += 'background:#ef4444;color:#fff;';
+                    } else {
+                        altStyle += 'background:#1e293b;border:2px solid #334155;opacity:0.5;';
+                        circleStyle += 'background:#334155;color:#94a3b8;';
+                    }
+                } else if (isSelected) {
+                    altStyle += 'background:rgba(6,182,212,0.1);border:2px solid #06b6d4;';
+                    circleStyle += 'background:#06b6d4;color:#fff;';
+                } else {
+                    altStyle += 'background:#1e293b;border:2px solid #334155;';
+                    circleStyle += 'background:#334155;color:#94a3b8;';
+                }
+                
+                html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\\'' + elementId + '\\', \\'' + alt.id + '\\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
+                    '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : letter)) + '</div>' +
+                    '<span style="flex:1;text-align:left;">' + alt.text + '</span></button>';
+            });
+            
+            html += '</div>';
+            
+            // Feedback section
+            if (quiz.showingFeedback) {
+                var selectedAlt = question.alternatives.find(function(a) { return a.id === quiz.selectedAnswer; });
+                var correctAlt = question.alternatives.find(function(a) { return a.isCorrect; });
+                var wasCorrect = selectedAlt && selectedAlt.isCorrect;
+                
+                html += '<div style="margin-top:24px;padding:16px;border-radius:8px;' + 
+                    (wasCorrect ? 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);' : 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);') + '">' +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+                    '<span style="font-size:20px;">' + (wasCorrect ? '✓' : '✕') + '</span>' +
+                    '<span style="font-weight:500;' + (wasCorrect ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + (wasCorrect ? 'Correto!' : 'Incorreto') + '</span></div>';
+                
+                if (question.explanation) {
+                    html += '<p style="color:#94a3b8;">' + question.explanation + '</p>';
+                }
+                if (!wasCorrect && correctAlt) {
+                    html += '<p style="color:#94a3b8;margin-top:8px;">Resposta correta: <span style="color:#22c55e;">' + correctAlt.text + '</span></p>';
+                }
+                html += '</div>';
+            }
+            
+            html += '</div>' +
+                
+                // Action footer
+                '<div style="padding:16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;">' +
+                '<button style="padding:8px 16px;background:transparent;border:none;color:#94a3b8;cursor:pointer;" ' + 
+                (quiz.currentIndex === 0 || quiz.showingFeedback ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '') + 
+                ' onclick="QuizController.prevQuestion(\\'' + elementId + '\\')">← Anterior</button>';
+            
+            if (quiz.showingFeedback) {
+                if (quiz.currentIndex < total - 1) {
+                    html += '<button style="padding:12px 24px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;" onclick="QuizController.nextQuestion(\\'' + elementId + '\\')">Próxima →</button>';
+                } else {
+                    html += '<button style="padding:12px 24px;background:linear-gradient(135deg,#22c55e,#10b981);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;" onclick="QuizController.showResults(\\'' + elementId + '\\')">Ver Resultado 🏆</button>';
+                }
+            } else {
+                html += '<button style="padding:12px 24px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;' + 
+                    (!quiz.selectedAnswer ? 'opacity:0.5;cursor:not-allowed;' : '') + '" ' +
+                    (!quiz.selectedAnswer ? 'disabled' : '') + 
+                    ' onclick="QuizController.confirmAnswer(\\'' + elementId + '\\')">Confirmar ✓</button>';
+            }
+            
+            html += '</div></div>';
+            
+            container.innerHTML = html;
+        },
+        
+        // Select answer
+        selectAnswer: function(elementId, altId) {
+            var quiz = quizzes[elementId];
+            if (!quiz || quiz.showingFeedback) return;
+            
+            quiz.selectedAnswer = altId;
+            this.renderQuestion(elementId);
+        },
+        
+        // Confirm answer
+        confirmAnswer: function(elementId) {
+            var quiz = quizzes[elementId];
+            if (!quiz || !quiz.selectedAnswer) return;
+            
+            var question = quiz.questions[quiz.currentIndex];
+            var selectedAlt = question.alternatives.find(function(a) { return a.id === quiz.selectedAnswer; });
+            
+            quiz.answers.push({
+                questionId: question.id,
+                selectedAlternativeId: quiz.selectedAnswer,
+                isCorrect: selectedAlt && selectedAlt.isCorrect
+            });
+            
+            if (quiz.config.showFeedback !== false) {
+                quiz.showingFeedback = true;
+                this.renderQuestion(elementId);
+            } else {
+                this.nextQuestion(elementId);
+            }
+        },
+        
+        // Next question
+        nextQuestion: function(elementId) {
+            var quiz = quizzes[elementId];
+            if (!quiz) return;
+            
+            quiz.showingFeedback = false;
+            quiz.selectedAnswer = null;
+            
+            if (quiz.currentIndex < quiz.questions.length - 1) {
+                quiz.currentIndex++;
+                this.renderQuestion(elementId);
+            } else {
+                this.showResults(elementId);
+            }
+        },
+        
+        // Previous question
+        prevQuestion: function(elementId) {
+            var quiz = quizzes[elementId];
+            if (!quiz || quiz.currentIndex === 0 || quiz.showingFeedback) return;
+            
+            quiz.currentIndex--;
+            quiz.selectedAnswer = quiz.answers[quiz.currentIndex]?.selectedAlternativeId || null;
+            quiz.answers.pop();
+            this.renderQuestion(elementId);
+        },
+        
+        // Show results
+        showResults: function(elementId) {
+            var quiz = quizzes[elementId];
+            if (!quiz) return;
+            
+            var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
+            if (!container) return;
+            
+            var correctCount = quiz.answers.filter(function(a) { return a.isCorrect; }).length;
+            var totalCount = quiz.answers.length;
+            var percentage = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
+            var score = Math.round(percentage) / 10; // 0-10 scale
+            var passed = percentage >= (quiz.config.passingScore || 60);
+            
+            // Report score to SCORM
+            if (typeof ScormAPI !== 'undefined') {
+                ScormAPI.setScore(Math.round(percentage));
+                if (passed) {
+                    ScormAPI.setComplete();
+                }
+            }
+            
+            var html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:32px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;">' +
+                '<div style="max-width:400px;width:100%;background:#0f172a;border-radius:16px;padding:32px;text-align:center;">' +
+                
+                // Icon
+                '<div style="width:96px;height:96px;margin:0 auto 24px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+                (passed ? 'background:rgba(34,197,94,0.2);' : 'background:rgba(239,68,68,0.2);') + '">' +
+                '<span style="font-size:48px;">' + (passed ? '🏆' : '⚠️') + '</span></div>' +
+                
+                // Title
+                '<h2 style="font-size:24px;font-weight:bold;margin-bottom:8px;">' + (passed ? 'Parabéns!' : 'Não foi dessa vez') + '</h2>' +
+                '<p style="color:#94a3b8;margin-bottom:32px;">' + (passed ? 'Você atingiu a nota mínima' : 'Tente novamente para melhorar') + '</p>' +
+                
+                // Score
+                '<div style="margin-bottom:32px;">' +
+                '<div style="font-size:64px;font-weight:bold;' + (passed ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + score.toFixed(1) + '</div>' +
+                '<p style="color:#94a3b8;">de 10</p></div>' +
+                
+                // Stats
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;padding:16px;background:#1e293b;border-radius:8px;">' +
+                '<div><p style="font-size:24px;font-weight:bold;color:#22c55e;">' + correctCount + '</p><p style="font-size:12px;color:#94a3b8;">Corretas</p></div>' +
+                '<div><p style="font-size:24px;font-weight:bold;color:#ef4444;">' + (totalCount - correctCount) + '</p><p style="font-size:12px;color:#94a3b8;">Incorretas</p></div></div>' +
+                
+                // Progress bar
+                '<div style="margin-bottom:32px;">' +
+                '<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;"><span>Aproveitamento</span><span>' + Math.round(percentage) + '%</span></div>' +
+                '<div style="height:12px;background:#334155;border-radius:6px;overflow:hidden;">' +
+                '<div style="height:100%;width:' + percentage + '%;transition:width 0.5s;' + (passed ? 'background:#22c55e;' : 'background:#ef4444;') + '"></div></div>' +
+                '<p style="font-size:12px;color:#94a3b8;margin-top:8px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
+                
+                // Restart button
+                '<button style="width:100%;padding:14px 24px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;" onclick="QuizController.restartQuiz(\\'' + elementId + '\\')">' +
+                '<span>🔄</span> Tentar Novamente</button>' +
+                
+                '</div></div>';
+            
+            container.innerHTML = html;
+        },
+        
+        // Restart quiz
+        restartQuiz: function(elementId) {
+            var quiz = quizzes[elementId];
+            if (!quiz) return;
+            
+            quiz.currentIndex = 0;
+            quiz.answers = [];
+            quiz.selectedAnswer = null;
+            quiz.showingFeedback = false;
+            
+            // Re-shuffle if configured
+            var config = quiz.config;
+            if (config.shuffleQuestions !== false) {
+                quiz.questions = shuffleArray(quiz.questions);
+            }
+            if (config.shuffleAlternatives !== false) {
+                quiz.questions = quiz.questions.map(function(q) {
+                    return Object.assign({}, q, { alternatives: shuffleArray(q.alternatives || []) });
+                });
+            }
+            
+            this.renderQuestion(elementId);
+        }
+    };
+})();
+'''
+
 PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
 <html lang="{lang}">
 <head>
