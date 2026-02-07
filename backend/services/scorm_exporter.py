@@ -43,6 +43,7 @@ IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
             <file href="index.html"/>
             <file href="course.json"/>
             <file href="scripts/scorm-api.js"/>
+            <file href="scripts/quiz-controller.js"/>
             <file href="scripts/player.js"/>
             {resource_files}
         </resource>
