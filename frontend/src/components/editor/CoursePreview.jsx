@@ -770,6 +770,14 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                     title="Flipbook"
                   />
                 )}
+                
+                {/* Quiz - Interactive in preview */}
+                {element.type === 'quiz' && (
+                  <QuizPreviewPlayer
+                    quizConfig={element.quizConfig}
+                    projectId={projectId}
+                  />
+                )}
               </div>
             );
             })}
