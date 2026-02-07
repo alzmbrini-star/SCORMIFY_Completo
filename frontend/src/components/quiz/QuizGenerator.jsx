@@ -5,7 +5,6 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { Checkbox } from '../ui/checkbox';
 import {
