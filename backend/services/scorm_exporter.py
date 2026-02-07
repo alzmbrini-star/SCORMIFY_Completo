@@ -1591,7 +1591,13 @@ var CoursePlayer = (function() {
 document.addEventListener('DOMContentLoaded', function() {
     fetch('course.json')
         .then(function(response) { return response.json(); })
-        .then(function(data) { CoursePlayer.load(data); })
+        .then(function(data) { 
+            CoursePlayer.load(data);
+            // Initialize quiz controller with questions
+            if (typeof QuizController !== 'undefined' && data.questions) {
+                QuizController.init(data);
+            }
+        })
         .catch(function(error) { console.error('Failed to load course:', error); });
 });
 '''
