@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Slider } from '../ui/slider';
@@ -14,7 +15,14 @@ import {
   SkipBack,
   Maximize,
   Minimize,
+  Check,
+  Trophy,
+  AlertCircle,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
+import QuizPlayer from '../quiz/QuizPlayer';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
