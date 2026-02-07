@@ -2735,6 +2735,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
     </div>
     <audio id="global-audio"></audio>
     <script src="scripts/scorm-api.js"></script>
+    <script src="scripts/quiz-controller.js"></script>
     <script src="scripts/player.js"></script>
 </body>
 </html>'''
