@@ -172,7 +172,7 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         # Clean up uploaded file
         try:
             os.remove(file_path)
-        except:
+        except OSError:
             pass
 
 # API Routes
