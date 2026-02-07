@@ -853,6 +853,17 @@ export default function Editor() {
     }
   };
 
+  // Add Quiz element
+  const handleQuizCreated = async (quizData) => {
+    try {
+      await addElement(currentSlide.id, quizData);
+      toast.success('Quiz adicionado ao slide!');
+    } catch (err) {
+      console.error('Failed to add quiz:', err);
+      toast.error('Falha ao adicionar quiz');
+    }
+  };
+
   // HeyGen Functions
   const loadHeygenData = async () => {
     setHeygenLoading(true);
