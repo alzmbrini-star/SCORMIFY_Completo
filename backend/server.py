@@ -242,6 +242,11 @@ async def update_project_endpoint(project_id: str, data: ProjectUpdate):
         raise HTTPException(status_code=404, detail="Project not found")
     
     update_data = data.model_dump(exclude_unset=True)
+    
+    # If project name is being updated, also update course metadata title
+    if 'name' in update_data:
+        update_data['course.metadata.title'] = update_data['name']
+    
     await update_project(project_id, update_data)
     
     return await get_project_by_id(project_id)
