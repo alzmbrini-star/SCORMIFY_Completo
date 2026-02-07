@@ -1080,11 +1080,31 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
         # Convert dict to Project model
         project = Project(**project_doc)
         
-        # Generate package
+        # Collect all question IDs from quiz elements in the course
+        question_ids = set()
+        for slide in project.course.slides:
+            for element in slide.elements:
+                if element.type == 'quiz' and hasattr(element, 'quizConfig'):
+                    quiz_config = element.quizConfig
+                    if quiz_config and isinstance(quiz_config, dict):
+                        question_ids.update(quiz_config.get('questionIds', []))
+        
+        # Load questions from database if there are quiz elements
+        questions = []
+        if question_ids:
+            question_docs = await db.questions.find(
+                {"id": {"$in": list(question_ids)}},
+                {"_id": 0}
+            ).to_list(500)
+            questions = question_docs
+            logger.info(f"Loaded {len(questions)} questions for SCORM export")
+        
+        # Generate package with questions
         zip_path = export_scorm_package(
             project,
             str(PROJECTS_DIR),
-            str(EXPORTS_DIR)
+            str(EXPORTS_DIR),
+            questions=questions
         )
         
         jobs[job_id]['status'] = 'completed'
