@@ -2792,10 +2792,16 @@ IMSMD_XSD = '''<?xml version="1.0" encoding="UTF-8"?>
     <xsd:element name="langstring" type="xsd:string"/>
 </xsd:schema>'''
 
-def export_scorm_package(project: Project, storage_dir: str, output_dir: str) -> str:
+def export_scorm_package(project: Project, storage_dir: str, output_dir: str, questions: list = None) -> str:
     """
     Export a project as a SCORM 1.2 package
     Returns the path to the generated ZIP file
+    
+    Args:
+        project: Project model
+        storage_dir: Path to storage directory
+        output_dir: Path to output directory
+        questions: Optional list of quiz questions to include
     """
     logger.info(f"Exporting SCORM package for project: {project.id}")
     
@@ -2823,6 +2829,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str) ->
     
     with open(package_dir / "scripts" / "player.js", 'w') as f:
         f.write(PLAYER_JS)
+    
+    # Write quiz controller script
+    with open(package_dir / "scripts" / "quiz-controller.js", 'w') as f:
+        f.write(QUIZ_CONTROLLER_JS)
     
     # Prepare course.json - Fix asset URLs for SCORM package
     course_data = course.model_dump()
