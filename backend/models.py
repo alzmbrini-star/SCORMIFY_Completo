@@ -42,7 +42,7 @@ class SlideElement(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     id: str = Field(default_factory=generate_id)
-    type: str  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook
+    type: str  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook, quiz
     x: float = 0
     y: float = 0
     width: float = 100
@@ -83,6 +83,9 @@ class SlideElement(BaseModel):
     flipbookUrl: Optional[str] = None  # external flipbook URL
     flipbookPages: Optional[List[str]] = None  # list of image URLs for pages
     flipbookPdfUrl: Optional[str] = None  # PDF file URL
+    
+    # Quiz specific
+    quizConfig: Optional[Dict[str, Any]] = None  # Quiz configuration
     
     # Timeline properties
     startTime: float = 0.0  # When element appears (seconds)
