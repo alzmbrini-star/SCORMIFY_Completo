@@ -912,6 +912,20 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - When updating project name, course metadata title is also updated
 - Fixes "Untitled Course" issue for manually created projects
 
+### HeyGen Video Autoplay Fix in HTML Export (Feb 07, 2026)
+- **Issue**: HeyGen videos (.webm) were not playing in exported HTML packages - appeared as static images
+- **Root Cause**: HTML exporter was missing the autoplay logic present in SCORM exporter
+- **Fix Applied**:
+  1. Added auto-play code for local videos when slide becomes active (`renderSlide` function)
+  2. Videos are now programmatically played with `.play()` when slide loads
+  3. Added fallback to muted autoplay if browser blocks unmuted autoplay
+  4. Added `loadedmetadata` event listener for videos that haven't loaded yet
+  5. Videos are paused and reset when navigating away from a slide
+- **Files Modified**:
+  - `/app/backend/services/html_exporter.py` - Added video autoplay and pause logic
+- **Status**: FIXED AND TESTED
+- **Verification**: Video plays correctly when slide loads and when returning to slide after navigation
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
