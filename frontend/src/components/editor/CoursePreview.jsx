@@ -848,11 +848,14 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 )}
                 
                 {/* Quiz - Interactive in preview */}
-                {element.type === 'quiz' && (
-                  <QuizPreviewPlayer
-                    quizConfig={element.quizConfig}
-                    projectId={projectId}
-                  />
+                {element.type === 'quiz' && element.quizConfig && (
+                  <div className="w-full h-full" key={`quiz-wrapper-${element.id}`}>
+                    <QuizPreviewPlayer
+                      key={`quiz-player-${element.id}`}
+                      quizConfig={element.quizConfig}
+                      projectId={projectId}
+                    />
+                  </div>
                 )}
               </div>
             );
