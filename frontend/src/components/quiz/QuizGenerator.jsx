@@ -483,7 +483,7 @@ export default function QuizGenerator({
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: 'calc(90vh - 280px)' }}>
+              <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800" style={{ maxHeight: 'calc(90vh - 280px)' }}>
                 {questionsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin" />
