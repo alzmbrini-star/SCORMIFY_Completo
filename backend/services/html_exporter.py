@@ -59,7 +59,8 @@ async def url_to_base64(url: str) -> Optional[str]:
 async def generate_standalone_html(
     project: Dict[str, Any],
     assets_dir: str,
-    base_url: str = ""
+    base_url: str = "",
+    questions: list = None
 ) -> str:
     """
     Generate a standalone HTML file with all assets embedded as base64
@@ -68,6 +69,7 @@ async def generate_standalone_html(
         project: The project dictionary containing course data
         assets_dir: Directory where project assets are stored
         base_url: Base URL for external assets
+        questions: Optional list of quiz questions to include
         
     Returns:
         Complete HTML string
