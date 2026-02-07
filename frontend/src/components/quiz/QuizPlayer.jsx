@@ -254,14 +254,14 @@ export default function QuizPlayer({
   return (
     <div className={`w-full h-full ${bgColor} ${textColor} flex flex-col`} data-testid="quiz-player">
       {/* Progress Header */}
-      <div className={`p-4 border-b ${borderColor}`}>
-        <div className="flex justify-between items-center mb-2">
-          <span className="font-medium">{quizConfig?.title || 'Quiz'}</span>
-          <span className={mutedColor}>
+      <div className={`px-4 py-3 border-b ${borderColor}`}>
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="font-medium text-sm">{quizConfig?.title || 'Quiz'}</span>
+          <span className={`text-sm ${mutedColor}`}>
             Questão {currentIndex + 1} de {totalQuestions}
           </span>
         </div>
-        <div className={`h-2 rounded-full ${darkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>
+        <div className={`h-1.5 rounded-full ${darkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>
           <div
             className="h-full rounded-full bg-cyan-500 transition-all duration-300"
             style={{ width: `${((currentIndex + 1) / totalQuestions) * 100}%` }}
@@ -270,7 +270,7 @@ export default function QuizPlayer({
       </div>
 
       {/* Question Content */}
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 px-4 py-4 overflow-auto">
         {/* Question Type Badge */}
         <div className="mb-3">
           <span className={`px-2 py-0.5 text-xs rounded-full ${
