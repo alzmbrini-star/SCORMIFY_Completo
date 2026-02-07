@@ -825,6 +825,51 @@ const SlideCanvas = ({
                   )}
                 </div>
               )}
+
+              {/* Quiz Element */}
+              {element.type === 'quiz' && (
+                <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg overflow-hidden relative border-2 border-cyan-500/30">
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6">
+                    <div className="text-6xl mb-4">📝</div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {element.quizConfig?.title || 'Quiz'}
+                    </h3>
+                    <p className="text-slate-400 text-sm text-center mb-4">
+                      {element.quizConfig?.questionIds?.length || 0} questões selecionadas
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {element.quizConfig?.shuffleQuestions && (
+                        <span className="px-2 py-1 text-xs bg-cyan-500/20 text-cyan-400 rounded-full">
+                          Embaralhar questões
+                        </span>
+                      )}
+                      {element.quizConfig?.shuffleAlternatives && (
+                        <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded-full">
+                          Embaralhar alternativas
+                        </span>
+                      )}
+                      {element.quizConfig?.showFeedback && (
+                        <span className="px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded-full">
+                          Feedback ativo
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500">
+                      Nota mínima: {element.quizConfig?.passingScore || 60}%
+                    </div>
+                  </div>
+                  {/* Overlay to capture mouse events for drag/resize */}
+                  <div 
+                    className="absolute inset-0 bg-transparent"
+                    style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
+                  />
+                  {isSelected && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-cyan-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none z-10">
+                      📝 Quiz
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Selection Controls - Only show when selected */}
