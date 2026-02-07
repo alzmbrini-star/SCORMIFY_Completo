@@ -1758,17 +1758,18 @@ var QuizController = (function() {
                 var correctAlt = question.alternatives.find(function(a) { return a.isCorrect; });
                 var wasCorrect = selectedAlt && selectedAlt.isCorrect;
                 
-                html += '<div style="margin-top:16px;padding:12px;border-radius:8px;' + 
-                    (wasCorrect ? 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);' : 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);') + '">' +
-                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-                    '<span style="font-size:18px;">' + (wasCorrect ? '✓' : '✕') + '</span>' +
-                    '<span style="font-weight:600;font-size:14px;' + (wasCorrect ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + (wasCorrect ? 'Correto!' : 'Incorreto') + '</span></div>';
+                html += '<div style="margin-top:20px;padding:16px 20px;border-radius:10px;' + 
+                    (wasCorrect ? 'background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);' : 'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);') + '">' +
+                    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+                    '<span style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;' + 
+                    (wasCorrect ? 'background:#22c55e;color:#fff;' : 'background:#ef4444;color:#fff;') + '">' + (wasCorrect ? '✓' : '✕') + '</span>' +
+                    '<span style="font-weight:600;font-size:15px;' + (wasCorrect ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + (wasCorrect ? 'Correto!' : 'Incorreto') + '</span></div>';
                 
                 if (question.explanation) {
-                    html += '<p style="color:#cbd5e1;font-size:13px;margin:0;">' + question.explanation + '</p>';
+                    html += '<p style="color:#cbd5e1;font-size:14px;margin:0;line-height:1.5;">' + question.explanation + '</p>';
                 }
                 if (!wasCorrect && correctAlt) {
-                    html += '<p style="color:#94a3b8;margin-top:6px;font-size:13px;">Resposta correta: <span style="color:#22c55e;font-weight:500;">' + correctAlt.text + '</span></p>';
+                    html += '<p style="color:#94a3b8;margin-top:8px;font-size:13px;">Resposta correta: <span style="color:#22c55e;font-weight:500;">' + correctAlt.text + '</span></p>';
                 }
                 html += '</div>';
             }
@@ -1776,22 +1777,22 @@ var QuizController = (function() {
             html += '</div>' +
                 
                 // Action footer
-                '<div style="padding:16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;">' +
-                '<button style="padding:8px 16px;background:transparent;border:none;color:#94a3b8;cursor:pointer;" ' + 
-                (quiz.currentIndex === 0 || quiz.showingFeedback ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '') + 
-                ' onclick="QuizController.prevQuestion(\\'' + elementId + '\\')">← Anterior</button>';
+                '<div style="padding:16px 24px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;background:#1e293b;">' +
+                '<button style="padding:10px 16px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:6px;" ' + 
+                (quiz.currentIndex === 0 || quiz.showingFeedback ? 'disabled style="padding:10px 16px;background:transparent;border:none;color:#94a3b8;opacity:0.4;cursor:not-allowed;font-size:14px;display:flex;align-items:center;gap:6px;"' : '') + 
+                ' onclick="QuizController.prevQuestion(\\'' + elementId + '\\')"><span style="font-size:16px;">‹</span> Anterior</button>';
             
             if (quiz.showingFeedback) {
                 if (quiz.currentIndex < total - 1) {
-                    html += '<button style="padding:12px 24px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;" onclick="QuizController.nextQuestion(\\'' + elementId + '\\')">Próxima →</button>';
+                    html += '<button style="padding:12px 24px;background:#475569;color:#fff;border:none;border-radius:8px;font-weight:500;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;" onclick="QuizController.nextQuestion(\\'' + elementId + '\\')">Próxima <span style="font-size:16px;">›</span></button>';
                 } else {
-                    html += '<button style="padding:12px 24px;background:linear-gradient(135deg,#22c55e,#10b981);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;" onclick="QuizController.showResults(\\'' + elementId + '\\')">Ver Resultado 🏆</button>';
+                    html += '<button style="padding:12px 24px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-weight:500;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;" onclick="QuizController.showResults(\\'' + elementId + '\\')">Ver Resultado <span style="font-size:16px;">›</span></button>';
                 }
             } else {
-                html += '<button style="padding:12px 24px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;' + 
-                    (!quiz.selectedAnswer ? 'opacity:0.5;cursor:not-allowed;' : '') + '" ' +
+                html += '<button style="padding:12px 24px;background:#475569;color:#fff;border:none;border-radius:8px;font-weight:500;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;' + 
+                    (!quiz.selectedAnswer ? 'opacity:0.4;cursor:not-allowed;' : '') + '" ' +
                     (!quiz.selectedAnswer ? 'disabled' : '') + 
-                    ' onclick="QuizController.confirmAnswer(\\'' + elementId + '\\')">Confirmar ✓</button>';
+                    ' onclick="QuizController.confirmAnswer(\\'' + elementId + '\\')">Confirmar <span style="font-size:16px;">✓</span></button>';
             }
             
             html += '</div></div>';
