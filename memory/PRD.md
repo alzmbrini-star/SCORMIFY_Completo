@@ -847,7 +847,7 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 1. **Question Types**: Multiple Choice and True/False
 2. **AI Question Generation**: Uses OpenAI GPT via Emergent LLM Key
 3. **Document Import**: Parse .doc/.docx files for question generation context
-4. **Question Bank**: Store, view, select, and delete questions
+4. **Question Bank**: Store, view, select, and delete questions (with scroll support)
 5. **Quiz Configuration**:
    - Custom title
    - Number of questions to display
@@ -856,13 +856,15 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
    - Passing score (0-100%)
 6. **Interactive Quiz Player**: 
    - Progress bar and question counter
-   - Answer selection with visual feedback
+   - Answer selection with visual feedback (grid 2x2 layout)
    - Correct/Incorrect feedback with explanations
-   - Final score screen (0-10 scale)
+   - Final score screen (0-10 scale) - compact layout
    - Restart quiz option
 7. **SCORM Integration**:
-   - Quiz score reported to LMS
-   - Completion status based on passing score
+   - Quiz score reported to LMS (cmi.core.score.raw)
+   - Completion status based on passing score (cmi.core.lesson_status)
+   - Compact UI optimized for SCORM player windows
+   - Thin scrollbar matching RTF content style
 
 ### Backend Endpoints (server.py)
 - `GET /api/questions` - List questions (filter by project_id, tag)
@@ -891,29 +893,29 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 ### SCORM Export Support (scorm_exporter.py)
 - QuizController.js included in SCORM package
 - Quiz questions stored in course.json
-- Score reporting via SCORM API (cmi.core.score.raw)
-- Completion status via SCORM API (cmi.core.lesson_status)
+- Score reporting via SCORM API
+- Compact responsive UI for LMS players
+- Thin scrollbar styling matching RTF content
 
-### Testing Status
-- Backend: 100% (15/15 tests passed)
-- Frontend: 95% (minor z-index issue when overlapping HTML elements)
-- Test file: `/app/backend/tests/test_quiz_api.py`
+### Quiz UI Refinements (Feb 07, 2026)
+- **Compact Layout**: Reduced padding and font sizes for better fit
+- **Header**: Question type badge inline with counter (e.g., "Quiz | Múltipla | 1/5")
+- **Alternatives**: Grid 2x2 layout with smaller circles (20px)
+- **Feedback Box**: Compact with 11px explanation text
+- **Results Screen**: Fully visible without scrolling
+- **Scrollbar**: Thin 4px scrollbar matching RTF style
 
-### Files Modified
-- `/app/backend/server.py` - Quiz endpoints
-- `/app/backend/models.py` - Quiz models
-- `/app/backend/services/scorm_exporter.py` - Quiz support in export
-- `/app/backend/requirements.txt` - Added python-docx
-- `/app/frontend/src/pages/Editor.jsx` - Quiz button and integration
-- `/app/frontend/src/components/editor/SlideCanvas.jsx` - Quiz element rendering
-- `/app/frontend/src/components/editor/CoursePreview.jsx` - QuizPlayer integration
-- `/app/frontend/src/components/quiz/QuizGenerator.jsx` - New file
-- `/app/frontend/src/components/quiz/QuizPlayer.jsx` - New file
+## Additional Improvements (Feb 07, 2026)
+
+### Project Name Sync with Course Title
+- When creating a new project manually, the course title now uses the project name
+- When updating project name, course metadata title is also updated
+- Fixes "Untitled Course" issue for manually created projects
 
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
-- None at present - Quiz feature complete
+- None at present - Core features complete
 
 ### P1 - High Priority
 - Quiz analytics dashboard (view attempts, scores per question)
@@ -932,3 +934,4 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - Question import from QTI format
 - Adaptive quizzes based on performance
 - Gamification (badges, leaderboards)
+
