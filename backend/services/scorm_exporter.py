@@ -1690,65 +1690,64 @@ var QuizController = (function() {
             var current = quiz.currentIndex + 1;
             var progress = (current / total) * 100;
             
-            var html = '<div style="display:flex;flex-direction:column;height:100%;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;">' +
+            var html = '<div style="display:flex;flex-direction:column;height:100%;background:#1e293b;color:#fff;font-family:system-ui,-apple-system,sans-serif;">' +
                 // Progress header
-                '<div style="padding:16px;border-bottom:1px solid #334155;">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-                '<span style="font-weight:500;">' + (quiz.config.title || 'Quiz') + '</span>' +
-                '<span style="color:#94a3b8;">Questão ' + current + ' de ' + total + '</span>' +
+                '<div style="padding:20px 24px 16px;border-bottom:1px solid #334155;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+                '<span style="font-weight:500;font-size:15px;">' + (quiz.config.title || 'Quiz') + '</span>' +
+                '<span style="color:#94a3b8;font-size:14px;">Questão ' + current + ' de ' + total + '</span>' +
                 '</div>' +
-                '<div style="height:8px;background:#334155;border-radius:4px;overflow:hidden;">' +
+                '<div style="height:6px;background:#334155;border-radius:3px;overflow:hidden;">' +
                 '<div style="height:100%;width:' + progress + '%;background:#06b6d4;transition:width 0.3s;"></div>' +
                 '</div></div>' +
                 
                 // Question content
-                '<div style="flex:1;padding:16px;overflow:auto;">' +
-                '<div style="margin-bottom:12px;">' +
-                '<span style="padding:4px 10px;font-size:11px;border-radius:999px;' + 
-                (question.type === 'true_false' ? 'background:rgba(168,85,247,0.2);color:#c084fc;' : 'background:rgba(6,182,212,0.2);color:#22d3ee;') + '">' +
+                '<div style="flex:1;padding:24px;overflow:auto;">' +
+                '<div style="margin-bottom:16px;">' +
+                '<span style="padding:6px 12px;font-size:12px;border-radius:6px;font-weight:500;' + 
+                (question.type === 'true_false' ? 'background:rgba(168,85,247,0.15);color:#a78bfa;' : 'background:rgba(6,182,212,0.15);color:#22d3ee;') + '">' +
                 (question.type === 'true_false' ? 'Verdadeiro ou Falso' : 'Múltipla Escolha') + '</span></div>' +
-                '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:#fff;">' + question.text + '</h3>' +
+                '<h3 style="font-size:18px;font-weight:600;margin-bottom:24px;color:#f1f5f9;line-height:1.4;">' + question.text + '</h3>' +
                 
-                // Alternatives
-                '<div style="display:flex;flex-direction:column;gap:8px;">';
+                // Alternatives in 2x2 grid
+                '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">';
             
             question.alternatives.forEach(function(alt, idx) {
-                var letter = String.fromCharCode(65 + idx);
                 var isSelected = quiz.selectedAnswer === alt.id;
                 var isCorrect = alt.isCorrect;
                 var showingFeedback = quiz.showingFeedback;
                 
-                var altStyle = 'padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all 0.2s;';
-                var circleStyle = 'width:28px;height:28px;min-width:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;';
-                var textStyle = 'color:#fff;';
+                var altStyle = 'padding:14px 16px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;text-align:left;width:100%;';
+                var circleStyle = 'width:28px;height:28px;min-width:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;';
+                var textStyle = 'font-size:14px;line-height:1.3;';
                 
                 if (showingFeedback) {
                     if (isCorrect) {
-                        altStyle += 'background:rgba(34,197,94,0.2);border:2px solid #22c55e;';
+                        altStyle += 'background:transparent;border:2px solid #22c55e;';
                         circleStyle += 'background:#22c55e;color:#fff;';
-                        textStyle = 'color:#22c55e;';
+                        textStyle += 'color:#f1f5f9;';
                     } else if (isSelected && !isCorrect) {
-                        altStyle += 'background:rgba(239,68,68,0.2);border:2px solid #ef4444;';
+                        altStyle += 'background:transparent;border:2px solid #ef4444;';
                         circleStyle += 'background:#ef4444;color:#fff;';
-                        textStyle = 'color:#ef4444;';
+                        textStyle += 'color:#94a3b8;';
                     } else {
-                        altStyle += 'background:#1e293b;border:2px solid #334155;opacity:0.5;';
-                        circleStyle += 'background:#334155;color:#94a3b8;';
-                        textStyle = 'color:#94a3b8;';
+                        altStyle += 'background:transparent;border:2px solid #475569;opacity:0.6;';
+                        circleStyle += 'background:#475569;color:#94a3b8;';
+                        textStyle += 'color:#94a3b8;';
                     }
                 } else if (isSelected) {
-                    altStyle += 'background:rgba(6,182,212,0.1);border:2px solid #06b6d4;';
+                    altStyle += 'background:transparent;border:2px solid #06b6d4;';
                     circleStyle += 'background:#06b6d4;color:#fff;';
-                    textStyle = 'color:#fff;';
+                    textStyle += 'color:#f1f5f9;';
                 } else {
-                    altStyle += 'background:#1e293b;border:2px solid #334155;';
-                    circleStyle += 'background:#334155;color:#94a3b8;';
-                    textStyle = 'color:#e2e8f0;';
+                    altStyle += 'background:transparent;border:2px solid #475569;';
+                    circleStyle += 'background:#475569;color:#94a3b8;';
+                    textStyle += 'color:#cbd5e1;';
                 }
                 
                 html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\\'' + elementId + '\\', \\'' + alt.id + '\\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
-                    '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : letter)) + '</div>' +
-                    '<span style="flex:1;text-align:left;font-size:14px;' + textStyle + '">' + alt.text + '</span></button>';
+                    '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : '')) + '</div>' +
+                    '<span style="flex:1;' + textStyle + '">' + alt.text + '</span></button>';
             });
             
             html += '</div>';
