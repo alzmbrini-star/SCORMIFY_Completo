@@ -2261,8 +2261,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         
         // Initialize QuizController with course data
         document.addEventListener('DOMContentLoaded', function() {{
-            if (typeof course !== 'undefined' && course.questions) {{
-                QuizController.init(course);
+            if (typeof courseData !== 'undefined' && courseData.questions) {{
+                QuizController.init(courseData);
+                console.log('QuizController initialized with ' + courseData.questions.length + ' questions');
+            }} else {{
+                console.log('No questions found in courseData');
             }}
         }});
     </script>
