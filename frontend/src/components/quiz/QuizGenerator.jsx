@@ -460,8 +460,8 @@ export default function QuizGenerator({
             </TabsContent>
 
             {/* Tab: Question Bank */}
-            <TabsContent value="bank" className="flex-1 flex flex-col min-h-0 p-4">
-              <div className="flex justify-between items-center mb-4">
+            <TabsContent value="bank" className="flex-1 flex flex-col min-h-0 p-4 overflow-hidden">
+              <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Checkbox
                     checked={questions.length > 0 && selectedQuestionIds.length === questions.length}
@@ -484,7 +484,7 @@ export default function QuizGenerator({
                 </Button>
               </div>
 
-              <ScrollArea className="flex-1">
+              <div className="flex-1 overflow-auto min-h-0">
                 {questionsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin" />
