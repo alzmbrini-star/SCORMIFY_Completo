@@ -1307,10 +1307,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 
                                 html += '</div>';
                             }} else if (elem.src) {{
-                                // Check if video is WebM (likely has alpha channel for transparency)
+                                // Local video (uploaded or HeyGen)
                                 var isWebM = elem.src && elem.src.toLowerCase().includes('.webm');
-                                var videoStyle = isWebM ? 'style="background:transparent !important;"' : '';
-                                html += '<video src="' + elem.src + '" autoplay playsinline muted ' + videoStyle + ' onloadeddata="this.muted=false" style="pointer-events:none;"></video>';
+                                var bgStyle = isWebM ? 'background:transparent !important;' : '';
+                                html += '<video data-element-id="' + elem.id + '" class="local-video" src="' + elem.src + '" playsinline style="width:100%;height:100%;object-fit:contain;pointer-events:none;' + bgStyle + '"></video>';
                             }}
                         }}
                         else if (elem.type === 'button') {{
