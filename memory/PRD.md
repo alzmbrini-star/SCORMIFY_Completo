@@ -926,6 +926,18 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED
 - **Verification**: Video plays correctly when slide loads and when returning to slide after navigation
 
+### Quiz Not Loading in HTML Export (Feb 07, 2026)
+- **Issue**: Quiz displayed "Nenhuma questão encontrada" (No questions found) in HTML export
+- **Root Cause**: QuizController.init() was being called with `course` variable which was private inside Player module scope, instead of `courseData` which is global
+- **Fix Applied**:
+  - Changed QuizController initialization from `course` to `courseData`
+  - Added console logging for debugging quiz initialization
+- **Files Modified**:
+  - `/app/backend/services/html_exporter.py` - Fixed variable scope in QuizController initialization
+- **Status**: FIXED AND TESTED
+- **Verification**: Quiz with 15 questions loads and displays correctly in HTML export
+- **Note**: If a quiz shows "Nenhuma questão encontrada", check if the referenced question IDs exist in the question bank - questions may have been deleted
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
