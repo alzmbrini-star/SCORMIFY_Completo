@@ -78,6 +78,74 @@ const processHtmlContent = (htmlContent, projectId) => {
   return processed;
 };
 
+// Quiz Preview Player - loads questions and renders quiz
+const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadQuestions = async () => {
+      if (!quizConfig?.questionIds?.length) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        // Load all questions
+        const response = await axios.get(`${API_URL}/api/questions`, {
+          params: { project_id: projectId }
+        });
+        
+        // Filter to only selected question IDs
+        const allQuestions = response.data || [];
+        const selectedQuestions = allQuestions.filter(q => 
+          quizConfig.questionIds.includes(q.id)
+        );
+        
+        setQuestions(selectedQuestions);
+      } catch (err) {
+        console.error('Failed to load quiz questions:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadQuestions();
+  }, [quizConfig, projectId]);
+
+  const handleQuizComplete = async (results) => {
+    console.log('Quiz completed:', results);
+    // In preview mode, we just log. In SCORM export, this will call the SCORM API
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center text-white">
+        <AlertCircle className="w-12 h-12 mb-4 text-amber-500" />
+        <p>Nenhuma questão encontrada para este quiz</p>
+      </div>
+    );
+  }
+
+  return (
+    <QuizPlayer
+      quizConfig={quizConfig}
+      questions={questions}
+      onComplete={handleQuizComplete}
+      embedded={true}
+      darkMode={true}
+    />
+  );
+};
+
 const CoursePreview = ({ course, projectId, onClose }) => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [showSidebar, setShowSidebar] = useState(false);
