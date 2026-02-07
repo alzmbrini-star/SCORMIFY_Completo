@@ -2899,6 +2899,11 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             filename = course_data['globalAudio']['src'].split('/assets/')[-1]
             course_data['globalAudio']['src'] = f"assets/{filename}"
     
+    # Add questions for quiz elements
+    if questions:
+        course_data['questions'] = questions
+        logger.info(f"Added {len(questions)} questions to course.json for quiz support")
+    
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
         json.dump(course_data, f, ensure_ascii=False, indent=2)
     
