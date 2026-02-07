@@ -158,60 +158,60 @@ export default function QuizPlayer({
   // Results screen
   if (isComplete && results) {
     return (
-      <div className={`w-full h-full ${bgColor} ${textColor} flex flex-col items-center justify-center p-8`}>
-        <div className={`max-w-md w-full ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-2xl p-8 text-center`}>
+      <div className={`w-full h-full ${bgColor} ${textColor} flex flex-col items-center justify-center p-4 overflow-auto`}>
+        <div className={`max-w-sm w-full ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} rounded-xl p-5 text-center`}>
           {/* Score Icon */}
-          <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center ${
+          <div className={`w-14 h-14 mx-auto mb-3 rounded-full flex items-center justify-center ${
             results.passed 
               ? 'bg-green-500/20' 
               : 'bg-red-500/20'
           }`}>
             {results.passed ? (
-              <Trophy className="w-12 h-12 text-green-500" />
+              <Trophy className="w-8 h-8 text-green-500" />
             ) : (
-              <AlertCircle className="w-12 h-12 text-red-500" />
+              <AlertCircle className="w-8 h-8 text-red-500" />
             )}
           </div>
 
           {/* Title */}
-          <h2 className="text-2xl font-bold mb-2">
+          <h2 className="text-xl font-bold mb-1">
             {results.passed ? 'Parabéns!' : 'Não foi dessa vez'}
           </h2>
-          <p className={mutedColor}>
+          <p className={`text-sm ${mutedColor}`}>
             {results.passed 
               ? 'Você atingiu a nota mínima' 
               : 'Tente novamente para melhorar'}
           </p>
 
           {/* Score Display */}
-          <div className="my-8">
-            <div className="text-6xl font-bold mb-2" style={{
+          <div className="my-4">
+            <div className="text-5xl font-bold" style={{
               color: results.passed ? '#22c55e' : '#ef4444'
             }}>
               {results.score}
             </div>
-            <p className={mutedColor}>de 10</p>
+            <p className={`text-xs ${mutedColor}`}>de 10</p>
           </div>
 
           {/* Stats */}
-          <div className={`grid grid-cols-2 gap-4 mb-8 p-4 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+          <div className={`grid grid-cols-2 gap-3 mb-4 p-3 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
             <div>
-              <p className="text-2xl font-bold text-green-500">{results.correctCount}</p>
-              <p className={`text-sm ${mutedColor}`}>Corretas</p>
+              <p className="text-xl font-bold text-green-500">{results.correctCount}</p>
+              <p className={`text-xs ${mutedColor}`}>Corretas</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-red-500">{results.totalQuestions - results.correctCount}</p>
-              <p className={`text-sm ${mutedColor}`}>Incorretas</p>
+              <p className="text-xl font-bold text-red-500">{results.totalQuestions - results.correctCount}</p>
+              <p className={`text-xs ${mutedColor}`}>Incorretas</p>
             </div>
           </div>
 
           {/* Percentage Bar */}
-          <div className="mb-8">
-            <div className="flex justify-between text-sm mb-2">
+          <div className="mb-4">
+            <div className="flex justify-between text-xs mb-1">
               <span>Aproveitamento</span>
               <span>{results.percentage}%</span>
             </div>
-            <div className={`h-3 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-slate-200'}`}>
+            <div className={`h-2 rounded-full ${darkMode ? 'bg-slate-600' : 'bg-slate-200'}`}>
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
                   results.passed ? 'bg-green-500' : 'bg-red-500'
@@ -219,7 +219,7 @@ export default function QuizPlayer({
                 style={{ width: `${results.percentage}%` }}
               />
             </div>
-            <p className={`text-xs mt-2 ${mutedColor}`}>
+            <p className={`text-xs mt-1 ${mutedColor}`}>
               Nota mínima: {quizConfig?.passingScore || 60}%
             </p>
           </div>
@@ -228,6 +228,7 @@ export default function QuizPlayer({
           <Button
             onClick={handleRestart}
             className="w-full gap-2"
+            size="sm"
             variant={darkMode ? 'default' : 'outline'}
             data-testid="quiz-restart-btn"
           >
