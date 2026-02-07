@@ -558,7 +558,7 @@ export default function QuizGenerator({
                     ))}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </TabsContent>
 
             {/* Tab: Quiz Config */}
