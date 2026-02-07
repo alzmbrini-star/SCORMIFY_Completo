@@ -1691,35 +1691,35 @@ var QuizController = (function() {
             var progress = (current / total) * 100;
             
             var html = '<div style="display:flex;flex-direction:column;height:100%;background:#1e293b;color:#fff;font-family:system-ui,-apple-system,sans-serif;">' +
-                // Progress header
-                '<div style="padding:20px 24px 16px;border-bottom:1px solid #334155;">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-                '<span style="font-weight:500;font-size:15px;">' + (quiz.config.title || 'Quiz') + '</span>' +
-                '<span style="color:#94a3b8;font-size:14px;">Questão ' + current + ' de ' + total + '</span>' +
+                // Progress header - compact with question type inline
+                '<div style="padding:10px 16px 8px;border-bottom:1px solid #334155;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<span style="font-weight:500;font-size:13px;">' + (quiz.config.title || 'Quiz') + '</span>' +
+                '<span style="padding:2px 6px;font-size:9px;border-radius:3px;font-weight:500;' + 
+                (question.type === 'true_false' ? 'background:rgba(168,85,247,0.15);color:#a78bfa;' : 'background:rgba(6,182,212,0.15);color:#22d3ee;') + '">' +
+                (question.type === 'true_false' ? 'V/F' : 'Múltipla') + '</span></div>' +
+                '<span style="color:#94a3b8;font-size:12px;">' + current + '/' + total + '</span>' +
                 '</div>' +
-                '<div style="height:6px;background:#334155;border-radius:3px;overflow:hidden;">' +
+                '<div style="height:3px;background:#334155;border-radius:2px;overflow:hidden;">' +
                 '<div style="height:100%;width:' + progress + '%;background:#06b6d4;transition:width 0.3s;"></div>' +
                 '</div></div>' +
                 
-                // Question content
-                '<div style="flex:1;padding:24px;overflow:auto;">' +
-                '<div style="margin-bottom:16px;">' +
-                '<span style="padding:6px 12px;font-size:12px;border-radius:6px;font-weight:500;' + 
-                (question.type === 'true_false' ? 'background:rgba(168,85,247,0.15);color:#a78bfa;' : 'background:rgba(6,182,212,0.15);color:#22d3ee;') + '">' +
-                (question.type === 'true_false' ? 'Verdadeiro ou Falso' : 'Múltipla Escolha') + '</span></div>' +
-                '<h3 style="font-size:18px;font-weight:600;margin-bottom:24px;color:#f1f5f9;line-height:1.4;">' + question.text + '</h3>' +
+                // Question content - compact
+                '<div style="flex:1;padding:12px 16px;overflow:auto;">' +
+                '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#f1f5f9;line-height:1.4;">' + question.text + '</h3>' +
                 
-                // Alternatives in 2x2 grid
-                '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">';
+                // Alternatives in 2x2 grid - smaller
+                '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
             
             question.alternatives.forEach(function(alt, idx) {
                 var isSelected = quiz.selectedAnswer === alt.id;
                 var isCorrect = alt.isCorrect;
                 var showingFeedback = quiz.showingFeedback;
                 
-                var altStyle = 'padding:14px 16px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;text-align:left;width:100%;';
-                var circleStyle = 'width:28px;height:28px;min-width:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;';
-                var textStyle = 'font-size:14px;line-height:1.3;';
+                var altStyle = 'padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.2s;text-align:left;width:100%;';
+                var circleStyle = 'width:20px;height:20px;min-width:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;';
+                var textStyle = 'font-size:12px;line-height:1.3;';
                 
                 if (showingFeedback) {
                     if (isCorrect) {
@@ -1731,7 +1731,7 @@ var QuizController = (function() {
                         circleStyle += 'background:#ef4444;color:#fff;';
                         textStyle += 'color:#94a3b8;';
                     } else {
-                        altStyle += 'background:transparent;border:2px solid #475569;opacity:0.6;';
+                        altStyle += 'background:transparent;border:2px solid #475569;opacity:0.5;';
                         circleStyle += 'background:#475569;color:#94a3b8;';
                         textStyle += 'color:#94a3b8;';
                     }
@@ -1752,7 +1752,7 @@ var QuizController = (function() {
             
             html += '</div>';
             
-            // Feedback section
+            // Feedback section - compact
             if (quiz.showingFeedback) {
                 var selectedAlt = question.alternatives.find(function(a) { return a.id === quiz.selectedAnswer; });
                 var correctAlt = question.alternatives.find(function(a) { return a.isCorrect; });
