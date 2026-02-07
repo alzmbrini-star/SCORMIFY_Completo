@@ -1880,37 +1880,37 @@ var QuizController = (function() {
                 }
             }
             
-            var html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:32px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;">' +
-                '<div style="max-width:400px;width:100%;background:#0f172a;border-radius:16px;padding:32px;text-align:center;">' +
+            var html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;overflow:auto;">' +
+                '<div style="max-width:360px;width:100%;background:#0f172a;border-radius:12px;padding:20px;text-align:center;">' +
                 
-                // Icon
-                '<div style="width:96px;height:96px;margin:0 auto 24px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+                // Icon - smaller
+                '<div style="width:60px;height:60px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
                 (passed ? 'background:rgba(34,197,94,0.2);' : 'background:rgba(239,68,68,0.2);') + '">' +
-                '<span style="font-size:48px;">' + (passed ? '🏆' : '⚠️') + '</span></div>' +
+                '<span style="font-size:32px;">' + (passed ? '🏆' : '⚠️') + '</span></div>' +
                 
-                // Title
-                '<h2 style="font-size:24px;font-weight:bold;margin-bottom:8px;">' + (passed ? 'Parabéns!' : 'Não foi dessa vez') + '</h2>' +
-                '<p style="color:#94a3b8;margin-bottom:32px;">' + (passed ? 'Você atingiu a nota mínima' : 'Tente novamente para melhorar') + '</p>' +
+                // Title - smaller
+                '<h2 style="font-size:20px;font-weight:bold;margin-bottom:4px;">' + (passed ? 'Parabéns!' : 'Não foi dessa vez') + '</h2>' +
+                '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">' + (passed ? 'Você atingiu a nota mínima' : 'Tente novamente para melhorar') + '</p>' +
                 
-                // Score
-                '<div style="margin-bottom:32px;">' +
-                '<div style="font-size:64px;font-weight:bold;' + (passed ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + score.toFixed(1) + '</div>' +
-                '<p style="color:#94a3b8;">de 10</p></div>' +
+                // Score - smaller
+                '<div style="margin-bottom:16px;">' +
+                '<div style="font-size:48px;font-weight:bold;line-height:1;' + (passed ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + score.toFixed(1) + '</div>' +
+                '<p style="color:#94a3b8;font-size:12px;margin-top:4px;">de 10</p></div>' +
                 
-                // Stats
-                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;padding:16px;background:#1e293b;border-radius:8px;">' +
-                '<div><p style="font-size:24px;font-weight:bold;color:#22c55e;">' + correctCount + '</p><p style="font-size:12px;color:#94a3b8;">Corretas</p></div>' +
-                '<div><p style="font-size:24px;font-weight:bold;color:#ef4444;">' + (totalCount - correctCount) + '</p><p style="font-size:12px;color:#94a3b8;">Incorretas</p></div></div>' +
+                // Stats - more compact
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:12px;background:#1e293b;border-radius:8px;">' +
+                '<div><p style="font-size:20px;font-weight:bold;color:#22c55e;margin:0;">' + correctCount + '</p><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">Corretas</p></div>' +
+                '<div><p style="font-size:20px;font-weight:bold;color:#ef4444;margin:0;">' + (totalCount - correctCount) + '</p><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">Incorretas</p></div></div>' +
                 
-                // Progress bar
-                '<div style="margin-bottom:32px;">' +
-                '<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;"><span>Aproveitamento</span><span>' + Math.round(percentage) + '%</span></div>' +
-                '<div style="height:12px;background:#334155;border-radius:6px;overflow:hidden;">' +
+                // Progress bar - compact
+                '<div style="margin-bottom:16px;">' +
+                '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Aproveitamento</span><span>' + Math.round(percentage) + '%</span></div>' +
+                '<div style="height:8px;background:#334155;border-radius:4px;overflow:hidden;">' +
                 '<div style="height:100%;width:' + percentage + '%;transition:width 0.5s;' + (passed ? 'background:#22c55e;' : 'background:#ef4444;') + '"></div></div>' +
-                '<p style="font-size:12px;color:#94a3b8;margin-top:8px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
+                '<p style="font-size:11px;color:#94a3b8;margin-top:4px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
                 
-                // Restart button
-                '<button style="width:100%;padding:14px 24px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;" onclick="QuizController.restartQuiz(\\'' + elementId + '\\')">' +
+                // Restart button - compact
+                '<button style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="QuizController.restartQuiz(\\'' + elementId + '\\')">' +
                 '<span>🔄</span> Tentar Novamente</button>' +
                 
                 '</div></div>';
