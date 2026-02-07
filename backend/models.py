@@ -297,3 +297,94 @@ class AnnotationUpdate(BaseModel):
 
 class ReorderSlidesRequest(BaseModel):
     slideIds: List[str]
+
+# ============================================
+# Quiz Models
+# ============================================
+
+class QuizAlternative(BaseModel):
+    """Represents one alternative/option in a quiz question"""
+    id: str = Field(default_factory=generate_id)
+    text: str
+    isCorrect: bool = False
+
+class QuizQuestion(BaseModel):
+    """Represents a quiz question"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=generate_id)
+    projectId: Optional[str] = None  # Optional: links to a specific project
+    type: str  # 'multiple_choice' or 'true_false'
+    text: str  # The question text
+    alternatives: List[QuizAlternative] = Field(default_factory=list)
+    explanation: Optional[str] = None  # Explanation shown after answering
+    points: float = 1.0  # Points for this question
+    tags: List[str] = Field(default_factory=list)  # For categorization
+    
+    createdAt: datetime = Field(default_factory=now_utc)
+    updatedAt: datetime = Field(default_factory=now_utc)
+
+class QuizConfig(BaseModel):
+    """Configuration for a quiz element on a slide"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=generate_id)
+    title: str = "Quiz"
+    questionIds: List[str] = Field(default_factory=list)  # IDs of questions to include
+    questionCount: int = 5  # Number of questions to show (can be less than available)
+    shuffleQuestions: bool = True
+    shuffleAlternatives: bool = True
+    showFeedback: bool = True  # Show correct/incorrect after each question
+    showExplanation: bool = True  # Show explanation text
+    passingScore: float = 60.0  # Percentage needed to pass (0-100)
+    maxAttempts: int = 0  # 0 = unlimited
+
+class QuizAttempt(BaseModel):
+    """Records a user's attempt at a quiz"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=generate_id)
+    quizId: str
+    projectId: str
+    userId: Optional[str] = None  # Anonymous if not logged in
+    answers: List[Dict[str, Any]] = Field(default_factory=list)  # [{questionId, selectedAlternativeId, isCorrect}]
+    score: float = 0.0  # Final score (0-10)
+    percentage: float = 0.0  # Percentage correct (0-100)
+    passed: bool = False
+    completedAt: Optional[datetime] = None
+    
+    createdAt: datetime = Field(default_factory=now_utc)
+
+# API Models for Quiz
+class QuizQuestionCreate(BaseModel):
+    """Create a new quiz question"""
+    projectId: Optional[str] = None
+    type: str  # 'multiple_choice' or 'true_false'
+    text: str
+    alternatives: List[Dict[str, Any]]  # [{text, isCorrect}]
+    explanation: Optional[str] = None
+    points: float = 1.0
+    tags: List[str] = Field(default_factory=list)
+
+class QuizQuestionUpdate(BaseModel):
+    """Update a quiz question"""
+    text: Optional[str] = None
+    alternatives: Optional[List[Dict[str, Any]]] = None
+    explanation: Optional[str] = None
+    points: Optional[float] = None
+    tags: Optional[List[str]] = None
+
+class QuizGenerateRequest(BaseModel):
+    """Request to generate quiz questions using AI"""
+    projectId: Optional[str] = None
+    source: str  # 'prompt' or 'document'
+    prompt: Optional[str] = None  # For AI generation from prompt
+    context: Optional[str] = None  # Additional context
+    documentContent: Optional[str] = None  # Extracted text from .doc file
+    questionType: str = "multiple_choice"  # 'multiple_choice', 'true_false', 'mixed'
+    count: int = 5  # Number of questions to generate
+
+class QuizSubmitRequest(BaseModel):
+    """Submit quiz answers"""
+    quizId: str
+    answers: List[Dict[str, Any]]  # [{questionId, selectedAlternativeId}]
