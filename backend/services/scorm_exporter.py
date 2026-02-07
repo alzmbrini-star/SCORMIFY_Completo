@@ -1034,6 +1034,42 @@ var CoursePlayer = (function() {
                     el.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;color:#666;">Flipbook</div>';
                 }
                 break;
+            
+            case 'quiz':
+                el = document.createElement('div');
+                el.className = 'slide-element quiz-element';
+                el.style.background = 'linear-gradient(135deg, #1e293b, #0f172a)';
+                el.style.borderRadius = '12px';
+                el.style.border = '2px solid rgba(34, 211, 238, 0.3)';
+                el.style.overflow = 'hidden';
+                
+                // Get quiz config
+                var quizConfig = element.quizConfig || {};
+                var questionIds = quizConfig.questionIds || [];
+                var quizTitle = quizConfig.title || 'Quiz';
+                var passingScore = quizConfig.passingScore || 60;
+                var shuffleQuestions = quizConfig.shuffleQuestions !== false;
+                var shuffleAlts = quizConfig.shuffleAlternatives !== false;
+                var showFeedback = quizConfig.showFeedback !== false;
+                
+                // Quiz player will be initialized with questions from course.json
+                var quizContainer = document.createElement('div');
+                quizContainer.className = 'quiz-player-container';
+                quizContainer.dataset.elementId = element.id;
+                quizContainer.dataset.quizConfig = JSON.stringify(quizConfig);
+                quizContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;';
+                
+                // Placeholder until quiz is initialized
+                quizContainer.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">' +
+                    '<div style="font-size:48px;margin-bottom:16px;">📝</div>' +
+                    '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + quizTitle + '</h3>' +
+                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + questionIds.length + ' questões</p>' +
+                    '<button class="quiz-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ' +
+                    'onclick="QuizController.startQuiz(\\'' + element.id + '\\')">Iniciar Quiz</button>' +
+                    '</div>';
+                
+                el.appendChild(quizContainer);
+                break;
                 
             default:
                 el = document.createElement('div');
