@@ -82,11 +82,16 @@ const processHtmlContent = (htmlContent, projectId) => {
 const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const loadQuestions = async () => {
       if (!quizConfig?.questionIds?.length) {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
         return;
       }
       
@@ -95,6 +100,8 @@ const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
         const response = await axios.get(`${API_URL}/api/questions`, {
           params: { project_id: projectId }
         });
+        
+        if (!isMounted) return;
         
         // Filter to only selected question IDs
         const allQuestions = response.data || [];
@@ -105,12 +112,21 @@ const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
         setQuestions(selectedQuestions);
       } catch (err) {
         console.error('Failed to load quiz questions:', err);
+        if (isMounted) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadQuestions();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [quizConfig, projectId]);
 
   const handleQuizComplete = async (results) => {
@@ -118,31 +134,28 @@ const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
     // In preview mode, we just log. In SCORM export, this will call the SCORM API
   };
 
-  if (loading) {
-    return (
-      <div className="w-full h-full bg-slate-800 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  if (questions.length === 0) {
-    return (
-      <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center text-white">
-        <AlertCircle className="w-12 h-12 mb-4 text-amber-500" />
-        <p>Nenhuma questão encontrada para este quiz</p>
-      </div>
-    );
-  }
-
+  // Always render a container div to maintain stable DOM structure
   return (
-    <QuizPlayer
-      quizConfig={quizConfig}
-      questions={questions}
-      onComplete={handleQuizComplete}
-      embedded={true}
-      darkMode={true}
-    />
+    <div className="w-full h-full bg-slate-800">
+      {loading ? (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
+        </div>
+      ) : questions.length === 0 ? (
+        <div className="w-full h-full flex flex-col items-center justify-center text-white">
+          <AlertCircle className="w-12 h-12 mb-4 text-amber-500" />
+          <p>Nenhuma questão encontrada para este quiz</p>
+        </div>
+      ) : (
+        <QuizPlayer
+          quizConfig={quizConfig}
+          questions={questions}
+          onComplete={handleQuizComplete}
+          embedded={true}
+          darkMode={true}
+        />
+      )}
+    </div>
   );
 };
 
