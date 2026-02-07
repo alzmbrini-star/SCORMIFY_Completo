@@ -836,3 +836,99 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
   - `/app/frontend/src/components/editor/SlideCanvas.jsx`: CSS do srcDoc do iframe atualizado
 - **Status**: FIXED AND VERIFIED
 - **Verification**: Screenshot visual confirmou que o texto agora contorna a imagem corretamente no slide
+
+
+## Quiz Generator Feature - IMPLEMENTED (Feb 07, 2026)
+
+### Overview
+Complete Quiz Generator feature for creating interactive quizzes within SCORM courses. Supports AI-powered question generation, manual question creation, and full SCORM integration for score reporting.
+
+### Features Implemented
+1. **Question Types**: Multiple Choice and True/False
+2. **AI Question Generation**: Uses OpenAI GPT via Emergent LLM Key
+3. **Document Import**: Parse .doc/.docx files for question generation context
+4. **Question Bank**: Store, view, select, and delete questions
+5. **Quiz Configuration**:
+   - Custom title
+   - Number of questions to display
+   - Shuffle questions and alternatives
+   - Show/hide feedback
+   - Passing score (0-100%)
+6. **Interactive Quiz Player**: 
+   - Progress bar and question counter
+   - Answer selection with visual feedback
+   - Correct/Incorrect feedback with explanations
+   - Final score screen (0-10 scale)
+   - Restart quiz option
+7. **SCORM Integration**:
+   - Quiz score reported to LMS
+   - Completion status based on passing score
+
+### Backend Endpoints (server.py)
+- `GET /api/questions` - List questions (filter by project_id, tag)
+- `GET /api/questions/{id}` - Get single question
+- `POST /api/questions` - Create manual question
+- `PUT /api/questions/{id}` - Update question
+- `DELETE /api/questions/{id}` - Delete question
+- `POST /api/questions/generate` - Generate questions with AI
+- `POST /api/questions/parse-doc` - Parse .doc file for text extraction
+- `POST /api/quiz/submit` - Submit quiz answers and get score
+- `GET /api/quiz/attempts/{project_id}` - Get quiz attempts
+
+### Database Models (models.py)
+- `QuizQuestion`: Question with alternatives, type, explanation
+- `QuizAlternative`: Individual answer option with correct flag
+- `QuizConfig`: Quiz settings (title, count, shuffle, feedback, passing score)
+- `QuizAttempt`: Record of user quiz attempt with answers and score
+
+### Frontend Components
+- `/app/frontend/src/components/quiz/QuizGenerator.jsx` - Dialog for creating quizzes
+- `/app/frontend/src/components/quiz/QuizPlayer.jsx` - Interactive quiz player
+- Editor integration: Toolbar button (HelpCircle icon)
+- SlideCanvas: Quiz element rendering
+- CoursePreview: Embedded QuizPlayer
+
+### SCORM Export Support (scorm_exporter.py)
+- QuizController.js included in SCORM package
+- Quiz questions stored in course.json
+- Score reporting via SCORM API (cmi.core.score.raw)
+- Completion status via SCORM API (cmi.core.lesson_status)
+
+### Testing Status
+- Backend: 100% (15/15 tests passed)
+- Frontend: 95% (minor z-index issue when overlapping HTML elements)
+- Test file: `/app/backend/tests/test_quiz_api.py`
+
+### Files Modified
+- `/app/backend/server.py` - Quiz endpoints
+- `/app/backend/models.py` - Quiz models
+- `/app/backend/services/scorm_exporter.py` - Quiz support in export
+- `/app/backend/requirements.txt` - Added python-docx
+- `/app/frontend/src/pages/Editor.jsx` - Quiz button and integration
+- `/app/frontend/src/components/editor/SlideCanvas.jsx` - Quiz element rendering
+- `/app/frontend/src/components/editor/CoursePreview.jsx` - QuizPlayer integration
+- `/app/frontend/src/components/quiz/QuizGenerator.jsx` - New file
+- `/app/frontend/src/components/quiz/QuizPlayer.jsx` - New file
+
+## Roadmap / Backlog
+
+### P0 - Critical (Next)
+- None at present - Quiz feature complete
+
+### P1 - High Priority
+- Quiz analytics dashboard (view attempts, scores per question)
+- Bulk question import from CSV/Excel
+- Question categories/tags management UI
+
+### P2 - Medium Priority
+- Fill-in-the-blank question type
+- Matching question type
+- Question difficulty levels
+- Time limit per question
+- Quiz retake restrictions
+
+### P3 - Future Enhancements
+- Question bank sharing between projects
+- Question import from QTI format
+- Adaptive quizzes based on performance
+- Gamification (badges, leaderboards)
