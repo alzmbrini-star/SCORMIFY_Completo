@@ -23,7 +23,9 @@ from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
     Slide, SlideCreate, SlideUpdate, SlideElement, ElementCreate, ElementUpdate,
     Animation, Annotation, AnnotationCreate, SlideAudio, GlobalAudio,
-    JobStatus, ReorderSlidesRequest
+    JobStatus, ReorderSlidesRequest,
+    QuizQuestion, QuizQuestionCreate, QuizQuestionUpdate, QuizAlternative,
+    QuizConfig, QuizAttempt, QuizGenerateRequest, QuizSubmitRequest
 )
 from services.ppt_parser import parse_pptx
 from services.ppt_image_parser import parse_pptx_high_fidelity
