@@ -1881,7 +1881,8 @@ var QuizController = (function() {
                 }
             }
             
-            var html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;overflow:auto;">' +
+            var html = '<style>.quiz-scroll::-webkit-scrollbar{width:4px;height:4px;}.quiz-scroll::-webkit-scrollbar-track{background:transparent;}.quiz-scroll::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.4);border-radius:4px;}.quiz-scroll::-webkit-scrollbar-thumb:hover{background:rgba(100,116,139,0.6);}.quiz-scroll{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.4) transparent;}</style>' +
+                '<div class="quiz-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;overflow:auto;">' +
                 '<div style="max-width:360px;width:100%;background:#0f172a;border-radius:12px;padding:20px;text-align:center;">' +
                 
                 // Icon - smaller
