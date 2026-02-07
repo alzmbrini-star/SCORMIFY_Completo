@@ -1702,15 +1702,15 @@ var QuizController = (function() {
                 '</div></div>' +
                 
                 // Question content
-                '<div style="flex:1;padding:24px;overflow:auto;">' +
-                '<div style="margin-bottom:16px;">' +
-                '<span style="padding:6px 12px;font-size:12px;border-radius:999px;' + 
+                '<div style="flex:1;padding:16px;overflow:auto;">' +
+                '<div style="margin-bottom:12px;">' +
+                '<span style="padding:4px 10px;font-size:11px;border-radius:999px;' + 
                 (question.type === 'true_false' ? 'background:rgba(168,85,247,0.2);color:#c084fc;' : 'background:rgba(6,182,212,0.2);color:#22d3ee;') + '">' +
                 (question.type === 'true_false' ? 'Verdadeiro ou Falso' : 'Múltipla Escolha') + '</span></div>' +
-                '<h3 style="font-size:18px;font-weight:600;margin-bottom:24px;">' + question.text + '</h3>' +
+                '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:#fff;">' + question.text + '</h3>' +
                 
                 // Alternatives
-                '<div style="display:flex;flex-direction:column;gap:12px;">';
+                '<div style="display:flex;flex-direction:column;gap:8px;">';
             
             question.alternatives.forEach(function(alt, idx) {
                 var letter = String.fromCharCode(65 + idx);
@@ -1718,31 +1718,37 @@ var QuizController = (function() {
                 var isCorrect = alt.isCorrect;
                 var showingFeedback = quiz.showingFeedback;
                 
-                var altStyle = 'padding:16px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;';
-                var circleStyle = 'width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;';
+                var altStyle = 'padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all 0.2s;';
+                var circleStyle = 'width:28px;height:28px;min-width:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;';
+                var textStyle = 'color:#fff;';
                 
                 if (showingFeedback) {
                     if (isCorrect) {
                         altStyle += 'background:rgba(34,197,94,0.2);border:2px solid #22c55e;';
                         circleStyle += 'background:#22c55e;color:#fff;';
+                        textStyle = 'color:#22c55e;';
                     } else if (isSelected && !isCorrect) {
                         altStyle += 'background:rgba(239,68,68,0.2);border:2px solid #ef4444;';
                         circleStyle += 'background:#ef4444;color:#fff;';
+                        textStyle = 'color:#ef4444;';
                     } else {
                         altStyle += 'background:#1e293b;border:2px solid #334155;opacity:0.5;';
                         circleStyle += 'background:#334155;color:#94a3b8;';
+                        textStyle = 'color:#94a3b8;';
                     }
                 } else if (isSelected) {
                     altStyle += 'background:rgba(6,182,212,0.1);border:2px solid #06b6d4;';
                     circleStyle += 'background:#06b6d4;color:#fff;';
+                    textStyle = 'color:#fff;';
                 } else {
                     altStyle += 'background:#1e293b;border:2px solid #334155;';
                     circleStyle += 'background:#334155;color:#94a3b8;';
+                    textStyle = 'color:#e2e8f0;';
                 }
                 
                 html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\\'' + elementId + '\\', \\'' + alt.id + '\\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
                     '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : letter)) + '</div>' +
-                    '<span style="flex:1;text-align:left;">' + alt.text + '</span></button>';
+                    '<span style="flex:1;text-align:left;font-size:14px;' + textStyle + '">' + alt.text + '</span></button>';
             });
             
             html += '</div>';
