@@ -104,8 +104,8 @@ export default function QuizGenerator({
   const loadQuestions = async () => {
     setQuestionsLoading(true);
     try {
-      const params = projectId ? { project_id: projectId } : {};
-      const response = await axios.get(`${API_URL}/api/questions`, { params });
+      // Load all questions (global bank) - user can filter if needed
+      const response = await axios.get(`${API_URL}/api/questions`);
       setQuestions(response.data);
     } catch (err) {
       console.error('Failed to load questions:', err);
