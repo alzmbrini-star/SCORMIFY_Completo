@@ -1150,6 +1150,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 }});
                 slideAudios = [];
                 
+                // Stop previous videos
+                var prevVideos = container.querySelectorAll('video.local-video');
+                prevVideos.forEach(function(video) {{
+                    if (video) {{
+                        video.pause();
+                        video.currentTime = 0;
+                    }}
+                }});
+                
                 // Set dimensions
                 var slideWidth = slide.width || {width};
                 var slideHeight = slide.height || {height};
