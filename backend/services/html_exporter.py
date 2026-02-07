@@ -1676,6 +1676,38 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     }});
                 }}
                 
+                // Auto-play local videos (HeyGen and uploaded videos)
+                var localVideos = container.querySelectorAll('video.local-video');
+                localVideos.forEach(function(video) {{
+                    // Reset video to beginning
+                    video.currentTime = 0;
+                    video.muted = false;
+                    video.volume = isMuted ? 0 : volume;
+                    
+                    // Play video with proper error handling
+                    var playPromise = video.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(function(error) {{
+                            console.log('Autoplay blocked, trying muted:', error);
+                            // If autoplay is blocked, try muted
+                            video.muted = true;
+                            video.play().catch(function(e) {{
+                                console.log('Even muted autoplay failed:', e);
+                            }});
+                        }});
+                    }}
+                    
+                    // Also handle loadedmetadata event for videos that are not yet loaded
+                    video.addEventListener('loadedmetadata', function() {{
+                        if (video.paused) {{
+                            video.play().catch(function() {{
+                                video.muted = true;
+                                video.play().catch(function() {{}});
+                            }});
+                        }}
+                    }}, {{ once: true }});
+                }});
+                
                 // Update UI
                 document.getElementById('current-slide').textContent = currentSlide + 1;
                 updateProgress();
