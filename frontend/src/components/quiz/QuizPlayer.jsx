@@ -340,22 +340,22 @@ export default function QuizPlayer({
               ? 'bg-green-500/10 border border-green-500/30' 
               : 'bg-red-500/10 border border-red-500/30'
           }`}>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-1">
               {selectedAlt?.isCorrect ? (
-                <CheckCircle className="w-5 h-5 text-green-500" />
+                <CheckCircle className="w-4 h-4 text-green-500" />
               ) : (
-                <XCircle className="w-5 h-5 text-red-500" />
+                <XCircle className="w-4 h-4 text-red-500" />
               )}
-              <span className={`font-medium ${selectedAlt?.isCorrect ? 'text-green-500' : 'text-red-500'}`}>
+              <span className={`font-semibold text-sm ${selectedAlt?.isCorrect ? 'text-green-500' : 'text-red-500'}`}>
                 {selectedAlt?.isCorrect ? 'Correto!' : 'Incorreto'}
               </span>
             </div>
             {currentQuestion.explanation && (
-              <p className={mutedColor}>{currentQuestion.explanation}</p>
+              <p className={`text-sm ${mutedColor}`}>{currentQuestion.explanation}</p>
             )}
             {!selectedAlt?.isCorrect && correctAlt && (
-              <p className={`mt-2 ${mutedColor}`}>
-                Resposta correta: <span className="text-green-400">{correctAlt.text}</span>
+              <p className={`mt-1 text-sm ${mutedColor}`}>
+                Resposta correta: <span className="text-green-400 font-medium">{correctAlt.text}</span>
               </p>
             )}
           </div>
@@ -363,10 +363,11 @@ export default function QuizPlayer({
       </div>
 
       {/* Action Footer */}
-      <div className={`p-4 border-t ${borderColor}`}>
+      <div className={`p-3 border-t ${borderColor}`}>
         <div className="flex justify-between items-center">
           <Button
             variant="ghost"
+            size="sm"
             disabled={currentIndex === 0 || showFeedback}
             onClick={() => {
               if (currentIndex > 0 && !showFeedback) {
