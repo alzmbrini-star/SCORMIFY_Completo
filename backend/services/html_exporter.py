@@ -1319,7 +1319,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 // Local video (uploaded or HeyGen)
                                 var isWebM = elem.src && elem.src.toLowerCase().includes('.webm');
                                 var bgStyle = isWebM ? 'background:transparent !important;' : '';
-                                html += '<video data-element-id="' + elem.id + '" class="local-video" src="' + elem.src + '" playsinline style="width:100%;height:100%;object-fit:contain;pointer-events:none;' + bgStyle + '"></video>';
+                                var videoObjectFit = elem.objectFit || 'contain';
+                                html += '<video data-element-id="' + elem.id + '" class="local-video" src="' + elem.src + '" playsinline style="width:100%;height:100%;object-fit:' + videoObjectFit + ';pointer-events:none;' + bgStyle + '"></video>';
                             }}
                         }}
                         else if (elem.type === 'button') {{
