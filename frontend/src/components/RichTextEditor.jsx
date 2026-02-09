@@ -438,15 +438,21 @@ export const RichTextEditor = ({
     try {
       const imageUrl = await onGenerateAIImage(aiImagePrompt);
       if (imageUrl && editorRef.current) {
-        editorRef.current.focus();
-        // Insert the image centered
+        // Create the image HTML
         const imgHtml = `<div style="text-align: center; width: 100%; margin: 12px 0; clear: both;"><img src="${imageUrl}" alt="${aiImagePrompt}" class="rtf-image-center ai-generated" style="max-width: 80%; height: auto; border-radius: 4px; display: inline-block;" /></div>`;
-        document.execCommand('insertHTML', false, imgHtml);
         
-        // Update content
-        const newContent = editorRef.current.innerHTML;
+        // Append the image to the end of the existing content instead of using execCommand
+        // This preserves the existing content and adds the image at the end
+        const currentContent = editorRef.current.innerHTML || '';
+        const newContent = currentContent + imgHtml;
+        
+        // Update the editor content
+        editorRef.current.innerHTML = newContent;
         lastContentRef.current = newContent;
         onChange?.(newContent);
+        
+        // Scroll to the bottom to show the new image
+        editorRef.current.scrollTop = editorRef.current.scrollHeight;
       }
       setShowAIImagePrompt(false);
       setAIImagePrompt('');
