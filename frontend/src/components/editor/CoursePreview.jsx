@@ -625,6 +625,16 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               const elementOpacity = element.style?.opacity != null && element.style.opacity > 0 
                 ? element.style.opacity 
                 : 1;
+              
+              // Check if element is truly fullscreen (covers most of the slide area)
+              const slideWidth = currentSlide?.width || 1280;
+              const slideHeight = currentSlide?.height || 720;
+              const isElementFullscreen = element.objectFit === 'cover' && 
+                element.width >= slideWidth * 0.95 && 
+                element.height >= slideHeight * 0.95 &&
+                element.x <= slideWidth * 0.05 &&
+                element.y <= slideHeight * 0.05;
+              
               return (
               <div
                 key={element.id}
