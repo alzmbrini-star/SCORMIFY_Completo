@@ -833,8 +833,8 @@ const SlideCanvas = ({
 
               {/* Quiz Element */}
               {element.type === 'quiz' && (
-                <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg overflow-hidden relative border-2 border-cyan-500/30">
-                  <div className="w-full h-full flex flex-col items-center justify-center p-6">
+                <div className={`w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg overflow-hidden relative ${element.objectFit !== 'cover' ? 'border-2 border-cyan-500/30' : ''}`}>
+                  <div className={`w-full h-full flex flex-col items-center justify-center ${element.objectFit === 'cover' ? 'p-0' : 'p-6'}`}>
                     <div className="text-6xl mb-4">📝</div>
                     <h3 className="text-xl font-bold text-white mb-2">
                       {element.quizConfig?.title || 'Quiz'}
