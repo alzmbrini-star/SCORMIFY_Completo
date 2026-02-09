@@ -645,7 +645,7 @@ const SlideCanvas = ({
 
               {/* HTML Element */}
               {element.type === 'html' && (
-                <div className="w-full h-full rounded relative" style={{ background: 'transparent', overflow: 'visible' }}>
+                <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: element.objectFit === 'cover' ? 'hidden' : 'visible' }}>
                   <iframe
                     srcDoc={`
                       <html>
@@ -833,7 +833,7 @@ const SlideCanvas = ({
 
               {/* Quiz Element */}
               {element.type === 'quiz' && (
-                <div className={`w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg overflow-hidden relative ${element.objectFit !== 'cover' ? 'border-2 border-cyan-500/30' : ''}`}>
+                <div className={`w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden relative ${element.objectFit === 'cover' ? '' : 'rounded-lg border-2 border-cyan-500/30'}`}>
                   <div className={`w-full h-full flex flex-col items-center justify-center ${element.objectFit === 'cover' ? 'p-0' : 'p-6'}`}>
                     <div className="text-6xl mb-4">📝</div>
                     <h3 className="text-xl font-bold text-white mb-2">
