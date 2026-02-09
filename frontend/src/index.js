@@ -31,8 +31,8 @@ console.error = (...args) => {
   if (args[0] && typeof args[0] === 'string' && resizeObserverErr.test(args[0])) {
     return;
   }
-  // Suppress insertBefore errors
-  if (args[0] && typeof args[0] === 'string' && insertBeforeErr.test(args[0])) {
+  // Suppress insertBefore/removeChild errors
+  if (args[0] && typeof args[0] === 'string' && domManipulationErr.test(args[0])) {
     console.warn('Suppressed console error:', args[0].substring(0, 100));
     return;
   }
