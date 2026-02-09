@@ -2155,7 +2155,11 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         # Save to storage and return URL
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"
-        image_path = ASSETS_DIR / image_filename
+        
+        # Use the general storage assets directory
+        assets_dir = STORAGE_DIR / "assets"
+        assets_dir.mkdir(exist_ok=True)
+        image_path = assets_dir / image_filename
         
         with open(image_path, "wb") as f:
             f.write(images[0])
