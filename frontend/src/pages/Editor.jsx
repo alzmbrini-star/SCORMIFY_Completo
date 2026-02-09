@@ -652,13 +652,19 @@ export default function Editor() {
 
   const handleDeleteElement = async (elementId) => {
     if (!currentSlide) return;
-    try {
-      await deleteElement(currentSlide.id, elementId);
-      setSelectedElementId(null);
-      toast.success('Elemento excluído');
-    } catch (err) {
-      toast.error('Falha ao excluir elemento');
-    }
+    
+    // First, clear the selection to prevent React from trying to reconcile removed DOM nodes
+    setSelectedElementId(null);
+    
+    // Use requestAnimationFrame to ensure the selection update is processed first
+    requestAnimationFrame(async () => {
+      try {
+        await deleteElement(currentSlide.id, elementId);
+        toast.success('Elemento excluído');
+      } catch (err) {
+        toast.error('Falha ao excluir elemento');
+      }
+    });
   };
 
   const handleAddElement = async (type) => {
