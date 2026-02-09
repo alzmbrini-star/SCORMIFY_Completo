@@ -919,10 +919,19 @@ var CoursePlayer = (function() {
                     }}
                 }}
                 
+                // Check if this element has objectFit cover (fullscreen mode)
+                var isHtmlFullscreen = element.objectFit === 'cover';
+                
                 // Wrap in full HTML with proper CSS for text wrapping around images
                 var wrappedHtml = '<html><head><style>' +
-                    'body{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;}' +
-                    '*{background:transparent!important;}' +
+                    (isHtmlFullscreen ? 
+                        'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent!important;}' +
+                        'body>div,body>*{width:100%;height:100%;margin:0;padding:0;text-align:center;}' +
+                        'img,body img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:cover!important;display:block!important;margin:0!important;padding:0!important;border-radius:0!important;float:none!important;position:absolute!important;top:0!important;left:0!important;}'
+                    :
+                        'body{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;}' +
+                        '*{background:transparent!important;}'
+                    ) +
                     /* Thin scrollbar styles */
                     'html,body{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.3) transparent;}' +
                     '::-webkit-scrollbar{width:4px;height:4px;}' +
