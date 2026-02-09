@@ -373,6 +373,7 @@ export default function Editor() {
   const [showRichTextDialog, setShowRichTextDialog] = useState(false);
   const [richTextContent, setRichTextContent] = useState('');
   const [richTextGenerating, setRichTextGenerating] = useState(false);
+  const [richTextImageGenerating, setRichTextImageGenerating] = useState(false);
   const [editingHtmlElementId, setEditingHtmlElementId] = useState(null); // Track which HTML element is being edited
 
   // Quiz Generator states
