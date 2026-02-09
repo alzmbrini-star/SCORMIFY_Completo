@@ -629,9 +629,67 @@ export const RichTextEditor = ({
           </PopoverContent>
         </Popover>
 
-        <div className="w-px h-6 bg-slate-700 mx-1" />
+        {/* AI Image Generate Button */}
+        <Popover open={showAIImagePrompt} onOpenChange={setShowAIImagePrompt}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className="gap-1 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20"
+              disabled={isGeneratingImage}
+              title="Gerar imagem com IA"
+            >
+              {isGeneratingImage ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ImageIcon className="w-4 h-4" />
+              )}
+              <Sparkles className="w-3 h-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 bg-slate-800 border-slate-700">
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Gerar imagem com IA</h4>
+              <p className="text-xs text-slate-400">Descreva a imagem que deseja criar</p>
+              <Textarea
+                value={aiImagePrompt}
+                onChange={(e) => setAIImagePrompt(e.target.value)}
+                placeholder="Ex: Um gráfico de crescimento profissional, um ícone de educação, uma ilustração corporativa..."
+                className="bg-slate-900 border-slate-700 min-h-[80px]"
+              />
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAIImageGenerate}
+                  disabled={!aiImagePrompt.trim() || isGeneratingImage}
+                  type="button"
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-700"
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Gerar Imagem
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setShowAIImagePrompt(false)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
 
-        {/* Font Selector */}
+        <div className="w-px h-6 bg-slate-700 mx-1" />
         <Popover open={showFontSelect} onOpenChange={setShowFontSelect}>
           <PopoverTrigger asChild>
             <button
