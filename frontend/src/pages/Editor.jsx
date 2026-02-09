@@ -3402,6 +3402,22 @@ function ElementProperties({ element, onUpdate }) {
             />
           </div>
         </div>
+        {/* Fullscreen Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onUpdate({ 
+            x: 0, 
+            y: 0, 
+            width: 960, 
+            height: 540 
+          })}
+          className="w-full mt-3 gap-2"
+          data-testid="element-fullscreen-btn"
+        >
+          <Maximize2 className="w-4 h-4" />
+          Fullscreen
+        </Button>
       </div>
 
       {element.type === 'text' && (
