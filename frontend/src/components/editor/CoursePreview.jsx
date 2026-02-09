@@ -807,21 +807,25 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               border: none !important;
                               outline: none !important;
                             }
+                            ${element.objectFit !== 'cover' ? `
                             img.rtf-image-center { display: inline-block !important; max-width: 80% !important; border: none !important; outline: none !important; }
                             img.rtf-image-inline { display: block !important; max-width: 100% !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
                             img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; border: none !important; outline: none !important; }
                             img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; border: none !important; outline: none !important; }
+                            ` : ''}
                             body::after { content: ''; display: table; clear: both; }
                             p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; }
                             /* Fullscreen/Cover mode - override all image styles */
                             ${element.objectFit === 'cover' ? `
-                            body, html { width: 100% !important; height: 100% !important; overflow: hidden !important; }
-                            body > div, body > * { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; text-align: center !important; }
-                            img, body img { 
+                            html, body { width: 100% !important; height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+                            body > *, body div, body p, body span { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; text-align: center !important; position: relative !important; }
+                            img, body img, img.rtf-image-center, img.rtf-image-inline, img.ai-generated, div img, p img, span img { 
                               width: 100% !important; 
                               height: 100% !important; 
-                              max-width: 100% !important; 
-                              max-height: 100% !important;
+                              max-width: none !important; 
+                              max-height: none !important;
+                              min-width: 100% !important;
+                              min-height: 100% !important;
                               object-fit: cover !important; 
                               display: block !important;
                               margin: 0 !important;
