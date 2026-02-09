@@ -1018,7 +1018,7 @@ export const RichTextEditor = ({
         />
 
         {/* Image Controls Overlay - shown when image is selected */}
-        {selectedImage && !isResizing && (
+        {selectedImage && !isResizing && imageControlsPosition.width > 0 && (
           <div 
             className="absolute pointer-events-none"
             style={{
