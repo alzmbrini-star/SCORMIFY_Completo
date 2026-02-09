@@ -1229,6 +1229,14 @@ async def serve_export(filename: str):
         filename=filename if media_type == 'application/zip' else None  # Only force download for zip files
     )
 
+@api_router.get("/assets/{filename}")
+async def serve_global_asset(filename: str):
+    """Serve global assets (AI generated images, etc.)"""
+    file_path = STORAGE_DIR / "assets" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
 # ============================================
 # HeyGen API Endpoints
 # ============================================
