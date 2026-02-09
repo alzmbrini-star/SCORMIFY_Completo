@@ -741,7 +741,7 @@ var CoursePlayer = (function() {
                 img.draggable = false;
                 img.style.width = '100%';
                 img.style.height = '100%';
-                img.style.objectFit = 'contain';
+                img.style.objectFit = element.objectFit || 'contain';
                 el.appendChild(img);
                 break;
                 
