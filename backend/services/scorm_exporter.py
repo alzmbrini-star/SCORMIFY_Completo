@@ -2153,13 +2153,13 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         .image-element {{
-            object-fit: contain;
+            /* object-fit is set inline per element */
         }}
         
         .image-element img {{
             width: 100% !important;
             height: 100% !important;
-            object-fit: contain !important;
+            /* object-fit is set inline per element */
         }}
         
         .video-element {{
