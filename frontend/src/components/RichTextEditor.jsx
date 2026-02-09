@@ -179,6 +179,70 @@ export const RichTextEditor = ({
     onChange?.(newContent);
   }, [selectedImage, onChange]);
 
+  // Change image alignment/wrap
+  const changeImageAlignment = useCallback((alignment) => {
+    if (!selectedImage || !editorRef.current) return;
+    
+    const currentSrc = selectedImage.src;
+    const currentAlt = selectedImage.alt || 'image';
+    const currentWidth = selectedImage.style.width || selectedImage.width;
+    const currentMaxWidth = selectedImage.style.maxWidth;
+    
+    // Store the position to insert at
+    const range = document.createRange();
+    const parentDiv = selectedImage.parentElement;
+    
+    // Remove current image and its container if any
+    if (parentDiv && parentDiv.tagName === 'DIV' && parentDiv.style.textAlign === 'center') {
+      range.setStartBefore(parentDiv);
+      parentDiv.remove();
+    } else {
+      range.setStartBefore(selectedImage);
+      selectedImage.remove();
+    }
+    
+    // Set selection to insertion point
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    // Create style with preserved width
+    const widthStyle = currentWidth ? `width: ${typeof currentWidth === 'number' ? currentWidth + 'px' : currentWidth};` : '';
+    const maxWidthStyle = currentMaxWidth || '';
+    
+    // Create new image with desired alignment
+    let newImgHtml;
+    switch (alignment) {
+      case 'left':
+        // Float left - text wraps around on the right
+        newImgHtml = `<img src="${currentSrc}" alt="${currentAlt}" class="rtf-image-float-left" style="float: left; ${widthStyle || 'max-width: 45%;'} height: auto; border-radius: 4px; margin: 0 16px 12px 0;" />`;
+        break;
+      case 'right':
+        // Float right - text wraps around on the left
+        newImgHtml = `<img src="${currentSrc}" alt="${currentAlt}" class="rtf-image-float-right" style="float: right; ${widthStyle || 'max-width: 45%;'} height: auto; border-radius: 4px; margin: 0 0 12px 16px;" />`;
+        break;
+      case 'center':
+        // Centered image - no text wrap
+        newImgHtml = `<div style="text-align: center; width: 100%; margin: 12px 0; clear: both;"><img src="${currentSrc}" alt="${currentAlt}" class="rtf-image-center" style="${widthStyle || 'max-width: 80%;'} height: auto; border-radius: 4px; display: inline-block;" /></div>`;
+        break;
+      case 'inline':
+      default:
+        // Inline/block image - no float
+        newImgHtml = `<img src="${currentSrc}" alt="${currentAlt}" class="rtf-image-inline" style="${widthStyle || 'max-width: 100%;'} height: auto; border-radius: 4px; margin: 8px 0; display: block; clear: both;" />`;
+        break;
+    }
+    
+    // Insert at cursor position
+    document.execCommand('insertHTML', false, newImgHtml);
+    
+    setSelectedImage(null);
+    
+    // Update content
+    const newContent = editorRef.current.innerHTML;
+    lastContentRef.current = newContent;
+    onChange?.(newContent);
+  }, [selectedImage, onChange]);
+
   // Handle image click for selection
   const handleEditorClick = useCallback((e) => {
     const img = e.target.closest('img');
