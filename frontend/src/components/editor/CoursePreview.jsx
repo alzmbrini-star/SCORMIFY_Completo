@@ -96,18 +96,38 @@ const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
       }
       
       try {
-        // Load all questions
-        const response = await axios.get(`${API_URL}/api/questions`, {
-          params: { project_id: projectId }
-        });
+        // Load questions by IDs instead of project_id to support cross-project question sharing
+        // First try to get questions from the current project
+        let allQuestions = [];
         
-        if (!isMounted) return;
+        try {
+          const response = await axios.get(`${API_URL}/api/questions`, {
+            params: { project_id: projectId }
+          });
+          allQuestions = response.data || [];
+        } catch (e) {
+          console.warn('Failed to load questions by project_id:', e);
+        }
         
         // Filter to only selected question IDs
-        const allQuestions = response.data || [];
-        const selectedQuestions = allQuestions.filter(q => 
+        let selectedQuestions = allQuestions.filter(q => 
           quizConfig.questionIds.includes(q.id)
         );
+        
+        // If no questions found, try loading all questions (for cross-project questions)
+        if (selectedQuestions.length === 0 && quizConfig.questionIds.length > 0) {
+          try {
+            const allQuestionsResponse = await axios.get(`${API_URL}/api/questions`);
+            const allAvailableQuestions = allQuestionsResponse.data || [];
+            selectedQuestions = allAvailableQuestions.filter(q => 
+              quizConfig.questionIds.includes(q.id)
+            );
+          } catch (e) {
+            console.warn('Failed to load all questions:', e);
+          }
+        }
+        
+        if (!isMounted) return;
         
         setQuestions(selectedQuestions);
       } catch (err) {
