@@ -3414,12 +3414,7 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
             y: 0, 
             width: slideWidth, 
             height: slideHeight,
-            style: {
-              ...(element.style || {}),
-              objectFit: 'cover',
-              width: '100%',
-              height: '100%'
-            }
+            objectFit: 'cover'
           })}
           className="w-full mt-3 gap-2"
           data-testid="element-fullscreen-btn"
