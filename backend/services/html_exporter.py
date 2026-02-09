@@ -1239,11 +1239,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             html += '<div style="' + textStyle + '">' + (elem.content || '') + '</div>';
                         }}
                         else if (elem.type === 'image' && elem.src) {{
-                            html += '<img src="' + elem.src + '" alt="" style="object-fit:' + (elem.objectFit || 'contain') + ';">';
+                            html += '<img src="' + elem.src + '" alt="" style="width:100%;height:100%;object-fit:' + (elem.objectFit || 'contain') + ';">';
                         }}
                         else if (elem.type === 'smartart' && elem.src) {{
                             // SmartArt rendered as image with fallback content for accessibility
-                            html += '<img src="' + elem.src + '" alt="SmartArt: ' + (elem.content || 'Diagram') + '" style="object-fit:contain;">';
+                            html += '<img src="' + elem.src + '" alt="SmartArt: ' + (elem.content || 'Diagram') + '" style="width:100%;height:100%;object-fit:contain;">';
                         }}
                         else if (elem.type === 'shape') {{
                             var shapeBg = (elem.style && elem.style.fill) || '#7c3aed';
