@@ -16,8 +16,8 @@ window.addEventListener('error', (e) => {
     e.preventDefault();
     return false;
   }
-  // Suppress insertBefore errors from React/Radix portal reconciliation
-  if (e.message && insertBeforeErr.test(e.message)) {
+  // Suppress insertBefore/removeChild errors from React/Radix portal reconciliation
+  if (e.message && domManipulationErr.test(e.message)) {
     console.warn('Suppressed portal reconciliation error:', e.message);
     e.stopImmediatePropagation();
     e.preventDefault();
