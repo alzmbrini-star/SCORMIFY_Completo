@@ -1347,8 +1347,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     console.error('Failed to decode htmlContent:', e);
                                 }}
                             }}
-                            // Check if this element has objectFit cover (fullscreen mode)
-                            var isFullscreen = elem.objectFit === 'cover';
+                            // Check if this element is truly fullscreen (covers most of the slide area)
+                            var slideWidth = slide.width || 1280;
+                            var slideHeight = slide.height || 720;
+                            var isFullscreen = elem.objectFit === 'cover' && 
+                                elem.width >= slideWidth * 0.95 && 
+                                elem.height >= slideHeight * 0.95 &&
+                                elem.x <= slideWidth * 0.05 &&
+                                elem.y <= slideHeight * 0.05;
                             // Wrap htmlContent with proper CSS for text wrapping around images
                             var wrappedHtml = '<html><head><style>' +
                                 (isFullscreen ? 
