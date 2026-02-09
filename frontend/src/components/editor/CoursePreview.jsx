@@ -662,8 +662,12 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                   <img
                     src={getAssetUrl(element.src, projectId)}
                     alt=""
-                    className="w-full h-full"
-                    style={{ objectFit: element.objectFit || 'contain' }}
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: element.objectFit || 'contain',
+                      display: 'block'
+                    }}
                   />
                 )}
                 
