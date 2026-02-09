@@ -653,12 +653,13 @@ const SlideCanvas = ({
                           <style>
                             body { 
                               margin: 0; 
-                              padding: 8px; 
+                              padding: ${element.objectFit === 'cover' ? '0' : '8px'}; 
                               background: transparent !important; 
                               font-family: Arial, sans-serif;
                               color: #f1f5f9;
                               line-height: 1.6;
-                              overflow: visible;
+                              overflow: ${element.objectFit === 'cover' ? 'hidden' : 'visible'};
+                              ${element.objectFit === 'cover' ? 'display: flex; align-items: center; justify-content: center; height: 100vh;' : ''}
                             }
                             * { background: transparent !important; }
                             /* Rich Text Editor Image Float Styles - HIGH SPECIFICITY */
@@ -667,6 +668,7 @@ const SlideCanvas = ({
                               border: none !important;
                               outline: none !important;
                               box-shadow: none !important;
+                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important;' : ''}
                             }
                             img.rtf-image-float-left,
                             body img.rtf-image-float-left,
