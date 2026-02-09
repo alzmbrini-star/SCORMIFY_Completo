@@ -709,7 +709,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                         playsInline
                         className="w-full h-full"
                         style={{ 
-                          objectFit: 'contain', 
+                          objectFit: element.objectFit || 'contain', 
                           background: 'transparent',
                           backgroundColor: 'transparent'
                         }}
