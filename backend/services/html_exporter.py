@@ -501,7 +501,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         
         /* WebM videos with alpha channel transparency */
         .slide-element.video-element video {{
-            object-fit: contain;
+            /* object-fit is set inline per element */
             background-color: transparent !important;
         }}
         
