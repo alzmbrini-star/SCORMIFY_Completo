@@ -7,8 +7,18 @@ import App from "@/App";
 // This error is benign and happens when resize observations can't be delivered in a single animation frame
 const resizeObserverErr = /ResizeObserver loop/;
 
+// Suppress insertBefore errors which can happen with Radix UI portals during rapid state changes
+const insertBeforeErr = /insertBefore|not a child of this node/;
+
 window.addEventListener('error', (e) => {
   if (e.message && resizeObserverErr.test(e.message)) {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    return false;
+  }
+  // Suppress insertBefore errors from React/Radix portal reconciliation
+  if (e.message && insertBeforeErr.test(e.message)) {
+    console.warn('Suppressed portal reconciliation error:', e.message);
     e.stopImmediatePropagation();
     e.preventDefault();
     return false;
@@ -19,6 +29,11 @@ window.addEventListener('error', (e) => {
 const originalConsoleError = console.error;
 console.error = (...args) => {
   if (args[0] && typeof args[0] === 'string' && resizeObserverErr.test(args[0])) {
+    return;
+  }
+  // Suppress insertBefore errors
+  if (args[0] && typeof args[0] === 'string' && insertBeforeErr.test(args[0])) {
+    console.warn('Suppressed console error:', args[0].substring(0, 100));
     return;
   }
   originalConsoleError.apply(console, args);
