@@ -368,6 +368,29 @@ export const RichTextEditor = ({
     }
   }, [aiPrompt, onGenerateAI, onChange]);
 
+  const handleAIImageGenerate = useCallback(async () => {
+    if (!aiImagePrompt.trim() || !onGenerateAIImage) return;
+    
+    try {
+      const imageUrl = await onGenerateAIImage(aiImagePrompt);
+      if (imageUrl && editorRef.current) {
+        editorRef.current.focus();
+        // Insert the image centered
+        const imgHtml = `<div style="text-align: center; width: 100%; margin: 12px 0; clear: both;"><img src="${imageUrl}" alt="${aiImagePrompt}" class="rtf-image-center ai-generated" style="max-width: 80%; height: auto; border-radius: 4px; display: inline-block;" /></div>`;
+        document.execCommand('insertHTML', false, imgHtml);
+        
+        // Update content
+        const newContent = editorRef.current.innerHTML;
+        lastContentRef.current = newContent;
+        onChange?.(newContent);
+      }
+      setShowAIImagePrompt(false);
+      setAIImagePrompt('');
+    } catch (error) {
+      console.error('Error generating AI image:', error);
+    }
+  }, [aiImagePrompt, onGenerateAIImage, onChange]);
+
   const addLink = useCallback(() => {
     if (!linkUrl.trim()) return;
     
