@@ -938,6 +938,19 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Verification**: Quiz with 15 questions loads and displays correctly in HTML export
 - **Note**: If a quiz shows "Nenhuma questão encontrada", check if the referenced question IDs exist in the question bank - questions may have been deleted
 
+### AI Image Generation in RTF Editor (Feb 09, 2026)
+- **Feature**: Users can now generate images with AI directly inside the Rich Text Editor
+- **Integration**: OpenAI GPT Image 1 via Emergent LLM Key
+- **How it works**:
+  1. User clicks the cyan image+sparkles button in RTF toolbar
+  2. Enters a description of the desired image
+  3. AI generates the image and inserts it in the document
+- **Files Modified**:
+  - `/app/backend/server.py` - Added `/api/ai/generate-image` endpoint
+  - `/app/frontend/src/components/RichTextEditor.jsx` - Added AI image generation UI
+  - `/app/frontend/src/pages/Editor.jsx` - Added `generateImageWithAI` function
+- **Status**: IMPLEMENTED AND TESTED
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
