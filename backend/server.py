@@ -2132,8 +2132,10 @@ class AIImageGenerateRequest(BaseModel):
 
 @api_router.post("/ai/generate-image")
 async def generate_image_with_ai(request: AIImageGenerateRequest):
-    """Generate image using AI (GPT Image 1)"""
+    """Generate image using AI (GPT Image 1) with optimization"""
     import base64
+    from PIL import Image
+    import io
     
     emergent_key = os.environ.get('EMERGENT_LLM_KEY')
     if not emergent_key:
@@ -2157,12 +2159,45 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         if not images or len(images) == 0:
             raise HTTPException(status_code=500, detail="No image was generated")
         
+        # Optimize the image - convert to JPEG with compression
+        original_image = Image.open(io.BytesIO(images[0]))
+        
+        # Convert RGBA to RGB if necessary (JPEG doesn't support transparency)
+        if original_image.mode in ('RGBA', 'LA', 'P'):
+            # Create white background
+            background = Image.new('RGB', original_image.size, (255, 255, 255))
+            if original_image.mode == 'P':
+                original_image = original_image.convert('RGBA')
+            background.paste(original_image, mask=original_image.split()[-1] if original_image.mode == 'RGBA' else None)
+            original_image = background
+        elif original_image.mode != 'RGB':
+            original_image = original_image.convert('RGB')
+        
+        # Resize if image is too large (max 1200px on longest side for web)
+        max_size = 1200
+        if max(original_image.size) > max_size:
+            ratio = max_size / max(original_image.size)
+            new_size = (int(original_image.width * ratio), int(original_image.height * ratio))
+            original_image = original_image.resize(new_size, Image.Resampling.LANCZOS)
+            logger.info(f"Resized image from original to {new_size}")
+        
+        # Save as optimized JPEG
+        optimized_buffer = io.BytesIO()
+        original_image.save(optimized_buffer, format='JPEG', quality=80, optimize=True)
+        optimized_data = optimized_buffer.getvalue()
+        
+        # Log size comparison
+        original_size = len(images[0])
+        optimized_size = len(optimized_data)
+        compression_ratio = (1 - optimized_size / original_size) * 100
+        logger.info(f"Image optimized: {original_size/1024:.1f}KB -> {optimized_size/1024:.1f}KB ({compression_ratio:.1f}% reduction)")
+        
         # Convert to base64
-        image_base64 = base64.b64encode(images[0]).decode('utf-8')
+        image_base64 = base64.b64encode(optimized_data).decode('utf-8')
         
         # Save to storage and return URL
         image_id = str(uuid.uuid4())
-        image_filename = f"{image_id}.png"
+        image_filename = f"{image_id}.jpg"  # Changed to .jpg
         
         # Use the general storage assets directory
         assets_dir = STORAGE_DIR / "assets"
@@ -2170,14 +2205,14 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         image_path = assets_dir / image_filename
         
         with open(image_path, "wb") as f:
-            f.write(images[0])
+            f.write(optimized_data)
         
         logger.info(f"Image generated successfully: {image_filename}")
         
         return {
             "success": True,
             "imageUrl": f"/api/assets/{image_filename}",
-            "imageBase64": f"data:image/png;base64,{image_base64}"
+            "imageBase64": f"data:image/jpeg;base64,{image_base64}"
         }
         
     except ImportError as e:
