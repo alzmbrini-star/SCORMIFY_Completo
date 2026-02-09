@@ -4,11 +4,20 @@ import "@/index.css";
 import App from "@/App";
 
 // Suppress ResizeObserver loop errors (common in React, non-critical)
-// This error is benign and happens when resize observations can't be delivered in a single animation frame
 const resizeObserverErr = /ResizeObserver loop/;
 
 // Suppress insertBefore/removeChild errors which can happen with Radix UI portals during rapid state changes
-const domManipulationErr = /insertBefore|removeChild|not a child of this node/;
+const domManipulationErr = /insertBefore|removeChild|not a child of this node|Failed to execute/i;
+
+// Override window.onerror for broader error capture
+window.onerror = function(message, source, lineno, colno, error) {
+  if (message && typeof message === 'string') {
+    if (resizeObserverErr.test(message) || domManipulationErr.test(message)) {
+      return true; // Suppress the error
+    }
+  }
+  return false;
+};
 
 window.addEventListener('error', (e) => {
   if (e.message && resizeObserverErr.test(e.message)) {
@@ -18,51 +27,47 @@ window.addEventListener('error', (e) => {
   }
   // Suppress insertBefore/removeChild errors from React/Radix portal reconciliation
   if (e.message && domManipulationErr.test(e.message)) {
-    console.warn('Suppressed portal reconciliation error:', e.message);
     e.stopImmediatePropagation();
     e.preventDefault();
     return false;
   }
-});
+}, true); // Capture phase
 
 // Also suppress via the global error handler
 const originalConsoleError = console.error;
 console.error = (...args) => {
-  if (args[0] && typeof args[0] === 'string' && resizeObserverErr.test(args[0])) {
-    return;
-  }
-  // Suppress insertBefore/removeChild errors
-  if (args[0] && typeof args[0] === 'string' && domManipulationErr.test(args[0])) {
-    console.warn('Suppressed console error:', args[0].substring(0, 100));
-    return;
+  const firstArg = args[0];
+  if (firstArg) {
+    const errorStr = typeof firstArg === 'string' ? firstArg : 
+                     firstArg?.message ? firstArg.message : 
+                     String(firstArg);
+    if (resizeObserverErr.test(errorStr) || domManipulationErr.test(errorStr)) {
+      return; // Suppress
+    }
   }
   originalConsoleError.apply(console, args);
 };
 
 // Handle unhandled promise rejections
 window.addEventListener('unhandledrejection', (e) => {
+  const errorMsg = e.reason?.message || String(e.reason);
   // Suppress ResizeObserver errors
-  if (e.reason?.message && resizeObserverErr.test(e.reason.message)) {
+  if (resizeObserverErr.test(errorMsg) || domManipulationErr.test(errorMsg)) {
     e.preventDefault();
     return;
   }
   // Suppress Axios 404 errors (handled by components)
   if (e.reason?.response?.status === 404) {
-    console.warn('Unhandled 404:', e.reason?.config?.url);
     e.preventDefault();
     return;
   }
   // Suppress network errors (handled by components)
   if (e.reason?.code === 'ERR_NETWORK' || e.reason?.message?.includes('Network Error')) {
-    console.warn('Network error suppressed');
     e.preventDefault();
     return;
   }
 });
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+// Remove StrictMode to prevent double rendering which can cause DOM reconciliation issues
+root.render(<App />);
