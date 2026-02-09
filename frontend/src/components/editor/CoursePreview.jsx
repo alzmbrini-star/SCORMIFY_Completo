@@ -782,7 +782,31 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             ::-webkit-scrollbar-track { background: transparent; }
                             ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 4px; }
                             ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
-                            /* Remove borders/outlines from all images */
+                            
+                            ${element.objectFit === 'cover' ? `
+                            /* FULLSCREEN MODE - image fills entire container */
+                            html, body { width: 100% !important; height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+                            body > *, body div, body p, body span { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; text-align: center !important; position: relative !important; }
+                            img, body img { 
+                              width: 100% !important; 
+                              height: 100% !important; 
+                              max-width: none !important; 
+                              max-height: none !important;
+                              min-width: 100% !important;
+                              min-height: 100% !important;
+                              object-fit: cover !important; 
+                              display: block !important;
+                              margin: 0 !important;
+                              padding: 0 !important;
+                              border: none !important;
+                              border-radius: 0 !important;
+                              float: none !important;
+                              position: absolute !important;
+                              top: 0 !important;
+                              left: 0 !important;
+                            }
+                            ` : `
+                            /* NORMAL MODE - preserve image sizes and positions */
                             img { border: none !important; outline: none !important; box-shadow: none !important; }
                             /* Image float styles */
                             img.rtf-image-float-left, body img.rtf-image-float-left {
@@ -807,36 +831,13 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               border: none !important;
                               outline: none !important;
                             }
-                            ${element.objectFit !== 'cover' ? `
                             img.rtf-image-center { display: inline-block !important; max-width: 80% !important; border: none !important; outline: none !important; }
                             img.rtf-image-inline { display: block !important; max-width: 100% !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
-                            img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; border: none !important; outline: none !important; }
-                            img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; border: none !important; outline: none !important; }
-                            ` : ''}
+                            img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; max-width: 45% !important; height: auto !important; }
+                            img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; max-width: 45% !important; height: auto !important; }
                             body::after { content: ''; display: table; clear: both; }
                             p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; }
-                            /* Fullscreen/Cover mode - override all image styles */
-                            ${element.objectFit === 'cover' ? `
-                            html, body { width: 100% !important; height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
-                            body > *, body div, body p, body span { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; text-align: center !important; position: relative !important; }
-                            img, body img, img.rtf-image-center, img.rtf-image-inline, img.ai-generated, div img, p img, span img { 
-                              width: 100% !important; 
-                              height: 100% !important; 
-                              max-width: none !important; 
-                              max-height: none !important;
-                              min-width: 100% !important;
-                              min-height: 100% !important;
-                              object-fit: cover !important; 
-                              display: block !important;
-                              margin: 0 !important;
-                              padding: 0 !important;
-                              border-radius: 0 !important;
-                              float: none !important;
-                              position: absolute !important;
-                              top: 0 !important;
-                              left: 0 !important;
-                            }
-                            ` : ''}
+                            `}
                             /* Typography */
                             h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
                             h2 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.75rem; }
