@@ -567,7 +567,10 @@ const SlideCanvas = ({
                       src={getAssetUrl(element.src)} 
                       controls={false}
                       className="w-full h-full"
-                      style={{ pointerEvents: 'none' }}
+                      style={{ 
+                        pointerEvents: 'none',
+                        objectFit: element.objectFit || 'contain'
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
