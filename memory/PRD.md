@@ -951,6 +951,22 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/frontend/src/pages/Editor.jsx` - Added `generateImageWithAI` function
 - **Status**: IMPLEMENTED AND TESTED
 
+### Fullscreen Button Visual Fix (Feb 09, 2026)
+- **Issue**: O botão Fullscreen atualizava corretamente as dimensões, mas os elementos não preenchiam visualmente toda a área do slide
+- **Root Cause**: Quando `objectFit: 'cover'` era aplicado, os elementos (Quiz, HTML, Video) mantinham bordas arredondadas e badges visuais
+- **Fix Applied**:
+  1. Quiz Element: Removido `rounded-lg` e `border-2 border-cyan-500/30` quando `objectFit === 'cover'`
+  2. HTML Element: Removido `rounded` class quando `objectFit === 'cover'`
+  3. Video Element: Escondidos badges de indicador (YouTube/Vimeo) e play hint quando `objectFit === 'cover'`
+  4. Quiz/HTML/Video: Escondidos badges de seleção quando em fullscreen
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx`:
+    - Linha 836: Quiz element conditional styling
+    - Linha 647: HTML element conditional styling  
+    - Linhas 586, 595: Video element badge visibility
+- **Status**: FIXED AND TESTED (100% success rate - 11/11 tests passed)
+- **Verification**: Testing agent confirmou que todos os tipos de elementos (Quiz, HTML, Video, Image) agora preenchem visualmente toda a área quando Fullscreen é aplicado
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
