@@ -67,12 +67,16 @@ export const RichTextEditor = ({
   content, 
   onChange, 
   onGenerateAI,
+  onGenerateAIImage,
   isGenerating = false,
+  isGeneratingImage = false,
   placeholder = 'Digite ou gere texto com IA...',
   className = ''
 }) => {
   const [showAIPrompt, setShowAIPrompt] = useState(false);
   const [aiPrompt, setAIPrompt] = useState('');
+  const [showAIImagePrompt, setShowAIImagePrompt] = useState(false);
+  const [aiImagePrompt, setAIImagePrompt] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
