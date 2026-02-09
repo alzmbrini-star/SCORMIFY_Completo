@@ -482,7 +482,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         .slide-element.image-element img {{
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            /* object-fit is set inline per element */
         }}
         
         .slide-element.video-element {{
