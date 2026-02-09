@@ -919,8 +919,14 @@ var CoursePlayer = (function() {
                     }}
                 }}
                 
-                // Check if this element has objectFit cover (fullscreen mode)
-                var isHtmlFullscreen = element.objectFit === 'cover';
+                // Check if this element is truly fullscreen (covers most of the slide area)
+                var slideWidth = currentSlide.width || 1280;
+                var slideHeight = currentSlide.height || 720;
+                var isHtmlFullscreen = element.objectFit === 'cover' && 
+                    element.width >= slideWidth * 0.95 && 
+                    element.height >= slideHeight * 0.95 &&
+                    element.x <= slideWidth * 0.05 &&
+                    element.y <= slideHeight * 0.05;
                 
                 // Wrap in full HTML with proper CSS for text wrapping around images
                 var wrappedHtml = '<html><head><style>' +
