@@ -2116,6 +2116,66 @@ Exemplo de resposta formatada:
         logger.error(f"AI text generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate text: {str(e)}")
 
+
+# AI Image Generation Endpoint
+class AIImageGenerateRequest(BaseModel):
+    prompt: str
+    size: str = "1024x1024"  # 1024x1024, 1792x1024, 1024x1792
+
+@api_router.post("/ai/generate-image")
+async def generate_image_with_ai(request: AIImageGenerateRequest):
+    """Generate image using AI (GPT Image 1)"""
+    import base64
+    
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI API key not configured")
+    
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        
+        logger.info(f"Generating image with prompt: {request.prompt[:50]}...")
+        
+        # Initialize the image generator
+        image_gen = OpenAIImageGeneration(api_key=emergent_key)
+        
+        # Generate the image
+        images = await image_gen.generate_images(
+            prompt=request.prompt,
+            model="gpt-image-1",
+            number_of_images=1
+        )
+        
+        if not images or len(images) == 0:
+            raise HTTPException(status_code=500, detail="No image was generated")
+        
+        # Convert to base64
+        image_base64 = base64.b64encode(images[0]).decode('utf-8')
+        
+        # Save to storage and return URL
+        image_id = str(uuid.uuid4())
+        image_filename = f"{image_id}.png"
+        image_path = ASSETS_DIR / image_filename
+        
+        with open(image_path, "wb") as f:
+            f.write(images[0])
+        
+        logger.info(f"Image generated successfully: {image_filename}")
+        
+        return {
+            "success": True,
+            "imageUrl": f"/api/assets/{image_filename}",
+            "imageBase64": f"data:image/png;base64,{image_base64}"
+        }
+        
+    except ImportError as e:
+        logger.error(f"emergentintegrations library error: {e}")
+        raise HTTPException(status_code=500, detail="AI image integration library not available")
+    except Exception as e:
+        logger.error(f"AI image generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate image: {str(e)}")
+
+
 # ============================================
 # Quiz Generator Endpoints
 # ============================================
