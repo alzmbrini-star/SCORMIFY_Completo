@@ -3412,8 +3412,8 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
           onClick={() => onUpdate({ 
             x: 0, 
             y: 0, 
-            width: 960, 
-            height: 540 
+            width: slideWidth, 
+            height: slideHeight 
           })}
           className="w-full mt-3 gap-2"
           data-testid="element-fullscreen-btn"
