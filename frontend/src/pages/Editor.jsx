@@ -2088,6 +2088,8 @@ export default function Editor() {
                     <ElementProperties
                       element={selectedElement}
                       onUpdate={(data) => updateElement(currentSlide?.id, selectedElement.id, data)}
+                      slideWidth={currentSlide?.width || 960}
+                      slideHeight={currentSlide?.height || 540}
                     />
                   ) : currentSlide ? (
                     <SlideProperties
