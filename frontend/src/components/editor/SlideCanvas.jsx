@@ -560,7 +560,7 @@ const SlideCanvas = ({
                       className="w-full h-full border-0"
                       allow="autoplay; fullscreen"
                       title="Video"
-                      style={{ pointerEvents: 'none' }}
+                      style={{ pointerEvents: 'none', objectFit: element.objectFit || 'contain' }}
                     />
                   ) : element.src ? (
                     <video 
@@ -582,15 +582,17 @@ const SlideCanvas = ({
                     className="absolute inset-0 bg-transparent"
                     style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
                   />
-                  {/* Video indicator badge */}
-                  <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded flex items-center gap-1 pointer-events-none">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                    {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
-                  </div>
-                  {/* Play hint when not selected */}
-                  {!isSelected && (
+                  {/* Video indicator badge - hide when fullscreen */}
+                  {element.objectFit !== 'cover' && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded flex items-center gap-1 pointer-events-none">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
+                    </div>
+                  )}
+                  {/* Play hint when not selected - hide when fullscreen */}
+                  {!isSelected && element.objectFit !== 'cover' && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-16 h-16 rounded-full bg-black/50 flex items-center justify-center">
                         <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
