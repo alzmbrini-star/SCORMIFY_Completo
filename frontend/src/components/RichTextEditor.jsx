@@ -96,19 +96,38 @@ export const RichTextEditor = ({
   const editorRef = useRef(null);
   const lastContentRef = useRef(content);
   const initialContentRef = useRef(content);
+  const isMountedRef = useRef(false);
 
-  // Initialize content on mount
+  // Initialize content on mount - use requestAnimationFrame to avoid React conflicts
   useEffect(() => {
+    isMountedRef.current = true;
+    
     if (editorRef.current && initialContentRef.current) {
-      editorRef.current.innerHTML = initialContentRef.current;
+      // Use RAF to ensure this runs outside React's render cycle
+      requestAnimationFrame(() => {
+        if (isMountedRef.current && editorRef.current) {
+          editorRef.current.innerHTML = initialContentRef.current;
+        }
+      });
     }
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // Handle content prop changes after init
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (editorRef.current && content !== lastContentRef.current) {
-      editorRef.current.innerHTML = content || '';
-      lastContentRef.current = content;
+      // Use RAF to ensure this runs outside React's render cycle
+      requestAnimationFrame(() => {
+        if (isMountedRef.current && editorRef.current && content !== lastContentRef.current) {
+          editorRef.current.innerHTML = content || '';
+          lastContentRef.current = content;
+        }
+      });
     }
   }, [content]);
 
