@@ -7,8 +7,8 @@ import App from "@/App";
 // This error is benign and happens when resize observations can't be delivered in a single animation frame
 const resizeObserverErr = /ResizeObserver loop/;
 
-// Suppress insertBefore errors which can happen with Radix UI portals during rapid state changes
-const insertBeforeErr = /insertBefore|not a child of this node/;
+// Suppress insertBefore/removeChild errors which can happen with Radix UI portals during rapid state changes
+const domManipulationErr = /insertBefore|removeChild|not a child of this node/;
 
 window.addEventListener('error', (e) => {
   if (e.message && resizeObserverErr.test(e.message)) {
