@@ -2015,12 +2015,7 @@ export default function Editor() {
                   }
                 }}
                 onDeleteElement={(elementId) => {
-                  if (currentSlide?.id) {
-                    deleteElement(currentSlide.id, elementId);
-                  } else {
-                    console.error('Cannot delete element: currentSlide.id is undefined');
-                    toast.error('Erro ao excluir: slide não encontrado');
-                  }
+                  handleDeleteElement(elementId);
                 }}
                 annotationMode={annotationMode}
                 timelineTime={timelineTime}
