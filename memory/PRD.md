@@ -967,6 +967,17 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED (100% success rate - 11/11 tests passed)
 - **Verification**: Testing agent confirmou que todos os tipos de elementos (Quiz, HTML, Video, Image) agora preenchem visualmente toda a área quando Fullscreen é aplicado
 
+### AI Image Generation Text Preservation Bug Fix (Feb 09, 2026)
+- **Issue**: Quando o usuário gerava uma imagem com IA no Rich Text Editor, o texto existente era perdido/substituído pela imagem
+- **Root Cause**: O código usava `document.execCommand('insertHTML')` que, após o editor perder foco durante a geração (15-20s), substituía todo o conteúdo em vez de inserir no cursor
+- **Fix Applied**: Modificado `handleAIImageGenerate` para concatenar a imagem ao conteúdo existente em vez de usar execCommand
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx` - linhas 435-460
+- **Before**: `document.execCommand('insertHTML', false, imgHtml)` substituía todo o conteúdo
+- **After**: `editorRef.current.innerHTML = currentContent + imgHtml` preserva o conteúdo e adiciona a imagem no final
+- **Status**: FIXED AND TESTED
+- **Verification**: Teste confirmou que conteúdo de 89526 chars foi preservado, aumentando para 89872 chars após adicionar imagem
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
