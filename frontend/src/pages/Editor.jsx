@@ -1361,6 +1361,31 @@ export default function Editor() {
     }
   };
 
+  // AI Image Generation function
+  const generateImageWithAI = async (prompt) => {
+    setRichTextImageGenerating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/ai/generate-image`, {
+        prompt: prompt,
+        size: '1024x1024'
+      });
+      
+      if (response.data.success && response.data.imageUrl) {
+        toast.success('Imagem gerada com sucesso!');
+        // Return the full URL
+        return `${API_URL}${response.data.imageUrl}`;
+      } else {
+        throw new Error('No image returned');
+      }
+    } catch (err) {
+      console.error('Error generating image:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao gerar imagem com IA');
+      throw err;
+    } finally {
+      setRichTextImageGenerating(false);
+    }
+  };
+
   // Add or update rich text element
   const handleAddRichTextToSlide = async () => {
     if (!richTextContent.trim()) {
