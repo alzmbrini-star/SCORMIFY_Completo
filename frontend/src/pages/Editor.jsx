@@ -3301,7 +3301,9 @@ export default function Editor() {
                 content={richTextContent}
                 onChange={setRichTextContent}
                 onGenerateAI={generateTextWithAI}
+                onGenerateAIImage={generateImageWithAI}
                 isGenerating={richTextGenerating}
+                isGeneratingImage={richTextImageGenerating}
                 placeholder="Digite seu texto ou clique em 'Gerar com IA' para criar conteúdo..."
                 className="min-h-[400px]"
               />
