@@ -3354,7 +3354,7 @@ export default function Editor() {
 }
 
 // Element Properties Panel
-function ElementProperties({ element, onUpdate }) {
+function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540 }) {
   // Use element.style directly with fallback, no local state needed
   const style = element.style || {};
 
