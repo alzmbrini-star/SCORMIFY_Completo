@@ -99,6 +99,7 @@ import {
   Clock,
   FileText,
   HelpCircle,
+  Maximize2,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
