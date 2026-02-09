@@ -761,12 +761,16 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                           <style>
                             body {
                               margin: 0;
-                              padding: 8px;
+                              padding: ${element.objectFit === 'cover' ? '0' : '8px'};
                               background: transparent !important;
                               font-family: Arial, sans-serif;
                               color: #f1f5f9;
                               line-height: 1.6;
-                              overflow: auto;
+                              overflow: ${element.objectFit === 'cover' ? 'hidden' : 'auto'};
+                              ${element.objectFit === 'cover' ? 'width: 100%; height: 100%;' : ''}
+                            }
+                            html {
+                              ${element.objectFit === 'cover' ? 'width: 100%; height: 100%;' : ''}
                             }
                             * { background: transparent !important; }
                             /* Thin scrollbar */
