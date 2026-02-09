@@ -978,6 +978,27 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED
 - **Verification**: Teste confirmou que conteúdo de 89526 chars foi preservado, aumentando para 89872 chars após adicionar imagem
 
+### AI Image Optimization (Feb 09, 2026)
+- **Issue**: Imagens geradas pela IA estavam muito pesadas (~1.6MB) causando carregamento lento
+- **Fix Applied**:
+  1. Conversão de PNG para JPEG com qualidade 80%
+  2. Redimensionamento para máximo 1200px no lado maior
+  3. Otimização com Pillow
+- **Files Modified**:
+  - `/app/backend/server.py` - endpoint `/api/ai/generate-image`
+- **Results**: Redução de ~96% no tamanho (1622KB → 68KB)
+- **Status**: FIXED AND TESTED
+
+### Fullscreen Visual Fix for HTML Elements (Feb 09, 2026)
+- **Issue**: Elementos HTML com Fullscreen não preenchiam visualmente toda a área no Visualizador/HTML/SCORM
+- **Root Cause**: Imagens dentro do HTML tinham estilos inline (max-width: 80%, width fixo) que impediam o preenchimento
+- **Fix Applied**: CSS com `!important` que sobrescreve estilos inline quando `objectFit === 'cover'`
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/CoursePreview.jsx`
+  - `/app/backend/services/html_exporter.py`
+  - `/app/backend/services/scorm_exporter.py`
+- **Status**: FIXED AND TESTED
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
