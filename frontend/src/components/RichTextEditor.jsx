@@ -1221,6 +1221,65 @@ export const RichTextEditor = ({
                 <Move className="w-4 h-4 text-white" />
               </div>
             )}
+            
+            {/* Alignment/Wrap Controls - Toolbar below image */}
+            <div 
+              className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-slate-800 rounded-lg p-1 shadow-lg pointer-events-auto z-50 border border-slate-700"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  changeImageAlignment('left');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                title="Alinhar à esquerda (Text Wrap)"
+                data-testid="rtf-image-align-left"
+              >
+                <AlignLeft className="w-4 h-4 text-cyan-400" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  changeImageAlignment('center');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                title="Centralizar"
+                data-testid="rtf-image-align-center"
+              >
+                <AlignCenter className="w-4 h-4 text-cyan-400" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  changeImageAlignment('right');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                title="Alinhar à direita (Text Wrap)"
+                data-testid="rtf-image-align-right"
+              >
+                <AlignRight className="w-4 h-4 text-cyan-400" />
+              </button>
+              <div className="w-px h-6 bg-slate-600 mx-1" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  changeImageAlignment('inline');
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                title="Imagem em bloco (sem wrap)"
+                data-testid="rtf-image-inline"
+              >
+                <ImageIcon className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
           </div>
         )}
       </div>
