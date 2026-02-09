@@ -889,8 +889,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                     className="w-full h-full border-0 rounded"
                     style={{ 
                       background: 'transparent', 
-                      overflow: element.objectFit === 'cover' ? 'hidden' : 'auto',
-                      position: element.objectFit === 'cover' ? 'relative' : 'static'
+                      overflow: isElementFullscreen ? 'hidden' : 'auto',
+                      position: isElementFullscreen ? 'relative' : 'static'
                     }}
                     sandbox="allow-scripts allow-same-origin"
                     title="HTML Content"
