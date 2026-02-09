@@ -793,7 +793,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 4px; }
                             ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
                             
-                            ${element.objectFit === 'cover' ? `
+                            ${isElementFullscreen ? `
                             /* FULLSCREEN MODE - image fills entire container */
                             html, body { width: 100% !important; height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
                             body > *, body div, body p, body span { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; text-align: center !important; position: relative !important; }
