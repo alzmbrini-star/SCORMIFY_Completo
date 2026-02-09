@@ -785,7 +785,7 @@ const SlideCanvas = ({
                     className="absolute inset-0 bg-transparent"
                     style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
                   />
-                  {isSelected && (
+                  {isSelected && element.objectFit !== 'cover' && (
                     <div className="absolute top-2 left-2 px-2 py-1 bg-blue-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none z-10">
                       <span className="font-mono">&lt;/&gt;</span> HTML
                     </div>
