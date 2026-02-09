@@ -839,7 +839,7 @@ var CoursePlayer = (function() {
                     video.style.width = '100%';
                     video.style.height = '100%';
                     video.style.background = 'transparent';
-                    video.style.objectFit = 'contain';
+                    video.style.objectFit = element.objectFit || 'contain';
                     video.style.pointerEvents = 'none';  // Prevent interaction
                     
                     // Store video reference for slide change handling
