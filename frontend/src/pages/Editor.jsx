@@ -1662,10 +1662,35 @@ export default function Editor() {
                         <Download className="w-8 h-8 text-green-500" />
                       </div>
                       <p className="mb-4">Seu arquivo está pronto!</p>
-                      <Button asChild className="w-full">
-                        <a href={downloadUrl} download data-testid="download-export-btn">
-                          Baixar Arquivo
-                        </a>
+                      <Button 
+                        className="w-full"
+                        data-testid="download-export-btn"
+                        onClick={async () => {
+                          try {
+                            // Fetch the file as blob to bypass iframe sandbox restrictions
+                            const response = await fetch(downloadUrl);
+                            const blob = await response.blob();
+                            
+                            // Get filename from URL
+                            const filename = downloadUrl.split('/').pop() || 'export';
+                            
+                            // Create object URL and trigger download
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = filename;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                          } catch (error) {
+                            console.error('Download error:', error);
+                            // Fallback: open in new tab
+                            window.open(downloadUrl, '_blank');
+                          }
+                        }}
+                      >
+                        Baixar Arquivo
                       </Button>
                     </div>
                   ) : (
