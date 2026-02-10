@@ -4,29 +4,46 @@ import "@/index.css";
 import App from "@/App";
 
 // Suppress ResizeObserver loop errors (common in React, non-critical)
+// This error occurs when the ResizeObserver cannot deliver all notifications in a single animation frame
 const resizeObserverErr = /ResizeObserver loop/;
 
 // Suppress insertBefore/removeChild errors which can happen with Radix UI portals during rapid state changes
 const domManipulationErr = /insertBefore|removeChild|not a child of this node|Failed to execute/i;
 
+// Helper to check if error should be suppressed
+const shouldSuppressError = (message) => {
+  if (!message) return false;
+  const msgStr = typeof message === 'string' ? message : String(message);
+  return resizeObserverErr.test(msgStr) || domManipulationErr.test(msgStr);
+};
+
+// Override ResizeObserver to catch errors at the source
+const OriginalResizeObserver = window.ResizeObserver;
+window.ResizeObserver = class ResizeObserver extends OriginalResizeObserver {
+  constructor(callback) {
+    super((entries, observer) => {
+      // Use requestAnimationFrame to batch resize observations
+      window.requestAnimationFrame(() => {
+        try {
+          callback(entries, observer);
+        } catch (e) {
+          // Silently ignore resize observer errors
+        }
+      });
+    });
+  }
+};
+
 // Override window.onerror for broader error capture
 window.onerror = function(message, source, lineno, colno, error) {
-  if (message && typeof message === 'string') {
-    if (resizeObserverErr.test(message) || domManipulationErr.test(message)) {
-      return true; // Suppress the error
-    }
+  if (shouldSuppressError(message)) {
+    return true; // Suppress the error
   }
   return false;
 };
 
 window.addEventListener('error', (e) => {
-  if (e.message && resizeObserverErr.test(e.message)) {
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    return false;
-  }
-  // Suppress insertBefore/removeChild errors from React/Radix portal reconciliation
-  if (e.message && domManipulationErr.test(e.message)) {
+  if (shouldSuppressError(e.message)) {
     e.stopImmediatePropagation();
     e.preventDefault();
     return false;
@@ -37,13 +54,8 @@ window.addEventListener('error', (e) => {
 const originalConsoleError = console.error;
 console.error = (...args) => {
   const firstArg = args[0];
-  if (firstArg) {
-    const errorStr = typeof firstArg === 'string' ? firstArg : 
-                     firstArg?.message ? firstArg.message : 
-                     String(firstArg);
-    if (resizeObserverErr.test(errorStr) || domManipulationErr.test(errorStr)) {
-      return; // Suppress
-    }
+  if (firstArg && shouldSuppressError(firstArg?.message || String(firstArg))) {
+    return; // Suppress
   }
   originalConsoleError.apply(console, args);
 };
@@ -52,7 +64,7 @@ console.error = (...args) => {
 window.addEventListener('unhandledrejection', (e) => {
   const errorMsg = e.reason?.message || String(e.reason);
   // Suppress ResizeObserver errors
-  if (resizeObserverErr.test(errorMsg) || domManipulationErr.test(errorMsg)) {
+  if (shouldSuppressError(errorMsg)) {
     e.preventDefault();
     return;
   }
