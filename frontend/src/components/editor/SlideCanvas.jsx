@@ -16,11 +16,35 @@ const getAssetUrl = (src) => {
       // Redirect to current server
       return `${API_URL}/api/projects/${assetMatch[1]}/assets/${assetMatch[2]}`;
     }
+    // Check if it's a global asset URL from an old domain
+    const globalAssetMatch = src.match(/https?:\/\/[^/]+\/api\/assets\/(.+)/);
+    if (globalAssetMatch) {
+      return `${API_URL}/api/assets/${globalAssetMatch[1]}`;
+    }
     return src;
   }
   
   if (src.startsWith('/api/')) return `${API_URL}${src}`;
   return src;
+};
+
+// Helper to resolve all asset URLs in HTML content
+const resolveHtmlContentUrls = (htmlContent) => {
+  if (!htmlContent) return htmlContent;
+  
+  // Replace relative /api/assets/ URLs with full URLs
+  let resolved = htmlContent.replace(
+    /src=["']\/api\/assets\/([^"']+)["']/g,
+    `src="${API_URL}/api/assets/$1"`
+  );
+  
+  // Replace old absolute domain URLs with current domain
+  resolved = resolved.replace(
+    /src=["']https?:\/\/[^/]+\/api\/assets\/([^"']+)["']/g,
+    `src="${API_URL}/api/assets/$1"`
+  );
+  
+  return resolved;
 };
 
 // Debounce helper
