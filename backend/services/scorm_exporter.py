@@ -2640,6 +2640,8 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             left: 0;
             width: 100%;
             height: 100%;
+            width: 100vw;
+            height: 100vh;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             z-index: 99999;
             justify-content: center;
@@ -2664,6 +2666,36 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
             #player-container {{
                 display: none !important;
+            }}
+        }}
+        
+        /* Extra aggressive detection for very tall screens (phones in portrait) */
+        @media screen and (max-aspect-ratio: 7/10) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Override for landscape - always hide overlay */
+        @media screen and (orientation: landscape) {{
+            #orientation-overlay {{
+                display: none !important;
+            }}
+            #player-container {{
+                display: flex !important;
+            }}
+        }}
+        
+        /* Override for wide screens - always hide overlay */
+        @media screen and (min-aspect-ratio: 10/9) {{
+            #orientation-overlay {{
+                display: none !important;
+            }}
+            #player-container {{
+                display: flex !important;
             }}
         }}
         
