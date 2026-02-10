@@ -384,10 +384,12 @@ var CoursePlayer = (function() {
                 
                 if (deltaX < 0) {
                     // Swipe left - go to next slide
-                    CoursePlayer.nextSlide();
+                    console.log('[Swipe] Left detected, going to next slide');
+                    CoursePlayer.next();
                 } else {
                     // Swipe right - go to previous slide
-                    CoursePlayer.prevSlide();
+                    console.log('[Swipe] Right detected, going to previous slide');
+                    CoursePlayer.prev();
                 }
             }
         }, { passive: true });
