@@ -335,6 +335,100 @@ var CoursePlayer = (function() {
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     var userHasInteracted = false; // Track if user has interacted with the page
     
+    // Mobile controls auto-hide
+    var controlsTimeout = null;
+    var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024;
+    
+    // Swipe navigation variables
+    var touchStartX = 0;
+    var touchStartY = 0;
+    var touchEndX = 0;
+    var touchEndY = 0;
+    var minSwipeDistance = 50;
+    
+    function setupMobileControls() {
+        if (!isMobileDevice) return;
+        
+        var controls = document.getElementById('controls');
+        var wrapper = document.getElementById('slide-wrapper');
+        if (!controls || !wrapper) return;
+        
+        // Auto-hide controls after 3 seconds
+        function hideControls() {
+            controls.classList.add('hidden');
+            document.body.classList.add('controls-hidden');
+        }
+        
+        function showControls() {
+            controls.classList.remove('hidden');
+            document.body.classList.remove('controls-hidden');
+            // Reset timer
+            clearTimeout(controlsTimeout);
+            controlsTimeout = setTimeout(hideControls, 3000);
+        }
+        
+        // Show controls on touch
+        wrapper.addEventListener('touchstart', function(e) {
+            // Don't show controls if touching a button or interactive element
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('.quiz-player-container')) {
+                return;
+            }
+            showControls();
+        });
+        
+        // Show controls on click (for desktop testing)
+        wrapper.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('.quiz-player-container')) {
+                return;
+            }
+            showControls();
+        });
+        
+        // Prevent auto-hide when interacting with controls
+        controls.addEventListener('touchstart', function() {
+            clearTimeout(controlsTimeout);
+        });
+        
+        controls.addEventListener('touchend', function() {
+            controlsTimeout = setTimeout(hideControls, 3000);
+        });
+        
+        // Start with controls visible, then hide after delay
+        showControls();
+    }
+    
+    function setupSwipeNavigation() {
+        var wrapper = document.getElementById('slide-wrapper');
+        if (!wrapper) return;
+        
+        wrapper.addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+        
+        wrapper.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+        
+        function handleSwipe() {
+            var deltaX = touchEndX - touchStartX;
+            var deltaY = touchEndY - touchStartY;
+            
+            // Only handle horizontal swipes (not vertical scroll)
+            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+                if (deltaX < 0) {
+                    // Swipe left - go to next slide
+                    CoursePlayer.nextSlide();
+                } else {
+                    // Swipe right - go to previous slide
+                    CoursePlayer.prevSlide();
+                }
+            }
+        }
+    }
+    
     function loadCourse(courseData) {
         course = courseData;
         totalSlides = course.slides.length;
