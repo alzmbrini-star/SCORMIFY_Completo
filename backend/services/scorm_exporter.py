@@ -228,45 +228,57 @@ function checkMobileOrientation() {
     var playerContainer = document.getElementById('player-container');
     if (!overlay || !playerContainer) return;
     
-    // Get the actual viewport dimensions (works better in iframes)
-    var viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-    var viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    // Use multiple methods to detect orientation
+    // Method 1: Screen dimensions (most reliable for actual device)
+    var screenWidth = screen.width || 0;
+    var screenHeight = screen.height || 0;
     
-    // Also check screen orientation API if available
-    var screenOrientation = (screen.orientation && screen.orientation.type) || '';
-    var isScreenPortrait = screenOrientation.includes('portrait');
+    // Method 2: Window dimensions
+    var windowWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    var windowHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     
-    // Check if viewport is in portrait mode
-    var isPortrait = viewportHeight > viewportWidth;
-    var isSmallScreen = viewportWidth < 900;
-    var aspectRatio = viewportWidth / viewportHeight;
-    var wasHidden = playerContainer.style.display === 'none';
+    // Method 3: Screen orientation API
+    var orientationType = (screen.orientation && screen.orientation.type) || '';
+    var isOrientationPortrait = orientationType.includes('portrait');
     
-    // Detect if we're in an iframe
-    var inIframe = (window !== window.top);
+    // Method 4: matchMedia (CSS media query via JS)
+    var mediaPortrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
     
-    // For iframes in LMS, check parent dimensions if possible
-    if (inIframe) {
-        try {
-            var parentWidth = window.parent.innerWidth || window.parent.document.documentElement.clientWidth;
-            var parentHeight = window.parent.innerHeight || window.parent.document.documentElement.clientHeight;
-            if (parentWidth && parentHeight) {
-                isPortrait = parentHeight > parentWidth;
-                aspectRatio = parentWidth / parentHeight;
-                isSmallScreen = parentWidth < 900;
-            }
-        } catch(e) {
-            // Cross-origin iframe, use local dimensions
+    // Calculate aspect ratios
+    var screenAspectRatio = screenWidth / screenHeight;
+    var windowAspectRatio = windowWidth / windowHeight;
+    
+    // Detect mobile device
+    var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    var isSmallScreen = Math.min(screenWidth, windowWidth) < 900;
+    
+    // Log for debugging (can be removed later)
+    console.log('Orientation check:', {
+        screen: screenWidth + 'x' + screenHeight,
+        window: windowWidth + 'x' + windowHeight,
+        orientationType: orientationType,
+        mediaPortrait: mediaPortrait,
+        isMobile: isMobileDevice
+    });
+    
+    // Determine if we should show the overlay
+    // Priority: Screen orientation API > Media query > Aspect ratio calculation
+    var shouldShowOverlay = false;
+    
+    if (isMobileDevice || isSmallScreen) {
+        // Check all indicators
+        if (isOrientationPortrait) {
+            shouldShowOverlay = true;
+        } else if (mediaPortrait) {
+            shouldShowOverlay = true;
+        } else if (screenAspectRatio < 0.85 && screenWidth < screenHeight) {
+            shouldShowOverlay = true;
+        } else if (windowAspectRatio < 0.85 && windowWidth < windowHeight) {
+            shouldShowOverlay = true;
         }
     }
     
-    // Show overlay if:
-    // 1. Portrait mode on small screen with aspect ratio < 0.85 (typical phone portrait)
-    // 2. Or screen orientation API reports portrait
-    // 3. Or viewport is very narrow compared to height
-    var shouldShowOverlay = (isPortrait && isSmallScreen && aspectRatio < 0.85) || 
-                            (isScreenPortrait && isSmallScreen) ||
-                            (aspectRatio < 0.7);
+    var wasHidden = playerContainer.style.display === 'none';
     
     if (shouldShowOverlay) {
         overlay.style.display = 'flex';
@@ -275,10 +287,8 @@ function checkMobileOrientation() {
         overlay.style.display = 'none';
         playerContainer.style.display = 'flex';
         
-        // If player was hidden and is now visible, we need to RE-RENDER the slide
-        // because the initial render happened with zero dimensions
+        // If player was hidden and is now visible, refresh the slide
         if (wasHidden && typeof CoursePlayer !== 'undefined' && CoursePlayer.refresh) {
-            // Schedule multiple refresh attempts to handle browser layout timing
             [50, 150, 300, 500].forEach(function(delay) {
                 setTimeout(function() {
                     CoursePlayer.refresh();
@@ -288,11 +298,11 @@ function checkMobileOrientation() {
     }
 }
 
-// Listen for orientation changes
+// Listen for orientation changes (mobile devices)
 window.addEventListener('orientationchange', function() {
     setTimeout(checkMobileOrientation, 100);
-    setTimeout(checkMobileOrientation, 250);
-    setTimeout(checkMobileOrientation, 500);
+    setTimeout(checkMobileOrientation, 300);
+    setTimeout(checkMobileOrientation, 600);
 });
 
 // Listen for resize events
