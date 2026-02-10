@@ -1662,19 +1662,11 @@ export default function Editor() {
                         <Download className="w-8 h-8 text-green-500" />
                       </div>
                       <p className="mb-4">Seu arquivo está pronto!</p>
-                      <Button 
-                        onClick={() => {
-                          // Open in new tab to bypass iframe sandbox restrictions
-                          window.open(downloadUrl, '_blank', 'noopener,noreferrer');
-                        }}
-                        className="w-full"
-                        data-testid="download-export-btn"
-                      >
-                        Baixar Arquivo
+                      <Button asChild className="w-full">
+                        <a href={downloadUrl} download data-testid="download-export-btn">
+                          Baixar Arquivo
+                        </a>
                       </Button>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        O download será aberto em uma nova aba
-                      </p>
                     </div>
                   ) : (
                     <div className="space-y-3">
