@@ -379,12 +379,12 @@ const Timeline = ({
       {/* Timeline Tracks */}
       <div className="flex-1 overflow-auto flex">
         {/* Track Labels */}
-        <div className="w-28 flex-shrink-0 border-r border-border bg-muted/30">
+        <div className={`flex-shrink-0 border-r border-border bg-muted/30 ${expanded ? 'w-36' : 'w-28'}`}>
           {/* Audio Track Labels */}
           {audioList.map((audio, index) => (
-            <div key={audio.id} className="h-10 flex items-center px-2 border-b border-border/50">
+            <div key={audio.id} className={`flex items-center px-2 border-b border-border/50 ${expanded ? 'h-14' : 'h-10'}`}>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                <Music className="w-3 h-3 text-green-500 flex-shrink-0" />
+                <Music className={`text-green-500 flex-shrink-0 ${expanded ? 'w-4 h-4' : 'w-3 h-3'}`} />
                 <span className="truncate">{audio.type === 'narration' ? 'Narração' : 'Áudio'}</span>
               </div>
             </div>
@@ -392,7 +392,7 @@ const Timeline = ({
           
           {/* Element Track Labels */}
           {elements.map((element, index) => (
-            <div key={element.id} className="h-10 flex items-center px-2 border-b border-border/50">
+            <div key={element.id} className={`flex items-center px-2 border-b border-border/50 ${expanded ? 'h-14' : 'h-10'}`}>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
                 {getElementIcon(element.type)}
                 <span className="truncate capitalize">
@@ -404,7 +404,7 @@ const Timeline = ({
 
           {/* Annotation Track Labels */}
           {annotations.map((annotation, index) => (
-            <div key={annotation.id} className="h-10 flex items-center px-2 border-b border-border/50">
+            <div key={annotation.id} className={`flex items-center px-2 border-b border-border/50 ${expanded ? 'h-14' : 'h-10'}`}>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
                 {getElementIcon(annotation.shapeType || annotation.type)}
                 <span className="truncate">
@@ -416,7 +416,7 @@ const Timeline = ({
 
           {/* Empty state */}
           {elements.length === 0 && annotations.length === 0 && audioList.length === 0 && (
-            <div className="h-10 flex items-center px-2 text-xs text-muted-foreground">
+            <div className={`flex items-center px-2 text-xs text-muted-foreground ${expanded ? 'h-14' : 'h-10'}`}>
               Sem elementos
             </div>
           )}
