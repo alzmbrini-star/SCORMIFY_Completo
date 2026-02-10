@@ -2052,6 +2052,20 @@ export default function Editor() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
+                      onClick={() => setShowTimelineExpanded(true)}
+                      data-testid="expand-timeline-btn"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Expandir Timeline</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
                       onClick={() => setShowTimeline(!showTimeline)}
                     >
                       {showTimeline ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
