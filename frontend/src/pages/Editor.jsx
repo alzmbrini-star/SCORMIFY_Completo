@@ -3396,6 +3396,52 @@ export default function Editor() {
           projectId={currentProject?.id}
           onQuizCreated={handleQuizCreated}
         />
+
+        {/* Timeline Expandida - Sheet from bottom */}
+        <Sheet open={showTimelineExpanded} onOpenChange={setShowTimelineExpanded}>
+          <SheetContent 
+            side="bottom" 
+            className="h-[70vh] p-0 flex flex-col"
+            data-testid="timeline-expanded-sheet"
+          >
+            <SheetHeader className="px-6 py-4 border-b shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <SheetTitle className="flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Timeline Expandida
+                  </SheetTitle>
+                  <SheetDescription>
+                    Arraste os elementos para configurar quando aparecem no slide
+                  </SheetDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTimelineExpanded(false)}
+                  data-testid="close-timeline-expanded-btn"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Fechar
+                </Button>
+              </div>
+            </SheetHeader>
+            <div className="flex-1 overflow-hidden">
+              <Timeline
+                slide={currentSlide}
+                onUpdateSlide={(data) => updateSlide(currentSlide?.id, data)}
+                onUpdateElement={(elementId, data) => updateElement(currentSlide?.id, elementId, data)}
+                onUpdateAnnotation={(annotationId, data) => updateAnnotation(currentSlide?.id, annotationId, data)}
+                onUpdateAudio={(audioId, data) => updateSlideAudioTiming(currentSlide?.id, audioId, data)}
+                currentTime={timelineTime}
+                isPlaying={timelineIsPlaying}
+                onTimeChange={setTimelineTime}
+                onPlayPause={setTimelineIsPlaying}
+                expanded={true}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </TooltipProvider>
   );
