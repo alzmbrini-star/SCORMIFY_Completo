@@ -598,14 +598,17 @@ const Timeline = ({
             const isActive = currentTime >= startTime && currentTime < endTime;
             const isDragging = isDraggingClip === annotation.id;
             const shapeType = annotation.shapeType || annotation.type;
+            const trackHeight = expanded ? 'h-14' : 'h-10';
+            const clipHeight = expanded ? 'h-10' : 'h-7';
+            const clipTop = expanded ? 'top-2' : 'top-1.5';
 
             return (
-              <div key={annotation.id} className="h-10 relative border-b border-border/30">
+              <div key={annotation.id} className={`${trackHeight} relative border-b border-border/30`}>
                 {/* Annotation clip */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className={`absolute h-7 top-1.5 rounded border flex items-center group ${getClipColor(shapeType, true)} ${
+                      className={`absolute ${clipHeight} ${clipTop} rounded border flex items-center group ${getClipColor(shapeType, true)} ${
                         isActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''
                       } ${isDragging ? 'opacity-75' : ''}`}
                       style={{
