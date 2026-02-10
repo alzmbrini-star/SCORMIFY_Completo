@@ -2111,7 +2111,25 @@ export default function Editor() {
                 isPlaying={timelineIsPlaying}
                 onTimeChange={setTimelineTime}
                 onPlayPause={setTimelineIsPlaying}
+                onExpand={() => setShowTimelineExpanded(true)}
+                onToggle={() => setShowTimeline(false)}
               />
+            )}
+            
+            {/* Collapsed Timeline Bar */}
+            {!showTimeline && (
+              <div className="h-8 border-t border-border bg-card flex items-center px-4">
+                <span className="text-xs text-muted-foreground">Timeline (oculta)</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-6"
+                  onClick={() => setShowTimeline(true)}
+                >
+                  <ChevronUp className="w-4 h-4 mr-1" />
+                  Mostrar
+                </Button>
+              </div>
             )}
           </div>
 
