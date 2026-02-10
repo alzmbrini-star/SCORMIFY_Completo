@@ -2876,7 +2876,9 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             logger.info(f"Copied asset: {asset.name}")
     
     # Also copy global assets (AI-generated images are stored here)
-    global_assets = Path(storage_dir).parent / "storage" / "assets"
+    # storage_dir points to /storage/projects, so parent is /storage
+    storage_base = Path(storage_dir).parent
+    global_assets = storage_base / "assets"
     if global_assets.exists():
         for asset in global_assets.iterdir():
             dest_path = package_dir / "assets" / asset.name
