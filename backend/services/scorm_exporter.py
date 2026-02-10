@@ -2251,6 +2251,14 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             /* Removed overflow: hidden to allow proper rendering */
         }}
         
+        /* Mobile optimization: expand elements to fill more space */
+        @media screen and (max-width: 1024px) and (orientation: landscape) {{
+            .slide-element.quiz-element,
+            .slide-element.html-element {{
+                /* These will be adjusted by JavaScript */
+            }}
+        }}
+        
         .text-element {{
             white-space: pre-wrap;
             word-wrap: break-word;
