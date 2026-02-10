@@ -2228,6 +2228,57 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate image: {str(e)}")
 
 
+@api_router.post("/migrate-asset-urls")
+async def migrate_asset_urls():
+    """
+    Migrate all absolute asset URLs to relative URLs in the database.
+    This fixes issues when the domain changes between sessions.
+    """
+    import re
+    
+    migrated_count = 0
+    projects = list(projects_collection.find({}))
+    
+    for project in projects:
+        updated = False
+        course = project.get('course', {})
+        slides = course.get('slides', [])
+        
+        for slide in slides:
+            elements = slide.get('elements', [])
+            for element in elements:
+                if element.get('type') == 'html' and element.get('htmlContent'):
+                    html_content = element['htmlContent']
+                    
+                    # Pattern to match absolute URLs with /api/assets/
+                    # Matches: https://any-domain.com/api/assets/filename.ext
+                    pattern = r'(https?://[^/]+)?(/api/assets/[^"\'<>\s]+)'
+                    
+                    def replace_url(match):
+                        # Return only the relative path
+                        return match.group(2)
+                    
+                    new_content = re.sub(pattern, replace_url, html_content)
+                    
+                    if new_content != html_content:
+                        element['htmlContent'] = new_content
+                        updated = True
+                        migrated_count += 1
+                        logger.info(f"Migrated URLs in project {project.get('name')}")
+        
+        if updated:
+            projects_collection.update_one(
+                {'_id': project['_id']},
+                {'$set': {'course': course}}
+            )
+    
+    return {
+        "success": True,
+        "message": f"Migrated {migrated_count} elements with asset URLs",
+        "migrated_count": migrated_count
+    }
+
+
 # ============================================
 # Quiz Generator Endpoints
 # ============================================
