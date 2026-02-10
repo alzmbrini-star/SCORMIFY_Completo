@@ -439,29 +439,63 @@ export const RichTextEditor = ({
     
     try {
       const imageUrl = await onGenerateAIImage(aiImagePrompt);
-      if (imageUrl && editorRef.current) {
-        // Create the image HTML
-        const imgHtml = `<div style="text-align: center; width: 100%; margin: 12px 0; clear: both;"><img src="${imageUrl}" alt="${aiImagePrompt}" class="rtf-image-center ai-generated" style="max-width: 80%; height: auto; border-radius: 4px; display: inline-block;" /></div>`;
-        
-        // Append the image to the end of the existing content instead of using execCommand
-        // This preserves the existing content and adds the image at the end
-        const currentContent = editorRef.current.innerHTML || '';
-        const newContent = currentContent + imgHtml;
-        
-        // Update the editor content
-        editorRef.current.innerHTML = newContent;
-        lastContentRef.current = newContent;
-        onChange?.(newContent);
-        
-        // Scroll to the bottom to show the new image
-        editorRef.current.scrollTop = editorRef.current.scrollHeight;
+      if (imageUrl) {
+        // Mostrar preview em vez de inserir direto
+        setAIImagePreview(imageUrl);
+        setAIImageStep('preview');
       }
-      setShowAIImagePrompt(false);
-      setAIImagePrompt('');
     } catch (error) {
       console.error('Error generating AI image:', error);
     }
-  }, [aiImagePrompt, onGenerateAIImage, onChange]);
+  }, [aiImagePrompt, onGenerateAIImage]);
+
+  const handleInsertAIImage = useCallback(() => {
+    if (!aiImagePreview || !editorRef.current) return;
+    
+    // Create the image HTML
+    const imgHtml = `<div style="text-align: center; width: 100%; margin: 12px 0; clear: both;"><img src="${aiImagePreview}" alt="${aiImagePrompt}" class="rtf-image-center ai-generated" style="max-width: 80%; height: auto; border-radius: 4px; display: inline-block;" /></div>`;
+    
+    // Append the image to the end of the existing content
+    const currentContent = editorRef.current.innerHTML || '';
+    const newContent = currentContent + imgHtml;
+    
+    // Update the editor content
+    editorRef.current.innerHTML = newContent;
+    lastContentRef.current = newContent;
+    onChange?.(newContent);
+    
+    // Scroll to the bottom to show the new image
+    editorRef.current.scrollTop = editorRef.current.scrollHeight;
+    
+    // Reset state
+    setShowAIImagePrompt(false);
+    setAIImagePrompt('');
+    setAIImagePreview(null);
+    setAIImageStep('prompt');
+  }, [aiImagePreview, aiImagePrompt, onChange]);
+
+  const handleRegenerateAIImage = useCallback(() => {
+    // Voltar para gerar novamente com o mesmo prompt
+    setAIImagePreview(null);
+    setAIImageStep('prompt');
+    // Disparar a geração automaticamente
+    setTimeout(() => {
+      handleAIImageGenerate();
+    }, 100);
+  }, [handleAIImageGenerate]);
+
+  const handleEditAIImagePrompt = useCallback(() => {
+    // Voltar para editar o prompt
+    setAIImagePreview(null);
+    setAIImageStep('prompt');
+  }, []);
+
+  const handleCancelAIImage = useCallback(() => {
+    setShowAIImagePrompt(false);
+    setAIImagePrompt('');
+    setAIImagePreview(null);
+    setAIImageStep('prompt');
+  }, []);
 
   const addLink = useCallback(() => {
     if (!linkUrl.trim()) return;
