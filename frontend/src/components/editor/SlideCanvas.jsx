@@ -796,7 +796,7 @@ const SlideCanvas = ({
                             a { color: #22d3ee; text-decoration: underline; }
                           </style>
                         </head>
-                        <body>${element.htmlContent || '<p>HTML Content</p>'}</body>
+                        <body>${resolveHtmlContentUrls(element.htmlContent) || '<p>HTML Content</p>'}</body>
                       </html>
                     `}
                     className="w-full h-full border-0"
