@@ -818,15 +818,16 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               ${element.objectFit === 'cover' ? 'width: 100%; height: 100%;' : ''}
                             }
                             * { background: transparent !important; }
-                            /* Thin scrollbar */
+                            /* Hide scrollbar but allow scrolling */
                             html, body {
-                              scrollbar-width: thin;
-                              scrollbar-color: rgba(100,116,139,0.3) transparent;
+                              scrollbar-width: none; /* Firefox */
+                              -ms-overflow-style: none; /* IE/Edge */
                             }
-                            ::-webkit-scrollbar { width: 4px; height: 4px; }
-                            ::-webkit-scrollbar-track { background: transparent; }
-                            ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 4px; }
-                            ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
+                            ::-webkit-scrollbar { 
+                              display: none; /* Chrome/Safari/Opera */
+                              width: 0;
+                              height: 0;
+                            }
                             
                             ${isElementFullscreen ? `
                             /* FULLSCREEN MODE - image fills entire container */
