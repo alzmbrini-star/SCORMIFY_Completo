@@ -803,6 +803,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             display: none;
             position: fixed;
             inset: 0;
+            width: 100vw;
+            height: 100vh;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             z-index: 99999;
             justify-content: center;
@@ -810,6 +812,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             flex-direction: column;
         }}
         
+        /* Force display on mobile portrait mode */
         @media screen and (orientation: portrait) and (max-width: 900px) {{
             #orientation-overlay {{
                 display: flex !important;
@@ -819,28 +822,122 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
         }}
         
+        /* Also detect by aspect ratio for devices that don't report orientation correctly */
+        @media screen and (max-aspect-ratio: 4/5) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Extra aggressive detection for very tall screens (phones in portrait) */
+        @media screen and (max-aspect-ratio: 7/10) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Override for landscape - always hide overlay */
+        @media screen and (orientation: landscape) {{
+            #orientation-overlay {{
+                display: none !important;
+            }}
+            #player-container {{
+                display: flex !important;
+            }}
+        }}
+        
+        /* Override for wide screens - always hide overlay */
+        @media screen and (min-aspect-ratio: 10/9) {{
+            #orientation-overlay {{
+                display: none !important;
+            }}
+            #player-container {{
+                display: flex !important;
+            }}
+        }}
+        
         .orientation-content {{
             text-align: center;
             padding: 30px;
             color: white;
+            max-width: 90%;
         }}
         
         .orientation-icon {{
-            font-size: 80px;
-            margin-bottom: 20px;
-            animation: pulse 2s ease-in-out infinite;
+            font-size: 70px;
+            margin-bottom: 10px;
+            animation: shake 1.5s ease-in-out infinite;
+        }}
+        
+        .orientation-arrow {{
+            font-size: 50px;
+            color: #7c3aed;
+            margin-bottom: 15px;
+            animation: rotate-hint 2s ease-in-out infinite;
+        }}
+        
+        @keyframes rotate-hint {{
+            0%, 100% {{ transform: rotate(0deg); }}
+            50% {{ transform: rotate(90deg); }}
+        }}
+        
+        @keyframes shake {{
+            0%, 100% {{ transform: rotate(-10deg); }}
+            50% {{ transform: rotate(10deg); }}
         }}
         
         .orientation-content h2 {{
             font-size: 24px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
+            color: #fff;
         }}
         
         .orientation-content p {{
-            font-size: 16px;
-            opacity: 0.8;
+            font-size: 14px;
+            color: #a0aec0;
+            margin-bottom: 25px;
+            line-height: 1.5;
             max-width: 300px;
-            margin: 0 auto;
+            margin: 0 auto 25px auto;
+        }}
+        
+        .orientation-hint {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }}
+        
+        .phone-icon {{
+            font-size: 40px;
+            transition: all 0.3s ease;
+        }}
+        
+        .phone-icon.vertical {{
+            opacity: 0.5;
+        }}
+        
+        .phone-icon.horizontal {{
+            transform: rotate(90deg);
+            color: #7c3aed;
+        }}
+        
+        .orientation-hint .arrow {{
+            font-size: 24px;
+            color: #7c3aed;
+            animation: pulse-arrow 1s ease-in-out infinite;
+        }}
+        
+        @keyframes pulse-arrow {{
+            0%, 100% {{ transform: translateX(0); opacity: 1; }}
+            50% {{ transform: translateX(10px); opacity: 0.5; }}
         }}
         
         @keyframes pulse {{
