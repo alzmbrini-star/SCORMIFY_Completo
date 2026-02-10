@@ -2335,8 +2335,20 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             height: 100vh;
         }}
         
+        /* When controls are hidden */
+        #player-container.controls-hidden #controls {{
+            position: absolute !important;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }}
+        
         #player-container.controls-hidden #slide-wrapper {{
-            height: 100vh;
+            height: 100vh !important;
+            flex: none !important;
         }}
         
         /* Sidebar Navigation Styles */
