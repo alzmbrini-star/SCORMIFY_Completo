@@ -418,8 +418,7 @@ var CoursePlayer = (function() {
         // Check if first slide has audio and show start overlay
         checkAndShowStartOverlay();
         
-        // Setup mobile-specific features
-        setupMobileControls();
+        // Setup swipe navigation for mobile
         setupSwipeNavigation();
         
         // Recalculate scale on window resize - only update scale, don't re-render
