@@ -2339,6 +2339,17 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             height: 100vh;
             display: flex;
             flex-direction: column;
+            transition: height 0.3s ease;
+            overflow: hidden;
+        }}
+        
+        /* When controls are hidden, allow full height */
+        #player-container.controls-hidden {{
+            height: 100vh;
+        }}
+        
+        #player-container.controls-hidden #slide-wrapper {{
+            height: 100vh;
         }}
         
         /* Sidebar Navigation Styles */
