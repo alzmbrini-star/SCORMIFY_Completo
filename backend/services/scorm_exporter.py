@@ -371,10 +371,6 @@ var CoursePlayer = (function() {
         
         // Add CSS class for transitions
         controls.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        playerContainer.style.transition = 'height 0.3s ease';
-        if (slideWrapper) {
-            slideWrapper.style.transition = 'height 0.3s ease';
-        }
         
         // Function to hide controls and expand content
         function hideControls() {
@@ -382,15 +378,10 @@ var CoursePlayer = (function() {
             controls.style.transform = 'translateY(100%)';
             controls.style.opacity = '0';
             controls.style.pointerEvents = 'none';
-            controls.style.position = 'absolute';
-            controls.style.bottom = '0';
             controlsHidden = true;
             
-            // Expand player container to use full height
-            playerContainer.style.height = '100vh';
-            if (slideWrapper) {
-                slideWrapper.style.height = '100%';
-            }
+            // Add class to expand content
+            playerContainer.classList.add('controls-hidden');
             
             // Recalculate scale to use more space after transition
             setTimeout(function() { 
@@ -405,14 +396,10 @@ var CoursePlayer = (function() {
             controls.style.transform = 'translateY(0)';
             controls.style.opacity = '1';
             controls.style.pointerEvents = 'auto';
-            controls.style.position = 'relative';
             controlsHidden = false;
             
-            // Restore player container height
-            playerContainer.style.height = 'calc(100vh - ' + controlsHeight + 'px)';
-            if (slideWrapper) {
-                slideWrapper.style.height = '100%';
-            }
+            // Remove class to restore content
+            playerContainer.classList.remove('controls-hidden');
             
             // Recalculate scale after transition
             setTimeout(function() { 
