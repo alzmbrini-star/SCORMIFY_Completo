@@ -321,12 +321,12 @@ window.addEventListener('resize', function() {
 
 // Initial check on load
 window.addEventListener('load', function() {
-    setTimeout(checkMobileOrientation, 100);
+    checkMobileOrientation();
 });
 
 // Also check on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
-    checkMobileOrientation();
+    setTimeout(checkMobileOrientation, 50);
 });
 
 var CoursePlayer = (function() {
