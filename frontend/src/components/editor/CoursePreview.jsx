@@ -54,7 +54,19 @@ const processHtmlContent = (htmlContent, projectId) => {
   // Fix image src URLs
   let processed = htmlContent;
   
-  // Replace old domain URLs with current domain
+  // Replace old domain URLs for global assets (/api/assets/)
+  processed = processed.replace(
+    /src="(https?:\/\/[^"]+\/api\/assets\/[^"]+)"/g,
+    (match, url) => {
+      const assetMatch = url.match(/https?:\/\/[^/]+\/api\/assets\/(.+)/);
+      if (assetMatch) {
+        return `src="${API_URL}/api/assets/${assetMatch[1]}"`;
+      }
+      return match;
+    }
+  );
+  
+  // Replace old domain URLs for project assets
   processed = processed.replace(
     /src="(https?:\/\/[^"]+\/api\/projects\/[^"]+\/assets\/[^"]+)"/g,
     (match, url) => {
@@ -66,8 +78,11 @@ const processHtmlContent = (htmlContent, projectId) => {
     }
   );
   
-  // Replace /api/ URLs with full API_URL
-  processed = processed.replace(/src="(\/api\/[^"]+)"/g, `src="${API_URL}$1"`);
+  // Replace relative /api/assets/ URLs with full API_URL
+  processed = processed.replace(/src="(\/api\/assets\/[^"]+)"/g, `src="${API_URL}$1"`);
+  
+  // Replace relative /api/projects/ URLs with full API_URL  
+  processed = processed.replace(/src="(\/api\/projects\/[^"]+)"/g, `src="${API_URL}$1"`);
   
   // Replace assets/ URLs
   processed = processed.replace(
