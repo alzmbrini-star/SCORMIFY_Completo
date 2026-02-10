@@ -56,6 +56,95 @@ async def url_to_base64(url: str) -> Optional[str]:
     return None
 
 
+async def process_html_content_images(
+    html_content: str,
+    assets_dir: str,
+    base_url: str
+) -> str:
+    """
+    Process images within HTML content (like Rich Text Editor content).
+    Finds all <img> tags and converts their src to base64 data URIs.
+    This ensures AI-generated images and other assets are embedded in the export.
+    """
+    if not html_content:
+        return html_content
+    
+    # Find all img tags with src attribute
+    img_pattern = re.compile(r'<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
+    
+    async def replace_img_src(match):
+        full_tag = match.group(0)
+        src = match.group(1)
+        
+        # Skip if already a data URI
+        if src.startswith('data:'):
+            return full_tag
+        
+        base64_src = None
+        
+        # Handle local API assets (like AI-generated images)
+        if src.startswith('/api/assets/'):
+            # Try local file first
+            asset_filename = src.split('/')[-1]
+            # AI images are stored in storage/assets/
+            storage_assets_path = os.path.join(os.path.dirname(assets_dir), 'assets', asset_filename)
+            if os.path.exists(storage_assets_path):
+                base64_src = file_to_base64(storage_assets_path)
+                logger.info(f"Embedded AI image from storage: {asset_filename}")
+            else:
+                # Try downloading from full URL
+                full_url = f"{base_url}{src}"
+                base64_src = await url_to_base64(full_url)
+                if base64_src:
+                    logger.info(f"Downloaded and embedded image: {src}")
+        
+        # Handle project assets
+        elif src.startswith('/api/projects/'):
+            asset_filename = src.split('/')[-1]
+            local_path = os.path.join(assets_dir, asset_filename)
+            if os.path.exists(local_path):
+                base64_src = file_to_base64(local_path)
+                logger.info(f"Embedded project asset: {asset_filename}")
+            else:
+                full_url = f"{base_url}{src}"
+                base64_src = await url_to_base64(full_url)
+        
+        # Handle external URLs
+        elif src.startswith('http'):
+            base64_src = await url_to_base64(src)
+            if base64_src:
+                logger.info(f"Downloaded and embedded external image: {src[:50]}...")
+        
+        # Handle relative paths
+        elif not src.startswith('/'):
+            local_path = os.path.join(assets_dir, src)
+            if os.path.exists(local_path):
+                base64_src = file_to_base64(local_path)
+        
+        if base64_src:
+            # Replace the src attribute with base64 data URI
+            new_tag = full_tag.replace(f'src="{src}"', f'src="{base64_src}"')
+            new_tag = new_tag.replace(f"src='{src}'", f"src='{base64_src}'")
+            return new_tag
+        
+        logger.warning(f"Could not embed image: {src}")
+        return full_tag
+    
+    # Process all images
+    matches = list(img_pattern.finditer(html_content))
+    if not matches:
+        return html_content
+    
+    # Process matches in reverse order to maintain positions
+    result = html_content
+    for match in reversed(matches):
+        replacement = await replace_img_src(match)
+        result = result[:match.start()] + replacement + result[match.end():]
+    
+    logger.info(f"Processed {len(matches)} images in HTML content")
+    return result
+
+
 async def generate_standalone_html(
     project: Dict[str, Any],
     assets_dir: str,
