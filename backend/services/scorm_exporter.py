@@ -2599,39 +2599,6 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             transition: transform 0.3s ease, opacity 0.3s ease;
         }}
         
-        /* Mobile: auto-hide controls */
-        @media screen and (max-width: 1024px) {{
-            #controls {{
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                z-index: 1000;
-                background: rgba(22, 33, 62, 0.95);
-                backdrop-filter: blur(10px);
-                -webkit-backdrop-filter: blur(10px);
-            }}
-            
-            #controls.hidden {{
-                transform: translateY(100%);
-                opacity: 0;
-                pointer-events: none;
-            }}
-            
-            /* Adjust slide wrapper when controls are visible/hidden */
-            #slide-wrapper {{
-                transition: padding-bottom 0.3s ease;
-            }}
-            
-            body.controls-hidden #slide-wrapper {{
-                padding-bottom: 0 !important;
-            }}
-            
-            body:not(.controls-hidden) #slide-wrapper {{
-                padding-bottom: 50px !important;
-            }}
-        }}
-        
         /* Mobile: smaller controls */
         @media screen and (max-width: 900px) {{
             #controls {{
