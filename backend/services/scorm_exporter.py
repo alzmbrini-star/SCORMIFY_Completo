@@ -2620,6 +2620,78 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Mobile Quiz Optimization - Make quiz readable on small screens */
+        @media screen and (max-width: 1024px) {{
+            .quiz-player-container {{
+                font-size: 16px !important;
+            }}
+            .quiz-player-container h2,
+            .quiz-player-container h3 {{
+                font-size: 18px !important;
+            }}
+            .quiz-player-container p {{
+                font-size: 14px !important;
+            }}
+            .quiz-player-container button {{
+                font-size: 14px !important;
+                padding: 10px 20px !important;
+            }}
+        }}
+        
+        /* Very small screens and landscape mobile */
+        @media screen and (max-width: 768px), 
+               screen and (orientation: landscape) and (max-height: 600px) {{
+            .quiz-player-container {{
+                font-size: 14px !important;
+                padding: 8px !important;
+            }}
+            .quiz-player-container * {{
+                font-size: inherit !important;
+            }}
+            .quiz-player-container h2,
+            .quiz-player-container h3 {{
+                font-size: 16px !important;
+                margin-bottom: 8px !important;
+            }}
+            .quiz-player-container p {{
+                font-size: 13px !important;
+                line-height: 1.4 !important;
+            }}
+            .quiz-player-container button {{
+                font-size: 13px !important;
+                padding: 8px 16px !important;
+            }}
+            /* Make quiz options easier to tap */
+            .quiz-player-container div[onclick] {{
+                padding: 12px !important;
+                margin: 6px 0 !important;
+            }}
+        }}
+        
+        /* Portrait mobile - even larger fonts for readability */
+        @media screen and (orientation: portrait) and (max-width: 600px) {{
+            .quiz-player-container {{
+                font-size: 16px !important;
+                padding: 12px !important;
+            }}
+            .quiz-player-container h2,
+            .quiz-player-container h3 {{
+                font-size: 20px !important;
+            }}
+            .quiz-player-container p {{
+                font-size: 15px !important;
+            }}
+            .quiz-player-container button {{
+                font-size: 15px !important;
+                padding: 12px 24px !important;
+                min-height: 44px !important; /* Touch-friendly */
+            }}
+            .quiz-player-container div[onclick] {{
+                padding: 14px !important;
+                min-height: 44px !important; /* Touch-friendly */
+            }}
+        }}
+        
         #slide-counter {{
             font-size: 14px;
             color: #94a3b8;
