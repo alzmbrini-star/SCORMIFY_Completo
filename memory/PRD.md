@@ -1016,6 +1016,24 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - Time limit per question
 - Quiz retake restrictions
 
+### AI-Generated Images Export Persistence - FIXED (Feb 10, 2026)
+- **Issue**: Imagens geradas por IA no RTF não eram incluídas nas exportações HTML/SCORM, ficando inacessíveis quando o curso era hospedado em um LMS
+- **Root Cause**: O `htmlContent` do Rich Text Editor continha URLs apontando para `/api/assets/{filename}` que não eram processadas durante a exportação
+- **Fix Applied**:
+  1. **HTML Export**: Nova função `process_html_content_images()` que escaneia todas as tags `<img>` dentro do `htmlContent` e converte as URLs para data URIs base64
+  2. **SCORM Export**: 
+     - Copia imagens da pasta `/storage/assets/` (onde ficam as imagens AI) para o pacote
+     - Converte URLs `/api/assets/{id}` para caminhos relativos `assets/{id}` no `htmlContent`
+- **Files Modified**:
+  - `/app/backend/services/html_exporter.py`:
+    - Nova função `process_html_content_images()` para processar imagens dentro do HTML
+    - Chamada durante processamento de elementos HTML
+  - `/app/backend/services/scorm_exporter.py`:
+    - Cópia de assets globais para o pacote SCORM
+    - Processamento de URLs no `htmlContent`
+- **Status**: FIXED AND TESTED
+- **Verification**: Exportação HTML mostra imagens como data URIs; SCORM inclui arquivos de imagem e usa caminhos relativos
+
 ### P3 - Future Enhancements
 - Question bank sharing between projects
 - Question import from QTI format
