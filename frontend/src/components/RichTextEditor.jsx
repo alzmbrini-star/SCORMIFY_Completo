@@ -821,7 +821,7 @@ export const RichTextEditor = ({
                 {/* Image Preview */}
                 <div className="rounded-lg overflow-hidden bg-slate-900 border border-slate-700">
                   <img 
-                    src={aiImagePreview} 
+                    src={resolveAssetUrl(aiImagePreview)} 
                     alt="Preview" 
                     className="w-full h-auto max-h-64 object-contain"
                     data-testid="ai-image-preview"
