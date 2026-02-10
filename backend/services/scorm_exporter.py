@@ -2597,33 +2597,6 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
-        /* Swipe indicator for mobile */
-        .swipe-hint {{
-            position: fixed;
-            bottom: 70px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 12px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            z-index: 999;
-        }}
-        
-        .swipe-hint.visible {{
-            opacity: 1;
-        }}
-        
-        @media screen and (min-width: 1025px) {{
-            .swipe-hint {{
-                display: none;
-            }}
-        }}
-        
         .nav-buttons {{
             display: flex;
             gap: 10px;
