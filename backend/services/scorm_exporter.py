@@ -2640,6 +2640,18 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             overflow: hidden;
         }}
         
+        /* Mobile: allow scrolling inside html elements */
+        @media screen and (max-width: 1024px) {{
+            .html-element {{
+                overflow: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }}
+            
+            .html-element iframe {{
+                pointer-events: auto !important;
+            }}
+        }}
+        
         .html-element iframe {{
             width: 100%;
             height: 100%;
