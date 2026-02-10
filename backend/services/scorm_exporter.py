@@ -2452,6 +2452,56 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Quiz Player Container - Mobile Optimization */
+        .quiz-player-container {{
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(15, 15, 26, 0.95);
+            border-radius: 8px;
+            overflow: auto;
+        }}
+        
+        @media screen and (max-width: 1024px) {{
+            .quiz-player-container {{
+                border-radius: 4px;
+                font-size: 14px;
+            }}
+            
+            .quiz-player-container h2,
+            .quiz-player-container h3 {{
+                font-size: 1.2em !important;
+            }}
+            
+            .quiz-player-container button {{
+                padding: 10px 15px !important;
+                font-size: 14px !important;
+            }}
+        }}
+        
+        @media screen and (orientation: landscape) and (max-height: 600px) {{
+            .quiz-player-container {{
+                font-size: 12px;
+            }}
+            
+            .quiz-player-container h2,
+            .quiz-player-container h3 {{
+                font-size: 1.1em !important;
+                margin: 5px 0 !important;
+            }}
+            
+            .quiz-player-container button {{
+                padding: 8px 12px !important;
+                font-size: 12px !important;
+            }}
+            
+            .quiz-player-container .quiz-option {{
+                padding: 8px 12px !important;
+                margin: 4px 0 !important;
+            }}
+        }}
+        
         .nav-buttons {{
             display: flex;
             gap: 10px;
