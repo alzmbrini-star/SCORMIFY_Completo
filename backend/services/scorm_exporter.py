@@ -2411,12 +2411,27 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             /* Removed overflow: hidden to allow proper rendering */
         }}
         
-        /* Mobile optimization: expand elements to fill more space */
-        @media screen and (max-width: 1024px) and (orientation: landscape) {{
+        /* Mobile optimization: expand elements and ensure content fits */
+        @media screen and (max-width: 1024px) {{
             .slide-element.quiz-element,
             .slide-element.html-element {{
                 /* These will be adjusted by JavaScript */
+                overflow: auto !important;
             }}
+            
+            /* Ensure text doesn't overflow on mobile */
+            .slide-element.html-element iframe {{
+                max-width: 100% !important;
+                max-height: 100% !important;
+            }}
+        }}
+        
+        /* Ensure iframe content stays within bounds */
+        .html-element iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+            overflow: auto;
         }}
         
         .text-element {{
