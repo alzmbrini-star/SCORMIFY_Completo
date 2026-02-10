@@ -661,6 +661,42 @@ var CoursePlayer = (function() {
         }
         window.slideTimelineTimers = [];
         
+        // Helper function to optimize elements for mobile
+        function optimizeForMobile() {
+            var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
+            if (!isMobile) return;
+            
+            // Find quiz and html elements and expand them if they don't cover full slide
+            var quizElements = container.querySelectorAll('.quiz-element');
+            var htmlElements = container.querySelectorAll('.html-element');
+            
+            var allElements = Array.from(quizElements).concat(Array.from(htmlElements));
+            
+            allElements.forEach(function(el) {
+                var elWidth = parseFloat(el.style.width) || el.offsetWidth;
+                var elHeight = parseFloat(el.style.height) || el.offsetHeight;
+                var elLeft = parseFloat(el.style.left) || 0;
+                var elTop = parseFloat(el.style.top) || 0;
+                
+                // If element covers less than 80% of slide, expand it
+                var coverageW = elWidth / slideWidth;
+                var coverageH = elHeight / slideHeight;
+                
+                if (coverageW < 0.8 || coverageH < 0.8) {
+                    // Center and expand the element
+                    var newWidth = Math.min(slideWidth * 0.95, elWidth * 1.2);
+                    var newHeight = Math.min(slideHeight * 0.95, elHeight * 1.2);
+                    var newLeft = (slideWidth - newWidth) / 2;
+                    var newTop = (slideHeight - newHeight) / 2;
+                    
+                    el.style.width = newWidth + 'px';
+                    el.style.height = newHeight + 'px';
+                    el.style.left = newLeft + 'px';
+                    el.style.top = newTop + 'px';
+                }
+            });
+        }
+        
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
         if (slide.backgroundImage) {
