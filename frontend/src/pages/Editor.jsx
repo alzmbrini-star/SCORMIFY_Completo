@@ -1373,8 +1373,9 @@ export default function Editor() {
       
       if (response.data.success && response.data.imageUrl) {
         toast.success('Imagem gerada com sucesso!');
-        // Return the full URL
-        return `${API_URL}${response.data.imageUrl}`;
+        // Return relative URL only - this prevents issues when domain changes
+        // The frontend will resolve the full URL when displaying
+        return response.data.imageUrl;
       } else {
         throw new Error('No image returned');
       }
