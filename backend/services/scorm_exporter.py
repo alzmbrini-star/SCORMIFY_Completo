@@ -2948,6 +2948,30 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                 except Exception as e:
                     logger.error(f"Error downloading external video: {e}")
             
+            # Process HTML elements - fix image URLs inside htmlContent
+            if element.get('type') == 'html' and element.get('htmlContent'):
+                html_content = element['htmlContent']
+                # Find all img src URLs and fix them to relative paths
+                import re
+                img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
+                
+                def fix_img_src(match):
+                    src = match.group(1)
+                    # Skip data URIs
+                    if src.startswith('data:'):
+                        return match.group(0)
+                    # Fix API asset URLs
+                    if '/api/assets/' in src:
+                        filename = src.split('/assets/')[-1]
+                        return f'src="assets/{filename}"'
+                    elif '/assets/' in src:
+                        filename = src.split('/assets/')[-1]
+                        return f'src="assets/{filename}"'
+                    return match.group(0)
+                
+                element['htmlContent'] = img_pattern.sub(fix_img_src, html_content)
+                logger.info(f"Processed htmlContent for embedded images")
+            
             # Fix audio URLs
         for audio in slide.get('audio', []):
             if audio.get('src') and '/assets/' in audio.get('src', ''):
