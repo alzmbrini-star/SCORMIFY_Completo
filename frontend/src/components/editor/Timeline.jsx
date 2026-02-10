@@ -310,9 +310,12 @@ const Timeline = ({
   };
 
   return (
-    <div className="h-52 border-t border-border bg-card flex flex-col" data-testid="timeline">
+    <div 
+      className={`border-t border-border bg-card flex flex-col ${expanded ? 'h-full' : 'h-52'}`} 
+      data-testid="timeline"
+    >
       {/* Timeline Controls */}
-      <div className="h-10 border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
+      <div className={`border-b border-border flex items-center px-4 gap-3 flex-shrink-0 ${expanded ? 'h-14' : 'h-10'}`}>
         <Button
           variant="ghost"
           size="icon"
