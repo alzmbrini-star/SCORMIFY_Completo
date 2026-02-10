@@ -716,9 +716,18 @@ var CoursePlayer = (function() {
         // Save position to SCORM
         ScormAPI.setLocation(index);
         
-        // Check completion
+        // Check completion - only if no quiz on current slide
+        // If there's a quiz, completion will be handled after quiz submission
         if (index === totalSlides - 1) {
-            ScormAPI.setComplete();
+            var currentSlide = course.slides[index];
+            var hasQuiz = currentSlide && currentSlide.elements && 
+                currentSlide.elements.some(function(el) { return el.type === 'quiz'; });
+            
+            if (!hasQuiz) {
+                // No quiz on last slide, mark as complete
+                ScormAPI.setComplete();
+            }
+            // If has quiz, completion will be triggered in QuizController.finishQuiz()
         }
     }
     
