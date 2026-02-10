@@ -1210,7 +1210,7 @@ async def serve_asset(project_id: str, filename: str):
 
 @api_router.get("/exports/{filename}")
 async def serve_export(filename: str):
-    """Serve exported files (SCORM zip or HTML)"""
+    """Serve exported files (SCORM zip or HTML) with forced download"""
     file_path = EXPORTS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -1223,10 +1223,15 @@ async def serve_export(filename: str):
     else:
         media_type = 'application/octet-stream'
     
+    # Always force download for export files by setting filename
+    # This adds Content-Disposition: attachment header
     return FileResponse(
         file_path,
         media_type=media_type,
-        filename=filename if media_type == 'application/zip' else None  # Only force download for zip files
+        filename=filename,  # Force download for all export files
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
+        }
     )
 
 @api_router.get("/assets/{filename}")
