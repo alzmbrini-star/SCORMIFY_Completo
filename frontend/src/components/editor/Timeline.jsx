@@ -529,14 +529,17 @@ const Timeline = ({
             const widthPercent = ((endTime - startTime) / duration) * 100;
             const isActive = currentTime >= startTime && currentTime < endTime;
             const isDragging = isDraggingClip === element.id;
+            const trackHeight = expanded ? 'h-14' : 'h-10';
+            const clipHeight = expanded ? 'h-10' : 'h-7';
+            const clipTop = expanded ? 'top-2' : 'top-1.5';
 
             return (
-              <div key={element.id} className="h-10 relative border-b border-border/30">
+              <div key={element.id} className={`${trackHeight} relative border-b border-border/30`}>
                 {/* Element clip */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className={`absolute h-7 top-1.5 rounded border flex items-center group ${getClipColor(element.type)} ${
+                      className={`absolute ${clipHeight} ${clipTop} rounded border flex items-center group ${getClipColor(element.type)} ${
                         isActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''
                       } ${isDragging ? 'opacity-75' : ''}`}
                       style={{
