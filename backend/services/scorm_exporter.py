@@ -287,13 +287,11 @@ function checkMobileOrientation() {
         overlay.style.display = 'none';
         playerContainer.style.display = 'flex';
         
-        // If player was hidden and is now visible, refresh the slide
-        if (wasHidden && typeof CoursePlayer !== 'undefined' && CoursePlayer.refresh) {
-            [50, 150, 300, 500].forEach(function(delay) {
-                setTimeout(function() {
-                    CoursePlayer.refresh();
-                }, delay);
-            });
+        // Update scale when returning from portrait overlay
+        if (wasHidden && typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
+            setTimeout(function() {
+                CoursePlayer.updateScale();
+            }, 100);
         }
     }
 }
