@@ -363,47 +363,62 @@ var CoursePlayer = (function() {
         
         console.log('[AutoHide] Setting up auto-hide controls for mobile');
         var controls = document.getElementById('controls');
-        var slideContent = document.getElementById('slide-content');
-        if (!controls) return;
+        var playerContainer = document.getElementById('player-container');
+        var slideWrapper = document.getElementById('slide-wrapper');
+        if (!controls || !playerContainer) return;
         
         var controlsHeight = controls.offsetHeight || 60;
         
         // Add CSS class for transitions
         controls.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        if (slideContent) {
-            slideContent.style.transition = 'height 0.3s ease';
+        playerContainer.style.transition = 'height 0.3s ease';
+        if (slideWrapper) {
+            slideWrapper.style.transition = 'height 0.3s ease';
         }
         
-        // Function to hide controls
+        // Function to hide controls and expand content
         function hideControls() {
             if (controlsHidden) return;
             controls.style.transform = 'translateY(100%)';
             controls.style.opacity = '0';
             controls.style.pointerEvents = 'none';
+            controls.style.position = 'absolute';
+            controls.style.bottom = '0';
             controlsHidden = true;
             
-            // Expand slide content area when controls are hidden
-            if (slideContent) {
-                slideContent.style.height = 'calc(100vh - 0px)';
+            // Expand player container to use full height
+            playerContainer.style.height = '100vh';
+            if (slideWrapper) {
+                slideWrapper.style.height = '100%';
             }
-            // Recalculate scale to use more space
-            setTimeout(function() { updateSlideScale(); }, 350);
-            console.log('[AutoHide] Controls hidden');
+            
+            // Recalculate scale to use more space after transition
+            setTimeout(function() { 
+                updateSlideScale();
+                console.log('[AutoHide] Scale updated after hide');
+            }, 350);
+            console.log('[AutoHide] Controls hidden, expanding content');
         }
         
-        // Function to show controls
+        // Function to show controls and restore content
         function showControls() {
             controls.style.transform = 'translateY(0)';
             controls.style.opacity = '1';
             controls.style.pointerEvents = 'auto';
+            controls.style.position = 'relative';
             controlsHidden = false;
             
-            // Restore slide content area
-            if (slideContent) {
-                slideContent.style.height = 'calc(100vh - ' + controlsHeight + 'px)';
+            // Restore player container height
+            playerContainer.style.height = 'calc(100vh - ' + controlsHeight + 'px)';
+            if (slideWrapper) {
+                slideWrapper.style.height = '100%';
             }
-            // Recalculate scale
-            setTimeout(function() { updateSlideScale(); }, 350);
+            
+            // Recalculate scale after transition
+            setTimeout(function() { 
+                updateSlideScale();
+                console.log('[AutoHide] Scale updated after show');
+            }, 350);
             console.log('[AutoHide] Controls shown');
             resetHideTimeout();
         }
