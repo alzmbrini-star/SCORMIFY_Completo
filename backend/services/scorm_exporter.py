@@ -228,14 +228,47 @@ function checkMobileOrientation() {
     var playerContainer = document.getElementById('player-container');
     if (!overlay || !playerContainer) return;
     
-    // Check if screen is in portrait mode and is a small screen (mobile/tablet)
-    var isPortrait = window.innerHeight > window.innerWidth;
-    var isSmallScreen = window.innerWidth < 900; // Increased threshold
-    var aspectRatio = window.innerWidth / window.innerHeight;
+    // Get the actual viewport dimensions (works better in iframes)
+    var viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    var viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    
+    // Also check screen orientation API if available
+    var screenOrientation = (screen.orientation && screen.orientation.type) || '';
+    var isScreenPortrait = screenOrientation.includes('portrait');
+    
+    // Check if viewport is in portrait mode
+    var isPortrait = viewportHeight > viewportWidth;
+    var isSmallScreen = viewportWidth < 900;
+    var aspectRatio = viewportWidth / viewportHeight;
     var wasHidden = playerContainer.style.display === 'none';
     
-    // Show overlay if portrait mode on small screen with poor aspect ratio for slides
-    if (isPortrait && isSmallScreen && aspectRatio < 0.8) {
+    // Detect if we're in an iframe
+    var inIframe = (window !== window.top);
+    
+    // For iframes in LMS, check parent dimensions if possible
+    if (inIframe) {
+        try {
+            var parentWidth = window.parent.innerWidth || window.parent.document.documentElement.clientWidth;
+            var parentHeight = window.parent.innerHeight || window.parent.document.documentElement.clientHeight;
+            if (parentWidth && parentHeight) {
+                isPortrait = parentHeight > parentWidth;
+                aspectRatio = parentWidth / parentHeight;
+                isSmallScreen = parentWidth < 900;
+            }
+        } catch(e) {
+            // Cross-origin iframe, use local dimensions
+        }
+    }
+    
+    // Show overlay if:
+    // 1. Portrait mode on small screen with aspect ratio < 0.85 (typical phone portrait)
+    // 2. Or screen orientation API reports portrait
+    // 3. Or viewport is very narrow compared to height
+    var shouldShowOverlay = (isPortrait && isSmallScreen && aspectRatio < 0.85) || 
+                            (isScreenPortrait && isSmallScreen) ||
+                            (aspectRatio < 0.7);
+    
+    if (shouldShowOverlay) {
         overlay.style.display = 'flex';
         playerContainer.style.display = 'none';
     } else {
@@ -259,6 +292,7 @@ function checkMobileOrientation() {
 window.addEventListener('orientationchange', function() {
     setTimeout(checkMobileOrientation, 100);
     setTimeout(checkMobileOrientation, 250);
+    setTimeout(checkMobileOrientation, 500);
 });
 
 // Listen for resize events
