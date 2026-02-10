@@ -450,13 +450,16 @@ const Timeline = ({
             const widthPercent = Math.min((clipDuration / duration) * 100, 100 - startPercent);
             const isActive = currentTime >= startTime && currentTime < endTime;
             const isDragging = isDraggingClip === audio.id;
+            const trackHeight = expanded ? 'h-14' : 'h-10';
+            const clipHeight = expanded ? 'h-10' : 'h-7';
+            const clipTop = expanded ? 'top-2' : 'top-1.5';
             
             return (
-              <div key={audio.id} className="h-10 relative border-b border-border/30">
+              <div key={audio.id} className={`${trackHeight} relative border-b border-border/30`}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className={`absolute h-7 top-1.5 bg-green-500/30 border border-green-500/50 rounded flex items-center group ${
+                      className={`absolute ${clipHeight} ${clipTop} bg-green-500/30 border border-green-500/50 rounded flex items-center group ${
                         isActive ? 'ring-2 ring-cyan-400 ring-offset-1' : ''
                       } ${isDragging ? 'opacity-75' : ''}`}
                       style={{
