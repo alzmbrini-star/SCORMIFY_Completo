@@ -633,8 +633,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               <img
                 src={getAssetUrl(currentSlide.backgroundImage, projectId)}
                 alt=""
-                className="absolute inset-0 w-full h-full object-contain"
-                style={{ zIndex: 0 }}
+                className="absolute inset-0 w-full h-full"
+                style={{ zIndex: 0, objectFit: 'fill' }}
               />
             )}
             
