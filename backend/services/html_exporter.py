@@ -86,8 +86,13 @@ async def process_html_content_images(
         if src.startswith('/api/assets/'):
             # Try local file first
             asset_filename = src.split('/')[-1]
-            # AI images are stored in storage/assets/
-            storage_assets_path = os.path.join(os.path.dirname(assets_dir), 'assets', asset_filename)
+            # AI images are stored in storage/assets/ (sibling to projects/)
+            # assets_dir is like /storage/projects/{id}/assets
+            # We need /storage/assets/
+            project_dir = os.path.dirname(assets_dir)  # /storage/projects/{id}
+            projects_dir = os.path.dirname(project_dir)  # /storage/projects
+            storage_dir = os.path.dirname(projects_dir)  # /storage
+            storage_assets_path = os.path.join(storage_dir, 'assets', asset_filename)
             if os.path.exists(storage_assets_path):
                 base64_src = file_to_base64(storage_assets_path)
                 logger.info(f"Embedded AI image from storage: {asset_filename}")
