@@ -736,7 +736,10 @@ export const RichTextEditor = ({
         </Popover>
 
         {/* AI Image Generate Button */}
-        <Popover open={showAIImagePrompt} onOpenChange={setShowAIImagePrompt}>
+        <Popover open={showAIImagePrompt} onOpenChange={(open) => {
+          if (!open) handleCancelAIImage();
+          else setShowAIImagePrompt(true);
+        }}>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
@@ -754,44 +757,113 @@ export const RichTextEditor = ({
               <Sparkles className="w-3 h-3" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 bg-slate-800 border-slate-700">
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm">Gerar imagem com IA</h4>
-              <p className="text-xs text-slate-400">Descreva a imagem que deseja criar</p>
-              <Textarea
-                value={aiImagePrompt}
-                onChange={(e) => setAIImagePrompt(e.target.value)}
-                placeholder="Ex: Um gráfico de crescimento profissional, um ícone de educação, uma ilustração corporativa..."
-                className="bg-slate-900 border-slate-700 min-h-[80px]"
-              />
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleAIImageGenerate}
-                  disabled={!aiImagePrompt.trim() || isGeneratingImage}
-                  type="button"
-                  className="flex-1 bg-cyan-600 hover:bg-cyan-700"
-                >
-                  {isGeneratingImage ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Gerando...
-                    </>
-                  ) : (
-                    <>
-                      <ImageIcon className="w-4 h-4 mr-2" />
-                      Gerar Imagem
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  type="button"
-                  onClick={() => setShowAIImagePrompt(false)}
-                >
-                  Cancelar
-                </Button>
+          <PopoverContent className="w-96 bg-slate-800 border-slate-700">
+            {aiImageStep === 'prompt' ? (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Gerar imagem com IA</h4>
+                <p className="text-xs text-slate-400">Descreva a imagem que deseja criar</p>
+                <Textarea
+                  value={aiImagePrompt}
+                  onChange={(e) => setAIImagePrompt(e.target.value)}
+                  placeholder="Ex: Um gráfico de crescimento profissional, um ícone de educação, uma ilustração corporativa..."
+                  className="bg-slate-900 border-slate-700 min-h-[80px]"
+                  data-testid="ai-image-prompt-input"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAIImageGenerate}
+                    disabled={!aiImagePrompt.trim() || isGeneratingImage}
+                    type="button"
+                    className="flex-1 bg-cyan-600 hover:bg-cyan-700"
+                    data-testid="ai-image-generate-btn"
+                  >
+                    {isGeneratingImage ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-4 h-4 mr-2" />
+                        Gerar Imagem
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={handleCancelAIImage}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  Prévia da imagem
+                </h4>
+                <p className="text-xs text-slate-400 truncate" title={aiImagePrompt}>
+                  "{aiImagePrompt}"
+                </p>
+                
+                {/* Image Preview */}
+                <div className="rounded-lg overflow-hidden bg-slate-900 border border-slate-700">
+                  <img 
+                    src={aiImagePreview} 
+                    alt="Preview" 
+                    className="w-full h-auto max-h-64 object-contain"
+                    data-testid="ai-image-preview"
+                  />
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={handleInsertAIImage}
+                    type="button"
+                    className="bg-green-600 hover:bg-green-700"
+                    data-testid="ai-image-use-btn"
+                  >
+                    ✓ Usar esta
+                  </Button>
+                  <Button
+                    onClick={handleRegenerateAIImage}
+                    type="button"
+                    variant="outline"
+                    className="border-cyan-500 text-cyan-400 hover:bg-cyan-500/20"
+                    disabled={isGeneratingImage}
+                    data-testid="ai-image-regenerate-btn"
+                  >
+                    {isGeneratingImage ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      '↻ Regenerar'
+                    )}
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleEditAIImagePrompt}
+                    type="button"
+                    variant="ghost"
+                    className="flex-1 text-slate-400 hover:text-slate-200"
+                    data-testid="ai-image-edit-btn"
+                  >
+                    ✎ Editar prompt
+                  </Button>
+                  <Button
+                    onClick={handleCancelAIImage}
+                    type="button"
+                    variant="ghost"
+                    className="text-slate-500 hover:text-slate-300"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
           </PopoverContent>
         </Popover>
 
