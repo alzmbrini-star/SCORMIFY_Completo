@@ -2044,36 +2044,6 @@ export default function Editor() {
                   {formatTime(recordingTime)}
                 </span>
               )}
-
-              <div className="ml-auto flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setShowTimelineExpanded(true)}
-                      data-testid="expand-timeline-btn"
-                    >
-                      <Maximize2 className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Expandir Timeline</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setShowTimeline(!showTimeline)}
-                    >
-                      {showTimeline ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Toggle Timeline</TooltipContent>
-                </Tooltip>
-              </div>
             </div>
 
             {/* Canvas */}
