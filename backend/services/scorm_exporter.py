@@ -335,123 +335,57 @@ var CoursePlayer = (function() {
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     var userHasInteracted = false; // Track if user has interacted with the page
     
-    // Mobile controls auto-hide
-    var controlsTimeout = null;
-    var isMobileDevice = (function() {
-        // Check user agent
-        var ua = navigator.userAgent || '';
-        var isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
-        
-        // Check screen size
-        var screenWidth = window.innerWidth || document.documentElement.clientWidth || screen.width;
-        var screenHeight = window.innerHeight || document.documentElement.clientHeight || screen.height;
-        var isSmallScreen = Math.min(screenWidth, screenHeight) < 1024;
-        
-        // Check touch capability
-        var hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        
-        return isMobileUA || isSmallScreen || hasTouch;
-    })();
-    
     // Swipe navigation variables
     var touchStartX = 0;
     var touchStartY = 0;
     var touchEndX = 0;
     var touchEndY = 0;
-    var minSwipeDistance = 50;
-    
-    function setupMobileControls() {
-        // Always setup on touch devices or small screens
-        var controls = document.getElementById('controls');
-        var wrapper = document.getElementById('slide-wrapper');
-        if (!controls || !wrapper) {
-            console.log('Controls or wrapper not found');
-            return;
-        }
-        
-        console.log('Setting up mobile controls, isMobile:', isMobileDevice);
-        
-        // Auto-hide controls after 3 seconds
-        function hideControls() {
-            controls.classList.add('hidden');
-            document.body.classList.add('controls-hidden');
-        }
-        
-        function showControls() {
-            controls.classList.remove('hidden');
-            document.body.classList.remove('controls-hidden');
-            // Reset timer
-            clearTimeout(controlsTimeout);
-            controlsTimeout = setTimeout(hideControls, 4000);
-        }
-        
-        // Show controls on touch anywhere on the page
-        document.addEventListener('touchstart', function(e) {
-            // Don't interfere with quiz interactions
-            if (e.target.closest('.quiz-player-container') && !e.target.closest('.quiz-player-container').classList.contains('quiz-completed')) {
-                return;
-            }
-            showControls();
-        }, { passive: true });
-        
-        // Show controls on click
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.quiz-player-container') && !e.target.closest('.quiz-player-container').classList.contains('quiz-completed')) {
-                return;
-            }
-            showControls();
-        });
-        
-        // Prevent auto-hide when interacting with controls
-        controls.addEventListener('touchstart', function() {
-            clearTimeout(controlsTimeout);
-        }, { passive: true });
-        
-        controls.addEventListener('touchend', function() {
-            controlsTimeout = setTimeout(hideControls, 4000);
-        }, { passive: true });
-        
-        // Start with controls visible, then hide after delay
-        showControls();
-    }
+    var minSwipeDistance = 60;
+    var swipeEnabled = true;
     
     function setupSwipeNavigation() {
-        var wrapper = document.getElementById('slide-wrapper');
-        if (!wrapper) {
-            console.log('Wrapper not found for swipe');
-            return;
-        }
-        
-        console.log('Setting up swipe navigation');
-        
-        wrapper.addEventListener('touchstart', function(e) {
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
+        // Add swipe support to the entire document for mobile navigation
+        document.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            swipeEnabled = true;
         }, { passive: true });
         
-        wrapper.addEventListener('touchend', function(e) {
-            touchEndX = e.changedTouches[0].screenX;
-            touchEndY = e.changedTouches[0].screenY;
-            handleSwipe();
+        document.addEventListener('touchmove', function(e) {
+            // If scrolling vertically, disable swipe
+            var currentY = e.touches[0].clientY;
+            var deltaY = Math.abs(currentY - touchStartY);
+            if (deltaY > 30) {
+                swipeEnabled = false;
+            }
         }, { passive: true });
         
-        function handleSwipe() {
-            var deltaX = touchEndX - touchStartX;
-            var deltaY = touchEndY - touchStartY;
+        document.addEventListener('touchend', function(e) {
+            if (!swipeEnabled) return;
             
-            // Only handle horizontal swipes (not vertical scroll)
-            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+            touchEndX = e.changedTouches[0].clientX;
+            touchEndY = e.changedTouches[0].clientY;
+            
+            var deltaX = touchEndX - touchStartX;
+            var deltaY = Math.abs(touchEndY - touchStartY);
+            
+            // Only handle horizontal swipes (deltaX > deltaY) with minimum distance
+            if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaX) > deltaY) {
+                // Don't swipe if touching quiz or buttons
+                var target = e.target;
+                if (target.closest && (target.closest('button') || target.closest('.quiz-player-container') || target.closest('input') || target.closest('select'))) {
+                    return;
+                }
+                
                 if (deltaX < 0) {
                     // Swipe left - go to next slide
-                    console.log('Swipe left - next slide');
                     CoursePlayer.nextSlide();
                 } else {
                     // Swipe right - go to previous slide
-                    console.log('Swipe right - prev slide');
                     CoursePlayer.prevSlide();
                 }
             }
-        }
+        }, { passive: true });
     }
     
     function loadCourse(courseData) {
