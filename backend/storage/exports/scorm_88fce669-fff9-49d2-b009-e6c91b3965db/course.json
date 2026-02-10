@@ -1,0 +1,340 @@
+{
+  "id": "094f20df-0a51-4c4b-8a0c-dd745191f0c9",
+  "metadata": {
+    "title": "88fce669-fff9-49d2-b009-e6c91b3965db_Tutorial-de-Implementacao-da-Plataforma-Didaxis",
+    "description": "",
+    "author": "",
+    "organization": "",
+    "version": "1.0",
+    "language": "pt-BR",
+    "keywords": []
+  },
+  "slides": [
+    {
+      "id": "9d826196-468e-4e89-b85f-c7ac09626939",
+      "title": "Slide 1",
+      "order": 0,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_001.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "594431fc-7a13-4694-87eb-46dfce59dacb",
+      "title": "Slide 2",
+      "order": 1,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_002.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "4a74f618-7d56-47aa-bbd2-3d0ea8fa625c",
+      "title": "Slide 3",
+      "order": 2,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_003.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "b80db618-329b-4eb5-9ca9-633e54277b85",
+      "title": "Slide 4",
+      "order": 3,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_004.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "41403942-8f6a-43f1-afde-c3496a3f8313",
+      "title": "Slide 5",
+      "order": 4,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_005.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "ff343f46-df10-4839-898b-d13f12006c53",
+      "title": "Slide 6",
+      "order": 5,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_006.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "3fb032bd-4dce-42af-818a-9ce50d0509fe",
+      "title": "Slide 7",
+      "order": 6,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_007.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "ba936961-d5be-46dd-aa60-53c3ac41b65c",
+      "title": "Slide 8",
+      "order": 7,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_008.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "1ebfde36-5824-45f3-8092-d51cdfbc57dd",
+      "title": "Slide 9",
+      "order": 8,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_009.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "fcd8d16b-5bbe-4e1a-b58f-5397509c5a5b",
+      "title": "Slide 10",
+      "order": 9,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_010.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "d6e49911-8bc5-46d9-b060-bd1ba6746403",
+      "title": "Slide 11",
+      "order": 10,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_011.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "fefa98e8-bbe4-471a-82bc-b23da9d63cd0",
+      "title": "Slide 12",
+      "order": 11,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_012.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "7afd86e0-517d-4c33-91e7-7a75cda29cc4",
+      "title": "Slide 13",
+      "order": 12,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_013.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "8a332fea-0a6e-4d4c-8453-875158e7ba57",
+      "title": "Slide 14",
+      "order": 13,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_014.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "2031a317-8c0c-414f-a834-60926bcf992b",
+      "title": "Slide 15",
+      "order": 14,
+      "width": 1536.0,
+      "height": 864.0,
+      "background": "#FFFFFF",
+      "backgroundImage": "assets/slide_015.png",
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": "",
+      "thumbnail": null,
+      "duration": 5.0
+    }
+  ],
+  "globalAudio": null,
+  "originalFilename": "88fce669-fff9-49d2-b009-e6c91b3965db_Tutorial-de-Implementacao-da-Plataforma-Didaxis.pptx",
+  "conversionReport": {
+    "success": [
+      "Slide 1: Rendered as image (no animations)",
+      "Slide 2: Rendered as image (no animations)",
+      "Slide 3: Rendered as image (no animations)",
+      "Slide 4: Rendered as image (no animations)",
+      "Slide 5: Rendered as image (no animations)",
+      "Slide 6: Rendered as image (no animations)",
+      "Slide 7: Rendered as image (no animations)",
+      "Slide 8: Rendered as image (no animations)",
+      "Slide 9: Rendered as image (no animations)",
+      "Slide 10: Rendered as image (no animations)",
+      "Slide 11: Rendered as image (no animations)",
+      "Slide 12: Rendered as image (no animations)",
+      "Slide 13: Rendered as image (no animations)",
+      "Slide 14: Rendered as image (no animations)",
+      "Slide 15: Rendered as image (no animations)"
+    ],
+    "warnings": [],
+    "errors": [],
+    "method": "high_fidelity_image"
+  },
+  "createdAt": "2026-02-10T14:02:51.404043+00:00",
+  "updatedAt": "2026-02-10T14:02:51.404046+00:00"
+}
