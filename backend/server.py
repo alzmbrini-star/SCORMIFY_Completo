@@ -2237,7 +2237,7 @@ async def migrate_asset_urls():
     import re
     
     migrated_count = 0
-    projects = list(projects_collection.find({}))
+    projects = await db.projects.find({}).to_list(1000)
     
     for project in projects:
         updated = False
@@ -2267,8 +2267,8 @@ async def migrate_asset_urls():
                         logger.info(f"Migrated URLs in project {project.get('name')}")
         
         if updated:
-            projects_collection.update_one(
-                {'_id': project['_id']},
+            await db.projects.update_one(
+                {'id': project['id']},
                 {'$set': {'course': course}}
             )
     
