@@ -3257,6 +3257,9 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         </div>
         
         <div id="slide-wrapper">
+            <!-- Swipe zones for mobile navigation -->
+            <div id="swipe-zone-left" class="swipe-zone" onclick="CoursePlayer.prev()"></div>
+            <div id="swipe-zone-right" class="swipe-zone" onclick="CoursePlayer.next()"></div>
             <div id="slide-container"></div>
         </div>
         
