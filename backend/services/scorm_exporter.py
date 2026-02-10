@@ -308,12 +308,15 @@ window.addEventListener('orientationchange', function() {
 });
 
 // Listen for resize events
+var resizeTimeout = null;
 window.addEventListener('resize', function() {
-    checkMobileOrientation();
-    // Also update scale on resize
-    if (typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
-        CoursePlayer.updateScale();
-    }
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(function() {
+        checkMobileOrientation();
+        if (typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
+            CoursePlayer.updateScale();
+        }
+    }, 150);
 });
 
 // Initial check on load
