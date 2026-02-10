@@ -227,6 +227,16 @@ async def generate_standalone_html(
                         if os.path.exists(local_path):
                             processed_element['src'] = file_to_base64(local_path)
             
+            # Process HTML elements (Rich Text Editor content with embedded images)
+            if element.get('type') == 'html' and element.get('htmlContent'):
+                # Process any images inside the HTML content (including AI-generated images)
+                processed_element['htmlContent'] = await process_html_content_images(
+                    element['htmlContent'],
+                    assets_dir,
+                    base_url
+                )
+                logger.info(f"Processed HTML element content for embedded images")
+            
             processed_elements.append(processed_element)
         
         processed_slide['elements'] = processed_elements
