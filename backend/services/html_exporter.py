@@ -240,7 +240,7 @@ async def generate_standalone_html(
                     assets_dir,
                     base_url
                 )
-                logger.info(f"Processed HTML element content for embedded images")
+                logger.info("Processed HTML element content for embedded images")
             
             processed_elements.append(processed_element)
         

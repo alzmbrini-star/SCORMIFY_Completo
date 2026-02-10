@@ -2972,7 +2972,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                     return match.group(0)
                 
                 element['htmlContent'] = img_pattern.sub(fix_img_src, html_content)
-                logger.info(f"Processed htmlContent for embedded images")
+                logger.info("Processed htmlContent for embedded images")
             
             # Fix audio URLs
         for audio in slide.get('audio', []):
