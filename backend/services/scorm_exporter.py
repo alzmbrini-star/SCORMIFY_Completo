@@ -2741,7 +2741,10 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             justify-content: space-between;
             padding: 0 20px;
             border-top: 1px solid #0f3460;
-            transition: transform 0.3s ease, opacity 0.3s ease;
+            transition: transform 0.3s ease, opacity 0.3s ease, height 0.3s ease;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 100;
         }}
         
         /* Mobile: smaller controls */
