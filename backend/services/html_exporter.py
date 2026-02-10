@@ -1148,8 +1148,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     <div id="orientation-overlay">
         <div class="orientation-content">
             <div class="orientation-icon">📱</div>
+            <div class="orientation-arrow">↻</div>
             <h2>Rotacione seu dispositivo</h2>
-            <p>Para uma melhor experiência, visualize no modo paisagem (horizontal)</p>
+            <p>Para uma melhor experiência, por favor visualize este conteúdo no modo horizontal (paisagem)</p>
+            <div class="orientation-hint">
+                <span class="phone-icon vertical">📱</span>
+                <span class="arrow">→</span>
+                <span class="phone-icon horizontal">📱</span>
+            </div>
         </div>
     </div>
     
