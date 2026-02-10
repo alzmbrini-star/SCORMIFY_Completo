@@ -348,6 +348,65 @@ var CoursePlayer = (function() {
     var minSwipeDistance = 60;
     var swipeEnabled = true;
     
+    // Auto-hide controls variables (mobile only)
+    var controlsHideTimeout = null;
+    var controlsHidden = false;
+    var CONTROLS_HIDE_DELAY = 3000; // 3 seconds before hiding
+    
+    function setupAutoHideControls() {
+        // Only enable on mobile devices
+        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024;
+        if (!isMobile) {
+            console.log('[AutoHide] Not a mobile device, skipping auto-hide setup');
+            return;
+        }
+        
+        console.log('[AutoHide] Setting up auto-hide controls for mobile');
+        var controls = document.getElementById('controls');
+        if (!controls) return;
+        
+        // Add CSS class for transitions
+        controls.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        
+        // Function to hide controls
+        function hideControls() {
+            if (controlsHidden) return;
+            controls.style.transform = 'translateY(100%)';
+            controls.style.opacity = '0';
+            controlsHidden = true;
+            console.log('[AutoHide] Controls hidden');
+        }
+        
+        // Function to show controls
+        function showControls() {
+            controls.style.transform = 'translateY(0)';
+            controls.style.opacity = '1';
+            controlsHidden = false;
+            console.log('[AutoHide] Controls shown');
+            resetHideTimeout();
+        }
+        
+        // Reset the hide timeout
+        function resetHideTimeout() {
+            if (controlsHideTimeout) {
+                clearTimeout(controlsHideTimeout);
+            }
+            controlsHideTimeout = setTimeout(hideControls, CONTROLS_HIDE_DELAY);
+        }
+        
+        // Show controls on any interaction
+        document.addEventListener('touchstart', function(e) {
+            showControls();
+        }, { passive: true });
+        
+        document.addEventListener('click', function(e) {
+            showControls();
+        }, { passive: true });
+        
+        // Start the initial hide timeout
+        resetHideTimeout();
+    }
+    
     function setupSwipeNavigation() {
         // Add swipe support to the entire document for mobile navigation
         document.addEventListener('touchstart', function(e) {
