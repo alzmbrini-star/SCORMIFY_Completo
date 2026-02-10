@@ -363,17 +363,31 @@ var CoursePlayer = (function() {
         
         console.log('[AutoHide] Setting up auto-hide controls for mobile');
         var controls = document.getElementById('controls');
+        var slideContent = document.getElementById('slide-content');
         if (!controls) return;
+        
+        var controlsHeight = controls.offsetHeight || 60;
         
         // Add CSS class for transitions
         controls.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        if (slideContent) {
+            slideContent.style.transition = 'height 0.3s ease';
+        }
         
         // Function to hide controls
         function hideControls() {
             if (controlsHidden) return;
             controls.style.transform = 'translateY(100%)';
             controls.style.opacity = '0';
+            controls.style.pointerEvents = 'none';
             controlsHidden = true;
+            
+            // Expand slide content area when controls are hidden
+            if (slideContent) {
+                slideContent.style.height = 'calc(100vh - 0px)';
+            }
+            // Recalculate scale to use more space
+            setTimeout(function() { updateSlideScale(); }, 350);
             console.log('[AutoHide] Controls hidden');
         }
         
@@ -381,7 +395,15 @@ var CoursePlayer = (function() {
         function showControls() {
             controls.style.transform = 'translateY(0)';
             controls.style.opacity = '1';
+            controls.style.pointerEvents = 'auto';
             controlsHidden = false;
+            
+            // Restore slide content area
+            if (slideContent) {
+                slideContent.style.height = 'calc(100vh - ' + controlsHeight + 'px)';
+            }
+            // Recalculate scale
+            setTimeout(function() { updateSlideScale(); }, 350);
             console.log('[AutoHide] Controls shown');
             resetHideTimeout();
         }
