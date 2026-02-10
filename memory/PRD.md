@@ -1034,6 +1034,33 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED
 - **Verification**: Exportação HTML mostra imagens como data URIs; SCORM inclui arquivos de imagem e usa caminhos relativos
 
+### AI Image Preview Feature - IMPLEMENTED (Feb 10, 2026)
+- **Feature**: Prévia de imagens AI geradas antes de inserir no documento
+- **Implementation**:
+  1. Usuário digita o prompt da imagem
+  2. IA gera a imagem e mostra preview
+  3. Opções disponíveis:
+     - **"✓ Usar esta"** → insere no documento (botão verde)
+     - **"↻ Regenerar"** → gera nova imagem com o mesmo prompt (botão cyan outline)
+     - **"✎ Editar prompt"** → volta para o campo de edição do prompt
+     - **"Cancelar"** → fecha sem inserir
+- **UI States**:
+  - `prompt`: Campo de texto para descrever a imagem + botão "Gerar Imagem"
+  - `preview`: Imagem gerada + botões de ação
+- **Files Modified**:
+  - `/app/frontend/src/components/RichTextEditor.jsx`:
+    - Novos estados: `aiImagePreview`, `aiImageStep`
+    - Novas funções: `handleInsertAIImage`, `handleRegenerateAIImage`, `handleEditAIImagePrompt`, `handleCancelAIImage`
+    - Popover atualizado com layout de preview
+- **Test IDs Added**:
+  - `ai-image-prompt-input`: Campo de texto do prompt
+  - `ai-image-generate-btn`: Botão de gerar
+  - `ai-image-preview`: Imagem de preview
+  - `ai-image-use-btn`: Botão "Usar esta"
+  - `ai-image-regenerate-btn`: Botão "Regenerar"
+  - `ai-image-edit-btn`: Botão "Editar prompt"
+- **Status**: IMPLEMENTED AND TESTED
+
 ### P3 - Future Enhancements
 - Question bank sharing between projects
 - Question import from QTI format
