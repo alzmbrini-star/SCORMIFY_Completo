@@ -926,7 +926,9 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                     style={{ 
                       background: 'transparent', 
                       overflow: isElementFullscreen ? 'hidden' : 'auto',
-                      position: isElementFullscreen ? 'relative' : 'static'
+                      position: isElementFullscreen ? 'relative' : 'static',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none'
                     }}
                     sandbox="allow-scripts allow-same-origin"
                     title="HTML Content"
