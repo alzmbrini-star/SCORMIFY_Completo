@@ -18,6 +18,8 @@ import {
   Circle,
   ArrowRight,
   Pencil,
+  Maximize2,
+  ChevronDown,
 } from 'lucide-react';
 import {
   Tooltip,
