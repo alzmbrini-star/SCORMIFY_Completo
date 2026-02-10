@@ -999,6 +999,27 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/backend/services/scorm_exporter.py`
 - **Status**: FIXED AND TESTED
 
+### Mobile Swipe Navigation + Auto-Hide Controls - FIXED (Feb 10, 2026)
+- **Issue**: Funcionalidades de swipe para navegar e auto-hide da barra de controles não funcionavam no SCORM mobile
+- **Root Cause**: 
+  1. O código de swipe chamava `CoursePlayer.nextSlide()` e `CoursePlayer.prevSlide()`, mas a API pública só expõe `next()` e `prev()`
+  2. A funcionalidade de auto-hide nunca tinha sido implementada
+- **Fix Applied**:
+  1. Corrigido `setupSwipeNavigation()` para usar `CoursePlayer.next()` e `CoursePlayer.prev()`
+  2. Implementada nova função `setupAutoHideControls()` que:
+     - Esconde a barra após 3 segundos de inatividade (apenas em mobile)
+     - Mostra a barra ao tocar na tela
+     - Usa animações CSS suaves (transform + opacity)
+  3. Adicionado CSS `word-wrap: break-word` para melhorar quebra de texto no mobile
+- **Files Modified**:
+  - `/app/backend/services/scorm_exporter.py`:
+    - Linha 385-392: Corrigido chamadas de navegação
+    - Linhas 351-410: Nova função `setupAutoHideControls()`
+    - Chamada `setupAutoHideControls()` em `loadCourse()`
+    - CSS para texto com `word-wrap: break-word; overflow-wrap: break-word;`
+- **Status**: IMPLEMENTED - AGUARDANDO TESTE DO USUÁRIO
+- **Verification**: Pacote SCORM gerado com as correções. Usuário precisa testar em dispositivo mobile real.
+
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
