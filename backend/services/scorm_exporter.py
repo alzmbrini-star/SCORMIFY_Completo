@@ -297,10 +297,14 @@ function checkMobileOrientation() {
 }
 
 // Listen for orientation changes (mobile devices)
+var orientationCheckTimeout = null;
+function debouncedOrientationCheck() {
+    clearTimeout(orientationCheckTimeout);
+    orientationCheckTimeout = setTimeout(checkMobileOrientation, 200);
+}
+
 window.addEventListener('orientationchange', function() {
-    setTimeout(checkMobileOrientation, 100);
-    setTimeout(checkMobileOrientation, 300);
-    setTimeout(checkMobileOrientation, 600);
+    debouncedOrientationCheck();
 });
 
 // Listen for resize events
