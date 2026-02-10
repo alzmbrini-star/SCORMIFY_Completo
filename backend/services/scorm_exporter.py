@@ -1901,8 +1901,15 @@ var QuizController = (function() {
             // Report score to SCORM
             if (typeof ScormAPI !== 'undefined') {
                 ScormAPI.setScore(Math.round(percentage));
-                if (passed) {
-                    ScormAPI.setComplete();
+                // Mark course as complete when quiz is finished (regardless of pass/fail)
+                // The score is already recorded, so LMS can track if they passed or not
+                ScormAPI.setComplete();
+                
+                // Also set lesson_status based on pass/fail
+                var api = ScormAPI.getAPI ? ScormAPI.getAPI() : null;
+                if (api) {
+                    api.LMSSetValue("cmi.core.lesson_status", passed ? "passed" : "failed");
+                    api.LMSCommit("");
                 }
             }
             
