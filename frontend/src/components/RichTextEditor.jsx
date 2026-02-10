@@ -440,7 +440,7 @@ export const RichTextEditor = ({
     try {
       const imageUrl = await onGenerateAIImage(aiImagePrompt);
       if (imageUrl) {
-        // Mostrar preview em vez de inserir direto
+        // Store relative URL for saving, but use full URL for preview
         setAIImagePreview(imageUrl);
         setAIImageStep('preview');
       }
@@ -448,6 +448,16 @@ export const RichTextEditor = ({
       console.error('Error generating AI image:', error);
     }
   }, [aiImagePrompt, onGenerateAIImage]);
+
+  // Helper to resolve relative URLs to full URLs for display
+  const resolveAssetUrl = useCallback((url) => {
+    if (!url) return url;
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/api/')) {
+      return `${process.env.REACT_APP_BACKEND_URL}${url}`;
+    }
+    return url;
+  }, []);
 
   const handleInsertAIImage = useCallback(() => {
     if (!aiImagePreview || !editorRef.current) return;
