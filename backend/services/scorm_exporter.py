@@ -2508,6 +2508,37 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Swipe zones for mobile navigation */
+        .swipe-zone {{
+            display: none;
+            position: absolute;
+            top: 0;
+            width: 40px;
+            height: 100%;
+            z-index: 1000;
+            cursor: pointer;
+        }}
+        
+        #swipe-zone-left {{
+            left: 0;
+        }}
+        
+        #swipe-zone-right {{
+            right: 0;
+        }}
+        
+        /* Show swipe zones on mobile only */
+        @media screen and (max-width: 1024px) {{
+            .swipe-zone {{
+                display: block;
+            }}
+            
+            /* Optional: visual indicator on hover/touch */
+            .swipe-zone:active {{
+                background: rgba(34, 211, 238, 0.2);
+            }}
+        }}
+        
         .slide-element {{
             position: absolute !important;
             /* Removed overflow: hidden to allow proper rendering */
