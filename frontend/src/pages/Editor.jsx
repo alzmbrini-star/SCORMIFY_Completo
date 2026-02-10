@@ -300,6 +300,7 @@ export default function Editor() {
   const [annotationMode, setAnnotationMode] = useState(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null);
   const [showTimeline, setShowTimeline] = useState(true);
+  const [showTimelineExpanded, setShowTimelineExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showAudioDialog, setShowAudioDialog] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
