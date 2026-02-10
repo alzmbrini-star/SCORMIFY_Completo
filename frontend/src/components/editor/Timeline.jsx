@@ -376,6 +376,44 @@ const Timeline = ({
           />
           <span className="text-xs text-muted-foreground">s</span>
         </div>
+
+        {/* Expand/Collapse buttons */}
+        {!expanded && (
+          <div className="ml-auto flex items-center gap-1">
+            {onExpand && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onExpand}
+                    data-testid="expand-timeline-btn"
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Expandir Timeline</TooltipContent>
+              </Tooltip>
+            )}
+            {onToggle && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onToggle}
+                    data-testid="toggle-timeline-btn"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Ocultar Timeline</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Timeline Tracks */}
