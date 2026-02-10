@@ -804,6 +804,9 @@ var CoursePlayer = (function() {
             }
         }
         
+        // Optimize elements for mobile after a short delay to ensure they're rendered
+        setTimeout(optimizeForMobile, 100);
+        
         // Update navigation
         updateNavigation();
         
