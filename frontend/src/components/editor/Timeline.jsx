@@ -36,6 +36,8 @@ const Timeline = ({
   onTimeChange,
   onPlayPause,
   expanded = false,
+  onExpand,
+  onToggle,
 }) => {
   const [localTime, setLocalTime] = useState(0);
   const [localIsPlaying, setLocalIsPlaying] = useState(false);
