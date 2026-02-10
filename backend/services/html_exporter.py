@@ -82,28 +82,31 @@ async def process_html_content_images(
         
         base64_src = None
         
-        # Handle local API assets (like AI-generated images)
-        if src.startswith('/api/assets/'):
-            # Try local file first
-            asset_filename = src.split('/')[-1]
-            # AI images are stored in storage/assets/ (sibling to projects/)
-            # assets_dir is like /storage/projects/{id}/assets
-            # We need /storage/assets/
+        # Extract filename from URL if it contains /api/assets/ pattern
+        # This handles both local (/api/assets/...) and external (https://old-domain.com/api/assets/...) URLs
+        asset_filename = None
+        if '/api/assets/' in src:
+            asset_filename = src.split('/api/assets/')[-1].split('?')[0]  # Remove query params
+        
+        # If we found an asset filename, try to find it locally first
+        if asset_filename:
+            # AI images are stored in storage/assets/
             project_dir = os.path.dirname(assets_dir)  # /storage/projects/{id}
             projects_dir = os.path.dirname(project_dir)  # /storage/projects
             storage_dir = os.path.dirname(projects_dir)  # /storage
             storage_assets_path = os.path.join(storage_dir, 'assets', asset_filename)
             if os.path.exists(storage_assets_path):
                 base64_src = file_to_base64(storage_assets_path)
-                logger.info(f"Embedded AI image from storage: {asset_filename}")
+                logger.info(f"Embedded AI image from local storage: {asset_filename}")
             else:
-                # Try downloading from full URL
-                full_url = f"{base_url}{src}"
-                base64_src = await url_to_base64(full_url)
-                if base64_src:
-                    logger.info(f"Downloaded and embedded image: {src}")
+                # Try with current base_url as fallback
+                if src.startswith('/api/assets/'):
+                    full_url = f"{base_url}{src}"
+                    base64_src = await url_to_base64(full_url)
+                    if base64_src:
+                        logger.info(f"Downloaded AI image from current server: {asset_filename}")
         
-        # Handle project assets
+        # Handle project assets (local paths)
         elif src.startswith('/api/projects/'):
             asset_filename = src.split('/')[-1]
             local_path = os.path.join(assets_dir, asset_filename)
@@ -114,7 +117,7 @@ async def process_html_content_images(
                 full_url = f"{base_url}{src}"
                 base64_src = await url_to_base64(full_url)
         
-        # Handle external URLs
+        # Handle other external URLs (not /api/assets/)
         elif src.startswith('http'):
             base64_src = await url_to_base64(src)
             if base64_src:
