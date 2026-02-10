@@ -542,7 +542,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             inset: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: fill; /* Fill to match PPT slide proportions - same as SCORM */
         }}
         
         .slide-element {{
