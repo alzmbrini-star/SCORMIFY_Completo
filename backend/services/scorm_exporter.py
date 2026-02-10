@@ -408,50 +408,103 @@ var CoursePlayer = (function() {
     }
     
     function setupSwipeNavigation() {
-        // Add swipe support to the entire document for mobile navigation
+        console.log('[Swipe] Setting up swipe navigation');
+        
+        // Variables to track touch positions
+        var swipeTouchStartX = 0;
+        var swipeTouchStartY = 0;
+        var swipeInProgress = false;
+        
+        // Add swipe support - use capture phase to get events before iframes
         document.addEventListener('touchstart', function(e) {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            swipeEnabled = true;
-        }, { passive: true });
+            // Don't track swipes if touching an iframe directly
+            if (e.target.tagName === 'IFRAME') {
+                console.log('[Swipe] Touch on iframe, skipping');
+                return;
+            }
+            swipeTouchStartX = e.touches[0].clientX;
+            swipeTouchStartY = e.touches[0].clientY;
+            swipeInProgress = true;
+            console.log('[Swipe] Touch start at X:', swipeTouchStartX);
+        }, { passive: true, capture: true });
         
         document.addEventListener('touchmove', function(e) {
-            // If scrolling vertically, disable swipe
+            if (!swipeInProgress) return;
+            
+            // If scrolling vertically, cancel swipe detection
             var currentY = e.touches[0].clientY;
-            var deltaY = Math.abs(currentY - touchStartY);
-            if (deltaY > 30) {
-                swipeEnabled = false;
+            var deltaY = Math.abs(currentY - swipeTouchStartY);
+            if (deltaY > 50) {
+                swipeInProgress = false;
+                console.log('[Swipe] Cancelled - vertical scroll detected');
             }
-        }, { passive: true });
+        }, { passive: true, capture: true });
         
         document.addEventListener('touchend', function(e) {
-            if (!swipeEnabled) return;
+            if (!swipeInProgress) {
+                return;
+            }
+            swipeInProgress = false;
             
-            touchEndX = e.changedTouches[0].clientX;
-            touchEndY = e.changedTouches[0].clientY;
+            var touchEndX = e.changedTouches[0].clientX;
+            var touchEndY = e.changedTouches[0].clientY;
             
-            var deltaX = touchEndX - touchStartX;
-            var deltaY = Math.abs(touchEndY - touchStartY);
+            var deltaX = touchEndX - swipeTouchStartX;
+            var deltaY = Math.abs(touchEndY - swipeTouchStartY);
             
-            // Only handle horizontal swipes (deltaX > deltaY) with minimum distance
-            if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaX) > deltaY) {
-                // Don't swipe if touching quiz or buttons
+            console.log('[Swipe] Touch end. DeltaX:', deltaX, 'DeltaY:', deltaY);
+            
+            // Require significant horizontal swipe (100px) and mostly horizontal movement
+            if (Math.abs(deltaX) > 100 && Math.abs(deltaX) > deltaY * 2) {
+                // Don't swipe if touching interactive elements
                 var target = e.target;
-                if (target.closest && (target.closest('button') || target.closest('.quiz-player-container') || target.closest('input') || target.closest('select'))) {
+                if (target.closest && (target.closest('button') || target.closest('.quiz-player-container') || target.closest('input') || target.closest('select') || target.closest('a'))) {
+                    console.log('[Swipe] Touch on interactive element, skipping');
                     return;
                 }
                 
                 if (deltaX < 0) {
                     // Swipe left - go to next slide
-                    console.log('[Swipe] Left detected, going to next slide');
+                    console.log('[Swipe] Left swipe detected, going to next slide');
                     CoursePlayer.next();
                 } else {
                     // Swipe right - go to previous slide
-                    console.log('[Swipe] Right detected, going to previous slide');
+                    console.log('[Swipe] Right swipe detected, going to previous slide');
                     CoursePlayer.prev();
                 }
             }
-        }, { passive: true });
+        }, { passive: true, capture: true });
+        
+        // Also add swipe detection on the main container
+        var slideContent = document.getElementById('slide-content');
+        if (slideContent) {
+            slideContent.addEventListener('touchstart', function(e) {
+                swipeTouchStartX = e.touches[0].clientX;
+                swipeTouchStartY = e.touches[0].clientY;
+                swipeInProgress = true;
+            }, { passive: true });
+            
+            slideContent.addEventListener('touchend', function(e) {
+                if (!swipeInProgress) return;
+                swipeInProgress = false;
+                
+                var touchEndX = e.changedTouches[0].clientX;
+                var touchEndY = e.changedTouches[0].clientY;
+                
+                var deltaX = touchEndX - swipeTouchStartX;
+                var deltaY = Math.abs(touchEndY - swipeTouchStartY);
+                
+                if (Math.abs(deltaX) > 100 && Math.abs(deltaX) > deltaY * 2) {
+                    if (deltaX < 0) {
+                        CoursePlayer.next();
+                    } else {
+                        CoursePlayer.prev();
+                    }
+                }
+            }, { passive: true });
+        }
+        
+        console.log('[Swipe] Swipe navigation setup complete');
     }
     
     function loadCourse(courseData) {
