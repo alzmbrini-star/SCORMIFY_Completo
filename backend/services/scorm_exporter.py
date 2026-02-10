@@ -2193,10 +2193,24 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             transition: margin-left 0.3s ease;
         }}
         
-        /* Mobile landscape optimization */
-        @media screen and (orientation: landscape) and (max-height: 500px) {{
+        /* Mobile landscape optimization - minimize padding for more slide space */
+        @media screen and (orientation: landscape) and (max-height: 600px) {{
             #slide-wrapper {{
                 padding: 5px;
+            }}
+        }}
+        
+        /* Mobile portrait and small screens - also reduce padding */
+        @media screen and (max-width: 768px) {{
+            #slide-wrapper {{
+                padding: 10px;
+            }}
+        }}
+        
+        /* Very small mobile screens in landscape - remove padding entirely */
+        @media screen and (max-height: 450px) and (orientation: landscape) {{
+            #slide-wrapper {{
+                padding: 2px;
             }}
         }}
         
