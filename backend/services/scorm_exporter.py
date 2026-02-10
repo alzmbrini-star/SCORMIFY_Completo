@@ -3030,7 +3030,6 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             if element.get('type') == 'html' and element.get('htmlContent'):
                 html_content = element['htmlContent']
                 # Find all img src URLs and fix them to relative paths
-                import re
                 img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
                 
                 def fix_img_src(match):
@@ -3038,12 +3037,12 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                     # Skip data URIs
                     if src.startswith('data:'):
                         return match.group(0)
-                    # Fix API asset URLs
+                    # Fix API asset URLs (handles both local and external URLs with /api/assets/)
                     if '/api/assets/' in src:
-                        filename = src.split('/assets/')[-1]
+                        filename = src.split('/api/assets/')[-1].split('?')[0]
                         return f'src="assets/{filename}"'
                     elif '/assets/' in src:
-                        filename = src.split('/assets/')[-1]
+                        filename = src.split('/assets/')[-1].split('?')[0]
                         return f'src="assets/{filename}"'
                     return match.group(0)
                 
