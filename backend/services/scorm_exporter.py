@@ -564,9 +564,6 @@ var CoursePlayer = (function() {
         // Setup swipe navigation for mobile
         setupSwipeNavigation();
         
-        // Setup auto-hide controls for mobile
-        setupAutoHideControls();
-        
         // Recalculate scale on window resize - only update scale, don't re-render
         var resizeTimeout;
         window.addEventListener('resize', function() {
