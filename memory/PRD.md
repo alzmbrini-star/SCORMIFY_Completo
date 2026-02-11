@@ -1173,6 +1173,17 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED (100% success rate - 11/11 tests passed)
 - **Verification**: Testing agent confirmou que imagens e texto estão corretamente contidos dentro dos limites do elemento RTF. Screenshots confirmam que o texto com float de imagem agora está contido dentro do container em SCORM export e Visualizador
 
+### Login "Body Stream Already Read" Error Fix - FIXED (Feb 11, 2026)
+- **Issue**: Ao fazer login, usuários recebiam erro "Failed to execute 'json' on 'Response': body stream already read"
+- **Root Cause**: Em casos de erro, o código tentava ler o response.json() duas vezes quando o parse JSON falhava
+- **Fix Applied**: 
+  1. Adicionado `response.clone()` antes de tentar ler o body para ter uma cópia de backup
+  2. Se o parse JSON falhar, usa o clone para tentar obter o texto do erro
+  3. Aplicado em funções `login()` e `processGoogleAuth()` no AuthContext
+- **Files Modified**:
+  - `/app/frontend/src/contexts/AuthContext.jsx` - funções login() e processGoogleAuth()
+- **Status**: FIXED AND TESTED
+
 ### P3 - Future Enhancements
 - Question bank sharing between projects
 - Question import from QTI format
