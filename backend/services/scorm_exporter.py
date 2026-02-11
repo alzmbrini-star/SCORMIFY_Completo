@@ -1410,7 +1410,7 @@ var CoursePlayer = (function() {
                         'img[style*="float: left"]{float:left!important;margin-right:16px!important;margin-bottom:12px!important;max-width:45%!important;width:auto!important;height:auto!important;}' +
                         'img[style*="float: right"]{float:right!important;margin-left:16px!important;margin-bottom:12px!important;max-width:45%!important;width:auto!important;height:auto!important;}' +
                         'body::after{content:\\'\\';display:table;clear:both;}' +
-                        'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:hidden!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;}' +
+                        'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;}' +
                         mobileCSS
                     ) +
                     /* Typography and scrollbar - apply to both modes */
