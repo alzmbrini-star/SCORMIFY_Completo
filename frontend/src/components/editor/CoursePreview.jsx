@@ -853,7 +853,9 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             }
                             ` : `
                             /* NORMAL MODE - preserve image sizes and positions */
-                            img { border: none !important; outline: none !important; box-shadow: none !important; }
+                            * { box-sizing: border-box; max-width: 100% !important; }
+                            body { word-wrap: break-word; overflow-wrap: break-word; max-width: 100% !important; }
+                            img { border: none !important; outline: none !important; box-shadow: none !important; max-width: 100% !important; height: auto !important; }
                             /* Image float styles */
                             img.rtf-image-float-left, body img.rtf-image-float-left {
                               float: left !important;
@@ -877,12 +879,12 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               border: none !important;
                               outline: none !important;
                             }
-                            img.rtf-image-center { display: inline-block !important; max-width: 80% !important; border: none !important; outline: none !important; }
-                            img.rtf-image-inline { display: block !important; max-width: 100% !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
+                            img.rtf-image-center { display: inline-block !important; max-width: 80% !important; height: auto !important; border: none !important; outline: none !important; }
+                            img.rtf-image-inline { display: block !important; max-width: 100% !important; height: auto !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
                             img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; max-width: 45% !important; height: auto !important; }
                             img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; max-width: 45% !important; height: auto !important; }
                             body::after { content: ''; display: table; clear: both; }
-                            p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; }
+                            p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; word-wrap: break-word; overflow-wrap: break-word; max-width: 100% !important; }
                             `}
                             /* Typography */
                             h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
