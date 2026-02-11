@@ -649,6 +649,16 @@ var CoursePlayer = (function() {
         // Skip if dimensions are invalid
         if (availableWidth < 100 || availableHeight < 100) return;
         
+        // Detect mobile portrait mode (height > width)
+        var isMobilePortrait = window.innerHeight > window.innerWidth && window.innerWidth < 1024;
+        
+        // On mobile portrait, use almost full width to maximize slide size
+        if (isMobilePortrait) {
+            // Remove extra padding on mobile portrait
+            availableWidth = window.innerWidth - 20; // Just 10px margin each side
+            availableHeight = window.innerHeight - 80; // Leave space for nav buttons and counter
+        }
+        
         // Calculate scale to fit available space
         var scaleX = availableWidth / slideWidth;
         var scaleY = availableHeight / slideHeight;
@@ -660,11 +670,11 @@ var CoursePlayer = (function() {
         // On desktop, cap at 1.2 to avoid pixelation
         var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
         var isSmallMobile = window.innerWidth < 768 || window.innerHeight < 500;
-        var maxScale = isSmallMobile ? 2.0 : (isMobile ? 1.8 : 1.2);
+        var maxScale = isSmallMobile ? 2.5 : (isMobile ? 2.0 : 1.2);
         scale = Math.min(scale, maxScale);
         
         // Ensure minimum scale for readability
-        var minScale = isSmallMobile ? 0.4 : 0.5;
+        var minScale = isSmallMobile ? 0.35 : 0.45;
         scale = Math.max(scale, minScale);
         
         // Apply scale to container
@@ -672,6 +682,11 @@ var CoursePlayer = (function() {
         container.style.height = slideHeight + 'px';
         container.style.transform = 'scale(' + scale + ')';
         container.style.transformOrigin = 'center center';
+        
+        // Log for debugging
+        if (isMobilePortrait) {
+            console.log('[Scale] Mobile portrait mode - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
+        }
     }
     
     var isVideoFullscreen = false;
