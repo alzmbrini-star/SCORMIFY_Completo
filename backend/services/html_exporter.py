@@ -1639,17 +1639,17 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     'img,body img{{width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;min-width:100%!important;min-height:100%!important;object-fit:cover!important;display:block!important;margin:0!important;padding:0!important;border:none!important;border-radius:0!important;float:none!important;position:absolute!important;top:0!important;left:0!important;}}' 
                                 : 
                                     // NORMAL MODE - preserve image sizes and positions
-                                    'body{{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;}}' +
-                                    '*{{background:transparent!important;}}' +
-                                    'img{{border:none!important;outline:none!important;box-shadow:none!important;}}' +
+                                    'body{{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;box-sizing:border-box;}}' +
+                                    '*{{background:transparent!important;box-sizing:border-box;max-width:100%!important;}}' +
+                                    'img{{border:none!important;outline:none!important;box-shadow:none!important;max-width:100%!important;height:auto!important;}}' +
                                     'img.rtf-image-float-left,body img.rtf-image-float-left{{float:left!important;clear:left!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 16px 12px 0!important;display:block!important;border:none!important;outline:none!important;}}' +
                                     'img.rtf-image-float-right,body img.rtf-image-float-right{{float:right!important;clear:right!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;border:none!important;outline:none!important;}}' +
-                                    'img.rtf-image-center{{display:inline-block!important;max-width:80%!important;border:none!important;outline:none!important;}}' +
-                                    'img.rtf-image-inline{{display:block!important;max-width:100%!important;margin:8px 0!important;border:none!important;outline:none!important;}}' +
+                                    'img.rtf-image-center{{display:inline-block!important;max-width:80%!important;height:auto!important;border:none!important;outline:none!important;}}' +
+                                    'img.rtf-image-inline{{display:block!important;max-width:100%!important;height:auto!important;margin:8px 0!important;border:none!important;outline:none!important;}}' +
                                     'img[style*="float: left"]{{float:left!important;margin-right:16px!important;margin-bottom:12px!important;max-width:45%!important;height:auto!important;}}' +
                                     'img[style*="float: right"]{{float:right!important;margin-left:16px!important;margin-bottom:12px!important;max-width:45%!important;height:auto!important;}}' +
                                     'body::after{{content:\\'\\';display:table;clear:both;}}' +
-                                    'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{{overflow:visible!important;}}'
+                                    'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;}}'
                                 ) +
                                 /* Thin scrollbar styles - apply to both modes */
                                 'html,body{{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.3) transparent;}}' +
