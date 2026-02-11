@@ -1397,9 +1397,10 @@ var CoursePlayer = (function() {
                         'body>div,body>*{width:100%;height:100%;margin:0;padding:0;text-align:center;position:relative;}' +
                         'img,body img{width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;min-width:100%!important;min-height:100%!important;object-fit:cover!important;display:block!important;margin:0!important;padding:0!important;border:none!important;border-radius:0!important;float:none!important;position:absolute!important;top:0!important;left:0!important;}'
                     :
-                        // NORMAL MODE - preserve image sizes and positions
-                        'body{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;box-sizing:border-box;}' +
-                        '*{background:transparent!important;box-sizing:border-box;max-width:100%!important;}' +
+                        // NORMAL MODE - preserve image sizes and positions, content must stay within bounds
+                        'html{margin:0;padding:0;width:100%;height:100%;overflow:hidden!important;}' +
+                        'body{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto!important;word-wrap:break-word;overflow-wrap:break-word;width:100%!important;height:100%!important;box-sizing:border-box!important;}' +
+                        '*{background:transparent!important;box-sizing:border-box!important;}' +
                         'img{border:none!important;outline:none!important;box-shadow:none!important;max-width:100%!important;height:auto!important;}' +
                         'img.rtf-image-float-left,body img.rtf-image-float-left{float:left!important;clear:left!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 16px 12px 0!important;display:block!important;border:none!important;outline:none!important;}' +
                         'img.rtf-image-float-right,body img.rtf-image-float-right{float:right!important;clear:right!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;border:none!important;outline:none!important;}' +
