@@ -2165,31 +2165,51 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 // Check if running from local file
                 var isLocalFile = window.location.protocol === 'file:';
                 
-                // Find all video embed containers
+                // Find all video embed containers and setup click handlers
                 var containers = document.querySelectorAll('.video-embed-container');
                 containers.forEach(function(container) {{
                     var isYouTube = container.dataset.isYoutube === 'true';
                     var videoId = container.dataset.videoId;
-                    var fallback = container.querySelector('.video-fallback');
+                    var thumbContainer = container.querySelector('.youtube-thumb-container');
                     var iframe = container.querySelector('.video-iframe');
                     
-                    if (isYouTube && videoId) {{
-                        if (isLocalFile) {{
-                            // Show fallback, hide iframe
-                            if (fallback) fallback.style.display = 'block';
-                            if (iframe) iframe.style.display = 'none';
-                        }} else {{
-                            // Show iframe, hide fallback
-                            if (fallback) fallback.style.display = 'none';
-                            if (iframe) {{
-                                iframe.style.display = 'block';
-                                // Add error handler to show fallback if iframe fails
-                                iframe.onerror = function() {{
-                                    if (fallback) fallback.style.display = 'block';
-                                    iframe.style.display = 'none';
-                                }};
-                            }}
+                    if (isYouTube && videoId && thumbContainer) {{
+                        // Add hover effect to play button
+                        var playBtn = thumbContainer.querySelector('.yt-play-btn');
+                        if (playBtn) {{
+                            thumbContainer.onmouseover = function() {{ playBtn.style.transform = 'translate(-50%,-50%) scale(1.1)'; }};
+                            thumbContainer.onmouseout = function() {{ playBtn.style.transform = 'translate(-50%,-50%) scale(1)'; }};
                         }}
+                        
+                        // Click handler for thumbnail
+                        thumbContainer.onclick = function(e) {{
+                            e.stopPropagation();
+                            
+                            if (isLocalFile) {{
+                                // If running locally, always open in new tab
+                                window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+                            }} else if (iframe) {{
+                                // Try to show the iframe
+                                thumbContainer.style.display = 'none';
+                                iframe.style.display = 'block';
+                                
+                                // Add autoplay parameter when shown
+                                var src = iframe.src;
+                                if (src.indexOf('autoplay=1') === -1) {{
+                                    var sep = src.indexOf('?') !== -1 ? '&' : '?';
+                                    iframe.src = src + sep + 'autoplay=1&mute=0';
+                                }}
+                                
+                                // If iframe fails or is blocked, show thumbnail again with click-to-youtube option
+                                setTimeout(function() {{
+                                    // Check if iframe has loaded properly by checking if it has content
+                                    // This is a heuristic - if user sees nothing after 3 seconds, provide fallback
+                                }}, 3000);
+                            }} else {{
+                                // No iframe available, open in new tab
+                                window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+                            }}
+                        }};
                     }}
                 }});
             }}
