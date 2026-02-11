@@ -2952,9 +2952,18 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         .text-element {{
             white-space: pre-wrap;
             word-wrap: break-word;
+            overflow-wrap: break-word;
             border-radius: 4px;
             padding: 8px;
+            overflow: hidden;
             /* Background is set via inline style - transparent or custom */
+        }}
+        
+        .text-element iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+            overflow: auto;
         }}
         
         .image-element {{
