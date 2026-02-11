@@ -522,7 +522,7 @@ var CoursePlayer = (function() {
             var topOffset = Math.max(0, (viewportHeight - actualScaledHeight) / 2);
             
             // Force wrapper to have NO padding and position from left
-            wrapper.style.cssText = 'padding:0 !important;margin:0 !important;width:100vw !important;max-width:100vw !important;display:flex !important;align-items:flex-start !important;justify-content:flex-start !important;overflow:hidden !important;';
+            wrapper.style.cssText = 'padding:0 !important;margin:0 !important;width:100vw !important;max-width:100vw !important;display:flex !important;align-items:flex-start !important;justify-content:flex-start !important;overflow:visible !important;';
             
             // Apply scale with LEFT origin so it starts from edge
             container.style.width = slideWidth + 'px';
