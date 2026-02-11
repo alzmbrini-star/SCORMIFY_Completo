@@ -242,7 +242,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initMobileMode();
 });
 
-// Mobile orientation detection - Show overlay when in portrait mode on small screens
+// Mobile orientation detection - DISABLED
+// Previously showed overlay when in portrait mode, but now we support portrait mode with full-width slides
 var pendingScaleUpdate = false;
 
 function checkMobileOrientation() {
@@ -250,72 +251,13 @@ function checkMobileOrientation() {
     var playerContainer = document.getElementById('player-container');
     if (!overlay || !playerContainer) return;
     
-    // Use multiple methods to detect orientation
-    // Method 1: Screen dimensions (most reliable for actual device)
-    var screenWidth = screen.width || 0;
-    var screenHeight = screen.height || 0;
+    // PORTRAIT MODE IS NOW SUPPORTED - never show the overlay
+    // The slide will be scaled to fill the width in portrait mode
+    overlay.style.display = 'none';
+    playerContainer.style.display = 'flex';
     
-    // Method 2: Window dimensions
-    var windowWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    var windowHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    
-    // Method 3: Screen orientation API
-    var orientationType = (screen.orientation && screen.orientation.type) || '';
-    var isOrientationPortrait = orientationType.includes('portrait');
-    
-    // Method 4: matchMedia (CSS media query via JS)
-    var mediaPortrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
-    
-    // Calculate aspect ratios
-    var screenAspectRatio = screenWidth / screenHeight;
-    var windowAspectRatio = windowWidth / windowHeight;
-    
-    // Detect mobile device
-    var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    var isSmallScreen = Math.min(screenWidth, windowWidth) < 900;
-    
-    // Log for debugging (can be removed later)
-    console.log('Orientation check:', {
-        screen: screenWidth + 'x' + screenHeight,
-        window: windowWidth + 'x' + windowHeight,
-        orientationType: orientationType,
-        mediaPortrait: mediaPortrait,
-        isMobile: isMobileDevice
-    });
-    
-    // Determine if we should show the overlay
-    // Priority: Screen orientation API > Media query > Aspect ratio calculation
-    var shouldShowOverlay = false;
-    
-    if (isMobileDevice || isSmallScreen) {
-        // Check all indicators
-        if (isOrientationPortrait) {
-            shouldShowOverlay = true;
-        } else if (mediaPortrait) {
-            shouldShowOverlay = true;
-        } else if (screenAspectRatio < 0.85 && screenWidth < screenHeight) {
-            shouldShowOverlay = true;
-        } else if (windowAspectRatio < 0.85 && windowWidth < windowHeight) {
-            shouldShowOverlay = true;
-        }
-    }
-    
-    var wasHidden = playerContainer.style.display === 'none';
-    
-    if (shouldShowOverlay) {
-        overlay.style.display = 'flex';
-        playerContainer.style.display = 'none';
-    } else {
-        overlay.style.display = 'none';
-        playerContainer.style.display = 'flex';
-        
-        // Update scale when returning from portrait overlay
-        if (wasHidden && typeof CoursePlayer !== 'undefined' && CoursePlayer.updateScale) {
-            setTimeout(function() {
-                CoursePlayer.updateScale();
-            }, 100);
-        }
-    }
+    // Log for debugging
+    console.log('[Orientation] Portrait mode supported - no overlay');
 }
 
 // Listen for orientation changes (mobile devices)
