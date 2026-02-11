@@ -17,6 +17,7 @@ import httpx
 import io
 import asyncio
 import json
+import base64
 from PIL import Image
 
 from models import (
