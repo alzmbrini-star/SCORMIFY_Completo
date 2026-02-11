@@ -179,11 +179,11 @@ async def generate_standalone_html(
     title = metadata.get('title', project.get('name', 'Course'))
     
     # Get first slide dimensions as default
-    default_width = 1280
-    default_height = 720
+    default_width = 1536
+    default_height = 864
     if slides:
-        default_width = slides[0].get('width', 1280)
-        default_height = slides[0].get('height', 720)
+        default_width = slides[0].get('width', 1536)
+        default_height = slides[0].get('height', 864)
     
     # Process all assets and convert to base64
     processed_slides = []
