@@ -1110,6 +1110,9 @@ var CoursePlayer = (function() {
                     el.style.backgroundColor = 'transparent';
                 } else if (element.style && element.style.backgroundColor) {
                     el.style.backgroundColor = element.style.backgroundColor;
+                } else {
+                    // Default semi-transparent white background if not specified
+                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
                 }
                 break;
                 
