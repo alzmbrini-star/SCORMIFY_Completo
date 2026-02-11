@@ -652,11 +652,23 @@ var CoursePlayer = (function() {
         // Detect mobile portrait mode (height > width)
         var isMobilePortrait = window.innerHeight > window.innerWidth && window.innerWidth < 1024;
         
-        // On mobile portrait, use almost full width to maximize slide size
+        // On mobile portrait, use FULL width to maximize slide size
         if (isMobilePortrait) {
-            // Remove extra padding on mobile portrait
-            availableWidth = window.innerWidth - 20; // Just 10px margin each side
-            availableHeight = window.innerHeight - 80; // Leave space for nav buttons and counter
+            // Use full window width, no margins at all
+            availableWidth = window.innerWidth;
+            availableHeight = window.innerHeight - 60; // Leave space for counter
+            
+            // Scale based on width only (fill width completely)
+            var scaleForFullWidth = availableWidth / slideWidth;
+            
+            // Apply scale to container
+            container.style.width = slideWidth + 'px';
+            container.style.height = slideHeight + 'px';
+            container.style.transform = 'scale(' + scaleForFullWidth + ')';
+            container.style.transformOrigin = 'center top';
+            
+            console.log('[Scale] Mobile portrait - full width scale:', scaleForFullWidth.toFixed(3));
+            return;
         }
         
         // Calculate scale to fit available space
@@ -684,9 +696,7 @@ var CoursePlayer = (function() {
         container.style.transformOrigin = 'center center';
         
         // Log for debugging
-        if (isMobilePortrait) {
-            console.log('[Scale] Mobile portrait mode - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
-        }
+        console.log('[Scale] scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
     }
     
     var isVideoFullscreen = false;
