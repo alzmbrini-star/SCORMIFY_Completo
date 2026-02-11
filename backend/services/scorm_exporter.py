@@ -735,22 +735,23 @@ var CoursePlayer = (function() {
             // Minimum scale for readability
             scale = Math.max(scale, 0.3);
             
-            // Force wrapper to have NO padding for full-width
-            wrapper.style.padding = '0';
-            wrapper.style.margin = '0';
-            wrapper.style.width = '100vw';
-            wrapper.style.maxWidth = '100vw';
-            wrapper.style.alignItems = 'center';
-            wrapper.style.justifyContent = 'center';
+            // Calculate centered vertical position
+            var actualScaledHeight = slideHeight * scale;
+            var topOffset = Math.max(0, (viewportHeight - actualScaledHeight) / 2);
             
-            // Apply scale centered
+            // Force wrapper to have NO padding and position from left
+            wrapper.style.cssText = 'padding:0 !important;margin:0 !important;width:100vw !important;max-width:100vw !important;display:flex !important;align-items:flex-start !important;justify-content:flex-start !important;overflow:hidden !important;';
+            
+            // Apply scale with LEFT origin so it starts from edge
             container.style.width = slideWidth + 'px';
             container.style.height = slideHeight + 'px';
             container.style.transform = 'scale(' + scale + ')';
-            container.style.transformOrigin = 'center center';
+            container.style.transformOrigin = 'left top';
+            container.style.marginLeft = '0';
+            container.style.marginTop = topOffset + 'px';
             container.style.boxShadow = 'none';
             
-            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', scaledHeight.toFixed(0));
+            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', actualScaledHeight.toFixed(0));
             return;
         }
         
