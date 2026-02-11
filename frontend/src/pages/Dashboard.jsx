@@ -185,6 +185,41 @@ export default function Dashboard() {
                 <Moon className="w-5 h-5" />
               )}
             </Button>
+            
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="gap-2" data-testid="user-menu-btn">
+                  {user?.picture ? (
+                    <img src={user.picture} alt={user.name} className="w-6 h-6 rounded-full" />
+                  ) : (
+                    <User className="w-5 h-5" />
+                  )}
+                  <span className="hidden sm:inline">{user?.name}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled className="text-muted-foreground text-xs">
+                  {user?.email}
+                </DropdownMenuItem>
+                {user?.company && (
+                  <DropdownMenuItem disabled className="text-muted-foreground text-xs">
+                    {user.company.name}
+                  </DropdownMenuItem>
+                )}
+                <div className="h-px bg-border my-1" />
+                {isCompanyAdmin && (
+                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    Administração
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={logout} className="text-red-500">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
