@@ -581,13 +581,45 @@ const SlideCanvas = ({
               {element.type === 'video' && (
                 <div className="relative w-full h-full">
                   {element.embedUrl ? (
-                    <iframe
-                      src={element.embedUrl}
-                      className="w-full h-full border-0"
-                      allow="autoplay; fullscreen"
-                      title="Video"
-                      style={{ pointerEvents: 'none', objectFit: element.objectFit || 'contain' }}
-                    />
+                    (() => {
+                      // Extract video ID for YouTube thumbnail
+                      const isYouTube = element.embedUrl.includes('youtube') || element.embedUrl.includes('youtu.be');
+                      const ytMatch = element.embedUrl.match(/(?:embed\/|v=|youtu\.be\/)([^?&"'>]+)/);
+                      const videoId = ytMatch ? ytMatch[1] : null;
+                      
+                      // For YouTube in editor, show thumbnail preview (more reliable, no embed restrictions)
+                      if (isYouTube && videoId) {
+                        return (
+                          <div className="w-full h-full bg-black relative">
+                            <img 
+                              src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                              onError={(e) => { e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`; }}
+                              alt="YouTube Video"
+                              className="w-full h-full object-cover"
+                            />
+                            {/* YouTube Play Button */}
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="bg-red-600 rounded-xl px-4 py-3 flex items-center justify-center shadow-lg">
+                                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z"/>
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // For Vimeo or other embeds, use iframe
+                      return (
+                        <iframe
+                          src={element.embedUrl}
+                          className="w-full h-full border-0"
+                          allow="autoplay; fullscreen"
+                          title="Video"
+                          style={{ pointerEvents: 'none', objectFit: element.objectFit || 'contain' }}
+                        />
+                      );
+                    })()
                   ) : element.src ? (
                     <video 
                       src={getAssetUrl(element.src)} 
@@ -615,16 +647,6 @@ const SlideCanvas = ({
                         <path d="M8 5v14l11-7z"/>
                       </svg>
                       {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
-                    </div>
-                  )}
-                  {/* Play hint when not selected - hide when fullscreen */}
-                  {!isSelected && element.objectFit !== 'cover' && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-16 h-16 rounded-full bg-black/50 flex items-center justify-center">
-                        <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z"/>
-                        </svg>
-                      </div>
                     </div>
                   )}
                   {/* Selected state info */}
