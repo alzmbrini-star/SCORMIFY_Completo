@@ -2652,10 +2652,12 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
             
             #slide-wrapper {{
-                padding: 5px !important;
+                padding: 0 !important;
                 margin: 0 !important;
                 width: 100vw !important;
                 max-width: 100vw !important;
+                justify-content: flex-start !important;
+                align-items: flex-start !important;
             }}
             
             #slide-container {{
