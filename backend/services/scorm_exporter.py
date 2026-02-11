@@ -1564,6 +1564,7 @@ var CoursePlayer = (function() {
         el.style.width = (element.width || 100) + 'px';
         el.style.height = (element.height || 100) + 'px';
         el.style.zIndex = (element.zIndex || 0) + 1;
+        el.style.overflow = 'hidden';  // Ensure content stays within bounds
         
         if (element.rotation) {
             el.style.transform = 'rotate(' + element.rotation + 'deg)';
