@@ -391,3 +391,121 @@ class QuizSubmitRequest(BaseModel):
     """Submit quiz answers"""
     quizId: str
     answers: List[Dict[str, Any]]  # [{questionId, selectedAlternativeId}]
+
+
+
+# ============================================
+# Authentication & Multi-Tenancy Models
+# ============================================
+
+class UserRole(BaseModel):
+    """User roles within a company"""
+    # Roles: 'super_admin' (system-wide), 'company_admin', 'editor'
+    pass
+
+class Company(BaseModel):
+    """Company/Tenant model for multi-tenancy"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=lambda: f"company_{uuid.uuid4().hex[:12]}")
+    name: str
+    slug: str  # URL-friendly identifier
+    logo: Optional[str] = None
+    
+    # API Permissions for this company
+    permissions: Dict[str, bool] = Field(default_factory=lambda: {
+        "heygen": False,
+        "elevenlabs": False
+    })
+    
+    # Limits
+    maxUsers: int = 10
+    maxProjects: int = 100
+    
+    isActive: bool = True
+    createdAt: datetime = Field(default_factory=now_utc)
+    updatedAt: datetime = Field(default_factory=now_utc)
+
+class CompanyCreate(BaseModel):
+    """Create a new company"""
+    name: str
+    slug: str
+    logo: Optional[str] = None
+    permissions: Optional[Dict[str, bool]] = None
+    maxUsers: Optional[int] = 10
+    maxProjects: Optional[int] = 100
+
+class CompanyUpdate(BaseModel):
+    """Update company"""
+    name: Optional[str] = None
+    logo: Optional[str] = None
+    permissions: Optional[Dict[str, bool]] = None
+    maxUsers: Optional[int] = None
+    maxProjects: Optional[int] = None
+    isActive: Optional[bool] = None
+
+class User(BaseModel):
+    """User model"""
+    model_config = ConfigDict(extra="allow")
+    
+    user_id: str = Field(default_factory=lambda: f"user_{uuid.uuid4().hex[:12]}")
+    email: str
+    name: str
+    picture: Optional[str] = None
+    
+    # Company association (None for super_admin)
+    companyId: Optional[str] = None
+    
+    # Role within company: 'super_admin', 'company_admin', 'editor'
+    role: str = "editor"
+    
+    # Password hash (for email/password auth)
+    passwordHash: Optional[str] = None
+    
+    isActive: bool = True
+    lastLogin: Optional[datetime] = None
+    createdAt: datetime = Field(default_factory=now_utc)
+    updatedAt: datetime = Field(default_factory=now_utc)
+
+class UserCreate(BaseModel):
+    """Create a new user"""
+    email: str
+    name: str
+    password: Optional[str] = None  # Optional for Google OAuth users
+    companyId: str
+    role: str = "editor"  # 'company_admin' or 'editor'
+
+class UserUpdate(BaseModel):
+    """Update user"""
+    name: Optional[str] = None
+    role: Optional[str] = None
+    isActive: Optional[bool] = None
+
+class UserSession(BaseModel):
+    """User session for auth"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=lambda: f"session_{uuid.uuid4().hex[:16]}")
+    user_id: str
+    session_token: str
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=now_utc)
+
+class LoginRequest(BaseModel):
+    """Login with email/password"""
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    """Login response"""
+    user: Dict[str, Any]
+    token: str
+
+class GoogleAuthRequest(BaseModel):
+    """Process Google OAuth session"""
+    session_id: str
+
+class ChangePasswordRequest(BaseModel):
+    """Change password request"""
+    currentPassword: str
+    newPassword: str
