@@ -388,6 +388,17 @@ export default function Editor() {
   // Quiz Generator states
   const [showQuizDialog, setShowQuizDialog] = useState(false);
 
+  // ElevenLabs TTS states
+  const [showTTSDialog, setShowTTSDialog] = useState(false);
+  const [ttsVoices, setTTSVoices] = useState([]);
+  const [ttsLoading, setTTSLoading] = useState(false);
+  const [ttsGenerating, setTTSGenerating] = useState(false);
+  const [ttsGenderFilter, setTTSGenderFilter] = useState('all');
+  const [ttsSelectedVoice, setTTSSelectedVoice] = useState(null);
+  const [ttsText, setTTSText] = useState('');
+  const [ttsPreviewUrl, setTTSPreviewUrl] = useState(null);
+  const [ttsAudioUrl, setTTSAudioUrl] = useState(null);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingIntervalRef = useRef(null);
@@ -1345,6 +1356,129 @@ export default function Editor() {
     }
   };
 
+  // =============================================================================
+  // ElevenLabs TTS Functions
+  // =============================================================================
+  
+  const loadTTSVoices = async () => {
+    setTTSLoading(true);
+    try {
+      const params = ttsGenderFilter !== 'all' ? `?gender=${ttsGenderFilter}` : '';
+      const response = await axios.get(`${API_URL}/api/elevenlabs/voices${params}`);
+      setTTSVoices(response.data.voices || []);
+      
+      // Set default voice if not already set
+      if (response.data.voices?.length > 0 && !ttsSelectedVoice) {
+        setTTSSelectedVoice(response.data.voices[0]);
+      }
+    } catch (err) {
+      console.error('Error loading TTS voices:', err);
+      toast.error('Falha ao carregar vozes do ElevenLabs. Verifique a API Key.');
+    } finally {
+      setTTSLoading(false);
+    }
+  };
+
+  const handleOpenTTSDialog = () => {
+    setShowTTSDialog(true);
+    loadTTSVoices();
+    setTTSText('');
+    setTTSAudioUrl(null);
+    setTTSPreviewUrl(null);
+  };
+
+  const handleTTSGenderFilterChange = async (gender) => {
+    setTTSGenderFilter(gender);
+    try {
+      const params = gender !== 'all' ? `?gender=${gender}` : '';
+      const response = await axios.get(`${API_URL}/api/elevenlabs/voices${params}`);
+      setTTSVoices(response.data.voices || []);
+      
+      // Reset selection if current voice is not in filtered list
+      if (ttsSelectedVoice && !response.data.voices?.find(v => v.voice_id === ttsSelectedVoice.voice_id)) {
+        setTTSSelectedVoice(response.data.voices?.[0] || null);
+      }
+    } catch (err) {
+      console.error('Error reloading voices:', err);
+    }
+  };
+
+  const handleGenerateTTS = async () => {
+    if (!ttsText.trim()) {
+      toast.error('Digite um texto para converter em áudio');
+      return;
+    }
+    if (!ttsSelectedVoice) {
+      toast.error('Selecione uma voz');
+      return;
+    }
+    
+    setTTSGenerating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/elevenlabs/generate-speech`, {
+        text: ttsText,
+        voice_id: ttsSelectedVoice.voice_id,
+        stability: 0.5,
+        similarity_boost: 0.75
+      });
+      
+      if (response.data.success) {
+        setTTSAudioUrl(response.data.audio_base64);
+        toast.success('Áudio gerado com sucesso!');
+      }
+    } catch (err) {
+      console.error('Error generating TTS:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao gerar áudio');
+    } finally {
+      setTTSGenerating(false);
+    }
+  };
+
+  const handleAddTTSToSlide = async () => {
+    if (!ttsAudioUrl || !currentSlide) return;
+    
+    try {
+      // Convert base64 to blob and upload
+      const base64Data = ttsAudioUrl.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', blob, 'narration.mp3');
+      formData.append('audio_type', 'slide');
+      
+      // Upload to slide
+      const response = await axios.post(
+        `${API_URL}/api/projects/${project.id}/slides/${currentSlide.id}/audio`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data) {
+        await refreshProject();
+        toast.success('Narração adicionada ao slide!');
+        setShowTTSDialog(false);
+      }
+    } catch (err) {
+      console.error('Error adding audio to slide:', err);
+      toast.error('Falha ao adicionar áudio ao slide');
+    }
+  };
+
+  const handlePlayTTSPreview = (previewUrl) => {
+    if (ttsPreviewUrl === previewUrl) {
+      setTTSPreviewUrl(null);
+    } else {
+      setTTSPreviewUrl(previewUrl);
+    }
+  };
+
   // AI Text Generation function
   const generateTextWithAI = async (prompt) => {
     setRichTextGenerating(true);
@@ -2013,6 +2147,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>📹 Biblioteca de Vídeos</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-orange-500/10 to-amber-500/10 hover:from-orange-500/20 hover:to-amber-500/20"
+                    onClick={handleOpenTTSDialog}
+                    data-testid="tts-btn"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>🔊 Text-to-Speech (ElevenLabs)</TooltipContent>
               </Tooltip>
 
               <Separator orientation="vertical" className="h-6" />
@@ -3312,6 +3461,166 @@ export default function Editor() {
           </DialogContent>
         </Dialog>
 
+        {/* ElevenLabs TTS Dialog */}
+        <Dialog open={showTTSDialog} onOpenChange={setShowTTSDialog}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-orange-500" />
+                🔊 Text-to-Speech (ElevenLabs)
+              </DialogTitle>
+              <DialogDescription>
+                Converta texto em narração com vozes realistas. Todas as vozes suportam Português, Inglês e Espanhol.
+              </DialogDescription>
+            </DialogHeader>
+
+            {ttsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                <span className="ml-3">Carregando vozes...</span>
+              </div>
+            ) : (
+              <div className="space-y-6 py-4">
+                {/* Voice Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium">Selecionar Voz ({ttsVoices.length} disponíveis)</label>
+                    <select
+                      className="text-xs px-2 py-1 rounded border bg-background"
+                      value={ttsGenderFilter}
+                      onChange={(e) => handleTTSGenderFilterChange(e.target.value)}
+                      data-testid="tts-gender-filter"
+                    >
+                      <option value="all">👥 Todos</option>
+                      <option value="male">👨 Masculino</option>
+                      <option value="female">👩 Feminino</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg">
+                    {ttsVoices.map((voice) => (
+                      <div
+                        key={voice.voice_id}
+                        className={`cursor-pointer p-3 rounded-lg border-2 transition-all ${
+                          ttsSelectedVoice?.voice_id === voice.voice_id
+                            ? 'border-orange-500 bg-orange-500/10'
+                            : 'border-transparent hover:border-gray-300 hover:bg-muted/50'
+                        }`}
+                        onClick={() => setTTSSelectedVoice(voice)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">
+                              {voice.gender === 'male' ? '👨' : voice.gender === 'female' ? '👩' : '🧑'}
+                            </span>
+                            <div>
+                              <p className="font-medium text-sm">{voice.name}</p>
+                              <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+                                {voice.description?.split('.')[0] || voice.accent || 'Multilíngue'}
+                              </p>
+                            </div>
+                          </div>
+                          {voice.preview_url && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePlayTTSPreview(voice.preview_url);
+                              }}
+                            >
+                              {ttsPreviewUrl === voice.preview_url ? (
+                                <Pause className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Audio player for preview */}
+                  {ttsPreviewUrl && (
+                    <audio
+                      src={ttsPreviewUrl}
+                      autoPlay
+                      onEnded={() => setTTSPreviewUrl(null)}
+                      className="hidden"
+                    />
+                  )}
+                </div>
+
+                {/* Text Input */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Texto para Narração</label>
+                  <textarea
+                    className="w-full h-32 p-3 border rounded-lg bg-background resize-none focus:ring-2 focus:ring-orange-500/50"
+                    placeholder="Digite o texto que será convertido em áudio..."
+                    value={ttsText}
+                    onChange={(e) => setTTSText(e.target.value)}
+                    data-testid="tts-text-input"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    O modelo multilíngue detecta automaticamente o idioma do texto.
+                  </p>
+                </div>
+
+                {/* Generated Audio Preview */}
+                {ttsAudioUrl && (
+                  <div className="p-4 border rounded-lg bg-green-500/10 border-green-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-green-400">✅ Áudio Gerado</span>
+                    </div>
+                    <audio
+                      src={ttsAudioUrl}
+                      controls
+                      className="w-full"
+                      data-testid="tts-audio-preview"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="flex justify-between gap-2">
+              <Button variant="ghost" onClick={() => setShowTTSDialog(false)}>
+                Cancelar
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleGenerateTTS}
+                  disabled={ttsGenerating || !ttsText.trim() || !ttsSelectedVoice}
+                  className="bg-orange-600 hover:bg-orange-700"
+                  data-testid="tts-generate-btn"
+                >
+                  {ttsGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-4 h-4 mr-2" />
+                      Gerar Áudio
+                    </>
+                  )}
+                </Button>
+                {ttsAudioUrl && (
+                  <Button
+                    onClick={handleAddTTSToSlide}
+                    className="bg-green-600 hover:bg-green-700"
+                    data-testid="tts-add-btn"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar ao Slide
+                  </Button>
+                )}
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Rich Text Editor with AI Dialog */}
         <Dialog open={showRichTextDialog} onOpenChange={(open) => {
           setShowRichTextDialog(open);
@@ -3596,47 +3905,4 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
 function SlideProperties({ slide, onUpdate }) {
   return (
     <div className="p-4 space-y-4">
-      <div className="panel-section">
-        <h4 className="text-sm font-medium mb-3">Slide Settings</h4>
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-muted-foreground">Title</label>
-            <Input
-              value={slide.title || ''}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              className="h-8"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Background</label>
-            <Input
-              type="color"
-              value={slide.background || '#FFFFFF'}
-              onChange={(e) => onUpdate({ background: e.target.value })}
-              className="h-8 p-1"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Duration (seconds)</label>
-            <Input
-              type="number"
-              value={slide.duration || 5}
-              onChange={(e) => onUpdate({ duration: parseFloat(e.target.value) })}
-              className="h-8"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="panel-section">
-        <h4 className="text-sm font-medium mb-3">Notes</h4>
-        <textarea
-          className="w-full h-24 p-2 text-sm bg-background border rounded resize-none"
-          placeholder="Presenter notes..."
-          value={slide.notes || ''}
-          onChange={(e) => onUpdate({ notes: e.target.value })}
-        />
-      </div>
-    </div>
-  );
-}
+      <div className="panel

@@ -2684,9 +2684,9 @@ async def get_quiz_attempts(project_id: str, quiz_id: Optional[str] = None):
 @api_router.get("/elevenlabs/voices")
 async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optional[str] = None):
     """
-    List available ElevenLabs voices filtered by language and gender.
-    Languages: pt-BR, en, es
-    Gender: male, female
+    List available ElevenLabs voices filtered by gender.
+    All voices support multiple languages via eleven_multilingual_v2 model.
+    Gender: male, female, neutral
     """
     if not ELEVENLABS_API_KEY:
         raise HTTPException(status_code=400, detail="ElevenLabs API key not configured")
@@ -2697,24 +2697,7 @@ async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optiona
         client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         voices_response = client.voices.get_all()
         
-        # Language mapping for filtering
-        language_map = {
-            "pt-BR": ["portuguese", "brazilian"],
-            "pt": ["portuguese"],
-            "en": ["english", "american", "british", "australian"],
-            "es": ["spanish", "latin"]
-        }
-        
-        # Language display names with flags
-        language_flags = {
-            "pt-BR": "🇧🇷 Português (Brasil)",
-            "pt": "🇵🇹 Português",
-            "en": "🇺🇸 English",
-            "es": "🇪🇸 Español"
-        }
-        
         voices = []
-        available_languages = set()
         available_genders = set()
         
         for voice in voices_response.voices:
@@ -2727,9 +2710,9 @@ async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optiona
                 "category": voice.category or "premade",
                 "labels": voice.labels or {},
                 "gender": None,
-                "language": None,
                 "accent": None,
-                "age": None
+                "age": None,
+                "multilingual": True  # All voices support multilingual with eleven_multilingual_v2
             }
             
             # Extract labels
@@ -2737,39 +2720,10 @@ async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optiona
                 voice_data["gender"] = voice.labels.get("gender", "").lower()
                 voice_data["accent"] = voice.labels.get("accent", "")
                 voice_data["age"] = voice.labels.get("age", "")
-                voice_data["language"] = voice.labels.get("language", "")
                 
                 # Track available values
                 if voice_data["gender"]:
                     available_genders.add(voice_data["gender"])
-            
-            # Determine language from description, name, or labels
-            voice_text = f"{voice.name} {voice.description or ''} {voice_data.get('accent', '')}".lower()
-            
-            detected_language = None
-            if "brazilian" in voice_text or "brazil" in voice_text:
-                detected_language = "pt-BR"
-            elif "portuguese" in voice_text:
-                detected_language = "pt"
-            elif "spanish" in voice_text or "español" in voice_text or "latin" in voice_text:
-                detected_language = "es"
-            elif "english" in voice_text or "american" in voice_text or "british" in voice_text:
-                detected_language = "en"
-            
-            if detected_language:
-                voice_data["detected_language"] = detected_language
-                available_languages.add(detected_language)
-            
-            # Apply language filter
-            if language:
-                if language not in language_map:
-                    continue
-                    
-                keywords = language_map[language]
-                voice_text = f"{voice.name} {voice.description or ''} {voice_data.get('accent', '')}".lower()
-                
-                if not any(kw in voice_text for kw in keywords):
-                    continue
             
             # Apply gender filter
             if gender:
@@ -2781,14 +2735,19 @@ async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optiona
         # Sort by name
         voices.sort(key=lambda x: x["name"])
         
+        # Supported languages (all voices support these via multilingual model)
+        supported_languages = [
+            {"code": "pt-BR", "label": "🇧🇷 Português (Brasil)"},
+            {"code": "en", "label": "🇺🇸 English"},
+            {"code": "es", "label": "🇪🇸 Español"}
+        ]
+        
         return {
             "voices": voices,
             "total": len(voices),
-            "available_languages": [
-                {"code": code, "label": language_flags.get(code, code)}
-                for code in sorted(available_languages)
-            ],
-            "available_genders": sorted(list(available_genders))
+            "supported_languages": supported_languages,
+            "available_genders": sorted(list(available_genders)),
+            "note": "All voices support Portuguese, English, and Spanish via eleven_multilingual_v2 model. The model auto-detects the language from your text."
         }
         
     except Exception as e:
