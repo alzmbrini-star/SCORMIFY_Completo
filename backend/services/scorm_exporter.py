@@ -3023,6 +3023,17 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         .video-element {{
             border: none !important;
             background: transparent !important;
+            position: relative !important;
+            overflow: hidden !important;
+        }}
+        
+        .video-element .video-embed-container,
+        .video-element .youtube-thumb-container {{
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
         }}
         
         .video-element iframe,
