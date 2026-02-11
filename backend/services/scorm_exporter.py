@@ -2761,6 +2761,9 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         .text-element {{
             white-space: pre-wrap;
             word-wrap: break-word;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+            padding: 8px;
         }}
         
         .image-element {{
