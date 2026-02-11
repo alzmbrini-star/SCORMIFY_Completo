@@ -224,8 +224,8 @@ class ProjectUpdate(BaseModel):
 class SlideCreate(BaseModel):
     title: str = "New Slide"
     background: str = "#FFFFFF"
-    width: int = 1536
-    height: int = 864
+    width: int = 1920  # 21:9 aspect ratio for better mobile landscape viewing
+    height: int = 820
 
 class SlideUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
