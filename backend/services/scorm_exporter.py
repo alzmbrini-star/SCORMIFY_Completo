@@ -1233,43 +1233,24 @@ var CoursePlayer = (function() {
                         if (vimeoMatch) videoId = vimeoMatch[1];
                     }
                     
-                    // For YouTube: ALWAYS show thumbnail with click to open in YouTube
-                    // YouTube blocks embedding in most SCORM/LMS contexts (Error 153)
-                    // This is the only reliable solution
+                    // For YouTube: Use iframe embed directly
                     if (isYouTube && videoId) {
                         el.style.position = 'relative';
                         el.style.background = '#000';
                         el.style.overflow = 'hidden';
-                        el.style.cursor = 'pointer';
                         
-                        // Click anywhere to open YouTube
-                        el.onclick = function(e) {
-                            e.stopPropagation();
-                            window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
-                        };
+                        var iframe = document.createElement('iframe');
+                        // Build proper YouTube embed URL
+                        var ytEmbedUrl = 'https://www.youtube.com/embed/' + videoId;
+                        ytEmbedUrl += '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1';
                         
-                        // Thumbnail image
-                        var thumb = document.createElement('img');
-                        thumb.src = 'https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg';
-                        thumb.onerror = function() {
-                            this.src = 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg';
-                        };
-                        thumb.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;';
-                        el.appendChild(thumb);
+                        iframe.src = ytEmbedUrl;
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
+                        iframe.setAttribute('allowfullscreen', 'true');
+                        iframe.setAttribute('frameborder', '0');
+                        iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
                         
-                        // YouTube Play button overlay
-                        var playBtn = document.createElement('div');
-                        playBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.95);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.2s;z-index:2;';
-                        playBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
-                        el.onmouseover = function() { playBtn.style.transform = 'translate(-50%,-50%) scale(1.1)'; };
-                        el.onmouseout = function() { playBtn.style.transform = 'translate(-50%,-50%) scale(1)'; };
-                        el.appendChild(playBtn);
-                        
-                        // "Clique para assistir" label
-                        var label = document.createElement('div');
-                        label.style.cssText = 'position:absolute;bottom:15px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:white;padding:10px 20px;border-radius:6px;font-size:14px;white-space:nowrap;z-index:2;font-family:Arial,sans-serif;';
-                        label.textContent = 'Clique para assistir no YouTube';
-                        el.appendChild(label);
+                        el.appendChild(iframe);
                     } else if (isVimeo) {
                         // Vimeo: use iframe directly (generally more permissive with embedding)
                         // Add positioning for proper fullscreen
