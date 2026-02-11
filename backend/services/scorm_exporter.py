@@ -2582,14 +2582,29 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
-        /* Mobile portrait mode - minimize padding to maximize slide size */
-        @media screen and (max-width: 768px) and (orientation: portrait) {{
+        /* Mobile portrait mode - NO padding to maximize slide size */
+        @media screen and (max-width: 1024px) and (orientation: portrait) {{
             #slide-wrapper {{
-                padding: 5px 10px;
+                padding: 0 !important;
+                align-items: flex-start;
+                justify-content: center;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }}
             
             #slide-container {{
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                box-shadow: none;
+            }}
+            
+            /* Position mobile nav buttons for full-width slide */
+            #mobile-nav-prev {{
+                left: 0;
+                background: rgba(0, 0, 0, 0.5);
+            }}
+            
+            #mobile-nav-next {{
+                right: 0;
+                background: rgba(0, 0, 0, 0.5);
             }}
         }}
         
