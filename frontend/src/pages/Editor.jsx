@@ -3621,6 +3621,166 @@ export default function Editor() {
           </DialogContent>
         </Dialog>
 
+        {/* ElevenLabs TTS Dialog */}
+        <Dialog open={showTTSDialog} onOpenChange={setShowTTSDialog}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-orange-500" />
+                🔊 Text-to-Speech (ElevenLabs)
+              </DialogTitle>
+              <DialogDescription>
+                Converta texto em narração com vozes realistas. Todas as vozes suportam Português, Inglês e Espanhol.
+              </DialogDescription>
+            </DialogHeader>
+
+            {ttsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                <span className="ml-3">Carregando vozes...</span>
+              </div>
+            ) : (
+              <div className="space-y-6 py-4">
+                {/* Voice Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium">Selecionar Voz ({ttsVoices.length} disponíveis)</label>
+                    <select
+                      className="text-xs px-2 py-1 rounded border bg-background"
+                      value={ttsGenderFilter}
+                      onChange={(e) => handleTTSGenderFilterChange(e.target.value)}
+                      data-testid="tts-gender-filter"
+                    >
+                      <option value="all">👥 Todos</option>
+                      <option value="male">👨 Masculino</option>
+                      <option value="female">👩 Feminino</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg">
+                    {ttsVoices.map((voice) => (
+                      <div
+                        key={voice.voice_id}
+                        className={`cursor-pointer p-3 rounded-lg border-2 transition-all ${
+                          ttsSelectedVoice?.voice_id === voice.voice_id
+                            ? 'border-orange-500 bg-orange-500/10'
+                            : 'border-transparent hover:border-gray-300 hover:bg-muted/50'
+                        }`}
+                        onClick={() => setTTSSelectedVoice(voice)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">
+                              {voice.gender === 'male' ? '👨' : voice.gender === 'female' ? '👩' : '🧑'}
+                            </span>
+                            <div>
+                              <p className="font-medium text-sm">{voice.name}</p>
+                              <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+                                {voice.description?.split('.')[0] || voice.accent || 'Multilíngue'}
+                              </p>
+                            </div>
+                          </div>
+                          {voice.preview_url && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePlayTTSPreview(voice.preview_url);
+                              }}
+                            >
+                              {ttsPreviewUrl === voice.preview_url ? (
+                                <Pause className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Audio player for preview */}
+                  {ttsPreviewUrl && (
+                    <audio
+                      src={ttsPreviewUrl}
+                      autoPlay
+                      onEnded={() => setTTSPreviewUrl(null)}
+                      className="hidden"
+                    />
+                  )}
+                </div>
+
+                {/* Text Input */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Texto para Narração</label>
+                  <textarea
+                    className="w-full h-32 p-3 border rounded-lg bg-background resize-none focus:ring-2 focus:ring-orange-500/50"
+                    placeholder="Digite o texto que será convertido em áudio..."
+                    value={ttsText}
+                    onChange={(e) => setTTSText(e.target.value)}
+                    data-testid="tts-text-input"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    O modelo multilíngue detecta automaticamente o idioma do texto.
+                  </p>
+                </div>
+
+                {/* Generated Audio Preview */}
+                {ttsAudioUrl && (
+                  <div className="p-4 border rounded-lg bg-green-500/10 border-green-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-green-400">✅ Áudio Gerado</span>
+                    </div>
+                    <audio
+                      src={ttsAudioUrl}
+                      controls
+                      className="w-full"
+                      data-testid="tts-audio-preview"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="flex justify-between gap-2">
+              <Button variant="ghost" onClick={() => setShowTTSDialog(false)}>
+                Cancelar
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleGenerateTTS}
+                  disabled={ttsGenerating || !ttsText.trim() || !ttsSelectedVoice}
+                  className="bg-orange-600 hover:bg-orange-700"
+                  data-testid="tts-generate-btn"
+                >
+                  {ttsGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-4 h-4 mr-2" />
+                      Gerar Áudio
+                    </>
+                  )}
+                </Button>
+                {ttsAudioUrl && (
+                  <Button
+                    onClick={handleAddTTSToSlide}
+                    className="bg-green-600 hover:bg-green-700"
+                    data-testid="tts-add-btn"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar ao Slide
+                  </Button>
+                )}
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Rich Text Editor with AI Dialog */}
         <Dialog open={showRichTextDialog} onOpenChange={(open) => {
           setShowRichTextDialog(open);
