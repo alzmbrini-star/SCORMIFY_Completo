@@ -2868,6 +2868,16 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Mobile mode via JS - HTML elements */
+        body.mobile-mode .html-element {{
+            overflow: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }}
+        
+        body.mobile-mode .html-element iframe {{
+            pointer-events: auto !important;
+        }}
+        
         .html-element iframe {{
             width: 100%;
             height: 100%;
