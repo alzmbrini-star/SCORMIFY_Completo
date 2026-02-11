@@ -507,13 +507,14 @@ const SlideCanvas = ({
               {element.type === 'text' && (
                 isEditing ? (
                   <textarea
-                    className="w-full h-full p-2 bg-white/90 resize-none outline-none border-2 border-cyan-500 rounded"
+                    className="w-full h-full p-2 resize-none outline-none border-2 border-cyan-500 rounded"
                     style={{
                       fontSize: element.style?.fontSize || 16,
                       fontFamily: element.style?.fontFamily || 'inherit',
                       fontWeight: element.style?.fontWeight || 'normal',
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
                     }}
                     value={element.content || ''}
                     onChange={(e) => handleTextChange(e, element.id)}
@@ -523,13 +524,14 @@ const SlideCanvas = ({
                   />
                 ) : (
                   <div
-                    className="w-full h-full p-2 whitespace-pre-wrap overflow-hidden bg-white/80 rounded"
+                    className="w-full h-full p-2 whitespace-pre-wrap overflow-hidden rounded"
                     style={{
                       fontSize: element.style?.fontSize || 16,
                       fontFamily: element.style?.fontFamily || 'inherit',
                       fontWeight: element.style?.fontWeight || 'normal',
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.8)'),
                     }}
                   >
                     {element.content || 'Double-click to edit'}
