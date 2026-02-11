@@ -2124,6 +2124,21 @@ export default function Editor() {
                 <TooltipContent>📹 Biblioteca de Vídeos</TooltipContent>
               </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-orange-500/10 to-amber-500/10 hover:from-orange-500/20 hover:to-amber-500/20"
+                    onClick={handleOpenTTSDialog}
+                    data-testid="tts-btn"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>🔊 Text-to-Speech (ElevenLabs)</TooltipContent>
+              </Tooltip>
+
               <Separator orientation="vertical" className="h-6" />
 
               <AnnotationToolbar
