@@ -163,7 +163,6 @@ async def login(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     print(f"[AUTH] Password verified successfully!")  # Debug
-        raise HTTPException(status_code=401, detail="Invalid credentials")
     
     # Create session
     session_token = f"session_{uuid.uuid4().hex}"
