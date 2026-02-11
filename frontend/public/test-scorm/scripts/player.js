@@ -519,18 +519,22 @@ var CoursePlayer = (function() {
             
             // Calculate centered vertical position
             var actualScaledHeight = slideHeight * scale;
+            var actualScaledWidth = slideWidth * scale;
             var topOffset = Math.max(0, (viewportHeight - actualScaledHeight) / 2);
+            var leftOffset = Math.max(0, (viewportWidth - actualScaledWidth) / 2);
             
-            // Force wrapper to have NO padding and position from left
-            wrapper.style.cssText = 'padding:0 !important;margin:0 !important;width:100vw !important;max-width:100vw !important;display:flex !important;align-items:flex-start !important;justify-content:flex-start !important;overflow:visible !important;';
+            // Hide wrapper and use fixed positioning for slide container
+            wrapper.style.cssText = 'display:none !important;';
             
-            // Apply scale with LEFT origin so it starts from edge
+            // Position the container fixed to fill the screen
+            container.style.position = 'fixed';
+            container.style.top = topOffset + 'px';
+            container.style.left = leftOffset + 'px';
             container.style.width = slideWidth + 'px';
             container.style.height = slideHeight + 'px';
             container.style.transform = 'scale(' + scale + ')';
             container.style.transformOrigin = 'left top';
-            container.style.marginLeft = '0';
-            container.style.marginTop = topOffset + 'px';
+            container.style.zIndex = '100';
             container.style.boxShadow = 'none';
             
             console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', actualScaledHeight.toFixed(0), 'slideSize:', slideWidth + 'x' + slideHeight);
@@ -538,6 +542,15 @@ var CoursePlayer = (function() {
         }
         
         // DESKTOP MODE - Standard scaling with padding
+        // Reset container position if it was set to fixed
+        container.style.position = '';
+        container.style.top = '';
+        container.style.left = '';
+        container.style.zIndex = '';
+        
+        // Reset wrapper styles
+        wrapper.style.cssText = '';
+        
         // Get available space from wrapper, accounting for padding
         var wrapperRect = wrapper.getBoundingClientRect();
         var wrapperStyle = window.getComputedStyle(wrapper);
