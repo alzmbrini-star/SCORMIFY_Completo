@@ -421,8 +421,9 @@ var CoursePlayer = (function() {
         // Detect mobile device
         var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        var isSmallScreen = window.innerWidth < 1024;
-        var isMobile = isMobileDevice || (isSmallScreen && isTouchDevice);
+        var isSmallScreen = window.innerWidth < 1024 || window.innerHeight < 600;
+        // Consider it mobile if any of these conditions are true
+        var isMobile = isMobileDevice || isTouchDevice || isSmallScreen;
         
         // Detect portrait orientation
         var isPortrait = window.innerHeight > window.innerWidth;
@@ -489,24 +490,35 @@ var CoursePlayer = (function() {
         var isMobileLandscape = isMobile && !isPortrait;
         
         if (isMobileLandscape) {
-            // MOBILE LANDSCAPE - Fill the screen as much as possible
+            // MOBILE LANDSCAPE - Fill the screen width completely
             var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
             var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
             
-            // Use full screen dimensions with minimal padding
-            var viewportWidth = screenWidth - 10; // Tiny margin for edge
-            var viewportHeight = screenHeight - 10;
+            // Use full screen width with NO padding
+            var viewportWidth = screenWidth;
+            var viewportHeight = screenHeight;
             
-            // Calculate scale to fit both dimensions
-            var scaleX = viewportWidth / slideWidth;
-            var scaleY = viewportHeight / slideHeight;
-            var scale = Math.min(scaleX, scaleY);
+            // Calculate scale to fill WIDTH completely (prioritize width over height)
+            var scaleForWidth = viewportWidth / slideWidth;
             
-            // No upper limit - fill the screen!
-            scale = Math.max(scale, 0.3); // Only minimum for readability
+            // Check if this scale would make the slide too tall
+            var scaledHeight = slideHeight * scaleForWidth;
+            var scale;
             
-            // Force wrapper to have minimal padding
-            wrapper.style.padding = '5px';
+            if (scaledHeight <= viewportHeight) {
+                // Slide fits in height when scaled to full width - use full width scale
+                scale = scaleForWidth;
+            } else {
+                // Slide would be too tall - scale to fit height instead
+                var scaleForHeight = viewportHeight / slideHeight;
+                scale = scaleForHeight;
+            }
+            
+            // Minimum scale for readability
+            scale = Math.max(scale, 0.3);
+            
+            // Force wrapper to have NO padding for full-width
+            wrapper.style.padding = '0';
             wrapper.style.margin = '0';
             wrapper.style.width = '100vw';
             wrapper.style.maxWidth = '100vw';
@@ -520,7 +532,7 @@ var CoursePlayer = (function() {
             container.style.transformOrigin = 'center center';
             container.style.boxShadow = 'none';
             
-            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight);
+            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', scaledHeight.toFixed(0));
             return;
         }
         
