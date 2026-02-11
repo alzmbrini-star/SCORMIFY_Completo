@@ -1421,7 +1421,7 @@ export default function Editor() {
   };
 
   const handleAddTTSToSlide = async () => {
-    if (!ttsAudioUrl || !currentSlide) return;
+    if (!ttsAudioUrl || !currentSlide || !currentProject) return;
     try {
       const base64Data = ttsAudioUrl.split(',')[1];
       const byteCharacters = atob(base64Data);
@@ -1434,16 +1434,18 @@ export default function Editor() {
       
       const formData = new FormData();
       formData.append('file', blob, 'narration.mp3');
-      formData.append('audio_type', 'slide');
+      formData.append('audio_type', 'narration');
       
       await axios.post(
-        `${API_URL}/api/projects/${project.id}/slides/${currentSlide.id}/audio`,
+        `${API_URL}/api/projects/${currentProject.id}/slides/${currentSlide.id}/audio`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
-      await refreshProject();
+      await fetchProject(currentProject.id);
       toast.success('Narração adicionada ao slide!');
       setShowTTSDialog(false);
+      setTTSAudioUrl(null);
+      setTTSText('');
     } catch (err) {
       console.error('Error adding audio to slide:', err);
       toast.error('Falha ao adicionar áudio ao slide');
