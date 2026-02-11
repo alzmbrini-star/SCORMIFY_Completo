@@ -488,6 +488,60 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
         }}
         
+        /* MOBILE PORTRAIT MODE - Full width slide */
+        @media screen and (max-width: 1024px) and (orientation: portrait) {{
+            html, body {{
+                width: 100vw !important;
+                max-width: 100vw !important;
+                min-width: 100vw !important;
+                overflow-x: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+            }}
+            
+            #player-container {{
+                width: 100vw !important;
+                max-width: 100vw !important;
+                min-width: 100vw !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+            }}
+            
+            #slide-wrapper {{
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                min-width: 100vw !important;
+                align-items: flex-start !important;
+                justify-content: flex-start !important;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                box-sizing: border-box !important;
+            }}
+            
+            #slide-container {{
+                box-shadow: none !important;
+                margin: 0 !important;
+                transform-origin: left top !important;
+            }}
+            
+            #header {{
+                display: none !important;
+            }}
+            
+            #sidebar {{
+                display: none !important;
+            }}
+            
+            #controls {{
+                display: none !important;
+            }}
+        }}
+        
         /* Mobile floating controls - always available on mobile landscape */
         #mobile-float-controls {{
             display: none;
