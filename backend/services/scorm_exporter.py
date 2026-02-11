@@ -1281,12 +1281,12 @@ var CoursePlayer = (function() {
                 // Wrap in full HTML with proper CSS for text wrapping around images
                 var isMobileView = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024;
                 var mobileCSS = isMobileView ? 
-                    'body{font-size:16px!important;padding:12px!important;}' +
+                    'body{font-size:16px!important;padding:12px!important;overflow-x:hidden!important;}' +
                     'h1{font-size:1.3rem!important;}' +
                     'h2{font-size:1.15rem!important;}' +
                     'h3{font-size:1.05rem!important;}' +
                     'p,li{font-size:15px!important;line-height:1.5!important;}' +
-                    'img.rtf-image-float-left,img.rtf-image-float-right,img[style*="float"]{float:none!important;display:block!important;max-width:100%!important;margin:12px auto!important;clear:both!important;}' 
+                    'img{float:none!important;display:block!important;max-width:90%!important;width:auto!important;height:auto!important;margin:12px auto!important;clear:both!important;position:relative!important;left:0!important;right:0!important;}' 
                     : '';
                 var wrappedHtml = '<html><head><style>' +
                     (isHtmlFullscreen ? 
