@@ -41,6 +41,7 @@ import {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout, isCompanyAdmin } = useAuth();
   const {
     projects,
     loading,
