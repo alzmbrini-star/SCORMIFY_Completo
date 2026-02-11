@@ -523,10 +523,10 @@ var CoursePlayer = (function() {
             var topOffset = Math.max(0, (viewportHeight - actualScaledHeight) / 2);
             var leftOffset = Math.max(0, (viewportWidth - actualScaledWidth) / 2);
             
-            // Hide wrapper and use fixed positioning for slide container
-            wrapper.style.cssText = 'display:none !important;';
+            // Keep wrapper but transparent, use fixed positioning for slide container
+            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;height:100vh !important;overflow:visible !important;';
             
-            // Position the container fixed to fill the screen
+            // Position the container fixed to fill the screen (ignores parent constraints)
             container.style.position = 'fixed';
             container.style.top = topOffset + 'px';
             container.style.left = leftOffset + 'px';
