@@ -1000,6 +1000,11 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
         for shape_idx, shape in enumerate(pptx_slide.shapes):
             element = shape_to_element(shape, shape_idx, assets_dir, project_id)
             if element:
+                # Apply normalization scale to element dimensions
+                element.x = element.x * scale_x
+                element.y = element.y * scale_y
+                element.width = element.width * scale_x
+                element.height = element.height * scale_y
                 elements.append(element)
                 conversion_report["success"].append(f"Slide {slide_idx + 1}: {element.type}")
         
