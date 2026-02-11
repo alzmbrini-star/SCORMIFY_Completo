@@ -1306,17 +1306,20 @@ var CoursePlayer = (function() {
                         }
                     } else if (isVimeo) {
                         // Vimeo: use iframe directly (generally more permissive with embedding)
+                        // Add positioning for proper fullscreen
+                        el.style.position = 'relative';
+                        el.style.overflow = 'hidden';
+                        
                         var iframe = document.createElement('iframe');
                         var vimeoSep = embedUrl.indexOf('?') !== -1 ? '&' : '?';
-                        embedUrl += vimeoSep + 'autoplay=1&muted=1&background=0';
+                        // Add parameters for better fullscreen experience
+                        embedUrl += vimeoSep + 'autoplay=1&muted=1&background=0&dnt=1&title=0&byline=0&portrait=0';
                         
                         iframe.src = embedUrl;
-                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
                         iframe.allowFullscreen = true;
                         iframe.frameBorder = '0';
-                        iframe.style.width = '100%';
-                        iframe.style.height = '100%';
-                        iframe.style.border = 'none';
+                        iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
                         el.appendChild(iframe);
                     } else {
                         // Other video embeds
