@@ -1581,10 +1581,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;display:none;position:absolute;top:0;left:0;z-index:1;"></iframe>';
                                 }} else if (isVimeo) {{
                                     // Vimeo: use iframe directly (generally more permissive)
+                                    // Add parameters for better fullscreen experience
                                     var iframeUrl = embedUrl;
                                     var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
-                                    iframeUrl += sep + 'autoplay=1&muted=1&background=0';
-                                    html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
+                                    iframeUrl += sep + 'autoplay=1&muted=1&background=0&dnt=1&title=0&byline=0&portrait=0';
+                                    html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else {{
                                     // Other embeds
                                     html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
