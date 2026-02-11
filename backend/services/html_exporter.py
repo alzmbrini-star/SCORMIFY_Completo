@@ -1989,10 +1989,74 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var slideWidth = slide.width || {width};
                 var slideHeight = slide.height || {height};
                 
+                // Detect mobile device
+                var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                var isSmallScreen = window.innerWidth < 1024;
+                var isMobile = isMobileDevice || (isSmallScreen && isTouchDevice);
+                
+                // Detect portrait orientation
+                var isPortrait = window.innerHeight > window.innerWidth;
+                var isMobilePortrait = isMobile && isPortrait;
+                var isMobileLand = isMobileLandscape();
+                
+                if (isMobilePortrait) {{
+                    // MOBILE PORTRAIT MODE - Fill the screen width completely
+                    var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
+                    var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+                    
+                    var viewportWidth = screenWidth;
+                    var viewportHeight = screenHeight - 40; // Space for counter
+                    
+                    // Calculate scale to fill width completely
+                    var scaleForWidth = viewportWidth / slideWidth;
+                    
+                    // Calculate the scaled height
+                    var scaledHeight = slideHeight * scaleForWidth;
+                    
+                    // Center vertically if there's extra space
+                    var topOffset = 0;
+                    if (scaledHeight < viewportHeight) {{
+                        topOffset = (viewportHeight - scaledHeight) / 2;
+                    }}
+                    
+                    // Force wrapper to have no padding and full width
+                    wrapper.style.padding = '0';
+                    wrapper.style.margin = '0';
+                    wrapper.style.width = '100vw';
+                    wrapper.style.maxWidth = '100vw';
+                    wrapper.style.alignItems = 'flex-start';
+                    wrapper.style.justifyContent = 'flex-start';
+                    wrapper.style.paddingTop = topOffset + 'px';
+                    
+                    // Apply scale with left-aligned transform origin for true full-width
+                    container.style.width = slideWidth + 'px';
+                    container.style.height = slideHeight + 'px';
+                    container.style.transform = 'scale(' + scaleForWidth + ')';
+                    container.style.transformOrigin = 'left top';
+                    container.style.marginLeft = '0';
+                    container.style.boxShadow = 'none';
+                    
+                    console.log('[Scale] Mobile portrait - scale:', scaleForWidth.toFixed(3));
+                    return;
+                }}
+                
+                // DESKTOP / LANDSCAPE MODE
+                // Reset wrapper styles that might have been modified
+                wrapper.style.padding = '';
+                wrapper.style.margin = '';
+                wrapper.style.width = '';
+                wrapper.style.maxWidth = '';
+                wrapper.style.alignItems = '';
+                wrapper.style.justifyContent = '';
+                wrapper.style.paddingTop = '';
+                container.style.marginLeft = '';
+                container.style.boxShadow = '';
+                container.style.transformOrigin = 'center center';
+                
                 var wrapperRect = wrapper.getBoundingClientRect();
                 
                 // Use minimal padding on mobile landscape for maximum slide size
-                var isMobileLand = isMobileLandscape();
                 var padding = (isPresentationMode || isMobileLand) ? 10 : 40;
                 var availableWidth = wrapperRect.width - padding;
                 var availableHeight = wrapperRect.height - padding;
