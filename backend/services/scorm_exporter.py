@@ -2924,13 +2924,12 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         .slide-element {{
             position: absolute !important;
-            /* Removed overflow: hidden to allow proper rendering */
+            overflow: hidden !important;
         }}
         
         /* Mobile optimization: expand elements and ensure content fits */
         @media screen and (max-width: 1024px) {{
-            .slide-element.quiz-element,
-            .slide-element.html-element {{
+            .slide-element.quiz-element {{
                 /* These will be adjusted by JavaScript */
                 overflow: auto !important;
             }}
@@ -2943,11 +2942,15 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         /* Ensure iframe content stays within bounds */
+        .html-element {{
+            overflow: hidden !important;
+        }}
+        
         .html-element iframe {{
-            width: 100%;
-            height: 100%;
-            border: none;
-            overflow: auto;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            overflow: auto !important;
         }}
         
         .text-element {{
@@ -2956,15 +2959,15 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             overflow-wrap: break-word;
             border-radius: 4px;
             padding: 8px;
-            overflow: hidden;
+            overflow: hidden !important;
             /* Background is set via inline style - transparent or custom */
         }}
         
         .text-element iframe {{
-            width: 100%;
-            height: 100%;
-            border: none;
-            overflow: auto;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            overflow: auto !important;
         }}
         
         .image-element {{
