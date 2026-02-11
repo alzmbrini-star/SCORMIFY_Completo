@@ -639,8 +639,9 @@ var CoursePlayer = (function() {
         // Detect mobile device
         var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        var isSmallScreen = window.innerWidth < 1024;
-        var isMobile = isMobileDevice || (isSmallScreen && isTouchDevice);
+        var isSmallScreen = window.innerWidth < 1024 || window.innerHeight < 600;
+        // Consider it mobile if any of these conditions are true
+        var isMobile = isMobileDevice || isTouchDevice || isSmallScreen;
         
         // Detect portrait orientation
         var isPortrait = window.innerHeight > window.innerWidth;
