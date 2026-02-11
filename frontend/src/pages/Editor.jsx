@@ -388,6 +388,17 @@ export default function Editor() {
   // Quiz Generator states
   const [showQuizDialog, setShowQuizDialog] = useState(false);
 
+  // ElevenLabs TTS states
+  const [showTTSDialog, setShowTTSDialog] = useState(false);
+  const [ttsVoices, setTTSVoices] = useState([]);
+  const [ttsLoading, setTTSLoading] = useState(false);
+  const [ttsGenerating, setTTSGenerating] = useState(false);
+  const [ttsGenderFilter, setTTSGenderFilter] = useState('all');
+  const [ttsSelectedVoice, setTTSSelectedVoice] = useState(null);
+  const [ttsText, setTTSText] = useState('');
+  const [ttsPreviewUrl, setTTSPreviewUrl] = useState(null);
+  const [ttsAudioUrl, setTTSAudioUrl] = useState(null);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingIntervalRef = useRef(null);
