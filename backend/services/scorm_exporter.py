@@ -2639,7 +2639,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             html, body {{
                 width: 100vw !important;
                 max-width: 100vw !important;
-                overflow-x: hidden !important;
+                overflow: visible !important;
                 margin: 0 !important;
                 padding: 0 !important;
             }}
@@ -2649,6 +2649,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
                 max-width: 100vw !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                overflow: visible !important;
             }}
             
             #slide-wrapper {{
@@ -2658,6 +2659,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
                 max-width: 100vw !important;
                 justify-content: flex-start !important;
                 align-items: flex-start !important;
+                overflow: visible !important;
             }}
             
             #slide-container {{
