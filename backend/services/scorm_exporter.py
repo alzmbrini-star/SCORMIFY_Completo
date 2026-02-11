@@ -1697,6 +1697,24 @@ var CoursePlayer = (function() {
             dotsContainer.innerHTML = html;
         }
         
+        // Update mobile slide counter
+        var mobileCounter = document.getElementById('mobile-slide-counter');
+        if (mobileCounter) {
+            mobileCounter.textContent = (currentSlide + 1) + ' / ' + totalSlides;
+        }
+        
+        // Update mobile nav button visibility
+        var mobilePrev = document.getElementById('mobile-nav-prev');
+        var mobileNext = document.getElementById('mobile-nav-next');
+        if (mobilePrev) {
+            mobilePrev.style.opacity = currentSlide === 0 ? '0.3' : '1';
+            mobilePrev.style.pointerEvents = currentSlide === 0 ? 'none' : 'auto';
+        }
+        if (mobileNext) {
+            mobileNext.style.opacity = currentSlide === totalSlides - 1 ? '0.3' : '1';
+            mobileNext.style.pointerEvents = currentSlide === totalSlides - 1 ? 'none' : 'auto';
+        }
+        
         // Update sidebar
         updateSidebar();
     }
