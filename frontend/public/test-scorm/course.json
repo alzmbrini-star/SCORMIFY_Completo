@@ -1,0 +1,110 @@
+{
+  "id": "deee9548-2dc4-4540-9c93-b98a401c79a1",
+  "metadata": {
+    "title": "Teste 21:9 Mobile",
+    "description": "",
+    "author": "",
+    "organization": "",
+    "version": "1.0",
+    "language": "pt-BR",
+    "keywords": []
+  },
+  "slides": [
+    {
+      "id": "5079ea76-8333-4800-b329-11e5dd41fc8e",
+      "title": "Slide 1",
+      "order": 0,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#FFFFFF",
+      "backgroundImage": null,
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "24254847-8527-48ff-a8b3-8ebed2afda56",
+      "title": "Slide 1",
+      "order": 1,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#FFFFFF",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "2e2ccb30-a3bd-45a4-8458-4891a95a8ed0",
+          "type": "text",
+          "x": 100.0,
+          "y": 100.0,
+          "width": 600.0,
+          "height": 150.0,
+          "rotation": 0.0,
+          "zIndex": 0,
+          "visible": true,
+          "locked": false,
+          "content": "Teste Slide 21:9 para Mobile",
+          "src": null,
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": 48.0,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": "#FFFFFF",
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null,
+            "backgroundColor": "#7C3AED"
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": null,
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 5.0
+    }
+  ],
+  "globalAudio": null,
+  "originalFilename": null,
+  "conversionReport": null,
+  "createdAt": "2026-02-11T16:38:19.367387+00:00",
+  "updatedAt": "2026-02-11T16:38:19.367390+00:00"
+}
