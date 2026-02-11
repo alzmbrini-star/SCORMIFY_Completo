@@ -1561,32 +1561,34 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     if (vimeoMatch) videoId = vimeoMatch[1];
                                 }}
                                 
-                                // Create a container that will check if running locally
-                                html += '<div class="video-embed-container" data-embed-url="' + embedUrl + '" data-video-id="' + videoId + '" data-is-youtube="' + isYouTube + '" data-is-vimeo="' + isVimeo + '" style="width:100%;height:100%;position:relative;">';
+                                // Create container for video
+                                html += '<div class="video-embed-container" data-embed-url="' + embedUrl + '" data-video-id="' + videoId + '" data-is-youtube="' + isYouTube + '" data-is-vimeo="' + isVimeo + '" style="width:100%;height:100%;position:relative;overflow:hidden;background:#000;">';
                                 
-                                // Fallback content (shown if local file or iframe fails)
+                                // For YouTube: Always show thumbnail with play button (handles embed restrictions gracefully)
                                 if (isYouTube && videoId) {{
-                                    html += '<div class="video-fallback" style="width:100%;height:100%;display:none;background:#000;position:relative;cursor:pointer;" onclick="window.open(\\'https://www.youtube.com/watch?v=' + videoId + '\\', \\'_blank\\')">';
+                                    // Thumbnail container (shown by default, clickable to play)
+                                    html += '<div class="youtube-thumb-container" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:pointer;z-index:2;">';
                                     html += '<img src="https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg" onerror="this.src=\\'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg\\'" style="width:100%;height:100%;object-fit:cover;">';
-                                    html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.9);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;">';
-                                    html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
+                                    html += '<div class="yt-play-btn" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.95);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.2s;">';
+                                    html += '<svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
                                     html += '</div>';
-                                    html += '<div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:8px 16px;border-radius:4px;font-size:12px;">Clique para assistir no YouTube</div>';
                                     html += '</div>';
-                                }}
-                                
-                                // iframe (will be shown if not local file)
-                                var iframeUrl = embedUrl;
-                                if (isYouTube) {{
-                                    iframeUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
+                                    
+                                    // Hidden iframe (loaded but hidden, shown when thumbnail clicked if embed works)
+                                    var iframeUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
                                     var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
-                                    iframeUrl += sep + 'enablejsapi=1&rel=0&modestbranding=1&autoplay=1&mute=1';
+                                    iframeUrl += sep + 'enablejsapi=1&rel=0&modestbranding=1';
+                                    html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;display:none;position:absolute;top:0;left:0;z-index:1;"></iframe>';
                                 }} else if (isVimeo) {{
-                                    // Add Vimeo autoplay parameters
+                                    // Vimeo: use iframe directly (generally more permissive)
+                                    var iframeUrl = embedUrl;
                                     var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
                                     iframeUrl += sep + 'autoplay=1&muted=1&background=0';
+                                    html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
+                                }} else {{
+                                    // Other embeds
+                                    html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
                                 }}
-                                html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
                                 
                                 html += '</div>';
                             }} else if (elem.src) {{
