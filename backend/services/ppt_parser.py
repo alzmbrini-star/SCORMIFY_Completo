@@ -958,8 +958,22 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
         raise ValueError(f"Could not open PowerPoint file: {e}")
     
     # Get presentation dimensions
-    slide_width = emu_to_px(prs.slide_width)
-    slide_height = emu_to_px(prs.slide_height)
+    original_width = emu_to_px(prs.slide_width)
+    original_height = emu_to_px(prs.slide_height)
+    
+    # Target dimensions (standard)
+    TARGET_WIDTH = 1536
+    TARGET_HEIGHT = 864
+    
+    # Calculate scale factors for normalization
+    scale_x = TARGET_WIDTH / original_width
+    scale_y = TARGET_HEIGHT / original_height
+    
+    # Use normalized dimensions
+    slide_width = TARGET_WIDTH
+    slide_height = TARGET_HEIGHT
+    
+    logger.info(f"Original dimensions: {original_width}x{original_height}, normalizing to {TARGET_WIDTH}x{TARGET_HEIGHT} (scale: {scale_x:.2f}x{scale_y:.2f})")
     
     # Extract metadata
     core_props = prs.core_properties
