@@ -1019,6 +1019,21 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Files Modified**: `/app/backend/services/scorm_exporter.py` - CSS do quiz-player-container
 - **Status**: IMPLEMENTED AND TESTED
 
+### Transparent Background for Text Elements - COMPLETED (Feb 11, 2026)
+- **Feature**: Opção para tornar o fundo de elementos de texto transparente
+- **Implementation**:
+  1. **Editor UI** (Editor.jsx): Checkbox "Transparent" no painel de propriedades para elementos de texto
+  2. **Canvas Rendering** (SlideCanvas.jsx): Renderização condicional do fundo baseado em `style.transparentBackground`
+  3. **SCORM Export** (scorm_exporter.py): 
+     - CSS atualizado para não ter fundo padrão na classe `.text-element`
+     - JavaScript aplica fundo inline: transparente, customizado, ou default (rgba(255,255,255,0.9))
+  4. **HTML Export** (html_exporter.py): Mesma lógica aplicada para elementos de texto
+- **Files Modified**:
+  - `/app/backend/services/scorm_exporter.py` - CSS e JS para transparência
+  - `/app/backend/services/html_exporter.py` - Suporte a `transparentBackground`
+- **Status**: COMPLETED AND TESTED
+- **Verification**: Checkbox visível e funcional no painel de propriedades
+
 ### Mobile Swipe Navigation + Side Buttons - IMPLEMENTED (Feb 11, 2026)
 - **Feature**: Nova navegação mobile com botões laterais e conteúdo maximizado
 - **Implementation**:
