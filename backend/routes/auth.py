@@ -133,6 +133,8 @@ async def login(request: Request, response: Response):
     email = body.get("email", "").lower().strip()
     password = body.get("password", "")
     
+    print(f"[AUTH] Login attempt for email: {email}")  # Debug
+    
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password required")
     
@@ -142,6 +144,8 @@ async def login(request: Request, response: Response):
         {"_id": 0}
     )
     
+    print(f"[AUTH] User found: {user is not None}")  # Debug
+    
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -149,9 +153,16 @@ async def login(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Account is deactivated")
     
     if not user.get("passwordHash"):
+        print(f"[AUTH] User has no passwordHash")  # Debug
         raise HTTPException(status_code=401, detail="Please use Google login for this account")
     
+    print(f"[AUTH] Password hash exists, verifying...")  # Debug
+    
     if not verify_password(password, user["passwordHash"]):
+        print(f"[AUTH] Password verification failed")  # Debug
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    print(f"[AUTH] Password verified successfully!")  # Debug
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     # Create session
