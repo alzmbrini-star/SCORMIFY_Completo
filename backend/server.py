@@ -474,8 +474,8 @@ async def normalize_slide_dimensions(project_id: str, target_width: int = 1536, 
     normalized_count = 0
     
     for slide in slides:
-        current_width = slide.get('width', 1280)
-        current_height = slide.get('height', 720)
+        current_width = slide.get('width', 1536)
+        current_height = slide.get('height', 864)
         
         # Skip if already the target dimensions
         if current_width == target_width and current_height == target_height:
