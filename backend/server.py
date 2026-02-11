@@ -73,6 +73,9 @@ HEYGEN_HEADERS = {
     "Content-Type": "application/json"
 }
 
+# ElevenLabs API Configuration
+ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY', '')
+
 # HeyGen Credits Cache (to avoid slow repeated API calls)
 heygen_credits_cache: Dict[str, Any] = {
     "data": None,
