@@ -961,9 +961,9 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
     original_width = emu_to_px(prs.slide_width)
     original_height = emu_to_px(prs.slide_height)
     
-    # Target dimensions (standard)
-    TARGET_WIDTH = 1536
-    TARGET_HEIGHT = 864
+    # Target dimensions (21:9 aspect ratio for better mobile landscape viewing)
+    TARGET_WIDTH = 1920
+    TARGET_HEIGHT = 820
     
     # Calculate scale factors for normalization
     scale_x = TARGET_WIDTH / original_width
