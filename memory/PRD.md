@@ -999,6 +999,16 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/backend/services/scorm_exporter.py`
 - **Status**: FIXED AND TESTED
 
+### Mobile Quiz Font Size Improvement - IMPLEMENTED (Feb 11, 2026)
+- **Issue**: Fonte do quiz muito pequena no mobile, dificultando leitura das alternativas e feedback
+- **Fix Applied**: Aumentado tamanhos de fonte para mobile:
+  - Container base: 20px
+  - Alternativas: 18px com padding 16px 18px
+  - Feedback: 18px
+  - Botões: 18px
+- **Files Modified**: `/app/backend/services/scorm_exporter.py` - CSS do quiz-player-container
+- **Status**: IMPLEMENTED AND TESTED
+
 ### Mobile Swipe Navigation + Side Buttons - IMPLEMENTED (Feb 11, 2026)
 - **Feature**: Nova navegação mobile com botões laterais e conteúdo maximizado
 - **Implementation**:
