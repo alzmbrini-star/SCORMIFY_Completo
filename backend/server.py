@@ -2677,6 +2677,313 @@ async def get_quiz_attempts(project_id: str, quiz_id: Optional[str] = None):
     attempts = await db.quiz_attempts.find(query, {"_id": 0}).sort("createdAt", -1).to_list(100)
     return attempts
 
+# =============================================================================
+# ElevenLabs Text-to-Speech Endpoints
+# =============================================================================
+
+@api_router.get("/elevenlabs/voices")
+async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optional[str] = None):
+    """
+    List available ElevenLabs voices filtered by language and gender.
+    Languages: pt-BR, en, es
+    Gender: male, female
+    """
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=400, detail="ElevenLabs API key not configured")
+    
+    try:
+        from elevenlabs import ElevenLabs
+        
+        client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+        voices_response = client.voices.get_all()
+        
+        # Language mapping for filtering
+        language_map = {
+            "pt-BR": ["portuguese", "brazilian"],
+            "pt": ["portuguese"],
+            "en": ["english", "american", "british", "australian"],
+            "es": ["spanish", "latin"]
+        }
+        
+        # Language display names with flags
+        language_flags = {
+            "pt-BR": "🇧🇷 Português (Brasil)",
+            "pt": "🇵🇹 Português",
+            "en": "🇺🇸 English",
+            "es": "🇪🇸 Español"
+        }
+        
+        voices = []
+        available_languages = set()
+        available_genders = set()
+        
+        for voice in voices_response.voices:
+            # Extract voice info
+            voice_data = {
+                "voice_id": voice.voice_id,
+                "name": voice.name,
+                "description": voice.description or "",
+                "preview_url": voice.preview_url,
+                "category": voice.category or "premade",
+                "labels": voice.labels or {},
+                "gender": None,
+                "language": None,
+                "accent": None,
+                "age": None
+            }
+            
+            # Extract labels
+            if voice.labels:
+                voice_data["gender"] = voice.labels.get("gender", "").lower()
+                voice_data["accent"] = voice.labels.get("accent", "")
+                voice_data["age"] = voice.labels.get("age", "")
+                voice_data["language"] = voice.labels.get("language", "")
+                
+                # Track available values
+                if voice_data["gender"]:
+                    available_genders.add(voice_data["gender"])
+            
+            # Determine language from description, name, or labels
+            voice_text = f"{voice.name} {voice.description or ''} {voice_data.get('accent', '')}".lower()
+            
+            detected_language = None
+            if "brazilian" in voice_text or "brazil" in voice_text:
+                detected_language = "pt-BR"
+            elif "portuguese" in voice_text:
+                detected_language = "pt"
+            elif "spanish" in voice_text or "español" in voice_text or "latin" in voice_text:
+                detected_language = "es"
+            elif "english" in voice_text or "american" in voice_text or "british" in voice_text:
+                detected_language = "en"
+            
+            if detected_language:
+                voice_data["detected_language"] = detected_language
+                available_languages.add(detected_language)
+            
+            # Apply language filter
+            if language:
+                if language not in language_map:
+                    continue
+                    
+                keywords = language_map[language]
+                voice_text = f"{voice.name} {voice.description or ''} {voice_data.get('accent', '')}".lower()
+                
+                if not any(kw in voice_text for kw in keywords):
+                    continue
+            
+            # Apply gender filter
+            if gender:
+                if voice_data["gender"] != gender.lower():
+                    continue
+            
+            voices.append(voice_data)
+        
+        # Sort by name
+        voices.sort(key=lambda x: x["name"])
+        
+        return {
+            "voices": voices,
+            "total": len(voices),
+            "available_languages": [
+                {"code": code, "label": language_flags.get(code, code)}
+                for code in sorted(available_languages)
+            ],
+            "available_genders": sorted(list(available_genders))
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching ElevenLabs voices: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching voices: {str(e)}")
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: str
+    stability: float = 0.5
+    similarity_boost: float = 0.75
+    style: float = 0.0
+    use_speaker_boost: bool = True
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class TTSRequest(PydanticBaseModel):
+    text: str
+    voice_id: str
+    stability: float = 0.5
+    similarity_boost: float = 0.75
+    style: float = 0.0
+    use_speaker_boost: bool = True
+
+
+@api_router.post("/elevenlabs/generate-speech")
+async def generate_elevenlabs_speech(request: TTSRequest):
+    """
+    Generate text-to-speech audio using ElevenLabs.
+    Returns audio as base64-encoded MP3.
+    """
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=400, detail="ElevenLabs API key not configured")
+    
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    
+    try:
+        from elevenlabs import ElevenLabs
+        from elevenlabs.types import VoiceSettings
+        
+        client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+        
+        # Configure voice settings
+        voice_settings = VoiceSettings(
+            stability=request.stability,
+            similarity_boost=request.similarity_boost,
+            style=request.style,
+            use_speaker_boost=request.use_speaker_boost
+        )
+        
+        # Generate audio
+        audio_generator = client.text_to_speech.convert(
+            text=request.text,
+            voice_id=request.voice_id,
+            model_id="eleven_multilingual_v2",
+            voice_settings=voice_settings
+        )
+        
+        # Collect audio data
+        audio_data = b""
+        for chunk in audio_generator:
+            audio_data += chunk
+        
+        # Convert to base64
+        audio_b64 = base64.b64encode(audio_data).decode()
+        
+        # Generate unique filename
+        audio_id = str(uuid.uuid4())
+        filename = f"tts_{audio_id}.mp3"
+        
+        # Save to storage for later use
+        audio_path = STORAGE_DIR / "audio" / filename
+        audio_path.parent.mkdir(exist_ok=True)
+        
+        async with aiofiles.open(audio_path, "wb") as f:
+            await f.write(audio_data)
+        
+        # Save metadata to database
+        tts_record = {
+            "id": audio_id,
+            "voice_id": request.voice_id,
+            "text": request.text[:500],  # Store first 500 chars
+            "filename": filename,
+            "file_path": str(audio_path),
+            "file_size": len(audio_data),
+            "created_at": now_utc().isoformat()
+        }
+        await db.tts_generations.insert_one(tts_record)
+        
+        return {
+            "success": True,
+            "audio_id": audio_id,
+            "audio_url": f"/api/audio/{filename}",
+            "audio_base64": f"data:audio/mpeg;base64,{audio_b64}",
+            "text": request.text,
+            "voice_id": request.voice_id,
+            "file_size": len(audio_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating TTS: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating speech: {str(e)}")
+
+
+@api_router.get("/audio/{filename}")
+async def get_audio_file(filename: str):
+    """Serve generated audio file"""
+    audio_path = STORAGE_DIR / "audio" / filename
+    
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    return FileResponse(
+        audio_path,
+        media_type="audio/mpeg",
+        filename=filename
+    )
+
+
+@api_router.get("/elevenlabs/voices/recommended")
+async def get_recommended_voices():
+    """
+    Get recommended voices for Portuguese (Brazil), English, and Spanish.
+    Curated list of high-quality voices for narration.
+    """
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=400, detail="ElevenLabs API key not configured")
+    
+    try:
+        from elevenlabs import ElevenLabs
+        
+        client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+        voices_response = client.voices.get_all()
+        
+        # Keywords for each language/gender combination
+        filters = {
+            "pt-BR": {
+                "keywords": ["brazilian", "brazil", "português", "portuguese"],
+                "voices": []
+            },
+            "en": {
+                "keywords": ["english", "american", "british"],
+                "voices": []
+            },
+            "es": {
+                "keywords": ["spanish", "español", "latin"],
+                "voices": []
+            }
+        }
+        
+        for voice in voices_response.voices:
+            voice_text = f"{voice.name} {voice.description or ''}".lower()
+            accent = (voice.labels or {}).get("accent", "").lower()
+            voice_text += f" {accent}"
+            
+            gender = (voice.labels or {}).get("gender", "unknown").lower()
+            
+            voice_info = {
+                "voice_id": voice.voice_id,
+                "name": voice.name,
+                "description": voice.description or "",
+                "preview_url": voice.preview_url,
+                "gender": gender,
+                "accent": accent
+            }
+            
+            for lang, data in filters.items():
+                if any(kw in voice_text for kw in data["keywords"]):
+                    data["voices"].append(voice_info)
+        
+        # Organize by language and gender
+        recommended = {}
+        for lang, data in filters.items():
+            recommended[lang] = {
+                "male": [v for v in data["voices"] if v["gender"] == "male"][:5],
+                "female": [v for v in data["voices"] if v["gender"] == "female"][:5]
+            }
+        
+        return {
+            "recommended": recommended,
+            "languages": [
+                {"code": "pt-BR", "label": "🇧🇷 Português (Brasil)"},
+                {"code": "en", "label": "🇺🇸 English"},
+                {"code": "es", "label": "🇪🇸 Español"}
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching recommended voices: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
 # Include router
 app.include_router(api_router)
 
