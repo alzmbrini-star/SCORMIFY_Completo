@@ -649,7 +649,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         .slide-element.video-element {{
             background: transparent;
             border-radius: 0;
-            overflow: visible;
+            overflow: hidden;
+            position: relative;
+        }}
+        
+        .slide-element.video-element .video-embed-container {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }}
         
         .slide-element.video-element video,
