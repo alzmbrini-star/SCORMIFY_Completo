@@ -694,7 +694,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       fontWeight: element.style?.fontWeight || 'normal',
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
-                      backgroundColor: 'rgba(255,255,255,0.9)',
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
                       borderRadius: 4,
                     }}
                   >
