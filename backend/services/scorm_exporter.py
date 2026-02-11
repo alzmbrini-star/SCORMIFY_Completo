@@ -636,6 +636,74 @@ var CoursePlayer = (function() {
         
         var slideWidth = slide.width || 960;
         var slideHeight = slide.height || 540;
+        var slideAspectRatio = slideWidth / slideHeight;
+        
+        // Detect mobile device
+        var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        var isSmallScreen = window.innerWidth < 1024;
+        var isMobile = isMobileDevice || (isSmallScreen && isTouchDevice);
+        
+        // Detect portrait orientation
+        var isPortrait = window.innerHeight > window.innerWidth;
+        var isMobilePortrait = isMobile && isPortrait;
+        
+        console.log('[Scale] Device:', { isMobile: isMobile, isPortrait: isPortrait, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
+        
+        if (isMobilePortrait) {
+            // MOBILE PORTRAIT MODE - Fill the screen width completely
+            // Use document dimensions to avoid any iframe constraints
+            var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth, window.screen.width || 0);
+            var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+            
+            // Use the actual visible width
+            var viewportWidth = screenWidth;
+            var viewportHeight = screenHeight - 40; // Small space for counter
+            
+            // Calculate scale to fill width completely
+            var scaleForWidth = viewportWidth / slideWidth;
+            
+            // Calculate the scaled height
+            var scaledHeight = slideHeight * scaleForWidth;
+            
+            // Center vertically if there's extra space
+            var topOffset = 0;
+            if (scaledHeight < viewportHeight) {
+                topOffset = (viewportHeight - scaledHeight) / 2;
+            }
+            
+            // Force wrapper to have no padding and full width
+            wrapper.style.padding = '0';
+            wrapper.style.margin = '0';
+            wrapper.style.width = '100%';
+            wrapper.style.maxWidth = '100%';
+            wrapper.style.alignItems = 'flex-start';
+            wrapper.style.justifyContent = 'center';
+            wrapper.style.paddingTop = topOffset + 'px';
+            
+            // Apply scale with left-aligned transform origin for true full-width
+            container.style.width = slideWidth + 'px';
+            container.style.height = slideHeight + 'px';
+            container.style.transform = 'scale(' + scaleForWidth + ')';
+            container.style.transformOrigin = 'left top';
+            container.style.marginLeft = '0';
+            container.style.boxShadow = 'none';
+            
+            console.log('[Scale] Mobile portrait - scale:', scaleForWidth.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight);
+            return;
+        }
+        
+        // DESKTOP / LANDSCAPE MODE - Fit within available space with padding
+        // Reset wrapper styles that might have been modified
+        wrapper.style.padding = '';
+        wrapper.style.margin = '';
+        wrapper.style.width = '';
+        wrapper.style.maxWidth = '';
+        wrapper.style.alignItems = '';
+        wrapper.style.justifyContent = '';
+        wrapper.style.paddingTop = '';
+        container.style.marginLeft = '';
+        container.style.boxShadow = '';
         
         // Get available space from wrapper, accounting for padding
         var wrapperRect = wrapper.getBoundingClientRect();
@@ -649,28 +717,6 @@ var CoursePlayer = (function() {
         // Skip if dimensions are invalid
         if (availableWidth < 100 || availableHeight < 100) return;
         
-        // Detect mobile portrait mode (height > width)
-        var isMobilePortrait = window.innerHeight > window.innerWidth && window.innerWidth < 1024;
-        
-        // On mobile portrait, use FULL width to maximize slide size
-        if (isMobilePortrait) {
-            // Use full window width, no margins at all
-            availableWidth = window.innerWidth;
-            availableHeight = window.innerHeight - 60; // Leave space for counter
-            
-            // Scale based on width only (fill width completely)
-            var scaleForFullWidth = availableWidth / slideWidth;
-            
-            // Apply scale to container
-            container.style.width = slideWidth + 'px';
-            container.style.height = slideHeight + 'px';
-            container.style.transform = 'scale(' + scaleForFullWidth + ')';
-            container.style.transformOrigin = 'center top';
-            
-            console.log('[Scale] Mobile portrait - full width scale:', scaleForFullWidth.toFixed(3));
-            return;
-        }
-        
         // Calculate scale to fit available space
         var scaleX = availableWidth / slideWidth;
         var scaleY = availableHeight / slideHeight;
@@ -678,9 +724,7 @@ var CoursePlayer = (function() {
         // Use the smaller scale to maintain aspect ratio
         var scale = Math.min(scaleX, scaleY);
         
-        // On mobile, allow scaling up more to fill screen better
-        // On desktop, cap at 1.2 to avoid pixelation
-        var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
+        // On mobile landscape, allow scaling up more to fill screen better
         var isSmallMobile = window.innerWidth < 768 || window.innerHeight < 500;
         var maxScale = isSmallMobile ? 2.5 : (isMobile ? 2.0 : 1.2);
         scale = Math.min(scale, maxScale);
@@ -696,7 +740,7 @@ var CoursePlayer = (function() {
         container.style.transformOrigin = 'center center';
         
         // Log for debugging
-        console.log('[Scale] scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
+        console.log('[Scale] Desktop/Landscape - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
     }
     
     var isVideoFullscreen = false;
