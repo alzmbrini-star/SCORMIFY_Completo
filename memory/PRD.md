@@ -999,6 +999,16 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/backend/services/scorm_exporter.py`
 - **Status**: FIXED AND TESTED
 
+### Mobile RTF/HTML Content Fix - IMPLEMENTED (Feb 11, 2026)
+- **Issue**: Imagens no conteúdo RTF transbordavam para fora do slide no mobile
+- **Fix Applied**: 
+  - Todas as imagens no mobile agora têm `float: none`, `display: block`, `max-width: 90%`
+  - Imagens ficam centralizadas (`margin: 12px auto`)
+  - Body com `overflow-x: hidden` para impedir scroll horizontal
+  - Fontes ajustadas para melhor legibilidade (body 16px, parágrafos 15px)
+- **Files Modified**: `/app/backend/services/scorm_exporter.py` - CSS mobileCSS dentro do iframe RTF
+- **Status**: IMPLEMENTED AND TESTED
+
 ### Mobile Quiz Font Size Improvement - IMPLEMENTED (Feb 11, 2026)
 - **Issue**: Fonte do quiz muito pequena no mobile, dificultando leitura das alternativas e feedback
 - **Fix Applied**: Aumentado tamanhos de fonte para mobile:
