@@ -3320,6 +3320,18 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             <div id="swipe-zone-left" class="swipe-zone" onclick="CoursePlayer.prev()"></div>
             <div id="swipe-zone-right" class="swipe-zone" onclick="CoursePlayer.next()"></div>
             <div id="slide-container"></div>
+            
+            <!-- Mobile Navigation Buttons (shown only on mobile) -->
+            <button id="mobile-nav-prev" class="mobile-nav-btn" onclick="CoursePlayer.prev()" title="Anterior">
+                ‹
+            </button>
+            <button id="mobile-nav-next" class="mobile-nav-btn" onclick="CoursePlayer.next()" title="Próximo">
+                ›
+            </button>
+            <button id="mobile-nav-menu" class="mobile-nav-btn mobile-menu-btn" onclick="CoursePlayer.toggleSidebar()" title="Menu">
+                ☰
+            </button>
+            <div id="mobile-slide-counter" class="mobile-slide-counter"></div>
         </div>
         
         <!-- Start overlay for audio autoplay permission -->
