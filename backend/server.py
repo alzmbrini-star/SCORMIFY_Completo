@@ -462,7 +462,7 @@ async def duplicate_slide(project_id: str, slide_id: str):
     return new_slide
 
 @api_router.post("/projects/{project_id}/normalize-dimensions")
-async def normalize_slide_dimensions(project_id: str, target_width: int = 1280, target_height: int = 720):
+async def normalize_slide_dimensions(project_id: str, target_width: int = 1536, target_height: int = 864):
     """Normalize all slides to the same dimensions, scaling elements proportionally"""
     project = await get_project_by_id(project_id)
     if not project:
