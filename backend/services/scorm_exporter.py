@@ -1228,18 +1228,36 @@ var CoursePlayer = (function() {
                     if (isYouTube) {
                         var ytMatch = embedUrl.match(/(?:embed\/|v=|youtu\.be\/)([^?&"'>]+)/);
                         if (ytMatch) videoId = ytMatch[1];
+                    } else if (isVimeo) {
+                        var vimeoMatch = embedUrl.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+                        if (vimeoMatch) videoId = vimeoMatch[1];
                     }
                     
                     // Check if running from local file
                     var isLocalFile = window.location.protocol === 'file:';
                     
-                    if (isYouTube && videoId && isLocalFile) {
-                        // Show thumbnail with play button for local files
-                        el.style.cursor = 'pointer';
+                    // For YouTube: Always show thumbnail first, then try to load iframe
+                    // This handles videos with embedding disabled gracefully
+                    if (isYouTube && videoId) {
                         el.style.position = 'relative';
                         el.style.background = '#000';
-                        el.onclick = function() {
-                            window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+                        el.style.overflow = 'hidden';
+                        
+                        // Create thumbnail container (shown initially, hidden when iframe loads successfully)
+                        var thumbContainer = document.createElement('div');
+                        thumbContainer.className = 'youtube-thumb-container';
+                        thumbContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;cursor:pointer;z-index:2;';
+                        thumbContainer.onclick = function(e) {
+                            e.stopPropagation();
+                            // If iframe is loaded and working, hide thumbnail and show iframe
+                            var iframeEl = el.querySelector('iframe');
+                            if (iframeEl && !iframeEl.dataset.failed) {
+                                thumbContainer.style.display = 'none';
+                                iframeEl.style.display = 'block';
+                            } else {
+                                // Fallback: open in new tab
+                                window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+                            }
                         };
                         
                         var thumb = document.createElement('img');
@@ -1250,35 +1268,59 @@ var CoursePlayer = (function() {
                         thumb.style.width = '100%';
                         thumb.style.height = '100%';
                         thumb.style.objectFit = 'cover';
-                        el.appendChild(thumb);
+                        thumbContainer.appendChild(thumb);
                         
                         // Play button overlay
                         var playBtn = document.createElement('div');
-                        playBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.9);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;';
-                        playBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
-                        el.appendChild(playBtn);
+                        playBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.95);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.2s;';
+                        playBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
+                        playBtn.onmouseover = function() { this.style.transform = 'translate(-50%,-50%) scale(1.1)'; };
+                        playBtn.onmouseout = function() { this.style.transform = 'translate(-50%,-50%) scale(1)'; };
+                        thumbContainer.appendChild(playBtn);
                         
-                        // Label
-                        var label = document.createElement('div');
-                        label.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:8px 16px;border-radius:4px;font-size:12px;white-space:nowrap;';
-                        label.textContent = 'Clique para assistir no YouTube';
-                        el.appendChild(label);
-                    } else {
-                        // Normal iframe embed
+                        el.appendChild(thumbContainer);
+                        
+                        // Create iframe (hidden initially, shown when clicked if embedding works)
+                        if (!isLocalFile) {
+                            var iframe = document.createElement('iframe');
+                            var iframeSrc = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
+                            var separator = iframeSrc.indexOf('?') !== -1 ? '&' : '?';
+                            iframeSrc += separator + 'enablejsapi=1&rel=0&modestbranding=1';
+                            
+                            iframe.src = iframeSrc;
+                            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                            iframe.allowFullscreen = true;
+                            iframe.frameBorder = '0';
+                            iframe.style.cssText = 'width:100%;height:100%;border:none;display:none;position:absolute;top:0;left:0;z-index:1;';
+                            
+                            // Detect if iframe fails to load (embedding disabled)
+                            iframe.onload = function() {
+                                // Try to detect if the video is blocked
+                                // We can't directly check due to cross-origin, but we set up the fallback
+                            };
+                            iframe.onerror = function() {
+                                iframe.dataset.failed = 'true';
+                            };
+                            
+                            el.appendChild(iframe);
+                        }
+                    } else if (isVimeo) {
+                        // Vimeo: use iframe directly (generally more permissive with embedding)
                         var iframe = document.createElement('iframe');
+                        var vimeoSep = embedUrl.indexOf('?') !== -1 ? '&' : '?';
+                        embedUrl += vimeoSep + 'autoplay=1&muted=1&background=0';
                         
-                        if (isYouTube) {
-                            embedUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
-                            var separator = embedUrl.indexOf('?') !== -1 ? '&' : '?';
-                            embedUrl += separator + 'enablejsapi=1&rel=0&modestbranding=1&autoplay=1&mute=1';
-                        }
-                        
-                        // Add Vimeo autoplay parameters
-                        if (embedUrl.indexOf('vimeo') !== -1) {
-                            var vimeoSep = embedUrl.indexOf('?') !== -1 ? '&' : '?';
-                            embedUrl += vimeoSep + 'autoplay=1&muted=1&background=0';
-                        }
-                        
+                        iframe.src = embedUrl;
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                        iframe.allowFullscreen = true;
+                        iframe.frameBorder = '0';
+                        iframe.style.width = '100%';
+                        iframe.style.height = '100%';
+                        iframe.style.border = 'none';
+                        el.appendChild(iframe);
+                    } else {
+                        // Other video embeds
+                        var iframe = document.createElement('iframe');
                         iframe.src = embedUrl;
                         iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
                         iframe.allowFullscreen = true;
