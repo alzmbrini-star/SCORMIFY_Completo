@@ -602,6 +602,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         .slide-element {{
             position: absolute;
             transition: opacity 0.3s ease;
+            overflow: hidden;
         }}
         
         .slide-element.text-element {{
