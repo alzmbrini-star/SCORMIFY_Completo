@@ -899,46 +899,9 @@ var CoursePlayer = (function() {
         var slideWidth = slide.width || 960;
         var slideHeight = slide.height || 540;
         
-        // Calculate the aspect ratio of the slide
-        var slideAspectRatio = slideWidth / slideHeight;
-        
-        // Calculate scale to fit in wrapper while maintaining aspect ratio
-        var wrapperRect = wrapper.getBoundingClientRect();
-        var wrapperStyle = window.getComputedStyle(wrapper);
-        var paddingX = parseFloat(wrapperStyle.paddingLeft) + parseFloat(wrapperStyle.paddingRight);
-        var paddingY = parseFloat(wrapperStyle.paddingTop) + parseFloat(wrapperStyle.paddingBottom);
-        
-        var availableWidth = wrapperRect.width - paddingX;
-        var availableHeight = wrapperRect.height - paddingY;
-        
-        // If dimensions are invalid (container hidden), use a reasonable default scale
-        var scale = 1;
-        if (availableWidth > 100 && availableHeight > 100) {
-            // Calculate what size the slide would be at scale 1.0
-            // Then scale down to fit the available space
-            var scaleX = availableWidth / slideWidth;
-            var scaleY = availableHeight / slideHeight;
-            scale = Math.min(scaleX, scaleY);
-            
-            // On mobile, allow scaling up more to fill screen better
-            // On desktop, cap at 1.2 to avoid pixelation
-            var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
-            var isSmallMobile = window.innerWidth < 768 || window.innerHeight < 500;
-            var maxScale = isSmallMobile ? 2.0 : (isMobile ? 1.8 : 1.2);
-            scale = Math.min(scale, maxScale);
-            
-            // Ensure minimum scale for readability
-            var minScale = isSmallMobile ? 0.4 : 0.5;
-            scale = Math.max(scale, minScale);
-        } else {
-            scale = 0.5;
-        }
-        
-        // Apply the actual slide dimensions and scale
+        // Set initial container dimensions (scale will be applied by updateSlideScale)
         container.style.width = slideWidth + 'px';
         container.style.height = slideHeight + 'px';
-        container.style.transform = 'scale(' + scale + ')';
-        container.style.transformOrigin = 'center center';
         
         // Clear previous content
         container.innerHTML = '';
