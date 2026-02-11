@@ -691,7 +691,7 @@ var CoursePlayer = (function() {
             return;
         }
         
-        // DESKTOP / LANDSCAPE MODE - Fit within available space with padding
+        // DESKTOP / LANDSCAPE MODE - Fit within available space
         // Reset wrapper styles that might have been modified
         wrapper.style.padding = '';
         wrapper.style.margin = '';
@@ -703,6 +703,46 @@ var CoursePlayer = (function() {
         container.style.marginLeft = '';
         container.style.boxShadow = '';
         
+        // Detect mobile landscape mode
+        var isMobileLandscape = isMobile && !isPortrait;
+        
+        if (isMobileLandscape) {
+            // MOBILE LANDSCAPE - Fill the screen as much as possible
+            var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
+            var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+            
+            // Use full screen dimensions with minimal padding
+            var viewportWidth = screenWidth - 10; // Tiny margin for edge
+            var viewportHeight = screenHeight - 10;
+            
+            // Calculate scale to fit both dimensions
+            var scaleX = viewportWidth / slideWidth;
+            var scaleY = viewportHeight / slideHeight;
+            var scale = Math.min(scaleX, scaleY);
+            
+            // No upper limit - fill the screen!
+            scale = Math.max(scale, 0.3); // Only minimum for readability
+            
+            // Force wrapper to have minimal padding
+            wrapper.style.padding = '5px';
+            wrapper.style.margin = '0';
+            wrapper.style.width = '100vw';
+            wrapper.style.maxWidth = '100vw';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.justifyContent = 'center';
+            
+            // Apply scale centered
+            container.style.width = slideWidth + 'px';
+            container.style.height = slideHeight + 'px';
+            container.style.transform = 'scale(' + scale + ')';
+            container.style.transformOrigin = 'center center';
+            container.style.boxShadow = 'none';
+            
+            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight);
+            return;
+        }
+        
+        // DESKTOP MODE - Standard scaling with padding
         // Get available space from wrapper, accounting for padding
         var wrapperRect = wrapper.getBoundingClientRect();
         var wrapperStyle = window.getComputedStyle(wrapper);
@@ -722,13 +762,12 @@ var CoursePlayer = (function() {
         // Use the smaller scale to maintain aspect ratio
         var scale = Math.min(scaleX, scaleY);
         
-        // On mobile landscape, allow scaling up more to fill screen better
-        var isSmallMobile = window.innerWidth < 768 || window.innerHeight < 500;
-        var maxScale = isSmallMobile ? 2.5 : (isMobile ? 2.0 : 1.2);
+        // On desktop, cap at 1.2 to avoid pixelation
+        var maxScale = 1.2;
         scale = Math.min(scale, maxScale);
         
         // Ensure minimum scale for readability
-        var minScale = isSmallMobile ? 0.35 : 0.45;
+        var minScale = 0.45;
         scale = Math.max(scale, minScale);
         
         // Apply scale to container
@@ -738,7 +777,7 @@ var CoursePlayer = (function() {
         container.style.transformOrigin = 'center center';
         
         // Log for debugging
-        console.log('[Scale] Desktop/Landscape - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
+        console.log('[Scale] Desktop - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
     }
     
     var isVideoFullscreen = false;
