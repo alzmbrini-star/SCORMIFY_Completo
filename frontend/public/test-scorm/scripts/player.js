@@ -533,7 +533,7 @@ var CoursePlayer = (function() {
             container.style.marginTop = topOffset + 'px';
             container.style.boxShadow = 'none';
             
-            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', actualScaledHeight.toFixed(0));
+            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', actualScaledHeight.toFixed(0), 'slideSize:', slideWidth + 'x' + slideHeight);
             return;
         }
         
