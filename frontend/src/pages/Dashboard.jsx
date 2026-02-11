@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -32,6 +33,9 @@ import {
   Presentation,
   Clock,
   Loader2,
+  Settings,
+  LogOut,
+  User,
 } from 'lucide-react';
 
 export default function Dashboard() {
