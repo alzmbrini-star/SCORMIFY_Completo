@@ -13,6 +13,22 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ## Changelog (Recent Updates)
 
+### 2026-02-11
+- **MELHORIA: Dimensões dos Slides para Mobile (21:9)**
+  - Novos projetos e imports de PPT agora usam proporção 21:9 (1920x820) em vez de 16:9 (1536x864)
+  - Slides no formato 21:9 preenchem melhor a tela de celulares em modo landscape
+  - Projetos existentes mantêm suas dimensões originais (não são afetados)
+  
+- **CORREÇÃO: Escala de Slides em Mobile Landscape**
+  - Implementado posicionamento `position: fixed` para o container do slide
+  - Slide agora ignora restrições do parent container em mobile landscape
+  - O slide ocupa a largura máxima disponível sem barras pretas
+  
+- **CORREÇÃO: Fundo Transparente para Textos** (COMPLETED)
+  - Checkbox "Transparent" disponível no painel de propriedades para elementos de texto
+  - CSS do SCORM exporter ajustado para aplicar background via JS inline
+  - Suporte adicionado ao HTML exporter também
+
 ### 2025-02-02
 - **CORREÇÃO: Timeout HeyGen** - Aumentado o tempo limite de polling de 5 para 15 minutos
   - Adicionado contador de tempo decorrido na interface
