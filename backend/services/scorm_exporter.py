@@ -2926,18 +2926,55 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         @media screen and (max-width: 1024px) {{
             .quiz-player-container {{
                 border-radius: 4px;
-                font-size: 14px;
+                font-size: 18px;
             }}
             
             .quiz-player-container h2,
             .quiz-player-container h3 {{
-                font-size: 1.2em !important;
+                font-size: 1.4em !important;
             }}
             
             .quiz-player-container button {{
-                padding: 10px 15px !important;
-                font-size: 14px !important;
+                padding: 12px 18px !important;
+                font-size: 16px !important;
             }}
+            
+            .quiz-player-container .quiz-option {{
+                padding: 14px 16px !important;
+                font-size: 16px !important;
+                margin: 6px 0 !important;
+            }}
+            
+            .quiz-player-container p {{
+                font-size: 16px !important;
+                line-height: 1.5 !important;
+            }}
+        }}
+        
+        /* Mobile mode via JS - Quiz fonts */
+        body.mobile-mode .quiz-player-container {{
+            font-size: 18px !important;
+        }}
+        
+        body.mobile-mode .quiz-player-container h2,
+        body.mobile-mode .quiz-player-container h3 {{
+            font-size: 1.4em !important;
+        }}
+        
+        body.mobile-mode .quiz-player-container .quiz-option {{
+            padding: 14px 16px !important;
+            font-size: 16px !important;
+            margin: 6px 0 !important;
+        }}
+        
+        body.mobile-mode .quiz-player-container button {{
+            padding: 12px 18px !important;
+            font-size: 16px !important;
+        }}
+        
+        body.mobile-mode .quiz-player-container p {{
+            font-size: 16px !important;
+            line-height: 1.5 !important;
         }}
         
         @media screen and (orientation: landscape) and (max-height: 600px) {{
