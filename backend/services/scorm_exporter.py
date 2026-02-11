@@ -2664,7 +2664,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             -webkit-backdrop-filter: blur(4px);
         }}
         
-        /* Show mobile navigation on mobile devices */
+        /* Show mobile navigation on mobile devices - CSS media query */
         @media screen and (max-width: 1024px) {{
             .mobile-nav-btn {{
                 display: flex;
@@ -2689,6 +2689,29 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             #player-container {{
                 height: 100vh !important;
             }}
+        }}
+        
+        /* Mobile mode via JavaScript detection (for iframe scenarios) */
+        body.mobile-mode .mobile-nav-btn {{
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }}
+        
+        body.mobile-mode .mobile-slide-counter {{
+            display: block !important;
+        }}
+        
+        body.mobile-mode #controls {{
+            display: none !important;
+        }}
+        
+        body.mobile-mode #slide-wrapper {{
+            height: 100vh !important;
+        }}
+        
+        body.mobile-mode #player-container {{
+            height: 100vh !important;
         }}
         
         .slide-element {{
