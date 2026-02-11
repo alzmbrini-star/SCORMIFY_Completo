@@ -2926,7 +2926,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         @media screen and (max-width: 1024px) {{
             .quiz-player-container {{
                 border-radius: 4px;
-                font-size: 18px;
+                font-size: 20px;
             }}
             
             .quiz-player-container h2,
@@ -2935,25 +2935,34 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
             
             .quiz-player-container button {{
-                padding: 12px 18px !important;
-                font-size: 16px !important;
+                padding: 14px 20px !important;
+                font-size: 18px !important;
             }}
             
             .quiz-player-container .quiz-option {{
-                padding: 14px 16px !important;
-                font-size: 16px !important;
-                margin: 6px 0 !important;
+                padding: 16px 18px !important;
+                font-size: 18px !important;
+                margin: 8px 0 !important;
+                line-height: 1.4 !important;
             }}
             
             .quiz-player-container p {{
-                font-size: 16px !important;
+                font-size: 18px !important;
+                line-height: 1.5 !important;
+            }}
+            
+            /* Feedback text */
+            .quiz-player-container .feedback,
+            .quiz-player-container [class*="feedback"],
+            .quiz-player-container div[style*="background"] p {{
+                font-size: 18px !important;
                 line-height: 1.5 !important;
             }}
         }}
         
         /* Mobile mode via JS - Quiz fonts */
         body.mobile-mode .quiz-player-container {{
-            font-size: 18px !important;
+            font-size: 20px !important;
         }}
         
         body.mobile-mode .quiz-player-container h2,
@@ -2962,18 +2971,27 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         body.mobile-mode .quiz-player-container .quiz-option {{
-            padding: 14px 16px !important;
-            font-size: 16px !important;
-            margin: 6px 0 !important;
+            padding: 16px 18px !important;
+            font-size: 18px !important;
+            margin: 8px 0 !important;
+            line-height: 1.4 !important;
         }}
         
         body.mobile-mode .quiz-player-container button {{
-            padding: 12px 18px !important;
-            font-size: 16px !important;
+            padding: 14px 20px !important;
+            font-size: 18px !important;
         }}
         
         body.mobile-mode .quiz-player-container p {{
-            font-size: 16px !important;
+            font-size: 18px !important;
+            line-height: 1.5 !important;
+        }}
+        
+        /* Feedback text - mobile mode */
+        body.mobile-mode .quiz-player-container .feedback,
+        body.mobile-mode .quiz-player-container [class*="feedback"],
+        body.mobile-mode .quiz-player-container div[style*="background"] p {{
+            font-size: 18px !important;
             line-height: 1.5 !important;
         }}
         
