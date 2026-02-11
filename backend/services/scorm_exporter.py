@@ -1080,8 +1080,14 @@ var CoursePlayer = (function() {
             }
         }
         
+        // Apply scale for current device/orientation
+        updateSlideScale();
+        
         // Optimize elements for mobile after a short delay to ensure they're rendered
         setTimeout(optimizeForMobile, 100);
+        
+        // Update scale again after optimizeForMobile (in case it changed element positions)
+        setTimeout(updateSlideScale, 150);
         
         // Update navigation
         updateNavigation();
