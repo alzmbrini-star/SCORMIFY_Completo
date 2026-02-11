@@ -220,6 +220,28 @@ PLAYER_JS = '''/**
  * SCORM Course Player
  */
 
+// Detect mobile device and apply mobile mode
+function initMobileMode() {
+    var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    var isSmallScreen = window.innerWidth < 1024 || window.innerHeight < 700;
+    var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
+    console.log('[Mobile] Detection:', { isMobileDevice: isMobileDevice, isSmallScreen: isSmallScreen, isTouchDevice: isTouchDevice });
+    
+    if (isMobileDevice || (isSmallScreen && isTouchDevice)) {
+        document.body.classList.add('mobile-mode');
+        console.log('[Mobile] Mobile mode enabled via JS');
+    }
+}
+
+// Run mobile detection immediately
+initMobileMode();
+
+// Also run on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    initMobileMode();
+});
+
 // Mobile orientation detection - Show overlay when in portrait mode on small screens
 var pendingScaleUpdate = false;
 
