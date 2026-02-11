@@ -760,6 +760,15 @@ var CoursePlayer = (function() {
         }
         
         // DESKTOP MODE - Standard scaling with padding
+        // Reset container position if it was set to fixed
+        container.style.position = '';
+        container.style.top = '';
+        container.style.left = '';
+        container.style.zIndex = '';
+        
+        // Reset wrapper styles
+        wrapper.style.cssText = '';
+        
         // Get available space from wrapper, accounting for padding
         var wrapperRect = wrapper.getBoundingClientRect();
         var wrapperStyle = window.getComputedStyle(wrapper);
