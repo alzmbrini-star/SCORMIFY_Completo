@@ -1136,6 +1136,21 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `ai-image-edit-btn`: Botão "Editar prompt"
 - **Status**: IMPLEMENTED AND TESTED
 
+### RTF Content Overflow Bug - FIXED (Feb 11, 2026)
+- **Issue**: Texto e imagens inseridas via URL em elementos RTF ultrapassavam os limites do elemento no preview e nas exportações SCORM/HTML
+- **Root Cause**: 
+  1. CSS regra `overflow:visible!important` em elementos p, div, span etc forçava conteúdo a vazar
+  2. Imagens com largura definida em pixels (via style="width:XXXpx") não respeitavam `max-width:100%`
+- **Fix Applied**:
+  1. Mudança de `overflow:visible!important` para `overflow:hidden!important` em elementos de texto
+  2. Nova regra CSS `img[style*="width"]{max-width:100%!important;width:auto!important;height:auto!important}` força imagens com width inline a respeitar limites
+  3. Regra universal `*{max-width:100%!important}` adicionada para garantir que nenhum elemento ultrapasse o container
+- **Files Modified**:
+  - `/app/backend/services/scorm_exporter.py` - linhas 1400-1415 (CSS do iframe HTML)
+  - `/app/backend/services/html_exporter.py` - linhas 1642-1656 (CSS do iframe HTML)
+- **Status**: FIXED AND TESTED (100% success rate - 11/11 tests passed)
+- **Verification**: Testing agent confirmou que imagens e texto estão corretamente contidos dentro dos limites do elemento RTF
+
 ### P3 - Future Enhancements
 - Question bank sharing between projects
 - Question import from QTI format
