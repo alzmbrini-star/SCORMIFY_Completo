@@ -999,26 +999,29 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/backend/services/scorm_exporter.py`
 - **Status**: FIXED AND TESTED
 
-### Mobile Swipe Navigation + Auto-Hide Controls - FIXED (Feb 10, 2026)
-- **Issue**: Funcionalidades de swipe para navegar e auto-hide da barra de controles não funcionavam no SCORM mobile
-- **Root Cause**: 
-  1. O código de swipe chamava `CoursePlayer.nextSlide()` e `CoursePlayer.prevSlide()`, mas a API pública só expõe `next()` e `prev()`
-  2. A funcionalidade de auto-hide nunca tinha sido implementada
-- **Fix Applied**:
-  1. Corrigido `setupSwipeNavigation()` para usar `CoursePlayer.next()` e `CoursePlayer.prev()`
-  2. Implementada nova função `setupAutoHideControls()` que:
-     - Esconde a barra após 3 segundos de inatividade (apenas em mobile)
-     - Mostra a barra ao tocar na tela
-     - Usa animações CSS suaves (transform + opacity)
-  3. Adicionado CSS `word-wrap: break-word` para melhorar quebra de texto no mobile
+### Mobile Swipe Navigation + Side Buttons - IMPLEMENTED (Feb 11, 2026)
+- **Feature**: Nova navegação mobile com botões laterais e conteúdo maximizado
+- **Implementation**:
+  1. **Barra inferior removida no mobile** - Controles desktop escondidos em telas < 1024px ou dispositivos touch
+  2. **Botões de navegação nas laterais**:
+     - Botão **‹** no canto esquerdo - slide anterior
+     - Botão **›** no canto direito - próximo slide
+     - Semitransparentes com efeito blur, ficam desativados nos extremos
+  3. **Botão de menu ☰** no canto superior esquerdo - abre sidebar de navegação
+  4. **Contador de slides** na parte inferior central (ex: "3 / 16")
+  5. **Swipe navigation** continua funcionando
+  6. **Detecção de mobile melhorada**:
+     - CSS media query `@media (max-width: 1024px)`
+     - JavaScript detecta user-agent + touch + tamanho e adiciona classe `mobile-mode`
 - **Files Modified**:
   - `/app/backend/services/scorm_exporter.py`:
-    - Linha 385-392: Corrigido chamadas de navegação
-    - Linhas 351-410: Nova função `setupAutoHideControls()`
-    - Chamada `setupAutoHideControls()` em `loadCourse()`
-    - CSS para texto com `word-wrap: break-word; overflow-wrap: break-word;`
-- **Status**: IMPLEMENTED - AGUARDANDO TESTE DO USUÁRIO
-- **Verification**: Pacote SCORM gerado com as correções. Usuário precisa testar em dispositivo mobile real.
+    - Função `initMobileMode()` para detecção via JS
+    - CSS para `.mobile-nav-btn`, `.mobile-slide-counter`, `.mobile-menu-btn`
+    - CSS para `body.mobile-mode` como fallback
+    - HTML com botões de navegação mobile
+    - Função `updateProgress()` atualiza contador mobile
+- **Status**: IMPLEMENTED AND TESTED
+- **User Verification**: Confirmado funcionando em dispositivo mobile real
 
 ## Roadmap / Backlog
 
