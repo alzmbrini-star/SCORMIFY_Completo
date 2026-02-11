@@ -1431,12 +1431,9 @@ var CoursePlayer = (function() {
                     'tr:nth-child(even) td{background:#1a2433;}' +
                     '</style></head><body>' + htmlContent + '</body></html>';
                 htmlIframe.srcdoc = wrappedHtml;
-                htmlIframe.style.width = '100%';
-                htmlIframe.style.height = '100%';
-                htmlIframe.style.border = 'none';
-                htmlIframe.style.background = 'transparent';
-                htmlIframe.style.overflow = isHtmlFullscreen ? 'hidden' : 'auto';
+                htmlIframe.style.cssText = 'width:100%!important;height:100%!important;border:none!important;background:transparent!important;overflow:' + (isHtmlFullscreen ? 'hidden' : 'auto') + '!important;display:block!important;';
                 htmlIframe.sandbox = 'allow-scripts allow-same-origin';
+                el.style.overflow = 'hidden';
                 el.appendChild(htmlIframe);
                 break;
             
