@@ -1136,6 +1136,27 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `ai-image-edit-btn`: Botão "Editar prompt"
 - **Status**: IMPLEMENTED AND TESTED
 
+### ElevenLabs Text-to-Speech Integration - IMPLEMENTED (Feb 11, 2026)
+- **Feature**: Text-to-Speech with 21 professional voices using ElevenLabs API
+- **Languages Supported**: Portuguese (Brazil), English, Spanish via eleven_multilingual_v2 model
+- **Voice Types**: 13 male voices, 7 female voices with gender filtering
+- **Endpoints Added**:
+  - `GET /api/elevenlabs/voices` - List all voices with optional gender filter
+  - `POST /api/elevenlabs/generate-speech` - Generate audio from text
+  - `GET /api/audio/{filename}` - Serve generated audio files
+- **Frontend Features**:
+  - TTS button in Editor toolbar (Volume2 icon)
+  - Dialog with voice selection grid
+  - Gender filter dropdown (Todos/Masculino/Feminino)
+  - Text input area for narration
+  - Audio preview player
+  - "Adicionar ao Slide" button to attach audio to current slide
+- **Status**: IMPLEMENTED AND TESTED (100% backend, 95% frontend)
+- **Files Modified**:
+  - `/app/backend/server.py` - Added ElevenLabs endpoints
+  - `/app/backend/.env` - Added ELEVENLABS_API_KEY
+  - `/app/frontend/src/pages/Editor.jsx` - Added TTS states, functions, and Dialog
+
 ### RTF Content Overflow Bug - FIXED (Feb 11, 2026)
 - **Issue**: Texto e imagens inseridas via URL em elementos RTF ultrapassavam os limites do elemento no preview e nas exportações SCORM/HTML
 - **Root Cause**: 
