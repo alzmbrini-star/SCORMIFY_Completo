@@ -1445,6 +1445,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 if (elem.style.fontColor) textStyle += 'color:' + elem.style.fontColor + ';';
                                 if (elem.style.fontWeight) textStyle += 'font-weight:' + elem.style.fontWeight + ';';
                                 if (elem.style.textAlign) textStyle += 'text-align:' + elem.style.textAlign + ';';
+                                // Apply background color (transparent or custom)
+                                if (elem.style.transparentBackground) {{
+                                    textStyle += 'background-color:transparent;';
+                                }} else if (elem.style.backgroundColor) {{
+                                    textStyle += 'background-color:' + elem.style.backgroundColor + ';';
+                                }} else {{
+                                    textStyle += 'background-color:rgba(255,255,255,0.9);';
+                                }}
+                            }} else {{
+                                textStyle += 'background-color:rgba(255,255,255,0.9);';
                             }}
                             html += '<div style="' + textStyle + '">' + (elem.content || '') + '</div>';
                         }}
