@@ -3502,12 +3502,40 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            /* PORTRAIT MODE NOW SUPPORTED - always hide orientation overlay */
-            display: none !important;
         }}
         
-        /* Portrait mode is now supported - never show overlay */
-        @media screen and (orientation: portrait) {{
+        /* Force display on mobile portrait mode using CSS media query */
+        @media screen and (orientation: portrait) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Also detect by aspect ratio for devices that don't report orientation correctly */
+        @media screen and (max-aspect-ratio: 4/5) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Extra aggressive detection for very tall screens (phones in portrait) */
+        @media screen and (max-aspect-ratio: 7/10) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Override for landscape - always hide overlay */
+        @media screen and (orientation: landscape) {{
             #orientation-overlay {{
                 display: none !important;
             }}
@@ -3516,8 +3544,8 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
-        /* Landscape mode - also never show overlay */
-        @media screen and (orientation: landscape) {{
+        /* Override for wide screens - always hide overlay */
+        @media screen and (min-aspect-ratio: 10/9) {{
             #orientation-overlay {{
                 display: none !important;
             }}
