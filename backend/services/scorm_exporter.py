@@ -1080,6 +1080,12 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
                 el.innerHTML = element.content ? element.content.replace(/\\n/g, '<br>') : '';
+                // Apply background color (transparent or custom)
+                if (element.style && element.style.transparentBackground) {
+                    el.style.backgroundColor = 'transparent';
+                } else if (element.style && element.style.backgroundColor) {
+                    el.style.backgroundColor = element.style.backgroundColor;
+                }
                 break;
                 
             case 'image':
