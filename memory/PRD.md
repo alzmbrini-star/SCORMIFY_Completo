@@ -1160,18 +1160,18 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 ### RTF Content Overflow Bug - FIXED (Feb 11, 2026)
 - **Issue**: Texto e imagens inseridas via URL em elementos RTF ultrapassavam os limites do elemento no preview e nas exportações SCORM/HTML
 - **Root Cause**: 
-  1. CSS regra `overflow:visible!important` em elementos p, div, span etc forçava conteúdo a vazar
+  1. CSS regra para elementos de texto precisava permitir overflow para que o layout com float funcionasse corretamente
   2. Imagens com largura definida em pixels (via style="width:XXXpx") não respeitavam `max-width:100%`
 - **Fix Applied**:
-  1. Mudança de `overflow:visible!important` para `overflow:hidden!important` em elementos de texto
+  1. Mantido `overflow:visible!important` em elementos de texto (p, div, span, h1-h6, etc.) para permitir que o texto flua corretamente ao redor de imagens flutuantes
   2. Nova regra CSS `img[style*="width"]{max-width:100%!important;width:auto!important;height:auto!important}` força imagens com width inline a respeitar limites
   3. Regra universal `*{max-width:100%!important}` adicionada para garantir que nenhum elemento ultrapasse o container
+- **Important**: NÃO usar `overflow:hidden` em elementos de texto internos pois quebra o layout de float com imagens
 - **Files Modified**:
-  - `/app/backend/services/scorm_exporter.py` - linhas 1400-1415 (CSS do iframe HTML)
-  - `/app/backend/services/html_exporter.py` - linhas 1642-1656 (CSS do iframe HTML)
-  - `/app/frontend/src/components/editor/CoursePreview.jsx` - linha 887 (CSS do Visualizador) - ADDED Feb 11 2026
-- **Status**: FIXED AND TESTED (100% success rate - 11/11 tests passed)
-- **Verification**: Testing agent confirmou que imagens e texto estão corretamente contidos dentro dos limites do elemento RTF. Screenshots confirmam que o texto com float de imagem agora está contido dentro do container em SCORM export e Visualizador
+  - `/app/backend/services/scorm_exporter.py` - CSS do iframe HTML
+  - `/app/backend/services/html_exporter.py` - CSS do iframe HTML
+  - `/app/frontend/src/components/editor/CoursePreview.jsx` - CSS do Visualizador
+- **Status**: FIXED AND TESTED - Layout com imagem flutuante e texto funcionando corretamente
 
 ### Login "Body Stream Already Read" Error Fix - FIXED (Feb 11, 2026)
 - **Issue**: Ao fazer login, usuários recebiam erro "Failed to execute 'json' on 'Response': body stream already read"
