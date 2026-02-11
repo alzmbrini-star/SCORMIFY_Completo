@@ -1573,21 +1573,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 // Create container for video
                                 html += '<div class="video-embed-container" data-embed-url="' + embedUrl + '" data-video-id="' + videoId + '" data-is-youtube="' + isYouTube + '" data-is-vimeo="' + isVimeo + '" style="width:100%;height:100%;position:relative;overflow:hidden;background:#000;">';
                                 
-                                // For YouTube: Always show thumbnail with play button (handles embed restrictions gracefully)
+                                // For YouTube: Use iframe embed directly
                                 if (isYouTube && videoId) {{
-                                    // Thumbnail container (shown by default, clickable to play)
-                                    html += '<div class="youtube-thumb-container" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:pointer;z-index:2;">';
-                                    html += '<img src="https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg" onerror="this.src=\\'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg\\'" style="width:100%;height:100%;object-fit:cover;">';
-                                    html += '<div class="yt-play-btn" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.95);width:68px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.2s;">';
-                                    html += '<svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
-                                    html += '</div>';
-                                    html += '</div>';
-                                    
-                                    // Hidden iframe (loaded but hidden, shown when thumbnail clicked if embed works)
-                                    var iframeUrl = embedUrl.replace('youtube.com', 'youtube-nocookie.com');
-                                    var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
-                                    iframeUrl += sep + 'enablejsapi=1&rel=0&modestbranding=1';
-                                    html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;display:none;position:absolute;top:0;left:0;z-index:1;"></iframe>';
+                                    var ytEmbedUrl = 'https://www.youtube.com/embed/' + videoId + '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1';
+                                    html += '<iframe class="video-iframe" src="' + ytEmbedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen frameborder="0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else if (isVimeo) {{
                                     // Vimeo: use iframe directly (generally more permissive)
                                     // Add parameters for better fullscreen experience
