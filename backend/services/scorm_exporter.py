@@ -2564,6 +2564,96 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Mobile Navigation Buttons - Side buttons */
+        .mobile-nav-btn {{
+            display: none; /* Hidden by default, shown on mobile */
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 80px;
+            background: rgba(15, 23, 42, 0.7);
+            border: none;
+            color: #fff;
+            font-size: 32px;
+            font-weight: 300;
+            cursor: pointer;
+            z-index: 200;
+            transition: background 0.2s ease, opacity 0.2s ease;
+            border-radius: 4px;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }}
+        
+        .mobile-nav-btn:hover,
+        .mobile-nav-btn:active {{
+            background: rgba(34, 211, 238, 0.8);
+        }}
+        
+        #mobile-nav-prev {{
+            left: 5px;
+            border-radius: 0 8px 8px 0;
+        }}
+        
+        #mobile-nav-next {{
+            right: 5px;
+            border-radius: 8px 0 0 8px;
+        }}
+        
+        .mobile-menu-btn {{
+            top: 10px;
+            left: 10px;
+            transform: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            font-size: 20px;
+        }}
+        
+        .mobile-slide-counter {{
+            display: none;
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.8);
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }}
+        
+        /* Show mobile navigation on mobile devices */
+        @media screen and (max-width: 1024px) {{
+            .mobile-nav-btn {{
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }}
+            
+            .mobile-slide-counter {{
+                display: block;
+            }}
+            
+            /* Hide desktop controls on mobile */
+            #controls {{
+                display: none !important;
+            }}
+            
+            /* Expand slide wrapper to full height on mobile */
+            #slide-wrapper {{
+                height: 100vh !important;
+            }}
+            
+            #player-container {{
+                height: 100vh !important;
+            }}
+        }}
+        
         .slide-element {{
             position: absolute !important;
             /* Removed overflow: hidden to allow proper rendering */
