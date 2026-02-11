@@ -2584,27 +2584,61 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         /* Mobile portrait mode - NO padding to maximize slide size */
         @media screen and (max-width: 1024px) and (orientation: portrait) {{
+            html, body {{
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }}
+            
+            #player-container {{
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }}
+            
             #slide-wrapper {{
                 padding: 0 !important;
-                align-items: flex-start;
-                justify-content: center;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                align-items: flex-start !important;
+                justify-content: center !important;
                 overflow-y: auto;
                 -webkit-overflow-scrolling: touch;
             }}
             
             #slide-container {{
-                box-shadow: none;
+                box-shadow: none !important;
+                margin: 0 !important;
+            }}
+            
+            /* Hide sidebar toggle on portrait since it takes space */
+            .mobile-menu-btn {{
+                position: fixed !important;
+                top: 5px !important;
+                left: 5px !important;
+                z-index: 9999 !important;
+                opacity: 0.7;
             }}
             
             /* Position mobile nav buttons for full-width slide */
             #mobile-nav-prev {{
-                left: 0;
-                background: rgba(0, 0, 0, 0.5);
+                left: 0 !important;
+                background: rgba(0, 0, 0, 0.4) !important;
+                width: 35px !important;
             }}
             
             #mobile-nav-next {{
-                right: 0;
-                background: rgba(0, 0, 0, 0.5);
+                right: 0 !important;
+                background: rgba(0, 0, 0, 0.4) !important;
+                width: 35px !important;
+            }}
+            
+            .mobile-slide-counter {{
+                bottom: 5px !important;
             }}
         }}
         
