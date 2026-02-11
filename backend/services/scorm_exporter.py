@@ -2572,6 +2572,17 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Mobile portrait mode - minimize padding to maximize slide size */
+        @media screen and (max-width: 768px) and (orientation: portrait) {{
+            #slide-wrapper {{
+                padding: 5px 10px;
+            }}
+            
+            #slide-container {{
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            }}
+        }}
+        
         /* Very small mobile screens in landscape - remove padding entirely */
         @media screen and (max-height: 450px) and (orientation: landscape) {{
             #slide-wrapper {{
