@@ -1169,8 +1169,9 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Files Modified**:
   - `/app/backend/services/scorm_exporter.py` - linhas 1400-1415 (CSS do iframe HTML)
   - `/app/backend/services/html_exporter.py` - linhas 1642-1656 (CSS do iframe HTML)
+  - `/app/frontend/src/components/editor/CoursePreview.jsx` - linha 887 (CSS do Visualizador) - ADDED Feb 11 2026
 - **Status**: FIXED AND TESTED (100% success rate - 11/11 tests passed)
-- **Verification**: Testing agent confirmou que imagens e texto estão corretamente contidos dentro dos limites do elemento RTF
+- **Verification**: Testing agent confirmou que imagens e texto estão corretamente contidos dentro dos limites do elemento RTF. Screenshots confirmam que o texto com float de imagem agora está contido dentro do container em SCORM export e Visualizador
 
 ### P3 - Future Enhancements
 - Question bank sharing between projects
