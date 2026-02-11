@@ -2635,7 +2635,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         /* Mobile landscape optimization - minimize padding for more slide space */
-        @media screen and (orientation: landscape) and (max-height: 600px) {{
+        @media screen and (orientation: landscape) and (max-height: 700px) {{
             html, body {{
                 width: 100vw !important;
                 max-width: 100vw !important;
