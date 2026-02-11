@@ -90,6 +90,21 @@ app = FastAPI(title="Scormify API", version="1.0.0")
 # Create routers
 api_router = APIRouter(prefix="/api")
 
+# Import and setup auth routes
+from routes import auth as auth_routes
+from routes import companies as companies_routes
+from routes import users as users_routes
+
+# Set database connections for route modules
+auth_routes.set_db(db)
+companies_routes.set_db(db)
+users_routes.set_db(db)
+
+# Include routers
+api_router.include_router(auth_routes.router)
+api_router.include_router(companies_routes.router)
+api_router.include_router(users_routes.router)
+
 # Job tracking (in-memory for simplicity)
 jobs = {}
 
