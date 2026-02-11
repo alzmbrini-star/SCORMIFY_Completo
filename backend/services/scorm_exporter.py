@@ -2623,8 +2623,30 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         /* Mobile landscape optimization - minimize padding for more slide space */
         @media screen and (orientation: landscape) and (max-height: 600px) {{
+            html, body {{
+                width: 100vw !important;
+                max-width: 100vw !important;
+                overflow-x: hidden !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }}
+            
+            #player-container {{
+                width: 100vw !important;
+                max-width: 100vw !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }}
+            
             #slide-wrapper {{
-                padding: 5px;
+                padding: 5px !important;
+                margin: 0 !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+            }}
+            
+            #slide-container {{
+                box-shadow: none !important;
             }}
         }}
         
