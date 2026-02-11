@@ -3528,6 +3528,27 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
                 className="h-8 p-1"
               />
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Background Color</label>
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="color"
+                  value={style.backgroundColor || '#FFFFFF'}
+                  onChange={(e) => handleStyleChange('backgroundColor', e.target.value)}
+                  className="h-8 p-1 flex-1"
+                  disabled={style.transparentBackground}
+                />
+                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={style.transparentBackground || false}
+                    onChange={(e) => handleStyleChange('transparentBackground', e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  Transparent
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       )}
