@@ -1279,6 +1279,15 @@ var CoursePlayer = (function() {
                     element.y <= slideHeight * 0.05;
                 
                 // Wrap in full HTML with proper CSS for text wrapping around images
+                var isMobileView = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024;
+                var mobileCSS = isMobileView ? 
+                    'body{font-size:16px!important;padding:12px!important;}' +
+                    'h1{font-size:1.3rem!important;}' +
+                    'h2{font-size:1.15rem!important;}' +
+                    'h3{font-size:1.05rem!important;}' +
+                    'p,li{font-size:15px!important;line-height:1.5!important;}' +
+                    'img.rtf-image-float-left,img.rtf-image-float-right,img[style*="float"]{float:none!important;display:block!important;max-width:100%!important;margin:12px auto!important;clear:both!important;}' 
+                    : '';
                 var wrappedHtml = '<html><head><style>' +
                     (isHtmlFullscreen ? 
                         // FULLSCREEN MODE - image fills entire container
@@ -1297,7 +1306,8 @@ var CoursePlayer = (function() {
                         'img[style*="float: left"]{float:left!important;margin-right:16px!important;margin-bottom:12px!important;max-width:45%!important;height:auto!important;}' +
                         'img[style*="float: right"]{float:right!important;margin-left:16px!important;margin-bottom:12px!important;max-width:45%!important;height:auto!important;}' +
                         'body::after{content:\\'\\';display:table;clear:both;}' +
-                        'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;}'
+                        'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;}' +
+                        mobileCSS
                     ) +
                     /* Typography and scrollbar - apply to both modes */
                     'html,body{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.3) transparent;}' +
