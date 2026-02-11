@@ -76,9 +76,20 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ session_id: sessionId })
     });
 
+    // Clone response to safely read it (prevents "body stream already read" error)
+    const responseClone = response.clone();
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Google authentication failed');
+      try {
+        const error = await response.json();
+        throw new Error(error.detail || 'Google authentication failed');
+      } catch (e) {
+        if (e.name === 'SyntaxError') {
+          const text = await responseClone.text();
+          throw new Error(text || 'Google authentication failed');
+        }
+        throw e;
+      }
     }
 
     const data = await response.json();
