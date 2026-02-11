@@ -1642,16 +1642,17 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     // NORMAL MODE - preserve image sizes and positions, content must stay within bounds
                                     'html{{margin:0;padding:0;width:100%;height:100%;overflow:hidden!important;}}' +
                                     'body{{margin:0;padding:8px;background:transparent!important;font-family:Arial,sans-serif;color:#f1f5f9;line-height:1.6;overflow:auto!important;word-wrap:break-word;overflow-wrap:break-word;width:100%!important;height:100%!important;box-sizing:border-box!important;}}' +
-                                    '*{{background:transparent!important;box-sizing:border-box!important;}}' +
-                                    'img{{border:none!important;outline:none!important;box-shadow:none!important;max-width:100%!important;height:auto!important;}}' +
-                                    'img.rtf-image-float-left,body img.rtf-image-float-left{{float:left!important;clear:left!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 16px 12px 0!important;display:block!important;border:none!important;outline:none!important;}}' +
-                                    'img.rtf-image-float-right,body img.rtf-image-float-right{{float:right!important;clear:right!important;max-width:45%!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;border:none!important;outline:none!important;}}' +
-                                    'img.rtf-image-center{{display:inline-block!important;max-width:80%!important;height:auto!important;border:none!important;outline:none!important;}}' +
-                                    'img.rtf-image-inline{{display:block!important;max-width:100%!important;height:auto!important;margin:8px 0!important;border:none!important;outline:none!important;}}' +
-                                    'img[style*="float: left"]{{float:left!important;margin-right:16px!important;margin-bottom:12px!important;max-width:45%!important;height:auto!important;}}' +
-                                    'img[style*="float: right"]{{float:right!important;margin-left:16px!important;margin-bottom:12px!important;max-width:45%!important;height:auto!important;}}' +
+                                    '*{{background:transparent!important;box-sizing:border-box!important;max-width:100%!important;}}' +
+                                    'img{{border:none!important;outline:none!important;box-shadow:none!important;max-width:100%!important;width:auto!important;height:auto!important;}}' +
+                                    'img[style*="width"]{{max-width:100%!important;width:auto!important;height:auto!important;}}' +
+                                    'img.rtf-image-float-left,body img.rtf-image-float-left{{float:left!important;clear:left!important;max-width:45%!important;width:auto!important;height:auto!important;border-radius:4px!important;margin:0 16px 12px 0!important;display:block!important;border:none!important;outline:none!important;}}' +
+                                    'img.rtf-image-float-right,body img.rtf-image-float-right{{float:right!important;clear:right!important;max-width:45%!important;width:auto!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;border:none!important;outline:none!important;}}' +
+                                    'img.rtf-image-center{{display:inline-block!important;max-width:80%!important;width:auto!important;height:auto!important;border:none!important;outline:none!important;}}' +
+                                    'img.rtf-image-inline{{display:block!important;max-width:100%!important;width:auto!important;height:auto!important;margin:8px 0!important;border:none!important;outline:none!important;}}' +
+                                    'img[style*="float: left"]{{float:left!important;margin-right:16px!important;margin-bottom:12px!important;max-width:45%!important;width:auto!important;height:auto!important;}}' +
+                                    'img[style*="float: right"]{{float:right!important;margin-left:16px!important;margin-bottom:12px!important;max-width:45%!important;width:auto!important;height:auto!important;}}' +
                                     'body::after{{content:\\'\\';display:table;clear:both;}}' +
-                                    'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;}}'
+                                    'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{{overflow:hidden!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;}}'
                                 ) +
                                 /* Thin scrollbar styles - apply to both modes */
                                 'html,body{{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.3) transparent;}}' +
