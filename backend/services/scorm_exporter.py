@@ -666,46 +666,26 @@ var CoursePlayer = (function() {
         var isMobileLandscape = isMobile && !isPortrait;
         
         if (isMobileLandscape) {
-            // MOBILE LANDSCAPE - Fill the screen width completely
+            // MOBILE LANDSCAPE - Fill width completely, allow vertical scroll
             var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
             var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
             
-            // Use full screen width with NO padding
-            var viewportWidth = screenWidth;
-            var viewportHeight = screenHeight;
-            
-            // Calculate scale to fill WIDTH completely (prioritize width over height)
-            var scaleForWidth = viewportWidth / slideWidth;
-            
-            // Check if this scale would make the slide too tall
-            var scaledHeight = slideHeight * scaleForWidth;
-            var scale;
-            
-            if (scaledHeight <= viewportHeight) {
-                // Slide fits in height when scaled to full width - use full width scale
-                scale = scaleForWidth;
-            } else {
-                // Slide would be too tall - scale to fit height instead
-                var scaleForHeight = viewportHeight / slideHeight;
-                scale = scaleForHeight;
-            }
+            // Always scale to fill WIDTH - allow vertical scroll if taller
+            var scale = screenWidth / slideWidth;
             
             // Minimum scale for readability
             scale = Math.max(scale, 0.3);
             
-            // Calculate centered vertical position
             var actualScaledHeight = slideHeight * scale;
             var actualScaledWidth = slideWidth * scale;
-            var topOffset = Math.max(0, (viewportHeight - actualScaledHeight) / 2);
-            var leftOffset = Math.max(0, (viewportWidth - actualScaledWidth) / 2);
             
-            // Keep wrapper but transparent, use fixed positioning for slide container
-            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;height:100vh !important;overflow:visible !important;';
+            // Allow vertical scrolling - don't constrain to viewport height
+            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;min-height:100vh !important;overflow-x:hidden !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;';
             
-            // Position the container fixed to fill the screen (ignores parent constraints)
-            container.style.position = 'fixed';
-            container.style.top = topOffset + 'px';
-            container.style.left = leftOffset + 'px';
+            // Use relative positioning so it scrolls naturally
+            container.style.position = 'relative';
+            container.style.top = '0';
+            container.style.left = '0';
             container.style.width = slideWidth + 'px';
             container.style.height = slideHeight + 'px';
             container.style.transform = 'scale(' + scale + ')';
@@ -713,7 +693,10 @@ var CoursePlayer = (function() {
             container.style.zIndex = '100';
             container.style.boxShadow = 'none';
             
-            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', actualScaledHeight.toFixed(0), 'slideSize:', slideWidth + 'x' + slideHeight);
+            // Set wrapper height to match scaled content so scrolling works
+            wrapper.style.height = actualScaledHeight + 'px';
+            
+            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', screenWidth + 'x' + screenHeight, 'scaledHeight:', actualScaledHeight.toFixed(0), 'slideSize:', slideWidth + 'x' + slideHeight);
             return;
         }
         
@@ -2430,7 +2413,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
 <html lang="{lang}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>{title}</title>
     <style>
         * {{
