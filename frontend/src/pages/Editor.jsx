@@ -834,7 +834,7 @@ export default function Editor() {
         y: 0,
         width: slideWidth,
         height: slideHeight,
-        src: `${process.env.REACT_APP_BACKEND_URL}${media.url}`,
+        src: media.url,  // Store relative URL to prevent broken links after forks
         objectFit: 'contain', // Maintain aspect ratio within the container
       });
       toast.success('Imagem adicionada (100% do slide)');
