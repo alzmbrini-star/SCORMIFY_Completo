@@ -186,7 +186,7 @@ const SlideCanvas = ({
       return;
     }
 
-    // Dragging element
+    // Dragging element - use local state only, API call happens on mouseUp
     if (isDragging && selectedElementId) {
       const deltaX = coords.x - dragStart.x;
       const deltaY = coords.y - dragStart.y;
@@ -194,12 +194,15 @@ const SlideCanvas = ({
       const newX = Math.max(0, Math.min(canvasWidth - elementStart.width, elementStart.x + deltaX));
       const newY = Math.max(0, Math.min(canvasHeight - elementStart.height, elementStart.y + deltaY));
       
-      // Store pending update and update UI immediately
+      // Store pending update for mouseUp and update local state immediately (no API call)
       pendingUpdateRef.current = { x: newX, y: newY };
-      onUpdateElement(selectedElementId, { x: newX, y: newY });
+      setLocalElementUpdates(prev => ({
+        ...prev,
+        [selectedElementId]: { ...prev[selectedElementId], x: newX, y: newY }
+      }));
     }
 
-    // Resizing element
+    // Resizing element - use local state only, API call happens on mouseUp
     if (isResizing && selectedElementId) {
       const deltaX = coords.x - dragStart.x;
       const deltaY = coords.y - dragStart.y;
@@ -255,19 +258,22 @@ const SlideCanvas = ({
       newWidth = Math.min(newWidth, canvasWidth - newX);
       newHeight = Math.min(newHeight, canvasHeight - newY);
 
-      // Store pending update and update UI immediately
+      // Store pending update for mouseUp and update local state immediately (no API call)
       pendingUpdateRef.current = {
         x: newX,
         y: newY,
         width: newWidth,
         height: newHeight,
       };
-      onUpdateElement(selectedElementId, pendingUpdateRef.current);
+      setLocalElementUpdates(prev => ({
+        ...prev,
+        [selectedElementId]: { ...prev[selectedElementId], ...pendingUpdateRef.current }
+      }));
     }
   }, [
     isDrawing, annotationMode, isDragging, isResizing, selectedElementId,
     dragStart, elementStart, canvasWidth, canvasHeight, resizeHandle,
-    onUpdateElement, getCanvasCoords
+    getCanvasCoords
   ]);
 
   const handleMouseUp = useCallback(async () => {
