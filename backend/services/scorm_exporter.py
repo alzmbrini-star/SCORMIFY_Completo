@@ -650,46 +650,87 @@ var CoursePlayer = (function() {
         console.log('[Scale] Device:', { isMobile: isMobile, isPortrait: isPortrait, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
         
         if (isMobilePortrait) {
-            // MOBILE PORTRAIT MODE - Fill the screen width completely
-            // Use document dimensions to avoid any iframe constraints
-            var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth, window.screen.width || 0);
-            var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+            // MOBILE PORTRAIT MODE - Reflow layout (stack elements vertically)
+            document.body.classList.add('mobile-reflow');
             
-            // Use the actual visible width
-            var viewportWidth = screenWidth;
-            var viewportHeight = screenHeight - 40; // Small space for counter
+            // Sort elements by their original Y position for logical reading order
+            var elements = Array.from(container.querySelectorAll('.slide-element'));
+            elements.sort(function(a, b) {
+                var aTop = parseFloat(a.dataset.origTop || a.style.top) || 0;
+                var bTop = parseFloat(b.dataset.origTop || b.style.top) || 0;
+                return aTop - bTop;
+            });
             
-            // Calculate scale to fill width completely
-            var scaleForWidth = viewportWidth / slideWidth;
+            // Store original values and reorder in DOM
+            elements.forEach(function(el) {
+                if (!el.dataset.origTop) {
+                    el.dataset.origTop = el.style.top;
+                    el.dataset.origLeft = el.style.left;
+                    el.dataset.origWidth = el.style.width;
+                    el.dataset.origHeight = el.style.height;
+                    el.dataset.origPosition = el.style.position;
+                    el.dataset.origTransform = el.style.transform || '';
+                    el.dataset.origOverflow = el.style.overflow || '';
+                    el.dataset.origZIndex = el.style.zIndex || '';
+                }
+                container.appendChild(el); // re-appends in sorted order
+            });
             
-            // Calculate the scaled height
-            var scaledHeight = slideHeight * scaleForWidth;
+            // Auto-size HTML element iframes based on content
+            container.querySelectorAll('.html-element iframe').forEach(function(iframe) {
+                try {
+                    iframe.style.height = 'auto';
+                    iframe.style.minHeight = '200px';
+                    // Resize after content loads
+                    iframe.addEventListener('load', function() {
+                        try {
+                            var doc = iframe.contentDocument || iframe.contentWindow.document;
+                            var h = doc.body.scrollHeight || doc.documentElement.scrollHeight;
+                            if (h > 50) {
+                                iframe.style.height = (h + 20) + 'px';
+                                iframe.parentElement.style.height = (h + 20) + 'px';
+                            }
+                        } catch(e) {}
+                    });
+                } catch(e) {}
+            });
             
-            // Center vertically if there's extra space
-            var topOffset = 0;
-            if (scaledHeight < viewportHeight) {
-                topOffset = (viewportHeight - scaledHeight) / 2;
-            }
-            
-            // Force wrapper to have no padding and full width
+            // Reset wrapper for reflow
             wrapper.style.padding = '0';
             wrapper.style.margin = '0';
             wrapper.style.width = '100%';
             wrapper.style.maxWidth = '100%';
             wrapper.style.alignItems = 'flex-start';
-            wrapper.style.justifyContent = 'center';
-            wrapper.style.paddingTop = topOffset + 'px';
+            wrapper.style.justifyContent = 'flex-start';
+            wrapper.style.paddingTop = '0';
+            wrapper.style.overflowY = 'auto';
             
-            // Apply scale with left-aligned transform origin for true full-width
-            container.style.width = slideWidth + 'px';
-            container.style.height = slideHeight + 'px';
-            container.style.transform = 'scale(' + scaleForWidth + ')';
-            container.style.transformOrigin = 'left top';
+            container.style.transform = 'none';
             container.style.marginLeft = '0';
             container.style.boxShadow = 'none';
             
-            console.log('[Scale] Mobile portrait - scale:', scaleForWidth.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight);
+            console.log('[Scale] Mobile portrait - REFLOW mode enabled, ' + elements.length + ' elements stacked');
             return;
+        }
+        
+        // Leaving portrait - disable reflow if it was active
+        if (document.body.classList.contains('mobile-reflow')) {
+            document.body.classList.remove('mobile-reflow');
+            // Restore original absolute positions
+            var elements = container.querySelectorAll('.slide-element');
+            elements.forEach(function(el) {
+                if (el.dataset.origTop) {
+                    el.style.position = el.dataset.origPosition || 'absolute';
+                    el.style.top = el.dataset.origTop;
+                    el.style.left = el.dataset.origLeft;
+                    el.style.width = el.dataset.origWidth;
+                    el.style.height = el.dataset.origHeight;
+                    el.style.transform = el.dataset.origTransform;
+                    el.style.overflow = el.dataset.origOverflow;
+                    el.style.zIndex = el.dataset.origZIndex;
+                }
+            });
+            console.log('[Scale] Restored absolute layout from reflow');
         }
         
         // DESKTOP / LANDSCAPE MODE - Fit within available space
