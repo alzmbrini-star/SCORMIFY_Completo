@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { Trash2, Move, RotateCw } from 'lucide-react';
-import { sanitizeHtmlForDisplay } from '../../utils/htmlUtils';
+import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
