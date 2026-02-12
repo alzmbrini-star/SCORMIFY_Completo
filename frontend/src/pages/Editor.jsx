@@ -1526,11 +1526,29 @@ export default function Editor() {
 
     try {
       if (editingHtmlElementId) {
-        // Update existing element
-        await updateElement(targetSlideId, editingHtmlElementId, {
-          htmlContent: richTextContent,
-        });
-        toast.success('Texto atualizado!');
+        // Verify element still exists before updating
+        const targetSlide = currentProject?.course?.slides?.find(s => s.id === targetSlideId);
+        const elementExists = targetSlide?.elements?.some(e => e.id === editingHtmlElementId);
+        
+        if (!elementExists) {
+          // Element was deleted - create as new instead
+          toast.info('Elemento original foi removido. Criando novo elemento...');
+          await addElement(targetSlideId, {
+            type: 'html',
+            x: 50,
+            y: 50,
+            width: 600,
+            height: 400,
+            htmlContent: richTextContent,
+          });
+          toast.success('Novo texto criado no slide!');
+        } else {
+          // Update existing element
+          await updateElement(targetSlideId, editingHtmlElementId, {
+            htmlContent: richTextContent,
+          });
+          toast.success('Texto atualizado!');
+        }
       } else {
         // Create new element
         await addElement(targetSlideId, {
