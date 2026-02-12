@@ -13,6 +13,20 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ## Changelog (Recent Updates)
 
+### 2026-02-12
+- **CORREÇÃO P0: Imagens RTF Quebradas Após Fork** (FIXED AND TESTED)
+  - **Problema**: URLs absolutas de imagens (ex: `https://old-domain.com/api/assets/file.jpg`) eram salvas no MongoDB. Após fork, o domínio muda e as imagens quebravam.
+  - **Causa Raiz**: O `contentEditable` do navegador converte automaticamente URLs relativas para absolutas. Ao salvar, estas URLs absolutas eram persistidas no banco.
+  - **Correção Aplicada**:
+    1. `htmlUtils.js`: Adicionadas funções `stripDomainFromAssetUrls` e `resolveAssetUrls`
+    2. `Editor.jsx`: Strip domain antes de salvar (`handleAddRichTextToSlide`), resolve ao editar (`handleEditHtmlElement`)
+    3. `Editor.jsx`: Upload de imagem agora salva URL relativa (`media.url` em vez de `${REACT_APP_BACKEND_URL}${media.url}`)
+    4. `SlideCanvas.jsx`: `resolveHtmlContentUrls` atualizado para lidar com `/api/projects/{id}/assets/` além de `/api/assets/`
+    5. `server.py`: Migração automática no startup normaliza URLs absolutas existentes no banco
+    6. `server.py`: Endpoint `POST /api/migrate-asset-urls` melhorado para cobrir todos os padrões de URL
+  - **Testes**: 100% backend (10/10), 100% frontend (16/16 unit tests)
+  - **Migração**: Startup auto-migrou 18 URLs absolutas existentes
+
 ### 2026-02-11
 - **MELHORIA: Dimensões dos Slides para Mobile (21:9)**
   - Novos projetos e imports de PPT agora usam proporção 21:9 (1920x820) em vez de 16:9 (1536x864)
