@@ -1174,20 +1174,19 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED - Layout com imagem flutuante e texto funcionando corretamente
 
 ### SlideCanvas Visual Consistency - FIXED (Feb 12, 2026)
-- **Issue**: O layout de elementos RTF no SlideCanvas (editor) era muito diferente do resultado final (CoursePreview, SCORM, HTML exports). Imagens com float não mostravam o texto fluindo corretamente.
-- **Root Cause**: O CSS do iframe HTML no SlideCanvas não tinha as mesmas regras de float e layout que os exportadores.
+- **Issue**: O layout de elementos RTF no SlideCanvas (editor) era muito diferente do resultado final (CoursePreview, SCORM, HTML exports). Imagens com float não mostravam o texto fluindo corretamente - imagens apareciam muito grandes ocupando toda a largura.
+- **Root Cause**: As imagens tinham estilos inline com largura fixa em pixels (ex: `width: 302.385px`) que sobrescreviam o `max-width: 45%` do CSS.
 - **Fix Applied**:
-  1. Reescrito o CSS do iframe HTML no SlideCanvas para usar dimensões explícitas baseadas no tamanho do elemento
-  2. Adicionado container wrapper `.content-wrapper` com padding e clearfix
-  3. Melhorado as regras de float para imagens (left/right)
-  4. Adicionado `word-break: normal; hyphens: auto` para evitar quebras de palavras estranhas
-  5. Sincronizado tipografia com CoursePreview usando unidades relativas (em)
+  1. Modificado CSS no SlideCanvas para usar `width: 45% !important` ao invés de apenas `max-width: 45%` - isso força a largura mesmo quando há estilos inline
+  2. Adicionado `object-fit: contain` para manter proporção da imagem
+  3. Adicionado seletores adicionais para classes RTF (`img.rtf-image-float-left`, `img[class*="float-left"]`)
+  4. Aplicado mesma correção em CoursePreview, SCORM exporter e HTML exporter
 - **Files Modified**:
-  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - CSS do iframe HTML (linhas 697-830)
-  - `/app/frontend/src/components/editor/CoursePreview.jsx` - Melhorado word-break
-  - `/app/backend/services/scorm_exporter.py` - Melhorado word-break
-  - `/app/backend/services/html_exporter.py` - Melhorado word-break
-- **Status**: FIXED AND TESTED - SlideCanvas agora mostra preview mais fiel ao resultado final
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - CSS do iframe HTML
+  - `/app/frontend/src/components/editor/CoursePreview.jsx` - CSS do iframe HTML
+  - `/app/backend/services/scorm_exporter.py` - CSS do iframe HTML
+  - `/app/backend/services/html_exporter.py` - CSS do iframe HTML
+- **Status**: FIXED AND TESTED - Imagens flutuantes agora mostram com ~45% da largura e texto flui corretamente ao lado
 
 
 ### Login "Body Stream Already Read" Error Fix - FIXED (Feb 11, 2026)
