@@ -722,8 +722,8 @@ const SlideCanvas = ({
                             html, body { 
                               margin: 0; 
                               padding: 0;
-                              width: ${element.width}px;
-                              height: ${element.height}px;
+                              width: 100%;
+                              height: 100%;
                               background: transparent !important; 
                               font-family: Arial, sans-serif;
                               color: #f1f5f9;
