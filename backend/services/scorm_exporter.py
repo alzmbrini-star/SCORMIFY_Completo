@@ -645,98 +645,9 @@ var CoursePlayer = (function() {
         
         console.log('[Scale] Device:', { isMobile: isMobile, isPortrait: isPortrait, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
         
+        // Portrait mode is handled by the orientation overlay - no scaling needed here
         if (isMobilePortrait) {
-            // MOBILE PORTRAIT MODE - Reflow layout (stack elements vertically)
-            document.body.classList.add('mobile-reflow');
-            
-            // Sort elements by their original Y position for logical reading order
-            var elements = Array.from(container.querySelectorAll('.slide-element'));
-            elements.sort(function(a, b) {
-                var aTop = parseFloat(a.dataset.origTop || a.style.top) || 0;
-                var bTop = parseFloat(b.dataset.origTop || b.style.top) || 0;
-                return aTop - bTop;
-            });
-            
-            // Store original values and reorder in DOM
-            elements.forEach(function(el) {
-                if (!el.dataset.origTop) {
-                    el.dataset.origTop = el.style.top;
-                    el.dataset.origLeft = el.style.left;
-                    el.dataset.origWidth = el.style.width;
-                    el.dataset.origHeight = el.style.height;
-                    el.dataset.origPosition = el.style.position;
-                    el.dataset.origTransform = el.style.transform || '';
-                    el.dataset.origOverflow = el.style.overflow || '';
-                    el.dataset.origZIndex = el.style.zIndex || '';
-                }
-                container.appendChild(el); // re-appends in sorted order
-            });
-            
-            // Auto-size HTML element iframes based on content
-            setTimeout(function() {
-                container.querySelectorAll('.html-element iframe').forEach(function(iframe) {
-                    function resizeIframe() {
-                        try {
-                            var doc = iframe.contentDocument || iframe.contentWindow.document;
-                            if (doc && doc.body) {
-                                // Override overflow:hidden!important from srcdoc CSS
-                                doc.documentElement.style.setProperty('overflow', 'visible', 'important');
-                                doc.documentElement.style.setProperty('height', 'auto', 'important');
-                                doc.body.style.setProperty('overflow', 'visible', 'important');
-                                doc.body.style.setProperty('height', 'auto', 'important');
-                                var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
-                                iframe.style.height = h + 'px';
-                                iframe.parentElement.style.height = (h + 4) + 'px';
-                                iframe.parentElement.style.minHeight = h + 'px';
-                                console.log('[Reflow] Resized iframe to ' + h + 'px');
-                            }
-                        } catch(e) { console.log('[Reflow] iframe resize error:', e); }
-                    }
-                    iframe.addEventListener('load', function() {
-                        resizeIframe();
-                        setTimeout(resizeIframe, 500);
-                        setTimeout(resizeIframe, 1500);
-                    });
-                    resizeIframe();
-                });
-            }, 300);
-            
-            // Reset wrapper for reflow
-            wrapper.style.padding = '0';
-            wrapper.style.margin = '0';
-            wrapper.style.width = '100%';
-            wrapper.style.maxWidth = '100%';
-            wrapper.style.alignItems = 'flex-start';
-            wrapper.style.justifyContent = 'flex-start';
-            wrapper.style.paddingTop = '0';
-            wrapper.style.overflowY = 'auto';
-            
-            container.style.transform = 'none';
-            container.style.marginLeft = '0';
-            container.style.boxShadow = 'none';
-            
-            console.log('[Scale] Mobile portrait - REFLOW mode enabled, ' + elements.length + ' elements stacked');
             return;
-        }
-        
-        // Leaving portrait - disable reflow if it was active
-        if (document.body.classList.contains('mobile-reflow')) {
-            document.body.classList.remove('mobile-reflow');
-            // Restore original absolute positions
-            var elements = container.querySelectorAll('.slide-element');
-            elements.forEach(function(el) {
-                if (el.dataset.origTop) {
-                    el.style.position = el.dataset.origPosition || 'absolute';
-                    el.style.top = el.dataset.origTop;
-                    el.style.left = el.dataset.origLeft;
-                    el.style.width = el.dataset.origWidth;
-                    el.style.height = el.dataset.origHeight;
-                    el.style.transform = el.dataset.origTransform;
-                    el.style.overflow = el.dataset.origOverflow;
-                    el.style.zIndex = el.dataset.origZIndex;
-                }
-            });
-            console.log('[Scale] Restored absolute layout from reflow');
         }
         
         // DESKTOP / LANDSCAPE MODE - Fit within available space
