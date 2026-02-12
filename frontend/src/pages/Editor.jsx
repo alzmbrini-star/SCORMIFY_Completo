@@ -410,6 +410,17 @@ export default function Editor() {
 
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+  // Sanitize HTML content by removing Tailwind CSS variables and editor artifacts
+  const sanitizeHtmlContent = (html) => {
+    if (!html) return html;
+    let cleaned = html.replace(/--tw-[^;:]+:[^;]*;?\s*/g, '');
+    cleaned = cleaned.replace(/outline-style:\s*dashed\s*;?\s*/g, '');
+    cleaned = cleaned.replace(/outline-width:\s*[^;]+;?\s*/g, '');
+    cleaned = cleaned.replace(/style="\s*;?\s*"/g, '');
+    cleaned = cleaned.replace(/style='\s*;?\s*'/g, '');
+    return cleaned;
+  };
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
