@@ -2249,7 +2249,7 @@ var QuizController = (function() {
                     textStyle += 'color:#cbd5e1;';
                 }
                 
-                html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\'' + elementId + '\', \'' + alt.id + '\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
+                html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\\'' + elementId + '\\', \\'' + alt.id + '\\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
                     '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : '')) + '</div>' +
                     '<span style="flex:1;' + textStyle + '">' + alt.text + '</span></button>';
             });
@@ -2284,19 +2284,19 @@ var QuizController = (function() {
                 '<div style="padding:10px 16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;background:#1e293b;">' +
                 '<button style="padding:6px 12px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:' + altFontSize + 'px;display:flex;align-items:center;gap:4px;" ' + 
                 (quiz.currentIndex === 0 || quiz.showingFeedback ? 'disabled style="padding:6px 12px;background:transparent;border:none;color:#94a3b8;opacity:0.4;cursor:not-allowed;font-size:' + altFontSize + 'px;display:flex;align-items:center;gap:4px;"' : '') + 
-                ' onclick="QuizController.prevQuestion(\'' + elementId + '\')">‹ Anterior</button>';
+                ' onclick="QuizController.prevQuestion(\\'' + elementId + '\\')">‹ Anterior</button>';
             
             if (quiz.showingFeedback) {
                 if (quiz.currentIndex < total - 1) {
-                    html += '<button style="padding:8px 16px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:500;font-size:' + altFontSize + 'px;cursor:pointer;" onclick="QuizController.nextQuestion(\'' + elementId + '\')">Próxima ›</button>';
+                    html += '<button style="padding:8px 16px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:500;font-size:' + altFontSize + 'px;cursor:pointer;" onclick="QuizController.nextQuestion(\\'' + elementId + '\\')">Próxima ›</button>';
                 } else {
-                    html += '<button style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-weight:500;font-size:' + altFontSize + 'px;cursor:pointer;" onclick="QuizController.showResults(\'' + elementId + '\')">Ver Resultado</button>';
+                    html += '<button style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-weight:500;font-size:' + altFontSize + 'px;cursor:pointer;" onclick="QuizController.showResults(\\'' + elementId + '\\')">Ver Resultado</button>';
                 }
             } else {
                 html += '<button style="padding:8px 16px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:500;font-size:' + altFontSize + 'px;cursor:pointer;' + 
                     (!quiz.selectedAnswer ? 'opacity:0.4;cursor:not-allowed;' : '') + '" ' +
                     (!quiz.selectedAnswer ? 'disabled' : '') + 
-                    ' onclick="QuizController.confirmAnswer(\'' + elementId + '\')">Confirmar ✓</button>';
+                    ' onclick="QuizController.confirmAnswer(\\'' + elementId + '\\')">Confirmar ✓</button>';
             }
             
             html += '</div></div>';
@@ -2431,7 +2431,7 @@ var QuizController = (function() {
                 '<p style="font-size:' + smallFontSize + 'px;color:#94a3b8;margin-top:4px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
                 
                 // Restart button - compact
-                '<button style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:' + buttonFontSize + 'px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="QuizController.restartQuiz(\'' + elementId + '\')">' +
+                '<button style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:' + buttonFontSize + 'px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="QuizController.restartQuiz(\\'' + elementId + '\\')">' +
                 '<span>🔄</span> Tentar Novamente</button>' +
                 
                 '</div></div>';
