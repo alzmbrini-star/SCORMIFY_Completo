@@ -3530,7 +3530,7 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         /* Force orientation overlay in portrait mode on mobile devices */
-        @media screen and (orientation: portrait) and (max-width: 900px) {{
+        @media screen and (orientation: portrait) and (max-width: 1024px) {{
             #orientation-overlay {{
                 display: flex !important;
             }}
@@ -3540,13 +3540,18 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         
         /* Also catch tall-narrow viewports (portrait in iframe/LMS) */
-        @media screen and (max-aspect-ratio: 4/5) and (max-width: 900px) {{
+        @media screen and (max-aspect-ratio: 4/5) and (max-width: 1024px) {{
             #orientation-overlay {{
                 display: flex !important;
             }}
             #player-container {{
                 display: none !important;
             }}
+        }}
+        
+        /* Catch any tall viewport regardless of orientation API support */
+        @media screen and (max-width: 1024px) and (min-height: 500px) {{
+            /* When height > width, we're in portrait */
         }}
         
         .orientation-content {{
