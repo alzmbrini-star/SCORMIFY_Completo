@@ -220,5 +220,117 @@ class TestAddNewElement:
         print(f"✅ Cleaned up test element")
 
 
+class TestDeletedElementBugFix:
+    """
+    CRITICAL: Tests for the bug fix where editing RTF text after element deletion gives 404.
+    The fix checks if element exists before calling update API, and creates new if deleted.
+    """
+    
+    def test_update_deleted_element_returns_404(self, api_session):
+        """
+        Backend should return 404 when trying to update a deleted element.
+        This tests the scenario that the frontend fix addresses.
+        """
+        # First, create a test element
+        unique_marker = str(uuid.uuid4())[:8]
+        new_element = {
+            "type": "html",
+            "x": 100,
+            "y": 100,
+            "width": 300,
+            "height": 200,
+            "htmlContent": f"<p>Element to delete - {unique_marker}</p>"
+        }
+        
+        create_response = api_session.post(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements",
+            json=new_element
+        )
+        assert create_response.status_code == 200
+        element_id = create_response.json()["id"]
+        print(f"✅ Created test element: {element_id}")
+        
+        # Delete the element
+        delete_response = api_session.delete(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements/{element_id}"
+        )
+        assert delete_response.status_code in [200, 204], f"Delete failed: {delete_response.status_code}"
+        print(f"✅ Deleted element: {element_id}")
+        
+        # Now try to update the deleted element - should return 404
+        update_response = api_session.put(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements/{element_id}",
+            json={"htmlContent": "<p>Trying to update deleted element</p>"}
+        )
+        
+        assert update_response.status_code == 404, \
+            f"Expected 404 for deleted element, got {update_response.status_code}"
+        print(f"✅ Backend correctly returns 404 for deleted element")
+    
+    def test_delete_element_returns_200(self, api_session):
+        """Test that deleting an element returns 200/204"""
+        # Create a test element
+        new_element = {
+            "type": "html",
+            "x": 50,
+            "y": 50,
+            "width": 200,
+            "height": 100,
+            "htmlContent": "<p>Element for delete test</p>"
+        }
+        
+        create_response = api_session.post(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements",
+            json=new_element
+        )
+        assert create_response.status_code == 200
+        element_id = create_response.json()["id"]
+        
+        # Delete it
+        delete_response = api_session.delete(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements/{element_id}"
+        )
+        assert delete_response.status_code in [200, 204], \
+            f"Expected 200 or 204, got {delete_response.status_code}"
+        print(f"✅ Delete element returns {delete_response.status_code}")
+    
+    def test_verify_element_removed_after_delete(self, api_session):
+        """Verify element is actually removed from project data after delete"""
+        # Create test element
+        marker = str(uuid.uuid4())[:8]
+        new_element = {
+            "type": "html",
+            "x": 100,
+            "y": 100,
+            "width": 300,
+            "height": 200,
+            "htmlContent": f"<p>Element to verify removal - {marker}</p>"
+        }
+        
+        create_response = api_session.post(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements",
+            json=new_element
+        )
+        element_id = create_response.json()["id"]
+        
+        # Delete it
+        api_session.delete(
+            f"{BASE_URL}/api/projects/{PROJECT_ID}/slides/{SLIDE_ID}/elements/{element_id}"
+        )
+        
+        # Verify it's gone
+        get_response = api_session.get(f"{BASE_URL}/api/projects/{PROJECT_ID}")
+        assert get_response.status_code == 200
+        
+        project_data = get_response.json()
+        slides = project_data["course"]["slides"]
+        slide = next((s for s in slides if s.get("id") == SLIDE_ID), None)
+        elements = slide.get("elements", [])
+        
+        deleted_element = next((e for e in elements if e.get("id") == element_id), None)
+        assert deleted_element is None, "Element still exists after delete"
+        print(f"✅ Element {element_id} correctly removed from project data")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
