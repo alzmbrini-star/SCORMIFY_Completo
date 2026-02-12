@@ -19,6 +19,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
@@ -36,6 +37,7 @@ import {
   Settings,
   LogOut,
   User,
+  Pencil,
 } from 'lucide-react';
 
 export default function Dashboard() {
