@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { sanitizeHtmlContent } from '../utils/htmlUtils';
+import { sanitizeHtmlContent, stripDomainFromAssetUrls, resolveAssetUrls } from '../utils/htmlUtils';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
