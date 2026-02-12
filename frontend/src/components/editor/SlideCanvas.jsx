@@ -529,7 +529,7 @@ const SlideCanvas = ({
             {/* Drag indicator showing position */}
             {isDragging && isSelected && (
               <div className="absolute -top-8 left-0 px-2 py-1 bg-cyan-600 text-white text-xs rounded shadow-lg pointer-events-none z-50 whitespace-nowrap">
-                X: {Math.round(element.x)} | Y: {Math.round(element.y)}
+                X: {Math.round(displayElement.x)} | Y: {Math.round(displayElement.y)}
               </div>
             )}
             
