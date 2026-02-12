@@ -1428,7 +1428,9 @@ var CoursePlayer = (function() {
                     'h2{font-size:1.15rem!important;}' +
                     'h3{font-size:1.05rem!important;}' +
                     'p,li{font-size:15px!important;line-height:1.5!important;}' +
-                    'img{float:none!important;display:block!important;max-width:90%!important;width:auto!important;height:auto!important;margin:12px auto!important;clear:both!important;position:relative!important;left:0!important;right:0!important;}' 
+                    'img{float:none!important;display:block!important;max-width:100%!important;width:auto!important;height:auto!important;margin:12px auto!important;clear:both!important;position:relative!important;left:0!important;right:0!important;}' +
+                    'div[style*="float"]{float:none!important;width:100%!important;}' +
+                    'span[style*="font-size"]{font-size:inherit!important;}'
                     : '';
                 var wrappedHtml = '<html><head><style>' +
                     (isHtmlFullscreen ? 
