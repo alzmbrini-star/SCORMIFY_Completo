@@ -2655,6 +2655,20 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
+        /* Mobile landscape - allow scroll and pinch-to-zoom */
+        @media screen and (max-height: 700px) and (orientation: landscape) {{
+            body {{
+                overflow: auto !important;
+                overflow-x: hidden !important;
+                -webkit-overflow-scrolling: touch !important;
+            }}
+            #player-container {{
+                overflow: visible !important;
+                height: auto !important;
+                min-height: 100vh;
+            }}
+        }}
+        
         #slide-wrapper.sidebar-open {{
             margin-left: 280px;
         }}
