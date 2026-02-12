@@ -283,9 +283,16 @@ function checkMobileOrientation() {
         isMobile: isMobileDevice
     });
     
-    // Determine if we should show the overlay
-    // With mobile reflow mode, portrait is fully supported - no overlay needed
+    // Determine if we should show the overlay (force landscape on mobile)
+    var isPortrait = windowWidth < windowHeight;
     var shouldShowOverlay = false;
+    
+    if (isMobileDevice || isSmallScreen) {
+        // Use multiple signals to detect portrait mode
+        if (isOrientationPortrait || mediaPortrait || isPortrait) {
+            shouldShowOverlay = true;
+        }
+    }
     
     var wasHidden = playerContainer.style.display === 'none';
     
