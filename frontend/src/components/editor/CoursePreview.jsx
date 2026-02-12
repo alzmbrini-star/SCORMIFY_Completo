@@ -90,10 +90,14 @@ const processHtmlContent = (htmlContent, projectId) => {
     (match, path) => `src="${API_URL}/api/projects/${projectId}/assets/${path.replace('assets/', '')}"`
   );
   
+  // Sanitize: remove Tailwind CSS variables and editor artifacts
+  processed = processed.replace(/--tw-[^;:]+:[^;]*;?\s*/g, '');
+  processed = processed.replace(/outline-style:\s*dashed\s*;?\s*/g, '');
+  processed = processed.replace(/outline-width:\s*[^;]+;?\s*/g, '');
+  processed = processed.replace(/style="\s*;?\s*"/g, '');
+  processed = processed.replace(/style='\s*;?\s*'/g, '');
+  
   return processed;
-};
-
-// Quiz Preview Player - loads questions and renders quiz
 const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
