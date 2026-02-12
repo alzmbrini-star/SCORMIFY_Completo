@@ -418,17 +418,26 @@ export default function Dashboard() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          data-testid={`project-menu-${project.id}`}
                         >
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
+                          onClick={(e) => handleOpenRenameDialog(project, e)}
+                          data-testid={`rename-project-${project.id}`}
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Renomear
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
                           className="text-destructive"
                           onClick={(e) => handleDeleteProject(project.id, e)}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
+                          Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
