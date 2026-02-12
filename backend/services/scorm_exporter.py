@@ -3995,6 +3995,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             # Process HTML elements - fix image URLs inside htmlContent
             if element.get('type') == 'html' and element.get('htmlContent'):
                 html_content = element['htmlContent']
+                
+                # Sanitize: remove Tailwind CSS variables and editor artifacts
+                html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
+                html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
+                html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
+                html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
+                html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
+                
                 # Find all img src URLs and fix them to relative paths
                 img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
                 
