@@ -1986,7 +1986,13 @@ export default function Editor() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-purple-400 hover:text-purple-300"
-                    onClick={() => setShowRichTextDialog(true)}
+                    onClick={() => {
+                      setRichTextContent('');
+                      setEditingHtmlElementId(null);
+                      setEditingHtmlSlideId(null);
+                      setRtfSaveFailed(false);
+                      setShowRichTextDialog(true);
+                    }}
                     data-testid="add-rich-text-btn"
                   >
                     <Sparkles className="w-4 h-4" />
