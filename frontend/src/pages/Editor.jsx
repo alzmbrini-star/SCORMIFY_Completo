@@ -2282,6 +2282,9 @@ export default function Editor() {
                 onDeleteElement={(elementId) => {
                   handleDeleteElement(elementId);
                 }}
+                onCopyElement={handleCopyElement}
+                onPasteElement={handlePasteElement}
+                copiedElement={copiedElement}
                 annotationMode={annotationMode}
                 timelineTime={timelineTime}
                 timelineIsPlaying={timelineIsPlaying}
