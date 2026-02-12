@@ -666,6 +666,32 @@ export default function QuizGenerator({
                   </Select>
                 </div>
 
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Tamanho da fonte</Label>
+                  <Select
+                    value={String(quizConfig.fontSize)}
+                    onValueChange={(v) => setQuizConfig(prev => ({ ...prev, fontSize: Number(v) }))}
+                  >
+                    <SelectTrigger data-testid="quiz-config-font-size">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="12">12px - Pequeno</SelectItem>
+                      <SelectItem value="14">14px - Médio</SelectItem>
+                      <SelectItem value="16">16px - Normal</SelectItem>
+                      <SelectItem value="18">18px - Grande</SelectItem>
+                      <SelectItem value="20">20px - Muito Grande</SelectItem>
+                      <SelectItem value="24">24px - Extra Grande</SelectItem>
+                      <SelectItem value="28">28px - Gigante</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Tamanho da fonte das questões e alternativas
+                  </p>
+                </div>
+
                 {selectedQuestionIds.length > 0 && (
                   <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
                     <p className="text-sm text-cyan-400 font-medium mb-2">
