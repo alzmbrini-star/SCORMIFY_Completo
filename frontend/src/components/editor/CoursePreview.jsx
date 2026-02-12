@@ -98,6 +98,9 @@ const processHtmlContent = (htmlContent, projectId) => {
   processed = processed.replace(/style='\s*;?\s*'/g, '');
   
   return processed;
+};
+
+// Quiz Preview Player - loads questions and renders quiz
 const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
