@@ -1173,6 +1173,23 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/frontend/src/components/editor/CoursePreview.jsx` - CSS do Visualizador
 - **Status**: FIXED AND TESTED - Layout com imagem flutuante e texto funcionando corretamente
 
+### SlideCanvas Visual Consistency - FIXED (Feb 12, 2026)
+- **Issue**: O layout de elementos RTF no SlideCanvas (editor) era muito diferente do resultado final (CoursePreview, SCORM, HTML exports). Imagens com float não mostravam o texto fluindo corretamente.
+- **Root Cause**: O CSS do iframe HTML no SlideCanvas não tinha as mesmas regras de float e layout que os exportadores.
+- **Fix Applied**:
+  1. Reescrito o CSS do iframe HTML no SlideCanvas para usar dimensões explícitas baseadas no tamanho do elemento
+  2. Adicionado container wrapper `.content-wrapper` com padding e clearfix
+  3. Melhorado as regras de float para imagens (left/right)
+  4. Adicionado `word-break: normal; hyphens: auto` para evitar quebras de palavras estranhas
+  5. Sincronizado tipografia com CoursePreview usando unidades relativas (em)
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - CSS do iframe HTML (linhas 697-830)
+  - `/app/frontend/src/components/editor/CoursePreview.jsx` - Melhorado word-break
+  - `/app/backend/services/scorm_exporter.py` - Melhorado word-break
+  - `/app/backend/services/html_exporter.py` - Melhorado word-break
+- **Status**: FIXED AND TESTED - SlideCanvas agora mostra preview mais fiel ao resultado final
+
+
 ### Login "Body Stream Already Read" Error Fix - FIXED (Feb 11, 2026)
 - **Issue**: Ao fazer login, usuários recebiam erro "Failed to execute 'json' on 'Response': body stream already read"
 - **Root Cause**: Em casos de erro, o código tentava ler o response.json() duas vezes quando o parse JSON falhava
