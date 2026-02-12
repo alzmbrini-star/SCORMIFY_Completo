@@ -1119,7 +1119,7 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 ## Roadmap / Backlog
 
 ### P0 - Critical (Next)
-- None at present - Core features complete
+- [x] SCORM Mobile: Forçar landscape com overlay "Rotacione seu dispositivo" (FIXED - Feb 12, 2026)
 
 ### P1 - High Priority
 - Quiz analytics dashboard (view attempts, scores per question)
