@@ -266,7 +266,12 @@ export const ProjectProvider = ({ children }) => {
   }, [currentProject]);
 
   const updateElement = useCallback(async (slideId, elementId, data) => {
-    if (!currentProject) return;
+    if (!currentProject) {
+      throw new Error('No project loaded');
+    }
+    if (!slideId || !elementId) {
+      throw new Error('Missing slideId or elementId');
+    }
     try {
       const response = await axios.put(
         `${API_URL}/projects/${currentProject.id}/slides/${slideId}/elements/${elementId}`,
