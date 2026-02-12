@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://www.adlnet.org/xsd/adlcp_rootv1p2"
+    xmlns="http://www.adlnet.org/xsd/adlcp_rootv1p2"
+    elementFormDefault="qualified">
+    <xsd:attribute name="scormtype">
+        <xsd:simpleType>
+            <xsd:restriction base="xsd:string">
+                <xsd:enumeration value="sco"/>
+                <xsd:enumeration value="asset"/>
+            </xsd:restriction>
+        </xsd:simpleType>
+    </xsd:attribute>
+    <xsd:element name="masteryscore" type="xsd:string"/>
+</xsd:schema>
