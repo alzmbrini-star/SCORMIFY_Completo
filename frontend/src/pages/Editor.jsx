@@ -458,6 +458,52 @@ export default function Editor() {
     }
   }, [currentProject, currentSlideIndex, reorderSlides, setCurrentSlideIndex]);
 
+  // Copy element handler
+  const handleCopyElement = useCallback((element) => {
+    if (!element) return;
+    // Store a deep copy of the element (without id)
+    const { id, ...elementData } = element;
+    setCopiedElement({
+      ...elementData,
+      // Store original slide reference for cross-slide paste
+      sourceSlideId: currentSlide?.id
+    });
+    toast.success('Elemento copiado! Use Ctrl+V para colar');
+  }, [currentSlide?.id]);
+
+  // Paste element handler
+  const handlePasteElement = useCallback(async () => {
+    if (!copiedElement || !currentSlide?.id) return;
+    
+    try {
+      // Create new element with offset position
+      const newElement = {
+        ...copiedElement,
+        // Offset position slightly so pasted element is visible
+        x: Math.min((copiedElement.x || 0) + 20, 900),
+        y: Math.min((copiedElement.y || 0) + 20, 500),
+        // Remove source reference
+        sourceSlideId: undefined,
+      };
+      
+      // Call API to create new element
+      const response = await axios.post(
+        `${API_URL}/api/projects/${currentProject?.id}/slides/${currentSlide.id}/elements`,
+        newElement
+      );
+      
+      if (response.data) {
+        // Refresh project to get updated elements
+        await fetchProject(currentProject?.id);
+        setSelectedElement(response.data.id);
+        toast.success('Elemento colado!');
+      }
+    } catch (err) {
+      console.error('Paste error:', err);
+      toast.error('Erro ao colar elemento');
+    }
+  }, [copiedElement, currentSlide?.id, currentProject?.id, API_URL, fetchProject, setSelectedElement]);
+
   // Handle layer reordering (zIndex)
   const handleLayerDragEnd = useCallback(async (event) => {
     const { active, over } = event;
