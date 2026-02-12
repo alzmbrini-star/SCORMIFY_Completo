@@ -1221,6 +1221,26 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Verification**: Testing agent confirmou: edição, criação, e cenário de elemento deletado todos funcionam sem erros 404
 
 
+### RTF Image Not Showing on Slide Canvas - FIXED (Feb 12, 2026)
+- **Issue**: Imagens criadas no RTF editor não apareciam no Slide Canvas. O texto era cortado e a imagem flutuante era invisível.
+- **Root Cause**: 
+  1. O iframe do SlideCanvas usava dimensões fixas em pixels (width: ${element.width}px, height: ${element.height}px) no body CSS. Quando o canvas escalava visualmente o elemento, o conteúdo interno continuava na resolução nativa, resultando em corte (overflow: hidden). A imagem, posicionada à direita via float, ficava fora da área visível.
+  2. O contentEditable do RTF editor herdava variáveis CSS Tailwind da página (--tw-*), adicionando ~69KB de lixo ao HTML salvo. Isso também interferia na renderização.
+- **Fix Applied**:
+  1. Alterado body CSS do iframe de pixels fixos para `width: 100%; height: 100%` - conteúdo agora reflui dentro do tamanho real do iframe no canvas
+  2. Adicionada função `sanitizeHtmlForDisplay` que remove variáveis --tw-*, outline-style/outline-width de artefatos do editor
+  3. Aplicada sanitização em 4 pontos: SlideCanvas (display), Editor (save), CoursePreview (preview), e exportadores SCORM/HTML
+  4. Redução de conteúdo de 75KB para 6KB por elemento HTML
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx` - body CSS width:100%, sanitizeHtmlForDisplay function
+  - `/app/frontend/src/pages/Editor.jsx` - sanitizeHtmlContent applied on save
+  - `/app/frontend/src/components/editor/CoursePreview.jsx` - sanitization in processHtmlContent
+  - `/app/backend/services/scorm_exporter.py` - sanitization before export
+  - `/app/backend/services/html_exporter.py` - sanitization in process_html_content_images
+- **Status**: FIXED AND TESTED (100% backend + frontend, testing agent iteration_19)
+
+
+
 ### P3 - Future Enhancements
 - Question bank sharing between projects
 - Question import from QTI format
