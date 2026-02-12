@@ -409,6 +409,9 @@ export default function Editor() {
   const audioPlayerRef = useRef(null);
   const isRecordingRef = useRef(false); // Track recording state for cleanup
 
+  // Copy/paste state
+  const [copiedElement, setCopiedElement] = useState(null);
+
   const API_URL = process.env.REACT_APP_BACKEND_URL;
 
   // DnD sensors
