@@ -47,6 +47,24 @@ const resolveHtmlContentUrls = (htmlContent) => {
   return resolved;
 };
 
+// Sanitize HTML content by removing Tailwind CSS variables and editor artifacts
+const sanitizeHtmlForDisplay = (htmlContent) => {
+  if (!htmlContent) return htmlContent;
+  
+  // Remove --tw-* CSS custom properties from inline styles
+  let cleaned = htmlContent.replace(/--tw-[^;:]+:[^;]*;?\s*/g, '');
+  
+  // Remove outline styles from editor selection artifacts
+  cleaned = cleaned.replace(/outline-style:\s*dashed\s*;?\s*/g, '');
+  cleaned = cleaned.replace(/outline-width:\s*[^;]+;?\s*/g, '');
+  
+  // Clean up empty style attributes or those with only whitespace/semicolons
+  cleaned = cleaned.replace(/style="\s*;?\s*"/g, '');
+  cleaned = cleaned.replace(/style='\s*;?\s*'/g, '');
+  
+  return cleaned;
+};
+
 // Debounce helper
 const debounce = (func, wait) => {
   let timeout;
