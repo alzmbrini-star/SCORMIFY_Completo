@@ -1632,7 +1632,8 @@ export default function Editor() {
   // Open RTF editor to edit existing HTML element
   const handleEditHtmlElement = (element) => {
     if (element.type === 'html' && element.htmlContent) {
-      setRichTextContent(element.htmlContent);
+      // Resolve relative asset URLs to absolute so images display in the editor
+      setRichTextContent(resolveAssetUrls(element.htmlContent));
       setEditingHtmlElementId(element.id);
       setEditingHtmlSlideId(currentSlide?.id); // Store slide ID at edit time
       setRtfSaveFailed(false);
