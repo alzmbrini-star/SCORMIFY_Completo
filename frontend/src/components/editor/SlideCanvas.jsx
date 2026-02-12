@@ -98,6 +98,9 @@ const SlideCanvas = ({
   const [editingElementId, setEditingElementId] = useState(null);
   const [scale, setScale] = useState(1);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null);
+  
+  // Local state for element positions during drag/resize (optimistic updates)
+  const [localElementUpdates, setLocalElementUpdates] = useState({});
 
   const { addAnnotation, deleteAnnotation } = useProject();
 
