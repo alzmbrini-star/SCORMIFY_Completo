@@ -324,6 +324,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - [x] Drag & drop slide reordering (DONE)
 - [x] Timeline synchronization (DONE)
 - [x] Refatorar código duplicado sanitizeHtmlForDisplay (DONE - Feb 12, 2026)
+- [x] Renomear cursos/projetos (DONE - Feb 12, 2026)
 - [ ] Element copy/paste
 - [ ] Undo/redo history
 - [ ] Gravação de áudio pelo microfone (melhorias)
