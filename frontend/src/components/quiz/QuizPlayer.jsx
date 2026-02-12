@@ -284,7 +284,12 @@ export default function QuizPlayer({
         </div>
 
         {/* Question Text */}
-        <h3 className="text-lg font-semibold mb-4">{currentQuestion.text}</h3>
+        <h3 
+          className="font-semibold mb-4"
+          style={{ fontSize: `${(quizConfig?.fontSize || 16) * 1.125}px` }}
+        >
+          {currentQuestion.text}
+        </h3>
 
         {/* Alternatives */}
         <div className="space-y-2">
@@ -327,7 +332,12 @@ export default function QuizPlayer({
                     {showFeedback && isSelected && !isCorrectAlt && <X className="w-3.5 h-3.5" />}
                     {!showFeedback && String.fromCharCode(65 + idx)}
                   </div>
-                  <span className="flex-1 text-left text-sm">{alt.text}</span>
+                  <span 
+                    className="flex-1 text-left"
+                    style={{ fontSize: `${quizConfig?.fontSize || 16}px` }}
+                  >
+                    {alt.text}
+                  </span>
                 </div>
               </button>
             );
