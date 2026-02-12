@@ -2980,6 +2980,50 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup_migrate_urls():
+    """Auto-migrate absolute asset URLs to relative on startup (fixes fork issues)"""
+    import re
+    try:
+        migrated_count = 0
+        projects = await db.projects.find({}).to_list(1000)
+        for project in projects:
+            updated = False
+            course = project.get('course', {})
+            for slide in course.get('slides', []):
+                for element in slide.get('elements', []):
+                    if element.get('type') == 'html' and element.get('htmlContent'):
+                        html = element['htmlContent']
+                        new_html = re.sub(r'https?://[^/\s"\']+/api/assets/', '/api/assets/', html)
+                        new_html = re.sub(r'https?://[^/\s"\']+/api/projects/', '/api/projects/', new_html)
+                        if new_html != html:
+                            element['htmlContent'] = new_html
+                            updated = True
+                            migrated_count += 1
+                    src = element.get('src', '')
+                    if src and src.startswith('http') and '/api/' in src:
+                        new_src = re.sub(r'https?://[^/\s"\']+(/api/.*)', r'\1', src)
+                        if new_src != src:
+                            element['src'] = new_src
+                            updated = True
+                            migrated_count += 1
+                bg = slide.get('backgroundImage', '')
+                if bg and bg.startswith('http') and '/api/' in bg:
+                    new_bg = re.sub(r'https?://[^/\s"\']+(/api/.*)', r'\1', bg)
+                    if new_bg != bg:
+                        slide['backgroundImage'] = new_bg
+                        updated = True
+                        migrated_count += 1
+            if updated:
+                await db.projects.update_one({'id': project['id']}, {'$set': {'course': course}})
+        if migrated_count > 0:
+            logger.info(f"Startup URL migration: fixed {migrated_count} absolute URLs to relative")
+        else:
+            logger.info("Startup URL migration: no absolute URLs found, all clean")
+    except Exception as e:
+        logger.warning(f"Startup URL migration failed (non-fatal): {e}")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
