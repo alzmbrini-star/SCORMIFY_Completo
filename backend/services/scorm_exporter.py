@@ -672,11 +672,11 @@ var CoursePlayer = (function() {
                         try {
                             var doc = iframe.contentDocument || iframe.contentWindow.document;
                             if (doc && doc.body) {
-                                // Remove overflow:hidden from the iframe's html/body to get true scrollHeight
-                                doc.documentElement.style.overflow = 'visible';
-                                doc.documentElement.style.height = 'auto';
-                                doc.body.style.overflow = 'visible';
-                                doc.body.style.height = 'auto';
+                                // Override overflow:hidden!important from srcdoc CSS
+                                doc.documentElement.style.setProperty('overflow', 'visible', 'important');
+                                doc.documentElement.style.setProperty('height', 'auto', 'important');
+                                doc.body.style.setProperty('overflow', 'visible', 'important');
+                                doc.body.style.setProperty('height', 'auto', 'important');
                                 var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
                                 iframe.style.height = h + 'px';
                                 iframe.parentElement.style.height = (h + 4) + 'px';
@@ -687,11 +687,9 @@ var CoursePlayer = (function() {
                     }
                     iframe.addEventListener('load', function() {
                         resizeIframe();
-                        // Also resize after a short delay to catch late-loading content
                         setTimeout(resizeIframe, 500);
                         setTimeout(resizeIframe, 1500);
                     });
-                    // Try immediately too in case already loaded
                     resizeIframe();
                 });
             }, 300);
