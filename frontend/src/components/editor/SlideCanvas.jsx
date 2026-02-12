@@ -723,95 +723,23 @@ const SlideCanvas = ({
                       <html>
                         <head>
                           <style>
+                            ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
+                            /* SlideCanvas-specific overrides */
                             html, body { 
-                              margin: 0; 
-                              padding: 0;
-                              width: 100%;
-                              height: 100%;
-                              background: transparent !important; 
-                              font-family: Arial, sans-serif;
-                              color: #f1f5f9;
-                              line-height: 1.5;
                               overflow: hidden;
                               ${element.objectFit === 'cover' ? 'display: flex; align-items: center; justify-content: center;' : ''}
                             }
                             .content-wrapper {
-                              width: 100%;
-                              height: 100%;
                               padding: ${element.objectFit === 'cover' ? '0' : '12px'};
-                              box-sizing: border-box;
-                              overflow: auto;
                             }
-                            * { background: transparent !important; box-sizing: border-box; }
-                            /* Rich Text Editor Image Float Styles - Override inline width for floated images */
+                            * { background: transparent !important; }
                             img {
-                              border: none !important;
-                              outline: none !important;
-                              box-shadow: none !important;
-                              height: auto !important;
-                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : 'max-width: 100% !important;'}
+                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : ''}
                             }
-                            /* Float left - preserve original width, but limit to 45% max */
-                            img.rtf-image-float-left,
-                            body img.rtf-image-float-left,
-                            img[style*="float: left"],
-                            img[style*="float:left"],
-                            img[class*="float-left"] {
-                              float: left !important;
-                              clear: left !important;
-                              max-width: 45% !important;
-                              height: auto !important;
-                              border-radius: 4px !important;
-                              margin: 0 16px 12px 0 !important;
-                              display: block !important;
-                              object-fit: contain !important;
-                            }
-                            /* Float right - preserve original width, but limit to 45% max */
-                            img.rtf-image-float-right,
-                            body img.rtf-image-float-right,
-                            img[style*="float: right"],
-                            img[style*="float:right"],
-                            img[class*="float-right"] {
-                              float: right !important;
-                              clear: right !important;
-                              max-width: 45% !important;
-                              height: auto !important;
-                              border-radius: 4px !important;
-                              margin: 0 0 12px 16px !important;
-                              display: block !important;
-                              object-fit: contain !important;
-                            }
-                            img.rtf-image-center {
-                              display: block !important;
-                              max-width: 80% !important;
-                              margin: 8px auto !important;
-                            }
-                            img.rtf-image-inline {
-                              display: block !important;
-                              max-width: 100% !important;
-                              margin: 8px 0 !important;
-                            }
-                            /* Clear floats properly */
-                            .content-wrapper::after {
-                              content: '';
-                              display: table;
-                              clear: both;
-                            }
-                            /* Text elements flow around floats - improved word breaking */
-                            p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 {
-                              overflow: visible !important;
-                              word-wrap: break-word;
-                              overflow-wrap: break-word;
-                              word-break: normal;
-                              hyphens: auto;
-                              -webkit-hyphens: auto;
-                            }
-                            /* Table styles */
+                            /* Dark theme table styles */
                             table {
                               border-collapse: separate;
                               border-spacing: 0;
-                              width: 100%;
-                              margin: 1rem 0;
                               border-radius: 8px;
                               overflow: hidden;
                               box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
@@ -819,27 +747,15 @@ const SlideCanvas = ({
                             th {
                               background: linear-gradient(to bottom, #475569, #334155);
                               border-bottom: 2px solid #22d3ee;
-                              padding: 0.5rem 0.75rem;
-                              font-weight: 600;
-                              text-align: left;
                               color: #f1f5f9;
                             }
                             td {
                               border-bottom: 1px solid #334155;
-                              padding: 0.5rem 0.75rem;
                               background: #1e293b;
                               color: #e2e8f0;
                             }
                             tr:nth-child(even) td { background: #1a2433; }
-                            /* Typography - use relative sizes */
-                            h1 { font-size: 1.4em; font-weight: bold; margin: 0 0 0.75em 0; }
-                            h2 { font-size: 1.2em; font-weight: bold; margin: 0 0 0.5em 0; }
-                            h3 { font-size: 1.1em; font-weight: bold; margin: 0 0 0.4em 0; }
-                            p { margin: 0 0 0.6em 0; }
-                            ul { list-style: disc; padding-left: 1.5em; margin: 0 0 0.6em 0; }
-                            ol { list-style: decimal; padding-left: 1.5em; margin: 0 0 0.6em 0; }
-                            li { margin-bottom: 0.2em; }
-                            a { color: #22d3ee; text-decoration: underline; }
+                            a { color: #22d3ee; }
                           </style>
                         </head>
                         <body><div class="content-wrapper">${sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>'}</div></body>
