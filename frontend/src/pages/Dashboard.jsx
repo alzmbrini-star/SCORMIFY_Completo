@@ -49,6 +49,7 @@ export default function Dashboard() {
     loading,
     fetchProjects,
     createProject,
+    updateProject,
     deleteProject,
     uploadPPT,
     checkJobStatus,
@@ -56,7 +57,10 @@ export default function Dashboard() {
 
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [renameProjectId, setRenameProjectId] = useState(null);
+  const [renameProjectName, setRenameProjectName] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingJobId, setProcessingJobId] = useState(null);
   const [processingStatus, setProcessingStatus] = useState('');
