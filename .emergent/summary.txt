@@ -1,144 +1,145 @@
 <analysis>**original_problem_statement:**
-The user initially reported a series of critical bugs related to Rich Text Format (RTF) content. These included save failures that deleted content, visual inconsistencies between the editor and the final output, and images disappearing.
-
-After the agent fixed these issues, the user reported a new critical bug:
-Por favor corrija este problema ao tentar movimentar objetos no SLIDE CANVAS! (Please fix this problem when trying to move objects on the SLIDE CANVAS!). This is now the primary issue to be addressed.
+The user initially reported that moving objects on the slide canvas was broken. After that was fixed, the user requested a series of features and bug fixes:
+1.  Implement a Rename Course feature.
+2.  Allow setting the font size for Quizzes.
+3.  Allow editing the font size for *existing* Quizzes.
+4.  Implement copy/paste functionality for slide elements.
+5.  Fix a bug where quiz font size changes did not apply to SCORM/HTML exports.
+6.  Fix a critical and recurring bug where images in RTF content have broken links after the project is forked. This is the current and most urgent issue.
 
 **User's preferred language**: Português (Portuguese). The next agent MUST respond in Portuguese.
 
 **what currently exists?**
-The application is a full-stack course creation platform with a React frontend and FastAPI backend. Users can build courses using a slide-based editor that supports rich text (RTF), image uploads, and other elements. The system can export courses to SCORM and HTML formats. Key components include the main , a  for element layout, a  for editing, and a . The backend handles authentication, data persistence in MongoDB, and course exporting.
+The application is a full-stack course creation platform built with React, FastAPI, and MongoDB. It features a slide-based editor where users can add and manipulate elements like text, images, and quizzes. The editor supports Rich Text Format (RTF) content. The application can export courses to SCORM and HTML formats. User authentication is handled via Google OAuth.
 
 **Last working item**:
-    - Last item agent was working: The user reported a new bug preventing them from moving objects on the . The agent has acknowledged the report but has not yet started the investigation.
+    - Last item agent was working: The user reported a critical, recurring bug: Toda vez que é feito um FORK as imagens feitas na versão anterior perdem a referência e ficam quebradas ao ser editado no RTF! (Every time a FORK is done, the images from the previous version lose their reference and are broken when edited in the RTF!). The agent has acknowledged the bug but has not yet begun debugging.
     - Status: NOT STARTED
     - Agent Testing Done: N
-    - Which testing method agent to use? Frontend debugging. The agent must first try to reproduce the issue by dragging and resizing elements on the . The investigation will focus on event handlers (, ) in  and . The screenshot tool will be useful to verify the UI behavior after a fix.
+    - Which testing method agent to use? Manual debugging followed by frontend/backend testing. The issue likely stems from absolute URLs (including the environment-specific domain) being saved in the database within the RTF HTML content. When the environment is forked, the domain changes, and the old URLs become invalid, resulting in 404 errors for the images.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P0 - CRITICAL) Moving objects on the  is broken.
+  - Issue 1: (P0 - CRITICAL) Images in RTF content break after a project fork.
 
   Issues Detail:
   - Issue 1: 
-     - **Description**: User reports an issue when trying to movimentar objetos (move objects) on the . This likely refers to dragging and/or resizing elements, which is a core functionality of the editor.
-     - **Attempted fixes**: None. This is a newly reported bug.
+     - **Description**: Image  attributes within the RTF editor point to absolute URLs from the previous session. After a fork, the application's domain changes, causing these image links to break.
+     - **Attempted fixes**: None. This is a newly reported recurrence of a known architectural problem.
      - **Next debug checklist**:
-        1. Log into the application and open an existing project.
-        2. Attempt to drag an element to a new position on the .
-        3. Attempt to resize an element on the .
-        4. Observe the failure mode. Does the element snap back? Does it disappear? Does it cause a console error?
-        5. Inspect the event handlers responsible for position and size updates, likely in , and the state update logic within .
-        6. Use browser developer tools to trace the state before and after the move/resize operation to identify where the logic is failing.
-     - **Why fix this issue and what will be achieved with the fix?** This is a critical blocker. Users cannot arrange slide content, which makes the course editor unusable. Fixing it is essential to restore core application functionality.
+        1.  Examine the  of an element containing an image in the MongoDB database. Verify if the  attribute contains an absolute URL (e.g., ).
+        2.  Investigate the image upload/insertion logic in  to understand how the image URL is constructed and inserted into the editor.
+        3.  The fix will likely require storing relative paths (e.g., ) in the database.
+        4.  The frontend must then be modified to dynamically prepend  to these relative paths when rendering the content, ensuring the images always point to the correct domain of the current environment.
+        5.  This fix needs to be applied when rendering content in , , and potentially within the backend exporters (, ).
+     - **Why fix this issue and what will be achieved with the fix?** This is a platform-breaking bug that erodes user trust and causes data loss across sessions. Fixing it is essential for the application to be viable for long-term use.
      - **Status**:  NOT STARTED
-     - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** Frontend.
+     - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** Both.
      - **Blocked on other issue**: None.
 
 **In progress Task List**:
 None.
 
 **Upcoming and Future Tasks**
-- **Task 1: Refactor Shared Logic (P1)**
-  - **Description**: The codebase has significant technical debt from duplicated logic. This should be addressed to improve maintainability.
-  - **Action Items**:
-    1.  Create a  file.
-    2.  Move the  function from , , and  into this new utility file and import it where needed.
-    3.  Create a shared CSS file (e.g., ) to centralize the RTF rendering styles currently duplicated in , , , and .
+- **Task 1: Complete Backend CSS/JS Refactoring (P2)**
+    - **Description**: The  and  files still contain large, hardcoded strings for CSS and JavaScript (). This makes maintenance difficult. The agent created a sync script () as a workaround, but a better solution is needed.
+    - **Action Items**: Modify the exporters to read the  and any shared CSS files from the filesystem at export time instead of relying on hardcoded constants or sync scripts.
 
 **Completed work in this session**
-- **RTF Image Rendering Fix (DONE)**:
-  - Fixed a bug where images in RTF content would not display on the . The root cause was twofold:
-    1.  **HTML Bloat**: A  function was created and applied to strip thousands of inherited Tailwind CSS variables from the saved HTML.
-    2.  **Iframe Scaling**: The iframe rendering the content was changed to use  on its body, ensuring the content scales with the element container instead of being clipped.
-  - This fix was applied across , , and the SCORM/HTML exporters.
-
-- **RTF Save & Data Loss Bugs (DONE)**:
-  - Fixed a critical bug where saving an RTF element would fail and erase its content. The fix involved making state management more robust, ensuring the  was correctly passed, and preventing the UI from clearing content on a failed save.
-  - Fixed a race condition where attempting to save an RTF element that had been deleted in the background would cause an error. A pre-save check was added to confirm the element still exists in the local state before making an API call.
+- **Drag-and-Drop Bug Fix (DONE)**: Fixed a critical bug preventing users from moving elements on the . The fix involved implementing an optimistic UI update (updating local state on drag) and deferring the API call until the drag operation is complete ().
+- **Rename Course Feature (DONE)**: Implemented a feature allowing users to rename their courses from the main dashboard via a new dialog.
+- **Quiz Font Size Feature (DONE)**: Added functionality to set a font size when creating a new quiz and to edit the font size of existing quizzes from the element properties panel.
+- **Quiz Export Font Size Fix (DONE)**: Corrected the SCORM/HTML exporters to ensure the selected quiz font size is correctly applied in the exported packages. This involved updating the embedded .
+- **Copy/Paste Elements (DONE)**: Implemented copy/paste functionality for slide elements using both keyboard shortcuts (Ctrl+C/Ctrl+V) and UI buttons in the editor toolbar.
+- **Code Refactoring (DONE)**:
+  - The  function was moved from multiple components into a single utility file: .
+  - A utility  was created in  to centralize RTF CSS for frontend components (, ).
 
 **Earlier issues found/mentioned but not fixed**
-None.
+- **Backend Code Duplication**: The refactoring of RTF styles was only completed on the frontend. The backend exporters ( and ) still contain duplicated/hardcoded CSS and JS, which was an issue identified in the previous session.
 
 **Known issue recurrence from previous fork**
-None.
+  - **Issue recurrence in previous fork**: Broken image references in the RTF editor after a fork.
+  - **Recurrence count**: This is at least the second time this architectural issue has been reported.
+  - **Status**: NOT STARTED
 
 **Code Architecture**
-- **Frontend**: React ()
-  - : The main stateful component for the editor, handling element manipulation logic and dialogs.
-  - : Renders slide elements. Crucially, it renders RTF content inside an  to isolate styles.
-  - : Manages the global state for the loaded project, including API calls to update data.
-  - : Modal for editing RTF content.
-- **Backend**: FastAPI ()
-  - : Contains all API endpoints, including element creation and updates.
-  - : Contains logic for exporting courses to SCORM and HTML.
-- **Database**: MongoDB.
+
 
 **Key Technical Concepts**
-- **Iframe Styling & Sandboxing**: Content rendering for RTF elements is done within iframes to prevent style conflicts. Fixing bugs required manipulating the iframe's  and injecting styles to ensure content scales correctly.
-- **HTML Sanitization**: A regex-based sanitization function () was introduced to strip CSS variables from user-generated HTML, preventing rendering issues caused by style pollution from the main application.
-- **Asynchronous State Management**: Fixed several race conditions and state-related bugs by adding pre-API call checks (e.g., verifying element existence) and ensuring component state behaves correctly after failed asynchronous operations.
+- **Optimistic UI Updates**: Used to fix the drag-and-drop bug by updating the UI state locally before making the final API call, providing a smooth user experience.
+- **Code Refactoring & DRY Principle**: Centralized duplicated logic () and styles () into utility files to improve maintainability.
+- **Dynamic Script/Style Management**: The backend exporters rely on hardcoded strings and a sync script for assets. This is a point of technical debt.
+- **Relative vs. Absolute URLs**: The core of the current critical bug. The application incorrectly stores absolute, environment-specific URLs in the database.
 
 **key DB schema**
-  - **projects**: Contains course documents. Each document has a  array, and each slide has an  array. RTF content is stored as an HTML string in .
+- **projects**:
+  - : [ { : [ { , : {  } } ] } ]
 
 **changes in tech stack**
 None.
 
 **All files of reference**
--  (Modified for bug fixes)
--  (Modified for bug fixes)
--  (Modified for bug fixes)
--  (Modified for bug fixes)
--  (Modified for bug fixes)
--  (Modified for bug fixes)
--  (Modified for bug fixes)
--  (Viewed for debugging)
+- 
+- 
+- 
+- 
+- 
+- 
+-  (Created)
+-  (Created)
+- 
+- 
+- 
+-  (Created)
 
 **Areas that need refactoring**:
-- **Logic Duplication**: The  function is copy-pasted in three different frontend components. It should be extracted into a shared utility file ().
-- **CSS Duplication**: The styles for rendering RTF content are still duplicated across four different locations (2 frontend, 2 backend). This technical debt was identified in the previous session and remains.
+- The  and  files should be modified to read assets like  and CSS styles from files at runtime, rather than embedding them as massive, hardcoded strings or relying on a separate sync script.
 
 **key api endpoints**
-- : Updates a specific element.
-- : Serves static assets like images. It does not require an auth token, which is necessary for images to render correctly inside sandboxed iframes.
+- : Used for renaming the course.
+- : Used for updating element properties (position, size, quiz config).
+- : Used for pasting new elements.
+- : Serves static assets like images.
 
 **Critical Info for New Agent**
-- Your first and only priority is to fix the bug preventing users from moving objects on the . This is a P0, application-breaking issue.
-- The previous work heavily involved fixing RTF rendering inside iframes. Be mindful of this architecture (, ) as changes to element rendering can easily cause regressions.
-- After fixing the critical bug, propose the refactoring task to address the duplicated code. This will improve the long-term health of the codebase.
+- **Priority #1**: You must fix the recurring bug causing broken image links in the RTF editor after a fork. This is a P0 issue. The root cause is almost certainly the storage of absolute URLs in the database. Your fix should involve storing relative URLs and constructing the full path on the client side.
+- **User Language**: Communicate exclusively in Portuguese.
+- **Testing Limitation**: User authentication is via Google OAuth, which the agent cannot perform automatically. For features behind the login wall, you may need to rely on the  or ask the user to verify changes.
 
 **documents and test reports created in this job**
-- 
-- 
-- 
-- 
+-  (for drag-and-drop fix)
+-  (updated multiple times)
 
-**Last 10 User Messages and any pending HUMAN messages**
--  Por favor corrija este problema ao tentar movimentar objetos no SLIDE CANVAS! (Please fix this problem when trying to move objects on the SLIDE CANVAS!) - **Status: PENDING**
--  Isto é o que vejo no RTF! e Veja o que quando dou o inserir no slide aparece! (This is what I see in the RTF! and look what appears when I insert it on the slide!) - **Status: COMPLETED**
--  Veja o erro quando tento ajustar um texto no RTF e depois faço a atualização! (See the error when I try to adjust text in the RTF and then update it!) - **Status: COMPLETED**
--  Sim pode! (Yes, you can!) - **Status: COMPLETED**
+**Last 10 User Messages and any pending HUMAN messages** 
+-  Por favor corrija este problema que tem sido recorrente! Toda vez que é feito um FORK as imagens feitas na versão anterior perdem a referência e ficam quebradas ao ser editado no RTF! (Please fix this recurring problem! Every time a FORK is done the images from the previous version lose their reference and are broken when edited in the RTF!) - **Status: PENDING**
+-  Preciso de um ajuste! O tamanho maior das fontes do Quiz não estão se refletindo no SCORM nem no HTML, poderia ajustar isso? (I need an adjustment! The larger Quiz font sizes are not reflected in SCORM or HTML, could you adjust this?) - **Status: RESOLVED**
+-  O aumento de tamanho da fonte ao criar o Quiz está OK, mas preciso que possa alterar a fonte dos Quizes já existentes, poderia ajustar isso? (The font size increase when creating the Quiz is OK, but I need to be able to change the font of existing Quizzes, could you adjust that?) - **Status: RESOLVED**
+-  Corrija este BUG por favor! (Fix this BUG please!) [Re:  not defined] - **Status: RESOLVED**
+-  Preciso que permita aumentar o tamanho da fonte do QUIZ! (I need you to allow increasing the QUIZ font size!) - **Status: RESOLVED**
+-  Preciso que insira a possibilidade de renomear um Curso! (I need you to add the ability to rename a Course!) - **Status: RESOLVED**
+-  User confirmed completion of a task with 1. - **Status: NOTED**
+-  Tentando movimentar objetos no slide canvas, poderia corrigir? (Trying to move objects on the slide canvas, could you fix it?) - **Status: RESOLVED**
 
 **Project Health Check:**
-- **Working**: User authentication, course preview, and the entire RTF content workflow (creating, editing, saving, and consistent rendering) are now stable.
-- **Broken**: The core editor interaction of moving/arranging elements on the  is broken, blocking users from designing their slides.
+- **Working**: Drag-and-drop, course renaming, quiz font size configuration, copy/paste, and SCORM/HTML export for quiz fonts.
+- **Broken**: Image rendering in the RTF editor is fundamentally broken across different sessions/forks due to how URLs are stored. This is a critical data integrity issue.
 - **Mocked**: None.
 
 **3rd Party Integrations**
 - ElevenLabs (TTS)
-- HeyGen (Video Generation - code exists but is not used)
+- HeyGen (Video Generation - unused)
 
 **Testing status**
-  - Testing agent used after significant changes: YES ( was used three times to validate major bug fixes).
+  - Testing agent used after significant changes: YES, for the initial drag-and-drop fix.
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: None currently active.
+  - Known regressions: The broken image URL issue is a major, known regression that occurs after every fork.
 
 **Credentials to test flow:**
-Credentials were found in the environment and used successfully for testing. The next agent should be able to find and use them again.
+The user authenticates via Google OAuth. This prevents the main agent from performing E2E tests that require login. The  should be used for validation, or the user must be asked to verify.
 
 **What agent forgot to execute**
-- The agent did not address the technical debt of duplicated CSS for RTF rendering, a known issue from the previous fork.
-- The agent introduced more technical debt by duplicating the new  function across three files instead of creating a shared utility. This should be refactored.</analysis>
+- The agent did not perform automated testing for any of the new features (rename, quiz font size, copy/paste), citing the OAuth login as a blocker. While understandable, this increases the risk of shipping bugs.
+- The agent did not complete the full refactoring of duplicated code. The backend exporters (, ) still contain hardcoded CSS and rely on a sync script for JavaScript, which is a form of technical debt.</analysis>
