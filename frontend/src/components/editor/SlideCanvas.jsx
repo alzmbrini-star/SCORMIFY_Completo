@@ -770,11 +770,14 @@ const SlideCanvas = ({
                               display: table;
                               clear: both;
                             }
-                            /* Text elements flow around floats */
+                            /* Text elements flow around floats - improved word breaking */
                             p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 {
                               overflow: visible !important;
                               word-wrap: break-word;
                               overflow-wrap: break-word;
+                              word-break: normal;
+                              hyphens: auto;
+                              -webkit-hyphens: auto;
                             }
                             /* Table styles */
                             table {
