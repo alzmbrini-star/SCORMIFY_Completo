@@ -1200,6 +1200,26 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
   - `/app/frontend/src/contexts/AuthContext.jsx` - funções login() e processGoogleAuth()
 - **Status**: FIXED AND TESTED
 
+
+### RTF Save Data Loss Bug - FIXED (Feb 12, 2026)
+- **Issue**: Ao editar texto RTF e clicar em "Salvar Alterações", aparecia "Falha ao salvar texto" e ao fechar o editor, o conteúdo era apagado
+- **Root Cause**: 
+  1. `handleAddRichTextToSlide` usava `currentSlide.id` que poderia ser null/stale se o slide mudasse durante a edição
+  2. `updateElement` e `addElement` no ProjectContext retornavam silenciosamente `undefined` quando `currentProject` era null, em vez de lançar erro (mascarando a falha)
+  3. O handler `onOpenChange` do Dialog limpava o conteúdo (`richTextContent`) ao fechar, mesmo quando o save falhava, causando perda dos dados editados
+- **Fix Applied**:
+  1. Adicionado estado `editingHtmlSlideId` para armazenar o ID do slide no momento da abertura do editor
+  2. `handleAddRichTextToSlide` agora usa `editingHtmlSlideId` (armazenado) em vez de `currentSlide.id` (dinâmico)
+  3. `updateElement`/`addElement` agora lançam erros quando params obrigatórios estão faltando
+  4. Adicionado flag `rtfSaveFailed` - conteúdo só é limpo ao fechar o dialog se o save foi bem-sucedido
+  5. Mensagens de erro mais detalhadas com informação do backend
+- **Files Modified**:
+  - `/app/frontend/src/pages/Editor.jsx` - handleAddRichTextToSlide, handleEditHtmlElement, dialog onOpenChange
+  - `/app/frontend/src/contexts/ProjectContext.jsx` - updateElement, addElement (validação robusta)
+- **Status**: FIXED AND TESTED (100% backend + frontend)
+- **Verification**: Testing agent confirmou: edição salva com sucesso, conteúdo persiste, criação de novos elementos funciona
+
+
 ### P3 - Future Enhancements
 - Question bank sharing between projects
 - Question import from QTI format
