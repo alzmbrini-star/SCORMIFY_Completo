@@ -881,8 +881,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             }
                             img.rtf-image-center { display: inline-block !important; max-width: 80% !important; height: auto !important; border: none !important; outline: none !important; }
                             img.rtf-image-inline { display: block !important; max-width: 100% !important; height: auto !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
-                            img[style*="float: left"] { float: left !important; margin-right: 16px !important; margin-bottom: 12px !important; max-width: 45% !important; height: auto !important; }
-                            img[style*="float: right"] { float: right !important; margin-left: 16px !important; margin-bottom: 12px !important; max-width: 45% !important; height: auto !important; }
+                            img.rtf-image-float-left, img[style*="float: left"], img[style*="float:left"] { float: left !important; width: 45% !important; max-width: 45% !important; margin-right: 16px !important; margin-bottom: 12px !important; height: auto !important; object-fit: contain !important; }
+                            img.rtf-image-float-right, img[style*="float: right"], img[style*="float:right"] { float: right !important; width: 45% !important; max-width: 45% !important; margin-left: 16px !important; margin-bottom: 12px !important; height: auto !important; object-fit: contain !important; }
                             body::after { content: ''; display: table; clear: both; }
                             p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; word-wrap: break-word; overflow-wrap: break-word; max-width: 100% !important; word-break: normal; hyphens: auto; -webkit-hyphens: auto; }
                             `}
