@@ -69,6 +69,13 @@ async def process_html_content_images(
     if not html_content:
         return html_content
     
+    # Sanitize: remove Tailwind CSS variables and editor artifacts
+    html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
+    html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
+    html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
+    html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
+    html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
+    
     # Find all img tags with src attribute
     img_pattern = re.compile(r'<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*>', re.IGNORECASE)
     
