@@ -348,6 +348,30 @@ const SlideCanvas = ({
   }, [onDeleteElement]);
 
   const handleKeyDown = useCallback((e) => {
+    // Copy element (Ctrl+C / Cmd+C)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedElementId && !editingElementId) {
+      e.preventDefault();
+      const element = slide?.elements?.find(el => el.id === selectedElementId);
+      if (element && onCopyElement) {
+        onCopyElement(element);
+      }
+    }
+    // Paste element (Ctrl+V / Cmd+V)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && copiedElement && !editingElementId) {
+      e.preventDefault();
+      if (onPasteElement) {
+        onPasteElement();
+      }
+    }
+    // Duplicate element (Ctrl+D / Cmd+D)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'd' && selectedElementId && !editingElementId) {
+      e.preventDefault();
+      const element = slide?.elements?.find(el => el.id === selectedElementId);
+      if (element && onCopyElement && onPasteElement) {
+        onCopyElement(element);
+        setTimeout(() => onPasteElement(), 50);
+      }
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId && editingElementId !== selectedElementId) {
       e.preventDefault();
       onDeleteElement(selectedElementId);
@@ -390,7 +414,7 @@ const SlideCanvas = ({
         }
       }
     }
-  }, [selectedElementId, editingElementId, selectedAnnotationId, slide, canvasWidth, canvasHeight, onDeleteElement, onSelectElement, onUpdateElement, deleteAnnotation, setSelectedAnnotationId]);
+  }, [selectedElementId, editingElementId, selectedAnnotationId, slide, canvasWidth, canvasHeight, onDeleteElement, onSelectElement, onUpdateElement, deleteAnnotation, setSelectedAnnotationId, onCopyElement, onPasteElement, copiedElement]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
