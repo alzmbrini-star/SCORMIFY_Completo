@@ -1205,19 +1205,20 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Issue**: Ao editar texto RTF e clicar em "Salvar Alterações", aparecia "Falha ao salvar texto" e ao fechar o editor, o conteúdo era apagado
 - **Root Cause**: 
   1. `handleAddRichTextToSlide` usava `currentSlide.id` que poderia ser null/stale se o slide mudasse durante a edição
-  2. `updateElement` e `addElement` no ProjectContext retornavam silenciosamente `undefined` quando `currentProject` era null, em vez de lançar erro (mascarando a falha)
-  3. O handler `onOpenChange` do Dialog limpava o conteúdo (`richTextContent`) ao fechar, mesmo quando o save falhava, causando perda dos dados editados
+  2. `updateElement` e `addElement` no ProjectContext retornavam silenciosamente `undefined` quando `currentProject` era null
+  3. O handler `onOpenChange` do Dialog limpava o conteúdo ao fechar, mesmo quando o save falhava
+  4. Se o elemento HTML fosse deletado (por qualquer razão) enquanto o RTF editor referenciava seu ID, o PUT retornava 404
 - **Fix Applied**:
-  1. Adicionado estado `editingHtmlSlideId` para armazenar o ID do slide no momento da abertura do editor
+  1. Adicionado estado `editingHtmlSlideId` para armazenar o ID do slide na abertura do editor
   2. `handleAddRichTextToSlide` agora usa `editingHtmlSlideId` (armazenado) em vez de `currentSlide.id` (dinâmico)
   3. `updateElement`/`addElement` agora lançam erros quando params obrigatórios estão faltando
-  4. Adicionado flag `rtfSaveFailed` - conteúdo só é limpo ao fechar o dialog se o save foi bem-sucedido
+  4. **Pré-verificação de existência**: Antes de chamar `updateElement`, verifica se o elemento ainda existe no estado local. Se foi deletado, cria um novo via `addElement` automaticamente
   5. Mensagens de erro mais detalhadas com informação do backend
 - **Files Modified**:
-  - `/app/frontend/src/pages/Editor.jsx` - handleAddRichTextToSlide, handleEditHtmlElement, dialog onOpenChange
+  - `/app/frontend/src/pages/Editor.jsx` - handleAddRichTextToSlide (verificação de existência + auto-create), handleEditHtmlElement, dialog onOpenChange
   - `/app/frontend/src/contexts/ProjectContext.jsx` - updateElement, addElement (validação robusta)
-- **Status**: FIXED AND TESTED (100% backend + frontend)
-- **Verification**: Testing agent confirmou: edição salva com sucesso, conteúdo persiste, criação de novos elementos funciona
+- **Status**: FIXED AND TESTED (100% backend 13/13 + frontend all flows)
+- **Verification**: Testing agent confirmou: edição, criação, e cenário de elemento deletado todos funcionam sem erros 404
 
 
 ### P3 - Future Enhancements
