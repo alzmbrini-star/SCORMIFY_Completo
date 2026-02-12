@@ -1535,6 +1535,9 @@ export default function Editor() {
       return;
     }
 
+    // Sanitize HTML content before saving (remove Tailwind CSS vars and editor artifacts)
+    const cleanContent = sanitizeHtmlContent(richTextContent);
+
     try {
       if (editingHtmlElementId) {
         // Verify element still exists before updating
@@ -1550,13 +1553,13 @@ export default function Editor() {
             y: 50,
             width: 600,
             height: 400,
-            htmlContent: richTextContent,
+            htmlContent: cleanContent,
           });
           toast.success('Novo texto criado no slide!');
         } else {
           // Update existing element
           await updateElement(targetSlideId, editingHtmlElementId, {
-            htmlContent: richTextContent,
+            htmlContent: cleanContent,
           });
           toast.success('Texto atualizado!');
         }
@@ -1568,7 +1571,7 @@ export default function Editor() {
           y: 50,
           width: 600,
           height: 400,
-          htmlContent: richTextContent,
+          htmlContent: cleanContent,
         });
         toast.success('Texto adicionado ao slide!');
       }
