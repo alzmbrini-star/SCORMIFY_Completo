@@ -341,6 +341,33 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Rename Project Dialog */}
+        <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Renomear Projeto</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                placeholder="Nome do projeto"
+                value={renameProjectName}
+                onChange={(e) => setRenameProjectName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleRenameProject()}
+                data-testid="rename-project-input"
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRenameDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleRenameProject} data-testid="confirm-rename-btn">
+                Renomear
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Projects Grid */}
         <div className="mb-6">
           <h3 className="text-xl font-semibold mb-4">Your Projects</h3>
