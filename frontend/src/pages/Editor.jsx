@@ -3904,6 +3904,107 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
         </div>
       )}
 
+      {element.type === 'quiz' && (
+        <div className="panel-section">
+          <h4 className="text-sm font-medium mb-3">Configurações do Quiz</h4>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Título</label>
+              <Input
+                value={element.quizConfig?.title || 'Quiz'}
+                onChange={(e) => onUpdate({ 
+                  quizConfig: { ...element.quizConfig, title: e.target.value } 
+                })}
+                className="h-8"
+                data-testid="quiz-title-input"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Tamanho da Fonte</label>
+              <select
+                value={element.quizConfig?.fontSize || 16}
+                onChange={(e) => onUpdate({ 
+                  quizConfig: { ...element.quizConfig, fontSize: parseInt(e.target.value) } 
+                })}
+                className="w-full h-8 rounded-md border border-input bg-background px-3 text-sm"
+                data-testid="quiz-font-size-select"
+              >
+                <option value="12">12px - Pequeno</option>
+                <option value="14">14px - Médio</option>
+                <option value="16">16px - Normal</option>
+                <option value="18">18px - Grande</option>
+                <option value="20">20px - Muito Grande</option>
+                <option value="24">24px - Extra Grande</option>
+                <option value="28">28px - Gigante</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Nota mínima (%)</label>
+              <select
+                value={element.quizConfig?.passingScore || 60}
+                onChange={(e) => onUpdate({ 
+                  quizConfig: { ...element.quizConfig, passingScore: parseInt(e.target.value) } 
+                })}
+                className="w-full h-8 rounded-md border border-input bg-background px-3 text-sm"
+                data-testid="quiz-passing-score-select"
+              >
+                <option value="50">50%</option>
+                <option value="60">60%</option>
+                <option value="70">70%</option>
+                <option value="80">80%</option>
+                <option value="90">90%</option>
+                <option value="100">100%</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="shuffle-questions"
+                checked={element.quizConfig?.shuffleQuestions !== false}
+                onChange={(e) => onUpdate({ 
+                  quizConfig: { ...element.quizConfig, shuffleQuestions: e.target.checked } 
+                })}
+                className="w-4 h-4"
+              />
+              <label htmlFor="shuffle-questions" className="text-xs text-muted-foreground cursor-pointer">
+                Embaralhar questões
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="shuffle-alternatives"
+                checked={element.quizConfig?.shuffleAlternatives !== false}
+                onChange={(e) => onUpdate({ 
+                  quizConfig: { ...element.quizConfig, shuffleAlternatives: e.target.checked } 
+                })}
+                className="w-4 h-4"
+              />
+              <label htmlFor="shuffle-alternatives" className="text-xs text-muted-foreground cursor-pointer">
+                Embaralhar alternativas
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="show-feedback"
+                checked={element.quizConfig?.showFeedback !== false}
+                onChange={(e) => onUpdate({ 
+                  quizConfig: { ...element.quizConfig, showFeedback: e.target.checked } 
+                })}
+                className="w-4 h-4"
+              />
+              <label htmlFor="show-feedback" className="text-xs text-muted-foreground cursor-pointer">
+                Mostrar feedback após resposta
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {element.questions?.length || 0} questões neste quiz
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="panel-section">
         <h4 className="text-sm font-medium mb-3">Hyperlink</h4>
         <Input
