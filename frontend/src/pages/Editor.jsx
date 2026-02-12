@@ -3597,6 +3597,8 @@ export default function Editor() {
                 setShowRichTextDialog(false);
                 setRichTextContent('');
                 setEditingHtmlElementId(null);
+                setEditingHtmlSlideId(null);
+                setRtfSaveFailed(false);
               }}>
                 Cancelar
               </Button>
