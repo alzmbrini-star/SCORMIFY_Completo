@@ -496,14 +496,14 @@ export default function Editor() {
       if (response.data) {
         // Refresh project to get updated elements
         await fetchProject(currentProject?.id);
-        setSelectedElement(response.data.id);
+        setSelectedElementId(response.data.id);
         toast.success('Elemento colado!');
       }
     } catch (err) {
       console.error('Paste error:', err);
       toast.error('Erro ao colar elemento');
     }
-  }, [copiedElement, currentSlide?.id, currentProject?.id, API_URL, fetchProject, setSelectedElement]);
+  }, [copiedElement, currentSlide?.id, currentProject?.id, API_URL, fetchProject, setSelectedElementId]);
 
   // Handle layer reordering (zIndex)
   const handleLayerDragEnd = useCallback(async (event) => {
