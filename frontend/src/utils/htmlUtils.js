@@ -3,6 +3,8 @@
  * Used across Editor, SlideCanvas, and export components
  */
 
+const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+
 /**
  * Sanitize HTML content by removing Tailwind CSS variables and editor artifacts
  * This prevents style pollution from the main application affecting rendered content
@@ -31,6 +33,60 @@ export const sanitizeHtmlForDisplay = (htmlContent) => {
  * Some components use sanitizeHtmlContent instead of sanitizeHtmlForDisplay
  */
 export const sanitizeHtmlContent = sanitizeHtmlForDisplay;
+
+/**
+ * Strip absolute domain from asset URLs, converting them to relative paths.
+ * This MUST be called before saving htmlContent to the database to prevent
+ * broken links when the environment domain changes (e.g., after a fork).
+ * 
+ * Converts: https://any-domain.com/api/assets/file.jpg → /api/assets/file.jpg
+ * Converts: https://any-domain.com/api/projects/id/assets/file.jpg → /api/projects/id/assets/file.jpg
+ * @param {string} htmlContent - The HTML string with potential absolute URLs
+ * @returns {string} - HTML string with relative asset URLs
+ */
+export const stripDomainFromAssetUrls = (htmlContent) => {
+  if (!htmlContent) return htmlContent;
+  
+  // Strip domain from /api/assets/ URLs (global AI-generated images)
+  let result = htmlContent.replace(
+    /https?:\/\/[^/\s"']+\/api\/assets\//g,
+    '/api/assets/'
+  );
+  
+  // Strip domain from /api/projects/{id}/assets/ URLs (project-specific media)
+  result = result.replace(
+    /https?:\/\/[^/\s"']+\/api\/projects\//g,
+    '/api/projects/'
+  );
+  
+  return result;
+};
+
+/**
+ * Resolve relative asset URLs to absolute URLs using the current backend URL.
+ * This is needed when loading content into the browser's contentEditable editor
+ * or rendering in iframes, where relative URLs may not resolve correctly.
+ * 
+ * Converts: /api/assets/file.jpg → https://current-domain.com/api/assets/file.jpg
+ * Converts: /api/projects/id/assets/file.jpg → https://current-domain.com/api/projects/id/assets/file.jpg
+ * @param {string} htmlContent - The HTML string with relative asset URLs
+ * @returns {string} - HTML string with absolute asset URLs
+ */
+export const resolveAssetUrls = (htmlContent) => {
+  if (!htmlContent || !API_URL) return htmlContent;
+  
+  // First strip any old absolute domains to normalize
+  let result = stripDomainFromAssetUrls(htmlContent);
+  
+  // Then resolve relative /api/ URLs to the current domain
+  // Match src="/api/..." or src='/api/...' attributes
+  result = result.replace(
+    /(src=["'])\/api\//g,
+    `$1${API_URL}/api/`
+  );
+  
+  return result;
+};
 
 /**
  * Generate inline CSS styles for RTF content rendering in iframes
