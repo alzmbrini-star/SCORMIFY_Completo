@@ -695,34 +695,45 @@ const SlideCanvas = ({
 
               {/* HTML Element */}
               {element.type === 'html' && (
-                <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: element.objectFit === 'cover' ? 'hidden' : 'visible' }}>
+                <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: 'hidden' }}>
                   <iframe
                     srcDoc={`
                       <html>
                         <head>
                           <style>
-                            body { 
+                            html, body { 
                               margin: 0; 
-                              padding: ${element.objectFit === 'cover' ? '0' : '8px'}; 
+                              padding: 0;
+                              width: ${element.width}px;
+                              height: ${element.height}px;
                               background: transparent !important; 
                               font-family: Arial, sans-serif;
                               color: #f1f5f9;
-                              line-height: 1.6;
-                              overflow: ${element.objectFit === 'cover' ? 'hidden' : 'visible'};
-                              ${element.objectFit === 'cover' ? 'display: flex; align-items: center; justify-content: center; height: 100vh;' : ''}
+                              line-height: 1.5;
+                              overflow: hidden;
+                              ${element.objectFit === 'cover' ? 'display: flex; align-items: center; justify-content: center;' : ''}
                             }
-                            * { background: transparent !important; }
-                            /* Rich Text Editor Image Float Styles - HIGH SPECIFICITY */
-                            /* Remove borders/outlines from all images */
+                            .content-wrapper {
+                              width: 100%;
+                              height: 100%;
+                              padding: ${element.objectFit === 'cover' ? '0' : '12px'};
+                              box-sizing: border-box;
+                              overflow: auto;
+                            }
+                            * { background: transparent !important; box-sizing: border-box; }
+                            /* Rich Text Editor Image Float Styles */
                             img {
                               border: none !important;
                               outline: none !important;
                               box-shadow: none !important;
-                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important;' : ''}
+                              max-width: 100% !important;
+                              height: auto !important;
+                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : ''}
                             }
                             img.rtf-image-float-left,
                             body img.rtf-image-float-left,
-                            html body img.rtf-image-float-left {
+                            img[style*="float: left"],
+                            img[style*="float:left"] {
                               float: left !important;
                               clear: left !important;
                               max-width: 45% !important;
@@ -730,12 +741,11 @@ const SlideCanvas = ({
                               border-radius: 4px !important;
                               margin: 0 16px 12px 0 !important;
                               display: block !important;
-                              border: none !important;
-                              outline: none !important;
                             }
                             img.rtf-image-float-right,
                             body img.rtf-image-float-right,
-                            html body img.rtf-image-float-right {
+                            img[style*="float: right"],
+                            img[style*="float:right"] {
                               float: right !important;
                               clear: right !important;
                               max-width: 45% !important;
@@ -743,49 +753,31 @@ const SlideCanvas = ({
                               border-radius: 4px !important;
                               margin: 0 0 12px 16px !important;
                               display: block !important;
-                              border: none !important;
-                              outline: none !important;
                             }
                             img.rtf-image-center {
-                              display: inline-block !important;
+                              display: block !important;
                               max-width: 80% !important;
-                              border: none !important;
-                              outline: none !important;
+                              margin: 8px auto !important;
                             }
                             img.rtf-image-inline {
                               display: block !important;
                               max-width: 100% !important;
                               margin: 8px 0 !important;
-                              border: none !important;
-                              outline: none !important;
-                            }
-                            /* Legacy float support via inline styles */
-                            img[style*="float: left"] {
-                              float: left !important;
-                              margin-right: 16px !important;
-                              margin-bottom: 12px !important;
-                              border: none !important;
-                              outline: none !important;
-                            }
-                            img[style*="float: right"] {
-                              float: right !important;
-                              margin-left: 16px !important;
-                              margin-bottom: 12px !important;
-                              border: none !important;
-                              outline: none !important;
                             }
                             /* Clear floats properly */
-                            body::after {
+                            .content-wrapper::after {
                               content: '';
                               display: table;
                               clear: both;
                             }
-                            /* Ensure paragraphs and other elements flow around floats */
+                            /* Text elements flow around floats */
                             p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 {
                               overflow: visible !important;
+                              word-wrap: break-word;
+                              overflow-wrap: break-word;
                             }
                             /* Table styles */
-                            table, table.rtf-table {
+                            table {
                               border-collapse: separate;
                               border-spacing: 0;
                               width: 100%;
@@ -797,30 +789,30 @@ const SlideCanvas = ({
                             th {
                               background: linear-gradient(to bottom, #475569, #334155);
                               border-bottom: 2px solid #22d3ee;
-                              padding: 0.75rem 1rem;
+                              padding: 0.5rem 0.75rem;
                               font-weight: 600;
                               text-align: left;
                               color: #f1f5f9;
                             }
                             td {
                               border-bottom: 1px solid #334155;
-                              padding: 0.75rem 1rem;
+                              padding: 0.5rem 0.75rem;
                               background: #1e293b;
                               color: #e2e8f0;
                             }
                             tr:nth-child(even) td { background: #1a2433; }
-                            /* Typography */
-                            h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
-                            h2 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.75rem; }
-                            h3 { font-size: 1.1rem; font-weight: bold; margin-bottom: 0.5rem; }
-                            p { margin-bottom: 0.75rem; }
-                            ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-                            ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-                            li { margin-bottom: 0.25rem; }
+                            /* Typography - use relative sizes */
+                            h1 { font-size: 1.4em; font-weight: bold; margin: 0 0 0.75em 0; }
+                            h2 { font-size: 1.2em; font-weight: bold; margin: 0 0 0.5em 0; }
+                            h3 { font-size: 1.1em; font-weight: bold; margin: 0 0 0.4em 0; }
+                            p { margin: 0 0 0.6em 0; }
+                            ul { list-style: disc; padding-left: 1.5em; margin: 0 0 0.6em 0; }
+                            ol { list-style: decimal; padding-left: 1.5em; margin: 0 0 0.6em 0; }
+                            li { margin-bottom: 0.2em; }
                             a { color: #22d3ee; text-decoration: underline; }
                           </style>
                         </head>
-                        <body>${resolveHtmlContentUrls(element.htmlContent) || '<p>HTML Content</p>'}</body>
+                        <body><div class="content-wrapper">${resolveHtmlContentUrls(element.htmlContent) || '<p>HTML Content</p>'}</div></body>
                       </html>
                     `}
                     className="w-full h-full border-0"
