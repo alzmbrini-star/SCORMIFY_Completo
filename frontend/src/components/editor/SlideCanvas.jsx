@@ -33,16 +33,20 @@ const getAssetUrl = (src) => {
 const resolveHtmlContentUrls = (htmlContent) => {
   if (!htmlContent) return htmlContent;
   
-  // Replace relative /api/assets/ URLs with full URLs
+  // First strip any old absolute domains to normalize
   let resolved = htmlContent.replace(
-    /src=["']\/api\/assets\/([^"']+)["']/g,
-    `src="${API_URL}/api/assets/$1"`
+    /https?:\/\/[^/\s"']+\/api\/assets\//g,
+    '/api/assets/'
+  );
+  resolved = resolved.replace(
+    /https?:\/\/[^/\s"']+\/api\/projects\//g,
+    '/api/projects/'
   );
   
-  // Replace old absolute domain URLs with current domain
+  // Then resolve all relative /api/ URLs to current domain
   resolved = resolved.replace(
-    /src=["']https?:\/\/[^/]+\/api\/assets\/([^"']+)["']/g,
-    `src="${API_URL}/api/assets/$1"`
+    /(src=["'])\/api\//g,
+    `$1${API_URL}/api/`
   );
   
   return resolved;
