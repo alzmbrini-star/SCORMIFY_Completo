@@ -1516,16 +1516,24 @@ export default function Editor() {
       return;
     }
 
+    // Use stored slideId for editing, or current slide for new elements
+    const targetSlideId = editingHtmlElementId ? editingHtmlSlideId : currentSlide?.id;
+    
+    if (!targetSlideId) {
+      toast.error('Erro: nenhum slide selecionado. Feche e tente novamente.');
+      return;
+    }
+
     try {
       if (editingHtmlElementId) {
         // Update existing element
-        await updateElement(currentSlide.id, editingHtmlElementId, {
+        await updateElement(targetSlideId, editingHtmlElementId, {
           htmlContent: richTextContent,
         });
         toast.success('Texto atualizado!');
       } else {
         // Create new element
-        await addElement(currentSlide.id, {
+        await addElement(targetSlideId, {
           type: 'html',
           x: 50,
           y: 50,
@@ -1535,11 +1543,16 @@ export default function Editor() {
         });
         toast.success('Texto adicionado ao slide!');
       }
+      setRtfSaveFailed(false);
       setShowRichTextDialog(false);
       setRichTextContent('');
       setEditingHtmlElementId(null);
+      setEditingHtmlSlideId(null);
     } catch (err) {
-      toast.error('Falha ao salvar texto');
+      console.error('RTF save error:', err);
+      setRtfSaveFailed(true);
+      const detail = err?.response?.data?.detail || err?.message || '';
+      toast.error('Falha ao salvar texto' + (detail ? ': ' + detail : ''));
     }
   };
 
