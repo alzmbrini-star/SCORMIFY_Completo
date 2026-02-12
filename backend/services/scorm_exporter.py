@@ -666,38 +666,99 @@ var CoursePlayer = (function() {
         var isMobileLandscape = isMobile && !isPortrait;
         
         if (isMobileLandscape) {
-            // MOBILE LANDSCAPE - Fill width completely, allow vertical scroll
+            // MOBILE LANDSCAPE - REFLOW mode: stack elements vertically for readability
+            document.body.classList.add('mobile-landscape-reflow');
+            
             var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
             var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
             
-            // Always scale to fill WIDTH - allow vertical scroll if taller
-            var scale = screenWidth / slideWidth;
+            // Sort elements by Y position first, then X for logical reading order
+            var elements = Array.from(container.querySelectorAll('.slide-element'));
+            elements.sort(function(a, b) {
+                var aTop = parseFloat(a.style.top) || 0;
+                var bTop = parseFloat(b.style.top) || 0;
+                var aLeft = parseFloat(a.style.left) || 0;
+                var bLeft = parseFloat(b.style.left) || 0;
+                // Group by rows (elements within 50px vertical distance are on same row)
+                if (Math.abs(aTop - bTop) < 50) {
+                    return aLeft - bLeft; // Same row: sort by X
+                }
+                return aTop - bTop; // Different rows: sort by Y
+            });
             
-            // Minimum scale for readability
-            scale = Math.max(scale, 0.3);
+            // Store original values and reorder in DOM
+            elements.forEach(function(el) {
+                if (!el.dataset.origTop) {
+                    el.dataset.origTop = el.style.top;
+                    el.dataset.origLeft = el.style.left;
+                    el.dataset.origWidth = el.style.width;
+                    el.dataset.origHeight = el.style.height;
+                    el.dataset.origPosition = el.style.position;
+                    el.dataset.origTransform = el.style.transform || '';
+                    el.dataset.origOverflow = el.style.overflow || '';
+                    el.dataset.origZIndex = el.style.zIndex || '';
+                }
+                container.appendChild(el); // re-appends in sorted order
+            });
             
-            var actualScaledHeight = slideHeight * scale;
-            var actualScaledWidth = slideWidth * scale;
+            // Auto-size HTML/RTF iframes based on content
+            setTimeout(function() {
+                container.querySelectorAll('.html-element iframe').forEach(function(iframe) {
+                    function resizeIframe() {
+                        try {
+                            var doc = iframe.contentDocument || iframe.contentWindow.document;
+                            if (doc && doc.body) {
+                                doc.documentElement.style.setProperty('overflow', 'visible', 'important');
+                                doc.documentElement.style.setProperty('height', 'auto', 'important');
+                                doc.body.style.setProperty('overflow', 'visible', 'important');
+                                doc.body.style.setProperty('height', 'auto', 'important');
+                                var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
+                                iframe.style.height = h + 'px';
+                                iframe.parentElement.style.height = (h + 4) + 'px';
+                                iframe.parentElement.style.minHeight = h + 'px';
+                            }
+                        } catch(e) {}
+                    }
+                    iframe.addEventListener('load', function() {
+                        resizeIframe();
+                        setTimeout(resizeIframe, 500);
+                        setTimeout(resizeIframe, 1500);
+                    });
+                    resizeIframe();
+                });
+            }, 300);
             
-            // Allow vertical scrolling - don't constrain to viewport height
-            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;min-height:100vh !important;overflow-x:hidden !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;';
+            // Reset wrapper for reflow scroll
+            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;min-height:100vh !important;overflow-x:hidden !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;height:auto !important;';
             
-            // Use relative positioning so it scrolls naturally
+            container.style.transform = 'none';
             container.style.position = 'relative';
-            container.style.top = '0';
-            container.style.left = '0';
-            container.style.width = slideWidth + 'px';
-            container.style.height = slideHeight + 'px';
-            container.style.transform = 'scale(' + scale + ')';
-            container.style.transformOrigin = 'left top';
-            container.style.zIndex = '100';
+            container.style.width = '100%';
+            container.style.height = 'auto';
+            container.style.minHeight = '100vh';
+            container.style.marginLeft = '0';
             container.style.boxShadow = 'none';
             
-            // Set wrapper height to match scaled content so scrolling works
-            wrapper.style.height = actualScaledHeight + 'px';
-            
-            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', screenWidth + 'x' + screenHeight, 'scaledHeight:', actualScaledHeight.toFixed(0), 'slideSize:', slideWidth + 'x' + slideHeight);
+            console.log('[Scale] Mobile landscape - REFLOW mode, ' + elements.length + ' elements stacked');
             return;
+        }
+        
+        // Leaving mobile landscape - disable reflow if it was active
+        if (document.body.classList.contains('mobile-landscape-reflow')) {
+            document.body.classList.remove('mobile-landscape-reflow');
+            var elements = container.querySelectorAll('.slide-element');
+            elements.forEach(function(el) {
+                if (el.dataset.origTop) {
+                    el.style.position = el.dataset.origPosition || 'absolute';
+                    el.style.top = el.dataset.origTop;
+                    el.style.left = el.dataset.origLeft;
+                    el.style.width = el.dataset.origWidth;
+                    el.style.height = el.dataset.origHeight;
+                    el.style.transform = el.dataset.origTransform;
+                    el.style.overflow = el.dataset.origOverflow;
+                    el.style.zIndex = el.dataset.origZIndex;
+                }
+            });
         }
         
         // DESKTOP MODE - Standard scaling with padding
