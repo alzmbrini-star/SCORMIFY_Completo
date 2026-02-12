@@ -666,23 +666,35 @@ var CoursePlayer = (function() {
             });
             
             // Auto-size HTML element iframes based on content
-            container.querySelectorAll('.html-element iframe').forEach(function(iframe) {
-                try {
-                    iframe.style.height = 'auto';
-                    iframe.style.minHeight = '200px';
-                    // Resize after content loads
-                    iframe.addEventListener('load', function() {
+            setTimeout(function() {
+                container.querySelectorAll('.html-element iframe').forEach(function(iframe) {
+                    function resizeIframe() {
                         try {
                             var doc = iframe.contentDocument || iframe.contentWindow.document;
-                            var h = doc.body.scrollHeight || doc.documentElement.scrollHeight;
-                            if (h > 50) {
-                                iframe.style.height = (h + 20) + 'px';
-                                iframe.parentElement.style.height = (h + 20) + 'px';
+                            if (doc && doc.body) {
+                                // Remove overflow:hidden from the iframe's html/body to get true scrollHeight
+                                doc.documentElement.style.overflow = 'visible';
+                                doc.documentElement.style.height = 'auto';
+                                doc.body.style.overflow = 'visible';
+                                doc.body.style.height = 'auto';
+                                var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
+                                iframe.style.height = h + 'px';
+                                iframe.parentElement.style.height = (h + 4) + 'px';
+                                iframe.parentElement.style.minHeight = h + 'px';
+                                console.log('[Reflow] Resized iframe to ' + h + 'px');
                             }
-                        } catch(e) {}
+                        } catch(e) { console.log('[Reflow] iframe resize error:', e); }
+                    }
+                    iframe.addEventListener('load', function() {
+                        resizeIframe();
+                        // Also resize after a short delay to catch late-loading content
+                        setTimeout(resizeIframe, 500);
+                        setTimeout(resizeIframe, 1500);
                     });
-                } catch(e) {}
-            });
+                    // Try immediately too in case already loaded
+                    resizeIframe();
+                });
+            }, 300);
             
             // Reset wrapper for reflow
             wrapper.style.padding = '0';
