@@ -63,6 +63,7 @@ import {
   Play,
   Plus,
   Copy,
+  Clipboard,
   Trash2,
   Type,
   Image,
