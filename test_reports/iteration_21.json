@@ -1,0 +1,88 @@
+{
+  "summary": "Verified the asset URL migration bug fix for RTF/HTML content breaking after project fork. All backend API tests and frontend unit tests pass. The implementation correctly strips domains from asset URLs before saving to DB, resolves relative URLs to absolute for display, and auto-migrates existing data on startup.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "✅ GET /api/health - backend healthy",
+    "✅ POST /api/migrate-asset-urls - endpoint accessible and returns success",
+    "✅ POST /api/migrate-asset-urls - returns migrated_count field",
+    "✅ Migration correctly converts absolute URLs to relative in HTML content",
+    "✅ Migration handles /api/assets/ URL pattern",
+    "✅ Migration handles /api/projects/{id}/assets/ URL pattern",
+    "✅ Migration preserves already-relative URLs",
+    "✅ GET /api/assets/{filename} returns 404 for missing files (not 500)",
+    "✅ Round-trip URL conversion (strip then resolve) works correctly",
+    "✅ Migration is idempotent - multiple runs are safe",
+    "✅ Backend startup auto-migration runs and logs results",
+    "✅ Frontend htmlUtils.js stripDomainFromAssetUrls - 8 unit tests passed",
+    "✅ Frontend htmlUtils.js resolveAssetUrls - 6 unit tests passed",
+    "✅ Frontend htmlUtils.js round-trip conversion works",
+    "✅ Frontend loads correctly (login page displayed)"
+  ],
+  
+  "test_report_links": [
+    "/app/backend/tests/test_asset_url_migration.py",
+    "/app/frontend/src/utils/htmlUtils.test.js",
+    "/app/test_reports/pytest/pytest_asset_migration.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "Implementation correctly handles the URL flow: AI generates image → backend returns relative URL → browser resolves to absolute → on save, Editor.jsx strips domain → on render, SlideCanvas/CoursePreview resolve back to absolute",
+    "htmlUtils.js properly exports both stripDomainFromAssetUrls and resolveAssetUrls functions",
+    "Editor.jsx line 1580 correctly calls stripDomainFromAssetUrls before saving HTML content",
+    "Editor.jsx line 1636 correctly calls resolveAssetUrls before loading content into editor",
+    "SlideCanvas.jsx resolveHtmlContentUrls function properly strips old domains then resolves to current",
+    "CoursePreview.jsx processHtmlContent handles all URL patterns including old domains",
+    "Backend migrate-asset-urls endpoint handles both HTML elements and image src attributes",
+    "Backend startup migration is non-blocking (wrapped in try/catch with warning log on failure)"
+  ],
+  
+  "updated_files": [
+    "/app/backend/tests/test_asset_url_migration.py",
+    "/app/frontend/src/utils/htmlUtils.test.js"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (16/16 unit tests passed)"
+  },
+  
+  "test_credentials": {},
+  
+  "seed_data_creation": "Test created temporary project with absolute URLs (cleaned up after test)",
+  
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Asset URL migration bug fix is VERIFIED. Key implementation: 1) stripDomainFromAssetUrls in htmlUtils.js strips absolute domains before DB save, 2) resolveAssetUrls resolves relative to current domain for display, 3) Backend startup runs auto-migration, 4) Manual POST /api/migrate-asset-urls available for bulk migration. All tests pass - no action items.",
+  
+  "verification_details": {
+    "bug_status": "FIXED",
+    "original_issue": "Images in RTF/HTML content break after project fork because absolute URLs (with old domain) stored in MongoDB",
+    "fix_verification": [
+      "Backend migration endpoint converts absolute URLs to relative",
+      "Frontend stripDomainFromAssetUrls correctly strips domains from /api/assets/ and /api/projects/ URLs",
+      "Frontend resolveAssetUrls correctly resolves relative URLs to absolute with current domain",
+      "Round-trip conversion (strip then resolve) maintains data integrity",
+      "Startup auto-migration ran successfully (logged: 'fixed 18 absolute URLs to relative' then 'no absolute URLs found, all clean')",
+      "Migration is idempotent - subsequent runs find 0 items to migrate"
+    ],
+    "technical_fix_summary": {
+      "on_save": "stripDomainFromAssetUrls converts https://any-domain.com/api/assets/file.jpg → /api/assets/file.jpg",
+      "on_render": "resolveAssetUrls converts /api/assets/file.jpg → https://current-domain.com/api/assets/file.jpg",
+      "startup": "Auto-migration normalizes any existing absolute URLs in database"
+    }
+  }
+}
