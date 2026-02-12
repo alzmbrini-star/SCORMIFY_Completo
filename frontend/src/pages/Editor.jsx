@@ -384,6 +384,8 @@ export default function Editor() {
   const [richTextGenerating, setRichTextGenerating] = useState(false);
   const [richTextImageGenerating, setRichTextImageGenerating] = useState(false);
   const [editingHtmlElementId, setEditingHtmlElementId] = useState(null); // Track which HTML element is being edited
+  const [editingHtmlSlideId, setEditingHtmlSlideId] = useState(null); // Store slide ID when editing starts
+  const [rtfSaveFailed, setRtfSaveFailed] = useState(false); // Track if last save attempt failed
 
   // Quiz Generator states
   const [showQuizDialog, setShowQuizDialog] = useState(false);
