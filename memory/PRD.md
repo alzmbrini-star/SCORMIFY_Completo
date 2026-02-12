@@ -1120,6 +1120,7 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 
 ### P0 - Critical (Next)
 - [x] SCORM Mobile: Forçar landscape com overlay "Rotacione seu dispositivo" (FIXED - Feb 12, 2026)
+- [x] SCORM Mobile Landscape: Pinch-to-zoom + Scroll vertical habilitados (FIXED - Feb 12, 2026)
 
 ### P1 - High Priority
 - Quiz analytics dashboard (view attempts, scores per question)
