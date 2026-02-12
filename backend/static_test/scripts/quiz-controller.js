@@ -276,6 +276,15 @@ var QuizController = (function() {
             var score = Math.round(percentage) / 10; // 0-10 scale
             var passed = percentage >= (quiz.config.passingScore || 60);
             
+            // Get font size from config (default 16px)
+            var baseFontSize = quiz.config.fontSize || 16;
+            var titleFontSize = Math.round(baseFontSize * 1.25); // 20px at 16
+            var subtitleFontSize = Math.round(baseFontSize * 0.8125); // 13px at 16
+            var scoreFontSize = Math.round(baseFontSize * 3); // 48px at 16
+            var statsFontSize = Math.round(baseFontSize * 1.25); // 20px at 16
+            var smallFontSize = Math.round(baseFontSize * 0.6875); // 11px at 16
+            var buttonFontSize = Math.round(baseFontSize * 0.875); // 14px at 16
+            
             // Report score to SCORM
             if (typeof ScormAPI !== 'undefined') {
                 ScormAPI.setScore(Math.round(percentage));
@@ -301,28 +310,28 @@ var QuizController = (function() {
                 '<span style="font-size:32px;">' + (passed ? '🏆' : '⚠️') + '</span></div>' +
                 
                 // Title - smaller
-                '<h2 style="font-size:20px;font-weight:bold;margin-bottom:4px;">' + (passed ? 'Parabéns!' : 'Não foi dessa vez') + '</h2>' +
-                '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">' + (passed ? 'Você atingiu a nota mínima' : 'Tente novamente para melhorar') + '</p>' +
+                '<h2 style="font-size:' + titleFontSize + 'px;font-weight:bold;margin-bottom:4px;">' + (passed ? 'Parabéns!' : 'Não foi dessa vez') + '</h2>' +
+                '<p style="color:#94a3b8;font-size:' + subtitleFontSize + 'px;margin-bottom:16px;">' + (passed ? 'Você atingiu a nota mínima' : 'Tente novamente para melhorar') + '</p>' +
                 
                 // Score - smaller
                 '<div style="margin-bottom:16px;">' +
-                '<div style="font-size:48px;font-weight:bold;line-height:1;' + (passed ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + score.toFixed(1) + '</div>' +
-                '<p style="color:#94a3b8;font-size:12px;margin-top:4px;">de 10</p></div>' +
+                '<div style="font-size:' + scoreFontSize + 'px;font-weight:bold;line-height:1;' + (passed ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + score.toFixed(1) + '</div>' +
+                '<p style="color:#94a3b8;font-size:' + Math.round(baseFontSize * 0.75) + 'px;margin-top:4px;">de 10</p></div>' +
                 
                 // Stats - more compact
                 '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;padding:12px;background:#1e293b;border-radius:8px;">' +
-                '<div><p style="font-size:20px;font-weight:bold;color:#22c55e;margin:0;">' + correctCount + '</p><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">Corretas</p></div>' +
-                '<div><p style="font-size:20px;font-weight:bold;color:#ef4444;margin:0;">' + (totalCount - correctCount) + '</p><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">Incorretas</p></div></div>' +
+                '<div><p style="font-size:' + statsFontSize + 'px;font-weight:bold;color:#22c55e;margin:0;">' + correctCount + '</p><p style="font-size:' + smallFontSize + 'px;color:#94a3b8;margin:2px 0 0;">Corretas</p></div>' +
+                '<div><p style="font-size:' + statsFontSize + 'px;font-weight:bold;color:#ef4444;margin:0;">' + (totalCount - correctCount) + '</p><p style="font-size:' + smallFontSize + 'px;color:#94a3b8;margin:2px 0 0;">Incorretas</p></div></div>' +
                 
                 // Progress bar - compact
                 '<div style="margin-bottom:16px;">' +
-                '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Aproveitamento</span><span>' + Math.round(percentage) + '%</span></div>' +
+                '<div style="display:flex;justify-content:space-between;font-size:' + Math.round(baseFontSize * 0.75) + 'px;margin-bottom:4px;"><span>Aproveitamento</span><span>' + Math.round(percentage) + '%</span></div>' +
                 '<div style="height:8px;background:#334155;border-radius:4px;overflow:hidden;">' +
                 '<div style="height:100%;width:' + percentage + '%;transition:width 0.5s;' + (passed ? 'background:#22c55e;' : 'background:#ef4444;') + '"></div></div>' +
-                '<p style="font-size:11px;color:#94a3b8;margin-top:4px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
+                '<p style="font-size:' + smallFontSize + 'px;color:#94a3b8;margin-top:4px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
                 
                 // Restart button - compact
-                '<button style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="QuizController.restartQuiz(\'' + elementId + '\')">' +
+                '<button style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:' + buttonFontSize + 'px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="QuizController.restartQuiz(\'' + elementId + '\')">' +
                 '<span>🔄</span> Tentar Novamente</button>' +
                 
                 '</div></div>';
