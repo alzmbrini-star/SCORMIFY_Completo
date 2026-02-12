@@ -2942,6 +2942,72 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             overflow: hidden !important;
         }}
         
+        /* === MOBILE PORTRAIT REFLOW MODE === */
+        body.mobile-reflow #slide-container {{
+            position: relative !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 100vh;
+            transform: none !important;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 12px;
+            box-sizing: border-box;
+            gap: 12px;
+            overflow-y: auto;
+        }}
+        
+        body.mobile-reflow .slide-element {{
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 60px;
+            transform: none !important;
+            overflow: visible !important;
+            box-sizing: border-box;
+        }}
+        
+        body.mobile-reflow .slide-element.html-element {{
+            height: auto !important;
+            min-height: 80px;
+        }}
+        
+        body.mobile-reflow .slide-element.html-element iframe {{
+            width: 100% !important;
+            min-height: 200px;
+            height: auto !important;
+        }}
+        
+        body.mobile-reflow .slide-element.video-element {{
+            height: auto !important;
+            aspect-ratio: 16 / 9;
+            max-height: 50vh;
+        }}
+        
+        body.mobile-reflow .slide-element.video-element iframe {{
+            width: 100% !important;
+            height: 100% !important;
+        }}
+        
+        body.mobile-reflow .slide-element img {{
+            max-width: 100% !important;
+            height: auto !important;
+        }}
+        
+        body.mobile-reflow .slide-element.quiz-element {{
+            height: auto !important;
+            min-height: 300px;
+        }}
+        
+        body.mobile-reflow #slide-wrapper {{
+            align-items: flex-start !important;
+            overflow-y: auto !important;
+            height: 100vh !important;
+        }}
+        
         /* Mobile optimization: expand elements and ensure content fits */
         @media screen and (max-width: 1024px) {{
             .slide-element.quiz-element {{
