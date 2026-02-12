@@ -2926,7 +2926,8 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             top: auto !important;
             width: 100% !important;
             height: auto !important;
-            min-height: 40px;
+            min-height: 40px !important;
+            max-height: none !important;
             transform: none !important;
             overflow: visible !important;
             box-sizing: border-box;
@@ -2935,13 +2936,13 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
         
         body.mobile-landscape-reflow .slide-element.html-element {{
             height: auto !important;
-            min-height: 60px;
+            min-height: 60px !important;
         }}
         
         body.mobile-landscape-reflow .slide-element.html-element iframe {{
             width: 100% !important;
             min-height: 150px;
-            height: auto !important;
+            /* Do NOT set height !important - let JS auto-size based on content */
             border: none !important;
         }}
         
