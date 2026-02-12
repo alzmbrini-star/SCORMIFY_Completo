@@ -812,13 +812,10 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       <html>
                         <head>
                           <style>
+                            ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
+                            /* CoursePreview-specific overrides */
                             body {
-                              margin: 0;
                               padding: ${element.objectFit === 'cover' ? '0' : '8px'};
-                              background: transparent !important;
-                              font-family: Arial, sans-serif;
-                              color: #f1f5f9;
-                              line-height: 1.6;
                               overflow: ${element.objectFit === 'cover' ? 'hidden' : 'auto'};
                               ${element.objectFit === 'cover' ? 'width: 100%; height: 100%;' : ''}
                             }
@@ -859,55 +856,11 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               top: 0 !important;
                               left: 0 !important;
                             }
-                            ` : `
-                            /* NORMAL MODE - preserve image sizes and positions */
-                            * { box-sizing: border-box; max-width: 100% !important; }
-                            body { word-wrap: break-word; overflow-wrap: break-word; max-width: 100% !important; }
-                            img { border: none !important; outline: none !important; box-shadow: none !important; max-width: 100% !important; height: auto !important; }
-                            /* Image float styles */
-                            img.rtf-image-float-left, body img.rtf-image-float-left {
-                              float: left !important;
-                              clear: left !important;
-                              max-width: 45% !important;
-                              height: auto !important;
-                              border-radius: 4px !important;
-                              margin: 0 16px 12px 0 !important;
-                              display: block !important;
-                              border: none !important;
-                              outline: none !important;
-                            }
-                            img.rtf-image-float-right, body img.rtf-image-float-right {
-                              float: right !important;
-                              clear: right !important;
-                              max-width: 45% !important;
-                              height: auto !important;
-                              border-radius: 4px !important;
-                              margin: 0 0 12px 16px !important;
-                              display: block !important;
-                              border: none !important;
-                              outline: none !important;
-                            }
-                            img.rtf-image-center { display: inline-block !important; max-width: 80% !important; height: auto !important; border: none !important; outline: none !important; }
-                            img.rtf-image-inline { display: block !important; max-width: 100% !important; height: auto !important; margin: 8px 0 !important; border: none !important; outline: none !important; }
-                            img.rtf-image-float-left, img[style*="float: left"], img[style*="float:left"] { float: left !important; max-width: 45% !important; margin-right: 16px !important; margin-bottom: 12px !important; height: auto !important; object-fit: contain !important; }
-                            img.rtf-image-float-right, img[style*="float: right"], img[style*="float:right"] { float: right !important; max-width: 45% !important; margin-left: 16px !important; margin-bottom: 12px !important; height: auto !important; object-fit: contain !important; }
-                            body::after { content: ''; display: table; clear: both; }
-                            p, div, span, ul, ol, li, h1, h2, h3, h4, h5, h6 { overflow: visible !important; word-wrap: break-word; overflow-wrap: break-word; max-width: 100% !important; word-break: normal; hyphens: auto; -webkit-hyphens: auto; }
-                            `}
-                            /* Typography */
-                            h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
-                            h2 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.75rem; }
-                            h3 { font-size: 1.1rem; font-weight: bold; margin-bottom: 0.5rem; }
-                            p { margin-bottom: 0.75rem; }
-                            ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-                            ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-                            li { margin-bottom: 0.25rem; }
-                            /* Table styles */
+                            ` : ``}
+                            /* Dark theme table styles */
                             table {
                               border-collapse: separate;
                               border-spacing: 0;
-                              width: 100%;
-                              margin: 1rem 0;
                               border-radius: 8px;
                               overflow: hidden;
                               box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
@@ -916,8 +869,6 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               background: linear-gradient(to bottom, #475569, #334155);
                               border-bottom: 2px solid #22d3ee;
                               padding: 0.75rem 1rem;
-                              font-weight: 600;
-                              text-align: left;
                               color: #f1f5f9;
                             }
                             td {
@@ -927,6 +878,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                               color: #e2e8f0;
                             }
                             tr:nth-child(even) td { background: #1a2433; }
+                            a { color: #22d3ee; }
                           </style>
                         </head>
                         <body>${processHtmlContent(element.htmlContent, projectId)}</body>
