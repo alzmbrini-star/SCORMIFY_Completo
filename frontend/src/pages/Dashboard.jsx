@@ -153,6 +153,29 @@ export default function Dashboard() {
     }
   };
 
+  const handleOpenRenameDialog = (project, e) => {
+    e.stopPropagation();
+    setRenameProjectId(project.id);
+    setRenameProjectName(project.name);
+    setShowRenameDialog(true);
+  };
+
+  const handleRenameProject = async () => {
+    if (!renameProjectName.trim()) {
+      toast.error('Por favor, insira um nome para o projeto');
+      return;
+    }
+    try {
+      await updateProject(renameProjectId, { name: renameProjectName.trim() });
+      setShowRenameDialog(false);
+      setRenameProjectId(null);
+      setRenameProjectName('');
+      toast.success('Projeto renomeado com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao renomear projeto');
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
