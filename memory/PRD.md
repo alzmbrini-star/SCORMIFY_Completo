@@ -15,17 +15,14 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ### 2026-02-12
 - **CORREÇÃO P0: Imagens RTF Quebradas Após Fork** (FIXED AND TESTED)
-  - **Problema**: URLs absolutas de imagens (ex: `https://old-domain.com/api/assets/file.jpg`) eram salvas no MongoDB. Após fork, o domínio muda e as imagens quebravam.
-  - **Causa Raiz**: O `contentEditable` do navegador converte automaticamente URLs relativas para absolutas. Ao salvar, estas URLs absolutas eram persistidas no banco.
-  - **Correção Aplicada**:
-    1. `htmlUtils.js`: Adicionadas funções `stripDomainFromAssetUrls` e `resolveAssetUrls`
-    2. `Editor.jsx`: Strip domain antes de salvar (`handleAddRichTextToSlide`), resolve ao editar (`handleEditHtmlElement`)
-    3. `Editor.jsx`: Upload de imagem agora salva URL relativa (`media.url` em vez de `${REACT_APP_BACKEND_URL}${media.url}`)
-    4. `SlideCanvas.jsx`: `resolveHtmlContentUrls` atualizado para lidar com `/api/projects/{id}/assets/` além de `/api/assets/`
-    5. `server.py`: Migração automática no startup normaliza URLs absolutas existentes no banco
-    6. `server.py`: Endpoint `POST /api/migrate-asset-urls` melhorado para cobrir todos os padrões de URL
+  - **Problema**: URLs absolutas de imagens eram salvas no MongoDB. Após fork, o domínio muda e as imagens quebravam.
+  - **Correção**: `htmlUtils.js` (stripDomainFromAssetUrls/resolveAssetUrls), `Editor.jsx` (strip on save, resolve on edit), `SlideCanvas.jsx` (improved resolveHtmlContentUrls), `server.py` (auto-migration on startup)
   - **Testes**: 100% backend (10/10), 100% frontend (16/16 unit tests)
-  - **Migração**: Startup auto-migrou 18 URLs absolutas existentes
+
+- **CORREÇÃO: Botão "Iniciar Quiz" no SCORM Não Funcionava** (FIXED AND TESTED)
+  - **Causa Raiz**: Erro de escape em Python triple-quoted string no `scorm_exporter.py`. `\'` era consumido como escape Python, gerando `''` (aspas duplas) em vez de `\''` (aspas escapadas) no JavaScript. Resultado: `QuizController` falhava ao carregar com "Unexpected string" syntax error.
+  - **Correção**: Alterado `\'` para `\\'` em 6 pontos do `QUIZ_CONTROLLER_JS` (selectAnswer, prevQuestion, nextQuestion, showResults, confirmAnswer, restartQuiz)
+  - **Testes**: Verificado com node --check (syntax OK), Playwright E2E (quiz start, answer selection, confirmation, navigation)
 
 ### 2026-02-11
 - **MELHORIA: Dimensões dos Slides para Mobile (21:9)**
