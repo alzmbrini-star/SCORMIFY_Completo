@@ -729,7 +729,7 @@ const SlideCanvas = ({
                               height: auto !important;
                               ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : 'max-width: 100% !important;'}
                             }
-                            /* Float left - force max-width even with inline width styles */
+                            /* Float left - preserve original width, but limit to 45% max */
                             img.rtf-image-float-left,
                             body img.rtf-image-float-left,
                             img[style*="float: left"],
@@ -737,7 +737,6 @@ const SlideCanvas = ({
                             img[class*="float-left"] {
                               float: left !important;
                               clear: left !important;
-                              width: 45% !important;
                               max-width: 45% !important;
                               height: auto !important;
                               border-radius: 4px !important;
@@ -745,7 +744,7 @@ const SlideCanvas = ({
                               display: block !important;
                               object-fit: contain !important;
                             }
-                            /* Float right - force max-width even with inline width styles */
+                            /* Float right - preserve original width, but limit to 45% max */
                             img.rtf-image-float-right,
                             body img.rtf-image-float-right,
                             img[style*="float: right"],
@@ -753,7 +752,6 @@ const SlideCanvas = ({
                             img[class*="float-right"] {
                               float: right !important;
                               clear: right !important;
-                              width: 45% !important;
                               max-width: 45% !important;
                               height: auto !important;
                               border-radius: 4px !important;
