@@ -473,6 +473,12 @@ const SlideCanvas = ({
         const isSelected = selectedElementId === element.id;
         const isEditing = editingElementId === element.id;
         
+        // Merge local updates with element data during drag/resize (optimistic UI)
+        const localUpdate = localElementUpdates[element.id];
+        const displayElement = localUpdate 
+          ? { ...element, ...localUpdate }
+          : element;
+        
         // Handle percentage or pixel values for dimensions
         const getScaledValue = (value, slideSize) => {
           if (typeof value === 'string' && value.endsWith('%')) {
@@ -488,18 +494,18 @@ const SlideCanvas = ({
           return (value || 0) * scale;
         };
         
-        const elementWidth = typeof element.width === 'string' && element.width.endsWith('%') 
-          ? element.width 
-          : (element.width || 100) * scale;
-        const elementHeight = typeof element.height === 'string' && element.height.endsWith('%')
-          ? element.height
-          : (element.height || 100) * scale;
-        const elementX = typeof element.x === 'string' && element.x.endsWith('%')
-          ? element.x
-          : (element.x || 0) * scale;
-        const elementY = typeof element.y === 'string' && element.y.endsWith('%')
-          ? element.y
-          : (element.y || 0) * scale;
+        const elementWidth = typeof displayElement.width === 'string' && displayElement.width.endsWith('%') 
+          ? displayElement.width 
+          : (displayElement.width || 100) * scale;
+        const elementHeight = typeof displayElement.height === 'string' && displayElement.height.endsWith('%')
+          ? displayElement.height
+          : (displayElement.height || 100) * scale;
+        const elementX = typeof displayElement.x === 'string' && displayElement.x.endsWith('%')
+          ? displayElement.x
+          : (displayElement.x || 0) * scale;
+        const elementY = typeof displayElement.y === 'string' && displayElement.y.endsWith('%')
+          ? displayElement.y
+          : (displayElement.y || 0) * scale;
         
         return (
           <div
@@ -510,10 +516,10 @@ const SlideCanvas = ({
               top: elementY,
               width: elementWidth,
               height: elementHeight,
-              transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
-              zIndex: (element.zIndex || 0) + 1,
+              transform: displayElement.rotation ? `rotate(${displayElement.rotation}deg)` : undefined,
+              zIndex: (displayElement.zIndex || 0) + 1,
               // Show at least 30% opacity for hidden elements during editing
-              opacity: element.visible === false ? Math.max(0.3, element.style?.opacity ?? 1) : (element.style?.opacity ?? 1),
+              opacity: displayElement.visible === false ? Math.max(0.3, displayElement.style?.opacity ?? 1) : (displayElement.style?.opacity ?? 1),
               cursor: isDragging && isSelected ? 'grabbing' : 'grab',
             }}
             onMouseDown={(e) => handleElementMouseDown(e, element)}
