@@ -1576,7 +1576,8 @@ export default function Editor() {
     }
 
     // Sanitize HTML content before saving (remove Tailwind CSS vars and editor artifacts)
-    const cleanContent = sanitizeHtmlContent(richTextContent);
+    // CRITICAL: Strip domain from asset URLs to prevent broken links after forks
+    const cleanContent = stripDomainFromAssetUrls(sanitizeHtmlContent(richTextContent));
 
     try {
       if (editingHtmlElementId) {
