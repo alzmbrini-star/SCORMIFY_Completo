@@ -3579,12 +3579,10 @@ export default function Editor() {
         {/* Rich Text Editor with AI Dialog */}
         <Dialog open={showRichTextDialog} onOpenChange={(open) => {
           if (!open) {
-            // Only clear content if save didn't fail - preserve user's edits on failure
-            if (!rtfSaveFailed) {
-              setEditingHtmlElementId(null);
-              setEditingHtmlSlideId(null);
-              setRichTextContent('');
-            }
+            setEditingHtmlElementId(null);
+            setEditingHtmlSlideId(null);
+            setRichTextContent('');
+            setRtfSaveFailed(false);
           }
           setShowRichTextDialog(open);
         }}>
