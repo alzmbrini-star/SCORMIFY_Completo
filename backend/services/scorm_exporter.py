@@ -284,19 +284,8 @@ function checkMobileOrientation() {
     });
     
     // Determine if we should show the overlay
+    // With mobile reflow mode, portrait is fully supported - no overlay needed
     var shouldShowOverlay = false;
-    
-    if (isMobileDevice || isSmallScreen) {
-        if (isOrientationPortrait) {
-            shouldShowOverlay = true;
-        } else if (mediaPortrait) {
-            shouldShowOverlay = true;
-        } else if (screenAspectRatio < 0.85 && screenWidth < screenHeight) {
-            shouldShowOverlay = true;
-        } else if (windowAspectRatio < 0.85 && windowWidth < windowHeight) {
-            shouldShowOverlay = true;
-        }
-    }
     
     var wasHidden = playerContainer.style.display === 'none';
     
