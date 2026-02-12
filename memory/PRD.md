@@ -326,6 +326,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - [x] Refatorar código duplicado sanitizeHtmlForDisplay (DONE - Feb 12, 2026)
 - [x] Renomear cursos/projetos (DONE - Feb 12, 2026)
 - [x] Tamanho de fonte ajustável no Quiz (DONE - Feb 12, 2026)
+- [x] Centralizar CSS de RTF em arquivo compartilhado (DONE - Feb 12, 2026)
 - [ ] Element copy/paste
 - [ ] Undo/redo history
 - [ ] Gravação de áudio pelo microfone (melhorias)
