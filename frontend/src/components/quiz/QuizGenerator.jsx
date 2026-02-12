@@ -92,6 +92,7 @@ export default function QuizGenerator({
     shuffleAlternatives: true,
     showFeedback: true,
     passingScore: 60,
+    fontSize: 16, // Font size in pixels
   });
 
   // Load questions when dialog opens
