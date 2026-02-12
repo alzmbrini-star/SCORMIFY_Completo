@@ -713,11 +713,13 @@ var CoursePlayer = (function() {
                                 doc.body.style.setProperty('overflow', 'visible', 'important');
                                 doc.body.style.setProperty('height', 'auto', 'important');
                                 var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
-                                iframe.style.height = h + 'px';
-                                iframe.parentElement.style.height = (h + 4) + 'px';
-                                iframe.parentElement.style.minHeight = h + 'px';
+                                // Use setProperty with important to override any CSS !important rules
+                                iframe.style.setProperty('height', h + 'px', 'important');
+                                iframe.parentElement.style.setProperty('height', (h + 4) + 'px', 'important');
+                                iframe.parentElement.style.setProperty('min-height', (h + 4) + 'px', 'important');
+                                console.log('[Reflow] Resized iframe to ' + h + 'px');
                             }
-                        } catch(e) {}
+                        } catch(e) { console.log('[Reflow] iframe error:', e); }
                     }
                     iframe.addEventListener('load', function() {
                         resizeIframe();
@@ -725,6 +727,8 @@ var CoursePlayer = (function() {
                         setTimeout(resizeIframe, 1500);
                     });
                     resizeIframe();
+                    setTimeout(resizeIframe, 100);
+                    setTimeout(resizeIframe, 500);
                 });
             }, 300);
             
