@@ -277,7 +277,7 @@ const SlideCanvas = ({
   ]);
 
   const handleMouseUp = useCallback(async () => {
-    // Ensure final position is saved when drag/resize ends
+    // Ensure final position is saved when drag/resize ends - only ONE API call here
     if ((isDragging || isResizing) && selectedElementId && pendingUpdateRef.current) {
       // Force a final save with the last known position
       try {
@@ -287,6 +287,12 @@ const SlideCanvas = ({
         console.error('Failed to save final position:', err);
       }
       pendingUpdateRef.current = null;
+      // Clear local updates for this element after successful save
+      setLocalElementUpdates(prev => {
+        const newState = { ...prev };
+        delete newState[selectedElementId];
+        return newState;
+      });
     }
     
     // Save annotation when drawing ends
