@@ -241,7 +241,12 @@ export const ProjectProvider = ({ children }) => {
   }, [currentProject, fetchProject]);
 
   const addElement = useCallback(async (slideId, elementData) => {
-    if (!currentProject) return;
+    if (!currentProject) {
+      throw new Error('No project loaded');
+    }
+    if (!slideId) {
+      throw new Error('Missing slideId');
+    }
     try {
       const response = await axios.post(
         `${API_URL}/projects/${currentProject.id}/slides/${slideId}/elements`,
