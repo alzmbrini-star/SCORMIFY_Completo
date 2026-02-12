@@ -1561,6 +1561,8 @@ export default function Editor() {
     if (element.type === 'html' && element.htmlContent) {
       setRichTextContent(element.htmlContent);
       setEditingHtmlElementId(element.id);
+      setEditingHtmlSlideId(currentSlide?.id); // Store slide ID at edit time
+      setRtfSaveFailed(false);
       setShowRichTextDialog(true);
     }
   };
