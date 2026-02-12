@@ -3588,7 +3588,25 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             flex-direction: column;
         }}
         
-        /* Portrait mode is now fully supported via reflow layout - overlay always hidden */
+        /* Force orientation overlay in portrait mode on mobile devices */
+        @media screen and (orientation: portrait) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
+        
+        /* Also catch tall-narrow viewports (portrait in iframe/LMS) */
+        @media screen and (max-aspect-ratio: 4/5) and (max-width: 900px) {{
+            #orientation-overlay {{
+                display: flex !important;
+            }}
+            #player-container {{
+                display: none !important;
+            }}
+        }}
         
         .orientation-content {{
             text-align: center;
