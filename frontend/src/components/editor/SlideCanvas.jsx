@@ -721,33 +721,38 @@ const SlideCanvas = ({
                               overflow: auto;
                             }
                             * { background: transparent !important; box-sizing: border-box; }
-                            /* Rich Text Editor Image Float Styles */
+                            /* Rich Text Editor Image Float Styles - Override inline width for floated images */
                             img {
                               border: none !important;
                               outline: none !important;
                               box-shadow: none !important;
-                              max-width: 100% !important;
                               height: auto !important;
-                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : ''}
+                              ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : 'max-width: 100% !important;'}
                             }
+                            /* Float left - force max-width even with inline styles */
                             img.rtf-image-float-left,
                             body img.rtf-image-float-left,
                             img[style*="float: left"],
-                            img[style*="float:left"] {
+                            img[style*="float:left"],
+                            img[class*="float-left"] {
                               float: left !important;
                               clear: left !important;
+                              width: auto !important;
                               max-width: 45% !important;
                               height: auto !important;
                               border-radius: 4px !important;
                               margin: 0 16px 12px 0 !important;
                               display: block !important;
                             }
+                            /* Float right - force max-width even with inline styles */
                             img.rtf-image-float-right,
                             body img.rtf-image-float-right,
                             img[style*="float: right"],
-                            img[style*="float:right"] {
+                            img[style*="float:right"],
+                            img[class*="float-right"] {
                               float: right !important;
                               clear: right !important;
+                              width: auto !important;
                               max-width: 45% !important;
                               height: auto !important;
                               border-radius: 4px !important;
