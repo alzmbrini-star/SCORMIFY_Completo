@@ -2655,72 +2655,13 @@ PLAYER_HTML_TEMPLATE = '''<!DOCTYPE html>
             }}
         }}
         
-        /* Mobile portrait mode - NO padding to maximize slide size */
+        /* Mobile portrait mode - BLOCKED by orientation overlay */
         @media screen and (max-width: 1024px) and (orientation: portrait) {{
-            /* Force full width even inside LMS iframes */
-            html, body {{
-                width: 100vw !important;
-                max-width: 100vw !important;
-                min-width: 100vw !important;
-                overflow-x: hidden !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                box-sizing: border-box !important;
+            #orientation-overlay {{
+                display: flex !important;
             }}
-            
             #player-container {{
-                width: 100vw !important;
-                max-width: 100vw !important;
-                min-width: 100vw !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                box-sizing: border-box !important;
-            }}
-            
-            #slide-wrapper {{
-                padding: 0 !important;
-                margin: 0 !important;
-                width: 100vw !important;
-                max-width: 100vw !important;
-                min-width: 100vw !important;
-                align-items: flex-start !important;
-                justify-content: flex-start !important;
-                overflow-y: auto;
-                overflow-x: hidden;
-                -webkit-overflow-scrolling: touch;
-                box-sizing: border-box !important;
-            }}
-            
-            #slide-container {{
-                box-shadow: none !important;
-                margin: 0 !important;
-                transform-origin: left top !important;
-            }}
-            
-            /* Hide sidebar toggle on portrait since it takes space */
-            .mobile-menu-btn {{
-                position: fixed !important;
-                top: 5px !important;
-                left: 5px !important;
-                z-index: 9999 !important;
-                opacity: 0.7;
-            }}
-            
-            /* Position mobile nav buttons for full-width slide */
-            #mobile-nav-prev {{
-                left: 0 !important;
-                background: rgba(0, 0, 0, 0.4) !important;
-                width: 35px !important;
-            }}
-            
-            #mobile-nav-next {{
-                right: 0 !important;
-                background: rgba(0, 0, 0, 0.4) !important;
-                width: 35px !important;
-            }}
-            
-            .mobile-slide-counter {{
-                bottom: 5px !important;
+                display: none !important;
             }}
         }}
         
