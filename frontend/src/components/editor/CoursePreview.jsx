@@ -23,6 +23,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import QuizPlayer from '../quiz/QuizPlayer';
+import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
