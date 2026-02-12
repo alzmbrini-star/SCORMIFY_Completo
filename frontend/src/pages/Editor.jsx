@@ -3554,11 +3554,15 @@ export default function Editor() {
 
         {/* Rich Text Editor with AI Dialog */}
         <Dialog open={showRichTextDialog} onOpenChange={(open) => {
-          setShowRichTextDialog(open);
           if (!open) {
-            setEditingHtmlElementId(null);
-            setRichTextContent('');
+            // Only clear content if save didn't fail - preserve user's edits on failure
+            if (!rtfSaveFailed) {
+              setEditingHtmlElementId(null);
+              setEditingHtmlSlideId(null);
+              setRichTextContent('');
+            }
           }
+          setShowRichTextDialog(open);
         }}>
           <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
