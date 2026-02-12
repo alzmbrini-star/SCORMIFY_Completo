@@ -287,6 +287,33 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Status**: FIXED AND TESTED
 - **Verification**: Elements can now be selected and deleted without 404 errors
 
+### Drag/Resize Element Bug (404/520 Errors) - FIXED (Feb 12, 2026)
+- **Issue**: Erros 404 e 520 apareciam ao arrastar ou redimensionar elementos no SlideCanvas
+- **Root Cause**: 
+  1. A função `onUpdateElement` estava sendo chamada em CADA movimento do mouse durante o arraste
+  2. Isso gerava centenas de requisições HTTP simultâneas, causando sobrecarga do servidor
+  3. Erros 404/520 ocorriam devido ao rate limiting ou timeout das conexões
+- **Fix Applied**:
+  1. Criado estado local `localElementUpdates` para atualização otimista durante drag/resize
+  2. `handleMouseMove` agora atualiza apenas o estado local (UI imediata, sem chamadas de API)
+  3. `handleMouseUp` faz UMA ÚNICA chamada de API quando o mouse é solto
+  4. `displayElement` combina dados do elemento com atualizações locais para renderização
+  5. Estado local é limpo após salvamento bem-sucedido
+- **Files Modified**:
+  - `/app/frontend/src/components/editor/SlideCanvas.jsx`:
+    - Linha 103: Adicionado estado `localElementUpdates`
+    - Linhas 186-277: `handleMouseMove` usa `setLocalElementUpdates` em vez de `onUpdateElement`
+    - Linhas 279-323: `handleMouseUp` faz chamada de API e limpa estado local
+    - Linhas 472-480: `displayElement` combina elemento com atualizações locais
+- **Technical Details**:
+  - **Antes**: API call em cada evento mousemove (centenas de requisições durante um arraste)
+  - **Depois**: Uma única API call no mouseup (performance otimizada)
+- **Status**: FIXED AND TESTED (100% dos testes passaram)
+- **Verification**: 
+  - Arrastado elemento 100px em 20 movimentos → apenas 1 PUT request
+  - Redimensionado elemento 50px em 10 movimentos → apenas 1 PUT request
+  - Zero erros 404/520 no console durante operações
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
