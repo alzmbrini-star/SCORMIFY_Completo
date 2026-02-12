@@ -2251,7 +2251,9 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
 async def migrate_asset_urls():
     """
     Migrate all absolute asset URLs to relative URLs in the database.
-    This fixes issues when the domain changes between sessions.
+    This fixes issues when the domain changes between sessions (e.g., after a fork).
+    Handles both global (/api/assets/) and project-specific (/api/projects/{id}/assets/) URLs.
+    Also normalizes image element src attributes.
     """
     import re
     
@@ -2266,30 +2268,52 @@ async def migrate_asset_urls():
         for slide in slides:
             elements = slide.get('elements', [])
             for element in elements:
+                # Fix HTML elements with embedded image URLs
                 if element.get('type') == 'html' and element.get('htmlContent'):
                     html_content = element['htmlContent']
                     
-                    # Pattern to match absolute URLs with /api/assets/
-                    # Matches: https://any-domain.com/api/assets/filename.ext
-                    pattern = r'(https?://[^/]+)?(/api/assets/[^"\'<>\s]+)'
-                    
-                    def replace_url(match):
-                        # Return only the relative path
-                        return match.group(2)
-                    
-                    new_content = re.sub(pattern, replace_url, html_content)
+                    # Strip domain from /api/assets/ URLs
+                    new_content = re.sub(
+                        r'https?://[^/\s"\']+/api/assets/',
+                        '/api/assets/',
+                        html_content
+                    )
+                    # Strip domain from /api/projects/ URLs
+                    new_content = re.sub(
+                        r'https?://[^/\s"\']+/api/projects/',
+                        '/api/projects/',
+                        new_content
+                    )
                     
                     if new_content != html_content:
                         element['htmlContent'] = new_content
                         updated = True
                         migrated_count += 1
-                        logger.info(f"Migrated URLs in project {project.get('name')}")
+                
+                # Fix image element src attributes
+                src = element.get('src', '')
+                if src and src.startswith('http') and '/api/' in src:
+                    new_src = re.sub(r'https?://[^/\s"\']+(/api/.*)', r'\1', src)
+                    if new_src != src:
+                        element['src'] = new_src
+                        updated = True
+                        migrated_count += 1
+            
+            # Fix slide background images
+            bg = slide.get('backgroundImage', '')
+            if bg and bg.startswith('http') and '/api/' in bg:
+                new_bg = re.sub(r'https?://[^/\s"\']+(/api/.*)', r'\1', bg)
+                if new_bg != bg:
+                    slide['backgroundImage'] = new_bg
+                    updated = True
+                    migrated_count += 1
         
         if updated:
             await db.projects.update_one(
                 {'id': project['id']},
                 {'$set': {'course': course}}
             )
+            logger.info(f"Migrated {migrated_count} URLs in project {project.get('name', project['id'])}")
     
     return {
         "success": True,
