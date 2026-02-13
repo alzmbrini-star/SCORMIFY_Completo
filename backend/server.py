@@ -1654,6 +1654,114 @@ IMPORTANTE: Retorne APENAS o script, sem títulos, numeração de cenas ou instr
         logger.error(f"AI script generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate script: {str(e)}")
 
+class GenerateNarrationRequest(BaseModel):
+    slide_content: str
+    style: Optional[str] = "educational"
+    language: Optional[str] = "português brasileiro"
+
+@api_router.post("/projects/{project_id}/slides/{slide_id}/generate-narration")
+async def generate_slide_narration(project_id: str, slide_id: str, request: GenerateNarrationRequest):
+    """Generate 3 narration text options for a slide using Gemini 3"""
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI key not configured")
+
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    course = project.get('course', {})
+    slides = course.get('slides', [])
+    slide = next((s for s in slides if s.get('id') == slide_id), None)
+    if not slide:
+        raise HTTPException(status_code=404, detail="Slide not found")
+
+    # Extract text content from slide elements
+    text_parts = []
+    for element in slide.get('elements', []):
+        if element.get('type') == 'text' and element.get('content'):
+            # Strip HTML tags for clean text
+            import re as re_mod
+            clean = re_mod.sub(r'<[^>]+>', '', element['content'])
+            if clean.strip():
+                text_parts.append(clean.strip())
+        elif element.get('type') == 'html' and element.get('content'):
+            import re as re_mod
+            clean = re_mod.sub(r'<[^>]+>', '', element['content'])
+            if clean.strip():
+                text_parts.append(clean.strip())
+        elif element.get('type') == 'image':
+            text_parts.append("[Imagem presente no slide]")
+        elif element.get('type') == 'quiz':
+            text_parts.append("[Quiz/Atividade interativa presente no slide]")
+
+    slide_text = "\n".join(text_parts) if text_parts else request.slide_content
+    slide_title = slide.get('title', '')
+
+    style_guide = {
+        "educational": "educativo e didático, explicando conceitos de forma clara e objetiva",
+        "conversational": "conversacional e descontraído, como se estivesse falando com um amigo",
+        "formal": "formal e profissional, adequado para ambientes corporativos",
+        "friendly": "amigável e acolhedor, criando conexão com o espectador"
+    }
+
+    try:
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"narration-gen-{uuid.uuid4()}",
+            system_message=f"""Você é um especialista em criar textos de narração para slides de cursos e apresentações.
+
+Suas diretrizes:
+1. Escreva em {request.language}
+2. Use tom {style_guide.get(request.style, style_guide['educational'])}
+3. O texto deve ser adequado para narração em voz alta (TTS)
+4. Escreva de forma natural, fluida e envolvente
+5. Use pausas naturais (vírgulas, pontos) para dar ritmo
+6. O texto deve complementar e explicar o conteúdo visual do slide
+7. Cada opção deve ter entre 2 e 5 frases (ideal para 20-60 segundos de narração)
+8. Cada opção deve ter uma abordagem ligeiramente diferente
+
+FORMATO DE RESPOSTA OBRIGATÓRIO:
+Retorne exatamente 3 opções, separadas por "---". Cada opção deve conter APENAS o texto de narração, sem numeração, títulos ou marcadores. Exemplo:
+
+Texto da primeira opção aqui...
+---
+Texto da segunda opção aqui...
+---
+Texto da terceira opção aqui..."""
+        ).with_model("gemini", "gemini-3-flash-preview")
+
+        prompt = f"Crie 3 opções de texto de narração para o seguinte slide:"
+        if slide_title:
+            prompt += f"\n\nTítulo do slide: {slide_title}"
+        if slide_text:
+            prompt += f"\n\nConteúdo do slide:\n{slide_text}"
+        if request.slide_content and request.slide_content != slide_text:
+            prompt += f"\n\nContexto adicional: {request.slide_content}"
+
+        user_message = UserMessage(text=prompt)
+        response = await chat.send_message(user_message)
+
+        # Parse the 3 options
+        options = [opt.strip() for opt in response.split("---") if opt.strip()]
+
+        # Ensure we have exactly 3 options
+        if len(options) < 3:
+            while len(options) < 3:
+                options.append(options[-1] if options else "Narração não disponível.")
+        options = options[:3]
+
+        return {
+            "options": options,
+            "slide_id": slide_id,
+            "style": request.style
+        }
+    except Exception as e:
+        logger.error(f"AI narration generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Falha ao gerar narração: {str(e)}")
+
+
+
 @api_router.get("/heygen/video-status/{video_id}")
 async def get_heygen_video_status(video_id: str):
     """Check the status of a HeyGen video generation"""
