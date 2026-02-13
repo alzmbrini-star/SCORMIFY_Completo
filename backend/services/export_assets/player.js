@@ -1146,18 +1146,18 @@ var CoursePlayer = (function() {
                 var htmlContent = element.htmlContent || '<p>HTML Content</p>';
                 
                 // Check if content is base64 encoded
-                if (htmlContent.startsWith('__B64__:')) {{
-                    try {{
+                if (htmlContent.startsWith('__B64__:')) {
+                    try {
                         var binaryString = atob(htmlContent.substring(8));
                         var bytes = new Uint8Array(binaryString.length);
-                        for (var i = 0; i < binaryString.length; i++) {{
+                        for (var i = 0; i < binaryString.length; i++) {
                             bytes[i] = binaryString.charCodeAt(i);
-                        }}
+                        }
                         htmlContent = new TextDecoder('utf-8').decode(bytes);
-                    }} catch(e) {{
+                    } catch(e) {
                         console.error('Failed to decode htmlContent:', e);
-                    }}
-                }}
+                    }
+                }
                 
                 // Check if this element is truly fullscreen (covers most of the slide area)
                 var slideWidth = currentSlide.width || 1280;
