@@ -1443,6 +1443,8 @@ export default function Editor() {
     loadTTSVoices();
     setTTSText('');
     setTTSAudioUrl(null);
+    setAiNarrationOptions([]);
+    setShowAiNarrationOptions(false);
   };
 
   const handleTTSGenderFilterChange = async (gender) => {
