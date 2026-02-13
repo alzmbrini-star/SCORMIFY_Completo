@@ -968,7 +968,7 @@ var CoursePlayer = (function() {
             case 'text':
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
-                el.innerHTML = element.content ? element.content.replace(/\\n/g, '<br>') : '';
+                el.innerHTML = element.content ? element.content.replace(/\n/g, '<br>') : '';
                 // Apply background color (transparent or custom)
                 if (element.style && element.style.transparentBackground) {
                     el.style.backgroundColor = 'transparent';
@@ -997,7 +997,7 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element shape-element';
                 if (element.content) {
-                    el.innerHTML = element.content.replace(/\\n/g, '<br>');
+                    el.innerHTML = element.content.replace(/\n/g, '<br>');
                 }
                 applyShapeStyles(el, element);
                 break;
@@ -1199,7 +1199,7 @@ var CoursePlayer = (function() {
                         'img.rtf-image-inline{display:block!important;max-width:100%!important;width:auto!important;height:auto!important;margin:8px 0!important;border:none!important;outline:none!important;}' +
                         'img.rtf-image-float-left,img[style*="float: left"],img[style*="float:left"]{float:left!important;max-width:45%!important;margin-right:16px!important;margin-bottom:12px!important;height:auto!important;object-fit:contain!important;}' +
                         'img.rtf-image-float-right,img[style*="float: right"],img[style*="float:right"]{float:right!important;max-width:45%!important;margin-left:16px!important;margin-bottom:12px!important;height:auto!important;object-fit:contain!important;}' +
-                        'body::after{content:\\'\\';display:table;clear:both;}' +
+                        'body::after{content:\'\';display:table;clear:both;}' +
                         'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}' +
                         mobileCSS
                     ) +
@@ -1263,7 +1263,7 @@ var CoursePlayer = (function() {
                     flipNav.style.cssText = 'height:40px;display:flex;align-items:center;justify-content:center;gap:10px;background:#333;';
                     
                     var prevBtn = document.createElement('button');
-                    prevBtn.innerHTML = '◀ Anterior';
+                    prevBtn.innerHTML = 'â Anterior';
                     prevBtn.style.cssText = 'padding:5px 10px;border:none;background:#555;color:#fff;border-radius:4px;cursor:pointer;';
                     prevBtn.onclick = function() {
                         var pages = JSON.parse(flipImg.dataset.pages);
@@ -1280,7 +1280,7 @@ var CoursePlayer = (function() {
                     pageInfo.textContent = '1 / ' + element.flipbookPages.length;
                     
                     var nextBtn = document.createElement('button');
-                    nextBtn.innerHTML = 'Próximo ▶';
+                    nextBtn.innerHTML = 'PrÃ³ximo â¶';
                     nextBtn.style.cssText = 'padding:5px 10px;border:none;background:#555;color:#fff;border-radius:4px;cursor:pointer;';
                     nextBtn.onclick = function() {
                         var pages = JSON.parse(flipImg.dataset.pages);
@@ -1329,11 +1329,11 @@ var CoursePlayer = (function() {
                 
                 // Placeholder until quiz is initialized
                 quizContainer.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">' +
-                    '<div style="font-size:48px;margin-bottom:16px;">📝</div>' +
+                    '<div style="font-size:48px;margin-bottom:16px;">ð</div>' +
                     '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + quizTitle + '</h3>' +
-                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + questionIds.length + ' questões</p>' +
+                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + questionIds.length + ' questÃµes</p>' +
                     '<button class="quiz-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ' +
-                    'onclick="QuizController.startQuiz(\\'' + element.id + '\\')">Iniciar Quiz</button>' +
+                    'onclick="QuizController.startQuiz(\'' + element.id + '\')">Iniciar Quiz</button>' +
                     '</div>';
                 
                 el.appendChild(quizContainer);
@@ -1678,11 +1678,11 @@ var CoursePlayer = (function() {
         if (globalAudio) {
             if (globalAudio.muted) {
                 globalAudio.muted = false;
-                if (volumeBtn) volumeBtn.innerHTML = '🔊';
+                if (volumeBtn) volumeBtn.innerHTML = 'ð';
                 if (volumeSlider) volumeSlider.value = globalAudio.volume * 100;
             } else {
                 globalAudio.muted = true;
-                if (volumeBtn) volumeBtn.innerHTML = '🔇';
+                if (volumeBtn) volumeBtn.innerHTML = 'ð';
             }
         }
         
@@ -1710,11 +1710,11 @@ var CoursePlayer = (function() {
         // Update button icon based on volume level
         if (volumeBtn) {
             if (volume === 0) {
-                volumeBtn.innerHTML = '🔇';
+                volumeBtn.innerHTML = 'ð';
             } else if (volume < 0.5) {
-                volumeBtn.innerHTML = '🔉';
+                volumeBtn.innerHTML = 'ð';
             } else {
-                volumeBtn.innerHTML = '🔊';
+                volumeBtn.innerHTML = 'ð';
             }
         }
     }
@@ -1774,13 +1774,13 @@ var CoursePlayer = (function() {
             var status = document.createElement('div');
             status.className = 'sidebar-slide-status';
             if (index < currentSlide) {
-                status.innerHTML = '✓ Concluído';
+                status.innerHTML = 'â ConcluÃ­do';
                 status.classList.add('completed');
             } else if (index === currentSlide) {
-                status.innerHTML = '● Atual';
+                status.innerHTML = 'â Atual';
                 status.classList.add('current');
             } else {
-                status.innerHTML = '○ Pendente';
+                status.innerHTML = 'â Pendente';
             }
             
             info.appendChild(title);
@@ -1803,13 +1803,13 @@ var CoursePlayer = (function() {
             if (status) {
                 status.classList.remove('completed', 'current');
                 if (index < currentSlide) {
-                    status.innerHTML = '✓ Concluído';
+                    status.innerHTML = 'â ConcluÃ­do';
                     status.classList.add('completed');
                 } else if (index === currentSlide) {
-                    status.innerHTML = '● Atual';
+                    status.innerHTML = 'â Atual';
                     status.classList.add('current');
                 } else {
-                    status.innerHTML = '○ Pendente';
+                    status.innerHTML = 'â Pendente';
                 }
             }
         });
