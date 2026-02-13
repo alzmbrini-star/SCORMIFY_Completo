@@ -188,12 +188,12 @@
             transition: margin-left 0.3s ease;
         }
         
-        /* Mobile landscape optimization - minimize padding for more slide space */
+        /* Mobile landscape optimization - standard scaling (reflow removed) */
         @media screen and (orientation: landscape) and (max-height: 700px) {
             html, body {
                 width: 100vw !important;
                 max-width: 100vw !important;
-                overflow: visible !important;
+                overflow: hidden !important;
                 margin: 0 !important;
                 padding: 0 !important;
             }
@@ -203,7 +203,7 @@
                 max-width: 100vw !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                overflow: visible !important;
+                overflow: hidden !important;
             }
             
             #slide-wrapper {
@@ -211,9 +211,9 @@
                 margin: 0 !important;
                 width: 100vw !important;
                 max-width: 100vw !important;
-                justify-content: flex-start !important;
-                align-items: flex-start !important;
-                overflow: visible !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
             }
             
             #slide-container {
@@ -248,17 +248,14 @@
             }
         }
         
-        /* Mobile landscape - allow scroll and pinch-to-zoom */
+        /* Mobile landscape - standard scaling, no scroll needed */
         @media screen and (max-height: 700px) and (orientation: landscape) {
             body {
-                overflow: auto !important;
-                overflow-x: hidden !important;
-                -webkit-overflow-scrolling: touch !important;
+                overflow: hidden !important;
             }
             #player-container {
-                overflow: visible !important;
-                height: auto !important;
-                min-height: 100vh;
+                overflow: hidden !important;
+                height: 100vh !important;
             }
         }
         
