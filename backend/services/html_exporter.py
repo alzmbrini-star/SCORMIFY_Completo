@@ -1238,6 +1238,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             <button class="continue-portrait-btn" onclick="(function(){ try{sessionStorage.setItem('orientation_overlay_dismissed','true')}catch(e){} document.getElementById('orientation-overlay').style.display='none'; document.getElementById('player-container').style.display='flex'; if(typeof Player!=='undefined'&&Player.updateScale)setTimeout(function(){Player.updateScale()},100); })()">
                 Continuar no modo retrato
             </button>
+        </div>
+    </div>
+    
+    <!-- Main Player Container -->
     <div id="player-container">
         <div id="header">
             <div style="display: flex; align-items: center; gap: 15px;">
