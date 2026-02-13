@@ -2124,8 +2124,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 wrapper.style.justifyContent = '';
                 wrapper.style.paddingTop = '';
                 container.style.marginLeft = '';
+                container.style.marginRight = '';
+                container.style.marginBottom = '';
                 container.style.boxShadow = '';
-                container.style.transformOrigin = 'center center';
+                container.style.transformOrigin = '0 0';
                 
                 var wrapperRect = wrapper.getBoundingClientRect();
                 
