@@ -1886,4 +1886,3 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function(error) { console.error('Failed to load course:', error); });
 });
-'''

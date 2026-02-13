@@ -162,4 +162,3 @@ window.addEventListener('load', function() {
 window.addEventListener('beforeunload', function() {
     ScormAPI.finish();
 });
-'''

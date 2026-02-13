@@ -364,4 +364,3 @@ var QuizController = (function() {
         }
     };
 })();
-'''
