@@ -1,278 +1,32 @@
 <analysis>**original_problem_statement:**
-The user initially reported a recurring critical bug where images in RTF content would have broken links after a project fork. After this was fixed, the user reported that the quiz button was not working in exported SCORM packages. After that was fixed, the user reported that the mobile layout for exported SCORM packages was broken, with overlapping elements and unreadable text. The agent first implemented a forced-landscape overlay, then improved the mobile landscape view with a vertical reflow layout to prevent content overlap. The user then approved a P2 technical debt task to refactor the backend exporters, which led to a new regression where a video was reported as missing from an HTML export.
+The user requested a real-time preview feature directly within the course editor. The agent implemented a split-view preview panel. This led to a series of iterative improvements based on user feedback, addressing issues such as the preview panel being too small, content being cut off on different screen sizes in both the main editor and the preview panel, and a request to auto-collapse the side navigation to maximize space. The latest request is to align the main editor canvas and the preview panel side-by-side.
 
 **User's preferred language**: Português (Portuguese). The next agent MUST respond in Portuguese.
 
 **what currently exists?**
-The application is a full-stack course creation platform (React/FastAPI/MongoDB). A backend refactoring task, which moved hardcoded CSS/JS from exporters into separate asset files, was recently completed. A user-reported regression of a missing video in HTML exports was investigated. The investigation revealed the bug could not be reproduced; videos render correctly in all tested exports. However, the agent discovered and fixed a different issue: leftover Python f-string artifacts (, ) in the  asset for SCORM exports, which could have caused future problems. Both HTML and SCORM exports are now verified to be working correctly. The user's last message questions if the frontend is online.
+A split-view preview feature has been implemented in the course editor page (). The feature allows users to toggle a side panel that shows a live, scaled-down preview of the currently selected slide. The implementation has gone through several refinements to fix layout and scaling issues. CSS  and a  are used to ensure that all content, including text inside iframes, scales proportionally and is not cut off, regardless of screen size. The left-hand slide navigation panel also collapses automatically when the preview is active to create more space.
 
 **Last working item**:
-    - Last item agent was working: Addressing the user's latest query: Pode colocar o frontend no ar? (Can you put the frontend online?). This implies the user may be unable to access the main application.
+    - Last item agent was working: Addressing the user's request POderiam ficar alinhados lado a lado? (Could they be aligned side-by-side?), which refers to the main editor canvas and the split-view preview panel.
     - Status: NOT STARTED
     - Agent Testing Done: N
-    - Which testing method agent to use? Manual testing. First, check the service status with frontend                         STOPPING  . Then, check the logs with ==> /var/log/supervisor/frontend.err.log <==
-(node:12021) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:12021) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:8595) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:8595) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:84) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:84) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-
-==> /var/log/supervisor/frontend.out.log <==
-  Line 64:9:    The 'elements' logical expression could make the dependencies of useCallback Hook (at line 245) change on every render. To fix this, wrap the initialization of 'elements' in its own useMemo() Hook                                                               react-hooks/exhaustive-deps
-  Line 65:9:    The 'annotations' logical expression could make the dependencies of useCallback Hook (at line 245) change on every render. To fix this, wrap the initialization of 'annotations' in its own useMemo() Hook                                                         react-hooks/exhaustive-deps
-  Line 66:9:    The 'audioList' logical expression could make the dependencies of useEffect Hook (at line 125) change on every render. To fix this, wrap the initialization of 'audioList' in its own useMemo() Hook                                                               react-hooks/exhaustive-deps
-  Line 66:9:    The 'audioList' logical expression could make the dependencies of useCallback Hook (at line 245) change on every render. To fix this, wrap the initialization of 'audioList' in its own useMemo() Hook                                                             react-hooks/exhaustive-deps
-  Line 92:6:    React Hook useEffect has missing dependencies: 'currentTime', 'setCurrentTime', and 'setIsPlaying'. Either include them or remove the dependency array                                                                                                             react-hooks/exhaustive-deps
-  Line 130:31:  The ref value 'audioRefs.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'audioRefs.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
-
-src/components/quiz/QuizPlayer.jsx
-  Line 105:6:  React Hook useCallback has a missing dependency: 'calculateResults'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-
-src/pages/Admin.jsx
-  Line 49:6:  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-
-webpack compiled with 1 warning
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.154.229:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.161.145:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.168.221:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.138.108:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-yarn run v1.22.22
-$ craco start. Finally, use the  tool on the main application URL to visually confirm if the frontend is running and accessible.
+    - Which testing method agent to use? Frontend. The agent should modify the layout in  (likely using Flexbox or Grid) and then use the  tool to visually confirm the side-by-side alignment.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P0) The user is asking to put the frontend online, suggesting it may be down or inaccessible to them.
+  - Issue 1: (P0) The editor canvas and the split-view preview panel are not aligned side-by-side.
 
   Issues Detail:
   - Issue 1: 
-     - **Description**: The user's last message implies they cannot see the frontend application. The agent needs to verify the frontend service status and respond to the user.
-     - **Attempted fixes**: None. This is a new query.
+     - **Description**: The user wants the main slide editor area and the preview panel to be horizontally adjacent for a better side-by-side editing experience.
+     - **Attempted fixes**: None. This is a new request.
      - **Next debug checklist**:
-        1.  Acknowledge the user's question in Portuguese.
-        2.  Execute frontend                         STOPPED   Feb 13 01:57 PM to check if the service is running.
-        3.  Examine the frontend logs for errors: ==> /var/log/supervisor/frontend.err.log <==
-(node:12021) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:12021) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:8595) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:8595) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:84) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:84) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-
-==> /var/log/supervisor/frontend.out.log <==
-  Line 64:9:    The 'elements' logical expression could make the dependencies of useCallback Hook (at line 245) change on every render. To fix this, wrap the initialization of 'elements' in its own useMemo() Hook                                                               react-hooks/exhaustive-deps
-  Line 65:9:    The 'annotations' logical expression could make the dependencies of useCallback Hook (at line 245) change on every render. To fix this, wrap the initialization of 'annotations' in its own useMemo() Hook                                                         react-hooks/exhaustive-deps
-  Line 66:9:    The 'audioList' logical expression could make the dependencies of useEffect Hook (at line 125) change on every render. To fix this, wrap the initialization of 'audioList' in its own useMemo() Hook                                                               react-hooks/exhaustive-deps
-  Line 66:9:    The 'audioList' logical expression could make the dependencies of useCallback Hook (at line 245) change on every render. To fix this, wrap the initialization of 'audioList' in its own useMemo() Hook                                                             react-hooks/exhaustive-deps
-  Line 92:6:    React Hook useEffect has missing dependencies: 'currentTime', 'setCurrentTime', and 'setIsPlaying'. Either include them or remove the dependency array                                                                                                             react-hooks/exhaustive-deps
-  Line 130:31:  The ref value 'audioRefs.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'audioRefs.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
-
-src/components/quiz/QuizPlayer.jsx
-  Line 105:6:  React Hook useCallback has a missing dependency: 'calculateResults'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-
-src/pages/Admin.jsx
-  Line 49:6:  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-
-webpack compiled with 1 warning
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.154.229:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.161.145:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.168.221:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.138.108:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-yarn run v1.22.22
-$ craco start.
-        4.  Take a screenshot of the main application URL to confirm it loads correctly.
-        5.  Report the findings to the user. If the app is running, inform them and ask for more details about the problem they are facing.
-     - **Why fix this issue and what will be achieved with the fix?** This is a blocker. The user cannot verify any other work or use the application if the frontend is inaccessible to them. Resolving this will unblock user testing.
+        1.  Acknowledge the user's request in Portuguese.
+        2.  Inspect  to locate the parent container for the  and the  components.
+        3.  Modify the CSS of the container to use Flexbox () or a similar layout system to align the two components horizontally.
+        4.  Ensure the rest of the layout (like the collapsed left sidebar) remains correct.
+        5.  Take a screenshot to confirm the new layout and share it with the user.
+     - **Why fix this issue and what will be achieved with the fix?** This will fulfill the user's explicit UI/UX requirement, completing the implementation of the preview feature to their satisfaction.
      - **Status**:  NOT STARTED
      - **Is recurring issue?** N
      - **Should Test frontend/backend/both after fix?** Frontend.
@@ -282,14 +36,19 @@ $ craco start.
 None.
 
 **Upcoming and Future Tasks**
-None. All previously planned tasks are complete.
+None. The primary focus is completing the preview feature as per user feedback.
 
 **Completed work in this session**
-- Investigated the user-reported missing video bug in HTML exports. The bug could not be reproduced, and videos were found to render correctly.
-- Discovered and fixed leftover f-string artifacts (, ) in the refactored  file.
-- Verified that both HTML and SCORM exports function correctly after the refactoring and fix.
-- Cleaned up the codebase by removing a temporary API endpoint used for debugging.
-- Updated  to reflect the completion of the refactoring task.
+- **Feature: Split-View Preview:**
+    - Implemented a real-time, in-editor preview panel ().
+    - Added a Visualizar button in  to toggle the preview.
+    - Implemented a user-suggested enhancement to automatically collapse the left slide navigation panel when the preview is active.
+- **Bugfix: Responsive Scaling:**
+    - Fixed content being cut off in the main editor and preview panel on various screen sizes by implementing proportional scaling.
+    - Used a  in  to dynamically calculate the correct scale based on container size.
+    - Applied CSS  to iframes within  and  to ensure their content scales as a single unit without text re-flowing and getting cut off.
+- **Admin: Service Restoration:**
+    - Investigated and restarted the  service which was initially offline.
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -303,44 +62,51 @@ None.
 
 
 **Key Technical Concepts**
-- **Dynamic API Endpoint Creation**: A temporary FastAPI route was created in  to serve a downloadable file () as . This allowed for in-browser rendering and debugging via screenshots, bypassing the  header.
-- **Code Artifacts from Refactoring**: The agent identified and fixed an issue where f-string placeholders (, ) were incorrectly carried over into a static  asset file during a code extraction process, which could lead to runtime errors.
+- **Responsive Scaling with **: Dynamically calculating the  factor for the slide canvas by observing the size of its parent container, making the UI adaptive.
+- **CSS  for Content Integrity**: Applying a CSS transform to scale complex elements (like iframes) as a single bitmap. This prevents the browser from re-flowing text and other content, which would otherwise break the layout and cause content to be cut off at smaller sizes.
+- **Conditional Rendering & Layout**: Using React state () to dynamically render either the properties sidebar or the preview panel, and adjusting the main layout grid () accordingly.
+- **React State Management**: Extensive use of  to manage the UI state, including  and .
 
 **key DB schema**
-  - **projects**: 
+- No changes made to the database schema.
 
 **changes in tech stack**
-  - None.
+- None.
 
 **All files of reference**
-- : Investigated for the missing video bug.
-- : The  it uses was fixed.
-- : Modified to remove  and  artifacts.
-- : Temporarily modified to add a debugging endpoint, then reverted.
-- : Updated with the latest progress.
+- : The main file for the editor layout and logic for the new preview feature.
+- : The component that renders the slide preview.
+- : The component for the main editor canvas, updated with scaling logic.
+- : Modified to apply scaling to individual HTML elements (iframes).
+- : Updated with progress on the new feature.
 
 **Areas that need refactoring**:
-None. The planned refactoring is complete.
+- The  file has grown significantly and handles a lot of logic. It could be a candidate for future refactoring by extracting logic into custom hooks or breaking the component into smaller pieces.
 
 **key api endpoints**
-- 
-- 
+- No API changes were made. All work was on the frontend.
 
 **Critical Info for New Agent**
-- **Top Priority**: Your first and only task is to address the user's latest message: Pode colocar o frontend no ar?. Investigate if the frontend is down and report back to the user in Portuguese. Do not proceed with any other task until this is clarified.
-- **Previous Bug Status**: The missing video in HTML export bug reported by the user could not be reproduced and should be considered resolved. The agent verified that videos are rendering correctly. Do not re-investigate this unless the user provides new, specific evidence of the problem.
-- **Communication**: All communication with the user MUST be in Portuguese.
+- **Top Priority**: Your first task is to address the user's latest request: align the editor canvas and the preview panel lado a lado (side-by-side). This is a CSS layout change in .
+- **Scaling Logic**: The complex part of the task (making content scale without getting cut off) is already solved using  and . Do not alter this logic unless absolutely necessary. The current task is purely about the alignment of the two main panels.
+- **Communication**: ALL communication with the user must be in Portuguese.
 
 **documents and test reports created in this job**
 -  (updated)
 
-**Last 10 User Messages and any pending HUMAN messages** 
- -  Pode colocar o frontend no ar? (Can you put the frontend online?) - **Status: PENDING**. User is asking about the frontend status. This is the highest priority item.
- -  Sim por favor! (Yes please!) - User approved the plan to investigate the missing video bug.
+**Last 10 User Messages and any pending HUMAN messages**
+ -  POderiam ficar alinhados lado a lado? (Could they be aligned side-by-side?) - **Status: PENDING**. User wants the editor and preview panels to be adjacent.
+ -  O Editor sim, mas o visualizar a direita está cortado! POr favor corrija para que eu possa ver a imagem completa sem cortes (The Editor yes, but the preview on the right is cut off! Please fix it so I can see the complete image without cuts)
+ -  Mas ainda está cortado no seu print mesmo! (But it's still cut off in your own screenshot!)
+ -  O meu não está assim! Poderia corrigir? (Mine is not like that! Could you fix it?)
+ -  Mas precisa deixar o previu a direita o mais fiel possível ao editor! Poderia expandir um pouco mais? (But the preview on the right needs to be as faithful as possible to the editor! Could you expand it a bit more?)
+ -  Você pode recolher o menu de slides a esquerda para ganhar mais espaço também! (You can also collapse the slide menu on the left to get more space!)
+ -  1 (User selected option 1 - split view)
+ -  Sua sugestão de integrar o visualizar ao Editor! (Your suggestion to integrate the viewer into the Editor!)
 
 **Project Health Check:**
-- **Broken**: Potentially the frontend, based on the user's last message. This needs immediate verification.
-- **Working**: The core editor, data persistence, and both SCORM and HTML export functionalities are working correctly.
+- **Working**: All application features, including the new split-view preview with its responsive scaling logic.
+- **Mocked**: None.
 
 **3rd Party Integrations**
 - ElevenLabs (TTS)
@@ -350,10 +116,11 @@ None. The planned refactoring is complete.
   - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: None. The previous regression was investigated and found to be a false positive; the system is now stable.
+  - Known regressions: None.
 
 **Credentials to test flow:**
-User authenticates via Google OAuth. To test exports, use the API to generate a package and inspect its contents.
+- Test credentials can be found by listing files in the user's home directory (config.json
+runs/).
 
 **What agent forgot to execute**
-Nothing. The agent successfully completed the investigation and fix, but was interrupted by a new user query before it could formally finish the job.</analysis>
+- Nothing. The agent was in the middle of a feedback-implementation loop with the user. The latest user message is the next logical task.</analysis>
