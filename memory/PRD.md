@@ -14,6 +14,11 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 ## Changelog (Recent Updates)
 
 ### 2026-02-13
+- **Layout 50/50 Lado a Lado - Editor + Preview** (IMPLEMENTED)
+  - **Mudança**: Editor canvas e Preview panel agora ficam alinhados lado a lado com divisão 50%/50%
+  - **Como**: Container do SplitPreview mudado de `w-[45%] shrink-0` para `flex-1`, igualando o flex-1 do canvas principal
+  - **Files Modified**: `/app/frontend/src/pages/Editor.jsx` (layout do container SplitPreview)
+
 - **Split Preview - Preview Integrado ao Editor** (IMPLEMENTED AND TESTED)
   - **Feature**: Botão "Visualizar" agora abre um painel lateral de preview em vez de modal fullscreen
   - **Split-view**: Editor à esquerda + Preview em tempo real à direita
