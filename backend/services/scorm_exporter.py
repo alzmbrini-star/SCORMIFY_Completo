@@ -305,8 +305,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     if not clean_title:
         clean_title = 'Curso SCORM'
     
-    # Generate index.html
-    html_content = PLAYER_HTML_TEMPLATE.format(
+    # Generate index.html from template + CSS assets
+    html_content = _build_html(
         title=clean_title,
         lang=course.metadata.language or 'en',
         width=slide_width,
