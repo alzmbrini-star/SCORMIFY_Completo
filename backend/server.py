@@ -1705,10 +1705,48 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
     # Extract content from elements
     for element in slide.get('elements', []):
         el_type = element.get('type', '')
-        if el_type in ('text', 'html') and element.get('content'):
-            clean = re.sub(r'<[^>]+>', '', element['content'])
+        # Check both 'content' and 'htmlContent' fields (htmlContent is used by rich text editor)
+        raw_content = element.get('content') or element.get('htmlContent') or ''
+        if el_type in ('text', 'html') and raw_content:
+            # Extract text from HTML
+            clean = re.sub(r'<[^>]+>', '', raw_content)
             if clean.strip():
                 text_parts.append(clean.strip())
+            # Also check for inline images in htmlContent (RTF editor embeds images)
+            img_matches = re.findall(r'src="(/api/[^"]+)"', raw_content)
+            for img_src in img_matches:
+                if img_src.startswith('/api/projects/'):
+                    parts = img_src.split('/assets/')
+                    if len(parts) == 2:
+                        local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
+                        if local_path.exists():
+                            try:
+                                img_data = local_path.read_bytes()
+                                ext = local_path.suffix.lower()
+                                mime = 'image/png' if ext == '.png' else 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/webp'
+                                image_files.append(FileContent(
+                                    content_type=mime,
+                                    file_content_base64=base64.b64encode(img_data).decode('utf-8')
+                                ))
+                                logger.info(f"Loaded inline image for vision: {local_path.name}")
+                            except Exception as e:
+                                logger.warning(f"Failed to load inline image: {e}")
+                elif img_src.startswith('/api/assets/'):
+                    # Global assets path
+                    asset_name = img_src.split('/api/assets/')[-1]
+                    local_path = STORAGE_DIR / "assets" / asset_name
+                    if local_path.exists():
+                        try:
+                            img_data = local_path.read_bytes()
+                            ext = local_path.suffix.lower()
+                            mime = 'image/png' if ext == '.png' else 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/webp'
+                            image_files.append(FileContent(
+                                content_type=mime,
+                                file_content_base64=base64.b64encode(img_data).decode('utf-8')
+                            ))
+                            logger.info(f"Loaded global asset image for vision: {asset_name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to load global asset image: {e}")
         elif el_type == 'image' and element.get('src'):
             src = element['src']
             if src.startswith('/api/projects/'):
