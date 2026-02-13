@@ -2302,6 +2302,31 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             // Initialize on load
             document.addEventListener('DOMContentLoaded', init);
             
+            // Portrait orientation check (JS-controlled overlay)
+            function checkPortraitOverlay() {{
+                var overlay = document.getElementById('orientation-overlay');
+                var playerContainer = document.getElementById('player-container');
+                if (!overlay || !playerContainer) return;
+                
+                var isPortrait = window.innerHeight > window.innerWidth;
+                var isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 900;
+                var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (isSmallScreen && ('ontouchstart' in window));
+                var dismissed = false;
+                try {{ dismissed = sessionStorage.getItem('orientation_overlay_dismissed') === 'true'; }} catch(e) {{}}
+                
+                if (isMobile && isPortrait && !dismissed) {{
+                    overlay.style.display = 'flex';
+                    playerContainer.style.display = 'none';
+                }} else {{
+                    overlay.style.display = 'none';
+                    playerContainer.style.display = 'flex';
+                }}
+            }}
+            
+            document.addEventListener('DOMContentLoaded', function() {{ setTimeout(checkPortraitOverlay, 50); }});
+            window.addEventListener('resize', function() {{ setTimeout(checkPortraitOverlay, 200); }});
+            window.addEventListener('orientationchange', function() {{ setTimeout(checkPortraitOverlay, 200); }});
+            
             return {{
                 next: next,
                 prev: prev,
