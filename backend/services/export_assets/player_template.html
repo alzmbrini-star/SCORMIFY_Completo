@@ -21,6 +21,9 @@ __CSS_CONTENT__
                 <span class="arrow">→</span>
                 <span class="phone-icon horizontal">📱</span>
             </div>
+            <button class="continue-portrait-btn" onclick="(function(){ try{sessionStorage.setItem('orientation_overlay_dismissed','true')}catch(e){} document.getElementById('orientation-overlay').style.display='none'; document.getElementById('player-container').style.display='flex'; setTimeout(function(){if(typeof CoursePlayer!=='undefined'&&CoursePlayer.updateScale)CoursePlayer.updateScale()},100); setTimeout(function(){if(typeof CoursePlayer!=='undefined'&&CoursePlayer.updateScale)CoursePlayer.updateScale()},300); })()">
+                Continuar no modo retrato
+            </button>
         </div>
     </div>
     
