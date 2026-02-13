@@ -1517,6 +1517,49 @@ export default function Editor() {
     setTTSPreviewUrl(ttsPreviewUrl === previewUrl ? null : previewUrl);
   };
 
+  // AI Narration Generation
+  const handleGenerateAiNarration = async () => {
+    if (!currentSlide || !currentProject) return;
+    setAiNarrationLoading(true);
+    setAiNarrationOptions([]);
+    setShowAiNarrationOptions(true);
+    try {
+      // Gather slide content for context
+      const elements = currentSlide.elements || [];
+      const contentParts = elements.map(el => {
+        if ((el.type === 'text' || el.type === 'html') && el.content) {
+          return el.content.replace(/<[^>]+>/g, '');
+        }
+        if (el.type === 'image') return '[Imagem]';
+        if (el.type === 'quiz') return '[Quiz]';
+        return '';
+      }).filter(Boolean);
+
+      const response = await axios.post(
+        `${API_URL}/api/projects/${currentProject.id}/slides/${currentSlide.id}/generate-narration`,
+        {
+          slide_content: contentParts.join('\n') || currentSlide.title || 'Slide sem conteúdo textual',
+          style: aiNarrationStyle,
+          language: 'português brasileiro'
+        }
+      );
+      setAiNarrationOptions(response.data.options || []);
+    } catch (err) {
+      console.error('Error generating AI narration:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao gerar narração com IA');
+      setShowAiNarrationOptions(false);
+    } finally {
+      setAiNarrationLoading(false);
+    }
+  };
+
+  const handleSelectAiNarration = (text) => {
+    setTTSText(text);
+    setShowAiNarrationOptions(false);
+    setAiNarrationOptions([]);
+    toast.success('Texto de narração selecionado!');
+  };
+
   // AI Text Generation function
   const generateTextWithAI = async (prompt) => {
     setRichTextGenerating(true);
