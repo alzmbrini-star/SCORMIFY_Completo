@@ -2159,6 +2159,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 scale = Math.min(scale, maxScale);
                 
                 container.style.transform = 'scale(' + scale + ')';
+                
+                // Shrink layout box to match visual size so flexbox centering works
+                container.style.marginRight = -(slideWidth * (1 - scale)) + 'px';
+                container.style.marginBottom = -(slideHeight * (1 - scale)) + 'px';
             }}
             
             function updateProgress() {{
