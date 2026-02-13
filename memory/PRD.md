@@ -13,6 +13,17 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 
 ## Changelog (Recent Updates)
 
+### 2026-02-13
+- **Split Preview - Preview Integrado ao Editor** (IMPLEMENTED AND TESTED)
+  - **Feature**: Botão "Visualizar" agora abre um painel lateral de preview em vez de modal fullscreen
+  - **Split-view**: Editor à esquerda + Preview em tempo real à direita
+  - **Sidebar colapsável**: Painel de slides à esquerda recolhe automaticamente (mostra apenas números) quando o preview está ativo
+  - **Navegação sincronizada**: Trocar slide no editor atualiza o preview e vice-versa
+  - **Controles**: Play/Pause timeline, navegação prev/next, mini sidebar com thumbnails
+  - **Expandir para fullscreen**: Botão para abrir o CoursePreview em tela cheia
+  - **Files Created**: `/app/frontend/src/components/editor/SplitPreview.jsx`
+  - **Files Modified**: `/app/frontend/src/pages/Editor.jsx` (import, state, layout condicional)
+
 ### 2026-02-12
 - **CORREÇÃO P0: Imagens RTF Quebradas Após Fork** (FIXED AND TESTED)
   - **Problema**: URLs absolutas de imagens eram salvas no MongoDB. Após fork, o domínio muda e as imagens quebravam.
