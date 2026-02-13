@@ -2302,7 +2302,7 @@ export default function Editor() {
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 bg-muted/30 overflow-auto flex items-center justify-center p-8">
+            <div className={`flex-1 bg-muted/30 overflow-auto flex items-center justify-center ${showSplitPreview ? 'p-2' : 'p-8'}`}>
               <SlideCanvas
                 slide={currentSlide}
                 selectedElementId={selectedElementId}
