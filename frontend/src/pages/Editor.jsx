@@ -308,7 +308,8 @@ export default function Editor() {
   const [showAudioDialog, setShowAudioDialog] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [audioTarget, setAudioTarget] = useState('slide'); // 'slide' or 'global'
-  const [showPreview, setShowPreview] = useState(false); // Preview mode state
+  const [showPreview, setShowPreview] = useState(false); // Fullscreen preview modal
+  const [showSplitPreview, setShowSplitPreview] = useState(false); // Split-view preview panel
   
   // New element dialogs
   const [showButtonDialog, setShowButtonDialog] = useState(false);
