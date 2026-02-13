@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="__LANG__">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>__TITLE__</title>
+    <style>
+    <style>
+__CSS_CONTENT__
+    </style>
+</head>
+<body>
+    <!-- Mobile Orientation Overlay -->
+    <div id="orientation-overlay">
+        <div class="orientation-content">
+            <div class="orientation-icon">📱</div>
+            <div class="orientation-arrow">↻</div>
+            <h2>Rotacione seu dispositivo</h2>
+            <p>Para uma melhor experiência, por favor visualize este conteúdo no modo horizontal (paisagem)</p>
+            <div class="orientation-hint">
+                <span class="phone-icon vertical">📱</span>
+                <span class="arrow">→</span>
+                <span class="phone-icon horizontal">📱</span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="player-container">
+        <!-- Sidebar Navigation -->
+        <div id="slide-sidebar">
+            <div class="sidebar-header">
+                <h3>📚 Navegação</h3>
+                <button class="sidebar-close" onclick="CoursePlayer.toggleSidebar()" title="Fechar menu">✕</button>
+            </div>
+            <div id="sidebar-slides"></div>
+        </div>
+        
+        <div id="slide-wrapper">
+            <!-- Swipe zones for mobile navigation -->
+            <div id="swipe-zone-left" class="swipe-zone" onclick="CoursePlayer.prev()"></div>
+            <div id="swipe-zone-right" class="swipe-zone" onclick="CoursePlayer.next()"></div>
+            <div id="slide-container"></div>
+            
+            <!-- Mobile Navigation Buttons (shown only on mobile) -->
+            <button id="mobile-nav-prev" class="mobile-nav-btn" onclick="CoursePlayer.prev()" title="Anterior">
+                ‹
+            </button>
+            <button id="mobile-nav-next" class="mobile-nav-btn" onclick="CoursePlayer.next()" title="Próximo">
+                ›
+            </button>
+            <button id="mobile-nav-menu" class="mobile-nav-btn mobile-menu-btn" onclick="CoursePlayer.toggleSidebar()" title="Menu">
+                ☰
+            </button>
+            <div id="mobile-slide-counter" class="mobile-slide-counter"></div>
+        </div>
+        
+        <!-- Start overlay for audio autoplay permission -->
+        <div id="start-overlay" style="display: none;">
+            <div class="start-overlay-content">
+                <div class="start-overlay-icon">🔊</div>
+                <h2>Este curso contém áudio</h2>
+                <p>Clique no botão abaixo para iniciar o curso com áudio</p>
+                <button class="start-btn" onclick="CoursePlayer.startCourse()">
+                    ▶ Iniciar Curso
+                </button>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <div class="nav-buttons">
+                <button class="icon-btn" onclick="CoursePlayer.toggleSidebar()" title="Menu de Navegação">
+                    ☰
+                </button>
+                <button class="control-btn" id="prev-btn" onclick="CoursePlayer.prev()">
+                    ← Anterior
+                </button>
+            </div>
+            <div id="progress-container">
+                <div class="progress-dots" id="progress-dots"></div>
+            </div>
+            <div class="nav-buttons">
+                <button class="control-btn" id="next-btn" onclick="CoursePlayer.next()">
+                    Próximo →
+                </button>
+                <div class="volume-wrapper">
+                    <button class="icon-btn" id="volume-btn" onclick="CoursePlayer.toggleVolumeSlider()" title="Volume">
+                        🔊
+                    </button>
+                    <div id="volume-control">
+                        <input type="range" id="volume-slider" min="0" max="100" value="100" 
+                               oninput="CoursePlayer.setVolume(this.value); document.getElementById('volume-value').textContent = this.value + '%'">
+                        <span id="volume-value">100%</span>
+                    </div>
+                </div>
+                <button class="icon-btn" onclick="CoursePlayer.fullscreen()" title="Tela Cheia">
+                    ⛶
+                </button>
+            </div>
+        </div>
+    </div>
+    <audio id="global-audio"></audio>
+    <script src="scripts/scorm-api.js"></script>
+    <script src="scripts/quiz-controller.js"></script>
+    <script src="scripts/player.js"></script>
+</body>
+</html>
