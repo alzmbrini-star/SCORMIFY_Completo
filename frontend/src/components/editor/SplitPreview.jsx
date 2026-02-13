@@ -309,18 +309,25 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
         )}
 
         {/* Slide area */}
-        <div ref={slideWrapperRef} className="flex-1 flex items-center justify-center p-1" style={{ overflow: 'hidden' }}>
-          <div
-            className="relative shadow-xl rounded-md"
-            style={{
-              width: slideWidth,
-              height: slideHeight,
-              backgroundColor: currentSlide.background || '#FFFFFF',
-              transform: `scale(${slideScale})`,
-              transformOrigin: 'center center',
-              flexShrink: 0,
-            }}
-          >
+        <div ref={slideWrapperRef} className="flex-1 flex items-center justify-center p-1 overflow-hidden">
+          <div style={{
+            width: `${slideWidth * slideScale}px`,
+            height: `${slideHeight * slideScale}px`,
+            flexShrink: 0,
+            overflow: 'hidden',
+            borderRadius: '0.375rem',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+          }}>
+            <div
+              className="relative"
+              style={{
+                width: slideWidth,
+                height: slideHeight,
+                backgroundColor: currentSlide.background || '#FFFFFF',
+                transform: `scale(${slideScale})`,
+                transformOrigin: 'top left',
+              }}
+            >
             {/* Background */}
             {currentSlide.backgroundImage && (
               <img src={getAssetUrl(currentSlide.backgroundImage, projectId)} alt="" className="absolute inset-0 w-full h-full" style={{ zIndex: 0, objectFit: 'fill' }} />
