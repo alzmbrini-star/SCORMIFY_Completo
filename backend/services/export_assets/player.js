@@ -767,63 +767,9 @@ var CoursePlayer = (function() {
         window.slideTimelineTimers = [];
         
         // Helper function to optimize elements for mobile
-        function optimizeForMobile() {
-            var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
-            var isSmallScreen = window.innerWidth < 768 || window.innerHeight < 500;
-            if (!isMobile) return;
-            
-            // Find quiz and html elements and expand them to fill the slide
-            var quizElements = container.querySelectorAll('.quiz-element');
-            var htmlElements = container.querySelectorAll('.html-element');
-            
-            var allElements = Array.from(quizElements).concat(Array.from(htmlElements));
-            
-            allElements.forEach(function(el) {
-                // Force quiz and html elements to fill the entire slide on mobile
-                el.style.width = slideWidth + 'px';
-                el.style.height = slideHeight + 'px';
-                el.style.left = '0';
-                el.style.top = '0';
-                el.style.position = 'absolute';
-                
-                // Find quiz containers inside and expand them too
-                var quizContainer = el.querySelector('.quiz-player-container');
-                if (quizContainer) {
-                    quizContainer.style.width = '100%';
-                    quizContainer.style.height = '100%';
-                    quizContainer.style.padding = isSmallScreen ? '10px' : '15px';
-                    quizContainer.style.boxSizing = 'border-box';
-                    quizContainer.style.fontSize = isSmallScreen ? '16px' : '18px';
-                }
-                
-                // Expand iframes inside html elements
-                var iframe = el.querySelector('iframe');
-                if (iframe) {
-                    iframe.style.width = '100%';
-                    iframe.style.height = '100%';
-                }
-            });
-            
-            // Apply mobile font scaling to quiz elements via CSS injection
-            var mobileStyleId = 'mobile-quiz-optimization';
-            var existingStyle = document.getElementById(mobileStyleId);
-            if (!existingStyle) {
-                var style = document.createElement('style');
-                style.id = mobileStyleId;
-                style.textContent = isSmallScreen ? 
-                    '.quiz-player-container { font-size: 16px !important; } ' +
-                    '.quiz-player-container h2, .quiz-player-container h3 { font-size: 18px !important; margin: 8px 0 !important; } ' +
-                    '.quiz-player-container .quiz-option { padding: 12px !important; margin: 6px 0 !important; font-size: 14px !important; } ' +
-                    '.quiz-player-container button { padding: 12px 20px !important; font-size: 14px !important; } ' +
-                    '.quiz-player-container p { font-size: 14px !important; line-height: 1.4 !important; } '
-                    :
-                    '.quiz-player-container { font-size: 18px !important; } ' +
-                    '.quiz-player-container h2, .quiz-player-container h3 { font-size: 20px !important; } ' +
-                    '.quiz-player-container .quiz-option { padding: 14px !important; font-size: 16px !important; } ' +
-                    '.quiz-player-container button { padding: 14px 24px !important; font-size: 16px !important; } ';
-                document.head.appendChild(style);
-            }
-        }
+        // Mobile optimization removed: transform: scale() on the container
+        // already handles proportional sizing for ALL elements.
+        // Position/size overrides were causing element overlap on multi-element slides.
         
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
