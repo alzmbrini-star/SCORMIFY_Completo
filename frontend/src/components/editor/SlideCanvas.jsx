@@ -102,12 +102,17 @@ const SlideCanvas = ({
     const updateScale = () => {
       if (canvasRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
-        setScale(rect.width / canvasWidth);
+        if (rect.width > 0) setScale(rect.width / canvasWidth);
       }
     };
     updateScale();
     window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
+    const observer = new ResizeObserver(updateScale);
+    if (canvasRef.current) observer.observe(canvasRef.current);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      observer.disconnect();
+    };
   }, [canvasWidth]);
 
   const getCanvasCoords = useCallback((e) => {
