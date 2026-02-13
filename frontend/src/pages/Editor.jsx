@@ -114,6 +114,7 @@ import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
 import AnnotationToolbar from '../components/editor/AnnotationToolbar';
 import CoursePreview from '../components/editor/CoursePreview';
+import SplitPreview from '../components/editor/SplitPreview';
 import RichTextEditor from '../components/RichTextEditor';
 import QuizGenerator from '../components/quiz/QuizGenerator';
 
