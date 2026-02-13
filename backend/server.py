@@ -1655,13 +1655,15 @@ IMPORTANTE: Retorne APENAS o script, sem títulos, numeração de cenas ou instr
         raise HTTPException(status_code=500, detail=f"Failed to generate script: {str(e)}")
 
 class GenerateNarrationRequest(BaseModel):
-    slide_content: str
+    slide_content: Optional[str] = ""
     style: Optional[str] = "educational"
     language: Optional[str] = "português brasileiro"
 
+from emergentintegrations.llm.chat import FileContent
+
 @api_router.post("/projects/{project_id}/slides/{slide_id}/generate-narration")
 async def generate_slide_narration(project_id: str, slide_id: str, request: GenerateNarrationRequest):
-    """Generate 3 narration text options for a slide using Gemini 3"""
+    """Generate 3 narration text options for a slide using Gemini 3 with vision (OCR for images)"""
     emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI key not configured")
@@ -1676,27 +1678,63 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
     if not slide:
         raise HTTPException(status_code=404, detail="Slide not found")
 
-    # Extract text content from slide elements
+    # Collect text content and images from the slide
     text_parts = []
-    for element in slide.get('elements', []):
-        if element.get('type') == 'text' and element.get('content'):
-            # Strip HTML tags for clean text
-            import re as re_mod
-            clean = re_mod.sub(r'<[^>]+>', '', element['content'])
-            if clean.strip():
-                text_parts.append(clean.strip())
-        elif element.get('type') == 'html' and element.get('content'):
-            import re as re_mod
-            clean = re_mod.sub(r'<[^>]+>', '', element['content'])
-            if clean.strip():
-                text_parts.append(clean.strip())
-        elif element.get('type') == 'image':
-            text_parts.append("[Imagem presente no slide]")
-        elif element.get('type') == 'quiz':
-            text_parts.append("[Quiz/Atividade interativa presente no slide]")
+    image_files = []  # list of FileContent for Gemini vision
 
-    slide_text = "\n".join(text_parts) if text_parts else request.slide_content
+    # Check for backgroundImage (PPT-imported slides store full slide as image)
+    bg_image = slide.get('backgroundImage', '')
+    if bg_image and bg_image.startswith('/api/projects/'):
+        # Extract file path from URL: /api/projects/{id}/assets/{filename}
+        parts = bg_image.split('/assets/')
+        if len(parts) == 2:
+            local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
+            if local_path.exists():
+                try:
+                    img_data = local_path.read_bytes()
+                    ext = local_path.suffix.lower()
+                    mime = 'image/png' if ext == '.png' else 'image/jpeg'
+                    image_files.append(FileContent(
+                        content_type=mime,
+                        file_content_base64=base64.b64encode(img_data).decode('utf-8')
+                    ))
+                    logger.info(f"Loaded background image for vision: {local_path.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to load background image: {e}")
+
+    # Extract content from elements
+    for element in slide.get('elements', []):
+        el_type = element.get('type', '')
+        if el_type in ('text', 'html') and element.get('content'):
+            clean = re.sub(r'<[^>]+>', '', element['content'])
+            if clean.strip():
+                text_parts.append(clean.strip())
+        elif el_type == 'image' and element.get('src'):
+            src = element['src']
+            if src.startswith('/api/projects/'):
+                parts = src.split('/assets/')
+                if len(parts) == 2:
+                    local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
+                    if local_path.exists():
+                        try:
+                            img_data = local_path.read_bytes()
+                            ext = local_path.suffix.lower()
+                            mime = 'image/png' if ext == '.png' else 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/webp'
+                            image_files.append(FileContent(
+                                content_type=mime,
+                                file_content_base64=base64.b64encode(img_data).decode('utf-8')
+                            ))
+                            logger.info(f"Loaded element image for vision: {local_path.name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to load element image: {e}")
+        elif el_type == 'quiz':
+            text_parts.append("[Quiz/Atividade interativa presente no slide]")
+        elif el_type == 'video':
+            text_parts.append("[Vídeo presente no slide]")
+
+    slide_text = "\n".join(text_parts) if text_parts else ""
     slide_title = slide.get('title', '')
+    has_images = len(image_files) > 0
 
     style_guide = {
         "educational": "educativo e didático, explicando conceitos de forma clara e objetiva",
@@ -1706,10 +1744,7 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
     }
 
     try:
-        chat = LlmChat(
-            api_key=emergent_key,
-            session_id=f"narration-gen-{uuid.uuid4()}",
-            system_message=f"""Você é um especialista em criar textos de narração para slides de cursos e apresentações.
+        system_msg = f"""Você é um especialista em criar textos de narração para slides de cursos e apresentações.
 
 Suas diretrizes:
 1. Escreva em {request.language}
@@ -1719,7 +1754,14 @@ Suas diretrizes:
 5. Use pausas naturais (vírgulas, pontos) para dar ritmo
 6. O texto deve complementar e explicar o conteúdo visual do slide
 7. Cada opção deve ter entre 2 e 5 frases (ideal para 20-60 segundos de narração)
-8. Cada opção deve ter uma abordagem ligeiramente diferente
+8. Cada opção deve ter uma abordagem ligeiramente diferente"""
+
+        if has_images:
+            system_msg += """
+9. IMPORTANTE: Analise atentamente as imagens do slide. Leia todo o texto visível nas imagens (OCR).
+10. Use o conteúdo visual e textual das imagens como base principal para a narração."""
+
+        system_msg += """
 
 FORMATO DE RESPOSTA OBRIGATÓRIO:
 Retorne exatamente 3 opções, separadas por "---". Cada opção deve conter APENAS o texto de narração, sem numeração, títulos ou marcadores. Exemplo:
@@ -1729,17 +1771,27 @@ Texto da primeira opção aqui...
 Texto da segunda opção aqui...
 ---
 Texto da terceira opção aqui..."""
+
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"narration-gen-{uuid.uuid4()}",
+            system_message=system_msg
         ).with_model("gemini", "gemini-3-flash-preview")
 
-        prompt = f"Crie 3 opções de texto de narração para o seguinte slide:"
+        prompt = "Crie 3 opções de texto de narração para o seguinte slide:"
         if slide_title:
             prompt += f"\n\nTítulo do slide: {slide_title}"
+        if has_images:
+            prompt += "\n\nAs imagens do slide estão anexadas. Leia o conteúdo visual e textual delas para criar a narração."
         if slide_text:
-            prompt += f"\n\nConteúdo do slide:\n{slide_text}"
-        if request.slide_content and request.slide_content != slide_text:
-            prompt += f"\n\nContexto adicional: {request.slide_content}"
+            prompt += f"\n\nTexto extraído do slide:\n{slide_text}"
+        if request.slide_content:
+            prompt += f"\n\nContexto adicional do usuário: {request.slide_content}"
 
-        user_message = UserMessage(text=prompt)
+        user_message = UserMessage(
+            text=prompt,
+            file_contents=image_files if image_files else None
+        )
         response = await chat.send_message(user_message)
 
         # Parse the 3 options
