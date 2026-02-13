@@ -797,10 +797,17 @@ const SlideCanvas = ({
                         <body><div class="content-wrapper">${sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>'}</div></body>
                       </html>
                     `}
-                    className="w-full h-full border-0"
+                    className="border-0"
                     sandbox="allow-scripts allow-same-origin"
                     title="HTML Content"
-                    style={{ pointerEvents: 'none', background: 'transparent' }}
+                    style={{
+                      width: `${element.width || 100}px`,
+                      height: `${element.height || 100}px`,
+                      transform: `scale(${scale})`,
+                      transformOrigin: 'top left',
+                      pointerEvents: 'none',
+                      background: 'transparent',
+                    }}
                   />
                   {/* Overlay to capture mouse events for drag/resize */}
                   <div 
