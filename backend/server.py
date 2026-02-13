@@ -1228,7 +1228,7 @@ async def serve_asset(project_id: str, filename: str):
     return FileResponse(file_path)
 
 @api_router.get("/exports/{filename}")
-async def serve_export(filename: str):
+async def serve_export(filename: str, preview: str = None):
     """Serve exported files (SCORM zip or HTML) with forced download"""
     file_path = EXPORTS_DIR / filename
     if not file_path.exists():
@@ -1241,6 +1241,13 @@ async def serve_export(filename: str):
         media_type = 'application/zip'
     else:
         media_type = 'application/octet-stream'
+    
+    # If preview mode, serve inline (for HTML files)
+    if preview and filename.endswith('.html'):
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+        )
     
     # Always force download for export files by setting filename
     # This adds Content-Disposition: attachment header
