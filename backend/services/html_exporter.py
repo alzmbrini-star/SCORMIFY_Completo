@@ -595,7 +595,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             position: relative;
             overflow: hidden;
             box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
-            transform-origin: center center;
+            transform-origin: 0 0;
         }}
         
         .slide-background {{
