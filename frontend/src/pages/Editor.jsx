@@ -1526,21 +1526,10 @@ export default function Editor() {
     setAiNarrationOptions([]);
     setShowAiNarrationOptions(true);
     try {
-      // Gather slide content for context
-      const elements = currentSlide.elements || [];
-      const contentParts = elements.map(el => {
-        if ((el.type === 'text' || el.type === 'html') && el.content) {
-          return el.content.replace(/<[^>]+>/g, '');
-        }
-        if (el.type === 'image') return '[Imagem]';
-        if (el.type === 'quiz') return '[Quiz]';
-        return '';
-      }).filter(Boolean);
-
       const response = await axios.post(
         `${API_URL}/api/projects/${currentProject.id}/slides/${currentSlide.id}/generate-narration`,
         {
-          slide_content: contentParts.join('\n') || currentSlide.title || 'Slide sem conteúdo textual',
+          slide_content: '',
           style: aiNarrationStyle,
           language: 'português brasileiro'
         }
