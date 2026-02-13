@@ -1235,7 +1235,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 <span class="arrow">→</span>
                 <span class="phone-icon horizontal">📱</span>
             </div>
-            <button class="continue-portrait-btn" onclick="(function(){ try{sessionStorage.setItem('orientation_overlay_dismissed','true')}catch(e){} document.getElementById('orientation-overlay').style.display='none'; document.getElementById('player-container').style.display='flex'; if(typeof Player!=='undefined'&&Player.updateScale)setTimeout(function(){Player.updateScale()},100); })()">
+            <button class="continue-portrait-btn" onclick="(function(){{ try{{sessionStorage.setItem('orientation_overlay_dismissed','true')}}catch(e){{}} document.getElementById('orientation-overlay').style.display='none'; document.getElementById('player-container').style.display='flex'; if(typeof Player!=='undefined'&&Player.updateScale)setTimeout(function(){{Player.updateScale()}},100); }})()">
                 Continuar no modo retrato
             </button>
         </div>
