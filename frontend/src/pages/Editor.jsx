@@ -2331,7 +2331,19 @@ export default function Editor() {
             )}
           </div>
 
-          {/* Right Sidebar - Properties */}
+          {/* Right Panel - Properties or Split Preview */}
+          {showSplitPreview ? (
+            <div className="w-[480px] border-l border-border flex flex-col transition-all duration-300">
+              <SplitPreview
+                course={currentProject?.course}
+                projectId={currentProject?.id}
+                currentSlideIndex={currentSlideIndex}
+                onSlideChange={setCurrentSlideIndex}
+                onExpandFullscreen={() => { setShowSplitPreview(false); setShowPreview(true); }}
+                onClose={() => setShowSplitPreview(false)}
+              />
+            </div>
+          ) : (
           <div className="w-72 border-l border-border bg-card flex flex-col">
             <Tabs defaultValue="properties" className="flex-1 flex flex-col">
               <TabsList className="w-full justify-start rounded-none border-b h-10 bg-transparent p-0">
