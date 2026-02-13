@@ -886,34 +886,19 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             flex-direction: column;
         }}
         
-        /* Force display on mobile portrait mode */
+        /* Force display on mobile portrait mode - JS controlled, dismissable */
         @media screen and (orientation: portrait) and (max-width: 900px) {{
-            #orientation-overlay {{
-                display: flex !important;
-            }}
-            #player-container {{
-                display: none !important;
-            }}
+            /* JS controls overlay display */
         }}
         
         /* Also detect by aspect ratio for devices that don't report orientation correctly */
         @media screen and (max-aspect-ratio: 4/5) and (max-width: 900px) {{
-            #orientation-overlay {{
-                display: flex !important;
-            }}
-            #player-container {{
-                display: none !important;
-            }}
+            /* JS controls overlay display */
         }}
         
         /* Extra aggressive detection for very tall screens (phones in portrait) */
         @media screen and (max-aspect-ratio: 7/10) {{
-            #orientation-overlay {{
-                display: flex !important;
-            }}
-            #player-container {{
-                display: none !important;
-            }}
+            /* JS controls overlay display */
         }}
         
         /* Override for landscape - always hide overlay */
@@ -1012,6 +997,26 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         @keyframes pulse-arrow {{
             0%, 100% {{ transform: translateX(0); opacity: 1; }}
             50% {{ transform: translateX(10px); opacity: 0.5; }}
+        }}
+        
+        /* Continue in portrait button */
+        .continue-portrait-btn {{
+            margin-top: 25px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #94a3b8;
+            padding: 12px 28px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }}
+        
+        .continue-portrait-btn:hover,
+        .continue-portrait-btn:active {{
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border-color: rgba(255,255,255,0.5);
         }}
         
         @keyframes pulse {{
@@ -1230,10 +1235,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 <span class="arrow">→</span>
                 <span class="phone-icon horizontal">📱</span>
             </div>
-        </div>
-    </div>
-    
-    <!-- Main Player Container -->
+            <button class="continue-portrait-btn" onclick="(function(){ try{sessionStorage.setItem('orientation_overlay_dismissed','true')}catch(e){} document.getElementById('orientation-overlay').style.display='none'; document.getElementById('player-container').style.display='flex'; if(typeof Player!=='undefined'&&Player.updateScale)setTimeout(function(){Player.updateScale()},100); })()">
+                Continuar no modo retrato
+            </button>
     <div id="player-container">
         <div id="header">
             <div style="display: flex; align-items: center; gap: 15px;">
