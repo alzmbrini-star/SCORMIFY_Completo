@@ -2671,6 +2671,7 @@ export default function Editor() {
               </TabsContent>
             </Tabs>
           </div>
+          )}
         </div>
 
         {/* Media Dialog */}
