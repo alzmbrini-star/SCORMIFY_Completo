@@ -14,25 +14,20 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 ## Changelog (Recent Updates)
 
 ### 2026-02-13 (Latest)
+- **BUGFIX P0: Narração IA não lia conteúdo real dos slides** (FIXED)
+  - Causa raiz: Backend só verificava campo `content` dos elementos, mas o editor RTF salva em `htmlContent`
+  - Correção: Agora lê `content` E `htmlContent`, extrai imagens inline de htmlContent (src="/api/..."), e carrega assets globais (/api/assets/)
+  - Testado: Slides "Sydney, Austrália", "Pontes de Sydney", "Terra de Contrastes" - IA agora referencia conteúdo específico
+
 - **FEATURE P0: Geração de Narração com IA + Vision/OCR** (IMPLEMENTED AND TESTED)
   - Backend: `POST /api/projects/{project_id}/slides/{slide_id}/generate-narration`
-  - Usa **Gemini 3 Flash multimodal** (`gemini-3-flash-preview`) via Emergent LLM Key
-  - **Vision/OCR**: Lê imagens dos slides (backgroundImage de PPTs importados + image elements) via FileContent
-  - Extrai texto de elementos text/html diretamente
+  - Usa **Gemini 3 Flash multimodal** via Emergent LLM Key
+  - Lê: backgroundImage (PPTs importados), image elements, htmlContent (RTF), imagens inline, text elements
   - Retorna 3 opções de narração contextual baseadas no conteúdo real do slide
-  - Suporta 4 estilos: Educativo, Conversacional, Formal, Amigável
-  - Frontend: Botão "Gerar com IA" no diálogo TTS com seletor de estilo
-  - **Testado**: Backend 10/10, Frontend 100% verificado (iteration_22 + iteration_23)
-
-- **BUGFIX P0: Sobreposição + Centralização no Mobile Export** (FIXED AND TESTED)
-
-### 2026-02-12
-- **CORREÇÃO P0: Imagens RTF Quebradas Após Fork** (FIXED AND TESTED)
+  - 4 estilos: Educativo, Conversacional, Formal, Amigável
 
 ## Key Files
-- `backend/server.py` - Server com endpoint narração IA (vision + text)
-- `backend/services/export_assets/player.js` - Player SCORM
-- `backend/services/html_exporter.py` - Gerador HTML standalone
+- `backend/server.py` - Server com endpoint narração IA (vision + text + htmlContent)
 - `frontend/src/pages/Editor.jsx` - Editor com TTS + IA
 
 ## Backlog
