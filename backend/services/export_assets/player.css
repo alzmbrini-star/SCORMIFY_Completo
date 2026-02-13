@@ -221,14 +221,9 @@
             }
         }
         
-        /* Mobile portrait mode - BLOCKED by orientation overlay */
+        /* Mobile portrait mode - overlay shown by JS, dismissable */
         @media screen and (max-width: 1024px) and (orientation: portrait) {
-            #orientation-overlay {
-                display: flex !important;
-            }
-            #player-container {
-                display: none !important;
-            }
+            /* JS controls overlay display */
         }
         
         /* Very small mobile screens in landscape - remove padding entirely */
@@ -1186,24 +1181,14 @@
             flex-direction: column;
         }
         
-        /* Force orientation overlay in portrait mode on mobile devices */
+        /* Force orientation overlay in portrait mode on mobile devices - JS controlled */
         @media screen and (orientation: portrait) and (max-width: 1024px) {
-            #orientation-overlay {
-                display: flex !important;
-            }
-            #player-container {
-                display: none !important;
-            }
+            /* JS controls overlay display, can be dismissed */
         }
         
-        /* Also catch tall-narrow viewports (portrait in iframe/LMS) */
+        /* Also catch tall-narrow viewports (portrait in iframe/LMS) - JS controlled */
         @media screen and (max-aspect-ratio: 4/5) and (max-width: 1024px) {
-            #orientation-overlay {
-                display: flex !important;
-            }
-            #player-container {
-                display: none !important;
-            }
+            /* JS controls overlay display, can be dismissed */
         }
         
         /* Catch any tall viewport regardless of orientation API support */

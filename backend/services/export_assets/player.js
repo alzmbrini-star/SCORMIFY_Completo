@@ -76,9 +76,13 @@ function checkMobileOrientation() {
         }
     }
     
+    // Check if user dismissed the overlay
+    var overlayDismissed = false;
+    try { overlayDismissed = sessionStorage.getItem('orientation_overlay_dismissed') === 'true'; } catch(e) {}
+    
     var wasHidden = playerContainer.style.display === 'none';
     
-    if (shouldShowOverlay) {
+    if (shouldShowOverlay && !overlayDismissed) {
         overlay.style.display = 'flex';
         playerContainer.style.display = 'none';
     } else {
