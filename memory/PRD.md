@@ -1285,6 +1285,29 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - **Status**: FIXED AND TESTED (100% backend + frontend, testing agent iteration_19)
 
 
+### SCORM player.js Double-Brace Artifact Fix (Feb 13, 2026)
+- **Issue**: O arquivo `player.js` extraído para `export_assets/` continha artefatos `{{` e `}}` (escape de Python f-string) em vez de `{` e `}` na seção de decodificação Base64
+- **Root Cause**: Durante a refatoração que extraiu o JS de strings Python f-string para arquivos externos, os double-braces `{{` não foram convertidos de volta para single-braces `{`
+- **Fix Applied**: Substituído `{{` por `{` e `}}` por `}` nas linhas 1149-1160 do `player.js` (seção de decodificação Base64 do htmlContent)
+- **Files Modified**: `/app/backend/services/export_assets/player.js`
+- **Status**: FIXED AND TESTED
+- **Note**: Embora `{{` seja sintaticamente válido em JavaScript (cria block scope aninhado), era um artefato que deveria ser limpo
+
+### HTML Export Video Investigation (Feb 13, 2026)
+- **Context**: O agente anterior reportou que vídeos estavam faltando na exportação HTML após a refatoração
+- **Investigation**: Testados múltiplos projetos (Demo SCORMIFY videos, Ferramenta de Criação, Universidade-Corporativa-Didaxis)
+- **Result**: Vídeos (YouTube, HeyGen/WebM) estão renderizando corretamente em todos os projetos testados
+- **Vimeo Note**: O projeto "Universidade-Corporativa-Didaxis" tem um vídeo Vimeo que mostra "Player error" - isso é um erro do lado do Vimeo (vídeo privado/restrito), não do nosso código
+- **Preview Route**: Adicionado parâmetro `?preview=1` ao endpoint `/api/exports/{filename}` para servir HTML inline sem forçar download
+
+### Backend Export Route Enhancement (Feb 13, 2026)
+- **Feature**: Parâmetro `?preview=1` no endpoint GET `/api/exports/{filename}`
+- **Purpose**: Permite visualizar arquivos HTML exportados diretamente no navegador sem forçar download
+- **Implementation**: Quando `preview=1` é passado para arquivos `.html`, o `Content-Disposition: attachment` é omitido
+- **Files Modified**: `/app/backend/server.py`
+- **Status**: IMPLEMENTED
+
+
 
 ### P3 - Future Enhancements
 - Question bank sharing between projects
