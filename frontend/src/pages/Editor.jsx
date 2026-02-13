@@ -2052,7 +2052,7 @@ export default function Editor() {
           </div>
 
           {/* Main Canvas Area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className={`${showSplitPreview ? 'w-1/2 min-w-0' : 'flex-1'} flex flex-col overflow-hidden`}>
             {/* Toolbar */}
             <div className="h-12 border-b border-border bg-card/50 flex items-center px-4 gap-2">
               <Tooltip>
@@ -2363,7 +2363,7 @@ export default function Editor() {
 
           {/* Right Panel - Properties or Split Preview */}
           {showSplitPreview ? (
-            <div className="flex-1 border-l border-border flex flex-col">
+            <div className="w-1/2 min-w-0 border-l border-border flex flex-col">
               <SplitPreview
                 course={currentProject?.course}
                 projectId={currentProject?.id}
