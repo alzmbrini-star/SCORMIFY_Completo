@@ -9,40 +9,32 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - **Database**: MongoDB
 - **File Storage**: Local filesystem (/app/backend/storage)
 - **PPT Conversion**: LibreOffice (headless) + pdf2image
-- **Third-Party Integrations**: HeyGen API (avatares de IA), ElevenLabs (TTS), Emergent LLM Key (Gemini 3 Flash - narração IA, GPT-4o - scripts)
+- **Third-Party Integrations**: HeyGen API (avatares de IA), ElevenLabs (TTS), Emergent LLM Key (Gemini 3 Flash Vision - narração IA com OCR, GPT-4o - scripts)
 
 ## Changelog (Recent Updates)
 
 ### 2026-02-13 (Latest)
-- **FEATURE P0: Geração de Narração com IA** (IMPLEMENTED AND TESTED)
+- **FEATURE P0: Geração de Narração com IA + Vision/OCR** (IMPLEMENTED AND TESTED)
   - Backend: `POST /api/projects/{project_id}/slides/{slide_id}/generate-narration`
-  - Usa Gemini 3 Flash (`gemini-3-flash-preview`) via Emergent LLM Key
-  - Analisa conteúdo do slide (textos, imagens, quiz) para gerar narração contextual
-  - Retorna 3 opções de texto para o usuário escolher
+  - Usa **Gemini 3 Flash multimodal** (`gemini-3-flash-preview`) via Emergent LLM Key
+  - **Vision/OCR**: Lê imagens dos slides (backgroundImage de PPTs importados + image elements) via FileContent
+  - Extrai texto de elementos text/html diretamente
+  - Retorna 3 opções de narração contextual baseadas no conteúdo real do slide
   - Suporta 4 estilos: Educativo, Conversacional, Formal, Amigável
   - Frontend: Botão "Gerar com IA" no diálogo TTS com seletor de estilo
-  - Opções exibidas em cards clicáveis; seleção preenche campo de texto TTS
-  - **Testado**: Backend 10/10 testes, Frontend todos elementos verificados funcionais
+  - **Testado**: Backend 10/10, Frontend 100% verificado (iteration_22 + iteration_23)
 
-- **BUGFIX P0: Sobreposição de Elementos + Centralização no Mobile Export** (FIXED AND TESTED)
-  - Removida `optimizeForMobile()` e código morto de reflow
-  - Alterado `transform-origin` para `0 0` com margens negativas
-  - **Files Modified**: `player.js`, `player.css`, `html_exporter.py`
-
-- **Layout 50/50 Lado a Lado - Editor + Preview** (IMPLEMENTED)
-- **Split Preview - Preview Integrado ao Editor** (IMPLEMENTED AND TESTED)
+- **BUGFIX P0: Sobreposição + Centralização no Mobile Export** (FIXED AND TESTED)
 
 ### 2026-02-12
 - **CORREÇÃO P0: Imagens RTF Quebradas Após Fork** (FIXED AND TESTED)
 
 ## Key Files
-- `backend/server.py` - Server principal com endpoint de narração IA (line ~1657)
+- `backend/server.py` - Server com endpoint narração IA (vision + text)
 - `backend/services/export_assets/player.js` - Player SCORM
-- `backend/services/export_assets/player.css` - Estilos do player SCORM
 - `backend/services/html_exporter.py` - Gerador HTML standalone
-- `backend/services/scorm_exporter.py` - Gerador pacote SCORM
-- `frontend/src/pages/Editor.jsx` - Editor principal com diálogo TTS + IA
+- `frontend/src/pages/Editor.jsx` - Editor com TTS + IA
 
 ## Backlog
-- Refatorar `html_exporter.py` para usar templates externos (manutenibilidade)
+- Refatorar `html_exporter.py` para usar templates externos
 - Quiz readability improvements on very small mobile screens
