@@ -217,7 +217,15 @@
         /* Mobile portrait and small screens - also reduce padding */
         @media screen and (max-width: 768px) {
             #slide-wrapper {
-                padding: 10px;
+                padding: 5px;
+            }
+        }
+        
+        /* Mobile portrait mode: ensure player is visible when JS shows it */
+        @media screen and (max-width: 1024px) and (orientation: portrait) {
+            #slide-wrapper {
+                padding: 5px;
+                overflow: hidden;
             }
         }
         
