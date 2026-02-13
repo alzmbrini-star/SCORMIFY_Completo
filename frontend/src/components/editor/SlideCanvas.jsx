@@ -450,7 +450,7 @@ const SlideCanvas = ({
       className="relative shadow-2xl overflow-hidden"
       style={{
         width: canvasWidth,
-        height: canvasHeight,
+        height: 'auto',
         maxWidth: '100%',
         maxHeight: 'calc(100vh - 200px)',
         aspectRatio: `${canvasWidth} / ${canvasHeight}`,
