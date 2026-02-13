@@ -14,35 +14,22 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 ## Changelog (Recent Updates)
 
 ### 2026-02-13 (Latest)
-- **BUGFIX P0: Sobreposição de Elementos no Mobile Export** (FIXED AND TESTED)
-  - **Problema**: No player SCORM exportado, a função `optimizeForMobile()` forçava elementos quiz e html a ocupar o slide inteiro (position 0,0 com width/height do slide), causando sobreposição com outros elementos no mesmo slide (texto+vídeo, dois textos, duas imagens).
-  - **Causa raiz**: `optimizeForMobile()` em `player.js` expandia `.quiz-element` e `.html-element` para cobrir 100% do slide em dispositivos mobile, destruindo o posicionamento original dos elementos.
+- **BUGFIX P0: Sobreposição de Elementos + Centralização no Mobile Export** (FIXED AND TESTED)
+  - **Problema 1 (Overlap)**: `optimizeForMobile()` forçava elementos quiz/html a cobrir 100% do slide, sobrepondo outros elementos.
+  - **Problema 2 (Desalinhamento)**: `transform-origin: center center` com `transform: scale()` não reduzia o layout box, causando desalinhamento com flexbox centering.
   - **Correção**: 
-    - Removida a função `optimizeForMobile()` do `player.js` (SCORM)
-    - Removidas as chamadas `setTimeout(optimizeForMobile, 100)` e `setTimeout(updateSlideScale, 150)`
-    - Removido código morto do modo reflow (bloco `if (false)` e cleanup associado)
-    - Removidos CSS de reflow não utilizados do `player.css`
-    - O `transform: scale()` no container já trata o redimensionamento proporcional corretamente
-    - Fontes quiz continuam otimizadas via CSS media queries (sem alterar posições)
-  - **Files Modified**: 
-    - `backend/services/export_assets/player.js` (removido optimizeForMobile + dead reflow code)
-    - `backend/services/export_assets/player.css` (removido CSS .mobile-landscape-reflow)
-  - **Testado**: SCORM export com slides multi-elemento (html+video, grid de textos) - elementos posicionados corretamente sem sobreposição
-
-- **Correção Mobile - SCORM/HTML Export Player** (IMPLEMENTED)
-  - Removido modo reflow do player SCORM → usa scaling uniforme como desktop
-  - Overlay de orientação agora é dispensável com botão "Continuar no modo retrato"
-  - Scale mínimo reduzido para suportar portrait
+    - Removida `optimizeForMobile()` e código morto de reflow do `player.js` e `player.css`
+    - Alterado `transform-origin` de `center center` para `0 0` em ambos os players
+    - Adicionadas margens negativas (`marginRight`, `marginBottom`) para sincronizar layout box com tamanho visual
+    - Flexbox centering agora funciona corretamente em qualquer orientação
+  - **Files Modified**: `player.js`, `player.css`, `html_exporter.py`
+  - **Testado**: SCORM + HTML export com slides multi-elemento em portrait e landscape - centralizado e sem sobreposição
 
 - **Layout 50/50 Lado a Lado - Editor + Preview** (IMPLEMENTED)
-  - Editor canvas e Preview panel alinhados lado a lado com divisão 50%/50%
-
 - **Split Preview - Preview Integrado ao Editor** (IMPLEMENTED AND TESTED)
-  - Botão "Visualizar" abre painel lateral de preview em vez de modal fullscreen
 
 ### 2026-02-12
 - **CORREÇÃO P0: Imagens RTF Quebradas Após Fork** (FIXED AND TESTED)
-  - URLs absolutas de imagens convertidas para relativas no save
 
 ## Key Files
 - `backend/services/export_assets/player.js` - Player SCORM (scaling + navegação)
