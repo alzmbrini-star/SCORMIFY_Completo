@@ -17,6 +17,35 @@ from models import Course, Project
 
 logger = logging.getLogger(__name__)
 
+# Directory containing export asset files (JS, CSS, HTML template)
+EXPORT_ASSETS_DIR = Path(__file__).parent / "export_assets"
+
+
+def _read_asset(filename: str) -> str:
+    """Read an export asset file from the export_assets directory."""
+    return (EXPORT_ASSETS_DIR / filename).read_text(encoding='utf-8')
+
+
+def _build_html(title: str, lang: str, width: int, height: int) -> str:
+    """Build the index.html by reading the template and CSS, replacing placeholders."""
+    template = _read_asset("player_template.html")
+    css = _read_asset("player.css")
+
+    # Replace dimension placeholders in CSS
+    css = css.replace("__SLIDE_WIDTH__", str(width))
+    css = css.replace("__SLIDE_HEIGHT__", str(height))
+
+    # Inject CSS into template
+    html = template.replace("__CSS_CONTENT__", css)
+
+    # Replace remaining placeholders
+    html = html.replace("__TITLE__", title)
+    html = html.replace("__LANG__", lang)
+    html = html.replace("__SLIDE_WIDTH__", str(width))
+    html = html.replace("__SLIDE_HEIGHT__", str(height))
+
+    return html
+
 IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="{identifier}" version="1.0"
     xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
