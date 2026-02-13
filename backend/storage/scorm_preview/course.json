@@ -1,9 +1,9 @@
 {
-  "id": "b65dce82-95db-4913-ab73-6b6a67ae4910",
+  "id": "2ee9bb9c-e540-42da-bb54-d72a35565989",
   "metadata": {
-    "title": "PptxGenJS Presentation",
-    "description": "PptxGenJS Presentation",
-    "author": "PptxGenJS",
+    "title": "Demo SCORMIFY videos",
+    "description": "",
+    "author": "",
     "organization": "",
     "version": "1.0",
     "language": "pt-BR",
@@ -11,326 +11,27 @@
   },
   "slides": [
     {
-      "id": "045abad9-015f-4f47-9585-6463718bbf5f",
-      "title": "Slide 1",
-      "order": 0,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_001.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "e7f1401a-3684-428a-8c95-4449842c8745",
-      "title": "Slide 2",
-      "order": 1,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_002.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "fbc8503f-4500-49a6-80b6-b0575d90c9ec",
-      "title": "Slide 3",
-      "order": 2,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_003.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "a2c22783-7566-410e-b444-c3200554a4d3",
-      "title": "Slide 4",
-      "order": 3,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_004.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "f5090b4a-2b67-4bb7-9e3e-3edcf4a3a894",
-      "title": "Slide 5",
-      "order": 4,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_005.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "bf4f5df1-848f-4a95-9c83-1d78d41e92db",
-      "title": "Slide 6",
-      "order": 5,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_006.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "1125d597-104b-4a37-80d8-161bd8008c82",
-      "title": "Slide 7",
-      "order": 6,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_007.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "c54d8ba6-473c-4e76-a103-2aba91e4219e",
-      "title": "Slide 8",
-      "order": 7,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_008.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "e4b25ffc-3961-4164-a52d-2f1f1882a714",
-      "title": "Slide 9",
-      "order": 8,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_009.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "19c9ea6a-5f58-4032-b71c-0b35c6a4e75e",
-      "title": "Slide 10",
-      "order": 9,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_010.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "1d348dc7-11b2-4eb4-8a92-a4e5bfc1e77f",
-      "title": "Slide 11",
-      "order": 10,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_011.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "0ecefb6b-906a-43f5-aa8b-85d7718dae84",
-      "title": "Slide 12",
-      "order": 11,
-      "width": 1280.0,
-      "height": 720.0,
-      "background": "#FFFFFF",
-      "backgroundImage": "assets/slide_012.png",
-      "elements": [],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": "",
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "8ca08d55-bddf-467d-9284-809842954aea",
+      "id": "a15ba602-9030-46c5-996c-0fdcd64fa366",
       "title": "New Slide",
-      "order": 12,
-      "width": 960.0,
-      "height": 540.0,
-      "background": "#FFFFFF",
+      "order": 0,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#1d283a",
       "backgroundImage": null,
       "elements": [
         {
-          "id": "bd438133-966a-4f2d-952d-c167d90cea32",
-          "type": "video",
-          "x": 0.0,
-          "y": 0.0,
-          "width": 960.0,
-          "height": 540.0,
+          "id": "0bad166a-de72-4670-9b3f-a14967a11ea0",
+          "type": "html",
+          "x": 50.0,
+          "y": 50.0,
+          "width": 1212.0946619980923,
+          "height": 753.3742378545687,
           "rotation": 0.0,
-          "zIndex": 0,
+          "zIndex": 1,
           "visible": true,
           "locked": false,
           "content": null,
           "src": null,
-          "embedUrl": "https://player.vimeo.com/video/1158537191",
-          "embedType": "vimeo",
-          "openInNewWindow": false,
-          "hyperlink": null,
-          "style": {
-            "fill": null,
-            "stroke": null,
-            "strokeWidth": null,
-            "opacity": 1.0,
-            "fontSize": null,
-            "fontFamily": null,
-            "fontWeight": null,
-            "fontColor": null,
-            "textAlign": null,
-            "verticalAlign": null,
-            "shadow": null,
-            "borderRadius": null
-          },
-          "shapeType": null,
-          "startTime": 0.0,
-          "endTime": null,
-          "animations": [],
-          "svgPath": null,
-          "fallbackImage": null
-        }
-      ],
-      "annotations": [],
-      "transition": {
-        "type": "none",
-        "duration": 0.5,
-        "direction": null
-      },
-      "audio": [],
-      "notes": null,
-      "thumbnail": null,
-      "duration": 5.0
-    },
-    {
-      "id": "e79e8efa-952c-4f38-87f9-001a7712affe",
-      "title": "New Slide",
-      "order": 13,
-      "width": 960.0,
-      "height": 540.0,
-      "background": "#FFFFFF",
-      "backgroundImage": null,
-      "elements": [
-        {
-          "id": "6d15f243-0f3d-4520-acf7-d6f115b67a47",
-          "type": "image",
-          "x": 0.0,
-          "y": 15.0,
-          "width": 960.0,
-          "height": 540.0,
-          "rotation": 0.0,
-          "zIndex": 0,
-          "visible": true,
-          "locked": false,
-          "content": null,
-          "src": "assets/1536ab69-a04a-4d32-baa9-7e9f3954fc18.png",
           "embedUrl": null,
           "embedType": null,
           "openInNewWindow": false,
@@ -350,6 +51,185 @@
             "borderRadius": null
           },
           "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": "<h1>Sydney, Austrália</h1><img src=\"assets/ffdd1838-ed70-4d40-a7ba-9b7445f435e3.jpg\" alt=\"Gere uma paisagem sobre A cidade de Sidney na Australia!\" class=\"rtf-image-float-right\" style=\"width: 382.062px; border-radius: 4px;\">\n<p>Sydney é a maior e mais populosa cidade da Austrália, conhecida por sua vibrante cultura, belas praias e arquitetura icônica. É a capital do estado de Nova Gales do Sul e uma das cidades mais multiculturais do mundo.</p>\n\n<h2>Atrações Turísticas</h2>\n<p>A cidade é famosa por diversas atrações turísticas, incluindo:</p>\n<ul>\n  <li><strong>Opera House de Sydney:</strong> Um dos edifícios mais reconhecidos do século XX, com suas velas brancas características.</li>\n  <li><strong>Ponte da Baía de Sydney:</strong> Um marco icônico, é uma ponte de aço em arco que conecta o centro da cidade com a costa norte.</li>\n  <li><strong>Bondi Beach:</strong> Uma das praias mais conhecidas da Austrália, famosa por suas águas cristalinas e cultura de surfe.</li>\n</ul>\n\n<h2>Cultura e Entretenimento</h2>\n<p>Sydney oferece uma rica diversidade cultural com eventos durante todo o ano, museus, galerias de arte e uma cena musical vibrante.</p>\n\n<h3>Principais Eventos</h3>\n<ul>\n  <li><strong>Festival de Sydney:</strong> Um importante festival de verão que apresenta artes performáticas, música e mais.</li>\n  <li><strong>Vivid Sydney:</strong> Um festival de luz, música e ideias, transformando a cidade com espetáculos luminosos.</li></ul>",
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        },
+        {
+          "id": "6cf46aed-f15f-4257-b621-0114f2252d59",
+          "type": "video",
+          "x": 910.7800297085016,
+          "y": 215.0,
+          "width": 583.2077117733728,
+          "height": 633.4443507207973,
+          "rotation": 0.0,
+          "zIndex": 2,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": "assets/video_d00530da6c63.webm",
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": null,
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": 15.88,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 25.0
+    },
+    {
+      "id": "77469d87-366b-442e-a41e-9c672216ef3b",
+      "title": "New Slide",
+      "order": 1,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#1d283a",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "c75fee8d-88ba-4bfc-beed-f8b2eea576ba",
+          "type": "video",
+          "x": 704.64505762667,
+          "y": 133.0,
+          "width": 845.1533598590202,
+          "height": 632.7957906603773,
+          "rotation": 0.0,
+          "zIndex": 0,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": null,
+          "embedUrl": "https://www.youtube.com/embed/OrIDTJH2ZZM?si=4zVoGCyC4m6ARrcX",
+          "embedType": "youtube",
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": null,
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        },
+        {
+          "id": "0a2bb0e2-336d-42b5-88ae-a8c991722ded",
+          "type": "html",
+          "x": 50.0,
+          "y": 50.0,
+          "width": 600.0,
+          "height": 770.0,
+          "rotation": 0.0,
+          "zIndex": 1,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": null,
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": "<h1 style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42);\">Pontes Famosas de Sydney</h1><h1><p style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42); font-family: Inter, sans-serif; font-size: medium; font-weight: 400;\">Sydney, uma das cidades mais icônicas da Austrália, é conhecida por suas belíssimas paisagens e suas pontes impressionantes. Entre as pontes mais famosas, destacam-se a Sydney Harbour Bridge e a Anzac Bridge. Estas estruturas não são apenas vitais para o tráfego da cidade, mas também são marcos arquitetônicos de grande importância.</p></h1><h2 style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42);\">Sydney Harbour Bridge</h2><h1><p style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42); font-family: Inter, sans-serif; font-size: medium; font-weight: 400;\">A Sydney Harbour Bridge é um dos marcos mais reconhecíveis de Sydney. Inaugurada em 1932, esta ponte ligada o centro comercial de Sydney com a costa norte da cidade. É a maior (mas não a mais longa) ponte de arco de aço do mundo e é carinhosamente chamada de \"Coathanger\" pelos locais devido ao seu formato.</p><ul style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42); font-family: Inter, sans-serif; font-size: medium; font-weight: 400;\"><li style=\"border-color: rgb(43, 59, 85);\"><strong style=\"border-color: rgb(43, 59, 85);\">Comprimento:</strong>&nbsp;1.149 metros</li><li style=\"border-color: rgb(43, 59, 85);\"><strong style=\"border-color: rgb(43, 59, 85);\">Abertura do Arco:</strong>&nbsp;503 metros</li><li style=\"border-color: rgb(43, 59, 85);\"><strong style=\"border-color: rgb(43, 59, 85);\">Fatos Interessantes:</strong>&nbsp;Visitantes podem fazer o \"BridgeClimb\" para uma vista panorâmica da cidade.</li></ul></h1><h2 style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42);\">Anzac Bridge</h2><h1><p style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42); font-family: Inter, sans-serif; font-size: medium; font-weight: 400;\">A Anzac Bridge é uma das maiores pontes atirantadas da Austrália. Ela foi aberta ao tráfego em 1995 e foi construída para aliviar o congestionamento da Sydney Harbour Bridge. A ponte homenageia os soldados da Austrália e da Nova Zelândia que lutaram juntos na Primeira Guerra Mundial.</p><ul style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42); font-family: Inter, sans-serif; font-size: medium; font-weight: 400;\"><li style=\"border-color: rgb(43, 59, 85);\"><strong style=\"border-color: rgb(43, 59, 85);\">Comprimento Total:</strong>&nbsp;805 metros</li><li style=\"border-color: rgb(43, 59, 85);\"><strong style=\"border-color: rgb(43, 59, 85);\">Torre Mais Alta:</strong>&nbsp;120 metros acima do nível da água</li><li style=\"border-color: rgb(43, 59, 85);\"><strong style=\"border-color: rgb(43, 59, 85);\">Características Distintivas:</strong>&nbsp;Seu design elegante e modernos cabos de suporte.</li></ul></h1><h2 style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42);\">Importância Cultural e Turística</h2><h1><p style=\"border-color: rgb(43, 59, 85); background-color: rgb(15, 23, 42); font-family: Inter, sans-serif; font-size: medium; font-weight: 400;\">As pontes de Sydney são muito mais do que simples estruturas de transporte; elas são uma parte essencial da identidade da cidade e atraem milhões de turistas todos os anos. Eventos, como o famoso espetáculo de fogos de artifício de Ano Novo, colocam a Sydney Harbour Bridge no centro das atenções mundiais.</p></h1>",
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
           "startTime": 0.0,
           "endTime": null,
           "animations": [],
@@ -367,38 +247,385 @@
       "notes": null,
       "thumbnail": null,
       "duration": 5.0
+    },
+    {
+      "id": "90526ff4-c1e3-42ce-a57c-bbe838c5f687",
+      "title": "New Slide",
+      "order": 2,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#1d283a",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "0bc79312-9a0b-4ad5-a754-bd85d72ef659",
+          "type": "video",
+          "x": 0.0,
+          "y": 31.55127123701493,
+          "width": 850.3418082467672,
+          "height": 784.2418925980496,
+          "rotation": 0.0,
+          "zIndex": 2,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": "assets/video_420cffb729d9.webm",
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": null,
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": 3.75,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        },
+        {
+          "id": "464152d3-d991-464c-b450-743bc87db67b",
+          "type": "quiz",
+          "x": 100.0,
+          "y": 100.0,
+          "width": 1387.0289271740514,
+          "height": 701.9281359168964,
+          "rotation": 0.0,
+          "zIndex": 1,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": null,
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": null,
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": {
+            "title": "Quiz",
+            "questionCount": 5,
+            "shuffleQuestions": true,
+            "shuffleAlternatives": true,
+            "showFeedback": true,
+            "passingScore": 60,
+            "fontSize": 24,
+            "questionIds": [
+              "c420a18e-d034-4f8b-8f2f-50596014883b",
+              "5371f86a-0522-4eb4-8866-832139e0ded0",
+              "d0025cab-b045-4865-aaf5-90a1a01935cd",
+              "df3c770a-095a-4e16-9365-2561da9d2fa0",
+              "3ce7292b-e07b-4d8f-8324-c28830005f45"
+            ]
+          },
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 5.0
+    },
+    {
+      "id": "3ab1d588-8875-42de-a1dc-b0b19ccd12dd",
+      "title": "New Slide",
+      "order": 3,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#1d283a",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "ca8c8a5f-dddf-44a2-8ed5-f8bb525dfaff",
+          "type": "html",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1920.0,
+          "height": 820.0,
+          "rotation": 0.0,
+          "zIndex": 0,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": null,
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": "<div style=\"text-align: center; width: 100%; margin: 12px 0; clear: both;\"><img src=\"https://res.cloudinary.com/hello-tickets/image/upload/c_limit,f_auto,q_auto,w_1300/v1709165867/wbpuxmzbdnavmweies4p.jpg\" alt=\"image\" class=\"rtf-image-center\" style=\"border-radius: 4px;\"></div>",
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": null,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null,
+          "objectFit": "cover"
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [
+        {
+          "id": "4d0b3188-f23d-4d6a-8ba6-30ca64d9926c",
+          "type": "narration",
+          "src": "assets/audio_4d0b3188-f23d-4d6a-8ba6-30ca64d9926c.mp3",
+          "filename": "audio_4d0b3188-f23d-4d6a-8ba6-30ca64d9926c.mp3",
+          "duration": 0.0,
+          "volume": 1.0,
+          "fadeIn": 0,
+          "fadeOut": 0,
+          "startTime": 0
+        }
+      ],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 30.0
     }
   ],
-  "globalAudio": {
-    "id": "cff57a0e-782f-4395-ac9d-aa4f4c0bb20a",
-    "src": "assets/global_audio_cff57a0e-782f-4395-ac9d-aa4f4c0bb20a.mp3",
-    "filename": "global_audio_cff57a0e-782f-4395-ac9d-aa4f4c0bb20a.mp3",
-    "duration": 0.0,
-    "volume": 0.2,
-    "fadeIn": 0,
-    "fadeOut": 0,
-    "loop": true
-  },
-  "originalFilename": "b99cdac3-eaa3-4a5e-b017-8dee93db62d6_Images_WideScreen.pptx",
-  "conversionReport": {
-    "success": [
-      "Slide 1: Rendered as image",
-      "Slide 2: Rendered as image",
-      "Slide 3: Rendered as image",
-      "Slide 4: Rendered as image",
-      "Slide 5: Rendered as image",
-      "Slide 6: Rendered as image",
-      "Slide 7: Rendered as image",
-      "Slide 8: Rendered as image",
-      "Slide 9: Rendered as image",
-      "Slide 10: Rendered as image",
-      "Slide 11: Rendered as image",
-      "Slide 12: Rendered as image"
-    ],
-    "warnings": [],
-    "errors": [],
-    "method": "high_fidelity_image"
-  },
-  "createdAt": "2026-01-27T11:38:52.147781+00:00",
-  "updatedAt": "2026-01-27T11:38:52.147784+00:00"
+  "globalAudio": null,
+  "originalFilename": null,
+  "conversionReport": null,
+  "createdAt": "2026-02-11T17:55:04.388320+00:00",
+  "updatedAt": "2026-02-11T17:55:04.388324+00:00",
+  "questions": [
+    {
+      "id": "3ce7292b-e07b-4d8f-8324-c28830005f45",
+      "projectId": "58753bb1-60a3-4190-8de3-ca51203e8f4d",
+      "type": "multiple_choice",
+      "text": "Qual é o famoso edifício de ópera situado em Sidney?",
+      "alternatives": [
+        {
+          "id": "70b0991f-e669-4876-bf78-e3ececb019aa",
+          "text": "Palácio de Buckingham",
+          "isCorrect": false
+        },
+        {
+          "id": "6cfac0d1-3c01-415d-91e6-4898e74d8394",
+          "text": "Ópera de Viena",
+          "isCorrect": false
+        },
+        {
+          "id": "3468bab3-ad8e-4995-a563-4c86d6fb3fdd",
+          "text": "Ópera de Sidney",
+          "isCorrect": true
+        },
+        {
+          "id": "ffafe8eb-4037-45d3-aa6f-443dd6f4fada",
+          "text": "La Scala",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A Ópera de Sidney é um dos marcos mais icônicos e reconhecidos internacionalmente, localizada no Porto de Sidney.",
+      "points": 1.0,
+      "tags": [
+        "ai-generated"
+      ],
+      "createdAt": "2026-02-12T17:14:42.074074+00:00",
+      "updatedAt": "2026-02-12T17:14:42.074077+00:00"
+    },
+    {
+      "id": "df3c770a-095a-4e16-9365-2561da9d2fa0",
+      "projectId": "58753bb1-60a3-4190-8de3-ca51203e8f4d",
+      "type": "true_false",
+      "text": "O Parque Nacional das Montanhas Azuis está localizado próximo a Sidney.",
+      "alternatives": [
+        {
+          "id": "0c974bc1-8088-4063-8ca9-502c9bd154d3",
+          "text": "Verdadeiro",
+          "isCorrect": true
+        },
+        {
+          "id": "5f51d7c3-2143-4d31-a4e0-5e98abbd9f72",
+          "text": "Falso",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "O Parque Nacional das Montanhas Azuis é uma área de beleza natural impressionante situada a cerca de 100 quilômetros a oeste de Sidney.",
+      "points": 1.0,
+      "tags": [
+        "ai-generated"
+      ],
+      "createdAt": "2026-02-12T17:14:42.078850+00:00",
+      "updatedAt": "2026-02-12T17:14:42.078853+00:00"
+    },
+    {
+      "id": "d0025cab-b045-4865-aaf5-90a1a01935cd",
+      "projectId": "58753bb1-60a3-4190-8de3-ca51203e8f4d",
+      "type": "multiple_choice",
+      "text": "Qual famosa praia é um destino turístico muito conhecido em Sidney?",
+      "alternatives": [
+        {
+          "id": "84d38def-9184-464d-9cb1-548aeacba435",
+          "text": "Copperfield Bay",
+          "isCorrect": false
+        },
+        {
+          "id": "07032b40-1dc3-4110-ae2c-9b2bb9e6ed8d",
+          "text": "Bondi Beach",
+          "isCorrect": true
+        },
+        {
+          "id": "d41a4f95-d163-46fd-8d0d-9e83eabd7606",
+          "text": "Maho Beach",
+          "isCorrect": false
+        },
+        {
+          "id": "23b328b3-867e-43c0-89cf-bfb78abc30f0",
+          "text": "Waikiki Beach",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Bondi Beach é uma das praias mais famosas de Sidney, conhecida por seu surf, areia dourada e ambiente vibrante.",
+      "points": 1.0,
+      "tags": [
+        "ai-generated"
+      ],
+      "createdAt": "2026-02-12T17:14:42.079364+00:00",
+      "updatedAt": "2026-02-12T17:14:42.079366+00:00"
+    },
+    {
+      "id": "5371f86a-0522-4eb4-8866-832139e0ded0",
+      "projectId": "58753bb1-60a3-4190-8de3-ca51203e8f4d",
+      "type": "true_false",
+      "text": "A Ponte da Baía de Sidney é uma das pontes mais largas e altas do mundo.",
+      "alternatives": [
+        {
+          "id": "2759c0a6-fc22-4c30-9b23-76f7b7cc325c",
+          "text": "Verdadeiro",
+          "isCorrect": true
+        },
+        {
+          "id": "f872c009-3b33-4d04-9c2c-964df9e5d356",
+          "text": "Falso",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A Ponte da Baía de Sidney, também conhecida como 'coat hanger', é reconhecida por sua altura e largura impressionantes.",
+      "points": 1.0,
+      "tags": [
+        "ai-generated"
+      ],
+      "createdAt": "2026-02-12T17:14:42.079898+00:00",
+      "updatedAt": "2026-02-12T17:14:42.079910+00:00"
+    },
+    {
+      "id": "c420a18e-d034-4f8b-8f2f-50596014883b",
+      "projectId": "58753bb1-60a3-4190-8de3-ca51203e8f4d",
+      "type": "multiple_choice",
+      "text": "Qual das seguintes é uma atração turística famosa para passeios de barco em Sidney?",
+      "alternatives": [
+        {
+          "id": "29cb9a06-a59f-4fa4-bb54-8e3470dd27eb",
+          "text": "Harbor Bridge",
+          "isCorrect": false
+        },
+        {
+          "id": "3034e05b-b4df-41f0-b117-885e3f20f5fb",
+          "text": "Sydney Tower Eye",
+          "isCorrect": false
+        },
+        {
+          "id": "941b5c06-cdf4-49a3-b41e-5ee3f6d3dd7e",
+          "text": "Darling Harbour",
+          "isCorrect": true
+        },
+        {
+          "id": "7b007d21-47b7-49d2-9d95-0d939b020d82",
+          "text": "Eureka Skydeck",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Darling Harbour é uma região em Sidney popular para atividades de lazer, incluindo passeios de barco e várias atrações turísticas.",
+      "points": 1.0,
+      "tags": [
+        "ai-generated"
+      ],
+      "createdAt": "2026-02-12T17:14:42.080430+00:00",
+      "updatedAt": "2026-02-12T17:14:42.080432+00:00"
+    }
+  ]
 }

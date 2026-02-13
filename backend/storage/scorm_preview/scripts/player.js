@@ -448,107 +448,7 @@ var CoursePlayer = (function() {
         // Detect mobile landscape mode
         var isMobileLandscape = isMobile && !isPortrait;
         
-        if (false) {
-            // MOBILE LANDSCAPE - REFLOW mode DISABLED (using standard scaling for layout consistency)
-            document.body.classList.add('mobile-landscape-reflow');
-            
-            var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
-            var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
-            
-            // Sort elements by Y position first, then X for logical reading order
-            var elements = Array.from(container.querySelectorAll('.slide-element'));
-            elements.sort(function(a, b) {
-                var aTop = parseFloat(a.style.top) || 0;
-                var bTop = parseFloat(b.style.top) || 0;
-                var aLeft = parseFloat(a.style.left) || 0;
-                var bLeft = parseFloat(b.style.left) || 0;
-                // Group by rows (elements within 50px vertical distance are on same row)
-                if (Math.abs(aTop - bTop) < 50) {
-                    return aLeft - bLeft; // Same row: sort by X
-                }
-                return aTop - bTop; // Different rows: sort by Y
-            });
-            
-            // Store original values and reorder in DOM
-            elements.forEach(function(el) {
-                if (!el.dataset.origTop) {
-                    el.dataset.origTop = el.style.top;
-                    el.dataset.origLeft = el.style.left;
-                    el.dataset.origWidth = el.style.width;
-                    el.dataset.origHeight = el.style.height;
-                    el.dataset.origPosition = el.style.position;
-                    el.dataset.origTransform = el.style.transform || '';
-                    el.dataset.origOverflow = el.style.overflow || '';
-                    el.dataset.origZIndex = el.style.zIndex || '';
-                }
-                container.appendChild(el); // re-appends in sorted order
-            });
-            
-            // Auto-size HTML/RTF iframes based on content
-            setTimeout(function() {
-                container.querySelectorAll('.html-element iframe').forEach(function(iframe) {
-                    function resizeIframe() {
-                        try {
-                            var doc = iframe.contentDocument || iframe.contentWindow.document;
-                            if (doc && doc.body) {
-                                doc.documentElement.style.setProperty('overflow', 'visible', 'important');
-                                doc.documentElement.style.setProperty('height', 'auto', 'important');
-                                doc.body.style.setProperty('overflow', 'visible', 'important');
-                                doc.body.style.setProperty('height', 'auto', 'important');
-                                var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
-                                // Use setProperty with important to override any CSS !important rules
-                                iframe.style.setProperty('height', h + 'px', 'important');
-                                iframe.parentElement.style.setProperty('height', (h + 4) + 'px', 'important');
-                                iframe.parentElement.style.setProperty('min-height', (h + 4) + 'px', 'important');
-                                console.log('[Reflow] Resized iframe to ' + h + 'px');
-                            }
-                        } catch(e) { console.log('[Reflow] iframe error:', e); }
-                    }
-                    iframe.addEventListener('load', function() {
-                        resizeIframe();
-                        setTimeout(resizeIframe, 500);
-                        setTimeout(resizeIframe, 1500);
-                    });
-                    resizeIframe();
-                    setTimeout(resizeIframe, 100);
-                    setTimeout(resizeIframe, 500);
-                });
-            }, 300);
-            
-            // Reset wrapper for reflow scroll
-            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;min-height:100vh !important;overflow-x:hidden !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;height:auto !important;';
-            
-            container.style.transform = 'none';
-            container.style.position = 'relative';
-            container.style.width = '100%';
-            container.style.height = 'auto';
-            container.style.minHeight = '100vh';
-            container.style.marginLeft = '0';
-            container.style.boxShadow = 'none';
-            
-            console.log('[Scale] Mobile landscape - REFLOW mode, ' + elements.length + ' elements stacked');
-            return;
-        }
-        
-        // Leaving mobile landscape - disable reflow if it was active
-        if (document.body.classList.contains('mobile-landscape-reflow')) {
-            document.body.classList.remove('mobile-landscape-reflow');
-            var elements = container.querySelectorAll('.slide-element');
-            elements.forEach(function(el) {
-                if (el.dataset.origTop) {
-                    el.style.position = el.dataset.origPosition || 'absolute';
-                    el.style.top = el.dataset.origTop;
-                    el.style.left = el.dataset.origLeft;
-                    el.style.width = el.dataset.origWidth;
-                    el.style.height = el.dataset.origHeight;
-                    el.style.transform = el.dataset.origTransform;
-                    el.style.overflow = el.dataset.origOverflow;
-                    el.style.zIndex = el.dataset.origZIndex;
-                }
-            });
-        }
-        
-        // DESKTOP MODE - Standard scaling with padding
+        // DESKTOP / LANDSCAPE MODE - Standard scaling with padding
         // Reset container position if it was set to fixed
         container.style.position = '';
         container.style.top = '';
@@ -767,63 +667,9 @@ var CoursePlayer = (function() {
         window.slideTimelineTimers = [];
         
         // Helper function to optimize elements for mobile
-        function optimizeForMobile() {
-            var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
-            var isSmallScreen = window.innerWidth < 768 || window.innerHeight < 500;
-            if (!isMobile) return;
-            
-            // Find quiz and html elements and expand them to fill the slide
-            var quizElements = container.querySelectorAll('.quiz-element');
-            var htmlElements = container.querySelectorAll('.html-element');
-            
-            var allElements = Array.from(quizElements).concat(Array.from(htmlElements));
-            
-            allElements.forEach(function(el) {
-                // Force quiz and html elements to fill the entire slide on mobile
-                el.style.width = slideWidth + 'px';
-                el.style.height = slideHeight + 'px';
-                el.style.left = '0';
-                el.style.top = '0';
-                el.style.position = 'absolute';
-                
-                // Find quiz containers inside and expand them too
-                var quizContainer = el.querySelector('.quiz-player-container');
-                if (quizContainer) {
-                    quizContainer.style.width = '100%';
-                    quizContainer.style.height = '100%';
-                    quizContainer.style.padding = isSmallScreen ? '10px' : '15px';
-                    quizContainer.style.boxSizing = 'border-box';
-                    quizContainer.style.fontSize = isSmallScreen ? '16px' : '18px';
-                }
-                
-                // Expand iframes inside html elements
-                var iframe = el.querySelector('iframe');
-                if (iframe) {
-                    iframe.style.width = '100%';
-                    iframe.style.height = '100%';
-                }
-            });
-            
-            // Apply mobile font scaling to quiz elements via CSS injection
-            var mobileStyleId = 'mobile-quiz-optimization';
-            var existingStyle = document.getElementById(mobileStyleId);
-            if (!existingStyle) {
-                var style = document.createElement('style');
-                style.id = mobileStyleId;
-                style.textContent = isSmallScreen ? 
-                    '.quiz-player-container { font-size: 16px !important; } ' +
-                    '.quiz-player-container h2, .quiz-player-container h3 { font-size: 18px !important; margin: 8px 0 !important; } ' +
-                    '.quiz-player-container .quiz-option { padding: 12px !important; margin: 6px 0 !important; font-size: 14px !important; } ' +
-                    '.quiz-player-container button { padding: 12px 20px !important; font-size: 14px !important; } ' +
-                    '.quiz-player-container p { font-size: 14px !important; line-height: 1.4 !important; } '
-                    :
-                    '.quiz-player-container { font-size: 18px !important; } ' +
-                    '.quiz-player-container h2, .quiz-player-container h3 { font-size: 20px !important; } ' +
-                    '.quiz-player-container .quiz-option { padding: 14px !important; font-size: 16px !important; } ' +
-                    '.quiz-player-container button { padding: 14px 24px !important; font-size: 16px !important; } ';
-                document.head.appendChild(style);
-            }
-        }
+        // Mobile optimization removed: transform: scale() on the container
+        // already handles proportional sizing for ALL elements.
+        // Position/size overrides were causing element overlap on multi-element slides.
         
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
@@ -934,12 +780,6 @@ var CoursePlayer = (function() {
         
         // Apply scale for current device/orientation
         updateSlideScale();
-        
-        // Optimize elements for mobile after a short delay to ensure they're rendered
-        setTimeout(optimizeForMobile, 100);
-        
-        // Update scale again after optimizeForMobile (in case it changed element positions)
-        setTimeout(updateSlideScale, 150);
         
         // Update navigation
         updateNavigation();

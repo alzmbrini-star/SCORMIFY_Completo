@@ -145,6 +145,10 @@ var ScormAPI = (function() {
                 return true;
             }
             return false;
+        },
+        
+        getAPI: function() {
+            return getAPI();
         }
     };
 })();
