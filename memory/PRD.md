@@ -365,7 +365,7 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 - [ ] Collaborative editing
 - [ ] Template library
 - [ ] Asset library
-- [ ] Preview mode
+- [x] Preview mode (DONE - Split Preview integrated into Editor, Feb 13, 2026)
 - [ ] SCORM 2004 support
 
 ## Key API Endpoints
