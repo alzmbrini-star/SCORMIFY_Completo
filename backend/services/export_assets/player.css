@@ -263,7 +263,7 @@
             position: relative;
             overflow: visible; /* Allow elements with negative positions to be visible */
             box-shadow: 0 10px 50px rgba(0,0,0,0.5);
-            transform-origin: center center;
+            transform-origin: 0 0;
             /* Scale will be calculated dynamically by JS */
         }
         
