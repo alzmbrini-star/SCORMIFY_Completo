@@ -1985,40 +1985,70 @@ export default function Editor() {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Sidebar - Slides */}
-          <div className="w-64 border-r border-border bg-card flex flex-col">
-            <div className="p-3 border-b border-border flex items-center justify-between">
-              <span className="text-sm font-medium">Slides</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleAddSlide} data-testid="add-slide-btn">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-3 space-y-2">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={slides.map(s => s.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
+          {/* Left Sidebar - Slides (collapsible when split preview is active) */}
+          <div className={`${showSplitPreview ? 'w-12' : 'w-64'} border-r border-border bg-card flex flex-col transition-all duration-300 shrink-0`}>
+            {showSplitPreview ? (
+              <>
+                <div className="p-1.5 border-b border-border flex items-center justify-center">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSplitPreview(false)} data-testid="expand-slides-btn">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="py-1 space-y-1 flex flex-col items-center">
                     {slides.map((slide, index) => (
-                      <SortableSlideItem
+                      <button
                         key={slide.id}
-                        slide={slide}
-                        index={index}
-                        isActive={index === currentSlideIndex}
+                        className={`w-8 h-8 rounded text-xs font-medium transition-all ${
+                          index === currentSlideIndex
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-muted'
+                        }`}
                         onClick={() => setCurrentSlideIndex(index)}
-                        onDuplicate={handleDuplicateSlide}
-                        onDelete={handleDeleteSlide}
-                      />
+                        data-testid={`collapsed-slide-${index}`}
+                      >
+                        {index + 1}
+                      </button>
                     ))}
-                  </SortableContext>
-                </DndContext>
-              </div>
-            </ScrollArea>
+                  </div>
+                </ScrollArea>
+              </>
+            ) : (
+              <>
+                <div className="p-3 border-b border-border flex items-center justify-between">
+                  <span className="text-sm font-medium">Slides</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleAddSlide} data-testid="add-slide-btn">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="p-3 space-y-2">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={slides.map(s => s.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {slides.map((slide, index) => (
+                          <SortableSlideItem
+                            key={slide.id}
+                            slide={slide}
+                            index={index}
+                            isActive={index === currentSlideIndex}
+                            onClick={() => setCurrentSlideIndex(index)}
+                            onDuplicate={handleDuplicateSlide}
+                            onDelete={handleDeleteSlide}
+                          />
+                        ))}
+                      </SortableContext>
+                    </DndContext>
+                  </div>
+                </ScrollArea>
+              </>
+            )}
           </div>
 
           {/* Main Canvas Area */}
