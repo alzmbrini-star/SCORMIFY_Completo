@@ -1842,9 +1842,9 @@ export default function Editor() {
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             <Button 
-              variant="outline" 
+              variant={showSplitPreview ? "secondary" : "outline"}
               className="gap-2" 
-              onClick={() => setShowPreview(true)}
+              onClick={() => setShowSplitPreview(!showSplitPreview)}
               data-testid="preview-btn"
             >
               <Eye className="w-4 h-4" />
