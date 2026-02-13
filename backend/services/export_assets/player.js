@@ -1263,7 +1263,7 @@ var CoursePlayer = (function() {
                     flipNav.style.cssText = 'height:40px;display:flex;align-items:center;justify-content:center;gap:10px;background:#333;';
                     
                     var prevBtn = document.createElement('button');
-                    prevBtn.innerHTML = 'â Anterior';
+                    prevBtn.innerHTML = '◀ Anterior';
                     prevBtn.style.cssText = 'padding:5px 10px;border:none;background:#555;color:#fff;border-radius:4px;cursor:pointer;';
                     prevBtn.onclick = function() {
                         var pages = JSON.parse(flipImg.dataset.pages);
@@ -1280,7 +1280,7 @@ var CoursePlayer = (function() {
                     pageInfo.textContent = '1 / ' + element.flipbookPages.length;
                     
                     var nextBtn = document.createElement('button');
-                    nextBtn.innerHTML = 'PrÃ³ximo â¶';
+                    nextBtn.innerHTML = 'Próximo ▶';
                     nextBtn.style.cssText = 'padding:5px 10px;border:none;background:#555;color:#fff;border-radius:4px;cursor:pointer;';
                     nextBtn.onclick = function() {
                         var pages = JSON.parse(flipImg.dataset.pages);
@@ -1329,9 +1329,9 @@ var CoursePlayer = (function() {
                 
                 // Placeholder until quiz is initialized
                 quizContainer.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">' +
-                    '<div style="font-size:48px;margin-bottom:16px;">ð</div>' +
+                    '<div style="font-size:48px;margin-bottom:16px;">📝</div>' +
                     '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + quizTitle + '</h3>' +
-                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + questionIds.length + ' questÃµes</p>' +
+                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + questionIds.length + ' questões</p>' +
                     '<button class="quiz-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ' +
                     'onclick="QuizController.startQuiz(\'' + element.id + '\')">Iniciar Quiz</button>' +
                     '</div>';
@@ -1678,11 +1678,11 @@ var CoursePlayer = (function() {
         if (globalAudio) {
             if (globalAudio.muted) {
                 globalAudio.muted = false;
-                if (volumeBtn) volumeBtn.innerHTML = 'ð';
+                if (volumeBtn) volumeBtn.innerHTML = '🔊';
                 if (volumeSlider) volumeSlider.value = globalAudio.volume * 100;
             } else {
                 globalAudio.muted = true;
-                if (volumeBtn) volumeBtn.innerHTML = 'ð';
+                if (volumeBtn) volumeBtn.innerHTML = '🔇';
             }
         }
         
@@ -1710,11 +1710,11 @@ var CoursePlayer = (function() {
         // Update button icon based on volume level
         if (volumeBtn) {
             if (volume === 0) {
-                volumeBtn.innerHTML = 'ð';
+                volumeBtn.innerHTML = '🔇';
             } else if (volume < 0.5) {
-                volumeBtn.innerHTML = 'ð';
+                volumeBtn.innerHTML = '🔉';
             } else {
-                volumeBtn.innerHTML = 'ð';
+                volumeBtn.innerHTML = '🔊';
             }
         }
     }
@@ -1774,13 +1774,13 @@ var CoursePlayer = (function() {
             var status = document.createElement('div');
             status.className = 'sidebar-slide-status';
             if (index < currentSlide) {
-                status.innerHTML = 'â ConcluÃ­do';
+                status.innerHTML = '✓ Concluído';
                 status.classList.add('completed');
             } else if (index === currentSlide) {
-                status.innerHTML = 'â Atual';
+                status.innerHTML = '● Atual';
                 status.classList.add('current');
             } else {
-                status.innerHTML = 'â Pendente';
+                status.innerHTML = '○ Pendente';
             }
             
             info.appendChild(title);
@@ -1803,13 +1803,13 @@ var CoursePlayer = (function() {
             if (status) {
                 status.classList.remove('completed', 'current');
                 if (index < currentSlide) {
-                    status.innerHTML = 'â ConcluÃ­do';
+                    status.innerHTML = '✓ Concluído';
                     status.classList.add('completed');
                 } else if (index === currentSlide) {
-                    status.innerHTML = 'â Atual';
+                    status.innerHTML = '● Atual';
                     status.classList.add('current');
                 } else {
-                    status.innerHTML = 'â Pendente';
+                    status.innerHTML = '○ Pendente';
                 }
             }
         });
