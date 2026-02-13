@@ -1122,6 +1122,7 @@ Complete Quiz Generator feature for creating interactive quizzes within SCORM co
 - [x] SCORM Mobile: Forçar landscape com overlay "Rotacione seu dispositivo" (FIXED - Feb 12, 2026)
 - [x] SCORM Mobile Landscape: Pinch-to-zoom + Scroll vertical habilitados (FIXED - Feb 12, 2026)
 - [x] SCORM Mobile Landscape: Reflow de elementos - texto e vídeo empilhados sem sobreposição (FIXED - Feb 12, 2026)
+- [x] Refatoração SCORM Exporter: CSS/JS extraídos para arquivos separados (4163→377 linhas) (DONE - Feb 13, 2026)
 
 ### P1 - High Priority
 - Quiz analytics dashboard (view attempts, scores per question)
