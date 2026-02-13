@@ -241,17 +241,14 @@
             }
         }
         
-        /* Mobile landscape - allow scroll and pinch-to-zoom */
+        /* Mobile landscape - standard scaling, no scroll needed */
         @media screen and (max-height: 700px) and (orientation: landscape) {
             body {
-                overflow: auto !important;
-                overflow-x: hidden !important;
-                -webkit-overflow-scrolling: touch !important;
+                overflow: hidden !important;
             }
             #player-container {
-                overflow: visible !important;
-                height: auto !important;
-                min-height: 100vh;
+                overflow: hidden !important;
+                height: 100vh !important;
             }
         }
         
