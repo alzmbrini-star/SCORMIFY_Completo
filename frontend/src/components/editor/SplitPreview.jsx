@@ -174,8 +174,8 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
     if (!slideWrapperRef.current || !currentSlide) return;
     const wrapper = slideWrapperRef.current;
     const rect = wrapper.getBoundingClientRect();
-    const availW = rect.width - 24;
-    const availH = rect.height - 24;
+    const availW = rect.width - 16;
+    const availH = rect.height - 16;
     const scaleX = availW / (currentSlide.width || 960);
     const scaleY = availH / (currentSlide.height || 540);
     setSlideScale(Math.min(scaleX, scaleY, 1));
