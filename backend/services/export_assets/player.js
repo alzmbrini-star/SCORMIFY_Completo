@@ -427,10 +427,7 @@ var CoursePlayer = (function() {
         
         console.log('[Scale] Device:', { isMobile: isMobile, isPortrait: isPortrait, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
         
-        // Portrait mode is handled by the orientation overlay - no scaling needed here
-        if (isMobilePortrait) {
-            return;
-        }
+        // Portrait mode: use standard scaling (overlay is dismissable)
         
         // DESKTOP / LANDSCAPE MODE - Fit within available space
         // Reset wrapper styles that might have been modified
@@ -447,8 +444,8 @@ var CoursePlayer = (function() {
         // Detect mobile landscape mode
         var isMobileLandscape = isMobile && !isPortrait;
         
-        if (isMobileLandscape) {
-            // MOBILE LANDSCAPE - REFLOW mode: stack elements vertically for readability
+        if (false) {
+            // MOBILE LANDSCAPE - REFLOW mode DISABLED (using standard scaling for layout consistency)
             document.body.classList.add('mobile-landscape-reflow');
             
             var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
@@ -580,8 +577,8 @@ var CoursePlayer = (function() {
         var maxScale = 1.2;
         scale = Math.min(scale, maxScale);
         
-        // Ensure minimum scale for readability
-        var minScale = 0.45;
+        // Ensure minimum scale for readability (lowered for portrait mobile support)
+        var minScale = 0.15;
         scale = Math.max(scale, minScale);
         
         // Apply scale to container
