@@ -2363,7 +2363,7 @@ export default function Editor() {
 
           {/* Right Panel - Properties or Split Preview */}
           {showSplitPreview ? (
-            <div className="w-[45%] border-l border-border flex flex-col shrink-0">
+            <div className="flex-1 border-l border-border flex flex-col">
               <SplitPreview
                 course={currentProject?.course}
                 projectId={currentProject?.id}
