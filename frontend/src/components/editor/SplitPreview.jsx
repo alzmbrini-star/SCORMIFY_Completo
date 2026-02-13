@@ -309,7 +309,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
         )}
 
         {/* Slide area */}
-        <div ref={slideWrapperRef} className="flex-1 flex items-center justify-center p-2 overflow-hidden">
+        <div ref={slideWrapperRef} className="flex-1 flex items-center justify-center p-1 overflow-hidden">
           <div
             className="relative shadow-xl rounded-md overflow-hidden"
             style={{
