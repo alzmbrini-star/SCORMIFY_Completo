@@ -461,6 +461,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
               ))}
             </svg>
           </div>
+          </div>
         </div>
       </div>
 
