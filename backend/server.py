@@ -2977,11 +2977,6 @@ async def get_recommended_voices():
 # Include router
 app.include_router(api_router)
 
-# Mount SCORM preview directory for testing
-scorm_preview_dir = STORAGE_DIR / "scorm_preview"
-if scorm_preview_dir.exists():
-    app.mount("/api/scorm-preview", StaticFiles(directory=str(scorm_preview_dir), html=True), name="scorm_preview")
-
 # CORS
 app.add_middleware(
     CORSMiddleware,
