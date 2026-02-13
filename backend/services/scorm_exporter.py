@@ -175,16 +175,16 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                 shutil.copy2(asset, dest_path)
                 logger.info(f"Copied global asset (AI image): {asset.name}")
     
-    # Write scripts
+    # Write scripts (read from export_assets directory)
     with open(package_dir / "scripts" / "scorm-api.js", 'w') as f:
-        f.write(SCORM_API_JS)
+        f.write(_read_asset("scorm-api.js"))
     
     with open(package_dir / "scripts" / "player.js", 'w') as f:
-        f.write(PLAYER_JS)
+        f.write(_read_asset("player.js"))
     
     # Write quiz controller script
     with open(package_dir / "scripts" / "quiz-controller.js", 'w') as f:
-        f.write(QUIZ_CONTROLLER_JS)
+        f.write(_read_asset("quiz-controller.js"))
     
     # Prepare course.json - Fix asset URLs for SCORM package
     course_data = course.model_dump()
