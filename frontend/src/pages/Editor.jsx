@@ -405,6 +405,12 @@ export default function Editor() {
   const [ttsPreviewUrl, setTTSPreviewUrl] = useState(null);
   const [ttsAudioUrl, setTTSAudioUrl] = useState(null);
 
+  // AI Narration Generation states
+  const [aiNarrationLoading, setAiNarrationLoading] = useState(false);
+  const [aiNarrationOptions, setAiNarrationOptions] = useState([]);
+  const [aiNarrationStyle, setAiNarrationStyle] = useState('educational');
+  const [showAiNarrationOptions, setShowAiNarrationOptions] = useState(false);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingIntervalRef = useRef(null);
