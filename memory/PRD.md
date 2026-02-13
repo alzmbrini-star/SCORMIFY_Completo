@@ -14,6 +14,21 @@ Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 co
 ## Changelog (Recent Updates)
 
 ### 2026-02-13
+- **Correção Mobile - SCORM/HTML Export Player** (IMPLEMENTED)
+  - **Problema**: No mobile, o player SCORM usava "modo reflow" que empilhava elementos verticalmente, destruindo o layout original. Overlay de orientação bloqueava portrait sem opção de continuar.
+  - **Correções**:
+    - Removido modo reflow do player SCORM (player.js) → usa scaling uniforme como desktop
+    - Corrigido CSS mobile landscape: `flex-start` → `center`, `overflow:visible` → `overflow:hidden`
+    - Overlay de orientação agora é dispensável com botão "Continuar no modo retrato" (SCORM + HTML)
+    - CSS `!important` de force-hide removido dos 3 media queries de portrait (SCORM + HTML)
+    - Scale mínimo reduzido de 0.45 para 0.15 para suportar portrait
+    - JS de verificação de orientação com armazenamento em sessionStorage (HTML exporter)
+  - **Files Modified**: 
+    - `backend/services/export_assets/player.js` (reflow removido, portrait desbloqueado)
+    - `backend/services/export_assets/player.css` (CSS mobile corrigido)
+    - `backend/services/export_assets/player_template.html` (botão continuar)
+    - `backend/services/html_exporter.py` (CSS, botão, JS orientação)
+
 - **Layout 50/50 Lado a Lado - Editor + Preview** (IMPLEMENTED)
   - **Mudança**: Editor canvas e Preview panel agora ficam alinhados lado a lado com divisão 50%/50%
   - **Como**: Container do SplitPreview mudado de `w-[45%] shrink-0` para `flex-1`, igualando o flex-1 do canvas principal
