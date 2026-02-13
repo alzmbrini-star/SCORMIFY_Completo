@@ -489,10 +489,14 @@ var CoursePlayer = (function() {
         container.style.width = slideWidth + 'px';
         container.style.height = slideHeight + 'px';
         container.style.transform = 'scale(' + scale + ')';
-        container.style.transformOrigin = 'center center';
+        container.style.transformOrigin = '0 0';
+        
+        // Shrink layout box to match visual size so flexbox centering works correctly
+        container.style.marginRight = -(slideWidth * (1 - scale)) + 'px';
+        container.style.marginBottom = -(slideHeight * (1 - scale)) + 'px';
         
         // Log for debugging
-        console.log('[Scale] Desktop - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
+        console.log('[Scale] scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
     }
     
     var isVideoFullscreen = false;
