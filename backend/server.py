@@ -1217,6 +1217,69 @@ async def export_html(project_id: str):
         logger.error(f"HTML export error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Video Export
+from services.video_exporter import export_video as export_video_func
+
+class VideoExportRequest(BaseModel):
+    format: Optional[str] = "mp4"  # mp4 or webm
+    default_duration: Optional[float] = 5.0
+
+@api_router.post("/course/{project_id}/export-video")
+async def export_video_endpoint(project_id: str, request: VideoExportRequest, background_tasks: BackgroundTasks):
+    """Export project as video (MP4 or WebM)"""
+    project_doc = await get_project_by_id(project_id)
+    if not project_doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    video_format = request.format if request.format in ('mp4', 'webm') else 'mp4'
+
+    # Create job for tracking
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        'id': job_id,
+        'status': 'processing',
+        'progress': 0,
+        'message': 'Iniciando exportação de vídeo...',
+        'result': None
+    }
+
+    async def run_export():
+        try:
+            def on_progress(progress, message):
+                jobs[job_id]['progress'] = progress
+                jobs[job_id]['message'] = message
+
+            output_path = await export_video_func(
+                project_doc,
+                str(PROJECTS_DIR),
+                str(STORAGE_DIR),
+                str(EXPORTS_DIR),
+                video_format=video_format,
+                default_duration=request.default_duration,
+                on_progress=on_progress
+            )
+
+            filename = Path(output_path).name
+            jobs[job_id]['status'] = 'completed'
+            jobs[job_id]['progress'] = 100
+            jobs[job_id]['message'] = 'Vídeo exportado com sucesso!'
+            jobs[job_id]['result'] = {
+                'downloadUrl': f"/api/exports/{filename}",
+                'filename': filename
+            }
+        except Exception as e:
+            logger.error(f"Video export error: {e}")
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['message'] = f"Erro na exportação: {str(e)}"
+
+    # Run in background
+    asyncio.create_task(run_export())
+
+    return {
+        "jobId": job_id,
+        "message": f"Exportação de vídeo {video_format.upper()} iniciada"
+    }
+
 # Static file serving
 
 @api_router.get("/projects/{project_id}/assets/{filename}")
