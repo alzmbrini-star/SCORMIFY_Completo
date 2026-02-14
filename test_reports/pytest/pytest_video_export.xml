@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="9" time="330.843" timestamp="2026-02-14T15:32:41.338221+00:00" hostname="agent-env-413b4aea-167a-47a9-bd0b-e47bb8d4eaa8"><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_health_check" time="31.800" /><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_project_exists" time="0.145" /><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_export_video_mp4_returns_job_id" time="0.133" /><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_get_job_status" time="60.158"><failure message="assert 520 == 200&#10; +  where 520 = &lt;Response [520]&gt;.status_code">backend/tests/test_video_export.py:62: in test_get_job_status
+    assert export_response.status_code == 200
+E   assert 520 == 200
+E    +  where 520 = &lt;Response [520]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_export_video_completes_with_download_url" time="86.941"><failure message="assert 520 == 200&#10; +  where 520 = &lt;Response [520]&gt;.status_code">backend/tests/test_video_export.py:94: in test_export_video_completes_with_download_url
+    assert status_response.status_code == 200
+E   assert 520 == 200
+E    +  where 520 = &lt;Response [520]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_exported_mp4_is_valid" time="77.284"><failure message="requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_video_export.py:145: in test_exported_mp4_is_valid
+    data = status_response.json()
+           ^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</failure></testcase><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_export_video_invalid_project_returns_404" time="13.600" /><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_export_video_webm_format" time="0.156" /><testcase classname="backend.tests.test_video_export.TestVideoExportAPI" name="test_get_nonexistent_job_returns_404" time="60.180"><failure message="AssertionError: Expected 404, got 520&#10;assert 520 == 404&#10; +  where 520 = &lt;Response [520]&gt;.status_code">backend/tests/test_video_export.py:197: in test_get_nonexistent_job_returns_404
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+E   AssertionError: Expected 404, got 520
+E   assert 520 == 404
+E    +  where 520 = &lt;Response [520]&gt;.status_code</failure></testcase></testsuite></testsuites>
