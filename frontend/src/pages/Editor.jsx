@@ -647,6 +647,47 @@ export default function Editor() {
     }
   };
 
+  const handleExportVideo = async (format = 'mp4') => {
+    try {
+      setExportLoading(true);
+      setVideoExportProgress(0);
+      setVideoExportMessage('Iniciando exportação...');
+      const response = await axios.post(
+        `${API_URL}/api/course/${currentProject.id}/export-video`,
+        { format, default_duration: 5.0 }
+      );
+      const jobId = response.data.jobId;
+      setVideoExportJobId(jobId);
+      // Poll for progress
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await axios.get(`${API_URL}/api/job/${jobId}`);
+          const job = statusRes.data;
+          setVideoExportProgress(job.progress || 0);
+          setVideoExportMessage(job.message || '');
+          if (job.status === 'completed') {
+            clearInterval(pollInterval);
+            setDownloadUrl(`${API_URL}${job.result.downloadUrl}`);
+            setVideoExportJobId(null);
+            setExportLoading(false);
+            toast.success(`Vídeo ${format.toUpperCase()} exportado!`);
+          } else if (job.status === 'failed') {
+            clearInterval(pollInterval);
+            setVideoExportJobId(null);
+            setExportLoading(false);
+            toast.error(job.message || 'Falha na exportação');
+          }
+        } catch (pollErr) {
+          console.error('Poll error:', pollErr);
+        }
+      }, 2000);
+    } catch (err) {
+      console.error('Video export error:', err);
+      toast.error('Falha ao iniciar exportação: ' + (err.response?.data?.detail || err.message));
+      setExportLoading(false);
+    }
+  };
+
   // Audio playback functions
   const playAudio = (audioUrl, audioId) => {
     // Stop any currently playing audio
