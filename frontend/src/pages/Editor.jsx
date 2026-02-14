@@ -2060,6 +2060,57 @@ export default function Editor() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Video Export Option */}
+                      <div className="p-4 border rounded-lg hover:border-primary/50 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0">
+                            <Film className="w-5 h-5 text-red-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium mb-1">Vídeo</h4>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              Exportar como vídeo com narrações e vídeos HeyGen/YouTube
+                            </p>
+                            {videoExportJobId ? (
+                              <div data-testid="video-export-progress">
+                                <div className="w-full bg-muted rounded-full h-2 mb-2">
+                                  <div
+                                    className="bg-red-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${videoExportProgress}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">{videoExportMessage}</p>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleExportVideo('mp4')}
+                                  disabled={exportLoading}
+                                  variant="outline"
+                                  className="flex-1 gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                  size="sm"
+                                  data-testid="generate-mp4-btn"
+                                >
+                                  <Film className="w-4 h-4" />
+                                  MP4
+                                </Button>
+                                <Button
+                                  onClick={() => handleExportVideo('webm')}
+                                  disabled={exportLoading}
+                                  variant="outline"
+                                  className="flex-1 gap-2 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                                  size="sm"
+                                  data-testid="generate-webm-btn"
+                                >
+                                  <Film className="w-4 h-4" />
+                                  WebM
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
