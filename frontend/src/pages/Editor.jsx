@@ -295,6 +295,9 @@ export default function Editor() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(null);
+  const [videoExportJobId, setVideoExportJobId] = useState(null);
+  const [videoExportProgress, setVideoExportProgress] = useState(0);
+  const [videoExportMessage, setVideoExportMessage] = useState('');
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [mediaType, setMediaType] = useState('image');
   const [videoUrl, setVideoUrl] = useState('');
