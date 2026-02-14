@@ -1,35 +1,36 @@
 # Scormify - PPT to SCORM Converter
 
 ## Original Problem Statement
-Criar um aplicativo web que converte arquivos PPT/PPTX para pacotes SCORM 1.2 com fidelidade visual, editor de slides, timeline de animações/áudio, e exportação compatível com LMS.
+Criar um aplicativo web que converte PPT/PPTX para SCORM 1.2 com editor de slides, timeline, áudio e exportação.
 
 ## Architecture
-- **Frontend**: React + Tailwind CSS + Shadcn/UI
+- **Frontend**: React + Tailwind + Shadcn/UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **File Storage**: Local filesystem (/app/backend/storage)
-- **PPT Conversion**: LibreOffice (headless) + pdf2image
-- **Third-Party Integrations**: HeyGen API (avatares de IA), ElevenLabs (TTS), Emergent LLM Key (Gemini 3 Flash Vision - narração IA com OCR, GPT-4o - scripts)
+- **Third-Party**: HeyGen (avatares), ElevenLabs (TTS), Gemini 3 Flash (narração IA), FFmpeg (vídeo), yt-dlp (YouTube/Vimeo)
 
-## Changelog (Recent Updates)
+## Changelog
 
-### 2026-02-13 (Latest)
-- **BUGFIX P0: Narração IA não lia conteúdo real dos slides** (FIXED)
-  - Causa raiz: Backend só verificava campo `content` dos elementos, mas o editor RTF salva em `htmlContent`
-  - Correção: Agora lê `content` E `htmlContent`, extrai imagens inline de htmlContent (src="/api/..."), e carrega assets globais (/api/assets/)
-  - Testado: Slides "Sydney, Austrália", "Pontes de Sydney", "Terra de Contrastes" - IA agora referencia conteúdo específico
+### 2026-02-14 (Latest)
+- **FEATURE P0: Exportação de Vídeo (MP4/WebM)** (IMPLEMENTED AND TESTED)
+  - Backend: `POST /api/course/{project_id}/export-video` - async job com progresso
+  - Composição: background + image elements + text + vídeos HeyGen/YouTube/Vimeo
+  - Duração automática: vídeo overlay > áudio narração > padrão configurável
+  - Quiz ignorado, YouTube/Vimeo incluídos via yt-dlp
+  - Pillow para composição de imagens, FFmpeg para encoding
+  - Frontend: Botões MP4/WebM no diálogo de exportação com barra de progresso
+  - **Testado**: 100% backend + frontend (iteration_24)
 
-- **FEATURE P0: Geração de Narração com IA + Vision/OCR** (IMPLEMENTED AND TESTED)
-  - Backend: `POST /api/projects/{project_id}/slides/{slide_id}/generate-narration`
-  - Usa **Gemini 3 Flash multimodal** via Emergent LLM Key
-  - Lê: backgroundImage (PPTs importados), image elements, htmlContent (RTF), imagens inline, text elements
-  - Retorna 3 opções de narração contextual baseadas no conteúdo real do slide
-  - 4 estilos: Educativo, Conversacional, Formal, Amigável
+### 2026-02-13
+- **FEATURE P0: Narração IA + Vision/OCR** (IMPLEMENTED AND TESTED)
+- **BUGFIX: htmlContent não era lido** (FIXED)
+- **BUGFIX: Sobreposição + Centralização Mobile** (FIXED)
 
 ## Key Files
-- `backend/server.py` - Server com endpoint narração IA (vision + text + htmlContent)
-- `frontend/src/pages/Editor.jsx` - Editor com TTS + IA
+- `backend/server.py` - Server principal
+- `backend/services/video_exporter.py` - Serviço de exportação de vídeo
+- `frontend/src/pages/Editor.jsx` - Editor com exportação
 
 ## Backlog
-- Refatorar `html_exporter.py` para usar templates externos
-- Quiz readability improvements on very small mobile screens
+- Refatorar `html_exporter.py` para templates externos
+- Quiz readability mobile
