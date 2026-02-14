@@ -1943,6 +1943,9 @@ export default function Editor() {
               if (!open) {
                 // Reset downloadUrl when dialog closes so next time shows Generate button
                 setDownloadUrl(null);
+                setVideoExportJobId(null);
+                setVideoExportProgress(0);
+                setVideoExportMessage('');
               }
             }}>
               <DialogContent className="max-w-md">
