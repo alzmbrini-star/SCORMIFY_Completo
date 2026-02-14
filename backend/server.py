@@ -1220,18 +1220,18 @@ async def export_html(project_id: str):
 # Video Export
 from services.video_exporter import export_video as export_video_func
 
-class VideoExportRequest(BaseModel):
-    format: Optional[str] = "mp4"  # mp4 or webm
-    default_duration: Optional[float] = 5.0
-
 @api_router.post("/course/{project_id}/export-video")
-async def export_video_endpoint(project_id: str, request: VideoExportRequest, background_tasks: BackgroundTasks):
+async def export_video_endpoint(project_id: str, request: Request, background_tasks: BackgroundTasks):
     """Export project as video (MP4 or WebM)"""
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    video_format = request.format if request.format in ('mp4', 'webm') else 'mp4'
+    body = await request.json()
+    video_format = body.get('format', 'mp4')
+    if video_format not in ('mp4', 'webm'):
+        video_format = 'mp4'
+    default_duration = float(body.get('default_duration', 5.0))
 
     # Create job for tracking
     job_id = str(uuid.uuid4())
@@ -1255,7 +1255,7 @@ async def export_video_endpoint(project_id: str, request: VideoExportRequest, ba
                 str(STORAGE_DIR),
                 str(EXPORTS_DIR),
                 video_format=video_format,
-                default_duration=request.default_duration,
+                default_duration=default_duration,
                 on_progress=on_progress
             )
 
