@@ -584,6 +584,7 @@ async def export_video(
             run_ffmpeg([
                 '-i', concat_output,
                 '-c:v', 'libvpx-vp9', '-b:v', '2M',
+                '-cpu-used', '4', '-deadline', 'realtime', '-row-mt', '1',
                 '-c:a', 'libopus', '-b:a', '128k',
                 '-pix_fmt', 'yuv420p',
                 output_path
