@@ -395,7 +395,8 @@ async def export_video(
                             for f in videos_dir.glob(f"video_{idx}_{el.get('id', '')[:8]}*"):
                                 video_overlays.append({
                                     'path': str(f),
-                                    'x': x, 'y': y, 'w': w, 'h': h
+                                    'x': x, 'y': y, 'w': w, 'h': h,
+                                    'has_alpha': False
                                 })
                                 break
 
