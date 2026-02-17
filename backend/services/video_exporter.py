@@ -460,26 +460,36 @@ async def export_video(
                     # Check if overlay video has alpha channel (WebM with transparency)
                     has_alpha = vo.get('has_alpha', vo['path'].endswith('.webm'))
                     if has_alpha:
-                        # Preserve alpha channel: scale with yuva420p format for transparent compositing
+                        # For WebM with VP9 alpha: use libvpx-vp9 decoder to extract alpha channel
                         filter_complex = (
                             f"[1:v]format=yuva420p,scale={vo['w']}:{vo['h']}[ov];"
                             f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1:format=auto"
                         )
+                        success = run_ffmpeg([
+                            '-i', current_input,
+                            '-c:v', 'libvpx-vp9', '-i', vo['path'],
+                            '-filter_complex', filter_complex,
+                            '-c:v', 'libx264', '-preset', 'fast',
+                            '-pix_fmt', 'yuv420p',
+                            '-t', str(duration),
+                            '-r', '24',
+                            overlay_output
+                        ])
                     else:
                         filter_complex = (
                             f"[1:v]scale={vo['w']}:{vo['h']}[ov];"
                             f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1"
                         )
-                    success = run_ffmpeg([
-                        '-i', current_input,
-                        '-i', vo['path'],
-                        '-filter_complex', filter_complex,
-                        '-c:v', 'libx264', '-preset', 'fast',
-                        '-pix_fmt', 'yuv420p',
-                        '-t', str(duration),
-                        '-r', '24',
-                        overlay_output
-                    ])
+                        success = run_ffmpeg([
+                            '-i', current_input,
+                            '-i', vo['path'],
+                            '-filter_complex', filter_complex,
+                            '-c:v', 'libx264', '-preset', 'fast',
+                            '-pix_fmt', 'yuv420p',
+                            '-t', str(duration),
+                            '-r', '24',
+                            overlay_output
+                        ])
                     if success and Path(overlay_output).exists():
                         current_input = overlay_output
                     else:
