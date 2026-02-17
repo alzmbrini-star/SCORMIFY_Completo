@@ -364,13 +364,29 @@ async def export_video(
                     video_file = str(videos_dir / f"video_{idx}_{el.get('id', '')[:8]}")
 
                     if src and ('heygen' in src.lower() or src.endswith('.webm') or src.endswith('.mp4')):
-                        # HeyGen or direct video URL
-                        downloaded = await download_file(src, video_file + '.webm')
-                        if downloaded:
+                        # HeyGen or direct video URL - check if local file exists first
+                        local_video_path = None
+                        if src.startswith('/api/projects/'):
+                            parts = src.split('/assets/')
+                            if len(parts) == 2:
+                                lp = Path(projects_dir) / project_id / "assets" / parts[1]
+                                if lp.exists():
+                                    local_video_path = str(lp)
+                        if local_video_path:
                             video_overlays.append({
-                                'path': video_file + '.webm',
-                                'x': x, 'y': y, 'w': w, 'h': h
+                                'path': local_video_path,
+                                'x': x, 'y': y, 'w': w, 'h': h,
+                                'has_alpha': local_video_path.endswith('.webm')
                             })
+                        else:
+                            ext = '.webm' if src.endswith('.webm') or 'heygen' in src.lower() else '.mp4'
+                            downloaded = await download_file(src, video_file + ext)
+                            if downloaded:
+                                video_overlays.append({
+                                    'path': video_file + ext,
+                                    'x': x, 'y': y, 'w': w, 'h': h,
+                                    'has_alpha': ext == '.webm'
+                                })
                     elif embed_url and ('youtube' in embed_url.lower() or 'vimeo' in embed_url.lower()):
                         # YouTube/Vimeo
                         downloaded = await download_youtube_video(embed_url, video_file)
