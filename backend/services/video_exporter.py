@@ -440,11 +440,19 @@ async def export_video(
                 current_input = base_video
                 for vi, vo in enumerate(video_overlays):
                     overlay_output = str(segments_dir / f"overlay_{idx:03d}_{vi}.mp4")
-                    # Scale overlay video and position it
-                    filter_complex = (
-                        f"[1:v]scale={vo['w']}:{vo['h']}[ov];"
-                        f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1"
-                    )
+                    # Check if overlay video has alpha channel (WebM with transparency)
+                    has_alpha = vo['path'].endswith('.webm')
+                    if has_alpha:
+                        # Preserve alpha channel: scale with yuva420p format for transparent compositing
+                        filter_complex = (
+                            f"[1:v]format=yuva420p,scale={vo['w']}:{vo['h']}[ov];"
+                            f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1:format=auto"
+                        )
+                    else:
+                        filter_complex = (
+                            f"[1:v]scale={vo['w']}:{vo['h']}[ov];"
+                            f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1"
+                        )
                     success = run_ffmpeg([
                         '-i', current_input,
                         '-i', vo['path'],
