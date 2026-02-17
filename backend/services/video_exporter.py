@@ -234,11 +234,15 @@ async def download_youtube_video(url: str, output_path: str) -> bool:
     return False
 
 
+FFMPEG_BIN = '/usr/bin/ffmpeg'
+FFPROBE_BIN = '/usr/bin/ffprobe'
+
+
 def get_media_duration(file_path: str) -> float:
     """Get duration of audio/video file using ffprobe"""
     try:
         result = subprocess.run(
-            ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+            [FFPROBE_BIN, '-v', 'quiet', '-show_entries', 'format=duration',
              '-of', 'default=noprint_wrappers=1:nokey=1', file_path],
             capture_output=True, text=True, timeout=10
         )
@@ -251,7 +255,7 @@ def get_media_duration(file_path: str) -> float:
 
 def run_ffmpeg(args: list, timeout: int = 300) -> bool:
     """Run FFmpeg command"""
-    cmd = ['ffmpeg', '-y'] + args
+    cmd = [FFMPEG_BIN, '-y'] + args
     logger.info(f"FFmpeg: {' '.join(cmd[:10])}...")
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
