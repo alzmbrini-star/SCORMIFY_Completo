@@ -13,22 +13,23 @@ Criar um aplicativo web que converte PPT/PPTX para SCORM 1.2 com editor de slide
 ## Changelog
 
 ### 2026-02-17 (Latest)
-- **BUGFIX P0: Exportação de vídeo WebM/MP4 falhava** (FIXED AND TESTED)
-  - Causa raiz: `ffmpeg` e `ffprobe` não estavam no PATH do processo backend após fork
-  - Correção: Usar caminhos absolutos `/usr/bin/ffmpeg` e `/usr/bin/ffprobe` no video_exporter.py
-  - Também corrigido: yt-dlp usando caminho absoluto `/root/.venv/bin/yt-dlp`
-  - Testado: WebM (4.3MB, 75s) e MP4 ambos exportam corretamente
+- **BUGFIX P0: Vídeos HeyGen com fundo transparente apareciam com fundo preto** (FIXED)
+  - Causa raiz: FFmpeg não decodificava canal alpha de VP9 WebM sem `-c:v libvpx-vp9` explícito
+  - Correção: Detecta vídeos com alpha (`has_alpha` flag), usa decoder `libvpx-vp9` + `format=yuva420p` + `overlay format=auto`
+  - Verificado: Cantos transparentes do avatar agora mostram slide por baixo (RGB match confirmado)
+
+- **BUGFIX P0: FFmpeg não encontrado após fork** (FIXED)
+  - Caminhos absolutos: `/usr/bin/ffmpeg`, `/usr/bin/ffprobe`, `/root/.venv/bin/yt-dlp`
 
 ### 2026-02-14
 - **FEATURE P0: Exportação de Vídeo (MP4/WebM)** (IMPLEMENTED AND TESTED)
 
 ### 2026-02-13
 - **FEATURE P0: Narração IA + Vision/OCR** (IMPLEMENTED AND TESTED)
-- **BUGFIX: htmlContent não era lido** (FIXED)
 
 ## Key Files
 - `backend/server.py` - Server principal
-- `backend/services/video_exporter.py` - Serviço de exportação de vídeo (usa caminhos absolutos para ffmpeg)
+- `backend/services/video_exporter.py` - Exportação de vídeo com alpha transparency
 - `frontend/src/pages/Editor.jsx` - Editor
 
 ## Backlog
