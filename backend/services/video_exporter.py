@@ -209,7 +209,7 @@ async def download_youtube_video(url: str, output_path: str) -> bool:
             video_url = f'https://vimeo.com/{video_id}'
 
         proc = await asyncio.create_subprocess_exec(
-            'yt-dlp',
+            '/root/.venv/bin/yt-dlp',
             '-f', 'best[height<=720]',
             '--no-playlist',
             '--socket-timeout', '30',
