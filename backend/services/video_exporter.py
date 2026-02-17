@@ -457,7 +457,7 @@ async def export_video(
                 for vi, vo in enumerate(video_overlays):
                     overlay_output = str(segments_dir / f"overlay_{idx:03d}_{vi}.mp4")
                     # Check if overlay video has alpha channel (WebM with transparency)
-                    has_alpha = vo['path'].endswith('.webm')
+                    has_alpha = vo.get('has_alpha', vo['path'].endswith('.webm'))
                     if has_alpha:
                         # Preserve alpha channel: scale with yuva420p format for transparent compositing
                         filter_complex = (
