@@ -7,29 +7,29 @@ Criar um aplicativo web que converte PPT/PPTX para SCORM 1.2 com editor de slide
 - **Frontend**: React + Tailwind + Shadcn/UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **Third-Party**: HeyGen (avatares), ElevenLabs (TTS), Gemini 3 Flash (narração IA), FFmpeg (vídeo), yt-dlp (YouTube/Vimeo)
+- **Dependencies**: FFmpeg (/usr/bin/ffmpeg), yt-dlp, Pillow
+- **Third-Party**: HeyGen (avatares), ElevenLabs (TTS), Gemini 3 Flash (narração IA)
 
 ## Changelog
 
-### 2026-02-14 (Latest)
+### 2026-02-17 (Latest)
+- **BUGFIX P0: Exportação de vídeo WebM/MP4 falhava** (FIXED AND TESTED)
+  - Causa raiz: `ffmpeg` e `ffprobe` não estavam no PATH do processo backend após fork
+  - Correção: Usar caminhos absolutos `/usr/bin/ffmpeg` e `/usr/bin/ffprobe` no video_exporter.py
+  - Também corrigido: yt-dlp usando caminho absoluto `/root/.venv/bin/yt-dlp`
+  - Testado: WebM (4.3MB, 75s) e MP4 ambos exportam corretamente
+
+### 2026-02-14
 - **FEATURE P0: Exportação de Vídeo (MP4/WebM)** (IMPLEMENTED AND TESTED)
-  - Backend: `POST /api/course/{project_id}/export-video` - async job com progresso
-  - Composição: background + image elements + text + vídeos HeyGen/YouTube/Vimeo
-  - Duração automática: vídeo overlay > áudio narração > padrão configurável
-  - Quiz ignorado, YouTube/Vimeo incluídos via yt-dlp
-  - Pillow para composição de imagens, FFmpeg para encoding
-  - Frontend: Botões MP4/WebM no diálogo de exportação com barra de progresso
-  - **Testado**: 100% backend + frontend (iteration_24)
 
 ### 2026-02-13
 - **FEATURE P0: Narração IA + Vision/OCR** (IMPLEMENTED AND TESTED)
 - **BUGFIX: htmlContent não era lido** (FIXED)
-- **BUGFIX: Sobreposição + Centralização Mobile** (FIXED)
 
 ## Key Files
 - `backend/server.py` - Server principal
-- `backend/services/video_exporter.py` - Serviço de exportação de vídeo
-- `frontend/src/pages/Editor.jsx` - Editor com exportação
+- `backend/services/video_exporter.py` - Serviço de exportação de vídeo (usa caminhos absolutos para ffmpeg)
+- `frontend/src/pages/Editor.jsx` - Editor
 
 ## Backlog
 - Refatorar `html_exporter.py` para templates externos
