@@ -524,7 +524,7 @@ async def export_video(
             if Path(segment_path).exists():
                 # Check if segment has audio
                 probe = subprocess.run(
-                    ['ffprobe', '-v', 'quiet', '-select_streams', 'a',
+                    [FFPROBE_BIN, '-v', 'quiet', '-select_streams', 'a',
                      '-show_entries', 'stream=codec_type', '-of', 'json', segment_path],
                     capture_output=True, text=True, timeout=10
                 )
