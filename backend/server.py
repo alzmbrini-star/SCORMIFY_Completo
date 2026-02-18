@@ -3252,6 +3252,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         is_allowed = (
             origin.endswith(".emergentagent.com") or
             origin.endswith(".preview.emergentagent.com") or
+            origin.endswith(".emergent.host") or
             origin == "http://localhost:3000"
         )
 
