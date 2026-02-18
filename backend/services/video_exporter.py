@@ -600,12 +600,13 @@ async def export_video(
                 has_audio = bool(probe_data.get('streams', []))
 
                 if not has_audio:
-                    # Add silent audio track
+                    # Add silent audio track with normalized settings (44100Hz stereo)
                     silent_segment = str(segments_dir / f"silent_{idx:03d}.mp4")
                     run_ffmpeg([
                         '-i', segment_path,
-                        '-f', 'lavfi', '-i', f'anullsrc=r=44100:cl=stereo',
+                        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
                         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
+                        '-ar', '44100', '-ac', '2',
                         '-t', str(duration),
                         '-shortest',
                         silent_segment
