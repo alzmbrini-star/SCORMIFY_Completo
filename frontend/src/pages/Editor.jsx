@@ -3370,9 +3370,69 @@ export default function Editor() {
                         data-testid="heygen-script-input"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        💡 Dica: Escreva de forma natural, como se estivesse conversando. O avatar irá falar com sincronismo labial realista.
+                        Dica: Escreva de forma natural, como se estivesse conversando. O avatar irá falar com sincronismo labial realista.
                       </p>
                     </>
+                  ) : scriptMode === 'ocr' ? (
+                    <div className="space-y-3 p-4 border rounded-lg bg-gradient-to-br from-purple-500/5 to-cyan-500/5">
+                      <p className="text-sm text-muted-foreground">
+                        A IA irá ler o conteúdo do slide atual (textos, imagens) e sugerir 3 opções de script para o avatar narrar.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <select
+                          data-testid="heygen-ocr-style-select"
+                          className="text-sm px-3 py-2 rounded-md border bg-background flex-1"
+                          value={heygenOcrStyle}
+                          onChange={(e) => setHeygenOcrStyle(e.target.value)}
+                        >
+                          <option value="educational">Educativo</option>
+                          <option value="conversational">Conversacional</option>
+                          <option value="formal">Formal</option>
+                          <option value="friendly">Amigável</option>
+                        </select>
+                        <Button
+                          data-testid="heygen-ocr-generate-btn"
+                          onClick={handleHeygenOcrGenerate}
+                          disabled={heygenOcrLoading || !currentSlide}
+                          className="bg-gradient-to-r from-purple-600 to-cyan-500 gap-2"
+                        >
+                          {heygenOcrLoading ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" />Lendo slide...</>
+                          ) : (
+                            <><Sparkles className="w-4 h-4" />Ler Slide e Gerar</>
+                          )}
+                        </Button>
+                      </div>
+
+                      {heygenOcrLoading && (
+                        <div className="flex items-center justify-center py-6 border rounded-lg bg-purple-500/5 border-purple-500/20">
+                          <Loader2 className="w-5 h-5 animate-spin text-purple-400 mr-2" />
+                          <span className="text-sm text-purple-300">Analisando slide com Gemini Vision...</span>
+                        </div>
+                      )}
+
+                      {heygenOcrOptions.length > 0 && (
+                        <div data-testid="heygen-ocr-options" className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Escolha uma opção:</p>
+                          {heygenOcrOptions.map((option, idx) => (
+                            <div
+                              key={idx}
+                              data-testid={`heygen-ocr-option-${idx}`}
+                              onClick={() => handleSelectHeygenOcrOption(option)}
+                              className="cursor-pointer p-3 border rounded-lg transition-all hover:border-purple-500/60 hover:bg-purple-500/10 group"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <span className="text-xs font-semibold text-purple-400 mb-1 block">Opção {idx + 1}</span>
+                                  <p className="text-sm leading-relaxed">{option}</p>
+                                </div>
+                                <Check className="w-4 h-4 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1 shrink-0" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-4 p-4 border rounded-lg bg-gradient-to-br from-purple-500/5 to-cyan-500/5">
                       <div>
