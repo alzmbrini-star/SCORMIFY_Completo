@@ -251,10 +251,6 @@ async def download_youtube_video(url: str, output_path: str) -> bool:
     return False
 
 
-FFMPEG_BIN = '/usr/bin/ffmpeg'
-FFPROBE_BIN = '/usr/bin/ffprobe'
-
-
 def get_media_duration(file_path: str) -> float:
     """Get duration of audio/video file using ffprobe"""
     try:
