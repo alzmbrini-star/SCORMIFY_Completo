@@ -485,10 +485,18 @@ async def export_video(
                     overlay_output = str(segments_dir / f"overlay_{idx:03d}_{vi}.mp4")
                     # Check if overlay video has alpha channel (WebM with transparency)
                     has_alpha = vo.get('has_alpha', vo['path'].endswith('.webm'))
+
+                    # Scale overlay while maintaining its original aspect ratio
+                    # Use scale with force_original_aspect_ratio=decrease then pad to exact size
+                    ow, oh = vo['w'], vo['h']
+                    scale_filter = f"scale={ow}:{oh}:force_original_aspect_ratio=decrease"
+                    # Pad to exact element size and center within it
+                    pad_filter = f"pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2:color=0x00000000@0"
+
                     if has_alpha:
-                        # For WebM with VP9 alpha: use libvpx-vp9 decoder to extract alpha channel
+                        # For WebM with VP9 alpha: preserve alpha through scaling
                         filter_complex = (
-                            f"[1:v]format=yuva420p,scale={vo['w']}:{vo['h']}[ov];"
+                            f"[1:v]format=yuva420p,{scale_filter},{pad_filter}[ov];"
                             f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1:format=auto"
                         )
                         success = run_ffmpeg([
@@ -503,7 +511,7 @@ async def export_video(
                         ])
                     else:
                         filter_complex = (
-                            f"[1:v]scale={vo['w']}:{vo['h']}[ov];"
+                            f"[1:v]{scale_filter},pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2[ov];"
                             f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1"
                         )
                         success = run_ffmpeg([
