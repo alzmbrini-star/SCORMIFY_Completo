@@ -529,9 +529,21 @@ async def export_video(
                     else:
                         logger.warning(f"  Video overlay {vi} failed, continuing without it")
 
-                # If we have audio from overlay videos, keep it
+                # If we have audio from overlay videos, normalize and keep it
                 if Path(current_input).exists():
-                    shutil.copy2(current_input, segment_path)
+                    # Re-encode to normalize audio track from overlay
+                    normalized = str(segments_dir / f"norm_{idx:03d}.mp4")
+                    norm_success = run_ffmpeg([
+                        '-i', current_input,
+                        '-c:v', 'copy',
+                        '-c:a', 'aac', '-b:a', '128k',
+                        '-ar', '44100', '-ac', '2',
+                        normalized
+                    ])
+                    if norm_success and Path(normalized).exists():
+                        shutil.move(normalized, segment_path)
+                    else:
+                        shutil.copy2(current_input, segment_path)
                 else:
                     # Fallback to image-only
                     run_ffmpeg([
