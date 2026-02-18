@@ -367,16 +367,22 @@ async def export_video(
             elements = slide.get('elements', [])
             scale_x = canvas_w / slide_w
             scale_y = canvas_h / slide_h
+            # Use uniform scale to preserve proportions
+            uniform_scale = min(canvas_w / slide_w, canvas_h / slide_h)
+            # Offset if slide is centered in canvas (letterboxed)
+            offset_x = (canvas_w - int(slide_w * uniform_scale)) // 2
+            offset_y = (canvas_h - int(slide_h * uniform_scale)) // 2
 
             for el in elements:
                 el_type = el.get('type', '')
                 if el_type == 'video':
                     src = el.get('src', '')
                     embed_url = el.get('embedUrl', '')
-                    x = int(el.get('x', 0) * scale_x)
-                    y = int(el.get('y', 0) * scale_y)
-                    w = int(el.get('width', 100) * scale_x)
-                    h = int(el.get('height', 100) * scale_y)
+                    # Use uniform scale for position AND size to avoid distortion
+                    x = int(el.get('x', 0) * uniform_scale) + offset_x
+                    y = int(el.get('y', 0) * uniform_scale) + offset_y
+                    w = int(el.get('width', 100) * uniform_scale)
+                    h = int(el.get('height', 100) * uniform_scale)
                     # Ensure even dimensions
                     w = w if w % 2 == 0 else w + 1
                     h = h if h % 2 == 0 else h + 1
