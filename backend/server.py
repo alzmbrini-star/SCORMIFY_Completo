@@ -3242,11 +3242,22 @@ async def get_recommended_voices():
 # Include router
 app.include_router(api_router)
 
-# CORS
+# CORS - allow both preview and deploy URLs
+_cors_env = os.environ.get('CORS_ORIGINS', '')
+_cors_origins = [o.strip() for o in _cors_env.split(',') if o.strip()] if _cors_env else []
+# Auto-add common Emergent domains
+_base_domain = 'gemini-voice-text'
+for suffix in ['preview.emergentagent.com', 'stage-preview.emergentagent.com', 'emergentagent.com']:
+    url = f'https://{_base_domain}.{suffix}'
+    if url not in _cors_origins:
+        _cors_origins.append(url)
+if not _cors_origins:
+    _cors_origins = ['*']
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
