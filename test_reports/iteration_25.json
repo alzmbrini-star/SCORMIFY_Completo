@@ -1,0 +1,102 @@
+{
+  "summary": "Successfully tested HeyGen OCR/Vision-based AI script generation feature. The HeyGen dialog now has 3 tabs: 'Digitar' (manual), 'Ler Slide' (OCR-based AI), 'Tema Livre' (free topic AI). The 'Ler Slide' tab correctly reads slide content via Gemini Vision and generates 3 script options. Selecting an option fills the script textarea and switches to 'Digitar' tab. Backend API and frontend UI fully working.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "✅ Backend: POST /api/projects/{project_id}/slides/{slide_id}/generate-narration returns 3 options",
+    "✅ Backend: API returns slide_id and style in response",
+    "✅ Backend: AI generates contextually relevant content (Sydney slide produced Sydney narration)",
+    "✅ Frontend: Login successful with admin@scormify.com",
+    "✅ Frontend: Editor loads for Demo SCORMIFY videos project",
+    "✅ Frontend: HeyGen dialog opens with User icon button in toolbar",
+    "✅ Frontend: HeyGen dialog shows credits (960.0 minutes)",
+    "✅ Frontend: HeyGen dialog has avatar selector with 200+ avatars",
+    "✅ Frontend: HeyGen dialog has voice selector with 2320+ voices",
+    "✅ Frontend: 'Digitar' tab visible for manual script entry",
+    "✅ Frontend: 'Ler Slide' tab visible (data-testid='heygen-ocr-tab')",
+    "✅ Frontend: 'Tema Livre' tab visible for free AI topic",
+    "✅ Frontend: Clicking 'Ler Slide' tab shows OCR panel",
+    "✅ Frontend: OCR panel has style selector (data-testid='heygen-ocr-style-select')",
+    "✅ Frontend: OCR panel has 'Ler Slide e Gerar' button (data-testid='heygen-ocr-generate-btn')",
+    "✅ Frontend: Clicking 'Ler Slide e Gerar' calls API and shows loading state",
+    "✅ Frontend: 3 AI-generated options appear (data-testid='heygen-ocr-option-0/1/2')",
+    "✅ Frontend: Options container appears (data-testid='heygen-ocr-options')",
+    "✅ Frontend: Clicking an option fills script textarea (560 chars verified)",
+    "✅ Frontend: After selecting option, switches to 'Digitar' tab",
+    "✅ Frontend: Toast 'Script selecionado!' appears on selection"
+  ],
+
+  "test_report_links": [
+    "/app/test_reports/iteration_25.json"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Frontend tabs UI is well-designed with gradient styling for AI tabs",
+    "Backend generate-narration endpoint uses Gemini Vision to read slide content",
+    "All data-testid attributes are correctly placed for testing",
+    "OCR integration seamlessly works with existing TTS narration feature",
+    "Script mode state properly manages the 3 tabs (manual/ocr/ai)"
+  ],
+
+  "updated_files": [],
+
+  "success_rate": {
+    "backend": "100% (API returns 3 options correctly)",
+    "frontend": "100% (all UI elements and flows verified)"
+  },
+
+  "test_credentials": {
+    "email": "admin@scormify.com",
+    "password": "admin123"
+  },
+
+  "seed_data_creation": "Used existing project Demo SCORMIFY videos (58753bb1-60a3-4190-8de3-ca51203e8f4d) with slide a15ba602-9030-46c5-996c-0fdcd64fa366",
+
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "HeyGen OCR/Vision tab feature is FULLY WORKING. The HeyGen dialog (opened via User icon button in toolbar) now has 3 tabs for script mode: 'Digitar' (manual), 'Ler Slide' (OCR-based), 'Tema Livre' (free topic). The OCR tab reads slide content using Gemini Vision via POST /api/projects/{project_id}/slides/{slide_id}/generate-narration endpoint and shows 3 script options. This is the same endpoint used by TTS narration feature. Test project: Demo SCORMIFY videos (58753bb1-60a3-4190-8de3-ca51203e8f4d).",
+
+  "feature_verification": {
+    "feature": "HeyGen OCR/Vision-based AI script generation",
+    "status": "VERIFIED WORKING",
+    "backend_endpoint": "POST /api/projects/{project_id}/slides/{slide_id}/generate-narration",
+    "ai_model": "Gemini 3 Flash (gemini-3-flash-preview) via Emergent LLM Key with FileContent for vision",
+    "frontend_components": {
+      "heygen_dialog_button": "User icon button in editor toolbar",
+      "tab_digitar": "Manual script input tab",
+      "tab_ler_slide": "data-testid='heygen-ocr-tab' - OCR-based AI",
+      "tab_tema_livre": "Free topic AI script generation",
+      "style_selector": "data-testid='heygen-ocr-style-select'",
+      "generate_button": "data-testid='heygen-ocr-generate-btn'",
+      "options_container": "data-testid='heygen-ocr-options'",
+      "option_items": "data-testid='heygen-ocr-option-N' (N=0,1,2)",
+      "script_input": "data-testid='heygen-script-input'"
+    },
+    "user_flow": [
+      "1. Open Editor for a project",
+      "2. Click User icon button in toolbar to open HeyGen dialog",
+      "3. Wait for avatars/voices to load",
+      "4. Click 'Ler Slide' tab",
+      "5. Select style from dropdown (Educativo/Conversacional/Formal/Amigável)",
+      "6. Click 'Ler Slide e Gerar' button",
+      "7. Wait for AI to analyze slide and generate options",
+      "8. 3 narration options appear based on slide content",
+      "9. Click on an option to select it",
+      "10. Script fills in textarea and switches to 'Digitar' tab",
+      "11. Proceed with avatar video generation"
+    ]
+  }
+}
