@@ -126,24 +126,30 @@ def ensure_system_dependencies():
     """
     Ensure all required system dependencies are installed.
     Call this at application startup.
+    NON-BLOCKING: Server starts immediately, checks are quick.
     """
     logger.info("=" * 50)
-    logger.info("Checking system dependencies...")
+    logger.info("Checking system dependencies (non-blocking)...")
     logger.info("=" * 50)
     
-    libreoffice_ok = check_and_install_libreoffice()
-    poppler_ok = check_and_install_poppler()
+    # Quick check only - no auto-install to avoid blocking server startup
+    libreoffice_path = shutil.which('libreoffice')
+    poppler_path = shutil.which('pdftoppm')
     
-    if libreoffice_ok and poppler_ok:
-        logger.info("=" * 50)
-        logger.info("✓ All system dependencies are ready!")
-        logger.info("=" * 50)
-        return True
+    if libreoffice_path:
+        logger.info(f"✓ LibreOffice found at: {libreoffice_path}")
     else:
-        logger.warning("=" * 50)
-        logger.warning("⚠ Some dependencies may be missing. PPT conversion may fail.")
-        logger.warning("=" * 50)
-        return False
+        logger.warning("⚠ LibreOffice not found - PPT import will be unavailable")
+    
+    if poppler_path:
+        logger.info(f"✓ poppler-utils found at: {poppler_path}")
+    else:
+        logger.warning("⚠ poppler-utils not found - some PDF features may be unavailable")
+    
+    logger.info("=" * 50)
+    logger.info("✓ Server startup complete!")
+    logger.info("=" * 50)
+    return True
 
 
 def get_libreoffice_path():
