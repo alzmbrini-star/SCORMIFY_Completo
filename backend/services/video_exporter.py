@@ -18,6 +18,23 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+
+def _ensure_ffmpeg():
+    """Auto-install ffmpeg if not present (survives fork resets)"""
+    if not shutil.which('ffmpeg'):
+        try:
+            subprocess.run(
+                ['apt-get', 'install', '-y', 'ffmpeg'],
+                capture_output=True, timeout=120
+            )
+        except Exception:
+            pass
+    ffmpeg = shutil.which('ffmpeg') or '/usr/bin/ffmpeg'
+    ffprobe = shutil.which('ffprobe') or '/usr/bin/ffprobe'
+    return ffmpeg, ffprobe
+
+FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
 from PIL import Image, ImageDraw, ImageFont
 import httpx
 
