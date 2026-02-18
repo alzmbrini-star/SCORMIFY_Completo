@@ -3334,7 +3334,18 @@ export default function Editor() {
                         }`}
                         onClick={() => setScriptMode('manual')}
                       >
-                        ✍️ Digitar
+                        Digitar
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-all ${
+                          scriptMode === 'ocr' 
+                            ? 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white font-medium' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setScriptMode('ocr')}
+                        data-testid="heygen-ocr-tab"
+                      >
+                        <Sparkles className="w-3 h-3 inline mr-1" />Ler Slide
                       </button>
                       <button
                         className={`px-3 py-1 text-xs rounded-md transition-all ${
@@ -3344,7 +3355,7 @@ export default function Editor() {
                         }`}
                         onClick={() => setScriptMode('ai')}
                       >
-                        ✨ Gerar com IA
+                        Tema Livre
                       </button>
                     </div>
                   </div>
