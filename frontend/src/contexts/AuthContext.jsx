@@ -45,24 +45,19 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, password })
     });
 
-    // Clone response to safely read it (prevents "body stream already read" error)
-    const responseClone = response.clone();
+    // Read response body once as text, then parse
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(text || 'Login failed');
+    }
     
     if (!response.ok) {
-      try {
-        const error = await response.json();
-        throw new Error(error.detail || 'Login failed');
-      } catch (e) {
-        // If JSON parsing fails, try to get text
-        if (e.name === 'SyntaxError') {
-          const text = await responseClone.text();
-          throw new Error(text || 'Login failed');
-        }
-        throw e;
-      }
+      throw new Error(data.detail || 'Login failed');
     }
 
-    const data = await response.json();
     setUser(data.user);
     return data;
   };
