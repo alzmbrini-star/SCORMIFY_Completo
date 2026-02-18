@@ -622,20 +622,23 @@ async def export_video(
         if on_progress:
             on_progress(85, "Concatenando segmentos...")
 
-        # 7. Concatenate all segments
+        # 7. Concatenate all segments with normalized audio
         concat_list = str(work_dir / "concat.txt")
         with open(concat_list, 'w') as f:
             for sf in segment_files:
                 f.write(f"file '{sf}'\n")
 
-        # Intermediate concatenated file
+        # Intermediate concatenated file - re-encode to ensure consistent timestamps
         concat_output = str(work_dir / "concat_output.mp4")
         run_ffmpeg([
             '-f', 'concat', '-safe', '0',
             '-i', concat_list,
             '-c:v', 'libx264', '-preset', 'fast',
             '-c:a', 'aac', '-b:a', '128k',
+            '-ar', '44100', '-ac', '2',
             '-pix_fmt', 'yuv420p',
+            '-r', '24',
+            '-vsync', 'cfr',
             '-movflags', '+faststart',
             concat_output
         ])
