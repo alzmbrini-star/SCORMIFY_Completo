@@ -1141,6 +1141,36 @@ export default function Editor() {
     }
   };
 
+  // HeyGen OCR: Read slide content and generate 3 script options
+  const handleHeygenOcrGenerate = async () => {
+    if (!currentSlide || !currentProject) return;
+    setHeygenOcrLoading(true);
+    setHeygenOcrOptions([]);
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/projects/${currentProject.id}/slides/${currentSlide.id}/generate-narration`,
+        {
+          slide_content: '',
+          style: heygenOcrStyle,
+          language: 'português brasileiro'
+        }
+      );
+      setHeygenOcrOptions(response.data.options || []);
+    } catch (err) {
+      console.error('Error generating OCR script:', err);
+      toast.error(err.response?.data?.detail || 'Falha ao ler slide e gerar script');
+    } finally {
+      setHeygenOcrLoading(false);
+    }
+  };
+
+  const handleSelectHeygenOcrOption = (text) => {
+    setHeygenConfig(prev => ({ ...prev, script: text }));
+    setHeygenOcrOptions([]);
+    setScriptMode('manual');
+    toast.success('Script selecionado!');
+  };
+
   const handleGenerateHeygenVideo = async () => {
     if (!heygenConfig.avatarId || !heygenConfig.voiceId || !heygenConfig.script) {
       toast.error('Por favor, preencha todos os campos');
