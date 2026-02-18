@@ -297,6 +297,13 @@ async def export_video(
     Export project as video (MP4 or WebM).
     Returns path to the output video file.
     """
+    # Re-check ffmpeg availability at export time
+    global FFMPEG_BIN, FFPROBE_BIN
+    if not Path(FFMPEG_BIN).exists():
+        FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
+    if not Path(FFMPEG_BIN).exists():
+        raise ValueError("FFmpeg não está instalado. Por favor reinstale: apt-get install -y ffmpeg")
+
     project_id = project_doc.get('id', '')
     course = project_doc.get('course', {})
     slides = course.get('slides', [])
