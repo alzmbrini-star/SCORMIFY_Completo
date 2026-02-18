@@ -558,23 +558,21 @@ async def export_video(
             # 6. Add narration audio if available
             if audio_files and Path(segment_path).exists():
                 audio_segment = str(segments_dir / f"audio_segment_{idx:03d}.mp4")
-                # Mix all audio files and add to video
-                audio_input_args = []
-                for af in audio_files:
-                    audio_input_args.extend(['-i', af])
 
                 if len(audio_files) == 1:
+                    # Normalize audio to 44100Hz stereo AAC for consistent concatenation
                     success = run_ffmpeg([
                         '-i', segment_path,
                         '-i', audio_files[0],
                         '-c:v', 'copy',
                         '-c:a', 'aac', '-b:a', '128k',
+                        '-ar', '44100', '-ac', '2',
                         '-map', '0:v:0', '-map', '1:a:0',
                         '-shortest',
                         audio_segment
                     ])
                 else:
-                    # Multiple audio files - amerge
+                    # Multiple audio files - amerge then normalize
                     filter_parts = ''.join(f'[{i+1}:a]' for i in range(len(audio_files)))
                     success = run_ffmpeg([
                         '-i', segment_path,
@@ -582,6 +580,7 @@ async def export_video(
                         '-filter_complex', f'{filter_parts}amerge=inputs={len(audio_files)}[a]',
                         '-map', '0:v:0', '-map', '[a]',
                         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
+                        '-ar', '44100', '-ac', '2',
                         '-shortest',
                         audio_segment
                     ])
