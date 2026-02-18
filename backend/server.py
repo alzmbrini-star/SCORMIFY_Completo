@@ -34,7 +34,7 @@ from services.scorm_exporter import export_scorm_package
 from utils.system_deps import ensure_system_dependencies
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / '.env', override=True)
 
 # Configure logging
 logging.basicConfig(
