@@ -3242,25 +3242,36 @@ async def get_recommended_voices():
 # Include router
 app.include_router(api_router)
 
-# CORS - allow both preview and deploy URLs
-_cors_env = os.environ.get('CORS_ORIGINS', '')
-_cors_origins = [o.strip() for o in _cors_env.split(',') if o.strip()] if _cors_env else []
-# Auto-add common Emergent domains
-_base_domain = 'gemini-voice-text'
-for suffix in ['preview.emergentagent.com', 'stage-preview.emergentagent.com', 'emergentagent.com']:
-    url = f'https://{_base_domain}.{suffix}'
-    if url not in _cors_origins:
-        _cors_origins.append(url)
-if not _cors_origins:
-    _cors_origins = ['*']
+# CORS - dynamic origin matching for any emergentagent.com subdomain
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=_cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        origin = request.headers.get("origin", "")
+        is_allowed = (
+            origin.endswith(".emergentagent.com") or
+            origin.endswith(".preview.emergentagent.com") or
+            origin == "http://localhost:3000"
+        )
+
+        if request.method == "OPTIONS":
+            resp = StarletteResponse(status_code=200)
+            if is_allowed:
+                resp.headers["Access-Control-Allow-Origin"] = origin
+                resp.headers["Access-Control-Allow-Credentials"] = "true"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+                resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+                resp.headers["Access-Control-Max-Age"] = "300"
+            return resp
+
+        response = await call_next(request)
+        if is_allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+app.add_middleware(DynamicCORSMiddleware)
 
 
 @app.on_event("startup")
