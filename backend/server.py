@@ -3288,7 +3288,11 @@ async def get_recommended_voices():
 # Include router
 app.include_router(api_router)
 
-# Root-level health check for Kubernetes
+# Root-level endpoints for Kubernetes health checks and startup detection
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
 @app.get("/health")
 async def root_health():
     return {"status": "healthy"}
