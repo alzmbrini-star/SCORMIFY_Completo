@@ -178,6 +178,20 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     else:
         logger.warning(f"Project assets directory does not exist: {project_assets}")
     
+    # Restore missing assets from MongoDB (production environments with ephemeral storage)
+    try:
+        from services.asset_store import restore_project_assets_sync
+        mongo_url = os.environ.get('MONGO_URL')
+        db_name = os.environ.get('DB_NAME')
+        if mongo_url and db_name:
+            restored = restore_project_assets_sync(
+                mongo_url, db_name, project.id, str(package_dir / "assets")
+            )
+            if restored > 0:
+                logger.info(f"Restored {restored} missing assets from MongoDB for SCORM package")
+    except Exception as e:
+        logger.warning(f"Failed to restore assets from MongoDB (non-fatal): {e}")
+    
     # Also copy global assets (AI-generated images are stored here)
     # storage_dir points to /storage/projects, so parent is /storage
     storage_base = Path(storage_dir).parent
