@@ -1147,10 +1147,13 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
         }
         
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         logger.error(f"SCORM export error: {e}")
+        logger.error(f"SCORM export traceback: {error_details}")
         jobs[job_id]['status'] = 'failed'
         jobs[job_id]['message'] = str(e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"SCORM export failed: {str(e)}")
 
 # HTML Standalone Export
 from services.html_exporter import generate_standalone_html
