@@ -139,6 +139,7 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
     Fallback: Convert PPTX to images using multiple methods
     1. Try LibreOffice to PDF, then pdftoppm
     2. Try LibreOffice direct to PNG (only gets first slide)
+    Returns empty list if LibreOffice not available (will trigger Python-only parser)
     """
     output_path = Path(output_dir)
     temp_dir = output_path / "temp_fallback"
@@ -148,8 +149,8 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
     libreoffice_path = get_libreoffice_path()
     
     if not libreoffice_path:
-        logger.error("LibreOffice not found in fallback method")
-        raise RuntimeError("LibreOffice is required for PPT conversion")
+        logger.warning("LibreOffice not found - returning empty list for Python-only fallback")
+        return []
     
     try:
         # Method 1: Convert to PDF first, then use pdftoppm directly
