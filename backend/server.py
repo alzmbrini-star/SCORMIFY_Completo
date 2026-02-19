@@ -3401,36 +3401,48 @@ async def startup_ensure_admin():
 
 @app.on_event("startup")
 async def startup_persist_local_assets():
-    """Persist local assets to MongoDB on startup (for production resilience)"""
-    try:
-        from services.asset_store import store_asset_sync
-        total = 0
-        for project_dir in PROJECTS_DIR.iterdir():
-            if not project_dir.is_dir():
-                continue
-            assets_dir = project_dir / "assets"
-            if not assets_dir.exists():
-                continue
-            project_id = project_dir.name
-            for asset in assets_dir.iterdir():
-                if asset.is_file() and asset.suffix.lower() in (
-                    '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg',
-                    '.webm', '.mp4', '.gif', '.webp', '.svg'
-                ):
-                    # Check if already in MongoDB
-                    existing = await db.project_assets.find_one(
-                        {"project_id": project_id, "filename": asset.name},
-                        {"_id": 1}
-                    )
-                    if not existing:
-                        store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, asset.name, str(asset))
-                        total += 1
-        if total > 0:
-            logger.info(f"Startup asset persistence: saved {total} new assets to MongoDB")
-        else:
-            logger.info("Startup asset persistence: all assets already in MongoDB")
-    except Exception as e:
-        logger.warning(f"Startup asset persistence failed (non-fatal): {e}")
+    """Persist local assets to MongoDB on startup in background (non-blocking)"""
+    import threading
+    
+    def _persist_assets():
+        try:
+            from services.asset_store import store_asset_sync
+            from pymongo import MongoClient
+            
+            _client = MongoClient(mongo_url)
+            _db = _client[os.environ['DB_NAME']]
+            
+            total = 0
+            for project_dir in PROJECTS_DIR.iterdir():
+                if not project_dir.is_dir():
+                    continue
+                assets_dir = project_dir / "assets"
+                if not assets_dir.exists():
+                    continue
+                project_id = project_dir.name
+                for asset in assets_dir.iterdir():
+                    if asset.is_file() and asset.suffix.lower() in (
+                        '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg',
+                        '.webm', '.mp4', '.gif', '.webp', '.svg'
+                    ):
+                        existing = _db.project_assets.find_one(
+                            {"project_id": project_id, "filename": asset.name},
+                            {"_id": 1}
+                        )
+                        if not existing:
+                            store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, asset.name, str(asset))
+                            total += 1
+            _client.close()
+            if total > 0:
+                logger.info(f"Background asset persistence: saved {total} new assets to MongoDB")
+            else:
+                logger.info("Background asset persistence: all assets already in MongoDB")
+        except Exception as e:
+            logger.warning(f"Background asset persistence failed (non-fatal): {e}")
+    
+    thread = threading.Thread(target=_persist_assets, daemon=True)
+    thread.start()
+    logger.info("Startup asset persistence: started in background thread")
 
 
 @app.on_event("shutdown")
