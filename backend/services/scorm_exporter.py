@@ -272,39 +272,52 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     course_data['createdAt'] = course.createdAt.isoformat() if course.createdAt else None
     course_data['updatedAt'] = course.updatedAt.isoformat() if course.updatedAt else None
     
-    # Fix all asset URLs in slides
+    # Fix all asset URLs in slides - embed images as base64 data URIs
+    package_assets = package_dir / "assets"
     for slide in course_data.get('slides', []):
-        # Fix background image URL
+        # Fix background image URL - EMBED AS DATA URI
         if slide.get('backgroundImage'):
             bg_url = slide['backgroundImage']
-            # Convert /api/projects/{id}/assets/filename.png to assets/filename.png
             if '/assets/' in bg_url:
                 filename = bg_url.split('/assets/')[-1]
-                slide['backgroundImage'] = f"assets/{filename}"
-                logger.info(f"Fixed backgroundImage URL: {slide['backgroundImage']}")
+                # Convert to base64 data URI for maximum reliability
+                data_uri = _read_image_as_data_uri(project.id, filename, package_assets)
+                if data_uri:
+                    slide['backgroundImage'] = data_uri
+                else:
+                    # Fallback to relative path if data URI fails
+                    slide['backgroundImage'] = f"assets/{filename}"
+                    logger.warning(f"Could not embed backgroundImage, using relative path: assets/{filename}")
+            elif bg_url.startswith('data:'):
+                pass  # Already a data URI, keep as-is
         
-        # Fix element URLs
+        # Fix element URLs - embed images as data URIs
         for element in slide.get('elements', []):
             if element.get('src') and '/assets/' in element.get('src', ''):
                 filename = element['src'].split('/assets/')[-1]
-                element['src'] = f"assets/{filename}"
+                # For images, embed as data URI
+                if element.get('type') in ('image', None) and any(filename.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg')):
+                    data_uri = _read_image_as_data_uri(project.id, filename, package_assets)
+                    if data_uri:
+                        element['src'] = data_uri
+                    else:
+                        element['src'] = f"assets/{filename}"
+                else:
+                    element['src'] = f"assets/{filename}"
             # Handle external video URLs (like HeyGen videos)
             elif element.get('type') == 'video' and element.get('src') and element['src'].startswith('http'):
                 try:
                     import hashlib
-                    # Generate a unique filename based on the URL
                     url_hash = hashlib.md5(element['src'].encode()).hexdigest()[:12]
-                    # Determine extension from URL or default to webm for HeyGen
                     if '.webm' in element['src'].lower():
                         ext = '.webm'
                     elif '.mp4' in element['src'].lower():
                         ext = '.mp4'
                     else:
-                        ext = '.webm'  # Default to webm for HeyGen videos
+                        ext = '.webm'
                     video_filename = f"video_{url_hash}{ext}"
                     video_path = package_dir / "assets" / video_filename
                     
-                    # Download the video
                     logger.info(f"Downloading external video: {element['src'][:100]}...")
                     with httpx.Client(timeout=120.0, follow_redirects=True) as client:
                         response = client.get(element['src'])
@@ -329,27 +342,29 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                 html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
                 html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
                 
-                # Find all img src URLs and fix them to relative paths
                 img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
                 
                 def fix_img_src(match):
                     src = match.group(1)
-                    # Skip data URIs
                     if src.startswith('data:'):
                         return match.group(0)
-                    # Fix API asset URLs (handles both local and external URLs with /api/assets/)
                     if '/api/assets/' in src:
-                        filename = src.split('/api/assets/')[-1].split('?')[0]
-                        return f'src="assets/{filename}"'
+                        fn = src.split('/api/assets/')[-1].split('?')[0]
+                        data_uri = _read_image_as_data_uri(project.id, fn, package_assets)
+                        if data_uri:
+                            return f'src="{data_uri}"'
+                        return f'src="assets/{fn}"'
                     elif '/assets/' in src:
-                        filename = src.split('/assets/')[-1].split('?')[0]
-                        return f'src="assets/{filename}"'
+                        fn = src.split('/assets/')[-1].split('?')[0]
+                        data_uri = _read_image_as_data_uri(project.id, fn, package_assets)
+                        if data_uri:
+                            return f'src="{data_uri}"'
+                        return f'src="assets/{fn}"'
                     return match.group(0)
                 
                 element['htmlContent'] = img_pattern.sub(fix_img_src, html_content)
-                logger.info("Processed htmlContent for embedded images")
             
-            # Fix audio URLs
+            # Fix audio URLs (keep as files, not data URIs)
         for audio in slide.get('audio', []):
             if audio.get('src') and '/assets/' in audio.get('src', ''):
                 filename = audio['src'].split('/assets/')[-1]
