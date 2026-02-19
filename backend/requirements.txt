@@ -130,3 +130,4 @@ xlsxwriter==3.2.9
 yarl==1.22.0
 yt-dlp==2026.2.4
 zipp==3.23.0
+convertapi==2.0.0
