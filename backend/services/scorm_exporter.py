@@ -381,39 +381,29 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         course_data['questions'] = questions
         logger.info(f"Added {len(questions)} questions to course.json for quiz support")
     
-    # Verify all referenced assets exist in the package
-    # Collect all asset references from course_data
-    referenced_assets = set()
+    # Verify audio assets exist (images are now embedded as data URIs)
     for slide in course_data.get('slides', []):
-        bg = slide.get('backgroundImage', '')
-        if bg and bg.startswith('assets/'):
-            referenced_assets.add(bg.replace('assets/', ''))
-        for element in slide.get('elements', []):
-            src = element.get('src', '')
-            if src and src.startswith('assets/'):
-                referenced_assets.add(src.replace('assets/', ''))
         for audio in slide.get('audio', []):
             src = audio.get('src', '')
             if src and src.startswith('assets/'):
-                referenced_assets.add(src.replace('assets/', ''))
+                filename = src.replace('assets/', '')
+                audio_path = package_dir / "assets" / filename
+                if not audio_path.exists():
+                    # Try MongoDB
+                    try:
+                        from services.asset_store import retrieve_asset_sync
+                        mongo_url = os.environ.get('MONGO_URL')
+                        db_name = os.environ.get('DB_NAME')
+                        if mongo_url and db_name:
+                            if retrieve_asset_sync(mongo_url, db_name, project.id, filename, str(audio_path)):
+                                logger.info(f"Recovered audio from MongoDB: {filename}")
+                    except Exception as e:
+                        logger.warning(f"Audio recovery failed: {e}")
     
-    # Check for missing files and try to retrieve from MongoDB
-    missing = [f for f in referenced_assets if not (package_dir / "assets" / f).exists()]
-    if missing:
-        logger.warning(f"Found {len(missing)} referenced assets missing from package: {missing}")
-        try:
-            from services.asset_store import retrieve_asset_sync
-            mongo_url = os.environ.get('MONGO_URL')
-            db_name = os.environ.get('DB_NAME')
-            if mongo_url and db_name:
-                for filename in missing:
-                    dest = str(package_dir / "assets" / filename)
-                    if retrieve_asset_sync(mongo_url, db_name, project.id, filename, dest):
-                        logger.info(f"Recovered missing asset from MongoDB: {filename}")
-                    else:
-                        logger.error(f"MISSING ASSET - could not recover: {filename}")
-        except Exception as e:
-            logger.warning(f"Failed to recover missing assets: {e}")
+    # Log summary of embedded images
+    embedded_count = sum(1 for s in course_data.get('slides', []) 
+                        if s.get('backgroundImage', '').startswith('data:'))
+    logger.info(f"SCORM package: {embedded_count} background images embedded as data URIs")
     
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
         json.dump(course_data, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
