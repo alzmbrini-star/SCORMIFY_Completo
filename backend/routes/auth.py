@@ -303,9 +303,11 @@ async def google_auth(request: Request, response: Response):
             {"_id": 0}
         )
         if company:
-            user["company"] = company
+            user["company"] = serialize_user(company)
     
-    return create_session_response(response, session_token, {"user": user, "token": session_token})
+    # Serialize user for JSON response
+    serialized_user = serialize_user(user)
+    return create_session_response(response, session_token, {"user": serialized_user, "token": session_token})
 
 
 @router.get("/me")
