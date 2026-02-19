@@ -1245,9 +1245,15 @@ var CoursePlayer = (function() {
                 break;
         }
         
+        // Apply background color (transparent by default)
         if (element.style && element.style.fill) {
             el.style.backgroundColor = element.style.fill;
+        } else if (element.style && element.style.backgroundColor) {
+            el.style.backgroundColor = element.style.backgroundColor;
+        } else {
+            el.style.backgroundColor = 'transparent';
         }
+        
         if (element.style && element.style.stroke) {
             el.style.border = '2px solid ' + element.style.stroke;
         }
