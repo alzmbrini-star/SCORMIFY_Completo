@@ -21,6 +21,14 @@ logger = logging.getLogger(__name__)
 EXPORT_ASSETS_DIR = Path(__file__).parent / "export_assets"
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    """JSON Encoder that handles datetime objects"""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 def _read_asset(filename: str) -> str:
     """Read an export asset file from the export_assets directory."""
     return (EXPORT_ASSETS_DIR / filename).read_text(encoding='utf-8')
