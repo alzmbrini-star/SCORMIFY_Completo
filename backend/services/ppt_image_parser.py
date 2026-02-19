@@ -207,19 +207,25 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
 def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str]:
     """
     Fallback: Convert PPTX to images using multiple methods
-    1. Try LibreOffice to PDF, then pdftoppm
-    2. Try LibreOffice direct to PNG (only gets first slide)
-    Returns empty list if LibreOffice not available (will trigger Python-only parser)
+    1. Try ConvertAPI (cloud service)
+    2. Try LibreOffice to PDF, then pdftoppm
+    3. Try LibreOffice direct to PNG (only gets first slide)
+    Returns empty list if all methods fail (will trigger Python-only parser)
     """
     output_path = Path(output_dir)
     temp_dir = output_path / "temp_fallback"
     temp_dir.mkdir(exist_ok=True)
     
+    # First try ConvertAPI (works in production without LibreOffice)
+    cloud_result = convert_pptx_to_images_cloud(pptx_path, output_dir)
+    if cloud_result:
+        return cloud_result
+    
     # Find libreoffice executable
     libreoffice_path = get_libreoffice_path()
     
     if not libreoffice_path:
-        logger.warning("LibreOffice not found - returning empty list for Python-only fallback")
+        logger.warning("LibreOffice not found and ConvertAPI failed - returning empty list")
         return []
     
     try:
