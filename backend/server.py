@@ -3319,6 +3319,35 @@ async def startup_migrate_urls():
         logger.warning(f"Startup URL migration failed (non-fatal): {e}")
 
 
+@app.on_event("startup")
+async def startup_ensure_admin():
+    """Ensure super admin user exists in database"""
+    import bcrypt
+    try:
+        admin_email = "admin@scormify.com"
+        existing_admin = await db.users.find_one({"email": admin_email})
+        if not existing_admin:
+            logger.info("Creating default super admin user...")
+            password_hash = bcrypt.hashpw("admin123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            await db.users.insert_one({
+                "user_id": "user_superadmin001",
+                "email": admin_email,
+                "name": "Super Admin",
+                "picture": None,
+                "companyId": None,
+                "role": "super_admin",
+                "passwordHash": password_hash,
+                "isActive": True,
+                "createdAt": datetime.now(timezone.utc),
+                "updatedAt": datetime.now(timezone.utc)
+            })
+            logger.info("Super admin user created successfully")
+        else:
+            logger.info("Super admin user already exists")
+    except Exception as e:
+        logger.warning(f"Failed to ensure admin user (non-fatal): {e}")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
