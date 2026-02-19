@@ -18,6 +18,14 @@ from models import Course, Project
 logger = logging.getLogger(__name__)
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    """JSON Encoder that handles datetime objects"""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 def get_mime_type(file_path: str) -> str:
     """Get MIME type from file extension"""
     mime_type, _ = mimetypes.guess_type(file_path)
