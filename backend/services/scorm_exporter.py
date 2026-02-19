@@ -402,7 +402,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Log summary of embedded images
     embedded_count = sum(1 for s in course_data.get('slides', []) 
-                        if s.get('backgroundImage', '').startswith('data:'))
+                        if (s.get('backgroundImage') or '').startswith('data:'))
     logger.info(f"SCORM package: {embedded_count} background images embedded as data URIs")
     
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
