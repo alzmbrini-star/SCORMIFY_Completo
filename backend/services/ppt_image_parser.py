@@ -68,33 +68,23 @@ def convert_pptx_to_images_cloud(pptx_path: str, output_dir: str, dpi: int = 150
             'ScaleProportions': 'true'
         }, from_format='pptx')
         
-        # Save all generated images
-        saved_files = result.save_files(str(output_path))
-        
-        # Get all PNG files and sort them by numeric order in filename
-        png_files = list(output_path.glob("*.png"))
-        
-        # Sort by extracting numbers from filename (e.g., "slide-1.png" -> 1)
-        import re
-        def extract_number(filepath):
-            match = re.search(r'(\d+)', filepath.name)
-            return int(match.group(1)) if match else 0
-        
-        png_files = sorted(png_files, key=extract_number)
-        
-        # Rename to our standard format: slide_001.png, slide_002.png, etc.
+        # Get files from result in order (ConvertAPI returns them in slide order)
         image_paths = []
-        for i, f in enumerate(png_files):
-            new_name = output_path / f"slide_{i+1:03d}.png"
-            if f != new_name and f.exists():
-                # Rename only if different and file exists
-                if new_name.exists():
-                    new_name.unlink()  # Remove existing file
-                f.rename(new_name)
-            image_paths.append(str(new_name))
-            logger.info(f"Saved slide image: {new_name.name} (from {f.name})")
+        files = result.files if hasattr(result, 'files') else []
         
-        logger.info(f"ConvertAPI successfully converted {len(image_paths)} slides")
+        logger.info(f"ConvertAPI returned {len(files)} files")
+        
+        # Save each file with our naming convention, preserving API order
+        for i, file_obj in enumerate(files):
+            slide_filename = f"slide_{i+1:03d}.png"
+            slide_path = output_path / slide_filename
+            
+            # Save the file
+            file_obj.save(str(slide_path))
+            image_paths.append(str(slide_path))
+            logger.info(f"Saved slide {i+1}: {slide_filename}")
+        
+        logger.info(f"ConvertAPI successfully converted {len(image_paths)} slides in order")
         return image_paths
         
     except Exception as e:
