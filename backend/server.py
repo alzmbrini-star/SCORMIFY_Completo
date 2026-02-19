@@ -794,6 +794,13 @@ async def upload_slide_audio(
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
     
+    # Persist in MongoDB for production environments with ephemeral storage
+    try:
+        from services.asset_store import store_asset_sync
+        store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, filename, str(file_path))
+    except Exception as e:
+        logger.warning(f"Failed to persist audio in MongoDB (non-fatal): {e}")
+    
     # Update slide with audio
     course = project.get('course', {})
     slides = course.get('slides', [])
