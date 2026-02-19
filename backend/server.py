@@ -1294,11 +1294,26 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
 
 @api_router.get("/projects/{project_id}/assets/{filename}")
 async def serve_asset(project_id: str, filename: str):
-    """Serve project asset"""
+    """Serve project asset - falls back to MongoDB if local file is missing"""
     file_path = PROJECTS_DIR / project_id / "assets" / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+    if file_path.exists():
+        return FileResponse(file_path)
+    
+    # Fallback: try to restore from MongoDB (production ephemeral storage)
+    try:
+        from services.asset_store import retrieve_asset_async
+        data, content_type = await retrieve_asset_async(db, project_id, filename)
+        if data:
+            # Restore to filesystem for future requests
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, 'wb') as f:
+                f.write(data)
+            logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
+            return FileResponse(file_path)
+    except Exception as e:
+        logger.warning(f"MongoDB asset fallback failed: {e}")
+    
+    raise HTTPException(status_code=404, detail="File not found")
 
 @api_router.get("/exports/{filename}")
 async def serve_export(filename: str, preview: str = None):
