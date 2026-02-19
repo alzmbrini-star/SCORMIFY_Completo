@@ -1,79 +1,60 @@
-# Scormify - Product Requirements Document
+# Scormify - PRD (Product Requirements Document)
 
-## Original Problem Statement
-Course editor application for creating and exporting SCORM-compliant courses with:
-- Side-by-side preview panel in editor
-- Mobile-responsive exported courses
-- AI-powered narration generation (Gemini)
-- AI script generation for HeyGen avatars
-- Video export (MP4/WebM)
-- Multi-tenant authentication system
-- High-fidelity PPT import (LibreOffice local or ConvertAPI cloud)
+## Problem Statement
+Scormify is a course authoring tool with React frontend and FastAPI backend. It supports AI-powered narration (Gemini), video export, SCORM/HTML exports, and PPT import via ConvertAPI.
+
+## Core Requirements
+- **[DONE]** Fix login and deployment issues
+- **[DONE]** PPT import in production via ConvertAPI (LibreOffice not available)
+- **[DONE]** Fix SCORM export missing images for ConvertAPI-imported projects
+- **[DONE]** Fix projects not appearing after login (P0 bug)
+- **[DONE]** Persistent asset storage in MongoDB for ephemeral production environments
+- **[PENDING USER VERIFICATION]** SCORM export visual regressions (stretched images, transparent backgrounds)
 
 ## Architecture
+- Frontend: React (port 3000)
+- Backend: FastAPI (port 8001)
+- Database: MongoDB (persistent)
+- Storage: Local filesystem + MongoDB backup (project_assets collection)
+- 3rd Party: ConvertAPI (PPT), ElevenLabs (TTS), HeyGen (video), Google Gemini (AI)
 
-### Tech Stack
-- **Frontend:** React + TailwindCSS + Shadcn/UI
-- **Backend:** FastAPI (Python)
-- **Database:** MongoDB (Atlas in production)
-- **Integrations:** 
-  - ElevenLabs (TTS)
-  - HeyGen (Avatars)
-  - Gemini (AI narration)
-  - ConvertAPI (PPT to PNG conversion)
-  - moviepy/ffmpeg (Video export)
+## What's Been Implemented
 
-### Key Files
-- `backend/server.py` - Main API server with CORS, video export, auth routes
-- `backend/routes/auth.py` - Authentication with datetime serialization
-- `backend/services/ppt_image_parser.py` - PPT import with ConvertAPI integration
-- `backend/src/exporters/video_exporter.py` - Video export logic
-- `frontend/src/contexts/AuthContext.jsx` - Auth state management
-- `frontend/src/pages/Editor/Editor.jsx` - Main editor with AI narration UI
+### Session - Feb 19, 2026
+1. **MongoDB Asset Persistence** (`services/asset_store.py`)
+   - Assets stored in MongoDB `project_assets` collection as base64
+   - Automatic backup during PPT import, media upload, audio upload
+   - Restore on SCORM export when local files missing
+   - Startup migration of existing local assets to MongoDB
+   - Asset serving endpoint falls back to MongoDB
 
-## Completed Features
+2. **P0 Bug Fix - Projects Not Appearing**
+   - Added `axios.defaults.withCredentials = true` in `ProjectContext.jsx`
+   - Ensures session cookies sent with all API requests
 
-### 2026-02-19 (Current Session)
-- [x] Fixed deployment login issues (datetime serialization, super admin auto-creation)
-- [x] Added CORS support for `.emergent.host` production domain
-- [x] Integrated ConvertAPI for high-fidelity PPT import without LibreOffice
-- [x] Fixed slide ordering in ConvertAPI conversion (use native API order)
-- [x] Fixed `load_dotenv(override=False)` for Kubernetes compatibility
+3. **SCORM Export Asset Verification**
+   - After URL rewriting, verifies all referenced assets exist in package
+   - Recovers missing assets from MongoDB before creating ZIP
 
 ### Previous Sessions
-- [x] AI Narration Generation with Gemini Vision (OCR support)
-- [x] AI Script Generation for HeyGen avatars
-- [x] Video Export (MP4/WebM) with ffmpeg
-- [x] HeyGen avatar transparency, aspect ratio, and audio sync fixes
-- [x] Mobile layout fixes for exported courses
-- [x] System dependencies auto-check (non-blocking)
+- Production login & stability fixes
+- ConvertAPI integration for PPT import
+- Slide ordering fix for ConvertAPI
+- SCORM visual regression fixes (objectFit, background transparency)
+- Super admin auto-creation on startup
 
-## PPT Import Flow
-```
-PPT Upload
-    ├─ 1st: Try LibreOffice (if available locally)
-    ├─ 2nd: Try ConvertAPI (cloud, high fidelity) ✅
-    └─ 3rd: Python-only parser (fallback, lower fidelity)
-```
+## Prioritized Backlog
+- **P1**: User verification of SCORM export visual quality in production
+- **P2**: Refactor `html_exporter.py` to use external templates
+- **P2**: File cleanup/directory restructuring
 
-## Backlog
+## Key Files
+- `backend/services/asset_store.py` - MongoDB asset persistence
+- `backend/services/scorm_exporter.py` - SCORM export with MongoDB fallback
+- `backend/services/ppt_image_parser.py` - ConvertAPI + MongoDB storage
+- `backend/server.py` - API endpoints, startup hooks
+- `frontend/src/contexts/ProjectContext.jsx` - axios withCredentials fix
 
-### P2 - Code Quality
-- [ ] Refactor `html_exporter.py` to use external templates
-
-### P3 - Enhancements
-- [ ] Password recovery via email
-- [ ] Support for Google Slides / Keynote import
-- [ ] User management dashboard improvements
-
-## Credentials
-- **Admin Login:** admin@scormify.com / admin123
-- **ConvertAPI:** Configured in backend/.env
-
-## API Endpoints
-- `POST /api/auth/login` - Email/password login
-- `POST /api/auth/google` - Google OAuth
-- `GET /api/auth/me` - Get current user
-- `POST /api/ppt/upload` - Upload and parse PPT file
-- `POST /api/projects/{id}/export-video` - Video export
-- `POST /api/projects/{id}/slides/{slide_id}/generate-narration` - AI narration
+## Testing
+- Test Report: `/app/test_reports/iteration_26.json` - 100% pass rate
+- Test Project: NR01 (57d237b2-3636-4ea8-a306-bede62e4fe23) - 3 ConvertAPI slides
