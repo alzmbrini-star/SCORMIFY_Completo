@@ -7,10 +7,11 @@ import json
 import zipfile
 import logging
 import re
+import base64
 import httpx
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import shutil
 
 from models import Course, Project
@@ -27,6 +28,50 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
+
+
+def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: Path) -> Optional[str]:
+    """Read an image file and return it as a base64 data URI.
+    Tries: 1) package assets dir, 2) MongoDB.
+    Returns None if the image cannot be found."""
+    
+    # Determine content type
+    ext = Path(filename).suffix.lower()
+    content_types = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', 
+                     '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml'}
+    content_type = content_types.get(ext, 'image/png')
+    
+    # Try 1: Read from package assets directory (local file)
+    local_path = package_assets_dir / filename
+    if local_path.exists():
+        try:
+            with open(local_path, 'rb') as f:
+                data = f.read()
+            b64 = base64.b64encode(data).decode('ascii')
+            logger.info(f"Embedded image as data URI from local file: {filename} ({len(data)} bytes)")
+            return f"data:{content_type};base64,{b64}"
+        except Exception as e:
+            logger.warning(f"Failed to read local file {filename}: {e}")
+    
+    # Try 2: Read from MongoDB
+    try:
+        from services.asset_store import retrieve_asset_sync
+        mongo_url = os.environ.get('MONGO_URL')
+        db_name = os.environ.get('DB_NAME')
+        if mongo_url and db_name:
+            # Try to restore to filesystem first
+            dest = str(local_path)
+            if retrieve_asset_sync(mongo_url, db_name, project_id, filename, dest):
+                with open(dest, 'rb') as f:
+                    data = f.read()
+                b64 = base64.b64encode(data).decode('ascii')
+                logger.info(f"Embedded image as data URI from MongoDB: {filename} ({len(data)} bytes)")
+                return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.warning(f"MongoDB fallback failed for {filename}: {e}")
+    
+    logger.error(f"Could not find image anywhere: {filename} for project {project_id}")
+    return None
 
 
 def _read_asset(filename: str) -> str:
