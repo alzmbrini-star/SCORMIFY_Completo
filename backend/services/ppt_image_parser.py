@@ -202,7 +202,8 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
 
 def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) -> Course:
     """
-    Parse PPTX with high visual fidelity by rendering slides as images
+    Parse PPTX with high visual fidelity by rendering slides as images.
+    Falls back to Python-only parsing if LibreOffice is not available.
     """
     logger.info(f"High-fidelity parsing PPTX: {file_path}")
     
@@ -238,9 +239,15 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
         keywords=core_props.keywords.split(',') if core_props.keywords else []
     )
     
-    # Convert slides to images
-    logger.info("Converting slides to images...")
+    # Try to convert slides to images (requires LibreOffice)
+    logger.info("Attempting to convert slides to images...")
     slide_images = convert_pptx_to_images(file_path, str(assets_dir))
+    
+    # If no images generated (LibreOffice not available), use Python-only parser
+    if not slide_images:
+        logger.warning("Image conversion not available - falling back to Python-only parser")
+        from services.ppt_parser import parse_pptx
+        return parse_pptx(file_path, project_id, storage_dir)
     
     slides = []
     num_slides = len(prs.slides)
