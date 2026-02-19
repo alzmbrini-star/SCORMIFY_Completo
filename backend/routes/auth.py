@@ -129,61 +129,68 @@ def create_session_response(response: Response, session_token: str, user_data: D
 @router.post("/login")
 async def login(request: Request, response: Response):
     """Login with email and password"""
-    body = await request.json()
-    email = body.get("email", "").lower().strip()
-    password = body.get("password", "")
-    
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
-    
-    # Find user
-    user = await db.users.find_one(
-        {"email": email},
-        {"_id": 0}
-    )
-    
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    if not user.get("isActive", True):
-        raise HTTPException(status_code=401, detail="Account is deactivated")
-    
-    if not user.get("passwordHash"):
-        raise HTTPException(status_code=401, detail="Please use Google login for this account")
-    
-    if not verify_password(password, user["passwordHash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Create session
-    session_token = f"session_{uuid.uuid4().hex}"
-    expires_at = now_utc() + timedelta(days=7)
-    
-    await db.user_sessions.insert_one({
-        "user_id": user["user_id"],
-        "session_token": session_token,
-        "expires_at": expires_at,
-        "created_at": now_utc()
-    })
-    
-    # Update last login
-    await db.users.update_one(
-        {"user_id": user["user_id"]},
-        {"$set": {"lastLogin": now_utc()}}
-    )
-    
-    # Remove sensitive data
-    user.pop("passwordHash", None)
-    
-    # Get company info
-    if user.get("companyId"):
-        company = await db.companies.find_one(
-            {"id": user["companyId"]},
+    try:
+        body = await request.json()
+        email = body.get("email", "").lower().strip()
+        password = body.get("password", "")
+        
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email and password required")
+        
+        # Find user
+        user = await db.users.find_one(
+            {"email": email},
             {"_id": 0}
         )
-        if company:
-            user["company"] = company
-    
-    return create_session_response(response, session_token, {"user": user, "token": session_token})
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not user.get("isActive", True):
+            raise HTTPException(status_code=401, detail="Account is deactivated")
+        
+        if not user.get("passwordHash"):
+            raise HTTPException(status_code=401, detail="Please use Google login for this account")
+        
+        if not verify_password(password, user["passwordHash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Create session
+        session_token = f"session_{uuid.uuid4().hex}"
+        expires_at = now_utc() + timedelta(days=7)
+        
+        await db.user_sessions.insert_one({
+            "user_id": user["user_id"],
+            "session_token": session_token,
+            "expires_at": expires_at,
+            "created_at": now_utc()
+        })
+        
+        # Update last login
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"lastLogin": now_utc()}}
+        )
+        
+        # Remove sensitive data
+        user.pop("passwordHash", None)
+        
+        # Get company info
+        if user.get("companyId"):
+            company = await db.companies.find_one(
+                {"id": user["companyId"]},
+                {"_id": 0}
+            )
+            if company:
+                user["company"] = company
+        
+        return create_session_response(response, session_token, {"user": user, "token": session_token})
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 
 @router.post("/google")
