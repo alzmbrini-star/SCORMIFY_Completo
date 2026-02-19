@@ -25,6 +25,20 @@ def set_db(database):
 def now_utc():
     return datetime.now(timezone.utc)
 
+def serialize_user(user: Dict) -> Dict:
+    """Convert datetime fields to ISO strings for JSON serialization"""
+    if not user:
+        return user
+    result = {}
+    for key, value in user.items():
+        if isinstance(value, datetime):
+            result[key] = value.isoformat()
+        elif isinstance(value, dict):
+            result[key] = serialize_user(value)
+        else:
+            result[key] = value
+    return result
+
 def hash_password(password: str) -> str:
     """Hash password using bcrypt"""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
