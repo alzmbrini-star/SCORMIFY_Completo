@@ -322,6 +322,10 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
     logger.info("Attempting to convert slides to images (LibreOffice or ConvertAPI)...")
     slide_images = convert_pptx_to_images(file_path, str(assets_dir))
     
+    logger.info(f"convert_pptx_to_images returned {len(slide_images)} images")
+    for i, img_path in enumerate(slide_images):
+        logger.info(f"  Image {i+1}: {img_path} (exists: {Path(img_path).exists()})")
+    
     # If no images generated, fall back to Python-only parser
     if not slide_images:
         logger.warning("Image conversion failed (no LibreOffice or ConvertAPI) - using Python-only parser")
