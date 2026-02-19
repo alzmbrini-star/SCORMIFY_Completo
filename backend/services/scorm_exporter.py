@@ -167,21 +167,33 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Copy assets from storage
     project_assets = Path(storage_dir) / project.id / "assets"
+    logger.info(f"Looking for project assets in: {project_assets}")
     if project_assets.exists():
+        asset_count = 0
         for asset in project_assets.iterdir():
             shutil.copy2(asset, package_dir / "assets" / asset.name)
+            asset_count += 1
             logger.info(f"Copied asset: {asset.name}")
+        logger.info(f"Total project assets copied: {asset_count}")
+    else:
+        logger.warning(f"Project assets directory does not exist: {project_assets}")
     
     # Also copy global assets (AI-generated images are stored here)
     # storage_dir points to /storage/projects, so parent is /storage
     storage_base = Path(storage_dir).parent
     global_assets = storage_base / "assets"
+    logger.info(f"Looking for global assets in: {global_assets}")
     if global_assets.exists():
+        global_count = 0
         for asset in global_assets.iterdir():
             dest_path = package_dir / "assets" / asset.name
             if not dest_path.exists():  # Avoid overwriting project assets
                 shutil.copy2(asset, dest_path)
+                global_count += 1
                 logger.info(f"Copied global asset (AI image): {asset.name}")
+        logger.info(f"Total global assets copied: {global_count}")
+    else:
+        logger.warning(f"Global assets directory does not exist: {global_assets}")
     
     # Write scripts (read from export_assets directory)
     with open(package_dir / "scripts" / "scorm-api.js", 'w') as f:
