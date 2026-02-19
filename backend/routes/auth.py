@@ -316,7 +316,7 @@ async def get_me(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
+    return serialize_user(user)
 
 
 @router.get("/debug-db")
