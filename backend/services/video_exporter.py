@@ -21,18 +21,31 @@ from typing import List, Optional, Tuple
 
 
 def _ensure_ffmpeg():
-    """Auto-install ffmpeg if not present (survives fork resets)"""
-    if not shutil.which('ffmpeg'):
-        try:
-            subprocess.run(
-                ['apt-get', 'install', '-y', 'ffmpeg'],
-                capture_output=True, timeout=120
-            )
-        except Exception:
-            pass
-    ffmpeg = shutil.which('ffmpeg') or '/usr/bin/ffmpeg'
-    ffprobe = shutil.which('ffprobe') or '/usr/bin/ffprobe'
+    """Check if ffmpeg is available. Returns paths or None if not available."""
+    ffmpeg = shutil.which('ffmpeg')
+    ffprobe = shutil.which('ffprobe')
+    
+    # Also check common paths
+    if not ffmpeg:
+        for path in ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg']:
+            if os.path.exists(path) and os.access(path, os.X_OK):
+                ffmpeg = path
+                break
+    
+    if not ffprobe:
+        for path in ['/usr/bin/ffprobe', '/usr/local/bin/ffprobe']:
+            if os.path.exists(path) and os.access(path, os.X_OK):
+                ffprobe = path
+                break
+    
     return ffmpeg, ffprobe
+
+
+def is_ffmpeg_available():
+    """Check if ffmpeg is available for video export"""
+    ffmpeg, ffprobe = _ensure_ffmpeg()
+    return ffmpeg is not None and ffprobe is not None
+
 
 FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
 from PIL import Image, ImageDraw, ImageFont
