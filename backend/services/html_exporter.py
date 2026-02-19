@@ -247,14 +247,31 @@ async def generate_standalone_html(
             # Process image elements
             if element.get('type') == 'image' and element.get('src'):
                 src = element['src']
-                if src.startswith('/api/') or src.startswith('assets/'):
+                if src.startswith('data:'):
+                    processed_element['src'] = src
+                elif src.startswith('/api/') or src.startswith('assets/'):
                     asset_filename = src.split('/')[-1]
                     local_path = os.path.join(assets_dir, asset_filename)
                     if os.path.exists(local_path):
                         processed_element['src'] = file_to_base64(local_path)
                     else:
-                        full_url = f"{base_url}{src}" if not src.startswith('http') else src
-                        processed_element['src'] = await url_to_base64(full_url)
+                        # Try MongoDB fallback
+                        mongo_restored = False
+                        try:
+                            from services.asset_store import retrieve_asset_sync
+                            mongo_url = os.environ.get('MONGO_URL')
+                            db_name = os.environ.get('DB_NAME')
+                            project_id = project.get('id', '')
+                            if mongo_url and db_name and project_id:
+                                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                                if retrieve_asset_sync(mongo_url, db_name, project_id, asset_filename, local_path):
+                                    processed_element['src'] = file_to_base64(local_path)
+                                    mongo_restored = True
+                        except Exception:
+                            pass
+                        if not mongo_restored:
+                            full_url = f"{base_url}{src}" if not src.startswith('http') else src
+                            processed_element['src'] = await url_to_base64(full_url)
                 elif src.startswith('http'):
                     processed_element['src'] = await url_to_base64(src)
             
