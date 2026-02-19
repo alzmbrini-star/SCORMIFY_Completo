@@ -327,6 +327,20 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
     for i, img_path in enumerate(slide_images):
         logger.info(f"  Image {i+1}: {img_path} (exists: {Path(img_path).exists()})")
     
+    # Persist slide images in MongoDB for production environments with ephemeral storage
+    if slide_images:
+        try:
+            from services.asset_store import store_asset_sync
+            mongo_url = os.environ.get('MONGO_URL')
+            db_name = os.environ.get('DB_NAME')
+            if mongo_url and db_name:
+                for img_path in slide_images:
+                    img_filename = Path(img_path).name
+                    store_asset_sync(mongo_url, db_name, project_id, img_filename, img_path)
+                logger.info(f"Persisted {len(slide_images)} slide images in MongoDB")
+        except Exception as e:
+            logger.warning(f"Failed to persist slide images in MongoDB (non-fatal): {e}")
+    
     # If no images generated, fall back to Python-only parser
     if not slide_images:
         logger.warning("Image conversion failed (no LibreOffice or ConvertAPI) - using Python-only parser")
