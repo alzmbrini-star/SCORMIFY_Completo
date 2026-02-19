@@ -296,7 +296,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         logger.info(f"Added {len(questions)} questions to course.json for quiz support")
     
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
-        json.dump(course_data, f, ensure_ascii=False, indent=2)
+        json.dump(course_data, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
     
     # Get slide dimensions
     slide_width = 960
