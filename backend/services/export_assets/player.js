@@ -815,14 +815,12 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
                 el.innerHTML = element.content ? element.content.replace(/\n/g, '<br>') : '';
-                // Apply background color (transparent or custom)
-                if (element.style && element.style.transparentBackground) {
-                    el.style.backgroundColor = 'transparent';
-                } else if (element.style && element.style.backgroundColor) {
+                // Apply background color (transparent by default)
+                if (element.style && element.style.backgroundColor) {
                     el.style.backgroundColor = element.style.backgroundColor;
                 } else {
-                    // Default semi-transparent white background if not specified
-                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    // Default to transparent background
+                    el.style.backgroundColor = 'transparent';
                 }
                 break;
                 
