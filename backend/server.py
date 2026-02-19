@@ -849,6 +849,13 @@ async def set_global_audio(project_id: str, file: UploadFile = File(...)):
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
     
+    # Persist in MongoDB for production environments with ephemeral storage
+    try:
+        from services.asset_store import store_asset_sync
+        store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, filename, str(file_path))
+    except Exception as e:
+        logger.warning(f"Failed to persist global audio in MongoDB (non-fatal): {e}")
+    
     global_audio = {
         "id": file_id,
         "src": f"/api/projects/{project_id}/assets/{filename}",
