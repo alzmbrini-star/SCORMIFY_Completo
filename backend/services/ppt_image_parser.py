@@ -48,9 +48,10 @@ def convert_pptx_to_images_cloud(pptx_path: str, output_dir: str, dpi: int = 150
     # Get API key from environment
     api_key = os.environ.get('CONVERTAPI_SECRET')
     if not api_key:
-        logger.error("CONVERTAPI_SECRET environment variable not set")
+        logger.error("CONVERTAPI_SECRET environment variable not set - cannot use cloud conversion")
         return []
     
+    logger.info(f"ConvertAPI key found (length: {len(api_key)})")
     convertapi.api_credentials = api_key
     
     output_path = Path(output_dir)
