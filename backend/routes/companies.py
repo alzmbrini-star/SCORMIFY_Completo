@@ -36,12 +36,23 @@ async def list_companies(request: Request, user: Dict = Depends(require_super_ad
     """List all companies (Super Admin only)"""
     companies = await db.companies.find({}, {"_id": 0}).to_list(1000)
     
-    # Add user count for each company
-    for company in companies:
-        user_count = await db.users.count_documents({"companyId": company["id"]})
-        project_count = await db.projects.count_documents({"companyId": company["id"]})
-        company["userCount"] = user_count
-        company["projectCount"] = project_count
+    if companies:
+        company_ids = [c['id'] for c in companies]
+        user_counts = await db.users.aggregate([
+            {'$match': {'companyId': {'$in': company_ids}}},
+            {'$group': {'_id': '$companyId', 'count': {'$sum': 1}}}
+        ]).to_list(1000)
+        user_map = {item['_id']: item['count'] for item in user_counts}
+        
+        project_counts = await db.projects.aggregate([
+            {'$match': {'companyId': {'$in': company_ids}}},
+            {'$group': {'_id': '$companyId', 'count': {'$sum': 1}}}
+        ]).to_list(1000)
+        project_map = {item['_id']: item['count'] for item in project_counts}
+        
+        for company in companies:
+            company["userCount"] = user_map.get(company["id"], 0)
+            company["projectCount"] = project_map.get(company["id"], 0)
     
     return companies
 
