@@ -3,13 +3,15 @@ import axios from 'axios';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// Configure axios to send credentials (cookies) with every request
+axios.defaults.withCredentials = true;
+
 // Configure axios to handle 404 errors gracefully
 axios.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 404) {
       console.warn('Resource not found (404):', error.config?.url);
-      // Don't show error overlay for 404s - let the component handle it
     }
     return Promise.reject(error);
   }
