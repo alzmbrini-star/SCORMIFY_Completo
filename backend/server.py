@@ -3312,37 +3312,15 @@ async def root():
 async def root_health():
     return {"status": "healthy"}
 
-# CORS - dynamic origin matching for any emergentagent.com subdomain
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response as StarletteResponse
-
-class DynamicCORSMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        origin = request.headers.get("origin", "")
-        is_allowed = (
-            origin.endswith(".emergentagent.com") or
-            origin.endswith(".preview.emergentagent.com") or
-            origin.endswith(".emergent.host") or
-            origin == "http://localhost:3000"
-        )
-
-        if request.method == "OPTIONS":
-            resp = StarletteResponse(status_code=200)
-            if is_allowed:
-                resp.headers["Access-Control-Allow-Origin"] = origin
-                resp.headers["Access-Control-Allow-Credentials"] = "true"
-                resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
-                resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-                resp.headers["Access-Control-Max-Age"] = "300"
-            return resp
-
-        response = await call_next(request)
-        if is_allowed:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
-
-app.add_middleware(DynamicCORSMiddleware)
+# CORS - using Starlette's robust CORSMiddleware with regex pattern matching
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://(localhost:3000|.*\.emergentagent\.com|.*\.preview\.emergentagent\.com|.*\.emergent\.host)",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=300,
+)
 
 
 @app.on_event("startup")
