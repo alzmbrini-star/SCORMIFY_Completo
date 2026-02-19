@@ -3288,6 +3288,11 @@ async def get_recommended_voices():
 # Include router
 app.include_router(api_router)
 
+# Root-level health check for Kubernetes
+@app.get("/health")
+async def root_health():
+    return {"status": "healthy"}
+
 # CORS - dynamic origin matching for any emergentagent.com subdomain
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
