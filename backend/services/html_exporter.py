@@ -346,7 +346,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     
     # Escape special characters that could break the script tag
     # First dump to JSON, then escape </script> and other problematic sequences
-    course_json = json.dumps(sanitized_data, ensure_ascii=False)
+    course_json = json.dumps(sanitized_data, ensure_ascii=False, cls=DateTimeEncoder)
     # Escape </script> to prevent breaking the script block
     course_json = course_json.replace('</script>', '<\\/script>')
     course_json = course_json.replace('</Script>', '<\\/Script>')
