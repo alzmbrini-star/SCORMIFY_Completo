@@ -301,6 +301,25 @@ async def get_me(request: Request):
     return user
 
 
+@router.get("/debug-db")
+async def debug_db():
+    """Debug endpoint to check database connectivity"""
+    try:
+        # Test database connection
+        user_count = await db.users.count_documents({})
+        session_count = await db.user_sessions.count_documents({})
+        return {
+            "status": "connected",
+            "users_count": user_count,
+            "sessions_count": session_count
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @router.post("/logout")
 async def logout(request: Request, response: Response):
     """Logout and clear session"""
