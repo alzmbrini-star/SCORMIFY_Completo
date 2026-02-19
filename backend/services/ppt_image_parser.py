@@ -1,5 +1,5 @@
 """
-High-Fidelity PPT Parser using LibreOffice
+High-Fidelity PPT Parser using LibreOffice or ConvertAPI
 Converts each slide to PNG image for exact visual fidelity
 """
 import os
@@ -31,6 +31,64 @@ def emu_to_px(emu: int) -> float:
     if emu is None:
         return 0
     return (emu / EMU_PER_INCH) * DPI
+
+
+def convert_pptx_to_images_cloud(pptx_path: str, output_dir: str, dpi: int = 150) -> List[str]:
+    """
+    Convert PPTX to PNG images using ConvertAPI (cloud service).
+    This is used when LibreOffice is not available (e.g., in production/Kubernetes).
+    Maintains high visual fidelity.
+    """
+    try:
+        import convertapi
+    except ImportError:
+        logger.error("ConvertAPI not installed. Run: pip install convertapi")
+        return []
+    
+    # Get API key from environment
+    api_key = os.environ.get('CONVERTAPI_SECRET')
+    if not api_key:
+        logger.error("CONVERTAPI_SECRET environment variable not set")
+        return []
+    
+    convertapi.api_credentials = api_key
+    
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        logger.info(f"Converting PPTX to PNG using ConvertAPI: {pptx_path}")
+        
+        # Convert PPTX to PNG with high quality settings
+        result = convertapi.convert('png', {
+            'File': pptx_path,
+            'ImageResolution': str(dpi),
+            'ImageQuality': '100',
+            'ScaleImage': 'false',
+            'ScaleProportions': 'true'
+        }, from_format='pptx')
+        
+        # Save all generated images
+        saved_files = result.save_files(str(output_path))
+        
+        # Rename to our standard format: slide_001.png, slide_002.png, etc.
+        image_paths = []
+        png_files = sorted(output_path.glob("*.png"))
+        
+        for i, f in enumerate(png_files):
+            new_name = output_path / f"slide_{i+1:03d}.png"
+            if f != new_name:
+                f.rename(new_name)
+            image_paths.append(str(new_name))
+            logger.info(f"Saved slide image: {new_name.name}")
+        
+        logger.info(f"ConvertAPI successfully converted {len(image_paths)} slides")
+        return image_paths
+        
+    except Exception as e:
+        logger.error(f"ConvertAPI conversion failed: {e}")
+        return []
+
 
 
 def check_slide_has_animations(pptx_slide) -> bool:
