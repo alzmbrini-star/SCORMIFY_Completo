@@ -1221,11 +1221,18 @@ async def export_html(project_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Video Export
-from services.video_exporter import export_video as export_video_func
+from services.video_exporter import export_video as export_video_func, is_ffmpeg_available
 
 @api_router.post("/course/{project_id}/export-video")
 async def export_video_endpoint(project_id: str, request: Request, background_tasks: BackgroundTasks):
     """Export project as video (MP4 or WebM)"""
+    # Check if video export is available
+    if not is_ffmpeg_available():
+        raise HTTPException(
+            status_code=503,
+            detail="A exportação de vídeo não está disponível neste ambiente. FFmpeg não está instalado. Use exportação SCORM ou HTML como alternativa."
+        )
+    
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
         raise HTTPException(status_code=404, detail="Project not found")
