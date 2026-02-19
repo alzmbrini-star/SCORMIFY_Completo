@@ -123,8 +123,9 @@ def check_slide_has_animations(pptx_slide) -> bool:
 
 def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> List[str]:
     """
-    Convert PPTX to PNG images using LibreOffice
-    Returns list of image paths
+    Convert PPTX to PNG images using LibreOffice (local) or ConvertAPI (cloud).
+    Returns list of image paths.
+    Tries LibreOffice first, then ConvertAPI as fallback for production environments.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -136,9 +137,13 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
     # Find libreoffice executable
     libreoffice_path = get_libreoffice_path()
     
-    # If LibreOffice not found, return empty list to trigger Python-only fallback
+    # If LibreOffice not found, try ConvertAPI (cloud service)
     if not libreoffice_path:
-        logger.warning("LibreOffice not found - using Python-only parser as fallback")
+        logger.warning("LibreOffice not found - trying ConvertAPI cloud conversion")
+        cloud_result = convert_pptx_to_images_cloud(pptx_path, output_dir, dpi)
+        if cloud_result:
+            return cloud_result
+        logger.warning("ConvertAPI also failed - PPT import will use Python-only parser")
         return []
     
     try:
@@ -150,13 +155,20 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
         
         if result.returncode != 0:
             logger.error(f"LibreOffice PDF conversion failed: {result.stderr}")
-            # Return empty list to trigger Python-only fallback
+            # Try ConvertAPI as fallback
+            cloud_result = convert_pptx_to_images_cloud(pptx_path, output_dir, dpi)
+            if cloud_result:
+                return cloud_result
             return []
         
         # Find the PDF file
         pdf_files = list(temp_dir.glob("*.pdf"))
         if not pdf_files:
             logger.error("No PDF file generated")
+            # Try ConvertAPI as fallback
+            cloud_result = convert_pptx_to_images_cloud(pptx_path, output_dir, dpi)
+            if cloud_result:
+                return cloud_result
             return []
         
         pdf_path = pdf_files[0]
