@@ -686,7 +686,8 @@ var CoursePlayer = (function() {
             bgImg.style.left = '0';
             bgImg.style.width = '100%';
             bgImg.style.height = '100%';
-            bgImg.style.objectFit = 'fill'; // Fill the entire container to match element positions
+            bgImg.style.objectFit = 'cover'; // Cover maintains aspect ratio while filling container
+            bgImg.style.objectPosition = 'center center';
             bgImg.style.pointerEvents = 'none';
             bgImg.style.zIndex = '0';
             container.appendChild(bgImg);
