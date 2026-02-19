@@ -748,6 +748,13 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(final_content)
     
+    # Persist in MongoDB for production environments with ephemeral storage
+    try:
+        from services.asset_store import store_asset_sync
+        store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, filename, str(file_path))
+    except Exception as e:
+        logger.warning(f"Failed to persist media in MongoDB (non-fatal): {e}")
+    
     return {
         "id": file_id,
         "filename": filename,
