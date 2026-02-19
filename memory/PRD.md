@@ -1,43 +1,64 @@
-# Scormify - PPT to SCORM Converter
+# Scormify - Product Requirements Document
 
 ## Original Problem Statement
-Criar um aplicativo web que converte PPT/PPTX para SCORM 1.2 com editor de slides, timeline, áudio e exportação.
+Course editor application for creating and exporting SCORM-compliant courses. Features include:
+- Side-by-side preview panel in editor
+- Mobile-responsive exported courses
+- AI-powered narration generation (Gemini)
+- AI script generation for HeyGen avatars
+- Video export (MP4/WebM)
+- Multi-tenant authentication system
 
 ## Architecture
-- **Frontend**: React + Tailwind + Shadcn/UI
-- **Backend**: FastAPI (Python)
-- **Database**: MongoDB
-- **Dependencies**: FFmpeg, yt-dlp, Pillow
-- **Third-Party**: HeyGen (avatares), ElevenLabs (TTS), Gemini 3 Flash Vision (narração IA com OCR)
 
-## Changelog
+### Tech Stack
+- **Frontend:** React + TailwindCSS + Shadcn/UI
+- **Backend:** FastAPI (Python)
+- **Database:** MongoDB (Atlas in production)
+- **Integrations:** ElevenLabs (TTS), HeyGen (Avatars), Gemini (AI), moviepy/ffmpeg (Video)
 
-### 2026-02-17 (Latest)
-- **FEATURE P0: Leitura OCR no diálogo HeyGen** (IMPLEMENTED AND TESTED)
-  - HeyGen agora tem 3 tabs: "Digitar" (manual), "Ler Slide" (OCR/Vision), "Tema Livre" (tema livre)
-  - Tab "Ler Slide" usa Gemini Vision para ler conteúdo do slide e gerar 3 opções de script
-  - Reutiliza endpoint `generate-narration` existente
-  - Seletor de estilo (Educativo/Conversacional/Formal/Amigável)
-  - Ao clicar numa opção, preenche textarea e volta para tab "Digitar"
-  - **Testado**: 100% backend + frontend (iteration_25)
+### Key Files
+- `backend/server.py` - Main API server with CORS, video export, auth routes
+- `backend/routes/auth.py` - Authentication endpoints with datetime serialization
+- `backend/src/exporters/video_exporter.py` - Video export logic
+- `backend/src/exporters/html_exporter.py` - HTML/SCORM export
+- `frontend/src/contexts/AuthContext.jsx` - Auth state management
+- `frontend/src/pages/Editor/Editor.jsx` - Main editor with AI narration UI
 
-- **BUGFIX P0: HeyGen fundo preto na exportação de vídeo** (FIXED)
-  - Decoder VP9 alpha explícito com `-c:v libvpx-vp9`
+## Completed Features
 
-- **BUGFIX P0: FFmpeg não encontrado após fork** (FIXED)
-  - Caminhos absolutos para ffmpeg/ffprobe/yt-dlp
+### 2026-02-19
+- [x] Fixed deployment issues preventing login in production
+  - `load_dotenv(override=False)` to respect Kubernetes env vars
+  - Datetime serialization for JSON responses
+  - Auto-creation of super admin on startup
+  - Dynamic CORS for `.emergent.host` domain
+  - Fixed "Response body already used" bug in frontend
 
-### 2026-02-14
-- **FEATURE P0: Exportação de Vídeo (MP4/WebM)** (IMPLEMENTED AND TESTED)
-
-### 2026-02-13
-- **FEATURE P0: Narração IA + Vision/OCR no TTS** (IMPLEMENTED AND TESTED)
-
-## Key Files
-- `backend/server.py` - Server principal
-- `backend/services/video_exporter.py` - Exportação de vídeo
-- `frontend/src/pages/Editor.jsx` - Editor com TTS + HeyGen + IA
+### Previous Sessions
+- [x] AI Narration Generation with Gemini Vision (OCR support)
+- [x] AI Script Generation for HeyGen avatars
+- [x] Video Export (MP4/WebM) with ffmpeg
+- [x] HeyGen avatar transparency, aspect ratio, and audio sync fixes
+- [x] Mobile layout fixes for exported courses
+- [x] System dependencies auto-check (non-blocking)
 
 ## Backlog
-- Refatorar `html_exporter.py` para templates externos
-- Quiz readability mobile
+
+### P2 - Code Quality
+- [ ] Refactor `html_exporter.py` to use external templates instead of inline strings
+
+### P3 - Enhancements
+- [ ] Password recovery via email
+- [ ] User management dashboard improvements
+
+## Credentials
+- **Admin Login:** admin@scormify.com / admin123
+
+## API Endpoints
+- `POST /api/auth/login` - Email/password login
+- `POST /api/auth/google` - Google OAuth
+- `GET /api/auth/me` - Get current user
+- `GET /api/auth/debug-db` - Database connectivity check
+- `POST /api/projects/{id}/export-video` - Video export
+- `POST /api/projects/{id}/slides/{slide_id}/generate-narration` - AI narration
