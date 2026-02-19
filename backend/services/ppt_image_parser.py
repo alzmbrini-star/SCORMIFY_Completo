@@ -78,17 +78,10 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
     # Find libreoffice executable
     libreoffice_path = get_libreoffice_path()
     
-    # If LibreOffice not found, try to install it
+    # If LibreOffice not found, return empty list to trigger Python-only fallback
     if not libreoffice_path:
-        logger.warning("LibreOffice not found, attempting to install...")
-        ensure_system_dependencies()
-        libreoffice_path = get_libreoffice_path()
-    
-    if not libreoffice_path:
-        raise RuntimeError(
-            "LibreOffice is required for PPT conversion but could not be found or installed. "
-            "Please install LibreOffice manually: sudo apt-get install libreoffice"
-        )
+        logger.warning("LibreOffice not found - using Python-only parser as fallback")
+        return []
     
     try:
         # First convert PPTX to PDF using LibreOffice
@@ -99,14 +92,14 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
         
         if result.returncode != 0:
             logger.error(f"LibreOffice PDF conversion failed: {result.stderr}")
-            # Fallback: try direct PNG conversion
-            return convert_pptx_to_images_fallback(pptx_path, output_dir)
+            # Return empty list to trigger Python-only fallback
+            return []
         
         # Find the PDF file
         pdf_files = list(temp_dir.glob("*.pdf"))
         if not pdf_files:
             logger.error("No PDF file generated")
-            return convert_pptx_to_images_fallback(pptx_path, output_dir)
+            return []
         
         pdf_path = pdf_files[0]
         
