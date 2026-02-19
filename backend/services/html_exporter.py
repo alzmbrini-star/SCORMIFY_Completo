@@ -208,16 +208,34 @@ async def generate_standalone_html(
         # Process background image
         if slide.get('backgroundImage'):
             bg_path = slide['backgroundImage']
-            if bg_path.startswith('/api/') or bg_path.startswith('assets/'):
+            if bg_path.startswith('data:'):
+                processed_slide['backgroundImage'] = bg_path
+            elif bg_path.startswith('/api/') or bg_path.startswith('assets/'):
                 # Local asset
                 asset_filename = bg_path.split('/')[-1]
                 local_path = os.path.join(assets_dir, asset_filename)
                 if os.path.exists(local_path):
                     processed_slide['backgroundImage'] = file_to_base64(local_path)
                 else:
-                    # Try with full URL
-                    full_url = f"{base_url}{bg_path}" if not bg_path.startswith('http') else bg_path
-                    processed_slide['backgroundImage'] = await url_to_base64(full_url)
+                    # Try MongoDB fallback first
+                    mongo_restored = False
+                    try:
+                        from services.asset_store import retrieve_asset_sync
+                        mongo_url = os.environ.get('MONGO_URL')
+                        db_name = os.environ.get('DB_NAME')
+                        project_id = project.get('id', '')
+                        if mongo_url and db_name and project_id:
+                            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                            if retrieve_asset_sync(mongo_url, db_name, project_id, asset_filename, local_path):
+                                processed_slide['backgroundImage'] = file_to_base64(local_path)
+                                mongo_restored = True
+                                logger.info(f"HTML export: restored backgroundImage from MongoDB: {asset_filename}")
+                    except Exception as e:
+                        logger.warning(f"HTML export MongoDB fallback failed: {e}")
+                    if not mongo_restored:
+                        # Try with full URL
+                        full_url = f"{base_url}{bg_path}" if not bg_path.startswith('http') else bg_path
+                        processed_slide['backgroundImage'] = await url_to_base64(full_url)
             elif bg_path.startswith('http'):
                 processed_slide['backgroundImage'] = await url_to_base64(bg_path)
         
