@@ -71,16 +71,28 @@ def convert_pptx_to_images_cloud(pptx_path: str, output_dir: str, dpi: int = 150
         # Save all generated images
         saved_files = result.save_files(str(output_path))
         
+        # Get all PNG files and sort them by numeric order in filename
+        png_files = list(output_path.glob("*.png"))
+        
+        # Sort by extracting numbers from filename (e.g., "slide-1.png" -> 1)
+        import re
+        def extract_number(filepath):
+            match = re.search(r'(\d+)', filepath.name)
+            return int(match.group(1)) if match else 0
+        
+        png_files = sorted(png_files, key=extract_number)
+        
         # Rename to our standard format: slide_001.png, slide_002.png, etc.
         image_paths = []
-        png_files = sorted(output_path.glob("*.png"))
-        
         for i, f in enumerate(png_files):
             new_name = output_path / f"slide_{i+1:03d}.png"
-            if f != new_name:
+            if f != new_name and f.exists():
+                # Rename only if different and file exists
+                if new_name.exists():
+                    new_name.unlink()  # Remove existing file
                 f.rename(new_name)
             image_paths.append(str(new_name))
-            logger.info(f"Saved slide image: {new_name.name}")
+            logger.info(f"Saved slide image: {new_name.name} (from {f.name})")
         
         logger.info(f"ConvertAPI successfully converted {len(image_paths)} slides")
         return image_paths
