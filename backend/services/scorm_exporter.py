@@ -391,10 +391,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                     audio['src'] = f"assets/{filename}"
     
     # Fix global audio URL
-    if course_data.get('globalAudio') and course_data['globalAudio'].get('src'):
-        if '/assets/' in course_data['globalAudio']['src']:
-            filename = course_data['globalAudio']['src'].split('/assets/')[-1]
-            course_data['globalAudio']['src'] = f"assets/{filename}"
+    global_audio = course_data.get('globalAudio')
+    if global_audio and isinstance(global_audio, dict):
+        ga_src = global_audio.get('src') or ''
+        if ga_src and isinstance(ga_src, str) and '/assets/' in ga_src:
+            raw = ga_src.split('/assets/')[-1].split('?')[0]
+            filename = raw.split('/')[-1] if '/' in raw else raw
+            if filename:
+                global_audio['src'] = f"assets/{filename}"
     
     # Add questions for quiz elements
     if questions:
