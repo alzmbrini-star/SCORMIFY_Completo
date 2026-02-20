@@ -36,5 +36,10 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Fix:** Removed all nginx start/reload commands from the script. Now only patches config files and validates with `nginx -t`
 - **Deployment agent check:** All checks passed
 
+## Export Persistence Fix (Feb 2026)
+- **Root cause:** Export files (SCORM, HTML, video) stored only on ephemeral local disk. Container restarts/deploys wipe the files, causing "File not found" on download
+- **Fix:** Added MongoDB GridFS persistence layer. Files are saved to GridFS after generation. Download endpoint falls back to GridFS if the local file is missing, restoring it transparently
+- **Tested:** Export → delete local file → download succeeds via GridFS restore
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
