@@ -65,6 +65,9 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# GridFS bucket for persistent export storage
+exports_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="exports")
+
 # HeyGen API Configuration
 HEYGEN_API_KEY = os.environ.get('HEYGEN_API_KEY', '')
 HEYGEN_BASE_URL = "https://api.heygen.com"
