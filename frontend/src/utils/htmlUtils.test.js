@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://project-list-filter.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://nginx-config-patch.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
