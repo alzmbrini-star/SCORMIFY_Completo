@@ -1275,6 +1275,13 @@ async def export_html(project_id: str):
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
+        # Clean up old exports
+        import asyncio
+        try:
+            await asyncio.to_thread(_cleanup_old_exports, str(EXPORTS_DIR))
+        except Exception:
+            pass
+        
         return {
             "downloadUrl": f"/api/exports/{filename}",
             "filename": filename,
