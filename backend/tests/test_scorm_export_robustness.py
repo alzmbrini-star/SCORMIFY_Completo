@@ -478,16 +478,17 @@ class TestNoneElementType:
         )
         elapsed = time.time() - start
 
-        # Either 200 (defensive handling) or 500 (Pydantic/model error)
+        # Either 200 (defensive handling) or 500/520 (Pydantic/model error)
+        # 520 = Cloudflare wrapping backend 500 (confirmed via localhost tests)
         # Critical: must NOT timeout/hang
-        assert resp.status_code in (200, 500), \
-            f"Unexpected response: {resp.status_code}: {resp.text}"
+        assert resp.status_code in (200, 500, 520), \
+            f"Unexpected response: {resp.status_code}: {resp.text[:200]}"
         assert elapsed < 30, f"Request hung for {elapsed:.1f}s with type=None element!"
 
         if resp.status_code == 200:
             print("✅ Export with element type=None: succeeded (defensive handling works)")
         else:
-            print(f"✅ Export with element type=None: returned 500 promptly (Pydantic validation). elapsed={elapsed:.2f}s")
+            print(f"✅ Export with element type=None: returned {resp.status_code} promptly (Pydantic validation or CF wrap). elapsed={elapsed:.2f}s")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
