@@ -3361,7 +3361,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_migrate_urls():
-    """Auto-migrate absolute asset URLs to relative on startup (fixes fork issues)"""
+    """Auto-migrate absolute asset URLs to relative on startup (non-blocking background task)"""
+    import asyncio
+    asyncio.create_task(_run_migrate_urls())
+    logger.info("Startup URL migration: started in background task")
+
+
+async def _run_migrate_urls():
+    """Background task: migrate absolute URLs to relative paths"""
     import re
     try:
         migrated_count = 0
@@ -3405,7 +3412,14 @@ async def startup_migrate_urls():
 
 @app.on_event("startup")
 async def startup_ensure_admin():
-    """Ensure super admin user exists in database"""
+    """Ensure super admin user exists in database (non-blocking background task)"""
+    import asyncio
+    asyncio.create_task(_run_ensure_admin())
+    logger.info("Startup admin check: started in background task")
+
+
+async def _run_ensure_admin():
+    """Background task: ensure super admin user exists"""
     import bcrypt
     try:
         admin_email = "admin@scormify.com"
