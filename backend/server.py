@@ -1163,7 +1163,11 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
             logger.info(f"Loaded {len(questions)} questions for SCORM export")
         
         # Generate package with questions
-        zip_path = export_scorm_package(
+        # Run in thread pool to avoid blocking the async event loop
+        # (export_scorm_package is a CPU+IO intensive synchronous function)
+        import asyncio
+        zip_path = await asyncio.to_thread(
+            export_scorm_package,
             project,
             str(PROJECTS_DIR),
             str(EXPORTS_DIR),
