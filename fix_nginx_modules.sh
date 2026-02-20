@@ -156,25 +156,13 @@ SITE_CONF
 fi
 
 # -------------------------------------------------------------------
-# STEP 4: Verify and (re)start nginx
+# STEP 4: Validate nginx config (DO NOT start/reload nginx - the
+#         deployment orchestrator manages the nginx process)
 # -------------------------------------------------------------------
 if nginx -t -c /etc/nginx/nginx.conf 2>/dev/null; then
-    echo "[fix-nginx] nginx.conf: OK"
-    # Try to start/reload nginx on port 80
-    if ss -tln 2>/dev/null | grep -q ":80 "; then
-        echo "[fix-nginx] Port 80 active - reloading nginx config"
-        nginx -s reload 2>/dev/null || true
-    else
-        echo "[fix-nginx] Starting nginx on port 80..."
-        nginx
-        if [ $? -eq 0 ]; then
-            echo "[fix-nginx] nginx started successfully on port 80"
-        else
-            echo "[fix-nginx] Could not start nginx (non-fatal - backend health check still works on :8001)"
-        fi
-    fi
+    echo "[fix-nginx] nginx.conf validation: OK"
 else
-    echo "[fix-nginx] WARNING: nginx.conf still invalid - deployment health check will use :8001 directly"
+    echo "[fix-nginx] WARNING: nginx.conf validation failed - deployment orchestrator will handle this"
 fi
 
 echo "[fix-nginx] Done."
