@@ -141,6 +141,9 @@ var CoursePlayer = (function() {
     var globalAudio = null;
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     var userHasInteracted = false; // Track if user has interacted with the page
+    // True if ANY slide in the course has a quiz element.
+    // When true, SCORM completion must come from QuizController, NOT from navigation.
+    var courseHasQuiz = false;
     
     // Swipe navigation variables
     var touchStartX = 0;
