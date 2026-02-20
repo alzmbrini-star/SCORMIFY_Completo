@@ -608,9 +608,9 @@ class TestNoneGlobalAudioSrc:
         )
         elapsed = time.time() - start
 
-        assert resp.status_code in (200, 500)
+        assert resp.status_code in (200, 500, 520)
         assert elapsed < 30, f"Hung for {elapsed:.1f}s with globalAudio src=None filename=None"
-        print(f"✅ globalAudio src=None filename=None: status={resp.status_code} elapsed={elapsed:.2f}s")
+        print(f"✅ globalAudio src=None filename=None: status={resp.status_code} elapsed={elapsed:.2f}s (520=CF wrapping 500)")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
