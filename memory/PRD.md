@@ -12,6 +12,8 @@ Scormify is a course authoring tool with React frontend and FastAPI backend. It 
 - **[DONE]** Embed images as base64 data URIs in SCORM exports (eliminate file dependency)
 - **[DONE]** Root `/health` endpoint for Kubernetes health checks
 - **[DONE]** Non-blocking startup asset persistence (background thread)
+- **[DONE]** Fix SCORM export 520 error in production (asyncio.to_thread + None safety)
+- **[DONE]** Prevent disk exhaustion from accumulated exports (24h cleanup policy)
 - **[PENDING USER VERIFICATION]** SCORM export visual regressions (stretched images, transparent backgrounds)
 
 ## Architecture
@@ -23,29 +25,30 @@ Scormify is a course authoring tool with React frontend and FastAPI backend. It 
 
 ## What's Been Implemented
 
+### Session - Feb 20, 2026
+1. **SCORM Export 520 Error Fix (P0)**
+   - `export_scorm_package` now runs via `asyncio.to_thread()` - prevents event loop blocking
+   - Video download timeout reduced 120s → 25s (under Cloudflare's ~30s limit)
+   - Full defensive None checks on all slide/element/audio fields
+   - Correct URL parsing: strips project_id prefix from asset filenames
+   - `SlideElement.type`, `SlideAudio.src/filename`, `GlobalAudio.src/filename`, `Slide.width/height` made `Optional` in models.py to survive legacy data from MongoDB without Pydantic ValidationError
+   - Export cleanup: `_cleanup_old_exports()` deletes files older than 24h after each export
+
 ### Session - Feb 19, 2026
 1. **MongoDB Asset Persistence** (`services/asset_store.py`)
    - Assets stored in MongoDB `project_assets` collection as base64
    - Automatic backup during PPT import, media upload, audio upload
    - Restore on SCORM export when local files missing
    - Startup migration of existing local assets to MongoDB (background thread)
-   - Asset serving endpoint falls back to MongoDB
 
 2. **Base64 Data URI Embedding in SCORM** (`services/scorm_exporter.py`)
    - Background images embedded directly as `data:image/png;base64,...` in course.json
    - Element images also embedded as data URIs
    - Eliminates dependency on separate image files in SCORM package
-   - Player.js loads images via `img.src = "data:..."` natively
 
-3. **P0 Bug Fix - Projects Not Appearing**
-   - Added `axios.defaults.withCredentials = true` in `ProjectContext.jsx`
-
-4. **Deployment Fixes**
+3. **Deployment Fixes**
    - Root `/health` endpoint for Kubernetes health checks
    - Non-blocking startup (background thread for asset persistence)
-
-5. **HTML Exporter MongoDB Fallback** (`services/html_exporter.py`)
-   - Background images and element images restored from MongoDB when local files missing
 
 ### Previous Sessions
 - Production login & stability fixes
@@ -61,13 +64,14 @@ Scormify is a course authoring tool with React frontend and FastAPI backend. It 
 
 ## Key Files
 - `backend/services/asset_store.py` - MongoDB asset persistence
-- `backend/services/scorm_exporter.py` - SCORM export with base64 data URI embedding
+- `backend/services/scorm_exporter.py` - SCORM export with base64 data URI embedding + None safety
 - `backend/services/html_exporter.py` - HTML export with MongoDB fallback
 - `backend/services/ppt_image_parser.py` - ConvertAPI + MongoDB storage
-- `backend/server.py` - API endpoints, startup hooks, health check
+- `backend/server.py` - API endpoints, startup hooks, health check, export cleanup
+- `backend/models.py` - Pydantic models with Optional fields for legacy data safety
 - `frontend/src/contexts/ProjectContext.jsx` - axios withCredentials fix
 
 ## Testing
-- Test Report: `/app/test_reports/iteration_26.json` - 100% pass rate
+- Test Report: `/app/test_reports/iteration_27.json` - 18/18 pass rate (100%)
 - Test Project: NR01 (57d237b2-3636-4ea8-a306-bede62e4fe23) - 3 ConvertAPI slides
-- Manual test: 3/3 slides embedded as data URIs with zero local files
+- All None-field edge cases now pass (200 OK instead of 500/520)
