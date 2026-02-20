@@ -530,14 +530,14 @@ class TestNoneAudioSrc:
         )
         elapsed = time.time() - start
 
-        assert resp.status_code in (200, 500), \
-            f"Unexpected status {resp.status_code}: {resp.text}"
+        assert resp.status_code in (200, 500, 520), \
+            f"Unexpected status {resp.status_code}: {resp.text[:200]}"
         assert elapsed < 30, f"Audio src=None caused a hang: {elapsed:.1f}s!"
 
         if resp.status_code == 200:
             print(f"✅ Export with audio src=None: succeeded in {elapsed:.2f}s")
         else:
-            print(f"✅ Export with audio src=None: returned 500 promptly in {elapsed:.2f}s (acceptable)")
+            print(f"✅ Export with audio src=None: returned {resp.status_code} promptly in {elapsed:.2f}s (520=CF wrapping 500)")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
