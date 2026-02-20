@@ -92,6 +92,9 @@ fi
 # STEP 3: Update sites-enabled/default to include /health endpoint
 #         and proxy to app backend/frontend
 # -------------------------------------------------------------------
+# Clean up any legacy conf.d files that might conflict
+rm -f /etc/nginx/conf.d/emergent-health.conf 2>/dev/null
+
 DEFAULT_SITE="/etc/nginx/sites-enabled/default"
 if [ -f "$DEFAULT_SITE" ] && ! grep -q "emergent-app-proxy" "$DEFAULT_SITE" 2>/dev/null; then
     echo "[fix-nginx] Replacing /etc/nginx/sites-enabled/default with app proxy config..."
