@@ -1434,10 +1434,15 @@ async def serve_asset(project_id: str, filename: str):
 
 @api_router.get("/exports/{filename}")
 async def serve_export(filename: str, preview: str = None):
-    """Serve exported files (SCORM zip or HTML) with forced download"""
+    """Serve exported files (SCORM zip or HTML) with forced download.
+    Falls back to MongoDB GridFS if the file is not on local disk."""
     file_path = EXPORTS_DIR / filename
+    
+    # If not on local disk, try to restore from GridFS
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        restored = await get_export_from_gridfs(filename, str(file_path))
+        if not restored:
+            raise HTTPException(status_code=404, detail="File not found")
     
     # Determine media type based on file extension
     if filename.endswith('.html'):
@@ -1463,7 +1468,7 @@ async def serve_export(filename: str, preview: str = None):
     return FileResponse(
         file_path,
         media_type=media_type,
-        filename=filename,  # Force download for all export files
+        filename=filename,
         headers={
             "Content-Disposition": f"attachment; filename=\"{filename}\""
         }
