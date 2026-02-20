@@ -14,6 +14,7 @@ Scormify is a course authoring tool with React frontend and FastAPI backend. It 
 - **[DONE]** Non-blocking startup asset persistence (background thread)
 - **[DONE]** Fix SCORM export 520 error in production (asyncio.to_thread + None safety)
 - **[DONE]** Prevent disk exhaustion from accumulated exports (24h cleanup policy)
+- **[DONE]** Fix SCORM completion (LMSFinish) sent before quiz ends - now uses courseHasQuiz flag to defer completion to QuizController
 - **[PENDING USER VERIFICATION]** SCORM export visual regressions (stretched images, transparent backgrounds)
 
 ## Architecture
