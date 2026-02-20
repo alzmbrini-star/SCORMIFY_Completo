@@ -1144,6 +1144,41 @@ def _cleanup_old_exports(exports_dir: str, max_age_hours: int = 24):
         logger.info(f"Cleaned up {removed} old export files from {exports_dir}")
 
 
+async def save_export_to_gridfs(file_path: str, filename: str):
+    """Save an export file to MongoDB GridFS for persistence across deploys."""
+    try:
+        # Delete any existing file with same name
+        cursor = exports_bucket.find({"filename": filename})
+        async for grid_file in cursor:
+            await exports_bucket.delete(grid_file._id)
+        # Upload the new file
+        with open(file_path, "rb") as f:
+            data = f.read()
+        await exports_bucket.upload_from_stream(filename, io.BytesIO(data))
+        logger.info(f"Saved export to GridFS: {filename} ({len(data)} bytes)")
+    except Exception as e:
+        logger.warning(f"GridFS save failed (non-fatal): {e}")
+
+
+async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
+    """Retrieve an export file from GridFS and write to dest_path. Returns True if found."""
+    try:
+        cursor = exports_bucket.find({"filename": filename}, limit=1).sort("uploadDate", -1)
+        grid_file = await cursor.next()
+        stream = await exports_bucket.open_download_stream(grid_file._id)
+        data = await stream.read()
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(dest_path, "wb") as f:
+            f.write(data)
+        logger.info(f"Restored export from GridFS: {filename} ({len(data)} bytes)")
+        return True
+    except StopAsyncIteration:
+        return False
+    except Exception as e:
+        logger.warning(f"GridFS retrieve failed: {e}")
+        return False
+
+
 @api_router.post("/course/{project_id}/export-scorm")
 async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
     """Export project as SCORM 1.2 package"""
