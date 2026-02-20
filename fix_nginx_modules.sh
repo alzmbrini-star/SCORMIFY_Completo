@@ -4,10 +4,11 @@
 # Problem: In production ARM64 containers, nginx-extras .so modules
 # (Lua, NDK, Perl, GeoIP) may NOT be installed, causing nginx to fail.
 #
-# This script:
-# 1. Removes /etc/nginx/modules-enabled/ symlinks for missing .so files
-# 2. If Lua modules are missing, replaces nginx-code-server.conf with
-#    a Lua-free version (code-server IDE loses auto-start feature, app unaffected)
+# This script is run as supervisor program with priority=0 (before nginx).
+# It performs two types of fixes:
+# 1. Removes broken symlinks from /etc/nginx/modules-enabled/
+# 2. If Lua is missing, replaces nginx-code-server.conf with a Lua-free version
+# 3. Creates /etc/nginx/conf.d/emergent-health.conf for health check response on port 80
 
 echo "[fix-nginx] Starting nginx module compatibility check..."
 
@@ -31,7 +32,7 @@ resolve_module() {
 LUA_MISSING=false
 if [ ! -f "$MODULES_PATH/ngx_http_lua_module.so" ] || [ ! -f "$MODULES_PATH/ndk_http_module.so" ]; then
     LUA_MISSING=true
-    echo "[fix-nginx] Lua/NDK modules NOT found - will use Lua-free nginx configs"
+    echo "[fix-nginx] Lua/NDK modules NOT found in production image"
 fi
 
 # -------------------------------------------------------------------
@@ -55,8 +56,7 @@ done
 echo "[fix-nginx] Removed $REMOVED broken module symlink(s)"
 
 # -------------------------------------------------------------------
-# STEP 2: If Lua is missing, replace nginx-code-server.conf with 
-#         a simple Lua-free proxy config
+# STEP 2: If Lua is missing, replace nginx-code-server.conf
 # -------------------------------------------------------------------
 CODE_CONF="/etc/nginx/nginx-code-server.conf"
 if [ "$LUA_MISSING" = true ] && [ -f "$CODE_CONF" ]; then
@@ -105,23 +105,81 @@ http {
     }
 }
 NGINX_CONF
-    echo "[fix-nginx] nginx-code-server.conf replaced with Lua-free version"
+    echo "[fix-nginx] nginx-code-server.conf replaced"
 fi
 
 # -------------------------------------------------------------------
-# STEP 3: Verify nginx configs
+# STEP 3: Ensure nginx.conf can start even with missing modules
+# (already fixed by removing broken symlinks above)
+# Also make sure a health-check endpoint exists on port 80
+# -------------------------------------------------------------------
+mkdir -p /etc/nginx/conf.d
+# Create/overwrite the health check config (always, as nginx.conf includes conf.d/)
+cat > /etc/nginx/conf.d/emergent-health.conf << 'HEALTH_CONF'
+# Health check server on port 80 for Kubernetes/deployment probes
+server {
+    listen 80 default_server;
+    server_name _;
+
+    # Health check endpoint
+    location /health {
+        default_type application/json;
+        return 200 '{"status":"healthy","service":"nginx"}';
+        add_header Content-Type application/json;
+    }
+
+    # Proxy API requests to FastAPI backend
+    location /api/ {
+        proxy_pass http://127.0.0.1:8001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 120s;
+    }
+
+    # Proxy frontend
+    location / {
+        proxy_pass http://127.0.0.1:3000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 120s;
+    }
+}
+HEALTH_CONF
+echo "[fix-nginx] Created /etc/nginx/conf.d/emergent-health.conf (port 80 health check)"
+
+# -------------------------------------------------------------------
+# STEP 4: Verify nginx configs are valid
 # -------------------------------------------------------------------
 if nginx -t -c /etc/nginx/nginx.conf 2>/dev/null; then
     echo "[fix-nginx] nginx.conf: OK"
+    # Start nginx on port 80 to serve health checks and proxy requests
+    # (In case the deployment startup script's nginx already started, skip if port 80 is bound)
+    if ! ss -tln 2>/dev/null | grep -q ":80 "; then
+        nginx
+        if [ $? -eq 0 ]; then
+            echo "[fix-nginx] nginx started on port 80 for health checks"
+        else
+            echo "[fix-nginx] Could not start nginx on port 80 (port may be in use)"
+        fi
+    else
+        echo "[fix-nginx] Port 80 already in use, nginx already running"
+    fi
 else
-    echo "[fix-nginx] WARNING: nginx.conf still invalid"
+    echo "[fix-nginx] WARNING: nginx.conf still invalid after fix"
 fi
 
 if [ -f "$CODE_CONF" ]; then
     if nginx -t -c "$CODE_CONF" 2>/dev/null; then
         echo "[fix-nginx] nginx-code-server.conf: OK"
     else
-        echo "[fix-nginx] WARNING: nginx-code-server.conf still invalid"
+        echo "[fix-nginx] nginx-code-server.conf: still has issues (code-server IDE will not work, app unaffected)"
     fi
 fi
 
