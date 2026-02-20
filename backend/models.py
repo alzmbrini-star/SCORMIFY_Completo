@@ -124,9 +124,9 @@ class SlideAudio(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     id: str = Field(default_factory=generate_id)
-    type: str  # narration, soundtrack
-    src: str
-    filename: str
+    type: str = "narration"  # narration, soundtrack
+    src: Optional[str] = None
+    filename: Optional[str] = None
     duration: float = 0
     volume: float = 1.0
     fadeIn: float = 0
@@ -139,8 +139,8 @@ class Slide(BaseModel):
     id: str = Field(default_factory=generate_id)
     title: str = "Slide"
     order: int = 0
-    width: float = 1920  # 21:9 aspect ratio for better mobile landscape viewing
-    height: float = 820
+    width: Optional[float] = 1920
+    height: Optional[float] = 820
     background: Optional[str] = "#FFFFFF"
     backgroundImage: Optional[str] = None
     
@@ -162,8 +162,8 @@ class GlobalAudio(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     id: str = Field(default_factory=generate_id)
-    src: str
-    filename: str
+    src: Optional[str] = None
+    filename: Optional[str] = None
     duration: float = 0
     volume: float = 0.5
     fadeIn: float = 0
