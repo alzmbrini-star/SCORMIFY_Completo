@@ -65,24 +65,24 @@ function checkMobileOrientation() {
         isMobile: isMobileDevice
     });
     
-    // Determine if we should show the overlay
+    // Determine if we should show the overlay (force landscape on mobile)
+    var isPortrait = windowWidth < windowHeight;
     var shouldShowOverlay = false;
     
     if (isMobileDevice || isSmallScreen) {
-        if (isOrientationPortrait) {
-            shouldShowOverlay = true;
-        } else if (mediaPortrait) {
-            shouldShowOverlay = true;
-        } else if (screenAspectRatio < 0.85 && screenWidth < screenHeight) {
-            shouldShowOverlay = true;
-        } else if (windowAspectRatio < 0.85 && windowWidth < windowHeight) {
+        // Use multiple signals to detect portrait mode
+        if (isOrientationPortrait || mediaPortrait || isPortrait) {
             shouldShowOverlay = true;
         }
     }
     
+    // Check if user dismissed the overlay
+    var overlayDismissed = false;
+    try { overlayDismissed = sessionStorage.getItem('orientation_overlay_dismissed') === 'true'; } catch(e) {}
+    
     var wasHidden = playerContainer.style.display === 'none';
     
-    if (shouldShowOverlay) {
+    if (shouldShowOverlay && !overlayDismissed) {
         overlay.style.display = 'flex';
         playerContainer.style.display = 'none';
     } else {
@@ -141,6 +141,9 @@ var CoursePlayer = (function() {
     var globalAudio = null;
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     var userHasInteracted = false; // Track if user has interacted with the page
+    // True if ANY slide in the course has a quiz element.
+    // When true, SCORM completion must come from QuizController, NOT from navigation.
+    var courseHasQuiz = false;
     
     // Swipe navigation variables
     var touchStartX = 0;
@@ -337,6 +340,15 @@ var CoursePlayer = (function() {
         course = courseData;
         totalSlides = course.slides.length;
         
+        // Detect if ANY slide contains a quiz element.
+        // If so, completion must be sent from QuizController.showResults(), not from navigation.
+        courseHasQuiz = course.slides.some(function(s) {
+            return s.elements && s.elements.some(function(el) {
+                return (el.type || '').toLowerCase() === 'quiz';
+            });
+        });
+        console.log('[Player] courseHasQuiz:', courseHasQuiz);
+        
         // Check orientation on load
         checkMobileOrientation();
         
@@ -431,48 +443,7 @@ var CoursePlayer = (function() {
         
         console.log('[Scale] Device:', { isMobile: isMobile, isPortrait: isPortrait, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
         
-        if (isMobilePortrait) {
-            // MOBILE PORTRAIT MODE - Fill the screen width completely
-            // Use document dimensions to avoid any iframe constraints
-            var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth, window.screen.width || 0);
-            var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
-            
-            // Use the actual visible width
-            var viewportWidth = screenWidth;
-            var viewportHeight = screenHeight - 40; // Small space for counter
-            
-            // Calculate scale to fill width completely
-            var scaleForWidth = viewportWidth / slideWidth;
-            
-            // Calculate the scaled height
-            var scaledHeight = slideHeight * scaleForWidth;
-            
-            // Center vertically if there's extra space
-            var topOffset = 0;
-            if (scaledHeight < viewportHeight) {
-                topOffset = (viewportHeight - scaledHeight) / 2;
-            }
-            
-            // Force wrapper to have no padding and full width
-            wrapper.style.padding = '0';
-            wrapper.style.margin = '0';
-            wrapper.style.width = '100%';
-            wrapper.style.maxWidth = '100%';
-            wrapper.style.alignItems = 'flex-start';
-            wrapper.style.justifyContent = 'center';
-            wrapper.style.paddingTop = topOffset + 'px';
-            
-            // Apply scale with left-aligned transform origin for true full-width
-            container.style.width = slideWidth + 'px';
-            container.style.height = slideHeight + 'px';
-            container.style.transform = 'scale(' + scaleForWidth + ')';
-            container.style.transformOrigin = 'left top';
-            container.style.marginLeft = '0';
-            container.style.boxShadow = 'none';
-            
-            console.log('[Scale] Mobile portrait - scale:', scaleForWidth.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight);
-            return;
-        }
+        // Portrait mode: use standard scaling (overlay is dismissable)
         
         // DESKTOP / LANDSCAPE MODE - Fit within available space
         // Reset wrapper styles that might have been modified
@@ -489,59 +460,7 @@ var CoursePlayer = (function() {
         // Detect mobile landscape mode
         var isMobileLandscape = isMobile && !isPortrait;
         
-        if (isMobileLandscape) {
-            // MOBILE LANDSCAPE - Fill the screen width completely
-            var screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
-            var screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
-            
-            // Use full screen width with NO padding
-            var viewportWidth = screenWidth;
-            var viewportHeight = screenHeight;
-            
-            // Calculate scale to fill WIDTH completely (prioritize width over height)
-            var scaleForWidth = viewportWidth / slideWidth;
-            
-            // Check if this scale would make the slide too tall
-            var scaledHeight = slideHeight * scaleForWidth;
-            var scale;
-            
-            if (scaledHeight <= viewportHeight) {
-                // Slide fits in height when scaled to full width - use full width scale
-                scale = scaleForWidth;
-            } else {
-                // Slide would be too tall - scale to fit height instead
-                var scaleForHeight = viewportHeight / slideHeight;
-                scale = scaleForHeight;
-            }
-            
-            // Minimum scale for readability
-            scale = Math.max(scale, 0.3);
-            
-            // Calculate centered vertical position
-            var actualScaledHeight = slideHeight * scale;
-            var actualScaledWidth = slideWidth * scale;
-            var topOffset = Math.max(0, (viewportHeight - actualScaledHeight) / 2);
-            var leftOffset = Math.max(0, (viewportWidth - actualScaledWidth) / 2);
-            
-            // Keep wrapper but transparent, use fixed positioning for slide container
-            wrapper.style.cssText = 'position:relative !important;padding:0 !important;margin:0 !important;width:100vw !important;height:100vh !important;overflow:visible !important;';
-            
-            // Position the container fixed to fill the screen (ignores parent constraints)
-            container.style.position = 'fixed';
-            container.style.top = topOffset + 'px';
-            container.style.left = leftOffset + 'px';
-            container.style.width = slideWidth + 'px';
-            container.style.height = slideHeight + 'px';
-            container.style.transform = 'scale(' + scale + ')';
-            container.style.transformOrigin = 'left top';
-            container.style.zIndex = '100';
-            container.style.boxShadow = 'none';
-            
-            console.log('[Scale] Mobile landscape - scale:', scale.toFixed(3), 'viewport:', viewportWidth + 'x' + viewportHeight, 'scaledHeight:', actualScaledHeight.toFixed(0), 'slideSize:', slideWidth + 'x' + slideHeight);
-            return;
-        }
-        
-        // DESKTOP MODE - Standard scaling with padding
+        // DESKTOP / LANDSCAPE MODE - Standard scaling with padding
         // Reset container position if it was set to fixed
         container.style.position = '';
         container.style.top = '';
@@ -574,18 +493,22 @@ var CoursePlayer = (function() {
         var maxScale = 1.2;
         scale = Math.min(scale, maxScale);
         
-        // Ensure minimum scale for readability
-        var minScale = 0.45;
+        // Ensure minimum scale for readability (lowered for portrait mobile support)
+        var minScale = 0.15;
         scale = Math.max(scale, minScale);
         
         // Apply scale to container
         container.style.width = slideWidth + 'px';
         container.style.height = slideHeight + 'px';
         container.style.transform = 'scale(' + scale + ')';
-        container.style.transformOrigin = 'center center';
+        container.style.transformOrigin = '0 0';
+        
+        // Shrink layout box to match visual size so flexbox centering works correctly
+        container.style.marginRight = -(slideWidth * (1 - scale)) + 'px';
+        container.style.marginBottom = -(slideHeight * (1 - scale)) + 'px';
         
         // Log for debugging
-        console.log('[Scale] Desktop - scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
+        console.log('[Scale] scale:', scale.toFixed(2), 'available:', availableWidth + 'x' + availableHeight);
     }
     
     var isVideoFullscreen = false;
@@ -760,63 +683,9 @@ var CoursePlayer = (function() {
         window.slideTimelineTimers = [];
         
         // Helper function to optimize elements for mobile
-        function optimizeForMobile() {
-            var isMobile = window.innerWidth < 1024 || window.innerHeight < 700;
-            var isSmallScreen = window.innerWidth < 768 || window.innerHeight < 500;
-            if (!isMobile) return;
-            
-            // Find quiz and html elements and expand them to fill the slide
-            var quizElements = container.querySelectorAll('.quiz-element');
-            var htmlElements = container.querySelectorAll('.html-element');
-            
-            var allElements = Array.from(quizElements).concat(Array.from(htmlElements));
-            
-            allElements.forEach(function(el) {
-                // Force quiz and html elements to fill the entire slide on mobile
-                el.style.width = slideWidth + 'px';
-                el.style.height = slideHeight + 'px';
-                el.style.left = '0';
-                el.style.top = '0';
-                el.style.position = 'absolute';
-                
-                // Find quiz containers inside and expand them too
-                var quizContainer = el.querySelector('.quiz-player-container');
-                if (quizContainer) {
-                    quizContainer.style.width = '100%';
-                    quizContainer.style.height = '100%';
-                    quizContainer.style.padding = isSmallScreen ? '10px' : '15px';
-                    quizContainer.style.boxSizing = 'border-box';
-                    quizContainer.style.fontSize = isSmallScreen ? '16px' : '18px';
-                }
-                
-                // Expand iframes inside html elements
-                var iframe = el.querySelector('iframe');
-                if (iframe) {
-                    iframe.style.width = '100%';
-                    iframe.style.height = '100%';
-                }
-            });
-            
-            // Apply mobile font scaling to quiz elements via CSS injection
-            var mobileStyleId = 'mobile-quiz-optimization';
-            var existingStyle = document.getElementById(mobileStyleId);
-            if (!existingStyle) {
-                var style = document.createElement('style');
-                style.id = mobileStyleId;
-                style.textContent = isSmallScreen ? 
-                    '.quiz-player-container { font-size: 16px !important; } ' +
-                    '.quiz-player-container h2, .quiz-player-container h3 { font-size: 18px !important; margin: 8px 0 !important; } ' +
-                    '.quiz-player-container .quiz-option { padding: 12px !important; margin: 6px 0 !important; font-size: 14px !important; } ' +
-                    '.quiz-player-container button { padding: 12px 20px !important; font-size: 14px !important; } ' +
-                    '.quiz-player-container p { font-size: 14px !important; line-height: 1.4 !important; } '
-                    :
-                    '.quiz-player-container { font-size: 18px !important; } ' +
-                    '.quiz-player-container h2, .quiz-player-container h3 { font-size: 20px !important; } ' +
-                    '.quiz-player-container .quiz-option { padding: 14px !important; font-size: 16px !important; } ' +
-                    '.quiz-player-container button { padding: 14px 24px !important; font-size: 16px !important; } ';
-                document.head.appendChild(style);
-            }
-        }
+        // Mobile optimization removed: transform: scale() on the container
+        // already handles proportional sizing for ALL elements.
+        // Position/size overrides were causing element overlap on multi-element slides.
         
         // Set background
         container.style.backgroundColor = slide.background || '#FFFFFF';
@@ -829,7 +698,8 @@ var CoursePlayer = (function() {
             bgImg.style.left = '0';
             bgImg.style.width = '100%';
             bgImg.style.height = '100%';
-            bgImg.style.objectFit = 'fill'; // Fill the entire container to match element positions
+            bgImg.style.objectFit = 'cover'; // Cover maintains aspect ratio while filling container
+            bgImg.style.objectPosition = 'center center';
             bgImg.style.pointerEvents = 'none';
             bgImg.style.zIndex = '0';
             container.appendChild(bgImg);
@@ -928,30 +798,22 @@ var CoursePlayer = (function() {
         // Apply scale for current device/orientation
         updateSlideScale();
         
-        // Optimize elements for mobile after a short delay to ensure they're rendered
-        setTimeout(optimizeForMobile, 100);
-        
-        // Update scale again after optimizeForMobile (in case it changed element positions)
-        setTimeout(updateSlideScale, 150);
-        
         // Update navigation
         updateNavigation();
         
         // Save position to SCORM
         ScormAPI.setLocation(index);
         
-        // Check completion - only if no quiz on current slide
-        // If there's a quiz, completion will be handled after quiz submission
+        // Check completion - defer to QuizController if course has any quiz element
+        // QuizController.showResults() calls ScormAPI.setComplete() after quiz is done
         if (index === totalSlides - 1) {
-            var currentSlide = course.slides[index];
-            var hasQuiz = currentSlide && currentSlide.elements && 
-                currentSlide.elements.some(function(el) { return el.type === 'quiz'; });
-            
-            if (!hasQuiz) {
-                // No quiz on last slide, mark as complete
+            if (!courseHasQuiz) {
+                // No quiz anywhere in course: mark complete when last slide is reached
                 ScormAPI.setComplete();
+                console.log('[Player] No quiz in course - marked complete on last slide');
+            } else {
+                console.log('[Player] Course has quiz - completion deferred to QuizController');
             }
-            // If has quiz, completion will be triggered in QuizController.finishQuiz()
         }
     }
     
@@ -963,14 +825,12 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
                 el.innerHTML = element.content ? element.content.replace(/\n/g, '<br>') : '';
-                // Apply background color (transparent or custom)
-                if (element.style && element.style.transparentBackground) {
-                    el.style.backgroundColor = 'transparent';
-                } else if (element.style && element.style.backgroundColor) {
+                // Apply background color (transparent by default)
+                if (element.style && element.style.backgroundColor) {
                     el.style.backgroundColor = element.style.backgroundColor;
                 } else {
-                    // Default semi-transparent white background if not specified
-                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    // Default to transparent background
+                    el.style.backgroundColor = 'transparent';
                 }
                 break;
                 
@@ -1140,18 +1000,18 @@ var CoursePlayer = (function() {
                 var htmlContent = element.htmlContent || '<p>HTML Content</p>';
                 
                 // Check if content is base64 encoded
-                if (htmlContent.startsWith('__B64__:')) {{
-                    try {{
+                if (htmlContent.startsWith('__B64__:')) {
+                    try {
                         var binaryString = atob(htmlContent.substring(8));
                         var bytes = new Uint8Array(binaryString.length);
-                        for (var i = 0; i < binaryString.length; i++) {{
+                        for (var i = 0; i < binaryString.length; i++) {
                             bytes[i] = binaryString.charCodeAt(i);
-                        }}
+                        }
                         htmlContent = new TextDecoder('utf-8').decode(bytes);
-                    }} catch(e) {{
+                    } catch(e) {
                         console.error('Failed to decode htmlContent:', e);
-                    }}
-                }}
+                    }
+                }
                 
                 // Check if this element is truly fullscreen (covers most of the slide area)
                 var slideWidth = currentSlide.width || 1280;
@@ -1170,7 +1030,9 @@ var CoursePlayer = (function() {
                     'h2{font-size:1.15rem!important;}' +
                     'h3{font-size:1.05rem!important;}' +
                     'p,li{font-size:15px!important;line-height:1.5!important;}' +
-                    'img{float:none!important;display:block!important;max-width:90%!important;width:auto!important;height:auto!important;margin:12px auto!important;clear:both!important;position:relative!important;left:0!important;right:0!important;}' 
+                    'img{float:none!important;display:block!important;max-width:100%!important;width:auto!important;height:auto!important;margin:12px auto!important;clear:both!important;position:relative!important;left:0!important;right:0!important;}' +
+                    'div[style*="float"]{float:none!important;width:100%!important;}' +
+                    'span[style*="font-size"]{font-size:inherit!important;}'
                     : '';
                 var wrappedHtml = '<html><head><style>' +
                     (isHtmlFullscreen ? 
@@ -1189,10 +1051,10 @@ var CoursePlayer = (function() {
                         'img.rtf-image-float-right,body img.rtf-image-float-right{float:right!important;clear:right!important;max-width:45%!important;width:auto!important;height:auto!important;border-radius:4px!important;margin:0 0 12px 16px!important;display:block!important;border:none!important;outline:none!important;}' +
                         'img.rtf-image-center{display:inline-block!important;max-width:80%!important;width:auto!important;height:auto!important;border:none!important;outline:none!important;}' +
                         'img.rtf-image-inline{display:block!important;max-width:100%!important;width:auto!important;height:auto!important;margin:8px 0!important;border:none!important;outline:none!important;}' +
-                        'img[style*="float: left"]{float:left!important;margin-right:16px!important;margin-bottom:12px!important;max-width:45%!important;width:auto!important;height:auto!important;}' +
-                        'img[style*="float: right"]{float:right!important;margin-left:16px!important;margin-bottom:12px!important;max-width:45%!important;width:auto!important;height:auto!important;}' +
+                        'img.rtf-image-float-left,img[style*="float: left"],img[style*="float:left"]{float:left!important;max-width:45%!important;margin-right:16px!important;margin-bottom:12px!important;height:auto!important;object-fit:contain!important;}' +
+                        'img.rtf-image-float-right,img[style*="float: right"],img[style*="float:right"]{float:right!important;max-width:45%!important;margin-left:16px!important;margin-bottom:12px!important;height:auto!important;object-fit:contain!important;}' +
                         'body::after{content:\'\';display:table;clear:both;}' +
-                        'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:hidden!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;}' +
+                        'p,div,span,ul,ol,li,h1,h2,h3,h4,h5,h6{overflow:visible!important;word-wrap:break-word;overflow-wrap:break-word;max-width:100%!important;word-break:normal;hyphens:auto;-webkit-hyphens:auto;}' +
                         mobileCSS
                     ) +
                     /* Typography and scrollbar - apply to both modes */
@@ -1393,9 +1255,15 @@ var CoursePlayer = (function() {
                 break;
         }
         
+        // Apply background color (transparent by default)
         if (element.style && element.style.fill) {
             el.style.backgroundColor = element.style.fill;
+        } else if (element.style && element.style.backgroundColor) {
+            el.style.backgroundColor = element.style.backgroundColor;
+        } else {
+            el.style.backgroundColor = 'transparent';
         }
+        
         if (element.style && element.style.stroke) {
             el.style.border = '2px solid ' + element.style.stroke;
         }

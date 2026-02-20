@@ -141,6 +141,9 @@ var CoursePlayer = (function() {
     var globalAudio = null;
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     var userHasInteracted = false; // Track if user has interacted with the page
+    // True if ANY slide in the course has a quiz element.
+    // When true, SCORM completion must come from QuizController, NOT from navigation.
+    var courseHasQuiz = false;
     
     // Swipe navigation variables
     var touchStartX = 0;
@@ -336,6 +339,15 @@ var CoursePlayer = (function() {
     function loadCourse(courseData) {
         course = courseData;
         totalSlides = course.slides.length;
+        
+        // Detect if ANY slide contains a quiz element.
+        // If so, completion must be sent from QuizController.showResults(), not from navigation.
+        courseHasQuiz = course.slides.some(function(s) {
+            return s.elements && s.elements.some(function(el) {
+                return (el.type || '').toLowerCase() === 'quiz';
+            });
+        });
+        console.log('[Player] courseHasQuiz:', courseHasQuiz);
         
         // Check orientation on load
         checkMobileOrientation();
@@ -686,7 +698,8 @@ var CoursePlayer = (function() {
             bgImg.style.left = '0';
             bgImg.style.width = '100%';
             bgImg.style.height = '100%';
-            bgImg.style.objectFit = 'fill'; // Fill the entire container to match element positions
+            bgImg.style.objectFit = 'cover'; // Cover maintains aspect ratio while filling container
+            bgImg.style.objectPosition = 'center center';
             bgImg.style.pointerEvents = 'none';
             bgImg.style.zIndex = '0';
             container.appendChild(bgImg);
@@ -791,18 +804,16 @@ var CoursePlayer = (function() {
         // Save position to SCORM
         ScormAPI.setLocation(index);
         
-        // Check completion - only if no quiz on current slide
-        // If there's a quiz, completion will be handled after quiz submission
+        // Check completion - defer to QuizController if course has any quiz element
+        // QuizController.showResults() calls ScormAPI.setComplete() after quiz is done
         if (index === totalSlides - 1) {
-            var currentSlide = course.slides[index];
-            var hasQuiz = currentSlide && currentSlide.elements && 
-                currentSlide.elements.some(function(el) { return el.type === 'quiz'; });
-            
-            if (!hasQuiz) {
-                // No quiz on last slide, mark as complete
+            if (!courseHasQuiz) {
+                // No quiz anywhere in course: mark complete when last slide is reached
                 ScormAPI.setComplete();
+                console.log('[Player] No quiz in course - marked complete on last slide');
+            } else {
+                console.log('[Player] Course has quiz - completion deferred to QuizController');
             }
-            // If has quiz, completion will be triggered in QuizController.finishQuiz()
         }
     }
     
@@ -814,14 +825,12 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
                 el.innerHTML = element.content ? element.content.replace(/\n/g, '<br>') : '';
-                // Apply background color (transparent or custom)
-                if (element.style && element.style.transparentBackground) {
-                    el.style.backgroundColor = 'transparent';
-                } else if (element.style && element.style.backgroundColor) {
+                // Apply background color (transparent by default)
+                if (element.style && element.style.backgroundColor) {
                     el.style.backgroundColor = element.style.backgroundColor;
                 } else {
-                    // Default semi-transparent white background if not specified
-                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    // Default to transparent background
+                    el.style.backgroundColor = 'transparent';
                 }
                 break;
                 
@@ -1246,9 +1255,15 @@ var CoursePlayer = (function() {
                 break;
         }
         
+        // Apply background color (transparent by default)
         if (element.style && element.style.fill) {
             el.style.backgroundColor = element.style.fill;
+        } else if (element.style && element.style.backgroundColor) {
+            el.style.backgroundColor = element.style.backgroundColor;
+        } else {
+            el.style.backgroundColor = 'transparent';
         }
+        
         if (element.style && element.style.stroke) {
             el.style.border = '2px solid ' + element.style.stroke;
         }
