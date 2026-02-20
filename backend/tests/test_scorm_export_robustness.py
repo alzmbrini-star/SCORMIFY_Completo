@@ -577,14 +577,15 @@ class TestNoneGlobalAudioSrc:
         )
         elapsed = time.time() - start
 
-        assert resp.status_code in (200, 500), \
-            f"Unexpected status {resp.status_code}: {resp.text}"
+        # 520 = Cloudflare wrapping backend 500 (confirmed via localhost:8001 direct test)
+        assert resp.status_code in (200, 500, 520), \
+            f"Unexpected status {resp.status_code}: {resp.text[:200]}"
         assert elapsed < 30, f"globalAudio src=None caused a hang: {elapsed:.1f}s!"
 
         if resp.status_code == 200:
             print(f"✅ Export with globalAudio src=None: succeeded in {elapsed:.2f}s")
         else:
-            print(f"✅ Export with globalAudio src=None: returned 500 promptly in {elapsed:.2f}s")
+            print(f"✅ Export with globalAudio src=None: returned {resp.status_code} promptly in {elapsed:.2f}s (520=CF wrapping 500)")
 
     def test_export_global_audio_object_with_null_src_doesnt_hang(self):
         """globalAudio object present but src=null: no hang, no silent crash"""
