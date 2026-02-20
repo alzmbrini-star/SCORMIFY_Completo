@@ -340,6 +340,15 @@ var CoursePlayer = (function() {
         course = courseData;
         totalSlides = course.slides.length;
         
+        // Detect if ANY slide contains a quiz element.
+        // If so, completion must be sent from QuizController.showResults(), not from navigation.
+        courseHasQuiz = course.slides.some(function(s) {
+            return s.elements && s.elements.some(function(el) {
+                return (el.type || '').toLowerCase() === 'quiz';
+            });
+        });
+        console.log('[Player] courseHasQuiz:', courseHasQuiz);
+        
         // Check orientation on load
         checkMobileOrientation();
         
