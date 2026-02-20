@@ -42,7 +42,7 @@ class SlideElement(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     id: str = Field(default_factory=generate_id)
-    type: str  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook, quiz
+    type: Optional[str] = "text"  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook, quiz
     x: float = 0
     y: float = 0
     width: float = 100
