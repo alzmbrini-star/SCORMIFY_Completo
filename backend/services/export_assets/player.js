@@ -804,18 +804,16 @@ var CoursePlayer = (function() {
         // Save position to SCORM
         ScormAPI.setLocation(index);
         
-        // Check completion - only if no quiz on current slide
-        // If there's a quiz, completion will be handled after quiz submission
+        // Check completion - defer to QuizController if course has any quiz element
+        // QuizController.showResults() calls ScormAPI.setComplete() after quiz is done
         if (index === totalSlides - 1) {
-            var currentSlide = course.slides[index];
-            var hasQuiz = currentSlide && currentSlide.elements && 
-                currentSlide.elements.some(function(el) { return el.type === 'quiz'; });
-            
-            if (!hasQuiz) {
-                // No quiz on last slide, mark as complete
+            if (!courseHasQuiz) {
+                // No quiz anywhere in course: mark complete when last slide is reached
                 ScormAPI.setComplete();
+                console.log('[Player] No quiz in course - marked complete on last slide');
+            } else {
+                console.log('[Player] Course has quiz - completion deferred to QuizController');
             }
-            // If has quiz, completion will be triggered in QuizController.finishQuiz()
         }
     }
     
