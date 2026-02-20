@@ -405,15 +405,18 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         course_data['questions'] = questions
         logger.info(f"Added {len(questions)} questions to course.json for quiz support")
     
-    # Verify audio assets exist (images are now embedded as data URIs)
-    for slide in course_data.get('slides', []):
-        for audio in slide.get('audio', []):
-            src = audio.get('src', '')
-            if src and src.startswith('assets/'):
-                filename = src.replace('assets/', '')
+    # Verify audio assets exist and restore from MongoDB if missing
+    for slide in (course_data.get('slides') or []):
+        if not isinstance(slide, dict):
+            continue
+        for audio in (slide.get('audio') or []):
+            if not isinstance(audio, dict):
+                continue
+            src = audio.get('src') or ''
+            if src and isinstance(src, str) and src.startswith('assets/'):
+                filename = src[len('assets/'):]
                 audio_path = package_dir / "assets" / filename
                 if not audio_path.exists():
-                    # Try MongoDB
                     try:
                         from services.asset_store import retrieve_asset_sync
                         mongo_url = os.environ.get('MONGO_URL')
@@ -422,7 +425,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                             if retrieve_asset_sync(mongo_url, db_name, project.id, filename, str(audio_path)):
                                 logger.info(f"Recovered audio from MongoDB: {filename}")
                     except Exception as e:
-                        logger.warning(f"Audio recovery failed: {e}")
+                        logger.warning(f"Audio recovery failed (non-fatal): {e}")
     
     # Log summary of embedded images
     embedded_count = sum(1 for s in course_data.get('slides', []) 
