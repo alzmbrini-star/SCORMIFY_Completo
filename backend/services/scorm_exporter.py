@@ -274,101 +274,121 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Fix all asset URLs in slides - embed images as base64 data URIs
     package_assets = package_dir / "assets"
-    for slide in course_data.get('slides', []):
+    for slide in (course_data.get('slides') or []):
+        if not isinstance(slide, dict):
+            continue
+
         # Fix background image URL - EMBED AS DATA URI
-        if slide.get('backgroundImage'):
-            bg_url = slide['backgroundImage']
+        bg_url = slide.get('backgroundImage') or ''
+        if bg_url and isinstance(bg_url, str):
             if '/assets/' in bg_url:
-                filename = bg_url.split('/assets/')[-1]
-                # Convert to base64 data URI for maximum reliability
-                data_uri = _read_image_as_data_uri(project.id, filename, package_assets)
-                if data_uri:
-                    slide['backgroundImage'] = data_uri
-                else:
-                    # Fallback to relative path if data URI fails
-                    slide['backgroundImage'] = f"assets/{filename}"
-                    logger.warning(f"Could not embed backgroundImage, using relative path: assets/{filename}")
-            elif bg_url.startswith('data:'):
-                pass  # Already a data URI, keep as-is
-        
-        # Fix element URLs - embed images as data URIs
-        for element in slide.get('elements', []):
-            if element.get('src') and '/assets/' in element.get('src', ''):
-                filename = element['src'].split('/assets/')[-1]
-                # For images, embed as data URI
-                if element.get('type') in ('image', None) and any(filename.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg')):
+                # Handle both /assets/filename and /assets/project_id/filename patterns
+                parts = bg_url.split('/assets/')
+                raw = parts[-1].split('?')[0]
+                # Strip leading project_id segment if present (e.g. "proj_id/file.png")
+                filename = raw.split('/')[-1] if '/' in raw else raw
+                if filename:
                     data_uri = _read_image_as_data_uri(project.id, filename, package_assets)
                     if data_uri:
-                        element['src'] = data_uri
+                        slide['backgroundImage'] = data_uri
+                    else:
+                        slide['backgroundImage'] = f"assets/{filename}"
+                        logger.warning(f"Could not embed backgroundImage, using relative path: assets/{filename}")
+            elif bg_url.startswith('data:'):
+                pass  # Already a data URI, keep as-is
+
+        # Fix element URLs - embed images as data URIs
+        for element in (slide.get('elements') or []):
+            if not isinstance(element, dict):
+                continue
+            elem_src = element.get('src') or ''
+            elem_type = element.get('type') or ''
+
+            if elem_src and isinstance(elem_src, str) and '/assets/' in elem_src:
+                raw = elem_src.split('/assets/')[-1].split('?')[0]
+                filename = raw.split('/')[-1] if '/' in raw else raw
+                if filename:
+                    # For image elements or files with image extensions, embed as data URI
+                    is_image_ext = any(filename.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'))
+                    if (elem_type in ('image', '') or not elem_type) and is_image_ext:
+                        data_uri = _read_image_as_data_uri(project.id, filename, package_assets)
+                        element['src'] = data_uri if data_uri else f"assets/{filename}"
                     else:
                         element['src'] = f"assets/{filename}"
-                else:
-                    element['src'] = f"assets/{filename}"
-            # Handle external video URLs (like HeyGen videos)
-            elif element.get('type') == 'video' and element.get('src') and element['src'].startswith('http'):
+
+            # Handle external video URLs (like HeyGen videos) - SHORT TIMEOUT to avoid 520
+            elif elem_type == 'video' and elem_src and isinstance(elem_src, str) and elem_src.startswith('http'):
                 try:
                     import hashlib
-                    url_hash = hashlib.md5(element['src'].encode()).hexdigest()[:12]
-                    if '.webm' in element['src'].lower():
-                        ext = '.webm'
-                    elif '.mp4' in element['src'].lower():
-                        ext = '.mp4'
+                    url_hash = hashlib.md5(elem_src.encode()).hexdigest()[:12]
+                    if '.webm' in elem_src.lower():
+                        vid_ext = '.webm'
+                    elif '.mp4' in elem_src.lower():
+                        vid_ext = '.mp4'
                     else:
-                        ext = '.webm'
-                    video_filename = f"video_{url_hash}{ext}"
+                        vid_ext = '.mp4'
+                    video_filename = f"video_{url_hash}{vid_ext}"
                     video_path = package_dir / "assets" / video_filename
-                    
-                    logger.info(f"Downloading external video: {element['src'][:100]}...")
-                    with httpx.Client(timeout=120.0, follow_redirects=True) as client:
-                        response = client.get(element['src'])
+
+                    logger.info(f"Downloading external video: {elem_src[:100]}...")
+                    # Use 25s timeout - Cloudflare upstream limit is ~30s
+                    with httpx.Client(timeout=25.0, follow_redirects=True) as client:
+                        response = client.get(elem_src)
                         if response.status_code == 200:
                             with open(video_path, 'wb') as vf:
                                 vf.write(response.content)
                             element['src'] = f"assets/{video_filename}"
                             logger.info(f"Downloaded video as: {video_filename}")
                         else:
-                            logger.warning(f"Failed to download video: {response.status_code}")
+                            logger.warning(f"Failed to download video ({response.status_code}), keeping original URL")
                 except Exception as e:
-                    logger.error(f"Error downloading external video: {e}")
-            
+                    logger.warning(f"Video download skipped (non-fatal): {e}")
+                    # Keep original URL as fallback so the element still works online
+
             # Process HTML elements - fix image URLs inside htmlContent
-            if element.get('type') == 'html' and element.get('htmlContent'):
-                html_content = element['htmlContent']
-                
-                # Sanitize: remove Tailwind CSS variables and editor artifacts
-                html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
-                html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
-                html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
-                html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
-                html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
-                
-                img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
-                
-                def fix_img_src(match):
-                    src = match.group(1)
-                    if src.startswith('data:'):
+            if elem_type == 'html':
+                html_content = element.get('htmlContent') or ''
+                if html_content and isinstance(html_content, str):
+                    # Sanitize: remove Tailwind CSS variables and editor artifacts
+                    html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
+                    html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
+                    html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
+                    html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
+                    html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
+
+                    img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
+
+                    def fix_img_src(match):
+                        src = match.group(1)
+                        if not src or src.startswith('data:'):
+                            return match.group(0)
+                        if '/api/assets/' in src:
+                            fn_raw = src.split('/api/assets/')[-1].split('?')[0]
+                            fn = fn_raw.split('/')[-1] if '/' in fn_raw else fn_raw
+                        elif '/assets/' in src:
+                            fn_raw = src.split('/assets/')[-1].split('?')[0]
+                            fn = fn_raw.split('/')[-1] if '/' in fn_raw else fn_raw
+                        else:
+                            return match.group(0)
+                        if fn:
+                            data_uri = _read_image_as_data_uri(project.id, fn, package_assets)
+                            if data_uri:
+                                return f'src="{data_uri}"'
+                            return f'src="assets/{fn}"'
                         return match.group(0)
-                    if '/api/assets/' in src:
-                        fn = src.split('/api/assets/')[-1].split('?')[0]
-                        data_uri = _read_image_as_data_uri(project.id, fn, package_assets)
-                        if data_uri:
-                            return f'src="{data_uri}"'
-                        return f'src="assets/{fn}"'
-                    elif '/assets/' in src:
-                        fn = src.split('/assets/')[-1].split('?')[0]
-                        data_uri = _read_image_as_data_uri(project.id, fn, package_assets)
-                        if data_uri:
-                            return f'src="{data_uri}"'
-                        return f'src="assets/{fn}"'
-                    return match.group(0)
-                
-                element['htmlContent'] = img_pattern.sub(fix_img_src, html_content)
-            
-            # Fix audio URLs (keep as files, not data URIs)
-        for audio in slide.get('audio', []):
-            if audio.get('src') and '/assets/' in audio.get('src', ''):
-                filename = audio['src'].split('/assets/')[-1]
-                audio['src'] = f"assets/{filename}"
+
+                    element['htmlContent'] = img_pattern.sub(fix_img_src, html_content)
+
+        # Fix audio URLs (keep as files, not data URIs)
+        for audio in (slide.get('audio') or []):
+            if not isinstance(audio, dict):
+                continue
+            audio_src = audio.get('src') or ''
+            if audio_src and isinstance(audio_src, str) and '/assets/' in audio_src:
+                raw = audio_src.split('/assets/')[-1].split('?')[0]
+                filename = raw.split('/')[-1] if '/' in raw else raw
+                if filename:
+                    audio['src'] = f"assets/{filename}"
     
     # Fix global audio URL
     if course_data.get('globalAudio') and course_data['globalAudio'].get('src'):
