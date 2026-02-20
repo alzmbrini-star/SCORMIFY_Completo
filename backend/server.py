@@ -1387,6 +1387,8 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
             )
 
             filename = Path(output_path).name
+            # Persist to GridFS
+            await save_export_to_gridfs(output_path, filename)
             jobs[job_id]['status'] = 'completed'
             jobs[job_id]['progress'] = 100
             jobs[job_id]['message'] = 'Vídeo exportado com sucesso!'
