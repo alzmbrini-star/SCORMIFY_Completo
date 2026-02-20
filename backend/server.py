@@ -1174,6 +1174,12 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
             questions=questions
         )
         
+        # Clean up old exports to prevent disk space exhaustion (keep last 24h)
+        try:
+            await asyncio.to_thread(_cleanup_old_exports, str(EXPORTS_DIR))
+        except Exception as cleanup_err:
+            logger.warning(f"Export cleanup failed (non-fatal): {cleanup_err}")
+        
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
         jobs[job_id]['message'] = 'SCORM package ready'
