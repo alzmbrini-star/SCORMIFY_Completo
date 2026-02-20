@@ -1122,6 +1122,25 @@ async def delete_annotation(project_id: str, slide_id: str, annotation_id: str):
 
 # SCORM Export
 
+def _cleanup_old_exports(exports_dir: str, max_age_hours: int = 24):
+    """Delete export files older than max_age_hours to prevent disk exhaustion."""
+    import time
+    exports_path = Path(exports_dir)
+    if not exports_path.exists():
+        return
+    cutoff = time.time() - max_age_hours * 3600
+    removed = 0
+    for f in exports_path.iterdir():
+        if f.is_file() and f.stat().st_mtime < cutoff:
+            try:
+                f.unlink()
+                removed += 1
+            except Exception:
+                pass
+    if removed:
+        logger.info(f"Cleaned up {removed} old export files from {exports_dir}")
+
+
 @api_router.post("/course/{project_id}/export-scorm")
 async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
     """Export project as SCORM 1.2 package"""
