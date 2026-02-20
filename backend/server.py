@@ -1324,6 +1324,9 @@ async def export_html(project_id: str):
         except Exception:
             pass
         
+        # Persist to GridFS so the file survives container restarts
+        await save_export_to_gridfs(str(html_path), filename)
+        
         return {
             "downloadUrl": f"/api/exports/{filename}",
             "filename": filename,
