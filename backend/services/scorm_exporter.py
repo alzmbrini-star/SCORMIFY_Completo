@@ -428,12 +428,12 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
         json.dump(course_data, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
     
-    # Get slide dimensions
+    # Get slide dimensions with safe None fallback
     slide_width = 960
     slide_height = 540
     if course.slides:
-        slide_width = int(course.slides[0].width)
-        slide_height = int(course.slides[0].height)
+        slide_width = int(course.slides[0].width or 960)
+        slide_height = int(course.slides[0].height or 540)
     
     # Clean the course title - remove UUID prefix if present
     clean_title = course.metadata.title or project.name
