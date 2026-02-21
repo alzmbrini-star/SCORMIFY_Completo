@@ -747,6 +747,7 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
     file_id = str(uuid.uuid4())
     filename = f"{file_id}{ext}"
     file_path = PROJECTS_DIR / project_id / "assets" / filename
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(final_content)
@@ -798,6 +799,7 @@ async def upload_slide_audio(
     ext = Path(file.filename).suffix.lower()
     filename = f"audio_{file_id}{ext}"
     file_path = PROJECTS_DIR / project_id / "assets" / filename
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
@@ -858,6 +860,7 @@ async def set_global_audio(project_id: str, file: UploadFile = File(...)):
     ext = Path(file.filename).suffix.lower()
     filename = f"global_audio_{file_id}{ext}"
     file_path = PROJECTS_DIR / project_id / "assets" / filename
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
