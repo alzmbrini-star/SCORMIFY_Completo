@@ -39,9 +39,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Check and install system dependencies (LibreOffice, poppler-utils)
-# This runs at startup to ensure PPT conversion always works
+# Deferred to background startup task for faster server boot
 logger.info("Starting Scormify API server...")
-ensure_system_dependencies()
 
 # Storage directories
 STORAGE_DIR = ROOT_DIR / "storage"
