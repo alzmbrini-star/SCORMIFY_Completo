@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { sanitizeHtmlContent, stripDomainFromAssetUrls, resolveAssetUrls } from '../utils/htmlUtils';
+import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -427,7 +428,7 @@ export default function Editor() {
   // Copy/paste state
   const [copiedElement, setCopiedElement] = useState(null);
 
-  const API_URL = process.env.REACT_APP_BACKEND_URL;
+  const API_URL = getApiUrl();
 
   // DnD sensors
   const sensors = useSensors(
