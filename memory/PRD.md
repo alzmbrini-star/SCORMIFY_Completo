@@ -41,5 +41,10 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Fix:** Added MongoDB GridFS persistence layer. Files are saved to GridFS after generation. Download endpoint falls back to GridFS if the local file is missing, restoring it transparently
 - **Tested:** Export → delete local file → download succeeds via GridFS restore
 
+## Audio Upload Fix (Feb 2026)
+- **Root cause:** After container restart/deploy, local project directories (`storage/projects/{id}/assets/`) don't exist. Audio upload, media upload, and global audio endpoints tried to write files without creating the directory first → 500 error
+- **Fix:** Added `file_path.parent.mkdir(parents=True, exist_ok=True)` before file write in 3 endpoints: `upload_media`, `upload_slide_audio`, `set_global_audio`
+- **Tested:** Deleted local assets dir, uploaded audio → HTTP 200 success
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
