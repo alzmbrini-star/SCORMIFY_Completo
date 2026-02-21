@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { getApiUrl } from '../utils/apiUrl';
 import { 
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -454,7 +455,7 @@ export const RichTextEditor = ({
     if (!url) return url;
     if (url.startsWith('http')) return url;
     if (url.startsWith('/api/')) {
-      return `${process.env.REACT_APP_BACKEND_URL}${url}`;
+      return `${getApiUrl()}${url}`;
     }
     return url;
   }, []);
