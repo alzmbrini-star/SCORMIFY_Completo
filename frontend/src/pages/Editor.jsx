@@ -626,7 +626,7 @@ export default function Editor() {
     try {
       setExportLoading(true);
       const result = await exportScorm();
-      setDownloadUrl(`${process.env.REACT_APP_BACKEND_URL}${result.downloadUrl}`);
+      setDownloadUrl(`${getApiUrl()}${result.downloadUrl}`);
       toast.success('SCORM package ready!');
     } catch (err) {
       toast.error('Export failed');
@@ -639,9 +639,9 @@ export default function Editor() {
     try {
       setExportLoading(true);
       const response = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/course/${currentProject.id}/export-html`
+        `${getApiUrl()}/api/course/${currentProject.id}/export-html`
       );
-      setDownloadUrl(`${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`);
+      setDownloadUrl(`${getApiUrl()}${response.data.downloadUrl}`);
       toast.success('HTML file ready!');
     } catch (err) {
       console.error('HTML export error:', err);
