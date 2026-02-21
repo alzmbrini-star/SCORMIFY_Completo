@@ -46,5 +46,11 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Fix:** Added `file_path.parent.mkdir(parents=True, exist_ok=True)` before file write in 3 endpoints: `upload_media`, `upload_slide_audio`, `set_global_audio`
 - **Tested:** Deleted local assets dir, uploaded audio → HTTP 200 success
 
+## Backend Startup Optimization (Feb 2026)
+- **Root cause:** Heavy module-level imports (PIL, python-pptx, scorm_exporter, html_exporter, video_exporter, system_deps) were loaded at server boot time, causing ~35 second startup delay in production containers
+- **Fix:** Converted all heavy imports to lazy imports (loaded inside functions on first use). Moved `ensure_system_dependencies()` to a background startup task
+- **Result:** Startup time reduced from ~35 seconds to ~1.2 seconds. Health check responds almost instantly
+- **Tested:** Backend restarts in ~1.2s, health check OK, SCORM export OK, image upload with PIL optimization OK
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
