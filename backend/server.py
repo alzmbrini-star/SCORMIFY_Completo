@@ -1263,7 +1263,6 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=f"SCORM export failed: {str(e)}")
 
 # HTML Standalone Export
-from services.html_exporter import generate_standalone_html
 
 @api_router.post("/course/{project_id}/export-html")
 async def export_html(project_id: str):
@@ -1273,6 +1272,7 @@ async def export_html(project_id: str):
         raise HTTPException(status_code=404, detail="Project not found")
     
     try:
+        from services.html_exporter import generate_standalone_html
         # Get assets directory
         assets_dir = str(PROJECTS_DIR / project_id / "assets")
         
