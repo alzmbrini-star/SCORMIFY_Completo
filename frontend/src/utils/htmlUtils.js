@@ -3,7 +3,8 @@
  * Used across Editor, SlideCanvas, and export components
  */
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+import { getApiUrl } from './apiUrl';
+const API_URL = getApiUrl();
 
 /**
  * Sanitize HTML content by removing Tailwind CSS variables and editor artifacts

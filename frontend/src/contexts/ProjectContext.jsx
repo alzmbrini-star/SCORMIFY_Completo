@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { getApiUrl } from '../utils/apiUrl';
+const API_URL = `${getApiUrl()}/api`;
 
 // Configure axios to handle 404 errors gracefully
 axios.interceptors.response.use(

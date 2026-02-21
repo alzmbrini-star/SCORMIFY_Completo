@@ -19,7 +19,8 @@ import {
   Settings
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { getApiUrl } from '../utils/apiUrl';
+const API_URL = getApiUrl();
 
 export default function Admin() {
   const navigate = useNavigate();

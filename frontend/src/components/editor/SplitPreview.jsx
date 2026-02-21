@@ -23,7 +23,8 @@ import {
 import QuizPlayer from '../quiz/QuizPlayer';
 import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { getApiUrl } from '../../utils/apiUrl';
+const API_URL = getApiUrl();
 
 const getAssetUrl = (src, projectId) => {
   if (!src) return '';
