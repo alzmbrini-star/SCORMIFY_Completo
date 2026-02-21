@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -453,7 +454,7 @@ export default function Dashboard() {
                       />
                     ) : project.course?.slides?.[0]?.backgroundImage ? (
                       <img
-                        src={`${process.env.REACT_APP_BACKEND_URL}${project.course.slides[0].backgroundImage}`}
+                        src={`${getApiUrl()}${project.course.slides[0].backgroundImage}`}
                         alt=""
                         className="w-full h-full object-cover"
                       />
