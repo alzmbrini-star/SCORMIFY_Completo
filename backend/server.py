@@ -18,7 +18,6 @@ import io
 import asyncio
 import json
 import base64
-from PIL import Image
 
 from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
@@ -28,10 +27,6 @@ from models import (
     QuizQuestion, QuizQuestionCreate, QuizQuestionUpdate, QuizAlternative,
     QuizConfig, QuizAttempt, QuizGenerateRequest, QuizSubmitRequest
 )
-from services.ppt_parser import parse_pptx
-from services.ppt_image_parser import parse_pptx_high_fidelity
-from services.scorm_exporter import export_scorm_package
-from utils.system_deps import ensure_system_dependencies
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=False)
