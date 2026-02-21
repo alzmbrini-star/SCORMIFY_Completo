@@ -3400,14 +3400,15 @@ async def root():
 async def root_health():
     return {"status": "healthy"}
 
-# CORS - using Starlette's robust CORSMiddleware with regex pattern matching
+# CORS - Allow all origins for cross-domain production deployments
+# With credentials=True, we must echo back the specific origin (not "*")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost:3000|.*\.emergentagent\.com|.*\.preview\.emergentagent\.com|.*\.emergent\.host)",
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    max_age=300,
+    max_age=3600,
 )
 
 
