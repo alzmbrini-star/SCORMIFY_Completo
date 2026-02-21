@@ -682,6 +682,7 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
     
     if ext in image_extensions:
         try:
+            from PIL import Image
             # Open image with Pillow
             img = Image.open(io.BytesIO(content))
             original_width, original_height = img.size
