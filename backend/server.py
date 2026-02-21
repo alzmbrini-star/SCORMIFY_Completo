@@ -3544,6 +3544,19 @@ async def startup_persist_local_assets():
     logger.info("Startup asset persistence: started in background thread")
 
 
+@app.on_event("startup")
+async def startup_check_system_deps():
+    """Check system dependencies in background (non-blocking)"""
+    import threading
+    def _check():
+        try:
+            from utils.system_deps import ensure_system_dependencies
+            ensure_system_dependencies()
+        except Exception as e:
+            logger.warning(f"System dependency check failed (non-fatal): {e}")
+    threading.Thread(target=_check, daemon=True).start()
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
