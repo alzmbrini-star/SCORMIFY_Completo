@@ -52,5 +52,11 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Result:** Startup time reduced from ~35 seconds to ~1.2 seconds. Health check responds almost instantly
 - **Tested:** Backend restarts in ~1.2s, health check OK, SCORM export OK, image upload with PIL optimization OK
 
+## Frontend API URL Fix (Feb 2026)
+- **Root cause:** `REACT_APP_BACKEND_URL` in production was set to `gemini-voice-text.emergent.host` (wrong/down domain), but backend runs on `backend-startup.emergent.host`
+- **Fix:** Created `utils/apiUrl.js` utility that uses `window.location.origin` in the browser (always the correct domain). Replaced ALL `process.env.REACT_APP_BACKEND_URL` references across 10+ files
+- **Files changed:** AuthContext.jsx, ProjectContext.jsx, Editor.jsx, Dashboard.jsx, SlideCanvas.jsx, CoursePreview.jsx, SplitPreview.jsx, QuizGenerator.jsx, Admin.jsx, RichTextEditor.jsx, htmlUtils.js
+- **Tested:** Login, dashboard, project list all work correctly
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
