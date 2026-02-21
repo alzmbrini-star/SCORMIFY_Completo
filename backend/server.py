@@ -144,6 +144,7 @@ async def update_project(project_id: str, update_data: dict):
 def process_ppt_upload(job_id: str, file_path: str, project_id: str):
     """Process uploaded PPT file in background using high-fidelity parser"""
     from pymongo import MongoClient
+    from services.ppt_image_parser import parse_pptx_high_fidelity
     
     try:
         jobs[job_id]['status'] = 'processing'
