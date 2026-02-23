@@ -1224,9 +1224,9 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
                 # Get the backend URL for SCORM to call back
-                backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+                backend_url = os.environ.get('PUBLIC_URL', '')
                 if not backend_url:
-                    backend_url = os.environ.get('BACKEND_URL', '')
+                    backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
                 tutor_settings = {
                     'enabled': True,
                     'apiUrl': backend_url,
