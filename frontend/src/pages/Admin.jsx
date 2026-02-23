@@ -328,7 +328,15 @@ export default function Admin() {
             className="gap-2"
           >
             <Users className="w-4 h-4" />
-            Usuários
+            Usuarios
+          </Button>
+          <Button
+            variant={activeTab === 'tutor' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('tutor')}
+            className="gap-2"
+          >
+            <Bot className="w-4 h-4" />
+            Tutor IA
           </Button>
         </div>
 
