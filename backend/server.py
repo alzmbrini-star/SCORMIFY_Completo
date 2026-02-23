@@ -3388,6 +3388,121 @@ async def get_recommended_voices():
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
+# =============================================================================
+# AI Tutor - Chat endpoint for SCORM courses
+# =============================================================================
+
+@api_router.get("/admin/tutor-settings")
+async def get_tutor_settings():
+    """Get global AI tutor settings"""
+    settings = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
+    if not settings:
+        settings = {
+            "key": "tutor",
+            "enabled": True,
+            "messageLimit": 50,
+            "suggestedQuestions": [],
+            "systemPrompt": "",
+            "tutorName": "Tutor IA"
+        }
+    return settings
+
+
+@api_router.put("/admin/tutor-settings")
+async def update_tutor_settings(request: Request):
+    """Update global AI tutor settings"""
+    data = await request.json()
+    data["key"] = "tutor"
+    await db.settings.update_one(
+        {"key": "tutor"},
+        {"$set": data},
+        upsert=True
+    )
+    return {"status": "ok", "message": "Tutor settings updated"}
+
+
+@api_router.post("/tutor/chat")
+async def tutor_chat(request: Request):
+    """AI Tutor chat endpoint - called from SCORM packages running in LMS"""
+    data = await request.json()
+    user_message = data.get("message", "")
+    course_topic = data.get("courseTopic", "")
+    course_context = data.get("courseContext", "")
+    history = data.get("history", [])
+    session_id = data.get("sessionId", str(uuid.uuid4()))
+
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    # Get tutor settings
+    settings = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
+    if not settings or not settings.get("enabled", True):
+        raise HTTPException(status_code=403, detail="AI Tutor is disabled")
+
+    message_limit = settings.get("messageLimit", 50)
+    tutor_name = settings.get("tutorName", "Tutor IA")
+    custom_prompt = settings.get("systemPrompt", "")
+
+    # Check message limit
+    msg_count = len([m for m in history if m.get("role") == "user"])
+    if msg_count >= message_limit:
+        return {
+            "response": f"Você atingiu o limite de {message_limit} mensagens para esta sessão. Revise o conteúdo do curso para continuar aprendendo!",
+            "limitReached": True
+        }
+
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+        system_msg = f"""Você é o "{tutor_name}", um tutor educacional especializado e amigável.
+Seu papel é ajudar alunos a entender o conteúdo do curso sobre: {course_topic}
+
+REGRAS IMPORTANTES:
+1. Responda SOMENTE sobre temas relacionados ao curso: "{course_topic}"
+2. Se o aluno perguntar sobre algo fora do tema do curso, educadamente redirecione para o conteúdo do curso
+3. Use linguagem clara e acessível
+4. Dê exemplos práticos quando possível
+5. Incentive o aluno a explorar mais o conteúdo
+6. Responda no mesmo idioma da pergunta do aluno
+7. Mantenha respostas concisas (máximo 3 parágrafos)
+
+CONTEXTO DO CURSO:
+{course_context}"""
+
+        if custom_prompt:
+            system_msg += f"\n\nINSTRUÇÕES ADICIONAIS DO INSTRUTOR:\n{custom_prompt}"
+
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"tutor-{session_id}",
+            system_message=system_msg
+        ).with_model("gemini", "gemini-3-flash-preview")
+
+        # Build conversation context from history
+        for msg in history[-10:]:  # Last 10 messages for context
+            if msg.get("role") == "user":
+                await chat.send_message(UserMessage(text=msg["content"]))
+            # Assistant messages are automatically tracked by LlmChat
+
+        # Send current message
+        response = await chat.send_message(UserMessage(text=user_message))
+
+        return {
+            "response": response,
+            "limitReached": False,
+            "messagesUsed": msg_count + 1,
+            "messageLimit": message_limit
+        }
+
+    except Exception as e:
+        logger.error(f"Tutor chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+
+
 # Include router
 app.include_router(api_router)
 
