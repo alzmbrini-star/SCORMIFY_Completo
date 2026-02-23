@@ -604,6 +604,7 @@ export default function Admin() {
           </div>
         </div>
       )}
+      </div>
 
       {/* Company Modal */}
       {showCompanyModal && (
