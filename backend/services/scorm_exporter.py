@@ -419,6 +419,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     # Add tutor configuration
     if tutor_config and tutor_config.get('enabled'):
         # Build course context from slide content for the tutor
+        import re as _re
         slide_summaries = []
         for i, slide in enumerate(course_data.get('slides') or []):
             if not isinstance(slide, dict):
@@ -426,17 +427,27 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             elements_text = []
             for elem in (slide.get('elements') or []):
                 if isinstance(elem, dict):
-                    html_content = elem.get('htmlContent') or elem.get('text') or ''
-                    if html_content:
-                        # Strip HTML tags for plain text summary
-                        import re as _re
-                        plain = _re.sub(r'<[^>]+>', ' ', html_content).strip()
+                    # Extract text from all possible fields: content (text/shape), htmlContent (html elements), text (legacy)
+                    raw = elem.get('content') or elem.get('htmlContent') or elem.get('text') or ''
+                    if raw:
+                        plain = _re.sub(r'<[^>]+>', ' ', raw).strip()
+                        plain = _re.sub(r'\s+', ' ', plain)  # collapse whitespace
                         if plain:
                             elements_text.append(plain[:500])
+                    # Also extract button text
+                    btn_text = elem.get('buttonText')
+                    if btn_text:
+                        elements_text.append(btn_text)
+                    # Extract quiz questions for context
+                    quiz_cfg = elem.get('quizConfig')
+                    if quiz_cfg and isinstance(quiz_cfg, dict):
+                        q_title = quiz_cfg.get('title')
+                        if q_title:
+                            elements_text.append(f"Quiz: {q_title}")
             if elements_text:
                 slide_summaries.append(f"Slide {i+1}: " + " | ".join(elements_text))
         
-        course_context = "\n".join(slide_summaries[:30])  # Limit to 30 slides
+        course_context = "\n".join(slide_summaries[:50])  # Limit to 50 slides
         
         course_data['tutorConfig'] = {
             'enabled': True,
