@@ -10,6 +10,8 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **[DONE]** Ensure all core functionalities are stable in production
 - **[DONE]** Achieve stable production deployment (Nginx startup conflict resolved)
 - **[DONE]** Ensure projects are visible and accessible after login
+- **[DONE]** AI Tutor feature (Gemini-powered, admin-configurable, SCORM-embedded)
+- **[DONE]** Fix AI Tutor keyboard blocking in SCORM exports
 
 ## Architecture
 - **Frontend:** React (port 3000)
@@ -20,7 +22,7 @@ Application is a React/FastAPI course authoring tool with features including SCO
 ## 3rd Party Integrations
 - ElevenLabs (TTS)
 - HeyGen (avatar video)
-- Google Gemini via Emergent LLM Key (AI script generation)
+- Google Gemini via Emergent LLM Key (AI script generation + AI Tutor)
 - ConvertAPI (PPT conversion, user API key)
 
 ## What's Been Implemented
@@ -39,12 +41,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 ## Export Persistence Fix (Feb 2026)
 - **Root cause:** Export files (SCORM, HTML, video) stored only on ephemeral local disk. Container restarts/deploys wipe the files, causing "File not found" on download
 - **Fix:** Added MongoDB GridFS persistence layer. Files are saved to GridFS after generation. Download endpoint falls back to GridFS if the local file is missing, restoring it transparently
-- **Tested:** Export → delete local file → download succeeds via GridFS restore
+- **Tested:** Export -> delete local file -> download succeeds via GridFS restore
 
 ## Audio Upload Fix (Feb 2026)
-- **Root cause:** After container restart/deploy, local project directories (`storage/projects/{id}/assets/`) don't exist. Audio upload, media upload, and global audio endpoints tried to write files without creating the directory first → 500 error
+- **Root cause:** After container restart/deploy, local project directories (`storage/projects/{id}/assets/`) don't exist. Audio upload, media upload, and global audio endpoints tried to write files without creating the directory first -> 500 error
 - **Fix:** Added `file_path.parent.mkdir(parents=True, exist_ok=True)` before file write in 3 endpoints: `upload_media`, `upload_slide_audio`, `set_global_audio`
-- **Tested:** Deleted local assets dir, uploaded audio → HTTP 200 success
+- **Tested:** Deleted local assets dir, uploaded audio -> HTTP 200 success
 
 ## Backend Startup Optimization (Feb 2026)
 - **Root cause:** Heavy module-level imports (PIL, python-pptx, scorm_exporter, html_exporter, video_exporter, system_deps) were loaded at server boot time, causing ~35 second startup delay in production containers
@@ -53,9 +55,8 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Tested:** Backend restarts in ~1.2s, health check OK, SCORM export OK, image upload with PIL optimization OK
 
 ## Frontend API URL Fix (Feb 2026)
-- **Root cause:** `REACT_APP_BACKEND_URL` in production was set to `gemini-voice-text.emergent.host` (wrong/down domain), but backend runs on `backend-startup.emergent.host`
+- **Root cause:** `REACT_APP_BACKEND_URL` in production was set to wrong domain
 - **Fix:** Created `utils/apiUrl.js` utility that uses `window.location.origin` in the browser (always the correct domain). Replaced ALL `process.env.REACT_APP_BACKEND_URL` references across 10+ files
-- **Files changed:** AuthContext.jsx, ProjectContext.jsx, Editor.jsx, Dashboard.jsx, SlideCanvas.jsx, CoursePreview.jsx, SplitPreview.jsx, QuizGenerator.jsx, Admin.jsx, RichTextEditor.jsx, htmlUtils.js
 - **Tested:** Login, dashboard, project list all work correctly
 
 ## AI Tutor Feature (Feb 2026)
@@ -65,5 +66,14 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Features:** Session history, pre-defined question suggestions, message counter, mobile responsive, markdown formatting
 - **Tested:** 100% pass rate (10 backend + 8 frontend tests)
 
+## AI Tutor Keyboard Fix (Feb 2026)
+- **Root cause:** SCORM player.js had a document-level `keydown` listener that captured Space, Enter, ArrowLeft/Right, Backspace, f/F for slide navigation. When typing in the tutor input, these events propagated up and blocked normal typing.
+- **Fix (two layers):**
+  1. `player.js`: Added guard to skip keyboard navigation when `e.target` is `input`, `textarea`, or `contentEditable`
+  2. `tutor.js`: Added `e.stopPropagation()` on `keydown`, `keyup`, `keypress` events from the tutor input field
+- **Note:** Existing already-exported SCORM packages are NOT affected. Users must re-export to get the fix.
+- **Tested:** 9/9 tests passed (iteration_29)
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
+- **P2:** Refactor `backend/server.py` into multiple APIRouter files
