@@ -1743,6 +1743,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof QuizController !== 'undefined' && data.questions) {
                 QuizController.init(data);
             }
+            // Initialize AI Tutor if configured
+            if (typeof AiTutor !== 'undefined' && data.tutorConfig && data.tutorConfig.enabled) {
+                AiTutor.init(data.tutorConfig);
+            }
         })
         .catch(function(error) { console.error('Failed to load course:', error); });
 });
