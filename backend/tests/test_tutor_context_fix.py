@@ -69,7 +69,13 @@ class TestTutorSettings:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data.get('enabled') == True
+        # API returns success message, not the updated settings
+        assert data.get('status') == 'ok' or data.get('message') is not None
+        
+        # Verify by reading settings again
+        verify_resp = requests.get(f"{BASE_URL}/api/admin/tutor-settings")
+        verify_data = verify_resp.json()
+        assert verify_data.get('enabled') == True
         print("✅ Tutor settings update working")
 
 
