@@ -1,0 +1,71 @@
+{
+  "summary": "Bug fix testing for keyboard input blocking in SCORM exports. Both bug fixes verified: (1) player.js keyboard navigation now skips when e.target is input/textarea/contentEditable (line 1684-1689), (2) tutor.js input calls e.stopPropagation() on keydown/keyup/keypress events (lines 79-89). All 9 tests passed including health endpoint, tutor settings API, tutor chat API, SCORM export validation, and source file verification.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "✅ GET /api/health returns 200 with status: healthy",
+    "✅ GET /api/admin/tutor-settings returns settings or defaults",
+    "✅ PUT /api/admin/tutor-settings updates and persists settings correctly",
+    "✅ POST /api/tutor/chat is reachable (returns 400 for empty message)",
+    "✅ SCORM export returns valid downloadUrl",
+    "✅ Downloaded SCORM ZIP is valid with multiple files",
+    "✅ SCORM package contains player.js with keyboard navigation guard",
+    "✅ SCORM package contains tutor.js with stopPropagation (when tutor enabled)",
+    "✅ Source player.js (/app/backend/services/export_assets/player.js) has keyboard input guard at lines 1684-1689",
+    "✅ Source tutor.js (/app/backend/services/export_assets/tutor.js) has stopPropagation at lines 79-89"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_keyboard_bugfix.py",
+    "/app/test_reports/pytest/pytest_keyboard_bugfix.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "✅ player.js (line 1684-1689): Correctly checks tagName for 'input' or 'textarea' and e.target.isContentEditable before processing keyboard shortcuts",
+    "✅ player.js: Returns early to let user type freely when focused on input elements",
+    "✅ tutor.js (line 79-89): stopPropagation called on all keyboard events (keydown, keyup, keypress) from tutor input",
+    "✅ tutor.js: Enter key still triggers send() with stopPropagation to prevent navigation",
+    "✅ scorm_exporter.py (line 264-275): Correctly reads player.js and tutor.js from export_assets directory",
+    "✅ Both files are embedded in SCORM ZIP exports, ensuring new exports have the fix"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_keyboard_bugfix.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "N/A - requires auth, login page loads correctly"
+  },
+
+  "test_credentials": null,
+
+  "seed_data_creation": "Test project (TEST_KeyboardBugfix_Project) created and cleaned up during SCORM export tests",
+
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Keyboard input bug fix in SCORM exports has been verified. The fix ensures that when users type in the AI Tutor chat input (or any input/textarea), the SCORM player's keyboard navigation (ArrowLeft/Right, Space, Enter, Backspace, f/F) does not intercept the events. Two-layer protection: (1) player.js checks e.target tagName before handling shortcuts, (2) tutor.js calls stopPropagation on all keyboard events. Future SCORM exports will include these fixes. Existing already-exported packages are NOT affected - users must re-export.",
+
+  "bug_fix_verification": {
+    "issue": "AI Tutor widget in SCORM exports was blocking keyboard input - SCORM player's keyboard navigation intercepted events",
+    "root_cause": "player.js keyboard handler processed all keydown events without checking if target was an input element",
+    "fix_location_1": "/app/backend/services/export_assets/player.js lines 1684-1689",
+    "fix_details_1": "Added check: if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;",
+    "fix_location_2": "/app/backend/services/export_assets/tutor.js lines 79-89",
+    "fix_details_2": "Added e.stopPropagation() to keydown, keyup, and keypress event listeners on tutor input",
+    "verified": true
+  }
+}
