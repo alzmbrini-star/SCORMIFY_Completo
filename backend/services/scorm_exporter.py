@@ -414,6 +414,39 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         course_data['questions'] = questions
         logger.info(f"Added {len(questions)} questions to course.json for quiz support")
     
+    # Add tutor configuration
+    if tutor_config and tutor_config.get('enabled'):
+        # Build course context from slide content for the tutor
+        slide_summaries = []
+        for i, slide in enumerate(course_data.get('slides') or []):
+            if not isinstance(slide, dict):
+                continue
+            elements_text = []
+            for elem in (slide.get('elements') or []):
+                if isinstance(elem, dict):
+                    html_content = elem.get('htmlContent') or elem.get('text') or ''
+                    if html_content:
+                        # Strip HTML tags for plain text summary
+                        import re as _re
+                        plain = _re.sub(r'<[^>]+>', ' ', html_content).strip()
+                        if plain:
+                            elements_text.append(plain[:500])
+            if elements_text:
+                slide_summaries.append(f"Slide {i+1}: " + " | ".join(elements_text))
+        
+        course_context = "\n".join(slide_summaries[:30])  # Limit to 30 slides
+        
+        course_data['tutorConfig'] = {
+            'enabled': True,
+            'apiUrl': tutor_config.get('apiUrl', ''),
+            'courseTopic': tutor_config.get('courseTopic', course.metadata.title or project.name),
+            'courseContext': course_context,
+            'tutorName': tutor_config.get('tutorName', 'Tutor IA'),
+            'messageLimit': tutor_config.get('messageLimit', 50),
+            'suggestedQuestions': tutor_config.get('suggestedQuestions', [])
+        }
+        logger.info(f"AI Tutor enabled for SCORM package with {len(slide_summaries)} slide summaries")
+    
     # Verify audio assets exist and restore from MongoDB if missing
     for slide in (course_data.get('slides') or []):
         if not isinstance(slide, dict):
