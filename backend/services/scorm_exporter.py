@@ -127,6 +127,8 @@ IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
             <file href="scripts/scorm-api.js"/>
             <file href="scripts/quiz-controller.js"/>
             <file href="scripts/player.js"/>
+            <file href="scripts/tutor.js"/>
+            <file href="styles/tutor.css"/>
             {resource_files}
         </resource>
     </resources>
