@@ -1179,7 +1179,7 @@ async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
 
 
 @api_router.post("/course/{project_id}/export-scorm")
-async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
+async def export_scorm(project_id: str, request: Request, background_tasks: BackgroundTasks):
     """Export project as SCORM 1.2 package"""
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
