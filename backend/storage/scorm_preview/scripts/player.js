@@ -1681,8 +1681,12 @@ var CoursePlayer = (function() {
         }
     }
     
-    // Keyboard navigation
+    // Keyboard navigation - skip when user is typing in an input/textarea (e.g. AI Tutor)
     document.addEventListener('keydown', function(e) {
+        var tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) {
+            return; // Let the user type freely
+        }
         switch (e.key) {
             case 'ArrowRight':
             case 'Space':
@@ -1742,6 +1746,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Initialize quiz controller with questions
             if (typeof QuizController !== 'undefined' && data.questions) {
                 QuizController.init(data);
+            }
+            // Initialize AI Tutor if configured
+            if (typeof AiTutor !== 'undefined' && data.tutorConfig && data.tutorConfig.enabled) {
+                AiTutor.init(data.tutorConfig);
             }
         })
         .catch(function(error) { console.error('Failed to load course:', error); });
