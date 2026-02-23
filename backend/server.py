@@ -1223,10 +1223,17 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                # Get the backend URL for SCORM to call back
-                backend_url = os.environ.get('PUBLIC_URL', '')
-                if not backend_url:
-                    backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+                # Detect the backend URL from the current request
+                # This works automatically in both dev and production
+                origin = request.headers.get('origin', '')
+                if origin:
+                    backend_url = origin
+                else:
+                    # Fallback: build from request host
+                    scheme = request.headers.get('x-forwarded-proto', 'https')
+                    host = request.headers.get('host', '')
+                    backend_url = f"{scheme}://{host}" if host else ''
+                
                 tutor_settings = {
                     'enabled': True,
                     'apiUrl': backend_url,
