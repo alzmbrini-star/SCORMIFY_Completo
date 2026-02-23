@@ -43,6 +43,17 @@ export default function Admin() {
   // Form states
   const [companyForm, setCompanyForm] = useState({ name: '', slug: '', maxUsers: 10, maxProjects: 100 });
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'editor', companyId: '' });
+  
+  // Tutor states
+  const [tutorSettings, setTutorSettings] = useState({
+    enabled: true,
+    tutorName: 'Tutor IA',
+    messageLimit: 50,
+    suggestedQuestions: [],
+    systemPrompt: ''
+  });
+  const [newSuggestion, setNewSuggestion] = useState('');
+  const [tutorLoading, setTutorLoading] = useState(false);
 
   useEffect(() => {
     if (!isCompanyAdmin) {
