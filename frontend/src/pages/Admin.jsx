@@ -61,6 +61,7 @@ export default function Admin() {
       return;
     }
     fetchData();
+    fetchTutorSettings();
   }, [isCompanyAdmin, navigate]);
 
   const fetchData = async () => {
