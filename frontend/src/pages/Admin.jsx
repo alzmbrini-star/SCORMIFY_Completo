@@ -81,6 +81,48 @@ export default function Admin() {
     }
   };
 
+  const fetchTutorSettings = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/tutor-settings`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setTutorSettings(prev => ({ ...prev, ...data }));
+      }
+    } catch (e) { console.error('Tutor settings fetch error:', e); }
+  };
+
+  const saveTutorSettings = async () => {
+    setTutorLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/tutor-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(tutorSettings)
+      });
+      if (res.ok) toast.success('Configuracoes do Tutor IA salvas!');
+      else toast.error('Erro ao salvar configuracoes');
+    } catch (e) { toast.error('Erro ao salvar'); }
+    finally { setTutorLoading(false); }
+  };
+
+  const addSuggestion = () => {
+    if (newSuggestion.trim()) {
+      setTutorSettings(prev => ({
+        ...prev,
+        suggestedQuestions: [...prev.suggestedQuestions, newSuggestion.trim()]
+      }));
+      setNewSuggestion('');
+    }
+  };
+
+  const removeSuggestion = (index) => {
+    setTutorSettings(prev => ({
+      ...prev,
+      suggestedQuestions: prev.suggestedQuestions.filter((_, i) => i !== index)
+    }));
+  };
+
   // Company CRUD
   const handleSaveCompany = async () => {
     try {
