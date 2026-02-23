@@ -58,5 +58,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Files changed:** AuthContext.jsx, ProjectContext.jsx, Editor.jsx, Dashboard.jsx, SlideCanvas.jsx, CoursePreview.jsx, SplitPreview.jsx, QuizGenerator.jsx, Admin.jsx, RichTextEditor.jsx, htmlUtils.js
 - **Tested:** Login, dashboard, project list all work correctly
 
+## AI Tutor Feature (Feb 2026)
+- **Backend:** `POST /api/tutor/chat` endpoint using Google Gemini (via Emergent LLM Key) with course context, conversation history, message limit enforcement. `GET/PUT /api/admin/tutor-settings` for global configuration
+- **Admin Panel:** New "Tutor IA" tab with: enable/disable toggle, tutor name, message limit, custom system prompt, suggested questions management
+- **SCORM Export:** Floating chat widget (tutor.js + tutor.css) embedded in packages. Course content automatically extracted as context. Backend API URL embedded for LMS callback
+- **Features:** Session history, pre-defined question suggestions, message counter, mobile responsive, markdown formatting
+- **Tested:** 100% pass rate (10 backend + 8 frontend tests)
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
