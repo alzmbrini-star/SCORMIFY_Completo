@@ -501,9 +501,6 @@ export default function Admin() {
             </div>
           </div>
         )}
-      </div>
-
-      )}
 
       {/* Tutor IA Tab */}
       {activeTab === 'tutor' && (
