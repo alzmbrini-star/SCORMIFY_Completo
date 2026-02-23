@@ -1218,6 +1218,26 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
             questions = question_docs
             logger.info(f"Loaded {len(questions)} questions for SCORM export")
         
+        # Load tutor settings
+        tutor_settings = None
+        try:
+            settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
+            if settings_doc and settings_doc.get("enabled"):
+                # Get the backend URL for SCORM to call back
+                backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+                if not backend_url:
+                    backend_url = os.environ.get('BACKEND_URL', '')
+                tutor_settings = {
+                    'enabled': True,
+                    'apiUrl': backend_url,
+                    'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
+                    'messageLimit': settings_doc.get('messageLimit', 50),
+                    'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
+                    'courseTopic': project.course.metadata.title or project.name
+                }
+        except Exception as e:
+            logger.warning(f"Tutor settings load failed (non-fatal): {e}")
+
         # Generate package with questions
         # Run in thread pool to avoid blocking the async event loop
         # (export_scorm_package is a CPU+IO intensive synchronous function)
@@ -1228,7 +1248,8 @@ async def export_scorm(project_id: str, background_tasks: BackgroundTasks):
             project,
             str(PROJECTS_DIR),
             str(EXPORTS_DIR),
-            questions=questions
+            questions=questions,
+            tutor_config=tutor_settings
         )
         
         # Clean up old exports to prevent disk space exhaustion (keep last 24h)
