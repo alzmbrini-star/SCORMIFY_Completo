@@ -74,6 +74,15 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Note:** Existing already-exported SCORM packages are NOT affected. Users must re-export to get the fix.
 - **Tested:** 9/9 tests passed (iteration_29)
 
+## AI Tutor Context Fix (Feb 2026)
+- **Root cause:** SCORM exporter extracted course context using `htmlContent` and `text` fields, but elements actually store text in the `content` field. Result: empty context sent to Gemini, making the tutor respond generically without referencing course material.
+- **Fix:**
+  1. `scorm_exporter.py`: Changed extraction to check `content` first, then `htmlContent`, then `text`. Also extracts `buttonText` and quiz titles.
+  2. `server.py`: Improved system prompt to instruct Gemini to cite specific slides (e.g., "Conforme apresentado no Slide 3...").
+  3. Increased slide limit from 30 to 50 for richer context.
+- **Note:** Users must re-export SCORM packages to get the improved context.
+- **Tested:** 12/12 tests passed (iteration_30). Tutor now responds with slide-specific citations.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
