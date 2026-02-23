@@ -76,13 +76,17 @@ var AiTutor = (function() {
 
         document.body.appendChild(panel);
 
-        // Enter key
-        document.getElementById('tutor-input').addEventListener('keydown', function(e) {
+        // Stop ALL keyboard events from propagating to the SCORM player
+        var tutorInput = document.getElementById('tutor-input');
+        tutorInput.addEventListener('keydown', function(e) {
+            e.stopPropagation();
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 AiTutor.send();
             }
         });
+        tutorInput.addEventListener('keyup', function(e) { e.stopPropagation(); });
+        tutorInput.addEventListener('keypress', function(e) { e.stopPropagation(); });
 
         updateCounter();
     }
