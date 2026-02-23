@@ -266,6 +266,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     with open(package_dir / "scripts" / "quiz-controller.js", 'w') as f:
         f.write(_read_asset("quiz-controller.js"))
     
+    # Write AI tutor files if tutor is enabled
+    if tutor_config and tutor_config.get('enabled'):
+        (package_dir / "styles").mkdir(exist_ok=True)
+        with open(package_dir / "scripts" / "tutor.js", 'w') as f:
+            f.write(_read_asset("tutor.js"))
+        with open(package_dir / "styles" / "tutor.css", 'w') as f:
+            f.write(_read_asset("tutor.css"))
+    
     # Prepare course.json - Fix asset URLs for SCORM package
     course_data = course.model_dump()
     
