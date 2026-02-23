@@ -503,6 +503,111 @@ export default function Admin() {
         )}
       </div>
 
+      )}
+
+      {/* Tutor IA Tab */}
+      {activeTab === 'tutor' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-white">Tutor IA</h2>
+            <Button onClick={saveTutorSettings} disabled={tutorLoading} className="gap-2" data-testid="save-tutor-settings">
+              <Save className="w-4 h-4" />
+              {tutorLoading ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 space-y-6">
+            {/* Enable/Disable */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-medium">Ativar Tutor IA</h3>
+                <p className="text-sm text-slate-400">Inclui um chat de IA nos pacotes SCORM exportados</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer" data-testid="tutor-enabled-toggle">
+                <input
+                  type="checkbox"
+                  checked={tutorSettings.enabled}
+                  onChange={(e) => setTutorSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-600 peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            {/* Tutor Name */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">Nome do Tutor</label>
+              <Input
+                value={tutorSettings.tutorName}
+                onChange={(e) => setTutorSettings(prev => ({ ...prev, tutorName: e.target.value }))}
+                placeholder="Ex: Tutor IA, Professor Virtual"
+                data-testid="tutor-name-input"
+              />
+            </div>
+
+            {/* Message Limit */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">Limite de mensagens por sessao</label>
+              <Input
+                type="number"
+                value={tutorSettings.messageLimit}
+                onChange={(e) => setTutorSettings(prev => ({ ...prev, messageLimit: parseInt(e.target.value) || 50 }))}
+                min={1}
+                max={500}
+                data-testid="tutor-message-limit"
+              />
+            </div>
+
+            {/* System Prompt */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">Instrucoes adicionais (opcional)</label>
+              <textarea
+                value={tutorSettings.systemPrompt}
+                onChange={(e) => setTutorSettings(prev => ({ ...prev, systemPrompt: e.target.value }))}
+                placeholder="Ex: Responda sempre em portugues formal. Foque em exemplos praticos..."
+                rows={3}
+                className="w-full px-3 py-2 rounded-md bg-slate-700 border border-slate-600 text-white text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                data-testid="tutor-system-prompt"
+              />
+            </div>
+
+            {/* Suggested Questions */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-2">Sugestoes de perguntas</label>
+              <p className="text-xs text-slate-500 mb-3">Perguntas pre-definidas que aparecem no chat para o aluno clicar</p>
+              
+              <div className="flex gap-2 mb-3">
+                <Input
+                  value={newSuggestion}
+                  onChange={(e) => setNewSuggestion(e.target.value)}
+                  placeholder="Ex: Qual o objetivo deste curso?"
+                  onKeyDown={(e) => e.key === 'Enter' && addSuggestion()}
+                  data-testid="tutor-new-suggestion-input"
+                />
+                <Button onClick={addSuggestion} variant="outline" className="gap-1 shrink-0" data-testid="tutor-add-suggestion">
+                  <Plus className="w-4 h-4" /> Adicionar
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {tutorSettings.suggestedQuestions.map((q, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-indigo-600/20 text-indigo-300 text-sm border border-indigo-500/30">
+                    <MessageSquare className="w-3 h-3" />
+                    {q}
+                    <button onClick={() => removeSuggestion(i)} className="ml-1 hover:text-red-400" data-testid={`tutor-remove-suggestion-${i}`}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {tutorSettings.suggestedQuestions.length === 0 && (
+                  <p className="text-sm text-slate-500 italic">Nenhuma sugestao adicionada</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Company Modal */}
       {showCompanyModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
