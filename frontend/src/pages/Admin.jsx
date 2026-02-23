@@ -16,7 +16,10 @@ import {
   X,
   Key,
   UserPlus,
-  Settings
+  Settings,
+  Bot,
+  MessageSquare,
+  Save
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
