@@ -637,7 +637,7 @@ var CoursePlayer = (function() {
         }
     }
     
-    // Stop all currently playing slide audios
+    // Stop all currently playing slide audios and scheduled audio timers
     function stopAllSlideAudios() {
         activeSlideAudios.forEach(function(audio) {
             try {
@@ -648,6 +648,11 @@ var CoursePlayer = (function() {
             }
         });
         activeSlideAudios = [];
+        // Clear any scheduled audio timeline timers
+        if (window.audioTimelineTimers) {
+            window.audioTimelineTimers.forEach(function(t) { clearTimeout(t); });
+            window.audioTimelineTimers = [];
+        }
     }
     
     function renderSlide(index) {
