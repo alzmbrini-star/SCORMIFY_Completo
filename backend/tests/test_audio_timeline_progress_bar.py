@@ -82,9 +82,9 @@ class TestPlayerJSContent:
     def test_playSlideAudio_has_explicit_timeline_check(self, player_js_content):
         """playSlideAudio should have hasExplicitTimeline check"""
         assert "hasExplicitTimeline" in player_js_content, "Missing hasExplicitTimeline variable"
-        # Verify the check: hasExplicitTimeline = sortedList.some(function(a) { ... a.startTime ... > 0
-        pattern = r"hasExplicitTimeline\s*=.*some.*startTime.*>\s*0"
-        assert re.search(pattern, player_js_content), "hasExplicitTimeline check not properly implemented"
+        # Verify the check: typeof a.startTime === 'number' && a.startTime > 0
+        assert "typeof a.startTime === 'number'" in player_js_content, "hasExplicitTimeline should check typeof startTime"
+        assert "a.startTime > 0" in player_js_content, "hasExplicitTimeline should check startTime > 0"
         print("✅ playSlideAudio has hasExplicitTimeline check")
     
     def test_playSlideAudio_has_three_modes(self, player_js_content):
