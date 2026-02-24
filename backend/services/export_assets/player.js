@@ -878,6 +878,9 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
                 el.innerHTML = element.content ? element.content.replace(/\n/g, '<br>') : '';
+                // Set default text color (black) - matches editor behavior
+                // Inline HTML styles or fontColor from element.style will override this
+                el.style.color = '#000000';
                 // Apply background color (transparent by default)
                 if (element.style && element.style.backgroundColor) {
                     el.style.backgroundColor = element.style.backgroundColor;
