@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://tutor-course-export.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://ai-tutor-stable.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
