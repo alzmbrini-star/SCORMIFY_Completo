@@ -311,17 +311,36 @@ class TestCourseJSONPreservesAudioStartTime:
         assert len(projects) > 0, "No projects available for testing"
         return projects[0].get('id') or projects[0].get('_id')
     
-    def test_course_json_structure_in_export(self, project_id):
-        """course.json in SCORM should have proper structure"""
+    def _get_scorm_zip(self, project_id):
+        """Helper to export SCORM and download the ZIP file"""
+        # Step 1: Trigger export
         response = requests.post(
             f"{BASE_URL}/api/course/{project_id}/export-scorm",
             json={},
             timeout=60
         )
-        assert response.status_code == 200, f"SCORM export failed: {response.status_code}"
+        assert response.status_code == 200, f"SCORM export failed: {response.status_code} - {response.text[:500]}"
+        
+        # Response contains downloadUrl
+        data = response.json()
+        download_url = data.get('downloadUrl')
+        assert download_url, f"No downloadUrl in response: {data}"
+        
+        # Step 2: Download the ZIP
+        if download_url.startswith('/'):
+            download_url = f"{BASE_URL}{download_url}"
+        
+        zip_response = requests.get(download_url, timeout=60)
+        assert zip_response.status_code == 200, f"Failed to download ZIP: {zip_response.status_code}"
+        
+        return zip_response.content
+    
+    def test_course_json_structure_in_export(self, project_id):
+        """course.json in SCORM should have proper structure"""
+        zip_content = self._get_scorm_zip(project_id)
         
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-            tmp.write(response.content)
+            tmp.write(zip_content)
             tmp_path = tmp.name
         
         try:
@@ -335,6 +354,7 @@ class TestCourseJSONPreservesAudioStartTime:
                 
                 # Check if any slide has audio with startTime
                 has_audio = False
+                has_start_time = False
                 for slide in course_data['slides']:
                     audio_list = slide.get('audio', [])
                     if audio_list:
@@ -342,12 +362,18 @@ class TestCourseJSONPreservesAudioStartTime:
                         for audio in audio_list:
                             # Verify audio structure allows startTime
                             assert isinstance(audio, dict), "Audio should be a dict"
-                            # startTime may or may not be present, but structure should allow it
+                            # Check if startTime is present
+                            if 'startTime' in audio:
+                                has_start_time = True
+                                print(f"  Audio found with startTime: {audio.get('startTime')}s")
                 
                 if has_audio:
-                    print("✅ course.json contains slides with audio - startTime can be preserved")
+                    if has_start_time:
+                        print("✅ course.json contains audio with startTime values preserved")
+                    else:
+                        print("⚠️ Audio found but no startTime values in test project")
                 else:
-                    print("⚠️ No audio found in test project - startTime preservation not directly testable")
+                    print("⚠️ No audio found in test project")
                 
         finally:
             os.unlink(tmp_path)
