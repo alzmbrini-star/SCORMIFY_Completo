@@ -1293,7 +1293,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
 # HTML Standalone Export
 
 @api_router.post("/course/{project_id}/export-html")
-async def export_html(project_id: str):
+async def export_html(project_id: str, background_tasks: BackgroundTasks):
     """Export project as standalone HTML file"""
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
@@ -1345,15 +1345,8 @@ async def export_html(project_id: str):
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        # Clean up old exports
-        import asyncio
-        try:
-            await asyncio.to_thread(_cleanup_old_exports, str(EXPORTS_DIR))
-        except Exception:
-            pass
-        
-        # Persist to GridFS so the file survives container restarts
-        await save_export_to_gridfs(str(html_path), filename)
+        # Persist to GridFS in background (don't block the response)
+        background_tasks.add_task(save_export_to_gridfs, str(html_path), filename)
         
         return {
             "downloadUrl": f"/api/exports/{filename}",
