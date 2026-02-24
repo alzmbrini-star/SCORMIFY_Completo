@@ -1903,11 +1903,10 @@ class GenerateNarrationRequest(BaseModel):
     style: Optional[str] = "educational"
     language: Optional[str] = "português brasileiro"
 
-from emergentintegrations.llm.chat import FileContent
-
 @api_router.post("/projects/{project_id}/slides/{slide_id}/generate-narration")
 async def generate_slide_narration(project_id: str, slide_id: str, request: GenerateNarrationRequest):
     """Generate 3 narration text options for a slide using Gemini 3 with vision (OCR for images)"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
     emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI key not configured")
