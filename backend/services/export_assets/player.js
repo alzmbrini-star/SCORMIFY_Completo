@@ -906,6 +906,8 @@ var CoursePlayer = (function() {
             case 'shape':
                 el = document.createElement('div');
                 el.className = 'slide-element shape-element';
+                // Set default text color for shape text content
+                el.style.color = '#000000';
                 if (element.content) {
                     el.innerHTML = element.content.replace(/\n/g, '<br>');
                 }
