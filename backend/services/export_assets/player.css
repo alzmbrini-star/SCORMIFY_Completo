@@ -1245,3 +1245,48 @@
             50% { transform: translateY(8px); opacity: 1; }
         }
     
+        /* Slide Timeline Progress Bar */
+        #slide-timeline-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            z-index: 500;
+            overflow: hidden;
+            transition: height 0.2s ease;
+        }
+        #slide-timeline-bar:hover {
+            height: 6px;
+        }
+        #slide-timeline-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #06b6d4, #8b5cf6);
+            transition: width 0.15s linear;
+            border-radius: 0 2px 2px 0;
+        }
+        #slide-timeline-fill.complete {
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            width: 100% !important;
+        }
+        /* Pulsing glow when complete */
+        #slide-timeline-fill.complete::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(34, 197, 94, 0.4);
+            animation: timeline-pulse 1.5s ease-in-out 2;
+        }
+        @keyframes timeline-pulse {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+        /* Mobile adjustments */
+        body.mobile-mode #slide-timeline-bar {
+            height: 3px;
+        }
