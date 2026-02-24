@@ -1,0 +1,159 @@
+{
+  "id": "82f2dd7e-e1c7-4e8c-be8e-5f95a8e1dd80",
+  "metadata": {
+    "title": "Teste Multiplos audios",
+    "description": "",
+    "author": "",
+    "organization": "",
+    "version": "1.0",
+    "language": "pt-BR",
+    "keywords": []
+  },
+  "slides": [
+    {
+      "id": "4a0a3257-7a81-4a9b-93fa-fc2712ff5d87",
+      "title": "Slide 1",
+      "order": 0,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#180101",
+      "backgroundImage": null,
+      "elements": [
+        {
+          "id": "16668e0f-8974-4b66-b0c4-7770da266f0a",
+          "type": "html",
+          "x": 50.0,
+          "y": 50.0,
+          "width": 1815.775651666314,
+          "height": 726.029802782489,
+          "rotation": 0.0,
+          "zIndex": 0,
+          "visible": true,
+          "locked": false,
+          "content": null,
+          "src": null,
+          "embedUrl": null,
+          "embedType": null,
+          "openInNewWindow": false,
+          "hyperlink": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "strokeWidth": null,
+            "opacity": 1.0,
+            "fontSize": null,
+            "fontFamily": null,
+            "fontWeight": null,
+            "fontColor": null,
+            "textAlign": null,
+            "verticalAlign": null,
+            "shadow": null,
+            "borderRadius": null
+          },
+          "shapeType": null,
+          "buttonText": null,
+          "buttonIcon": null,
+          "buttonStyle": "primary",
+          "buttonUrl": null,
+          "openInNewTab": true,
+          "htmlContent": "<h1><font face=\"Verdana, sans-serif\" size=\"5\">Gravação de Áudios</font></h1>\n<p><font face=\"Verdana, sans-serif\" size=\"5\">A gravação de áudios é um processo essencial em diversas áreas como música, comunicação, educação, e criação de conteúdo digital. Este processo permite capturar sons da voz, natureza, instrumentos musicais, entre outros, para reprodução posterior ou edição.</font></p>\n\n<h2><font face=\"Verdana, sans-serif\" size=\"5\">Importância da Gravação de Áudios</font></h2>\n<p><font face=\"Verdana, sans-serif\" size=\"5\">Gravar áudios de qualidade é crucial para garantir clareza e impacto, seja em podcasts, aulas gravadas, entrevistas ou produções musicais. Uma boa gravação pode melhorar a experiência do ouvinte e garantir que a mensagem seja transmitida de maneira eficaz.</font></p>\n\n<h2><font face=\"Verdana, sans-serif\" size=\"5\">Equipamentos Necessários</font></h2>\n<p><font face=\"Verdana, sans-serif\" size=\"5\">Para uma gravação de áudio eficaz, é necessário dispor de equipamentos adequados. A lista a seguir apresenta alguns dos equipamentos fundamentais:</font></p>\n<ul>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Microfones:</strong> Capturam o som. Existem diferentes tipos, como condensadores e dinâmicos, cada um apropriado para situações específicas.</font></li>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Interface de Áudio:</strong> Converte sinais analógicos para digitais, permitindo a gravação em dispositivos como computadores.</font></li>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Fones de Ouvido:</strong> Auxiliam na monitoração do áudio durante a gravação.</font></li>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Software de Gravação:</strong> Permite editar e mixar áudios após a gravação. Exemplos incluem Audacity, GarageBand e Adobe Audition.</font></li>\n</ul>\n\n<h2><font face=\"Verdana, sans-serif\" size=\"5\">Dicas para Uma Boa Gravação</font></h2>\n<ol>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Ambiente Silencioso:</strong> Escolha um local silencioso para minimizar ruídos indesejados.</font></li>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Qualidade do Microfone:</strong> Invista em um bom microfone adequado ao tipo de gravação.</font></li>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Técnica de Gravação:</strong> Mantenha a distância adequada do microfone e fale claramente.</font></li>\n  <li><font face=\"Verdana, sans-serif\" size=\"5\"><strong>Teste Prévio:</strong> Realize testes para ajustar o volume e o posicionamento antes da gravação final.</font></li>\n</ol>\n\n<h2><font face=\"Verdana, sans-serif\" size=\"5\">Conclusão</font></h2>\n<p><font face=\"Verdana, sans-serif\" size=\"5\">A gravação de áudios é uma habilidade valiosa que impacta diretamente a qualidade final da produção sonora. Com o equipamento adequado e atenção aos detalhes, é possível criar conteúdos de áudio que sejam atrativos e eficazes.</font></p>",
+          "flipbookType": null,
+          "flipbookUrl": null,
+          "flipbookPages": null,
+          "flipbookPdfUrl": null,
+          "quizConfig": null,
+          "startTime": 0.0,
+          "endTime": 50.0,
+          "animations": [],
+          "svgPath": null,
+          "fallbackImage": null
+        }
+      ],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [
+        {
+          "id": "5add4b79-6d0d-4cff-971d-80bf96958ecb",
+          "type": "narration",
+          "src": "assets/audio_5add4b79-6d0d-4cff-971d-80bf96958ecb.webm",
+          "filename": "audio_5add4b79-6d0d-4cff-971d-80bf96958ecb.webm",
+          "duration": 5.8,
+          "volume": 1.0,
+          "fadeIn": 0,
+          "fadeOut": 0,
+          "startTime": 37.43,
+          "originalDuration": 0
+        },
+        {
+          "id": "7262f768-3c49-4277-bc4d-3739abdfc8e6",
+          "type": "narration",
+          "src": "assets/audio_7262f768-3c49-4277-bc4d-3739abdfc8e6.webm",
+          "filename": "audio_7262f768-3c49-4277-bc4d-3739abdfc8e6.webm",
+          "duration": 5.22,
+          "volume": 1.0,
+          "fadeIn": 0,
+          "fadeOut": 0,
+          "startTime": 44.78,
+          "originalDuration": 0
+        },
+        {
+          "id": "74f23328-6021-440b-b148-fcbdc5000a27",
+          "type": "narration",
+          "src": "assets/audio_74f23328-6021-440b-b148-fcbdc5000a27.mp3",
+          "filename": "audio_74f23328-6021-440b-b148-fcbdc5000a27.mp3",
+          "duration": 35.89,
+          "volume": 1.0,
+          "fadeIn": 0,
+          "fadeOut": 0,
+          "startTime": 0.0,
+          "originalDuration": 0
+        }
+      ],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 50.0
+    },
+    {
+      "id": "07047393-8af7-4681-b879-8af89876d0a8",
+      "title": "New Slide",
+      "order": 1,
+      "width": 1920.0,
+      "height": 820.0,
+      "background": "#FFFFFF",
+      "backgroundImage": null,
+      "elements": [],
+      "annotations": [],
+      "transition": {
+        "type": "none",
+        "duration": 0.5,
+        "direction": null
+      },
+      "audio": [],
+      "notes": null,
+      "thumbnail": null,
+      "duration": 5.0
+    }
+  ],
+  "globalAudio": null,
+  "originalFilename": null,
+  "conversionReport": null,
+  "createdAt": "2026-02-24T13:54:14.279116+00:00",
+  "updatedAt": "2026-02-24T13:54:14.279120+00:00",
+  "tutorConfig": {
+    "enabled": true,
+    "apiUrl": "https://tutor-course-export.cluster-5.preview.emergentcf.cloud",
+    "courseTopic": "Teste Multiplos audios",
+    "courseContext": "Slide 1: Gravação de Áudios A gravação de áudios é um processo essencial em diversas áreas como música, comunicação, educação, e criação de conteúdo digital. Este processo permite capturar sons da voz, natureza, instrumentos musicais, entre outros, para reprodução posterior ou edição. Importância da Gravação de Áudios Gravar áudios de qualidade é crucial para garantir clareza e impacto, seja em podcasts, aulas gravadas, entrevistas ou produções musicais. Uma boa gravação pode melhorar a experiência do ou",
+    "tutorName": "Tutor IA",
+    "messageLimit": 50,
+    "suggestedQuestions": [
+      "Test Q1",
+      "Test Q2",
+      "Nova sugestao de teste"
+    ]
+  }
+}
