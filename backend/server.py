@@ -1831,8 +1831,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
-# AI Script Generation
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+# AI Script Generation (lazy imports for fast startup)
 
 class GenerateScriptRequest(BaseModel):
     topic: str
@@ -1843,6 +1842,7 @@ class GenerateScriptRequest(BaseModel):
 @api_router.post("/ai/generate-script")
 async def generate_ai_script(request: GenerateScriptRequest):
     """Generate a video script using AI"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
     emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
     
     if not emergent_key:
