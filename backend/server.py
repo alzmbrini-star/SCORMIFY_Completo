@@ -3534,12 +3534,6 @@ CONTEÚDO DO CURSO:
 # Include router
 app.include_router(api_router)
 
-# Mount SCORM preview test directory under /api so it bypasses frontend routing
-import os as _os
-_scorm_preview_dir = _os.path.join(_os.path.dirname(__file__), "storage", "scorm_preview")
-if _os.path.exists(_scorm_preview_dir):
-    app.mount("/api/scorm-preview", StaticFiles(directory=_scorm_preview_dir, html=True), name="scorm_preview")
-
 # Root-level endpoints for Kubernetes health checks and startup detection
 @app.get("/")
 async def root():
