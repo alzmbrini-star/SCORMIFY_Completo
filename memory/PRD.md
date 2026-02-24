@@ -83,14 +83,19 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Note:** Users must re-export SCORM packages to get the improved context.
 - **Tested:** 12/12 tests passed (iteration_30). Tutor now responds with slide-specific citations.
 
-## Audio Timeline Fix (Feb 2026)
-- **Root cause:** `playSlideAudio` no player.js tocava TODOS os áudios simultaneamente com `.play()`, ignorando o campo `startTime` da timeline.
-- **Fix:** Implementados dois modos de reprodução:
-  1. **Timeline mode:** Quando algum áudio tem `startTime > 0`, cada áudio é agendado com `setTimeout` no seu tempo correto.
-  2. **Sequential mode:** Quando nenhum `startTime` está definido, áudios tocam em sequência (um após o outro via evento `ended`).
-  3. `stopAllSlideAudios` agora também limpa timers agendados.
-- **Note:** Users must re-export SCORM packages to get this fix.
-- **Tested:** 14/14 tests passed (iteration_31)
+## Audio Timeline Fix v2 + Slide Progress Bar (Feb 2026)
+- **Audio fix reforçado:** Reescrita completa do `playSlideAudio` com 3 modos:
+  1. **Timeline mode:** Quando algum áudio tem `startTime > 0`, agenda via `setTimeout` no tempo correto
+  2. **Sequential mode:** Quando múltiplos áudios sem `startTime`, encadeia via evento `ended`
+  3. **Single mode:** Áudio único toca imediatamente
+  - Adicionado logging `[Audio]` para debug no console do browser
+  - Sort por `startTime` antes de processar
+- **Barra de progresso do slide:** 
+  - Barra fina (4px, 6px ao hover) na base do slide mostrando progresso temporal
+  - Baseada na `duration` do slide via `setInterval(50ms)`
+  - Ao completar 100%: muda para verde com pulso luminoso (2x), indicando que as animações finalizaram
+  - Posicionada absolutamente dentro do `#slide-wrapper`, z-index 500
+- **Tested:** 21/21 tests passed (iteration_32)
 
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
