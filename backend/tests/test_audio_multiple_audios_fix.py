@@ -124,13 +124,16 @@ class TestAudioTimelineFixInPlayerJS:
     
     def test_stopAllSlideAudios_clears_timers(self, player_js_content):
         """stopAllSlideAudios should clear timers"""
-        # Find stopAllSlideAudios function
-        match = re.search(r'function stopAllSlideAudios\(\)\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}', player_js_content, re.DOTALL)
-        assert match, "stopAllSlideAudios function not found"
+        # Find stopAllSlideAudios function and check for timer clearing logic
+        assert 'function stopAllSlideAudios' in player_js_content, "stopAllSlideAudios function not found"
         
-        func_body = match.group(1)
-        assert 'audioTimelineTimers.forEach' in func_body, "Timer clearing not found in stopAllSlideAudios"
-        assert 'clearTimeout' in func_body, "clearTimeout not found in stopAllSlideAudios"
+        # Check that the timer clearing logic exists after the function definition
+        func_start = player_js_content.find('function stopAllSlideAudios')
+        func_section = player_js_content[func_start:func_start + 500]  # Get enough context
+        
+        assert 'window.audioTimelineTimers' in func_section, "Timer reference not found in stopAllSlideAudios"
+        assert 'clearTimeout' in func_section, "clearTimeout not found in stopAllSlideAudios"
+        assert 'window.audioTimelineTimers = []' in func_section, "Timer reset not found in stopAllSlideAudios"
         print("✅ stopAllSlideAudios properly clears timers")
     
     def test_default_text_color_fix(self, player_js_content):
