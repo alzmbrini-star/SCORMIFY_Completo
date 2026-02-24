@@ -114,6 +114,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Result:** Startup time reduzido de 2.71s para 0.43s localmente (6x mais rápido). Em produção ARM64, deve reduzir de ~155s para poucos segundos.
 - **Tested:** Deployment agent check PASS. Health endpoint responde em <0.5s.
 
+## Audio Timeline Fix v3 — Timer Initialization Bug (Feb 2026)
+- **Root cause:** `window.audioTimelineTimers` nunca era inicializado como `[]` porque `stopAllSlideAudios` só o criava dentro de `if (window.audioTimelineTimers)` — que falhava na primeira chamada (undefined). Os `.push()` falhavam silenciosamente, e os callbacks dos `setTimeout` retornavam sem tocar.
+- **Fix:** Adicionado `window.audioTimelineTimers = []` explicitamente no início de `playSlideAudio`, ANTES de qualquer código que use o array.
+- **Browser test:** Confirmou `timers: 3` (antes era `undefined`) e `[Audio] Playing audio 1 at 0 s` (antes não aparecia).
+- **Tested:** 16/16 tests passed (iteration_34)
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
