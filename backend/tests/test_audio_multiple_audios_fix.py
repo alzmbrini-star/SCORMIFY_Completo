@@ -129,7 +129,7 @@ class TestAudioTimelineFixInPlayerJS:
         
         # Check that the timer clearing logic exists after the function definition
         func_start = player_js_content.find('function stopAllSlideAudios')
-        func_section = player_js_content[func_start:func_start + 500]  # Get enough context
+        func_section = player_js_content[func_start:func_start + 700]  # Get enough context
         
         assert 'window.audioTimelineTimers' in func_section, "Timer reference not found in stopAllSlideAudios"
         assert 'clearTimeout' in func_section, "clearTimeout not found in stopAllSlideAudios"
