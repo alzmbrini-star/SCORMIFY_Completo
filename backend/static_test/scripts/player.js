@@ -1456,6 +1456,9 @@ var CoursePlayer = (function() {
         // Clear any previously tracked audios and timers
         stopAllSlideAudios();
         
+        // Always initialize the timer tracking array
+        window.audioTimelineTimers = [];
+        
         if (!audioList || audioList.length === 0) return;
         
         console.log('[Audio] Playing', audioList.length, 'audio(s)');
@@ -1482,8 +1485,8 @@ var CoursePlayer = (function() {
             sortedList.forEach(function(audio, idx) {
                 var startMs = Math.round((audio.startTime || 0) * 1000);
                 var timer = setTimeout(function() {
-                    // Double-check we haven't navigated away
-                    if (!window.audioTimelineTimers) return;
+                    // Check if timers were cleared (slide changed)
+                    if (!window.audioTimelineTimers || window.audioTimelineTimers.length === 0) return;
                     var audioEl = new Audio(audio.src);
                     audioEl.volume = audio.volume || 1;
                     activeSlideAudios.push(audioEl);
@@ -1499,7 +1502,7 @@ var CoursePlayer = (function() {
             var seqIndex = 0;
             function playNextInSequence() {
                 if (seqIndex >= sortedList.length) return;
-                if (!window.audioTimelineTimers) return; // Slide changed
+                if (window.audioTimelineTimers && window.audioTimelineTimers.length === 0) return; // Slide changed
                 var audio = sortedList[seqIndex];
                 var audioEl = new Audio(audio.src);
                 audioEl.volume = audio.volume || 1;
