@@ -1502,7 +1502,7 @@ var CoursePlayer = (function() {
             var seqIndex = 0;
             function playNextInSequence() {
                 if (seqIndex >= sortedList.length) return;
-                if (!window.audioTimelineTimers) return; // Slide changed
+                if (window.audioTimelineTimers && window.audioTimelineTimers.length === 0) return; // Slide changed
                 var audio = sortedList[seqIndex];
                 var audioEl = new Audio(audio.src);
                 audioEl.volume = audio.volume || 1;
