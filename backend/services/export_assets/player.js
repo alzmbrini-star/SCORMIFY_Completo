@@ -145,6 +145,10 @@ var CoursePlayer = (function() {
     // When true, SCORM completion must come from QuizController, NOT from navigation.
     var courseHasQuiz = false;
     
+    // Slide timeline progress
+    var slideProgressTimer = null;
+    var slideStartTimestamp = 0;
+    
     // Swipe navigation variables
     var touchStartX = 0;
     var touchStartY = 0;
