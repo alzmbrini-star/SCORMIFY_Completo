@@ -659,6 +659,46 @@ var CoursePlayer = (function() {
         }
     }
     
+    // Slide timeline progress bar
+    function startSlideProgress(slideDuration) {
+        stopSlideProgress();
+        var fill = document.getElementById('slide-timeline-fill');
+        var bar = document.getElementById('slide-timeline-bar');
+        if (!fill || !bar) return;
+        
+        fill.classList.remove('complete');
+        fill.style.width = '0%';
+        bar.style.display = '';
+        
+        if (!slideDuration || slideDuration <= 0) {
+            // No duration set - hide the bar
+            bar.style.display = 'none';
+            return;
+        }
+        
+        slideStartTimestamp = Date.now();
+        var durationMs = slideDuration * 1000;
+        
+        slideProgressTimer = setInterval(function() {
+            var elapsed = Date.now() - slideStartTimestamp;
+            var pct = Math.min((elapsed / durationMs) * 100, 100);
+            fill.style.width = pct + '%';
+            
+            if (pct >= 100) {
+                fill.classList.add('complete');
+                clearInterval(slideProgressTimer);
+                slideProgressTimer = null;
+            }
+        }, 50);
+    }
+    
+    function stopSlideProgress() {
+        if (slideProgressTimer) {
+            clearInterval(slideProgressTimer);
+            slideProgressTimer = null;
+        }
+    }
+    
     function renderSlide(index) {
         // Don't re-render if a video is in fullscreen or just exited fullscreen
         if (isVideoFullscreen || fullscreenExitProtection) {
