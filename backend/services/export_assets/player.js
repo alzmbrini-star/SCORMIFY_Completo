@@ -1485,8 +1485,8 @@ var CoursePlayer = (function() {
             sortedList.forEach(function(audio, idx) {
                 var startMs = Math.round((audio.startTime || 0) * 1000);
                 var timer = setTimeout(function() {
-                    // Double-check we haven't navigated away
-                    if (!window.audioTimelineTimers) return;
+                    // Check if timers were cleared (slide changed)
+                    if (!window.audioTimelineTimers || window.audioTimelineTimers.length === 0) return;
                     var audioEl = new Audio(audio.src);
                     audioEl.volume = audio.volume || 1;
                     activeSlideAudios.push(audioEl);
