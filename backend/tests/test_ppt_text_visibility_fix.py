@@ -224,12 +224,20 @@ class TestSCORMExportPPTElements:
     
     def test_scorm_export_includes_all_elements(self):
         """Verify SCORM export includes elements with visible:false"""
-        # Trigger SCORM export
+        # Trigger SCORM export - this is async, returns jobId and downloadUrl
         response = requests.post(f"{BASE_URL}/api/course/{PPT_PROJECT_ID}/export-scorm")
         assert response.status_code == 200, f"SCORM export should succeed: {response.status_code} - {response.text[:200] if response.text else ''}"
         
+        result = response.json()
+        download_url = result.get("downloadUrl")
+        assert download_url, "Should get downloadUrl from export response"
+        
+        # Download the ZIP file
+        zip_response = requests.get(f"{BASE_URL}{download_url}")
+        assert zip_response.status_code == 200, f"Should download ZIP: {zip_response.status_code}"
+        
         # Parse the ZIP
-        zip_data = io.BytesIO(response.content)
+        zip_data = io.BytesIO(zip_response.content)
         with zipfile.ZipFile(zip_data, 'r') as zf:
             # Get course.json
             course_json_content = zf.read("course.json").decode('utf-8')
@@ -261,12 +269,20 @@ class TestSCORMExportPPTElements:
     
     def test_exported_player_js_has_fixes(self):
         """Verify exported player.js has all 3 fixes"""
-        # Trigger SCORM export
+        # Trigger SCORM export - this is async, returns jobId and downloadUrl
         response = requests.post(f"{BASE_URL}/api/course/{PPT_PROJECT_ID}/export-scorm")
         assert response.status_code == 200, f"SCORM export should succeed: {response.status_code}"
         
+        result = response.json()
+        download_url = result.get("downloadUrl")
+        assert download_url, "Should get downloadUrl from export response"
+        
+        # Download the ZIP file
+        zip_response = requests.get(f"{BASE_URL}{download_url}")
+        assert zip_response.status_code == 200, f"Should download ZIP: {zip_response.status_code}"
+        
         # Parse the ZIP
-        zip_data = io.BytesIO(response.content)
+        zip_data = io.BytesIO(zip_response.content)
         with zipfile.ZipFile(zip_data, 'r') as zf:
             # Get scripts/player.js
             player_js_content = zf.read("scripts/player.js").decode('utf-8')
