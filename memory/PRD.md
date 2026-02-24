@@ -108,6 +108,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
   3. `applyElementStyles` agora só aplica opacity quando `> 0`
 - **Tested:** 16/16 tests passed (iteration_33)
 
+## Backend Startup Optimization v2 (Feb 2026)
+- **Root cause:** `emergentintegrations.llm.chat` (imports `litellm`, `grpcio`, `google-genai`, `openai`) era importado no nível do módulo (linhas 1835 e 1906), causando startup lento (~155s em produção ARM64)
+- **Fix:** Convertido para lazy imports dentro das funções `generate_ai_script` e `generate_slide_narration`
+- **Result:** Startup time reduzido de 2.71s para 0.43s localmente (6x mais rápido). Em produção ARM64, deve reduzir de ~155s para poucos segundos.
+- **Tested:** Deployment agent check PASS. Health endpoint responde em <0.5s.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
