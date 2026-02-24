@@ -844,6 +844,9 @@ var CoursePlayer = (function() {
             }
         }
         
+        // Start slide timeline progress bar
+        startSlideProgress(slideDuration);
+        
         // Apply scale for current device/orientation
         updateSlideScale();
         
