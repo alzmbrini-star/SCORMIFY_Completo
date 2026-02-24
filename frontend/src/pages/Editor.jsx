@@ -134,39 +134,31 @@ const getThumbAssetUrl = (src) => {
   return src;
 };
 
-// Slide Thumbnail Renderer - renders miniature slide content
+// Slide Thumbnail Renderer - renders miniature slide content using original pixel values
+// The parent container applies transform: scale() to fit the 960x540 canvas into the thumbnail
 const SlideThumbnailContent = ({ slide }) => {
   const slideW = slide.width || 960;
   const slideH = slide.height || 540;
   const elements = slide.elements || [];
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: slideW,
-        height: slideH,
-        transformOrigin: 'top left',
-        transform: `scale(${1 / (slideW / 100)}%)`,
-        /* Scale is handled by the parent container using CSS */
-      }}
-      className="slide-thumb-inner"
-    >
+    <>
       {elements.map((el) => {
-        // Convert positions to percentages for proper scaling
-        const x = typeof el.x === 'string' && el.x.endsWith('%') ? el.x : `${((el.x || 0) / slideW) * 100}%`;
-        const y = typeof el.y === 'string' && el.y.endsWith('%') ? el.y : `${((el.y || 0) / slideH) * 100}%`;
-        const w = typeof el.width === 'string' && el.width.endsWith('%') ? el.width : `${((el.width || 0) / slideW) * 100}%`;
-        const h = typeof el.height === 'string' && el.height.endsWith('%') ? el.height : `${((el.height || 0) / slideH) * 100}%`;
+        const toPixel = (val, base) => {
+          if (typeof val === 'string' && val.endsWith('%')) return (parseFloat(val) / 100) * base;
+          return val || 0;
+        };
+        const elX = toPixel(el.x, slideW);
+        const elY = toPixel(el.y, slideH);
+        const elW = toPixel(el.width, slideW) || 100;
+        const elH = toPixel(el.height, slideH) || 100;
 
         const baseStyle = {
           position: 'absolute',
-          left: x,
-          top: y,
-          width: w,
-          height: h,
+          left: elX,
+          top: elY,
+          width: elW,
+          height: elH,
           transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
           zIndex: el.zIndex || 0,
           overflow: 'hidden',
@@ -177,21 +169,19 @@ const SlideThumbnailContent = ({ slide }) => {
           return (
             <div key={el.id} style={{
               ...baseStyle,
-              fontSize: '100%',
+              fontSize: el.style?.fontSize || 16,
               fontWeight: el.style?.fontWeight || 'normal',
               fontFamily: el.style?.fontFamily || 'inherit',
               color: el.style?.fontColor || '#000000',
               textAlign: el.style?.textAlign || 'left',
               backgroundColor: el.style?.transparentBackground ? 'transparent' : (el.style?.backgroundColor || 'transparent'),
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '2%',
+              padding: 8,
               lineHeight: 1.2,
               borderRadius: el.style?.borderRadius || 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
             }}>
-              <span style={{ fontSize: `${(el.style?.fontSize || 16) / slideW * 100}vw`, display: 'block', width: '100%' }} className="slide-thumb-text">
-                {el.content || ''}
-              </span>
+              {el.content || ''}
             </div>
           );
         }
@@ -215,7 +205,7 @@ const SlideThumbnailContent = ({ slide }) => {
             <div key={el.id} style={{
               ...baseStyle,
               backgroundColor: el.style?.fill || '#7C3AED',
-              border: el.style?.stroke ? `1px solid ${el.style.stroke}` : 'none',
+              border: el.style?.stroke ? `2px solid ${el.style.stroke}` : 'none',
               borderRadius: el.shapeType === 'ellipse' || el.shapeType === 'oval' ? '50%' :
                             el.shapeType === 'rounded_rectangle' ? '8px' : '0',
               display: 'flex',
@@ -223,7 +213,7 @@ const SlideThumbnailContent = ({ slide }) => {
               justifyContent: 'center',
             }}>
               {el.content && (
-                <span style={{ fontSize: '0.5em', color: el.style?.fontColor || '#FFFFFF', textAlign: 'center' }} className="slide-thumb-text">
+                <span style={{ fontSize: el.style?.fontSize || 14, color: el.style?.fontColor || '#FFFFFF', textAlign: 'center', padding: 4 }}>
                   {el.content}
                 </span>
               )}
@@ -234,28 +224,24 @@ const SlideThumbnailContent = ({ slide }) => {
         if (el.type === 'video') {
           return (
             <div key={el.id} style={{ ...baseStyle, backgroundColor: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg style={{ width: '30%', height: '30%', opacity: 0.6 }} fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <svg style={{ width: 48, height: 48, opacity: 0.6 }} fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </div>
           );
         }
 
         if (el.type === 'button') {
           return (
-            <div key={el.id} style={{
-              ...baseStyle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
+            <div key={el.id} style={{ ...baseStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{
-                padding: '4% 8%',
-                borderRadius: 4,
-                fontSize: '0.5em',
-                color: '#fff',
+                padding: '8px 16px',
+                borderRadius: el.style?.borderRadius || 8,
+                fontSize: el.style?.fontSize || 16,
+                color: el.buttonStyle === 'outline' ? '#9333ea' : '#fff',
                 background: el.buttonStyle === 'outline' ? 'transparent' : 'linear-gradient(to right, #9333ea, #06b6d4)',
-                border: el.buttonStyle === 'outline' ? '1px solid #9333ea' : 'none',
-              }} className="slide-thumb-text">
-                {el.buttonText || 'Clique'}
+                border: el.buttonStyle === 'outline' ? '2px solid #9333ea' : 'none',
+                fontWeight: 600,
+              }}>
+                {el.buttonText || 'Clique aqui'}
               </div>
             </div>
           );
@@ -263,24 +249,23 @@ const SlideThumbnailContent = ({ slide }) => {
 
         if (el.type === 'html') {
           return (
-            <div key={el.id} style={{ ...baseStyle, backgroundColor: 'rgba(100,100,100,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '0.4em', opacity: 0.5 }} className="slide-thumb-text">HTML</span>
+            <div key={el.id} style={{ ...baseStyle, backgroundColor: 'rgba(100,100,100,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 14, opacity: 0.4 }}>HTML</span>
             </div>
           );
         }
 
         if (el.type === 'quiz') {
           return (
-            <div key={el.id} style={{ ...baseStyle, backgroundColor: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '0.4em', color: '#7C3AED', opacity: 0.7 }} className="slide-thumb-text">Quiz</span>
+            <div key={el.id} style={{ ...baseStyle, backgroundColor: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 14, color: '#7C3AED', opacity: 0.6 }}>Quiz</span>
             </div>
           );
         }
 
-        // Fallback for unknown types
         return <div key={el.id} style={baseStyle} />;
       })}
-    </div>
+    </>
   );
 };
 
