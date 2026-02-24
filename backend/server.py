@@ -1265,9 +1265,9 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         except Exception as cleanup_err:
             logger.warning(f"Export cleanup failed (non-fatal): {cleanup_err}")
         
-        # Persist to GridFS so the file survives container restarts
+        # Persist to GridFS in background (don't block the response)
         export_filename = Path(zip_path).name
-        await save_export_to_gridfs(zip_path, export_filename)
+        background_tasks.add_task(save_export_to_gridfs, zip_path, export_filename)
         
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
