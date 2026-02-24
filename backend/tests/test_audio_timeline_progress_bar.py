@@ -192,8 +192,9 @@ class TestSCORMExport:
         # Use the first project
         return projects[0].get('id') or projects[0].get('_id')
     
-    def test_scorm_export_produces_valid_zip(self, project_id):
-        """POST /api/course/{id}/export-scorm should produce valid ZIP"""
+    def _get_scorm_zip(self, project_id):
+        """Helper to export SCORM and download the ZIP file"""
+        # Step 1: Trigger export
         response = requests.post(
             f"{BASE_URL}/api/course/{project_id}/export-scorm",
             json={},
@@ -201,13 +202,27 @@ class TestSCORMExport:
         )
         assert response.status_code == 200, f"SCORM export failed: {response.status_code} - {response.text[:500]}"
         
-        # Verify it's a ZIP file
-        content_type = response.headers.get('content-type', '')
-        assert 'zip' in content_type.lower() or 'octet-stream' in content_type.lower(), f"Unexpected content type: {content_type}"
+        # Response contains downloadUrl
+        data = response.json()
+        download_url = data.get('downloadUrl')
+        assert download_url, f"No downloadUrl in response: {data}"
+        
+        # Step 2: Download the ZIP
+        if download_url.startswith('/'):
+            download_url = f"{BASE_URL}{download_url}"
+        
+        zip_response = requests.get(download_url, timeout=60)
+        assert zip_response.status_code == 200, f"Failed to download ZIP: {zip_response.status_code}"
+        
+        return zip_response.content
+    
+    def test_scorm_export_produces_valid_zip(self, project_id):
+        """POST /api/course/{id}/export-scorm should produce valid ZIP"""
+        zip_content = self._get_scorm_zip(project_id)
         
         # Verify ZIP is valid
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-            tmp.write(response.content)
+            tmp.write(zip_content)
             tmp_path = tmp.name
         
         try:
@@ -224,15 +239,10 @@ class TestSCORMExport:
     
     def test_scorm_html_contains_timeline_bar(self, project_id):
         """Exported SCORM index.html should contain timeline bar elements"""
-        response = requests.post(
-            f"{BASE_URL}/api/course/{project_id}/export-scorm",
-            json={},
-            timeout=60
-        )
-        assert response.status_code == 200, f"SCORM export failed: {response.status_code}"
+        zip_content = self._get_scorm_zip(project_id)
         
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-            tmp.write(response.content)
+            tmp.write(zip_content)
             tmp_path = tmp.name
         
         try:
@@ -249,15 +259,10 @@ class TestSCORMExport:
     
     def test_scorm_css_contains_timeline_styles(self, project_id):
         """Exported SCORM should contain timeline bar CSS styles"""
-        response = requests.post(
-            f"{BASE_URL}/api/course/{project_id}/export-scorm",
-            json={},
-            timeout=60
-        )
-        assert response.status_code == 200, f"SCORM export failed: {response.status_code}"
+        zip_content = self._get_scorm_zip(project_id)
         
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-            tmp.write(response.content)
+            tmp.write(zip_content)
             tmp_path = tmp.name
         
         try:
@@ -275,15 +280,10 @@ class TestSCORMExport:
     
     def test_scorm_player_js_has_progress_functions(self, project_id):
         """Exported SCORM player.js should have progress functions"""
-        response = requests.post(
-            f"{BASE_URL}/api/course/{project_id}/export-scorm",
-            json={},
-            timeout=60
-        )
-        assert response.status_code == 200, f"SCORM export failed: {response.status_code}"
+        zip_content = self._get_scorm_zip(project_id)
         
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-            tmp.write(response.content)
+            tmp.write(zip_content)
             tmp_path = tmp.name
         
         try:
