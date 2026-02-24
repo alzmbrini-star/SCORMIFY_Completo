@@ -1456,6 +1456,9 @@ var CoursePlayer = (function() {
         // Clear any previously tracked audios and timers
         stopAllSlideAudios();
         
+        // Always initialize the timer tracking array
+        window.audioTimelineTimers = [];
+        
         if (!audioList || audioList.length === 0) return;
         
         console.log('[Audio] Playing', audioList.length, 'audio(s)');
