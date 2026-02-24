@@ -126,6 +126,17 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Elements supported:** text (with font/color/size), image (with asset URL resolution), shape (fill, stroke, border-radius), video (play icon placeholder), button (gradient/outline styles), HTML (label), quiz (label)
 - **Tested:** 13/13 tests passed (iteration_35). Verified across 3 projects: PPT-imported slides, manually-created slides, mixed content.
 
+## Deployment Health Check Fix v3 (Feb 2026)
+- **Root cause:** 3 issues preventing successful deployment:
+  1. **Frontend health check disabled:** `ENABLE_HEALTH_CHECK=false` in frontend/.env. When nginx routes `/health` to the frontend (port 3000), the dev server returned React's index.html instead of a JSON health response. The deployment's health probe received HTML and treated it as unhealthy.
+  2. **emergent-health.conf removed:** `fix_nginx_modules.sh` deleted `/etc/nginx/conf.d/emergent-health.conf`, the deployment orchestrator's own health check config file.
+  3. **.env files blocked by .gitignore:** Lines `*.env` and `*.env.*` in `.gitignore` prevented .env files from being included in the repo, causing deployment failures when the container couldn't find required environment configuration.
+- **Fix:**
+  1. Set `ENABLE_HEALTH_CHECK=true` in `frontend/.env` — the CRA dev server now serves JSON health endpoints at `/health`, `/health/ready`, `/health/live`, `/health/simple`
+  2. Removed the `rm -f emergent-health.conf` line from `fix_nginx_modules.sh` — deployment's health conf is preserved
+  3. Removed `*.env` and `*.env.*` entries from `.gitignore`
+- **Result:** Health check at `/health` now returns `{"status":"healthy"}` from both frontend (port 3000) and backend (port 8001). Deployment orchestrator's health config is preserved.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
