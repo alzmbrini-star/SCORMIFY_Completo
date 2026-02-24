@@ -1399,49 +1399,77 @@ var CoursePlayer = (function() {
     function playSlideAudio(audioList) {
         // Clear any previously tracked audios and timers
         stopAllSlideAudios();
-        if (window.audioTimelineTimers) {
-            window.audioTimelineTimers.forEach(function(t) { clearTimeout(t); });
-        }
-        window.audioTimelineTimers = [];
         
-        // Check if any audio has a startTime > 0 (timeline-positioned)
-        var hasTimeline = audioList.some(function(a) { return (a.startTime || 0) > 0; });
+        if (!audioList || audioList.length === 0) return;
         
-        if (hasTimeline) {
-            // Timeline mode: schedule each audio at its startTime
-            audioList.forEach(function(audio) {
-                var startMs = (audio.startTime || 0) * 1000;
+        console.log('[Audio] Playing', audioList.length, 'audio(s)');
+        
+        // Sort by startTime to ensure correct order
+        var sortedList = audioList.slice().sort(function(a, b) {
+            return (a.startTime || 0) - (b.startTime || 0);
+        });
+        
+        // Log all audio entries for debugging
+        sortedList.forEach(function(a, i) {
+            console.log('[Audio]', i + 1, '- startTime:', a.startTime, 'duration:', a.duration, 'src:', (a.src || '').split('/').pop());
+        });
+        
+        // Determine playback mode:
+        // - If any audio has startTime > 0, use timeline mode (setTimeout at each startTime)
+        // - If all startTimes are 0/null/undefined, use sequential mode (chain via 'ended' event)
+        var hasExplicitTimeline = sortedList.some(function(a) {
+            return typeof a.startTime === 'number' && a.startTime > 0;
+        });
+        
+        if (hasExplicitTimeline) {
+            console.log('[Audio] Timeline mode - scheduling at startTime positions');
+            sortedList.forEach(function(audio, idx) {
+                var startMs = Math.round((audio.startTime || 0) * 1000);
                 var timer = setTimeout(function() {
+                    // Double-check we haven't navigated away
+                    if (!window.audioTimelineTimers) return;
                     var audioEl = new Audio(audio.src);
                     audioEl.volume = audio.volume || 1;
                     activeSlideAudios.push(audioEl);
+                    console.log('[Audio] Playing audio', idx + 1, 'at', audio.startTime, 's');
                     audioEl.play().catch(function(e) {
-                        console.log('Audio play blocked at', audio.startTime, 's');
+                        console.log('[Audio] Play blocked for audio', idx + 1, ':', e.message);
                     });
                 }, startMs);
                 window.audioTimelineTimers.push(timer);
             });
-        } else {
-            // Sequential mode: play audios one after another when no startTime is set
-            var index = 0;
-            function playNext() {
-                if (index >= audioList.length) return;
-                var audio = audioList[index];
+        } else if (sortedList.length > 1) {
+            console.log('[Audio] Sequential mode - chaining', sortedList.length, 'audios');
+            var seqIndex = 0;
+            function playNextInSequence() {
+                if (seqIndex >= sortedList.length) return;
+                if (!window.audioTimelineTimers) return; // Slide changed
+                var audio = sortedList[seqIndex];
                 var audioEl = new Audio(audio.src);
                 audioEl.volume = audio.volume || 1;
                 activeSlideAudios.push(audioEl);
                 audioEl.addEventListener('ended', function() {
-                    index++;
-                    playNext();
+                    seqIndex++;
+                    playNextInSequence();
                 });
+                console.log('[Audio] Sequential: playing audio', seqIndex + 1);
                 audioEl.play().catch(function(e) {
-                    console.log('Audio autoplay blocked');
-                    // Try next audio if this one fails
-                    index++;
-                    playNext();
+                    console.log('[Audio] Sequential play blocked:', e.message);
+                    seqIndex++;
+                    playNextInSequence();
                 });
             }
-            playNext();
+            window.audioTimelineTimers = [1]; // Sentinel to track active state
+            playNextInSequence();
+        } else {
+            // Single audio - play immediately
+            var audio = sortedList[0];
+            var audioEl = new Audio(audio.src);
+            audioEl.volume = audio.volume || 1;
+            activeSlideAudios.push(audioEl);
+            audioEl.play().catch(function(e) {
+                console.log('[Audio] Single play blocked:', e.message);
+            });
         }
     }
     
