@@ -225,8 +225,8 @@ class TestSCORMExportPPTElements:
     def test_scorm_export_includes_all_elements(self):
         """Verify SCORM export includes elements with visible:false"""
         # Trigger SCORM export
-        response = requests.post(f"{BASE_URL}/api/projects/{PPT_PROJECT_ID}/export/scorm")
-        assert response.status_code == 200, "SCORM export should succeed"
+        response = requests.post(f"{BASE_URL}/api/course/{PPT_PROJECT_ID}/export-scorm")
+        assert response.status_code == 200, f"SCORM export should succeed: {response.status_code} - {response.text[:200] if response.text else ''}"
         
         # Parse the ZIP
         zip_data = io.BytesIO(response.content)
@@ -262,8 +262,8 @@ class TestSCORMExportPPTElements:
     def test_exported_player_js_has_fixes(self):
         """Verify exported player.js has all 3 fixes"""
         # Trigger SCORM export
-        response = requests.post(f"{BASE_URL}/api/projects/{PPT_PROJECT_ID}/export/scorm")
-        assert response.status_code == 200, "SCORM export should succeed"
+        response = requests.post(f"{BASE_URL}/api/course/{PPT_PROJECT_ID}/export-scorm")
+        assert response.status_code == 200, f"SCORM export should succeed: {response.status_code}"
         
         # Parse the ZIP
         zip_data = io.BytesIO(response.content)
