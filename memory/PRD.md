@@ -97,6 +97,17 @@ Application is a React/FastAPI course authoring tool with features including SCO
   - Posicionada absolutamente dentro do `#slide-wrapper`, z-index 500
 - **Tested:** 21/21 tests passed (iteration_32)
 
+## PPT Text Visibility Fix (Feb 2026)
+- **Root cause:** 3 problemas que tornavam textos de PPT invisíveis no SCORM:
+  1. **Cor branca sobre branco:** Body CSS tem `color:#fff`, textos importados de PPT não possuem `fontColor`, resultando em texto branco sobre fundo branco
+  2. **`visible:false`:** Elementos de PPT import têm `visible:false` e o player os pulava inteiramente
+  3. **`opacity:0`:** Elementos de PPT import têm `style.opacity:0`, tornando-os permanentemente invisíveis
+- **Fix:**
+  1. Adicionado `color: #000000` como padrão para text e shape elements (alinhado com o editor)
+  2. Removido o skip de `visible===false` — elementos agora são sempre renderizados
+  3. `applyElementStyles` agora só aplica opacity quando `> 0`
+- **Tested:** 16/16 tests passed (iteration_33)
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
