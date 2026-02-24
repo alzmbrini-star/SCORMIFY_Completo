@@ -1291,7 +1291,10 @@ var CoursePlayer = (function() {
         if (style.fill) el.style.backgroundColor = style.fill;
         if (style.stroke) el.style.borderColor = style.stroke;
         if (style.strokeWidth) el.style.borderWidth = style.strokeWidth + 'px';
-        if (style.opacity !== undefined) el.style.opacity = style.opacity;
+        // Only apply opacity if it's a non-zero value.
+        // PPT imports often set opacity: 0 which makes elements invisible.
+        // Timeline and animations handle show/hide separately.
+        if (style.opacity !== undefined && style.opacity > 0) el.style.opacity = style.opacity;
         if (style.fontSize) el.style.fontSize = style.fontSize + 'px';
         if (style.fontFamily) el.style.fontFamily = style.fontFamily;
         if (style.fontWeight) el.style.fontWeight = style.fontWeight;
