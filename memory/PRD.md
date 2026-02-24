@@ -83,6 +83,15 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Note:** Users must re-export SCORM packages to get the improved context.
 - **Tested:** 12/12 tests passed (iteration_30). Tutor now responds with slide-specific citations.
 
+## Audio Timeline Fix (Feb 2026)
+- **Root cause:** `playSlideAudio` no player.js tocava TODOS os áudios simultaneamente com `.play()`, ignorando o campo `startTime` da timeline.
+- **Fix:** Implementados dois modos de reprodução:
+  1. **Timeline mode:** Quando algum áudio tem `startTime > 0`, cada áudio é agendado com `setTimeout` no seu tempo correto.
+  2. **Sequential mode:** Quando nenhum `startTime` está definido, áudios tocam em sequência (um após o outro via evento `ended`).
+  3. `stopAllSlideAudios` agora também limpa timers agendados.
+- **Note:** Users must re-export SCORM packages to get this fix.
+- **Tested:** 14/14 tests passed (iteration_31)
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
