@@ -707,6 +707,7 @@ var CoursePlayer = (function() {
         
         // Stop any playing slide audio before rendering new slide
         stopAllSlideAudios();
+        stopSlideProgress();
         
         var slide = course.slides[index];
         var container = document.getElementById('slide-container');
