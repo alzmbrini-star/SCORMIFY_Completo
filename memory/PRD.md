@@ -120,6 +120,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Browser test:** Confirmou `timers: 3` (antes era `undefined`) e `[Audio] Playing audio 1 at 0 s` (antes não aparecia).
 - **Tested:** 16/16 tests passed (iteration_34)
 
+## Slide Thumbnail Previews (Feb 2026)
+- **Root cause:** Slide thumbnails in the editor's left sidebar were blank/white when slides were manually created (no backgroundImage from PPT import). Only showed a centered slide number.
+- **Fix:** Created `SlideThumbnailContent` component that renders a miniature version of all slide elements (text, images, shapes, video placeholders, buttons, HTML, quiz) at their original pixel positions. A parent container with CSS `transform: scale()` (dynamically calculated via `ResizeObserver`) scales the 960x540 canvas down to fit the thumbnail.
+- **Elements supported:** text (with font/color/size), image (with asset URL resolution), shape (fill, stroke, border-radius), video (play icon placeholder), button (gradient/outline styles), HTML (label), quiz (label)
+- **Tested:** 13/13 tests passed (iteration_35). Verified across 3 projects: PPT-imported slides, manually-created slides, mixed content.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
