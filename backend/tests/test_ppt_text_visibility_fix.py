@@ -192,7 +192,8 @@ class TestSCORMExportPPTElements:
         assert response.status_code == 200
         
         project = response.json()
-        slides = project.get("slides", [])
+        # Slides can be at top level or nested in 'course' key
+        slides = project.get("slides", []) or project.get("course", {}).get("slides", [])
         assert len(slides) > 0, "Project should have slides"
         
         # Count text elements with visible:false
@@ -344,9 +345,13 @@ class TestPreviousFixesIntact:
         with open(player_js_path, 'r') as f:
             content = f.read()
         
-        # Check for tagName check for input/textarea
-        assert "tagName" in content and ("INPUT" in content or "TEXTAREA" in content), \
-            "player.js should have keyboard input guard checking tagName"
+        # Check for tagName check for input/textarea (case insensitive - may be lowercase)
+        content_lower = content.lower()
+        assert "tagname" in content_lower and ("input" in content_lower and "textarea" in content_lower), \
+            "player.js should have keyboard input guard checking tagName for input/textarea"
+        
+        # Verify it's used in keyboard handler context
+        assert "keydown" in content_lower, "player.js should have keydown event listener"
         
         print("✅ Keyboard input guard intact")
     
