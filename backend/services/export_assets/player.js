@@ -758,10 +758,10 @@ var CoursePlayer = (function() {
         // Get slide duration for timeline
         var slideDuration = slide.duration || 10;
         
-        // Render elements (filter out invisible ones)
+        // Render elements
         slide.elements.forEach(function(element, elemIndex) {
-            // Skip invisible elements (used for accessibility text)
-            if (element.visible === false) return;
+            // Note: visible=false elements from PPT import are still rendered
+            // (the editor shows them too). Only skip if explicitly marked for exclusion.
             
             var el = createElementNode(element);
             if (el) {
