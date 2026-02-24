@@ -758,10 +758,10 @@ var CoursePlayer = (function() {
         // Get slide duration for timeline
         var slideDuration = slide.duration || 10;
         
-        // Render elements (filter out invisible ones)
+        // Render elements
         slide.elements.forEach(function(element, elemIndex) {
-            // Skip invisible elements (used for accessibility text)
-            if (element.visible === false) return;
+            // Note: visible=false elements from PPT import are still rendered
+            // (the editor shows them too). Only skip if explicitly marked for exclusion.
             
             var el = createElementNode(element);
             if (el) {
@@ -878,6 +878,9 @@ var CoursePlayer = (function() {
                 el = document.createElement('div');
                 el.className = 'slide-element text-element';
                 el.innerHTML = element.content ? element.content.replace(/\n/g, '<br>') : '';
+                // Set default text color (black) - matches editor behavior
+                // Inline HTML styles or fontColor from element.style will override this
+                el.style.color = '#000000';
                 // Apply background color (transparent by default)
                 if (element.style && element.style.backgroundColor) {
                     el.style.backgroundColor = element.style.backgroundColor;
@@ -903,6 +906,8 @@ var CoursePlayer = (function() {
             case 'shape':
                 el = document.createElement('div');
                 el.className = 'slide-element shape-element';
+                // Set default text color for shape text content
+                el.style.color = '#000000';
                 if (element.content) {
                     el.innerHTML = element.content.replace(/\n/g, '<br>');
                 }
@@ -1286,7 +1291,10 @@ var CoursePlayer = (function() {
         if (style.fill) el.style.backgroundColor = style.fill;
         if (style.stroke) el.style.borderColor = style.stroke;
         if (style.strokeWidth) el.style.borderWidth = style.strokeWidth + 'px';
-        if (style.opacity !== undefined) el.style.opacity = style.opacity;
+        // Only apply opacity if it's a non-zero value.
+        // PPT imports often set opacity: 0 which makes elements invisible.
+        // Timeline and animations handle show/hide separately.
+        if (style.opacity !== undefined && style.opacity > 0) el.style.opacity = style.opacity;
         if (style.fontSize) el.style.fontSize = style.fontSize + 'px';
         if (style.fontFamily) el.style.fontFamily = style.fontFamily;
         if (style.fontWeight) el.style.fontWeight = style.fontWeight;
