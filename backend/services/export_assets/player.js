@@ -1392,18 +1392,52 @@ var CoursePlayer = (function() {
     }
     
     function playSlideAudio(audioList) {
-        // Clear any previously tracked audios
+        // Clear any previously tracked audios and timers
         stopAllSlideAudios();
+        if (window.audioTimelineTimers) {
+            window.audioTimelineTimers.forEach(function(t) { clearTimeout(t); });
+        }
+        window.audioTimelineTimers = [];
         
-        audioList.forEach(function(audio) {
-            var audioEl = new Audio(audio.src);
-            audioEl.volume = audio.volume || 1;
-            // Track this audio so we can stop it later
-            activeSlideAudios.push(audioEl);
-            audioEl.play().catch(function(e) {
-                console.log('Audio autoplay blocked');
+        // Check if any audio has a startTime > 0 (timeline-positioned)
+        var hasTimeline = audioList.some(function(a) { return (a.startTime || 0) > 0; });
+        
+        if (hasTimeline) {
+            // Timeline mode: schedule each audio at its startTime
+            audioList.forEach(function(audio) {
+                var startMs = (audio.startTime || 0) * 1000;
+                var timer = setTimeout(function() {
+                    var audioEl = new Audio(audio.src);
+                    audioEl.volume = audio.volume || 1;
+                    activeSlideAudios.push(audioEl);
+                    audioEl.play().catch(function(e) {
+                        console.log('Audio play blocked at', audio.startTime, 's');
+                    });
+                }, startMs);
+                window.audioTimelineTimers.push(timer);
             });
-        });
+        } else {
+            // Sequential mode: play audios one after another when no startTime is set
+            var index = 0;
+            function playNext() {
+                if (index >= audioList.length) return;
+                var audio = audioList[index];
+                var audioEl = new Audio(audio.src);
+                audioEl.volume = audio.volume || 1;
+                activeSlideAudios.push(audioEl);
+                audioEl.addEventListener('ended', function() {
+                    index++;
+                    playNext();
+                });
+                audioEl.play().catch(function(e) {
+                    console.log('Audio autoplay blocked');
+                    // Try next audio if this one fails
+                    index++;
+                    playNext();
+                });
+            }
+            playNext();
+        }
     }
     
     function nextSlide() {
