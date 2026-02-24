@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>Demo SCORMIFY videos</title>
+    <title>Teste Multiplos audios</title>
     <style>
 
         * {
@@ -1252,6 +1252,52 @@
             50% { transform: translateY(8px); opacity: 1; }
         }
     
+        /* Slide Timeline Progress Bar */
+        #slide-timeline-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            z-index: 500;
+            overflow: hidden;
+            transition: height 0.2s ease;
+        }
+        #slide-timeline-bar:hover {
+            height: 6px;
+        }
+        #slide-timeline-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #06b6d4, #8b5cf6);
+            transition: width 0.15s linear;
+            border-radius: 0 2px 2px 0;
+        }
+        #slide-timeline-fill.complete {
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            width: 100% !important;
+        }
+        /* Pulsing glow when complete */
+        #slide-timeline-fill.complete::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(34, 197, 94, 0.4);
+            animation: timeline-pulse 1.5s ease-in-out 2;
+        }
+        @keyframes timeline-pulse {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+        /* Mobile adjustments */
+        body.mobile-mode #slide-timeline-bar {
+            height: 3px;
+        }
+
     </style>
 </head>
 <body>
@@ -1284,6 +1330,10 @@
         </div>
         
         <div id="slide-wrapper">
+            <!-- Slide timeline progress bar -->
+            <div id="slide-timeline-bar" data-testid="slide-timeline-bar">
+                <div id="slide-timeline-fill" data-testid="slide-timeline-fill"></div>
+            </div>
             <!-- Swipe zones for mobile navigation -->
             <div id="swipe-zone-left" class="swipe-zone" onclick="CoursePlayer.prev()"></div>
             <div id="swipe-zone-right" class="swipe-zone" onclick="CoursePlayer.next()"></div>
@@ -1349,6 +1399,7 @@
     <audio id="global-audio"></audio>
     <script src="scripts/scorm-api.js"></script>
     <script src="scripts/quiz-controller.js"></script>
+    <script src="scripts/tutor.js"></script>
     <script src="scripts/player.js"></script>
 </body>
 </html>
