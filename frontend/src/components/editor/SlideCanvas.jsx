@@ -575,6 +575,7 @@ const SlideCanvas = ({
               {element.type === 'text' && (
                 isEditing ? (
                   <textarea
+                    ref={textareaRef}
                     className="w-full h-full p-2 resize-none outline-none border-2 border-cyan-500 rounded"
                     style={{
                       fontSize: element.style?.fontSize || 16,
@@ -583,12 +584,16 @@ const SlideCanvas = ({
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
                       backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
+                      cursor: 'text',
                     }}
-                    value={element.content || ''}
-                    onChange={(e) => handleTextChange(e, element.id)}
+                    value={editingText}
+                    onChange={handleTextChange}
                     onBlur={handleTextBlur}
-                    autoFocus
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseMove={(e) => e.stopPropagation()}
+                    onMouseUp={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
                   />
                 ) : (
                   <div
