@@ -603,7 +603,12 @@ const SlideCanvas = ({
                     onMouseMove={(e) => e.stopPropagation()}
                     onMouseUp={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Escape') {
+                        e.target.blur();
+                      }
+                    }}
                   />
                 ) : (
                   <div
