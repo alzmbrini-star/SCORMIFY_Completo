@@ -137,6 +137,13 @@ Application is a React/FastAPI course authoring tool with features including SCO
   3. Removed `*.env` and `*.env.*` entries from `.gitignore`
 - **Result:** Health check at `/health` now returns `{"status":"healthy"}` from both frontend (port 3000) and backend (port 8001). Deployment orchestrator's health config is preserved.
 
+## Font Family Selector (Feb 2026)
+- **Feature:** Added font family dropdown to text element properties panel with 22 fonts across 3 categories
+- **Categories:** Sans-Serif (16 fonts: Arial, Inter, Roboto, Poppins, Montserrat, etc.), Serif (4: Georgia, Merriweather, Playfair Display, Times New Roman), Monospace (1: Courier New)
+- **Google Fonts:** CDN link added to editor (index.html), SCORM (player_template.html), and HTML export (html_exporter.py)
+- **Export support:** fontFamily correctly exported to both SCORM player (player.js) and HTML (html_exporter.py)
+- **Tested:** 21/21 tests passed (iteration_36). Backend 100%, Frontend 100%
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
