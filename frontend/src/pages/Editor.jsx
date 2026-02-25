@@ -4391,6 +4391,45 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
           <h4 className="text-sm font-medium mb-3">Text</h4>
           <div className="space-y-2">
             <div>
+              <label className="text-xs text-muted-foreground">Font Family</label>
+              <select
+                data-testid="font-family-select"
+                value={style.fontFamily || ''}
+                onChange={(e) => handleStyleChange('fontFamily', e.target.value || null)}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ fontFamily: style.fontFamily || 'inherit' }}
+              >
+                <option value="">Padrão</option>
+                <optgroup label="Sans-Serif">
+                  <option value="Arial" style={{fontFamily: 'Arial'}}>Arial</option>
+                  <option value="Helvetica" style={{fontFamily: 'Helvetica'}}>Helvetica</option>
+                  <option value="Inter" style={{fontFamily: 'Inter'}}>Inter</option>
+                  <option value="Lato" style={{fontFamily: 'Lato'}}>Lato</option>
+                  <option value="Montserrat" style={{fontFamily: 'Montserrat'}}>Montserrat</option>
+                  <option value="Nunito" style={{fontFamily: 'Nunito'}}>Nunito</option>
+                  <option value="Open Sans" style={{fontFamily: 'Open Sans'}}>Open Sans</option>
+                  <option value="Oswald" style={{fontFamily: 'Oswald'}}>Oswald</option>
+                  <option value="Poppins" style={{fontFamily: 'Poppins'}}>Poppins</option>
+                  <option value="PT Sans" style={{fontFamily: 'PT Sans'}}>PT Sans</option>
+                  <option value="Raleway" style={{fontFamily: 'Raleway'}}>Raleway</option>
+                  <option value="Roboto" style={{fontFamily: 'Roboto'}}>Roboto</option>
+                  <option value="Source Sans 3" style={{fontFamily: 'Source Sans 3'}}>Source Sans 3</option>
+                  <option value="Trebuchet MS" style={{fontFamily: 'Trebuchet MS'}}>Trebuchet MS</option>
+                  <option value="Ubuntu" style={{fontFamily: 'Ubuntu'}}>Ubuntu</option>
+                  <option value="Verdana" style={{fontFamily: 'Verdana'}}>Verdana</option>
+                </optgroup>
+                <optgroup label="Serif">
+                  <option value="Georgia" style={{fontFamily: 'Georgia'}}>Georgia</option>
+                  <option value="Merriweather" style={{fontFamily: 'Merriweather'}}>Merriweather</option>
+                  <option value="Playfair Display" style={{fontFamily: 'Playfair Display'}}>Playfair Display</option>
+                  <option value="Times New Roman" style={{fontFamily: 'Times New Roman'}}>Times New Roman</option>
+                </optgroup>
+                <optgroup label="Monospace">
+                  <option value="Courier New" style={{fontFamily: 'Courier New'}}>Courier New</option>
+                </optgroup>
+              </select>
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground">Font Size</label>
               <Input
                 type="number"
