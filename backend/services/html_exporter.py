@@ -1567,6 +1567,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             var textStyle = '';
                             if (elem.style) {{
                                 if (elem.style.fontSize) textStyle += 'font-size:' + elem.style.fontSize + 'px;';
+                                if (elem.style.fontFamily) textStyle += 'font-family:' + elem.style.fontFamily + ',sans-serif;';
                                 if (elem.style.fontColor) textStyle += 'color:' + elem.style.fontColor + ';';
                                 if (elem.style.fontWeight) textStyle += 'font-weight:' + elem.style.fontWeight + ';';
                                 if (elem.style.textAlign) textStyle += 'text-align:' + elem.style.textAlign + ';';
