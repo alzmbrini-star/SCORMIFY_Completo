@@ -87,6 +87,8 @@ const SlideCanvas = ({
   // Track pending update for final save
   const pendingUpdateRef = useRef(null);
   const [editingElementId, setEditingElementId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const textareaRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null);
   
