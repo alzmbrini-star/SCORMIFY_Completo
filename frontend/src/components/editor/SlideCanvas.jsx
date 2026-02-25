@@ -118,6 +118,16 @@ const SlideCanvas = ({
     };
   }, [canvasWidth]);
 
+  // Focus textarea and place cursor at end when editing starts
+  useEffect(() => {
+    if (editingElementId && textareaRef.current) {
+      const ta = textareaRef.current;
+      ta.focus();
+      const len = ta.value.length;
+      ta.setSelectionRange(len, len);
+    }
+  }, [editingElementId]);
+
   const getCanvasCoords = useCallback((e) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
