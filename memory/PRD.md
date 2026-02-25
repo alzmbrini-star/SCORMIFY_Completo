@@ -144,6 +144,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Export support:** fontFamily correctly exported to both SCORM player (player.js) and HTML (html_exporter.py)
 - **Tested:** 21/21 tests passed (iteration_36). Backend 100%, Frontend 100%
 
+## Text Editing Bug Fixes (Feb 2026)
+- **Bug 1 - Letters swallowed during fast typing:** Root cause was calling API on every keystroke causing re-renders. Fix: Use local state for textarea, only save to API on blur.
+- **Bug 2 - Cursor forced to beginning:** Root cause was `autoFocus` attribute. Fix: Replaced with `useEffect` + `textareaRef` that focuses and places cursor at end.
+- **Bug 3 - Cannot select text with mouse:** Root cause was parent drag handlers intercepting mouse events. Fix: Added `stopPropagation()` on `onMouseDown`, `onMouseMove`, `onMouseUp`, `onClick`, and `onKeyDown` of the textarea.
+- **Tested:** 12/13 tests passed (iteration_37). Click-drag selection inconclusive in Playwright but all other selection methods verified.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
