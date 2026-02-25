@@ -334,20 +334,27 @@ const SlideCanvas = ({
   const handleDoubleClick = useCallback((e, element) => {
     e.stopPropagation();
     if (element.type === 'text') {
+      setEditingText(element.content || '');
       setEditingElementId(element.id);
     } else if (element.type === 'html' && onEditHtmlElement) {
-      // Open RTF editor for HTML elements
       onEditHtmlElement(element);
     }
   }, [onEditHtmlElement]);
 
-  const handleTextChange = useCallback((e, elementId) => {
-    onUpdateElement(elementId, { content: e.target.value });
-  }, [onUpdateElement]);
+  const handleTextChange = useCallback((e) => {
+    setEditingText(e.target.value);
+  }, []);
 
   const handleTextBlur = useCallback(() => {
+    if (editingElementId && editingText !== undefined) {
+      const editedElement = slide?.elements?.find(el => el.id === editingElementId);
+      if (editedElement && editedElement.content !== editingText) {
+        onUpdateElement(editingElementId, { content: editingText });
+      }
+    }
     setEditingElementId(null);
-  }, []);
+    setEditingText('');
+  }, [editingElementId, editingText, slide?.elements, onUpdateElement]);
 
   const handleDeleteElement = useCallback((e, elementId) => {
     e.stopPropagation();
