@@ -171,6 +171,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Comportamento:** Quando desligado, exports SCORM e HTML não incluem o widget VLibras. Default: ligado.
 - **Testado:** API toggle (enable/disable) + SCORM export com VLibras ON/OFF verificados via curl. UI toggle funciona no export dialog.
 
+## SCORM Export Fix - IsADirectoryError (Feb 2026)
+- **Bug:** SCORM export 500 error when project assets folder contains subdirectories (e.g. `temp_convert`)
+- **Root cause:** `shutil.copy2` in `scorm_exporter.py` tried to copy a directory as a file
+- **Fix:** Added `if asset.is_dir(): continue` to skip subdirectories during asset copy
+- **Testado:** Export SCORM retorna HTTP 200
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
