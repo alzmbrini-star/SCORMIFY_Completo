@@ -2245,13 +2245,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 // Send LIBRAS script to VLibras for automatic translation
                 var currentSlideData = course.slides[currentSlide];
                 if (currentSlideData && currentSlideData.librasScript && currentSlideData.librasScript.trim()) {{
-                    try {{
-                        if (window.VLibras && window.VLibras.Widget && window.VLibras.Widget.sendMessage) {{
-                            window.VLibras.Widget.sendMessage(currentSlideData.librasScript.trim(), {{ forceTranslation: true }});
-                        }}
-                    }} catch(e) {{
-                        console.log('VLibras sendMessage not available');
-                    }}
+                    translateWithVLibras(currentSlideData.librasScript.trim(), currentSlide);
                 }}
                 
                 // Fix YouTube embeds if running locally

@@ -859,14 +859,7 @@ var CoursePlayer = (function() {
         
         // Send LIBRAS script to VLibras for automatic translation
         if (slide.librasScript && slide.librasScript.trim()) {
-            try {
-                if (window.VLibras && window.VLibras.Widget && window.VLibras.Widget.sendMessage) {
-                    window.VLibras.Widget.sendMessage(slide.librasScript.trim(), { forceTranslation: true });
-                    console.log('[Player] VLibras: translating LIBRAS script for slide ' + (index + 1));
-                }
-            } catch(e) {
-                console.log('[Player] VLibras sendMessage not available:', e);
-            }
+            translateWithVLibras(slide.librasScript.trim(), index);
         }
         
         // Check completion - defer to QuizController if course has any quiz element
