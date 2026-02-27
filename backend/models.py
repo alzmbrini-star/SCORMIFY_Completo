@@ -245,6 +245,7 @@ class SlideUpdate(BaseModel):
     transition: Optional[SlideTransition] = None
     audio: Optional[List[SlideAudio]] = None
     notes: Optional[str] = None
+    librasScript: Optional[str] = None
     duration: Optional[float] = None
 
 class ElementCreate(BaseModel):
