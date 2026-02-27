@@ -150,6 +150,13 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Bug 3 - Cannot select text with mouse:** Root cause was parent drag handlers intercepting mouse events. Fix: Added `stopPropagation()` on `onMouseDown`, `onMouseMove`, `onMouseUp`, `onClick`, and `onKeyDown` of the textarea.
 - **Tested:** 12/13 tests passed (iteration_37). Click-drag selection inconclusive in Playwright but all other selection methods verified.
 
+## VLibras Integration - Acessibilidade LIBRAS (Feb 2026)
+- **Feature:** Integração com VLibras (governo brasileiro) para tradução automática de conteúdo em LIBRAS
+- **Configuração:** Avatar aleatório (Ícaro/Hosana/Guga), posição direita
+- **Locais:** Editor (index.html), SCORM export (player_template.html), HTML export (html_exporter.py)
+- **CDN:** `https://vlibras.gov.br/app/vlibras-plugin.js` — gratuito, sem API key
+- **Testado:** Widget carrega e abre corretamente no editor. SCORM e HTML exports contêm o código VLibras.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
