@@ -157,6 +157,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **CDN:** `https://vlibras.gov.br/app/vlibras-plugin.js` — gratuito, sem API key
 - **Testado:** Widget carrega e abre corretamente no editor. SCORM e HTML exports contêm o código VLibras.
 
+## Script LIBRAS Auto-Translation (Feb 2026)
+- **Feature:** Campo "Script LIBRAS" por slide no painel de propriedades onde o autor digita o texto da narração
+- **Comportamento:** Quando o slide é exibido no SCORM/HTML player, o avatar VLibras traduz automaticamente o texto via `VLibras.Widget.sendMessage(text, { forceTranslation: true })`
+- **Locais atualizados:** Editor (Editor.jsx), SCORM player (player.js), HTML player (html_exporter.py), Data model (models.py)
+- **Testado:** 12/12 testes passaram (iteration_38). Backend 100%, Frontend 100%
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
