@@ -374,13 +374,27 @@ async def generate_standalone_html(
         logger.info(f"Added {len(questions)} questions to HTML export")
     
     # Generate HTML
-    html = generate_html_template(title, course_data, default_width, default_height)
+    html = generate_html_template(title, course_data, default_width, default_height, enable_vlibras)
     
     return html
 
 
-def generate_html_template(title: str, course_data: Dict, width: int, height: int) -> str:
+def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True) -> str:
     """Generate the complete HTML template with embedded player"""
+    
+    # VLibras block for accessibility (LIBRAS - Brazilian Sign Language)
+    if enable_vlibras:
+        vlibras_block = '''<!-- VLibras - Acessibilidade em LIBRAS -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>new window.VLibras.Widget({ position: "R", avatar: "random" });</script>'''
+    else:
+        vlibras_block = ''
     
     # Create a deep copy and sanitize htmlContent fields to prevent JSON/JS issues
     import copy
