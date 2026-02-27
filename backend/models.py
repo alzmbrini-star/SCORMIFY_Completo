@@ -226,6 +226,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    enableVlibras: Optional[bool] = None
 
 class SlideCreate(BaseModel):
     title: str = "New Slide"
