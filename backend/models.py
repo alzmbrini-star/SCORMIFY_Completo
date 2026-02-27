@@ -212,6 +212,9 @@ class Project(BaseModel):
     course: Course = Field(default_factory=Course)
     status: str = "draft"  # draft, processing, ready, exported
     
+    # Accessibility settings
+    enableVlibras: bool = True  # Enable VLibras LIBRAS plugin in exports
+    
     createdAt: datetime = Field(default_factory=now_utc)
     updatedAt: datetime = Field(default_factory=now_utc)
 
