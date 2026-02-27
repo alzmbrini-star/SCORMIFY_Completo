@@ -182,14 +182,18 @@ class TestScormExportWithLibras:
         assert zip_response.status_code == 200
         
         with zipfile.ZipFile(io.BytesIO(zip_response.content)) as zf:
-            # Look for player.js or index.html
-            js_files = [f for f in zf.namelist() if f.endswith('.js')]
-            html_files = [f for f in zf.namelist() if f.endswith('.html')]
-            
             vlibras_code_found = False
             
-            # Check player.js
-            if 'player.js' in zf.namelist():
+            # Check scripts/player.js (the actual location in SCORM package)
+            if 'scripts/player.js' in zf.namelist():
+                player_js = zf.read('scripts/player.js').decode('utf-8')
+                if 'VLibras.Widget.sendMessage' in player_js:
+                    vlibras_code_found = True
+                    print("✅ VLibras.Widget.sendMessage found in scripts/player.js")
+                if 'librasScript' in player_js:
+                    print("✅ librasScript reference found in scripts/player.js")
+            elif 'player.js' in zf.namelist():
+                # Fallback to root player.js if exists
                 player_js = zf.read('player.js').decode('utf-8')
                 if 'VLibras.Widget.sendMessage' in player_js:
                     vlibras_code_found = True
