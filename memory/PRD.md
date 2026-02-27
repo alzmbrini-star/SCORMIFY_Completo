@@ -159,9 +159,11 @@ Application is a React/FastAPI course authoring tool with features including SCO
 
 ## Script LIBRAS Auto-Translation (Feb 2026)
 - **Feature:** Campo "Script LIBRAS" por slide no painel de propriedades onde o autor digita o texto da narração
-- **Comportamento:** Quando o slide é exibido no SCORM/HTML player, o avatar VLibras traduz automaticamente o texto via `VLibras.Widget.sendMessage(text, { forceTranslation: true })`
-- **Locais atualizados:** Editor (Editor.jsx), SCORM player (player.js), HTML player (html_exporter.py), Data model (models.py)
-- **Testado:** 12/12 testes passaram (iteration_38). Backend 100%, Frontend 100%
+- **Comportamento:** Quando o slide é exibido no SCORM/HTML player, o avatar VLibras traduz automaticamente o texto
+- **API Correta:** `window.plugin.player.translate(text)` — API interna do widget VLibras
+- **Bug Fix (Feb 2026):** A implementação anterior usava API inexistente `VLibras.Widget.sendMessage`. Corrigido para usar `window.plugin.player.translate(text)` com helper `translateWithVLibras()` que inicializa o plugin automaticamente (clicando no botão de acesso) se necessário
+- **Locais atualizados:** SCORM player (export_assets/player.js), HTML player (html_exporter.py)
+- **Testado:** iteration_39 — Backend 100%, Frontend 100%. Código quebrado (sendMessage) removido e substituído por API correta (plugin.player.translate)
 
 ## VLibras Toggle Setting (Feb 2026)
 - **Feature:** Toggle on/off para o Plugin LIBRAS (VLibras) no dialog "Exportar Curso"
