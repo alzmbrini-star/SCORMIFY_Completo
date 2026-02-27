@@ -1359,6 +1359,54 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         // Course data embedded
         var courseData = {course_json};
         
+        // VLibras automatic translation helper
+        var vlibrasInitializing = false;
+        function translateWithVLibras(text, slideIndex) {{
+            if (!text) return;
+            console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1));
+            
+            // Method 1: Plugin already initialized
+            if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {{
+                try {{
+                    window.plugin.player.translate(text);
+                    console.log('[VLibras] Translation sent via plugin.player.translate');
+                    return;
+                }} catch(e) {{
+                    console.log('[VLibras] player.translate error:', e);
+                }}
+            }}
+            
+            // Method 2: Click access button to initialize plugin
+            if (!vlibrasInitializing) {{
+                vlibrasInitializing = true;
+                var accessBtn = document.querySelector('[vw-access-button]');
+                if (accessBtn) {{
+                    console.log('[VLibras] Initializing plugin by clicking access button...');
+                    accessBtn.click();
+                    var attempts = 0;
+                    var waitForPlugin = setInterval(function() {{
+                        attempts++;
+                        if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {{
+                            clearInterval(waitForPlugin);
+                            vlibrasInitializing = false;
+                            try {{
+                                window.plugin.player.translate(text);
+                                console.log('[VLibras] Translation sent after plugin init');
+                            }} catch(e) {{
+                                console.log('[VLibras] Error after init:', e);
+                            }}
+                        }} else if (attempts >= 20) {{
+                            clearInterval(waitForPlugin);
+                            vlibrasInitializing = false;
+                            console.log('[VLibras] Plugin did not initialize within timeout');
+                        }}
+                    }}, 500);
+                }} else {{
+                    vlibrasInitializing = false;
+                }}
+            }}
+        }}
+        
         // Player module
         var Player = (function() {{
             var course = null;

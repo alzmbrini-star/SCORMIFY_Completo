@@ -131,6 +131,58 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(checkMobileOrientation, 50);
 });
 
+// VLibras automatic translation helper
+// Uses the internal plugin API: window.plugin.player.translate(text)
+var vlibrasInitializing = false;
+function translateWithVLibras(text, slideIndex) {
+    if (!text) return;
+    console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1) + ': "' + text.substring(0, 50) + '..."');
+    
+    // Method 1: Plugin already initialized - translate directly
+    if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {
+        try {
+            window.plugin.player.translate(text);
+            console.log('[VLibras] Translation sent via plugin.player.translate');
+            return;
+        } catch(e) {
+            console.log('[VLibras] player.translate error:', e);
+        }
+    }
+    
+    // Method 2: Widget loaded but plugin not yet initialized - click the access button to open it
+    if (!vlibrasInitializing) {
+        vlibrasInitializing = true;
+        var accessBtn = document.querySelector('[vw-access-button]');
+        if (accessBtn) {
+            console.log('[VLibras] Initializing plugin by clicking access button...');
+            accessBtn.click();
+            // Wait for plugin to initialize, then translate
+            var attempts = 0;
+            var maxAttempts = 20; // 10 seconds max
+            var waitForPlugin = setInterval(function() {
+                attempts++;
+                if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {
+                    clearInterval(waitForPlugin);
+                    vlibrasInitializing = false;
+                    try {
+                        window.plugin.player.translate(text);
+                        console.log('[VLibras] Translation sent after plugin init');
+                    } catch(e) {
+                        console.log('[VLibras] Error after init:', e);
+                    }
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(waitForPlugin);
+                    vlibrasInitializing = false;
+                    console.log('[VLibras] Plugin did not initialize within timeout');
+                }
+            }, 500);
+        } else {
+            vlibrasInitializing = false;
+            console.log('[VLibras] No access button found - widget may not be loaded');
+        }
+    }
+}
+
 var CoursePlayer = (function() {
     var course = null;
     var currentSlide = 0;
