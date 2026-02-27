@@ -4657,6 +4657,21 @@ function SlideProperties({ slide, onUpdate }) {
           onChange={(e) => onUpdate({ notes: e.target.value })}
         />
       </div>
+
+      <div className="panel-section">
+        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><path d="M14 11h3a1 1 0 0 1 1 1v1a2 2 0 0 1-2 2h-2"/><path d="M14 15v5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-5"/></svg>
+          Script LIBRAS
+        </h4>
+        <textarea
+          data-testid="libras-script-input"
+          className="w-full h-28 p-2 text-sm bg-background border rounded resize-none"
+          placeholder="Digite aqui o texto da narração deste slide para tradução automática em LIBRAS..."
+          value={slide.librasScript || ''}
+          onChange={(e) => onUpdate({ librasScript: e.target.value })}
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">O avatar VLibras traduzirá este texto automaticamente quando o slide for exibido no SCORM/HTML.</p>
+      </div>
     </div>
   );
 }
