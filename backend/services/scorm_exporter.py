@@ -521,11 +521,13 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         clean_title = 'Curso SCORM'
     
     # Generate index.html from template + CSS assets
+    enable_vlibras = getattr(project, 'enableVlibras', True)
     html_content = _build_html(
         title=clean_title,
         lang=course.metadata.language or 'en',
         width=slide_width,
-        height=slide_height
+        height=slide_height,
+        enable_vlibras=enable_vlibras
     )
     
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:
