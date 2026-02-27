@@ -80,6 +80,7 @@ def _read_asset(filename: str) -> str:
 
 
 def _build_html(title: str, lang: str, width: int, height: int) -> str:
+def build_index_html(title, lang, width, height, enable_vlibras=True):
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
     css = _read_asset("player.css")
@@ -96,6 +97,21 @@ def _build_html(title: str, lang: str, width: int, height: int) -> str:
     html = html.replace("__LANG__", lang)
     html = html.replace("__SLIDE_WIDTH__", str(width))
     html = html.replace("__SLIDE_HEIGHT__", str(height))
+    
+    # Conditionally include VLibras
+    if enable_vlibras:
+        vlibras_block = '''<!-- VLibras - Acessibilidade em LIBRAS -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>new window.VLibras.Widget({ position: "R", avatar: "random" });</script>'''
+        html = html.replace("__VLIBRAS_BLOCK__", vlibras_block)
+    else:
+        html = html.replace("__VLIBRAS_BLOCK__", "")
 
     return html
 
