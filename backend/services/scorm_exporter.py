@@ -234,6 +234,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     if project_assets.exists():
         asset_count = 0
         for asset in project_assets.iterdir():
+            if asset.is_dir():
+                continue
             shutil.copy2(asset, package_dir / "assets" / asset.name)
             asset_count += 1
             logger.info(f"Copied asset: {asset.name}")
