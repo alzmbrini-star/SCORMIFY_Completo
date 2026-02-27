@@ -163,6 +163,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Locais atualizados:** Editor (Editor.jsx), SCORM player (player.js), HTML player (html_exporter.py), Data model (models.py)
 - **Testado:** 12/12 testes passaram (iteration_38). Backend 100%, Frontend 100%
 
+## VLibras Toggle Setting (Feb 2026)
+- **Feature:** Toggle on/off para o Plugin LIBRAS (VLibras) no dialog "Exportar Curso"
+- **Locais atualizados:** Editor export dialog (Editor.jsx), Project model (models.py), ProjectUpdate model (models.py), SCORM exporter (scorm_exporter.py), HTML exporter (html_exporter.py)
+- **Comportamento:** Quando desligado, exports SCORM e HTML não incluem o widget VLibras. Default: ligado.
+- **Testado:** API toggle (enable/disable) + SCORM export com VLibras ON/OFF verificados via curl. UI toggle funciona no export dialog.
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
