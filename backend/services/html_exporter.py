@@ -2693,6 +2693,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
         }});
     </script>
+    <!-- VLibras - Acessibilidade em LIBRAS -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>new window.VLibras.Widget({{ position: "R", avatar: "random" }});</script>
 </body>
 </html>'''
     
