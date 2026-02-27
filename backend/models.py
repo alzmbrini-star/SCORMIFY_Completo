@@ -152,6 +152,9 @@ class Slide(BaseModel):
     # Notes for presenter
     notes: Optional[str] = None
     
+    # LIBRAS script for VLibras avatar translation
+    librasScript: Optional[str] = None
+    
     # Thumbnail
     thumbnail: Optional[str] = None
     
