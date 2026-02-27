@@ -79,8 +79,7 @@ def _read_asset(filename: str) -> str:
     return (EXPORT_ASSETS_DIR / filename).read_text(encoding='utf-8')
 
 
-def _build_html(title: str, lang: str, width: int, height: int) -> str:
-def build_index_html(title, lang, width, height, enable_vlibras=True):
+def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: bool = True) -> str:
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
     css = _read_asset("player.css")
