@@ -193,6 +193,21 @@ async def generate_standalone_html(
     
     title = metadata.get('title', project.get('name', 'Course'))
     
+    # VLibras accessibility setting
+    enable_vlibras = project.get('enableVlibras', True)
+    if enable_vlibras:
+        vlibras_block = '''<!-- VLibras - Acessibilidade em LIBRAS -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>new window.VLibras.Widget({{ position: "R", avatar: "random" }});</script>'''
+    else:
+        vlibras_block = ''
+    
     # Get first slide dimensions as default
     default_width = 1536
     default_height = 864
