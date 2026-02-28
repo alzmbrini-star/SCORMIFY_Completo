@@ -314,17 +314,25 @@ async def vlibras_proxy_test(request: Request):
     """VLibras test page WITH CORS proxy - tests the full proxy flow"""
     test_path = Path(__file__).parent / "static_test" / "vlibras_proxy_test.html"
     html = test_path.read_text()
-    # Use REACT_APP_BACKEND_URL or x-forwarded-host for the external URL
-    backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
-    if not backend_url:
+    # Determine external URL - use origin header, x-forwarded-host, or read from frontend .env
+    origin = request.headers.get('origin', '')
+    if not origin:
         fwd_host = request.headers.get('x-forwarded-host', '')
         scheme = request.headers.get('x-forwarded-proto', 'https')
         if fwd_host:
-            backend_url = f"{scheme}://{fwd_host}"
+            origin = f"{scheme}://{fwd_host}"
         else:
-            origin = request.headers.get('origin', '')
-            backend_url = origin if origin else ''
-    proxy_base = backend_url.rstrip('/') + '/api/vlibras-proxy'
+            # Read from frontend .env as fallback
+            try:
+                env_path = Path(__file__).parent.parent / "frontend" / ".env"
+                for line in env_path.read_text().splitlines():
+                    if line.startswith("REACT_APP_BACKEND_URL="):
+                        origin = line.split("=", 1)[1].strip()
+                        break
+            except Exception:
+                host = request.headers.get('host', '')
+                origin = f"https://{host}" if host else ''
+    proxy_base = origin.rstrip('/') + '/api/vlibras-proxy'
     html = html.replace('__PROXY_BASE__', proxy_base)
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
