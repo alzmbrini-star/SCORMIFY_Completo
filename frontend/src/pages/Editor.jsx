@@ -4652,6 +4652,32 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
 
 // Slide Properties Panel
 function SlideProperties({ slide, onUpdate }) {
+  // Extract text content from slide elements for auto-fill
+  const extractSlideText = () => {
+    const texts = (slide.elements || [])
+      .filter(el => el.type === 'text' && el.content)
+      .map(el => {
+        // Strip HTML tags if htmlContent exists
+        if (el.htmlContent) {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = el.htmlContent;
+          return tmp.textContent || tmp.innerText || '';
+        }
+        return el.content;
+      })
+      .filter(t => t.trim());
+    return texts.join('. ').trim();
+  };
+
+  const handleAutoFill = () => {
+    const text = extractSlideText();
+    if (text) {
+      onUpdate({ librasScript: text });
+    }
+  };
+
+  const slideText = extractSlideText();
+
   return (
     <div className="p-4 space-y-4">
       <div className="panel-section">
