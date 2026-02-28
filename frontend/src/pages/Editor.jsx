@@ -1777,8 +1777,16 @@ export default function Editor() {
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
+      
+      // Auto-fill Script LIBRAS with the narration text if empty
+      if (ttsText.trim() && !currentSlide.librasScript) {
+        await updateSlide(currentSlide.id, { librasScript: ttsText.trim() });
+        toast.success('Narração adicionada ao slide! Script LIBRAS preenchido automaticamente.');
+      } else {
+        toast.success('Narração adicionada ao slide!');
+      }
+      
       await fetchProject(currentProject.id);
-      toast.success('Narração adicionada ao slide!');
       setShowTTSDialog(false);
       setTTSAudioUrl(null);
       setTTSText('');
