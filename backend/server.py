@@ -1356,10 +1356,13 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 if origin:
                     backend_url = origin
                 else:
-                    # Fallback: build from request host
+                    fwd_host = request.headers.get('x-forwarded-host', '')
                     scheme = request.headers.get('x-forwarded-proto', 'https')
-                    host = request.headers.get('host', '')
-                    backend_url = f"{scheme}://{host}" if host else ''
+                    if fwd_host:
+                        backend_url = f"{scheme}://{fwd_host}"
+                    else:
+                        host = request.headers.get('host', '')
+                        backend_url = f"{scheme}://{host}" if host else ''
                 
                 tutor_settings = {
                     'enabled': True,
