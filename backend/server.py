@@ -1379,13 +1379,18 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         import asyncio
         
         # Detect backend URL for VLibras dictionary proxy
+        # Use x-forwarded-host first (correct in Cloudflare-proxied K8s environments)
         origin = request.headers.get('origin', '')
         if origin:
             scorm_backend_url = origin
         else:
+            fwd_host = request.headers.get('x-forwarded-host', '')
             scheme = request.headers.get('x-forwarded-proto', 'https')
-            host = request.headers.get('host', '')
-            scorm_backend_url = f"{scheme}://{host}" if host else ''
+            if fwd_host:
+                scorm_backend_url = f"{scheme}://{fwd_host}"
+            else:
+                host = request.headers.get('host', '')
+                scorm_backend_url = f"{scheme}://{host}" if host else ''
         
         zip_path = await asyncio.to_thread(
             export_scorm_package,
