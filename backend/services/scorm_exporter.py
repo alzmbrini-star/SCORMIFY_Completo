@@ -107,7 +107,19 @@ def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: 
         </div>
     </div>
     <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
-    <script>new window.VLibras.Widget({ position: "R", avatar: "random" });</script>'''
+    <script>
+        new window.VLibras.Widget({ position: "R", avatar: "random" });
+        // Auto-initialize VLibras plugin for programmatic LIBRAS translation
+        window.addEventListener("load", function() {
+            setTimeout(function() {
+                var accessBtn = document.querySelector("[vw-access-button]");
+                if (accessBtn && !window.plugin) {
+                    console.log("[VLibras] Auto-clicking access button to initialize plugin...");
+                    accessBtn.click();
+                }
+            }, 2000);
+        });
+    </script>'''
         html = html.replace("__VLIBRAS_BLOCK__", vlibras_block)
     else:
         html = html.replace("__VLIBRAS_BLOCK__", "")
