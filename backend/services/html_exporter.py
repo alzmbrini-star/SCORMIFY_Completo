@@ -392,7 +392,19 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         </div>
     </div>
     <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
-    <script>new window.VLibras.Widget({ position: "R", avatar: "random" });</script>'''
+    <script>
+        new window.VLibras.Widget({ position: "R", avatar: "random" });
+        // Auto-initialize VLibras plugin for programmatic LIBRAS translation
+        window.addEventListener("load", function() {
+            setTimeout(function() {
+                var accessBtn = document.querySelector("[vw-access-button]");
+                if (accessBtn && !window.plugin) {
+                    console.log("[VLibras] Auto-clicking access button to initialize plugin...");
+                    accessBtn.click();
+                }
+            }, 2000);
+        });
+    </script>'''
     else:
         vlibras_block = ''
     
