@@ -23,7 +23,7 @@
           "id": "128ac91f-288b-45f8-acc1-ca6df079a28e",
           "type": "html",
           "x": 50.0,
-          "y": 22.758620689655174,
+          "y": 20.655202607187476,
           "width": 1814.4827586206898,
           "height": 751.7241379310345,
           "rotation": 0.0,
@@ -77,10 +77,10 @@
       },
       "audio": [
         {
-          "id": "906b5ff6-03a8-4f13-8e1e-526d1e160977",
+          "id": "33d9ab1b-43b9-4e2f-88e1-f4288bd21ef5",
           "type": "narration",
-          "src": "assets/audio_906b5ff6-03a8-4f13-8e1e-526d1e160977.mp3",
-          "filename": "audio_906b5ff6-03a8-4f13-8e1e-526d1e160977.mp3",
+          "src": "assets/audio_33d9ab1b-43b9-4e2f-88e1-f4288bd21ef5.mp3",
+          "filename": "audio_33d9ab1b-43b9-4e2f-88e1-f4288bd21ef5.mp3",
           "duration": 0.0,
           "volume": 1.0,
           "fadeIn": 0,
@@ -89,9 +89,9 @@
         }
       ],
       "notes": null,
-      "librasScript": "Olá! Bem-vindo ao nosso curso de treinamento sobre LIBRAS.",
+      "librasScript": "A Libras é a língua visuo-espacial utilizada pelas comunidades surdas no Brasil, possuindo gramática e léxico próprios que a tornam independente do português. Reconhecida oficialmente em 2002, ela vai além dos sinais, utilizando expressões faciais e variações regionais para promover a inclusão e a autonomia. Para aprender, você pode buscar cursos presenciais, ferramentas digitais ou, principalmente, praticar através da interação social com a própria comunidade.",
       "thumbnail": null,
-      "duration": 5.0
+      "duration": 55.0
     },
     {
       "id": "83cd1aad-2507-4a67-b64f-ef89f3981745",
@@ -105,9 +105,9 @@
         {
           "id": "8c239567-5144-411d-a82c-d7a1a8f037ee",
           "type": "video",
-          "x": 188.62068965517244,
+          "x": 596.6837976539008,
           "y": 120.68965517241384,
-          "width": 1444.8275862068965,
+          "width": 712.8380935081469,
           "height": 699.3103448275862,
           "rotation": 0.0,
           "zIndex": 0,
@@ -172,7 +172,7 @@
   "updatedAt": "2026-02-28T22:30:22.965319+00:00",
   "tutorConfig": {
     "enabled": true,
-    "apiUrl": "https://sign-lang-player.cluster-5.preview.emergentcf.cloud",
+    "apiUrl": "https://libras-proxy-test.preview.emergentagent.com",
     "courseTopic": "Teste de Libras",
     "courseContext": "Slide 1: Língua Brasileira de Sinais (Libras) A Língua Brasileira de Sinais, conhecida como Libras, é a língua visuo-espacial utilizada pelas comunidades surdas no Brasil. Reconhecida como uma língua oficial do Brasil em 2002, ela possui sua própria estrutura gramatical e lexical distinta do português falado e escrito. Características da Libras Visuo-espacial: Utiliza expressões faciais e movimentos corporais em vez de sons. Estrutura Gramatical: Possui gramática própria, incluindo ordem das palavras e c",
     "tutorName": "Tutor IA",

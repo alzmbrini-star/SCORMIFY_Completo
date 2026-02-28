@@ -1405,6 +1405,34 @@
     <script src="scripts/tutor.js"></script>
     <script src="scripts/player.js"></script>
     <!-- VLibras - Acessibilidade em LIBRAS -->
+    <script>
+        // CORS proxy for VLibras servers - intercept XHR to dicionario2 and traducao2
+        (function() {
+            var PROXY_BASE = "https://libras-proxy-test.preview.emergentagent.com/api/vlibras-proxy";
+            if (!PROXY_BASE) return;
+            var _domainMap = {
+                "dicionario2.vlibras.gov.br": PROXY_BASE + "/dicionario2",
+                "traducao2.vlibras.gov.br": PROXY_BASE + "/traducao2"
+            };
+            var _origOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url) {
+                if (typeof url === "string") {
+                    for (var domain in _domainMap) {
+                        if (url.indexOf(domain) !== -1) {
+                            try {
+                                var u = new URL(url);
+                                var newUrl = _domainMap[domain] + u.pathname + u.search;
+                                console.log("[VLibras Proxy] " + method + " " + domain + u.pathname + " -> proxy");
+                                arguments[1] = newUrl;
+                            } catch(e) { console.warn("[VLibras Proxy] URL parse error:", e); }
+                            break;
+                        }
+                    }
+                }
+                return _origOpen.apply(this, arguments);
+            };
+        })();
+    </script>
     <div vw class="enabled">
         <div vw-access-button class="active"></div>
         <div vw-plugin-wrapper>
