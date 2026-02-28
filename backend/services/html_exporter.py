@@ -1374,51 +1374,47 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         var courseData = {course_json};
         
         // VLibras automatic translation helper
-        var vlibrasInitializing = false;
+        var vlibrasReady = false;
+        var vlibrasLastText = '';
+        
         function translateWithVLibras(text, slideIndex) {{
             if (!text) return;
+            vlibrasLastText = text;
             console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1));
             
-            // Method 1: Plugin already initialized
-            if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {{
+            if (vlibrasReady && window.plugin && typeof window.plugin.translate === 'function') {{
                 try {{
-                    window.plugin.player.translate(text);
-                    console.log('[VLibras] Translation sent via plugin.player.translate');
+                    window.plugin.translate(text);
+                    console.log('[VLibras] Translation sent via plugin.translate');
                     return;
                 }} catch(e) {{
-                    console.log('[VLibras] player.translate error:', e);
+                    console.log('[VLibras] plugin.translate error:', e);
                 }}
             }}
             
-            // Method 2: Click access button to initialize plugin
-            if (!vlibrasInitializing) {{
-                vlibrasInitializing = true;
-                var accessBtn = document.querySelector('[vw-access-button]');
-                if (accessBtn) {{
-                    console.log('[VLibras] Initializing plugin by clicking access button...');
-                    accessBtn.click();
-                    var attempts = 0;
-                    var waitForPlugin = setInterval(function() {{
-                        attempts++;
-                        if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {{
-                            clearInterval(waitForPlugin);
-                            vlibrasInitializing = false;
-                            try {{
-                                window.plugin.player.translate(text);
-                                console.log('[VLibras] Translation sent after plugin init');
-                            }} catch(e) {{
-                                console.log('[VLibras] Error after init:', e);
+            console.log('[VLibras] Plugin not ready, queuing text...');
+            var attempts = 0;
+            var maxAttempts = 120;
+            var waitForReady = setInterval(function() {{
+                attempts++;
+                if (window.plugin && typeof window.plugin.translate === 'function') {{
+                    var canvas = document.querySelector('[vw-plugin-wrapper] canvas, [vw-plugin-wrapper] iframe, [vp] canvas');
+                    if (canvas || attempts > 40) {{
+                        clearInterval(waitForReady);
+                        vlibrasReady = true;
+                        setTimeout(function() {{
+                            if (vlibrasLastText === text) {{
+                                window.plugin.translate(text);
+                                console.log('[VLibras] Translation sent after waiting ' + (attempts * 0.5) + 's');
                             }}
-                        }} else if (attempts >= 20) {{
-                            clearInterval(waitForPlugin);
-                            vlibrasInitializing = false;
-                            console.log('[VLibras] Plugin did not initialize within timeout');
-                        }}
-                    }}, 500);
-                }} else {{
-                    vlibrasInitializing = false;
+                        }}, 2000);
+                    }}
                 }}
-            }}
+                if (attempts >= maxAttempts) {{
+                    clearInterval(waitForReady);
+                    console.log('[VLibras] Plugin did not become ready within 60s timeout');
+                }}
+            }}, 500);
         }}
         
         // Player module
