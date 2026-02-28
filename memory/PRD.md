@@ -178,6 +178,12 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **Fix:** Added `if asset.is_dir(): continue` to skip subdirectories during asset copy
 - **Testado:** Export SCORM retorna HTTP 200
 
+## Auto-preenchimento Script LIBRAS (Feb 2026)
+- **TTS → LIBRAS:** Quando narração TTS (ElevenLabs) é adicionada ao slide, o texto da narração auto-preenche o campo `librasScript` se estiver vazio
+- **Texto do slide → LIBRAS:** Botão "Preencher com texto do slide" extrai conteúdo de elementos de texto do slide e preenche o campo `librasScript`
+- **Editável manualmente:** Autor sempre pode editar ou substituir o texto (importante para slides com apenas imagens)
+- **Testado:** iteration_41 — Backend 100%, Frontend 100%. 9/9 testes passaram
+
 ## Backlog
 - **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
 - **P2:** Refactor `backend/server.py` into multiple APIRouter files
