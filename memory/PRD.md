@@ -1,189 +1,78 @@
-# PRD - Course Authoring Tool
+# PRD - Course Authoring Tool (Scormfy)
 
 ## Original Problem Statement
-Application is a React/FastAPI course authoring tool with features including SCORM export, PPT import, AI-powered script generation, TTS (ElevenLabs), and avatar video generation (HeyGen).
+Build a full-featured course authoring tool that allows users to create interactive courses, export them to SCORM/HTML format, and include accessibility features like VLibras (Brazilian Sign Language) translation.
 
 ## Core Requirements
-- **[DONE]** Fix all login and deployment-related issues
-- **[DONE]** Implement PPT import for production environment
-- **[DONE]** Resolve all SCORM and HTML export regressions
-- **[DONE]** Ensure all core functionalities are stable in production
-- **[DONE]** Achieve stable production deployment (Nginx startup conflict resolved)
-- **[DONE]** Ensure projects are visible and accessible after login
-- **[DONE]** AI Tutor feature (Gemini-powered, admin-configurable, SCORM-embedded)
-- **[DONE]** Fix AI Tutor keyboard blocking in SCORM exports
+- Course creation with slides, elements, and multimedia
+- SCORM 1.2 and standalone HTML export
+- Text-to-Speech (ElevenLabs integration)
+- AI content generation (Google Gemini)
+- VLibras LIBRAS accessibility
+- HeyGen avatar video generation
+- PowerPoint import (ConvertAPI)
+- Quiz/assessment support
+- AI Tutor integration
+- Mobile responsive course player
 
 ## Architecture
-- **Frontend:** React (port 3000)
-- **Backend:** FastAPI (port 8001)
-- **Database:** MongoDB
-- **Proxy:** Nginx (port 80) managed by deployment orchestrator
-
-## 3rd Party Integrations
-- ElevenLabs (TTS)
-- HeyGen (avatar video)
-- Google Gemini via Emergent LLM Key (AI script generation + AI Tutor)
-- ConvertAPI (PPT conversion, user API key)
+- **Frontend**: React + Tailwind + Shadcn/UI
+- **Backend**: FastAPI + MongoDB
+- **Integrations**: ElevenLabs TTS, Google Gemini, HeyGen, ConvertAPI, VLibras
 
 ## What's Been Implemented
-- SCORM export hardened against None values
-- SCORM quiz completion logic fixed (waits for quiz before LMSFinish)
-- FastAPI non-blocking startup (health check responds immediately)
-- Automated export file cleanup (background task)
-- Nginx config patcher script (`fix_nginx_modules.sh`) - patches configs without starting Nginx
-- Deployment orchestrator compatibility ensured
 
-## Deployment Fix (Feb 2026)
-- **Root cause:** `fix_nginx_modules.sh` STEP 4 was executing `nginx` / `nginx -s reload` commands, creating a port 80 conflict with the deployment orchestrator's own Nginx startup
-- **Fix:** Removed all nginx start/reload commands from the script. Now only patches config files and validates with `nginx -t`
-- **Deployment agent check:** All checks passed
+### Core Features (Complete)
+- Full course editor with drag-and-drop elements
+- SCORM 1.2 export with quiz support
+- Standalone HTML export
+- Text-to-Speech via ElevenLabs
+- AI script generation via Gemini
+- HeyGen avatar video generation
+- PowerPoint import via ConvertAPI
+- Quiz/assessment system
+- AI Tutor for exported courses
+- Mobile-responsive course player
 
-## Export Persistence Fix (Feb 2026)
-- **Root cause:** Export files (SCORM, HTML, video) stored only on ephemeral local disk. Container restarts/deploys wipe the files, causing "File not found" on download
-- **Fix:** Added MongoDB GridFS persistence layer. Files are saved to GridFS after generation. Download endpoint falls back to GridFS if the local file is missing, restoring it transparently
-- **Tested:** Export -> delete local file -> download succeeds via GridFS restore
+### VLibras Integration (Improved - 2026-02-28)
+- **CORS Proxy**: Backend proxy at `/api/vlibras-proxy/` handles BOTH VLibras domains:
+  - `dicionario2.vlibras.gov.br` (sign dictionary/bundles)
+  - `traducao2.vlibras.gov.br` (translation API)
+- **XHR Monkey-Patch**: Exported SCORM/HTML packages inject JavaScript that intercepts XMLHttpRequest to both VLibras domains and routes through the proxy
+- **Auto-initialization**: VLibras widget auto-opens and begins translating on page load
+- **Player Integration**: `translateWithVLibras()` called on slide navigation when `librasScript` field has content
+- **Auto-fill Feature**: "Script LIBRAS" field auto-populates from TTS narration text
+- **Manual Extract**: Button to extract text from slide elements into LIBRAS script field
 
-## Audio Upload Fix (Feb 2026)
-- **Root cause:** After container restart/deploy, local project directories (`storage/projects/{id}/assets/`) don't exist. Audio upload, media upload, and global audio endpoints tried to write files without creating the directory first -> 500 error
-- **Fix:** Added `file_path.parent.mkdir(parents=True, exist_ok=True)` before file write in 3 endpoints: `upload_media`, `upload_slide_audio`, `set_global_audio`
-- **Tested:** Deleted local assets dir, uploaded audio -> HTTP 200 success
+### Known Limitation: VLibras Server IP Blocking
+The Brazilian government VLibras servers (`dicionario2.vlibras.gov.br` and `traducao2.vlibras.gov.br`) block requests from cloud/data center IPs (AWS, GCP, etc.) returning HTTP 403. This means:
+- **On cloud-hosted servers**: VLibras falls back to fingerspelling (spelling out words letter by letter) instead of proper sign language animations
+- **On residential/educational IPs**: Full sign language animations should work
+- **The avatar IS active and animated** (fingerspelling works), no longer static
+- This is a government infrastructure limitation, not a bug in our code
 
-## Backend Startup Optimization (Feb 2026)
-- **Root cause:** Heavy module-level imports (PIL, python-pptx, scorm_exporter, html_exporter, video_exporter, system_deps) were loaded at server boot time, causing ~35 second startup delay in production containers
-- **Fix:** Converted all heavy imports to lazy imports (loaded inside functions on first use). Moved `ensure_system_dependencies()` to a background startup task
-- **Result:** Startup time reduced from ~35 seconds to ~1.2 seconds. Health check responds almost instantly
-- **Tested:** Backend restarts in ~1.2s, health check OK, SCORM export OK, image upload with PIL optimization OK
+## Prioritized Backlog
 
-## Frontend API URL Fix (Feb 2026)
-- **Root cause:** `REACT_APP_BACKEND_URL` in production was set to wrong domain
-- **Fix:** Created `utils/apiUrl.js` utility that uses `window.location.origin` in the browser (always the correct domain). Replaced ALL `process.env.REACT_APP_BACKEND_URL` references across 10+ files
-- **Tested:** Login, dashboard, project list all work correctly
+### P0 (Resolved)
+- ~~VLibras avatar static in exports~~ → Fixed: proxy now handles both domains, URL detection corrected, avatar active with fingerspelling fallback
 
-## AI Tutor Feature (Feb 2026)
-- **Backend:** `POST /api/tutor/chat` endpoint using Google Gemini (via Emergent LLM Key) with course context, conversation history, message limit enforcement. `GET/PUT /api/admin/tutor-settings` for global configuration
-- **Admin Panel:** New "Tutor IA" tab with: enable/disable toggle, tutor name, message limit, custom system prompt, suggested questions management
-- **SCORM Export:** Floating chat widget (tutor.js + tutor.css) embedded in packages. Course content automatically extracted as context. Backend API URL embedded for LMS callback
-- **Features:** Session history, pre-defined question suggestions, message counter, mobile responsive, markdown formatting
-- **Tested:** 100% pass rate (10 backend + 8 frontend tests)
+### P2
+- Refactor `scorm_exporter.py` and `html_exporter.py` to use Jinja2 templates
+- Refactor monolithic `server.py` into separate router files
 
-## AI Tutor Keyboard Fix (Feb 2026)
-- **Root cause:** SCORM player.js had a document-level `keydown` listener that captured Space, Enter, ArrowLeft/Right, Backspace, f/F for slide navigation. When typing in the tutor input, these events propagated up and blocked normal typing.
-- **Fix (two layers):**
-  1. `player.js`: Added guard to skip keyboard navigation when `e.target` is `input`, `textarea`, or `contentEditable`
-  2. `tutor.js`: Added `e.stopPropagation()` on `keydown`, `keyup`, `keypress` events from the tutor input field
-- **Note:** Existing already-exported SCORM packages are NOT affected. Users must re-export to get the fix.
-- **Tested:** 9/9 tests passed (iteration_29)
+### P3
+- AI agent for automatic course generation from source documents
 
-## AI Tutor Context Fix (Feb 2026)
-- **Root cause:** SCORM exporter extracted course context using `htmlContent` and `text` fields, but elements actually store text in the `content` field. Result: empty context sent to Gemini, making the tutor respond generically without referencing course material.
-- **Fix:**
-  1. `scorm_exporter.py`: Changed extraction to check `content` first, then `htmlContent`, then `text`. Also extracts `buttonText` and quiz titles.
-  2. `server.py`: Improved system prompt to instruct Gemini to cite specific slides (e.g., "Conforme apresentado no Slide 3...").
-  3. Increased slide limit from 30 to 50 for richer context.
-- **Note:** Users must re-export SCORM packages to get the improved context.
-- **Tested:** 12/12 tests passed (iteration_30). Tutor now responds with slide-specific citations.
+## Key API Endpoints
+- `GET /api/vlibras-proxy/dicionario2/{path}` - Proxy for VLibras dictionary
+- `POST /api/vlibras-proxy/traducao2/{path}` - Proxy for VLibras translation
+- `GET /api/vlibras-proxy-test` - Test page for VLibras proxy
+- `POST /api/course/{id}/export-scorm` - SCORM export
+- `POST /api/course/{id}/export-html` - HTML export
 
-## Audio Timeline Fix v2 + Slide Progress Bar (Feb 2026)
-- **Audio fix reforçado:** Reescrita completa do `playSlideAudio` com 3 modos:
-  1. **Timeline mode:** Quando algum áudio tem `startTime > 0`, agenda via `setTimeout` no tempo correto
-  2. **Sequential mode:** Quando múltiplos áudios sem `startTime`, encadeia via evento `ended`
-  3. **Single mode:** Áudio único toca imediatamente
-  - Adicionado logging `[Audio]` para debug no console do browser
-  - Sort por `startTime` antes de processar
-- **Barra de progresso do slide:** 
-  - Barra fina (4px, 6px ao hover) na base do slide mostrando progresso temporal
-  - Baseada na `duration` do slide via `setInterval(50ms)`
-  - Ao completar 100%: muda para verde com pulso luminoso (2x), indicando que as animações finalizaram
-  - Posicionada absolutamente dentro do `#slide-wrapper`, z-index 500
-- **Tested:** 21/21 tests passed (iteration_32)
-
-## PPT Text Visibility Fix (Feb 2026)
-- **Root cause:** 3 problemas que tornavam textos de PPT invisíveis no SCORM:
-  1. **Cor branca sobre branco:** Body CSS tem `color:#fff`, textos importados de PPT não possuem `fontColor`, resultando em texto branco sobre fundo branco
-  2. **`visible:false`:** Elementos de PPT import têm `visible:false` e o player os pulava inteiramente
-  3. **`opacity:0`:** Elementos de PPT import têm `style.opacity:0`, tornando-os permanentemente invisíveis
-- **Fix:**
-  1. Adicionado `color: #000000` como padrão para text e shape elements (alinhado com o editor)
-  2. Removido o skip de `visible===false` — elementos agora são sempre renderizados
-  3. `applyElementStyles` agora só aplica opacity quando `> 0`
-- **Tested:** 16/16 tests passed (iteration_33)
-
-## Backend Startup Optimization v2 (Feb 2026)
-- **Root cause:** `emergentintegrations.llm.chat` (imports `litellm`, `grpcio`, `google-genai`, `openai`) era importado no nível do módulo (linhas 1835 e 1906), causando startup lento (~155s em produção ARM64)
-- **Fix:** Convertido para lazy imports dentro das funções `generate_ai_script` e `generate_slide_narration`
-- **Result:** Startup time reduzido de 2.71s para 0.43s localmente (6x mais rápido). Em produção ARM64, deve reduzir de ~155s para poucos segundos.
-- **Tested:** Deployment agent check PASS. Health endpoint responde em <0.5s.
-
-## Audio Timeline Fix v3 — Timer Initialization Bug (Feb 2026)
-- **Root cause:** `window.audioTimelineTimers` nunca era inicializado como `[]` porque `stopAllSlideAudios` só o criava dentro de `if (window.audioTimelineTimers)` — que falhava na primeira chamada (undefined). Os `.push()` falhavam silenciosamente, e os callbacks dos `setTimeout` retornavam sem tocar.
-- **Fix:** Adicionado `window.audioTimelineTimers = []` explicitamente no início de `playSlideAudio`, ANTES de qualquer código que use o array.
-- **Browser test:** Confirmou `timers: 3` (antes era `undefined`) e `[Audio] Playing audio 1 at 0 s` (antes não aparecia).
-- **Tested:** 16/16 tests passed (iteration_34)
-
-## Slide Thumbnail Previews (Feb 2026)
-- **Root cause:** Slide thumbnails in the editor's left sidebar were blank/white when slides were manually created (no backgroundImage from PPT import). Only showed a centered slide number.
-- **Fix:** Created `SlideThumbnailContent` component that renders a miniature version of all slide elements (text, images, shapes, video placeholders, buttons, HTML, quiz) at their original pixel positions. A parent container with CSS `transform: scale()` (dynamically calculated via `ResizeObserver`) scales the 960x540 canvas down to fit the thumbnail.
-- **Elements supported:** text (with font/color/size), image (with asset URL resolution), shape (fill, stroke, border-radius), video (play icon placeholder), button (gradient/outline styles), HTML (label), quiz (label)
-- **Tested:** 13/13 tests passed (iteration_35). Verified across 3 projects: PPT-imported slides, manually-created slides, mixed content.
-
-## Deployment Health Check Fix v3 (Feb 2026)
-- **Root cause:** 3 issues preventing successful deployment:
-  1. **Frontend health check disabled:** `ENABLE_HEALTH_CHECK=false` in frontend/.env. When nginx routes `/health` to the frontend (port 3000), the dev server returned React's index.html instead of a JSON health response. The deployment's health probe received HTML and treated it as unhealthy.
-  2. **emergent-health.conf removed:** `fix_nginx_modules.sh` deleted `/etc/nginx/conf.d/emergent-health.conf`, the deployment orchestrator's own health check config file.
-  3. **.env files blocked by .gitignore:** Lines `*.env` and `*.env.*` in `.gitignore` prevented .env files from being included in the repo, causing deployment failures when the container couldn't find required environment configuration.
-- **Fix:**
-  1. Set `ENABLE_HEALTH_CHECK=true` in `frontend/.env` — the CRA dev server now serves JSON health endpoints at `/health`, `/health/ready`, `/health/live`, `/health/simple`
-  2. Removed the `rm -f emergent-health.conf` line from `fix_nginx_modules.sh` — deployment's health conf is preserved
-  3. Removed `*.env` and `*.env.*` entries from `.gitignore`
-- **Result:** Health check at `/health` now returns `{"status":"healthy"}` from both frontend (port 3000) and backend (port 8001). Deployment orchestrator's health config is preserved.
-
-## Font Family Selector (Feb 2026)
-- **Feature:** Added font family dropdown to text element properties panel with 22 fonts across 3 categories
-- **Categories:** Sans-Serif (16 fonts: Arial, Inter, Roboto, Poppins, Montserrat, etc.), Serif (4: Georgia, Merriweather, Playfair Display, Times New Roman), Monospace (1: Courier New)
-- **Google Fonts:** CDN link added to editor (index.html), SCORM (player_template.html), and HTML export (html_exporter.py)
-- **Export support:** fontFamily correctly exported to both SCORM player (player.js) and HTML (html_exporter.py)
-- **Tested:** 21/21 tests passed (iteration_36). Backend 100%, Frontend 100%
-
-## Text Editing Bug Fixes (Feb 2026)
-- **Bug 1 - Letters swallowed during fast typing:** Root cause was calling API on every keystroke causing re-renders. Fix: Use local state for textarea, only save to API on blur.
-- **Bug 2 - Cursor forced to beginning:** Root cause was `autoFocus` attribute. Fix: Replaced with `useEffect` + `textareaRef` that focuses and places cursor at end.
-- **Bug 3 - Cannot select text with mouse:** Root cause was parent drag handlers intercepting mouse events. Fix: Added `stopPropagation()` on `onMouseDown`, `onMouseMove`, `onMouseUp`, `onClick`, and `onKeyDown` of the textarea.
-- **Tested:** 12/13 tests passed (iteration_37). Click-drag selection inconclusive in Playwright but all other selection methods verified.
-
-## VLibras Integration - Acessibilidade LIBRAS (Feb 2026)
-- **Feature:** Integração com VLibras (governo brasileiro) para tradução automática de conteúdo em LIBRAS
-- **Configuração:** Avatar aleatório (Ícaro/Hosana/Guga), posição direita
-- **Locais:** Editor (index.html), SCORM export (player_template.html), HTML export (html_exporter.py)
-- **CDN:** `https://vlibras.gov.br/app/vlibras-plugin.js` — gratuito, sem API key
-- **Testado:** Widget carrega e abre corretamente no editor. SCORM e HTML exports contêm o código VLibras.
-
-## Script LIBRAS Auto-Translation (Feb 2026) - VERIFICADO FUNCIONANDO
-- **Feature:** Campo "Script LIBRAS" por slide + tradução automática via avatar VLibras
-- **API Correta:** `window.plugin.translate(text)` — confirmada via análise do código-fonte oficial VLibras
-- **Mecanismo de espera:** `player.on('load', callback)` + backup via detecção de canvas Unity WebGL
-- **Auto-inicialização:** Botão de acesso VLibras clicado automaticamente 2s após page load
-- **Fluxo testado end-to-end:** Página carrega → slide renderiza → texto enfileirado → VLibras auto-abre → player Unity carrega → canvas detectado → tradução enviada → avatar traduz em ~6 segundos
-- **Auto-preenchimento:** Script LIBRAS preenchido automaticamente quando narração TTS (ElevenLabs) é gerada. Botão "Preencher com texto do slide" para extrair texto de elementos
-- **Testado:** iteration_41 + teste funcional Playwright com simulação SCORM completa - avatar traduz com sucesso
-
-## VLibras Toggle Setting (Feb 2026)
-- **Feature:** Toggle on/off para o Plugin LIBRAS (VLibras) no dialog "Exportar Curso"
-- **Locais atualizados:** Editor export dialog (Editor.jsx), Project model (models.py), ProjectUpdate model (models.py), SCORM exporter (scorm_exporter.py), HTML exporter (html_exporter.py)
-- **Comportamento:** Quando desligado, exports SCORM e HTML não incluem o widget VLibras. Default: ligado.
-- **Testado:** API toggle (enable/disable) + SCORM export com VLibras ON/OFF verificados via curl. UI toggle funciona no export dialog.
-
-## SCORM Export Fix - IsADirectoryError (Feb 2026)
-- **Bug:** SCORM export 500 error when project assets folder contains subdirectories (e.g. `temp_convert`)
-- **Root cause:** `shutil.copy2` in `scorm_exporter.py` tried to copy a directory as a file
-- **Fix:** Added `if asset.is_dir(): continue` to skip subdirectories during asset copy
-- **Testado:** Export SCORM retorna HTTP 200
-
-## Auto-preenchimento Script LIBRAS (Feb 2026)
-- **TTS → LIBRAS:** Quando narração TTS (ElevenLabs) é adicionada ao slide, o texto da narração auto-preenche o campo `librasScript` se estiver vazio
-- **Texto do slide → LIBRAS:** Botão "Preencher com texto do slide" extrai conteúdo de elementos de texto do slide e preenche o campo `librasScript`
-- **Editável manualmente:** Autor sempre pode editar ou substituir o texto (importante para slides com apenas imagens)
-- **Testado:** iteration_41 — Backend 100%, Frontend 100%. 9/9 testes passaram
-
-## Backlog
-- **P2:** Refactor `backend/src/exporters/html_exporter.py` to use external templates for HTML, CSS, JS
-- **P2:** Refactor `backend/server.py` into multiple APIRouter files
+## Key Files
+- `backend/server.py` - Main server with VLibras proxy endpoints
+- `backend/services/scorm_exporter.py` - SCORM export with VLibras injection
+- `backend/services/html_exporter.py` - HTML export with VLibras injection
+- `backend/services/export_assets/player.js` - Course player with VLibras translation logic
+- `frontend/src/pages/Editor/Editor.jsx` - Editor with LIBRAS script auto-fill
