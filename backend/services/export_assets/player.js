@@ -132,58 +132,99 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // VLibras automatic translation helper
-// Uses the Plugin API: window.plugin.translate(text)
-// The plugin/player must be initialized first by clicking the access button
-var vlibrasReady = false;
-var vlibrasLastText = '';
+// Uses Plugin.translate(text) which requires the Unity player to be fully loaded
+// The player emits a 'load' event when ready. player.isLoaded() checks readiness.
+var _vlibrasQueue = [];
+var _vlibrasPlayerLoaded = false;
+var _vlibrasSetupDone = false;
+
+function _processVLibrasQueue() {
+    if (_vlibrasQueue.length > 0 && window.plugin && typeof window.plugin.translate === 'function') {
+        var item = _vlibrasQueue[_vlibrasQueue.length - 1];
+        _vlibrasQueue = [];
+        // Small delay for stability after player load
+        setTimeout(function() {
+            try {
+                window.plugin.translate(item.text);
+                console.log('[VLibras] Queued translation sent for slide ' + (item.slideIndex + 1));
+            } catch(e) {
+                console.log('[VLibras] Translation error:', e);
+            }
+        }, 1500);
+    }
+}
+
+function _setupVLibrasWatcher() {
+    if (_vlibrasSetupDone) return;
+    _vlibrasSetupDone = true;
+    
+    console.log('[VLibras] Setting up player readiness watcher...');
+    
+    // Poll for window.plugin and player
+    var pollId = setInterval(function() {
+        if (!window.plugin || !window.plugin.player) return;
+        clearInterval(pollId);
+        console.log('[VLibras] Plugin and player instances found');
+        
+        var player = window.plugin.player;
+        
+        // Check if already loaded
+        if (typeof player.isLoaded === 'function' && player.isLoaded()) {
+            console.log('[VLibras] Player already loaded');
+            _vlibrasPlayerLoaded = true;
+            _processVLibrasQueue();
+            return;
+        }
+        
+        // Listen for load event
+        if (typeof player.on === 'function') {
+            player.on('load', function() {
+                console.log('[VLibras] Player load event fired');
+                _vlibrasPlayerLoaded = true;
+                _processVLibrasQueue();
+            });
+            console.log('[VLibras] Listening for player load event');
+        }
+        
+        // Backup: poll for canvas element (Unity WebGL indicator)
+        var canvasPoll = setInterval(function() {
+            if (_vlibrasPlayerLoaded) { clearInterval(canvasPoll); return; }
+            var wrapper = document.querySelector('[vw-plugin-wrapper]');
+            if (wrapper) {
+                var canvas = wrapper.querySelector('canvas');
+                if (canvas) {
+                    clearInterval(canvasPoll);
+                    console.log('[VLibras] Unity canvas detected');
+                    if (!_vlibrasPlayerLoaded) {
+                        _vlibrasPlayerLoaded = true;
+                        _processVLibrasQueue();
+                    }
+                }
+            }
+        }, 2000);
+        setTimeout(function() { clearInterval(canvasPoll); }, 120000);
+        
+    }, 500);
+    setTimeout(function() { clearInterval(pollId); }, 120000);
+}
 
 function translateWithVLibras(text, slideIndex) {
     if (!text) return;
-    vlibrasLastText = text;
-    console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1));
+    console.log('[VLibras] Translation requested for slide ' + (slideIndex + 1));
     
-    // Try to translate - will succeed if plugin is loaded and player is ready
-    if (vlibrasReady && window.plugin && typeof window.plugin.translate === 'function') {
+    if (_vlibrasPlayerLoaded && window.plugin && typeof window.plugin.translate === 'function') {
         try {
             window.plugin.translate(text);
-            console.log('[VLibras] Translation sent via plugin.translate');
-            return;
+            console.log('[VLibras] Translation sent immediately');
         } catch(e) {
-            console.log('[VLibras] plugin.translate error:', e);
+            console.log('[VLibras] Translate error:', e);
         }
+    } else {
+        // Queue the text and ensure watcher is running
+        _vlibrasQueue = [{ text: text, slideIndex: slideIndex }];
+        _setupVLibrasWatcher();
+        console.log('[VLibras] Text queued, waiting for player to load...');
     }
-    
-    // Plugin not ready yet - queue the text and wait
-    console.log('[VLibras] Plugin not ready, queuing text...');
-    var attempts = 0;
-    var maxAttempts = 120; // 60 seconds
-    var waitForReady = setInterval(function() {
-        attempts++;
-        if (window.plugin && typeof window.plugin.translate === 'function') {
-            // Check if the player's Unity canvas is present (indicates player loaded)
-            var canvas = document.querySelector('[vw-plugin-wrapper] canvas, [vw-plugin-wrapper] iframe, [vp] canvas');
-            if (canvas || attempts > 40) {
-                // Either canvas found or waited 20s+ - try translating
-                clearInterval(waitForReady);
-                vlibrasReady = true;
-                try {
-                    // Small delay to ensure player is truly ready
-                    setTimeout(function() {
-                        if (vlibrasLastText === text) { // Only translate if still the current slide
-                            window.plugin.translate(text);
-                            console.log('[VLibras] Translation sent after waiting ' + (attempts * 0.5) + 's');
-                        }
-                    }, 2000);
-                } catch(e) {
-                    console.log('[VLibras] Error after wait:', e);
-                }
-            }
-        }
-        if (attempts >= maxAttempts) {
-            clearInterval(waitForReady);
-            console.log('[VLibras] Plugin did not become ready within 60s timeout');
-        }
-    }, 500);
 }
 
 var CoursePlayer = (function() {
