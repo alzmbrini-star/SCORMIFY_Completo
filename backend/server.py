@@ -1390,7 +1390,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         import asyncio
         
         # Detect backend URL for VLibras dictionary proxy
-        # Use x-forwarded-host first (correct in Cloudflare-proxied K8s environments)
+        # Priority: origin header (from frontend) > x-forwarded-host > frontend .env fallback
         origin = request.headers.get('origin', '')
         if origin:
             scorm_backend_url = origin
@@ -1400,8 +1400,16 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             if fwd_host:
                 scorm_backend_url = f"{scheme}://{fwd_host}"
             else:
-                host = request.headers.get('host', '')
-                scorm_backend_url = f"{scheme}://{host}" if host else ''
+                # Read from frontend .env as last resort
+                scorm_backend_url = ''
+                try:
+                    env_path = Path(__file__).parent.parent / "frontend" / ".env"
+                    for line in env_path.read_text().splitlines():
+                        if line.startswith("REACT_APP_BACKEND_URL="):
+                            scorm_backend_url = line.split("=", 1)[1].strip()
+                            break
+                except Exception:
+                    pass
         
         zip_path = await asyncio.to_thread(
             export_scorm_package,
