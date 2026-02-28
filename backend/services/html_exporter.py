@@ -1396,47 +1396,65 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         var courseData = {course_json};
         
         // VLibras automatic translation helper
-        var vlibrasReady = false;
-        var vlibrasLastText = '';
+        // Uses Plugin.translate(text) which requires Unity player to be fully loaded
+        var _vlibrasQueue = [];
+        var _vlibrasPlayerLoaded = false;
+        var _vlibrasSetupDone = false;
+        
+        function _processVLibrasQueue() {{
+            if (_vlibrasQueue.length > 0 && window.plugin && typeof window.plugin.translate === 'function') {{
+                var item = _vlibrasQueue[_vlibrasQueue.length - 1];
+                _vlibrasQueue = [];
+                setTimeout(function() {{
+                    try {{ window.plugin.translate(item.text); }}
+                    catch(e) {{ console.log('[VLibras] error:', e); }}
+                }}, 1500);
+            }}
+        }}
+        
+        function _setupVLibrasWatcher() {{
+            if (_vlibrasSetupDone) return;
+            _vlibrasSetupDone = true;
+            var pollId = setInterval(function() {{
+                if (!window.plugin || !window.plugin.player) return;
+                clearInterval(pollId);
+                var player = window.plugin.player;
+                if (typeof player.isLoaded === 'function' && player.isLoaded()) {{
+                    _vlibrasPlayerLoaded = true;
+                    _processVLibrasQueue();
+                    return;
+                }}
+                if (typeof player.on === 'function') {{
+                    player.on('load', function() {{
+                        _vlibrasPlayerLoaded = true;
+                        _processVLibrasQueue();
+                    }});
+                }}
+                var canvasPoll = setInterval(function() {{
+                    if (_vlibrasPlayerLoaded) {{ clearInterval(canvasPoll); return; }}
+                    var wrapper = document.querySelector('[vw-plugin-wrapper]');
+                    if (wrapper && wrapper.querySelector('canvas')) {{
+                        clearInterval(canvasPoll);
+                        if (!_vlibrasPlayerLoaded) {{
+                            _vlibrasPlayerLoaded = true;
+                            _processVLibrasQueue();
+                        }}
+                    }}
+                }}, 2000);
+                setTimeout(function() {{ clearInterval(canvasPoll); }}, 120000);
+            }}, 500);
+            setTimeout(function() {{ clearInterval(pollId); }}, 120000);
+        }}
         
         function translateWithVLibras(text, slideIndex) {{
             if (!text) return;
-            vlibrasLastText = text;
-            console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1));
-            
-            if (vlibrasReady && window.plugin && typeof window.plugin.translate === 'function') {{
-                try {{
-                    window.plugin.translate(text);
-                    console.log('[VLibras] Translation sent via plugin.translate');
-                    return;
-                }} catch(e) {{
-                    console.log('[VLibras] plugin.translate error:', e);
-                }}
+            if (_vlibrasPlayerLoaded && window.plugin && typeof window.plugin.translate === 'function') {{
+                try {{ window.plugin.translate(text); }}
+                catch(e) {{ console.log('[VLibras] error:', e); }}
+            }} else {{
+                _vlibrasQueue = [{{ text: text, slideIndex: slideIndex }}];
+                _setupVLibrasWatcher();
             }}
-            
-            console.log('[VLibras] Plugin not ready, queuing text...');
-            var attempts = 0;
-            var maxAttempts = 120;
-            var waitForReady = setInterval(function() {{
-                attempts++;
-                if (window.plugin && typeof window.plugin.translate === 'function') {{
-                    var canvas = document.querySelector('[vw-plugin-wrapper] canvas, [vw-plugin-wrapper] iframe, [vp] canvas');
-                    if (canvas || attempts > 40) {{
-                        clearInterval(waitForReady);
-                        vlibrasReady = true;
-                        setTimeout(function() {{
-                            if (vlibrasLastText === text) {{
-                                window.plugin.translate(text);
-                                console.log('[VLibras] Translation sent after waiting ' + (attempts * 0.5) + 's');
-                            }}
-                        }}, 2000);
-                    }}
-                }}
-                if (attempts >= maxAttempts) {{
-                    clearInterval(waitForReady);
-                    console.log('[VLibras] Plugin did not become ready within 60s timeout');
-                }}
-            }}, 500);
         }}
         
         // Player module
