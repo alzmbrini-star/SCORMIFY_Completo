@@ -1,0 +1,52 @@
+{
+  "summary": "VLibras SCORM export bug fix verification complete. All tests pass. The broken API (VLibras.Widget.sendMessage) has been replaced with the correct API (window.plugin.translate). Auto-init code is present to click the VLibras access button on page load. librasScript field saves and loads correctly. enableVlibras toggle controls VLibras inclusion in exports.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vlibras_scorm_fix.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VLibras API fix verified: player.js (Lines 134-185) uses correct window.plugin.translate API",
+    "VLibras API fix verified: html_exporter.py (Lines 1398-1439) and scorm_exporter.py (Lines 100-123) include VLibras auto-init code",
+    "Broken API (sendMessage) confirmed NOT present in any exported files",
+    "translateWithVLibras function exists in player.js with proper queueing logic for plugin initialization",
+    "librasScript field correctly included in models.py (Line 156), SlideUpdate (Line 248), and course.json exports",
+    "enableVlibras toggle in models.py (Line 216) correctly controls VLibras inclusion in SCORM/HTML exports"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "",
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "VLibras integration uses window.plugin.translate(text) API for LIBRAS translation. The translateWithVLibras function queues text and waits for plugin initialization if not ready. Auto-init code clicks the VLibras access button 2 seconds after page load to ensure plugin is ready for programmatic translation. Project ID a972eb75-eb3a-486c-91cf-f73c7551aebd has librasScript data on slide 0.",
+  "rca_of_the_issue": "Original bug: Previous implementation used non-existent API window.VLibras.Widget.sendMessage. Fix: Replaced with correct internal VLibras plugin API window.plugin.translate(text). Added auto-init code to click the access button on page load, which initializes the plugin and makes window.plugin.translate available for programmatic use.",
+  "tests_executed": {
+    "TestHealthCheck::test_health_endpoint": "PASS - /api/health returns healthy",
+    "TestSCORMExport::test_scorm_export_returns_200": "PASS - POST /api/course/{id}/export-scorm returns 200 with downloadUrl",
+    "TestSCORMExport::test_scorm_export_download": "PASS - SCORM ZIP contains index.html, course.json, player.js",
+    "TestSCORMExport::test_scorm_index_html_contains_vlibras_autoinit": "PASS - index.html contains vlibras-plugin.js and auto-init code",
+    "TestSCORMExport::test_scorm_player_js_uses_correct_api": "PASS - player.js contains plugin.translate, translateWithVLibras, and NO sendMessage",
+    "TestSCORMExport::test_scorm_course_json_contains_librasscript": "PASS - course.json slide 0 has librasScript field with content",
+    "TestLibrasScriptField::test_get_project_slides": "PASS - GET /api/course/{id} returns slides with librasScript",
+    "TestLibrasScriptField::test_update_librasscript_field": "PASS - PUT /api/projects/{id}/slides/{slide_id} with librasScript saves correctly",
+    "TestEnableVlibrasToggle::test_disable_vlibras_removes_from_export": "PASS - enableVlibras=false removes VLibras from export",
+    "TestEnableVlibrasToggle::test_reenable_vlibras": "PASS - enableVlibras=true includes VLibras in export"
+  },
+  "frontend_verification": {
+    "page_load": "PASS - Frontend loads correctly at https://sign-lang-player.preview.emergentagent.com",
+    "vlibras_icon_visible": "PASS - VLibras accessibility icon visible in bottom right corner",
+    "no_js_errors": "PASS - No JavaScript errors on the page"
+  }
+}
