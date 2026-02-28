@@ -132,55 +132,58 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // VLibras automatic translation helper
-// Uses the internal plugin API: window.plugin.player.translate(text)
-var vlibrasInitializing = false;
+// Uses the Plugin API: window.plugin.translate(text)
+// The plugin/player must be initialized first by clicking the access button
+var vlibrasReady = false;
+var vlibrasLastText = '';
+
 function translateWithVLibras(text, slideIndex) {
     if (!text) return;
-    console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1) + ': "' + text.substring(0, 50) + '..."');
+    vlibrasLastText = text;
+    console.log('[VLibras] Requesting translation for slide ' + (slideIndex + 1));
     
-    // Method 1: Plugin already initialized - translate directly
-    if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {
+    // Try to translate - will succeed if plugin is loaded and player is ready
+    if (vlibrasReady && window.plugin && typeof window.plugin.translate === 'function') {
         try {
-            window.plugin.player.translate(text);
-            console.log('[VLibras] Translation sent via plugin.player.translate');
+            window.plugin.translate(text);
+            console.log('[VLibras] Translation sent via plugin.translate');
             return;
         } catch(e) {
-            console.log('[VLibras] player.translate error:', e);
+            console.log('[VLibras] plugin.translate error:', e);
         }
     }
     
-    // Method 2: Widget loaded but plugin not yet initialized - click the access button to open it
-    if (!vlibrasInitializing) {
-        vlibrasInitializing = true;
-        var accessBtn = document.querySelector('[vw-access-button]');
-        if (accessBtn) {
-            console.log('[VLibras] Initializing plugin by clicking access button...');
-            accessBtn.click();
-            // Wait for plugin to initialize, then translate
-            var attempts = 0;
-            var maxAttempts = 20; // 10 seconds max
-            var waitForPlugin = setInterval(function() {
-                attempts++;
-                if (window.plugin && window.plugin.player && typeof window.plugin.player.translate === 'function') {
-                    clearInterval(waitForPlugin);
-                    vlibrasInitializing = false;
-                    try {
-                        window.plugin.player.translate(text);
-                        console.log('[VLibras] Translation sent after plugin init');
-                    } catch(e) {
-                        console.log('[VLibras] Error after init:', e);
-                    }
-                } else if (attempts >= maxAttempts) {
-                    clearInterval(waitForPlugin);
-                    vlibrasInitializing = false;
-                    console.log('[VLibras] Plugin did not initialize within timeout');
+    // Plugin not ready yet - queue the text and wait
+    console.log('[VLibras] Plugin not ready, queuing text...');
+    var attempts = 0;
+    var maxAttempts = 120; // 60 seconds
+    var waitForReady = setInterval(function() {
+        attempts++;
+        if (window.plugin && typeof window.plugin.translate === 'function') {
+            // Check if the player's Unity canvas is present (indicates player loaded)
+            var canvas = document.querySelector('[vw-plugin-wrapper] canvas, [vw-plugin-wrapper] iframe, [vp] canvas');
+            if (canvas || attempts > 40) {
+                // Either canvas found or waited 20s+ - try translating
+                clearInterval(waitForReady);
+                vlibrasReady = true;
+                try {
+                    // Small delay to ensure player is truly ready
+                    setTimeout(function() {
+                        if (vlibrasLastText === text) { // Only translate if still the current slide
+                            window.plugin.translate(text);
+                            console.log('[VLibras] Translation sent after waiting ' + (attempts * 0.5) + 's');
+                        }
+                    }, 2000);
+                } catch(e) {
+                    console.log('[VLibras] Error after wait:', e);
                 }
-            }, 500);
-        } else {
-            vlibrasInitializing = false;
-            console.log('[VLibras] No access button found - widget may not be loaded');
+            }
         }
-    }
+        if (attempts >= maxAttempts) {
+            clearInterval(waitForReady);
+            console.log('[VLibras] Plugin did not become ready within 60s timeout');
+        }
+    }, 500);
 }
 
 var CoursePlayer = (function() {
