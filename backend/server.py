@@ -202,6 +202,19 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+@api_router.get("/vlibras-test/{path:path}")
+async def vlibras_test_assets(path: str):
+    test_dir = Path(__file__).parent / "static_test" / "scorm_live"
+    file_path = test_dir / path
+    if file_path.exists() and file_path.is_file():
+        media_types = {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg'}
+        return FileResponse(str(file_path), media_type=media_types.get(file_path.suffix.lower(), 'application/octet-stream'))
+    raise HTTPException(status_code=404, detail="File not found")
+
+@api_router.get("/vlibras-test")
+async def vlibras_test():
+    return FileResponse(str(Path(__file__).parent / "static_test" / "scorm_live" / "index.html"), media_type="text/html")
+
 # Project Routes
 
 @api_router.get("/projects", response_model=List[dict])
