@@ -202,6 +202,30 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+# VLibras dictionary CORS proxy - resolves cross-origin issues with dicionario2.vlibras.gov.br
+@api_router.get("/vlibras-dict/{path:path}")
+async def vlibras_dict_proxy(path: str, request: Request):
+    import httpx
+    url = f"https://dicionario2.vlibras.gov.br/{path}"
+    query = str(request.query_params)
+    if query:
+        url += f"?{query}"
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url)
+        from fastapi.responses import Response
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            media_type=response.headers.get('content-type', 'application/octet-stream'),
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'public, max-age=86400'
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"VLibras dictionary proxy error: {str(e)}")
+
 from starlette.responses import HTMLResponse as StarletteHTMLResponse
 
 @api_router.get("/vlibras-test/{path:path}")
