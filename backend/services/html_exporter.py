@@ -172,7 +172,8 @@ async def generate_standalone_html(
     project: Dict[str, Any],
     assets_dir: str,
     base_url: str = "",
-    questions: list = None
+    questions: list = None,
+    backend_url: str = ""
 ) -> str:
     """
     Generate a standalone HTML file with all assets embedded as base64
