@@ -196,7 +196,7 @@ async def generate_standalone_html(
     
     # VLibras accessibility setting
     enable_vlibras = project.get('enableVlibras', True)
-    backend_url = kwargs.get('backend_url', '')
+    backend_url = backend_url
     if enable_vlibras:
         proxy_url = backend_url.rstrip('/') + '/api/vlibras-dict' if backend_url else ''
         vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
