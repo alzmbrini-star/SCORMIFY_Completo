@@ -202,18 +202,29 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+from starlette.responses import HTMLResponse as StarletteHTMLResponse
+
 @api_router.get("/vlibras-test/{path:path}")
 async def vlibras_test_assets(path: str):
     test_dir = Path(__file__).parent / "static_test" / "scorm_live"
     file_path = test_dir / path
     if file_path.exists() and file_path.is_file():
-        media_types = {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg'}
+        media_types = {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg', '.html': 'text/html'}
         return FileResponse(str(file_path), media_type=media_types.get(file_path.suffix.lower(), 'application/octet-stream'))
     raise HTTPException(status_code=404, detail="File not found")
 
 @api_router.get("/vlibras-test")
 async def vlibras_test():
-    return FileResponse(str(Path(__file__).parent / "static_test" / "scorm_live" / "index.html"), media_type="text/html")
+    # Rewrite relative paths to be absolute for the test server
+    test_dir = Path(__file__).parent / "static_test" / "scorm_live"
+    html_path = test_dir / "index.html"
+    html = html_path.read_text()
+    # Fix relative paths to scripts/, styles/, assets/
+    html = html.replace('src="scripts/', 'src="/api/vlibras-test/scripts/')
+    html = html.replace('href="styles/', 'href="/api/vlibras-test/styles/')
+    html = html.replace("fetch('course.json')", "fetch('/api/vlibras-test/course.json')")
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
 
 # Project Routes
 
