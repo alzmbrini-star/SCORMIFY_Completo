@@ -403,12 +403,26 @@ async def generate_standalone_html(
     return html
 
 
-def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True) -> str:
+def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "") -> str:
     """Generate the complete HTML template with embedded player"""
     
     # VLibras block for accessibility (LIBRAS - Brazilian Sign Language)
     if enable_vlibras:
-        vlibras_block = '''<!-- VLibras - Acessibilidade em LIBRAS -->
+        proxy_url = backend_url.rstrip('/') + '/api/vlibras-dict' if backend_url else ''
+        vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
+    <script>
+        (function() {{
+            var PROXY_URL = "{proxy_url}";
+            if (!PROXY_URL) return;
+            var _origOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url) {{
+                if (typeof url === "string" && url.indexOf("dicionario2.vlibras.gov.br") !== -1) {{
+                    try {{ var u = new URL(url); url = PROXY_URL + u.pathname + u.search; }} catch(e) {{}}
+                }}
+                return _origOpen.apply(this, arguments);
+            }};
+        }})();
+    </script>
     <div vw class="enabled">
         <div vw-access-button class="active"></div>
         <div vw-plugin-wrapper>
@@ -417,17 +431,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     </div>
     <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
     <script>
-        new window.VLibras.Widget({ position: "R", avatar: "random" });
-        // Auto-initialize VLibras plugin for programmatic LIBRAS translation
-        window.addEventListener("load", function() {
-            setTimeout(function() {
+        new window.VLibras.Widget({{ position: "R", avatar: "random" }});
+        window.addEventListener("load", function() {{
+            setTimeout(function() {{
                 var accessBtn = document.querySelector("[vw-access-button]");
-                if (accessBtn && !window.plugin) {
-                    console.log("[VLibras] Auto-clicking access button to initialize plugin...");
-                    accessBtn.click();
-                }
-            }, 2000);
-        });
+                if (accessBtn && !window.plugin) {{ accessBtn.click(); }}
+            }}, 2000);
+        }});
     </script>'''
     else:
         vlibras_block = ''
