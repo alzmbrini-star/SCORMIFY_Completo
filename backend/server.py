@@ -219,10 +219,8 @@ async def vlibras_test():
     test_dir = Path(__file__).parent / "static_test" / "scorm_live"
     html_path = test_dir / "index.html"
     html = html_path.read_text()
-    # Fix relative paths to scripts/, styles/, assets/
-    html = html.replace('src="scripts/', 'src="/api/vlibras-test/scripts/')
-    html = html.replace('href="styles/', 'href="/api/vlibras-test/styles/')
-    html = html.replace("fetch('course.json')", "fetch('/api/vlibras-test/course.json')")
+    # Add base tag to resolve all relative URLs correctly
+    html = html.replace('<head>', '<head>\n    <base href="/api/vlibras-test/">')
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
 
