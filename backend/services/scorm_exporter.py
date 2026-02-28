@@ -234,7 +234,7 @@ IMSMD_XSD = '''<?xml version="1.0" encoding="UTF-8"?>
     <xsd:element name="langstring" type="xsd:string"/>
 </xsd:schema>'''
 
-def export_scorm_package(project: Project, storage_dir: str, output_dir: str, questions: list = None, tutor_config: dict = None) -> str:
+def export_scorm_package(project: Project, storage_dir: str, output_dir: str, questions: list = None, tutor_config: dict = None, backend_url: str = "") -> str:
     """
     Export a project as a SCORM 1.2 package
     Returns the path to the generated ZIP file
