@@ -157,14 +157,14 @@ Application is a React/FastAPI course authoring tool with features including SCO
 - **CDN:** `https://vlibras.gov.br/app/vlibras-plugin.js` — gratuito, sem API key
 - **Testado:** Widget carrega e abre corretamente no editor. SCORM e HTML exports contêm o código VLibras.
 
-## Script LIBRAS Auto-Translation (Feb 2026)
-- **Feature:** Campo "Script LIBRAS" por slide no painel de propriedades onde o autor digita o texto da narração
-- **Comportamento:** Quando o slide é exibido no SCORM/HTML player, o avatar VLibras traduz automaticamente o texto
-- **API Correta:** `window.plugin.translate(text)` — API pública do Plugin VLibras (Plugin.prototype.translate)
-- **Auto-inicialização:** Botão de acesso VLibras é clicado automaticamente 2s após page load, pré-carregando o plugin Unity
-- **Bug Fix (Feb 2026):** API inexistente `VLibras.Widget.sendMessage` substituída por `window.plugin.translate(text)`. Código-fonte oficial VLibras no GitHub analisado para confirmar API correta
-- **Locais atualizados:** SCORM player (export_assets/player.js), HTML player (html_exporter.py), SCORM exporter (scorm_exporter.py)
-- **Testado:** iteration_40 — Backend 100%, Frontend 100%. 10/10 testes passaram
+## Script LIBRAS Auto-Translation (Feb 2026) - VERIFICADO FUNCIONANDO
+- **Feature:** Campo "Script LIBRAS" por slide + tradução automática via avatar VLibras
+- **API Correta:** `window.plugin.translate(text)` — confirmada via análise do código-fonte oficial VLibras
+- **Mecanismo de espera:** `player.on('load', callback)` + backup via detecção de canvas Unity WebGL
+- **Auto-inicialização:** Botão de acesso VLibras clicado automaticamente 2s após page load
+- **Fluxo testado end-to-end:** Página carrega → slide renderiza → texto enfileirado → VLibras auto-abre → player Unity carrega → canvas detectado → tradução enviada → avatar traduz em ~6 segundos
+- **Auto-preenchimento:** Script LIBRAS preenchido automaticamente quando narração TTS (ElevenLabs) é gerada. Botão "Preencher com texto do slide" para extrair texto de elementos
+- **Testado:** iteration_41 + teste funcional Playwright com simulação SCORM completa - avatar traduz com sucesso
 
 ## VLibras Toggle Setting (Feb 2026)
 - **Feature:** Toggle on/off para o Plugin LIBRAS (VLibras) no dialog "Exportar Curso"
