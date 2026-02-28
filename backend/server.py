@@ -204,7 +204,7 @@ async def health():
 
 @api_router.get("/vlibras-test")
 async def vlibras_test():
-    test_file = Path(__file__).parent / "static_test" / "vlibras_test.html"
+    test_file = Path(__file__).parent / "static_test" / "vlibras_scorm_test.html"
     if test_file.exists():
         return FileResponse(str(test_file), media_type="text/html")
     raise HTTPException(status_code=404, detail="Test file not found")
