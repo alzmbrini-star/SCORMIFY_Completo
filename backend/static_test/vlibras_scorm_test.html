@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>VLibras SCORM Simulation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }
+        #log { background: #0f0f23; padding: 15px; border-radius: 8px; margin-top: 20px; max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+        .success { color: #4ade80; }
+        .info { color: #60a5fa; }
+        .warn { color: #fbbf24; }
+        h1 { color: #a78bfa; }
+        #status { padding: 10px; background: #262640; border-radius: 6px; margin: 10px 0; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>VLibras SCORM Flow Simulation</h1>
+    <div id="status">Simulando o fluxo do player SCORM...</div>
+    <div id="log"></div>
+
+    <!-- Same VLibras block as in SCORM export -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>
+        new window.VLibras.Widget({ position: "R", avatar: "random" });
+        // Auto-init (same as SCORM export)
+        window.addEventListener("load", function() {
+            setTimeout(function() {
+                var accessBtn = document.querySelector("[vw-access-button]");
+                if (accessBtn && !window.plugin) {
+                    log("[Auto-Init] Clicking access button...", "info");
+                    accessBtn.click();
+                }
+            }, 2000);
+        });
+    </script>
+
+    <script>
+        // === Exact same translateWithVLibras code as in player.js ===
+        var _vlibrasQueue = [];
+        var _vlibrasPlayerLoaded = false;
+        var _vlibrasSetupDone = false;
+
+        function _processVLibrasQueue() {
+            if (_vlibrasQueue.length > 0 && window.plugin && typeof window.plugin.translate === 'function') {
+                var item = _vlibrasQueue[_vlibrasQueue.length - 1];
+                _vlibrasQueue = [];
+                setTimeout(function() {
+                    try {
+                        window.plugin.translate(item.text);
+                        log("[VLibras] TRANSLATION SENT: '" + item.text.substring(0, 50) + "'", "success");
+                        document.getElementById('status').textContent = 'SUCESSO! Tradução enviada ao avatar!';
+                    } catch(e) {
+                        log("[VLibras] Translation error: " + e.message, "warn");
+                    }
+                }, 1500);
+            }
+        }
+
+        function _setupVLibrasWatcher() {
+            if (_vlibrasSetupDone) return;
+            _vlibrasSetupDone = true;
+            log("[VLibras] Setting up player readiness watcher...", "info");
+
+            var pollId = setInterval(function() {
+                if (!window.plugin || !window.plugin.player) return;
+                clearInterval(pollId);
+                log("[VLibras] Plugin and player instances found!", "success");
+
+                var player = window.plugin.player;
+
+                if (typeof player.isLoaded === 'function' && player.isLoaded()) {
+                    log("[VLibras] Player already loaded (isLoaded)", "success");
+                    _vlibrasPlayerLoaded = true;
+                    _processVLibrasQueue();
+                    return;
+                }
+
+                if (typeof player.on === 'function') {
+                    player.on('load', function() {
+                        log("[VLibras] *** PLAYER LOAD EVENT FIRED! ***", "success");
+                        _vlibrasPlayerLoaded = true;
+                        _processVLibrasQueue();
+                    });
+                    log("[VLibras] Listening for player load event...", "info");
+                }
+
+                var canvasPoll = setInterval(function() {
+                    if (_vlibrasPlayerLoaded) { clearInterval(canvasPoll); return; }
+                    var wrapper = document.querySelector('[vw-plugin-wrapper]');
+                    if (wrapper) {
+                        var canvas = wrapper.querySelector('canvas');
+                        if (canvas) {
+                            clearInterval(canvasPoll);
+                            log("[VLibras] Canvas detected (backup check)", "success");
+                            if (!_vlibrasPlayerLoaded) {
+                                _vlibrasPlayerLoaded = true;
+                                _processVLibrasQueue();
+                            }
+                        }
+                    }
+                }, 2000);
+                setTimeout(function() { clearInterval(canvasPoll); }, 120000);
+            }, 500);
+            setTimeout(function() { clearInterval(pollId); }, 120000);
+        }
+
+        function translateWithVLibras(text, slideIndex) {
+            if (!text) return;
+            log("[VLibras] Translation requested for slide " + (slideIndex + 1) + ": '" + text.substring(0, 50) + "'", "info");
+
+            if (_vlibrasPlayerLoaded && window.plugin && typeof window.plugin.translate === 'function') {
+                try {
+                    window.plugin.translate(text);
+                    log("[VLibras] Translation sent immediately", "success");
+                    document.getElementById('status').textContent = 'SUCESSO! Tradução enviada ao avatar!';
+                } catch(e) {
+                    log("[VLibras] Translate error: " + e.message, "warn");
+                }
+            } else {
+                _vlibrasQueue = [{ text: text, slideIndex: slideIndex }];
+                _setupVLibrasWatcher();
+                log("[VLibras] Text queued, waiting for player to load...", "info");
+            }
+        }
+
+        function log(msg, type) {
+            var el = document.getElementById('log');
+            var entry = document.createElement('div');
+            entry.className = type || 'info';
+            entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+            el.appendChild(entry);
+            el.scrollTop = el.scrollHeight;
+            console.log(msg);
+        }
+
+        // === SIMULATE SCORM PLAYER: First slide renders immediately ===
+        log("[SCORM Sim] Page loaded, rendering first slide...", "info");
+        // Simulate what renderSlide does when a slide has librasScript
+        var testLibrasText = "Olá! Bem-vindo ao nosso curso de treinamento. Vamos aprender juntos sobre acessibilidade digital.";
+        translateWithVLibras(testLibrasText, 0);
+    </script>
+</body>
+</html>
