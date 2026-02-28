@@ -1389,7 +1389,8 @@ async def export_html(project_id: str, background_tasks: BackgroundTasks):
             project_doc,
             assets_dir,
             base_url,
-            questions=questions
+            questions=questions,
+            backend_url=base_url
         )
         
         # Save HTML file
