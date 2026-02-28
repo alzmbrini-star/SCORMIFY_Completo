@@ -555,7 +555,6 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Generate index.html from template + CSS assets
     enable_vlibras = getattr(project, 'enableVlibras', True)
-    backend_url = os.environ.get('BACKEND_URL', os.environ.get('REACT_APP_BACKEND_URL', ''))
     html_content = _build_html(
         title=clean_title,
         lang=course.metadata.language or 'en',
