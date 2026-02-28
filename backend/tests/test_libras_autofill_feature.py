@@ -115,14 +115,14 @@ class TestSCORMExportWithLibras:
             file_list = z.namelist()
             print(f"SCORM ZIP contents: {len(file_list)} files")
             
-            # Check required files exist
+            # Check required files exist (note: scripts are in scripts/ folder)
             assert "index.html" in file_list, "Missing index.html"
             assert "course.json" in file_list, "Missing course.json"
-            assert "player.js" in file_list, "Missing player.js"
+            assert "scripts/player.js" in file_list, "Missing scripts/player.js"
             print("PASS: SCORM package contains required files")
             
             # Test 1: player.js contains correct VLibras API
-            player_js = z.read("player.js").decode('utf-8')
+            player_js = z.read("scripts/player.js").decode('utf-8')
             assert "plugin.translate" in player_js, "player.js missing plugin.translate call"
             assert "translateWithVLibras" in player_js, "player.js missing translateWithVLibras function"
             print("PASS: player.js contains correct VLibras API (plugin.translate, translateWithVLibras)")
@@ -132,7 +132,9 @@ class TestSCORMExportWithLibras:
             assert "slides" in course_json, "course.json missing slides"
             slide_0 = course_json["slides"][0]
             assert "librasScript" in slide_0, "slide 0 missing librasScript field"
-            print(f"PASS: course.json slide 0 has librasScript: '{slide_0['librasScript'][:50]}...'")
+            libras_text = slide_0.get('librasScript', '')
+            display_text = libras_text[:50] + '...' if len(libras_text) > 50 else libras_text
+            print(f"PASS: course.json slide 0 has librasScript: '{display_text}'")
             
             # Test 3: index.html has VLibras auto-init code
             index_html = z.read("index.html").decode('utf-8')
@@ -142,8 +144,6 @@ class TestSCORMExportWithLibras:
             assert "accessBtn.click" in index_html or "accessBtn.click()" in index_html, \
                 "index.html missing VLibras auto-init click code"
             print("PASS: index.html has VLibras auto-init code")
-            
-        return True
 
 
 class TestFrontendCodeAnalysis:
