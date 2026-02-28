@@ -248,6 +248,14 @@ async def vlibras_test():
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
 
+@api_router.get("/vlibras-simple-test")
+async def vlibras_simple_test():
+    """Simple VLibras test page - NO proxy, direct browser access"""
+    test_path = Path(__file__).parent / "static_test" / "vlibras_simple_test.html"
+    html = test_path.read_text()
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
 # Project Routes
 
 @api_router.get("/projects", response_model=List[dict])
