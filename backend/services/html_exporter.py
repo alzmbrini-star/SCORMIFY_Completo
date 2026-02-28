@@ -204,7 +204,17 @@ async def generate_standalone_html(
         </div>
     </div>
     <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
-    <script>new window.VLibras.Widget({{ position: "R", avatar: "random" }});</script>'''
+    <script>
+        new window.VLibras.Widget({{ position: "R", avatar: "random" }});
+        window.addEventListener("load", function() {{
+            setTimeout(function() {{
+                var accessBtn = document.querySelector("[vw-access-button]");
+                if (accessBtn && !window.plugin) {{
+                    accessBtn.click();
+                }}
+            }}, 2000);
+        }});
+    </script>'''
     else:
         vlibras_block = ''
     
