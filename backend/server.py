@@ -309,6 +309,22 @@ async def vlibras_simple_test():
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
 
+@api_router.get("/vlibras-proxy-test")
+async def vlibras_proxy_test(request: Request):
+    """VLibras test page WITH CORS proxy - tests the full proxy flow"""
+    test_path = Path(__file__).parent / "static_test" / "vlibras_proxy_test.html"
+    html = test_path.read_text()
+    # Inject the actual proxy base URL
+    origin = request.headers.get('origin', '')
+    if not origin:
+        scheme = request.headers.get('x-forwarded-proto', 'https')
+        host = request.headers.get('host', '')
+        origin = f"{scheme}://{host}" if host else ''
+    proxy_base = origin.rstrip('/') + '/api/vlibras-proxy'
+    html = html.replace('__PROXY_BASE__', proxy_base)
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
 # Project Routes
 
 @api_router.get("/projects", response_model=List[dict])
