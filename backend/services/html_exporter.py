@@ -198,16 +198,29 @@ async def generate_standalone_html(
     enable_vlibras = project.get('enableVlibras', True)
     backend_url = backend_url
     if enable_vlibras:
-        proxy_url = backend_url.rstrip('/') + '/api/vlibras-dict' if backend_url else ''
+        proxy_base = backend_url.rstrip('/') + '/api/vlibras-proxy' if backend_url else ''
         vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
     <script>
         (function() {{
-            var PROXY_URL = "{proxy_url}";
-            if (!PROXY_URL) return;
+            var PROXY_BASE = "{proxy_base}";
+            if (!PROXY_BASE) return;
+            var _domainMap = {{
+                "dicionario2.vlibras.gov.br": PROXY_BASE + "/dicionario2",
+                "traducao2.vlibras.gov.br": PROXY_BASE + "/traducao2"
+            }};
             var _origOpen = XMLHttpRequest.prototype.open;
             XMLHttpRequest.prototype.open = function(method, url) {{
-                if (typeof url === "string" && url.indexOf("dicionario2.vlibras.gov.br") !== -1) {{
-                    try {{ var u = new URL(url); url = PROXY_URL + u.pathname + u.search; }} catch(e) {{}}
+                if (typeof url === "string") {{
+                    for (var domain in _domainMap) {{
+                        if (url.indexOf(domain) !== -1) {{
+                            try {{
+                                var u = new URL(url);
+                                arguments[1] = _domainMap[domain] + u.pathname + u.search;
+                                console.log("[VLibras Proxy] " + method + " " + domain + u.pathname + " -> proxy");
+                            }} catch(e) {{}}
+                            break;
+                        }}
+                    }}
                 }}
                 return _origOpen.apply(this, arguments);
             }};
