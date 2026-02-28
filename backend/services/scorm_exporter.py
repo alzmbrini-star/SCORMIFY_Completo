@@ -79,7 +79,7 @@ def _read_asset(filename: str) -> str:
     return (EXPORT_ASSETS_DIR / filename).read_text(encoding='utf-8')
 
 
-def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: bool = True) -> str:
+def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "") -> str:
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
     css = _read_asset("player.css")
@@ -99,7 +99,26 @@ def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: 
     
     # Conditionally include VLibras
     if enable_vlibras:
-        vlibras_block = '''<!-- VLibras - Acessibilidade em LIBRAS -->
+        proxy_url = backend_url.rstrip('/') + '/api/vlibras-dict' if backend_url else ''
+        vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
+    <script>
+        // CORS proxy for VLibras dictionary - intercept XHR to dicionario2.vlibras.gov.br
+        (function() {{
+            var PROXY_URL = "{proxy_url}";
+            if (!PROXY_URL) return;
+            var _origOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url) {{
+                if (typeof url === "string" && url.indexOf("dicionario2.vlibras.gov.br") !== -1) {{
+                    try {{
+                        var u = new URL(url);
+                        url = PROXY_URL + u.pathname + u.search;
+                        console.log("[VLibras Proxy] " + u.pathname);
+                    }} catch(e) {{}}
+                }}
+                return _origOpen.apply(this, arguments);
+            }};
+        }})();
+    </script>
     <div vw class="enabled">
         <div vw-access-button class="active"></div>
         <div vw-plugin-wrapper>
@@ -108,17 +127,17 @@ def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: 
     </div>
     <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
     <script>
-        new window.VLibras.Widget({ position: "R", avatar: "random" });
+        new window.VLibras.Widget({{ position: "R", avatar: "random" }});
         // Auto-initialize VLibras plugin for programmatic LIBRAS translation
-        window.addEventListener("load", function() {
-            setTimeout(function() {
+        window.addEventListener("load", function() {{
+            setTimeout(function() {{
                 var accessBtn = document.querySelector("[vw-access-button]");
-                if (accessBtn && !window.plugin) {
+                if (accessBtn && !window.plugin) {{
                     console.log("[VLibras] Auto-clicking access button to initialize plugin...");
                     accessBtn.click();
-                }
-            }, 2000);
-        });
+                }}
+            }}, 2000);
+        }});
     </script>'''
         html = html.replace("__VLIBRAS_BLOCK__", vlibras_block)
     else:
