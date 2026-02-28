@@ -1296,13 +1296,24 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         # (export_scorm_package is a CPU+IO intensive synchronous function)
         from services.scorm_exporter import export_scorm_package
         import asyncio
+        
+        # Detect backend URL for VLibras dictionary proxy
+        origin = request.headers.get('origin', '')
+        if origin:
+            scorm_backend_url = origin
+        else:
+            scheme = request.headers.get('x-forwarded-proto', 'https')
+            host = request.headers.get('host', '')
+            scorm_backend_url = f"{scheme}://{host}" if host else ''
+        
         zip_path = await asyncio.to_thread(
             export_scorm_package,
             project,
             str(PROJECTS_DIR),
             str(EXPORTS_DIR),
             questions=questions,
-            tutor_config=tutor_settings
+            tutor_config=tutor_settings,
+            backend_url=scorm_backend_url
         )
         
         # Clean up old exports to prevent disk space exhaustion (keep last 24h)
