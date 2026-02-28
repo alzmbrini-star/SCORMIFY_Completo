@@ -4734,7 +4734,21 @@ function SlideProperties({ slide, onUpdate }) {
           value={slide.librasScript || ''}
           onChange={(e) => onUpdate({ librasScript: e.target.value })}
         />
-        <p className="text-[10px] text-muted-foreground mt-1">O avatar VLibras traduzirá este texto automaticamente quando o slide for exibido no SCORM/HTML.</p>
+        {slideText && !slide.librasScript && (
+          <button
+            data-testid="libras-autofill-btn"
+            onClick={handleAutoFill}
+            className="mt-2 w-full text-xs px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors flex items-center justify-center gap-1.5"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>
+            Preencher com texto do slide
+          </button>
+        )}
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {slide.librasScript 
+            ? 'O avatar VLibras traduzirá este texto automaticamente quando o slide for exibido.'
+            : 'Preenchido automaticamente ao gerar narração (TTS). Ou clique no botão acima para usar o texto do slide.'}
+        </p>
       </div>
     </div>
   );
