@@ -202,29 +202,82 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
-# VLibras dictionary CORS proxy - resolves cross-origin issues with dicionario2.vlibras.gov.br
-@api_router.get("/vlibras-dict/{path:path}")
-async def vlibras_dict_proxy(path: str, request: Request):
+# VLibras CORS proxy - resolves cross-origin issues with VLibras government servers
+# Handles both dicionario2.vlibras.gov.br and traducao2.vlibras.gov.br
+_VLIBRAS_DOMAINS = {
+    "dicionario2": "https://dicionario2.vlibras.gov.br",
+    "traducao2": "https://traducao2.vlibras.gov.br",
+}
+_VLIBRAS_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "Referer": "https://www.vlibras.gov.br/",
+    "Origin": "https://www.vlibras.gov.br",
+}
+
+async def _vlibras_proxy_request(domain_key: str, path: str, request: Request):
+    """Generic VLibras proxy handler for GET and POST requests."""
     import httpx
-    url = f"https://dicionario2.vlibras.gov.br/{path}"
+    from fastapi.responses import Response
+    base_url = _VLIBRAS_DOMAINS.get(domain_key)
+    if not base_url:
+        raise HTTPException(status_code=400, detail="Invalid VLibras domain key")
+    url = f"{base_url}/{path}" if path else base_url
     query = str(request.query_params)
     if query:
         url += f"?{query}"
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(url)
-        from fastapi.responses import Response
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            if request.method == "POST":
+                body = await request.body()
+                content_type = request.headers.get("content-type", "application/json")
+                resp = await client.post(url, content=body, headers={**_VLIBRAS_BROWSER_HEADERS, "Content-Type": content_type})
+            else:
+                resp = await client.get(url, headers=_VLIBRAS_BROWSER_HEADERS)
         return Response(
-            content=response.content,
-            status_code=response.status_code,
-            media_type=response.headers.get('content-type', 'application/octet-stream'),
+            content=resp.content,
+            status_code=resp.status_code,
+            media_type=resp.headers.get("content-type", "application/octet-stream"),
             headers={
-                'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
-            }
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Cache-Control": "public, max-age=86400" if request.method == "GET" else "no-cache",
+            },
         )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"VLibras dictionary proxy error: {str(e)}")
+        logger.warning(f"VLibras proxy error ({domain_key}/{path}): {e}")
+        raise HTTPException(status_code=502, detail=f"VLibras proxy error: {str(e)}")
+
+@api_router.api_route("/vlibras-proxy/dicionario2/{path:path}", methods=["GET", "OPTIONS"])
+async def vlibras_dicionario_proxy(path: str, request: Request):
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response
+        return Response(status_code=204, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+        })
+    return await _vlibras_proxy_request("dicionario2", path, request)
+
+@api_router.api_route("/vlibras-proxy/traducao2/{path:path}", methods=["GET", "POST", "OPTIONS"])
+async def vlibras_traducao_proxy(path: str, request: Request):
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response
+        return Response(status_code=204, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+        })
+    return await _vlibras_proxy_request("traducao2", path, request)
+
+# Keep old endpoint for backwards compatibility
+@api_router.get("/vlibras-dict/{path:path}")
+async def vlibras_dict_proxy_legacy(path: str, request: Request):
+    return await _vlibras_proxy_request("dicionario2", path, request)
 
 from starlette.responses import HTMLResponse as StarletteHTMLResponse
 
