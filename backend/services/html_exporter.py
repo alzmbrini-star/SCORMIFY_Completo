@@ -195,8 +195,23 @@ async def generate_standalone_html(
     
     # VLibras accessibility setting
     enable_vlibras = project.get('enableVlibras', True)
+    backend_url = kwargs.get('backend_url', '')
     if enable_vlibras:
-        vlibras_block = '''<!-- VLibras - Acessibilidade em LIBRAS -->
+        proxy_url = backend_url.rstrip('/') + '/api/vlibras-dict' if backend_url else ''
+        vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
+    <script>
+        (function() {{
+            var PROXY_URL = "{proxy_url}";
+            if (!PROXY_URL) return;
+            var _origOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url) {{
+                if (typeof url === "string" && url.indexOf("dicionario2.vlibras.gov.br") !== -1) {{
+                    try {{ var u = new URL(url); url = PROXY_URL + u.pathname + u.search; }} catch(e) {{}}
+                }}
+                return _origOpen.apply(this, arguments);
+            }};
+        }})();
+    </script>
     <div vw class="enabled">
         <div vw-access-button class="active"></div>
         <div vw-plugin-wrapper>
@@ -209,9 +224,7 @@ async def generate_standalone_html(
         window.addEventListener("load", function() {{
             setTimeout(function() {{
                 var accessBtn = document.querySelector("[vw-access-button]");
-                if (accessBtn && !window.plugin) {{
-                    accessBtn.click();
-                }}
+                if (accessBtn && !window.plugin) {{ accessBtn.click(); }}
             }}, 2000);
         }});
     </script>'''
