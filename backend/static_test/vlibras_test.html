@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>VLibras Translation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }
+        #log { background: #0f0f23; padding: 15px; border-radius: 8px; margin-top: 20px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px; }
+        .log-entry { margin: 4px 0; }
+        .success { color: #4ade80; }
+        .info { color: #60a5fa; }
+        .warn { color: #fbbf24; }
+        .error { color: #f87171; }
+        button { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 14px; }
+        button:hover { background: #4f46e5; }
+        h1 { color: #a78bfa; }
+        #status { padding: 10px; background: #262640; border-radius: 6px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>VLibras Integration Test</h1>
+    <div id="status">Status: Loading VLibras widget...</div>
+    <div>
+        <button onclick="checkState()">Check VLibras State</button>
+        <button onclick="clickAccessBtn()">Click Access Button</button>
+        <button onclick="testTranslate()">Translate: "Olá, tudo bem?"</button>
+        <button onclick="testTranslate2()">Translate: "Bem-vindo ao curso"</button>
+    </div>
+    <div id="log"></div>
+
+    <!-- VLibras Widget -->
+    <div vw class="enabled">
+        <div vw-access-button class="active"></div>
+        <div vw-plugin-wrapper>
+            <div class="vw-plugin-top-wrapper"></div>
+        </div>
+    </div>
+    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+    <script>
+        new window.VLibras.Widget({ position: "R", avatar: "random" });
+
+        function log(msg, type) {
+            var el = document.getElementById('log');
+            var entry = document.createElement('div');
+            entry.className = 'log-entry ' + (type || 'info');
+            entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+            el.appendChild(entry);
+            el.scrollTop = el.scrollHeight;
+            console.log(msg);
+        }
+
+        function updateStatus(text) {
+            document.getElementById('status').textContent = 'Status: ' + text;
+        }
+
+        function checkState() {
+            log('--- VLibras State Check ---', 'info');
+            log('window.VLibras exists: ' + !!window.VLibras, window.VLibras ? 'success' : 'error');
+            log('window.VLibras.Widget exists: ' + !!(window.VLibras && window.VLibras.Widget), 'info');
+            log('window.VLibras.Plugin exists: ' + !!(window.VLibras && window.VLibras.Plugin), 'info');
+            log('window.plugin exists: ' + !!window.plugin, window.plugin ? 'success' : 'warn');
+            
+            if (window.plugin) {
+                log('window.plugin.player exists: ' + !!window.plugin.player, 'info');
+                if (window.plugin.player) {
+                    log('player.isLoaded: ' + (typeof window.plugin.player.isLoaded === 'function' ? window.plugin.player.isLoaded() : 'method not found'), 'info');
+                    log('player.on exists: ' + (typeof window.plugin.player.on === 'function'), 'info');
+                    log('plugin.translate exists: ' + (typeof window.plugin.translate === 'function'), 'info');
+                }
+            }
+            
+            var accessBtn = document.querySelector('[vw-access-button]');
+            log('Access button found: ' + !!accessBtn, 'info');
+            
+            var wrapper = document.querySelector('[vw-plugin-wrapper]');
+            if (wrapper) {
+                var canvas = wrapper.querySelector('canvas');
+                var iframe = wrapper.querySelector('iframe');
+                log('Canvas in wrapper: ' + !!canvas, canvas ? 'success' : 'warn');
+                log('Iframe in wrapper: ' + !!iframe, iframe ? 'success' : 'warn');
+            }
+        }
+
+        function clickAccessBtn() {
+            var btn = document.querySelector('[vw-access-button]');
+            if (btn) {
+                btn.click();
+                log('Access button clicked!', 'success');
+                updateStatus('Access button clicked - waiting for plugin...');
+                
+                // Monitor plugin creation
+                var checkId = setInterval(function() {
+                    if (window.plugin) {
+                        clearInterval(checkId);
+                        log('window.plugin created!', 'success');
+                        updateStatus('Plugin created - waiting for player to load...');
+                        
+                        if (window.plugin.player) {
+                            log('Player instance found', 'success');
+                            log('player.on type: ' + typeof window.plugin.player.on, 'info');
+                            log('player.isLoaded type: ' + typeof window.plugin.player.isLoaded, 'info');
+                            
+                            if (typeof window.plugin.player.isLoaded === 'function') {
+                                log('player.isLoaded() = ' + window.plugin.player.isLoaded(), 'info');
+                            }
+                            
+                            // Listen for load event
+                            if (typeof window.plugin.player.on === 'function') {
+                                window.plugin.player.on('load', function() {
+                                    log('*** PLAYER LOAD EVENT FIRED! ***', 'success');
+                                    updateStatus('Player loaded! Ready for translations.');
+                                });
+                                log('Listening for player load event...', 'info');
+                            }
+                        }
+                    }
+                }, 200);
+                setTimeout(function() { clearInterval(checkId); }, 30000);
+            } else {
+                log('Access button not found!', 'error');
+            }
+        }
+
+        function testTranslate() {
+            doTranslate('Olá, tudo bem? Este é um teste de tradução.');
+        }
+        
+        function testTranslate2() {
+            doTranslate('Bem-vindo ao nosso curso de treinamento. Vamos aprender juntos!');
+        }
+
+        function doTranslate(text) {
+            log('Attempting to translate: "' + text + '"', 'info');
+            
+            if (!window.plugin) {
+                log('No plugin! Click access button first.', 'error');
+                return;
+            }
+            
+            if (typeof window.plugin.translate !== 'function') {
+                log('plugin.translate is not a function!', 'error');
+                return;
+            }
+            
+            if (window.plugin.player && typeof window.plugin.player.isLoaded === 'function') {
+                log('player.isLoaded() = ' + window.plugin.player.isLoaded(), 'info');
+            }
+            
+            try {
+                window.plugin.translate(text);
+                log('plugin.translate() called successfully!', 'success');
+            } catch(e) {
+                log('Error calling translate: ' + e.message, 'error');
+            }
+        }
+
+        // Auto-init after 2 seconds
+        window.addEventListener('load', function() {
+            log('Page loaded', 'info');
+            setTimeout(function() {
+                log('Auto-clicking access button...', 'info');
+                clickAccessBtn();
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
