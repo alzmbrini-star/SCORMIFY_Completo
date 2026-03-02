@@ -64,6 +64,9 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - LIBRAS/VLibras toggle in export modal fixed with Shadcn Switch
 - **Storyboard Polling Timeout Fix (2026-03-02)**: Polling timeout increased from 3min to 15min, progress indicator always visible, pre-check for existing storyboard, backend duplicate generation protection, final check on timeout expiry
 
+### Features Implemented
+- **Background Customization per Slide (2026-03-02)**: Users can customize slide backgrounds in the Media Config step with solid colors, gradients (2 colors + direction), uploaded images with opacity, or AI-generated images with opacity. Applies to all slide types (cover, content, quiz, summary). "Apply to All" and "Apply to Type" quick actions available.
+
 ## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session
 - `POST /api/agent/sessions/{id}/upload` - Upload content (file, text, or URL)
