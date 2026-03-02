@@ -157,75 +157,81 @@ REGRAS:
 
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict) -> dict:
-    """Step 3: Generate detailed storyboard with slide content."""
-    chat = _new_chat(f"agent-storyboard-{session_id}")
+    """Step 3: Generate detailed storyboard - processes slides in small batches to avoid timeouts."""
+    all_slides = []
     
-    modules_summary = json.dumps(structure.get("modules", []), ensure_ascii=False)
+    # Flatten all slides from structure
+    flat_slides = []
+    for mod in structure.get("modules", []):
+        for sl in mod.get("slides", []):
+            flat_slides.append({**sl, "moduleName": mod.get("title", "")})
     
-    prompt = f"""Crie o storyboard detalhado para cada slide do curso.
-
-ESTRUTURA DO CURSO:
-{modules_summary}
+    # Process in batches of 3-4 slides
+    batch_size = 4
+    for batch_start in range(0, len(flat_slides), batch_size):
+        batch = flat_slides[batch_start:batch_start + batch_size]
+        batch_desc = json.dumps(batch, ensure_ascii=False)
+        
+        chat = _new_chat(f"agent-sb-{session_id}-{batch_start}")
+        prompt = f"""Crie o conteúdo detalhado para os seguintes slides de um curso sobre "{config.get('title', '')}".
+Nível: {config.get('depth', 'intermediario')}
 
 CONTEÚDO BASE:
-{content_text[:8000]}
+{content_text[:4000]}
 
-CONFIGURAÇÃO:
-- Nível: {config.get('depth', 'intermediario')}
-- Estilo visual: {config.get('visualStyle', 'moderno e profissional')}
+SLIDES PARA DETALHAR:
+{batch_desc}
 
-Para CADA slide da estrutura, gere:
+Retorne JSON com EXATAMENTE {len(batch)} slides:
 ```json
 {{
   "slides": [
     {{
-      "id": "slide_id do structure",
+      "id": "mesmo id do slide",
       "title": "Título",
       "type": "title|content|quiz|summary",
-      "background": "#hex cor de fundo",
+      "background": "#1e3a5f para title, #FFFFFF para outros",
       "elements": [
         {{
           "type": "text",
-          "content": "Texto completo formatado em HTML (<h2>, <p>, <ul>, <li>, <strong>)",
-          "position": "center|left|right",
+          "content": "<h2>Título</h2><p>Conteúdo educacional claro e objetivo</p>",
+          "position": "center",
           "width": 800,
           "height": 400
         }}
       ],
-      "narrationScript": "Texto para narração TTS deste slide",
-      "librasScript": "Texto simplificado para tradução LIBRAS",
-      "notes": "Notas do instrutor",
-      "quizQuestions": [
-        {{
-          "text": "Pergunta?",
-          "type": "multiple_choice",
-          "alternatives": [
-            {{"text": "Opção A", "isCorrect": false}},
-            {{"text": "Opção B", "isCorrect": true}}
-          ],
-          "explanation": "Explicação da resposta"
-        }}
-      ]
+      "narrationScript": "Texto natural para narração",
+      "librasScript": "Versão simplificada para LIBRAS",
+      "notes": "",
+      "quizQuestions": []
     }}
   ]
 }}
 ```
 
-REGRAS DE CONTEÚDO:
-- Slides de título: título grande, subtítulo, fundo colorido
-- Slides de conteúdo: texto claro, organizado em tópicos, máximo 150 palavras
-- Slides de quiz: 2-3 perguntas por slide
-- Slides de resumo: síntese dos pontos principais
-- Use analogias e exemplos práticos
-- Texto HTML com formatação rica (<h2>, <p>, <strong>, <ul>)
-- narrationScript: texto natural para ser narrado (sem HTML)
-- librasScript: versão simplificada para LIBRAS"""
+Para slides tipo "quiz", inclua 2-3 perguntas em quizQuestions com alternatives (4 opções cada, uma isCorrect:true).
+Máximo 120 palavras por slide. Use HTML: h2, p, ul, li, strong."""
 
-    response = await chat.send_message(UserMessage(text=prompt))
-    data = _extract_json(response)
-    if not data:
-        raise ValueError("Não foi possível gerar o storyboard")
-    return data
+        response = await chat.send_message(UserMessage(text=prompt))
+        data = _extract_json(response)
+        if data and "slides" in data:
+            all_slides.extend(data["slides"])
+        else:
+            # Fallback: create basic slides from structure
+            for sl in batch:
+                all_slides.append({
+                    "id": sl.get("id", ""),
+                    "title": sl.get("title", "Slide"),
+                    "type": sl.get("type", "content"),
+                    "background": "#1e3a5f" if sl.get("type") == "title" else "#FFFFFF",
+                    "elements": [{"type": "text", "content": f"<h2>{sl.get('title','')}</h2><p>{sl.get('purpose','')}</p>", "position": "center", "width": 800, "height": 400}],
+                    "narrationScript": sl.get("purpose", ""),
+                    "librasScript": sl.get("purpose", ""),
+                    "notes": "",
+                    "quizQuestions": [],
+                })
+    
+    return {"slides": all_slides}
 
 
 async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict) -> dict:
