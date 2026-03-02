@@ -332,10 +332,10 @@ const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDel
         ref={thumbRef}
         className="w-full h-full relative"
         style={{
-          backgroundColor: slide.background || '#fff',
-          backgroundImage: slide.backgroundImage ? `url(${slide.backgroundImage})` : 'none',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          background: slide.background || '#fff',
+          backgroundImage: slide.backgroundImage ? `url(${slide.backgroundImage})` : undefined,
+          backgroundSize: slide.backgroundImage ? 'cover' : undefined,
+          backgroundPosition: slide.backgroundImage ? 'center' : undefined,
         }}
       >
         {/* Render miniature slide elements */}
@@ -4693,12 +4693,26 @@ function SlideProperties({ slide, onUpdate }) {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Background</label>
-            <Input
-              type="color"
-              value={slide.background || '#FFFFFF'}
-              onChange={(e) => onUpdate({ background: e.target.value })}
-              className="h-8 p-1"
-            />
+            {slide.background?.includes('gradient') ? (
+              <div className="space-y-1">
+                <div className="h-8 rounded border" style={{ background: slide.background }} />
+                <p className="text-[10px] text-muted-foreground">Degradê (definido pelo agente)</p>
+                <Input
+                  type="color"
+                  value="#ffffff"
+                  onChange={(e) => onUpdate({ background: e.target.value })}
+                  className="h-7 p-1"
+                />
+                <p className="text-[10px] text-muted-foreground">Substituir por cor sólida</p>
+              </div>
+            ) : (
+              <Input
+                type="color"
+                value={slide.background || '#FFFFFF'}
+                onChange={(e) => onUpdate({ background: e.target.value })}
+                className="h-8 p-1"
+              />
+            )}
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Duration (seconds)</label>

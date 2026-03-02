@@ -479,7 +479,8 @@ const SlideCanvas = ({
         maxWidth: '100%',
         maxHeight: 'calc(100vh - 200px)',
         aspectRatio: `${canvasWidth} / ${canvasHeight}`,
-        backgroundColor: slide.background || '#FFFFFF',
+        backgroundColor: slide.background?.includes?.('gradient') ? undefined : (slide.background || '#FFFFFF'),
+        background: slide.background?.includes?.('gradient') ? slide.background : undefined,
         cursor: annotationMode ? 'crosshair' : 'default',
       }}
       onMouseDown={handleCanvasMouseDown}
