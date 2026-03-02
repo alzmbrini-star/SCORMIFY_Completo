@@ -39,6 +39,7 @@ import {
   LogOut,
   User,
   Pencil,
+  Brain,
 } from 'lucide-react';
 
 export default function Dashboard() {
