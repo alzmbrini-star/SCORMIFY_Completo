@@ -182,21 +182,42 @@ export default function Agent() {
     }
   };
 
-  // Step 3: Generate Storyboard
+  // Step 3: Generate Storyboard (background task with polling)
   const handleGenerateStoryboard = async () => {
     setLoading(true);
-    addChatMsg('agent', 'Criando storyboard detalhado com conteúdo para cada slide...');
+    addChatMsg('agent', 'Criando storyboard detalhado com conteúdo para cada slide... Isso pode levar até 1 minuto.');
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-storyboard`, { method: 'POST' });
       if (!res.ok) throw new Error('Falha no storyboard');
-      const data = await res.json();
-      setStoryboard(data);
-      addChatMsg('agent', `Storyboard completo com ${data.slides?.length || 0} slides detalhados! Revise o conteúdo de cada slide e aprove para gerar o curso.`);
-      setCurrentStep(4);
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}`);
+          const session = await sRes.json();
+          if (session.step === 'storyboarded' && session.storyboard) {
+            clearInterval(pollInterval);
+            setStoryboard(session.storyboard);
+            addChatMsg('agent', `Storyboard completo com ${session.storyboard.slides?.length || 0} slides detalhados! Revise o conteúdo e aprove para gerar o curso.`);
+            setCurrentStep(4);
+            setLoading(false);
+          } else if (session.step === 'structured') {
+            clearInterval(pollInterval);
+            addChatMsg('agent', 'Erro ao gerar storyboard. Tente novamente.');
+            setLoading(false);
+          }
+        } catch (e) { /* keep polling */ }
+      }, 3000);
+      // Timeout after 3 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (loading) {
+          addChatMsg('agent', 'A geração do storyboard está demorando. Verifique o status em alguns instantes.');
+          setLoading(false);
+        }
+      }, 180000);
     } catch (e) {
       toast.error('Erro ao gerar storyboard');
-      addChatMsg('agent', 'Erro ao gerar storyboard. Tente novamente.');
-    } finally {
+      addChatMsg('agent', 'Erro ao iniciar geração do storyboard.');
       setLoading(false);
     }
   };
