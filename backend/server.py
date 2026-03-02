@@ -3889,17 +3889,31 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     asyncio.create_task(_generate())
     return {"status": "processing", "message": "Storyboard being generated..."}
 
+@api_router.post("/agent/sessions/{session_id}/media-config")
+async def agent_set_media_config(session_id: str, data: dict):
+    """Save media configuration for each slide."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    media_config = data.get("mediaConfig", {})
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"mediaConfig": media_config, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"status": "ok", "configured": len(media_config)}
+
+
 @api_router.post("/agent/sessions/{session_id}/generate-course")
 async def agent_generate_course(session_id: str):
-    """Step 4: Generate actual Scormfy project from storyboard."""
+    """Step 5: Generate actual Scormfy project from storyboard with media."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
     if not s.get("storyboard"):
         raise HTTPException(400, "Storyboard not generated yet")
 
-    # Create project first to get ID for image assets
     config = s.get("config", {})
+    media_config = s.get("mediaConfig", {})
     title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
     desc = config.get("description", s.get("analysis", {}).get("summary", ""))
 
@@ -3910,7 +3924,8 @@ async def agent_generate_course(session_id: str):
     from services.ai_agent import generate_course_from_storyboard
     course_data = await generate_course_from_storyboard(
         session_id, s["storyboard"], s.get("config", {}),
-        project_dir=str(PROJECTS_DIR), project_id=project.id
+        project_dir=str(PROJECTS_DIR), project_id=project.id,
+        media_config=media_config
     )
 
     project.course.metadata.title = title

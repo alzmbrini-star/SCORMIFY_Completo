@@ -250,7 +250,34 @@ _COURSE_PALETTES = [
 
 
 async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
-    """Download a stock image from picsum.photos and save locally."""
+    """Generate a photorealistic AI image using GPT Image 1 and save locally."""
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        image_gen = OpenAIImageGeneration(api_key=EMERGENT_KEY)
+        prompt = f"Professional photorealistic image for an educational course slide about: {keyword}. High quality, clean composition, no text or watermarks, suitable for corporate training material. Natural lighting, sharp focus."
+        images = await image_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1,
+        )
+        if images and len(images) > 0:
+            import hashlib
+            seed = hashlib.md5(keyword.encode()).hexdigest()[:10]
+            fname = f"ai_img_{seed}.png"
+            fpath = os.path.join(project_dir, project_id, "assets", fname)
+            os.makedirs(os.path.dirname(fpath), exist_ok=True)
+            with open(fpath, "wb") as f:
+                f.write(images[0])
+            logger.info(f"AI image generated for '{keyword}' -> {fname}")
+            return f"/api/projects/{project_id}/assets/{fname}"
+    except Exception as e:
+        logger.warning(f"AI image generation failed for '{keyword}': {e}")
+    # Fallback to picsum
+    return await _fetch_picsum_image(keyword, project_dir, project_id)
+
+
+async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
+    """Fallback: Download a stock image from picsum.photos."""
     import httpx
     import hashlib
     try:
@@ -259,7 +286,6 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             resp = await client.get(url)
             if resp.status_code == 200 and len(resp.content) > 1000:
-                import os
                 fname = f"stock_{seed}.jpg"
                 fpath = os.path.join(project_dir, project_id, "assets", fname)
                 os.makedirs(os.path.dirname(fpath), exist_ok=True)
@@ -267,7 +293,7 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
                     f.write(resp.content)
                 return f"/api/projects/{project_id}/assets/{fname}"
     except Exception as e:
-        logger.warning(f"Stock image fetch failed for '{keyword}': {e}")
+        logger.warning(f"Picsum fetch failed for '{keyword}': {e}")
     return None
 
 
@@ -504,10 +530,118 @@ def _style_summary_html(raw_html: str, accent: str) -> str:
     return f'<div style="padding:20px;">{styled}</div>'
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "") -> dict:
-    """Step 4: Convert storyboard into actual Scormfy project data with professional visuals."""
+def _parse_video_url(url: str) -> Optional[dict]:
+    """Parse YouTube or Vimeo URL and return embed info."""
+    import re
+    if not url:
+        return None
+    # YouTube
+    yt_match = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})', url)
+    if yt_match:
+        vid = yt_match.group(1)
+        return {"type": "youtube", "videoId": vid, "embedUrl": f"https://www.youtube.com/embed/{vid}"}
+    # Vimeo
+    vm_match = re.search(r'(?:vimeo\.com/)(\d+)', url)
+    if vm_match:
+        vid = vm_match.group(1)
+        return {"type": "vimeo", "videoId": vid, "embedUrl": f"https://player.vimeo.com/video/{vid}"}
+    return None
+
+
+def _build_video_element(video_info: dict, palette: dict) -> dict:
+    """Build a video embed element for a content slide."""
+    from models import generate_id
+    embed_url = video_info["embedUrl"]
+    video_type = video_info["type"]
+    platform = "YouTube" if video_type == "youtube" else "Vimeo"
+
+    return {
+        "id": generate_id(), "type": "html", "x": 1120, "y": 80, "width": 740, "height": 460,
+        "htmlContent": f'''<div style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+<iframe src="{embed_url}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+<div style="position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
+<span style="color:rgba(255,255,255,0.6);font-size:11px;">{platform}</span>
+</div>
+</div>''',
+        "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+    }
+
+
+def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: str, video_info: dict) -> list:
+    """Build content slide with video embed instead of image."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header bar
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Text on the left
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        if el.get("content"):
+            text_content = el["content"]
+    styled_text = _style_content_html(text_content, palette["text"])
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
+        "htmlContent": styled_text,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    # Video embed on the right
+    elements.append(_build_video_element(video_info, palette))
+
+    return elements
+
+
+def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: str) -> list:
+    """Build content slide without any media - full width text."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header bar
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Full-width text
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        if el.get("content"):
+            text_content = el["content"]
+    styled_text = _style_content_html(text_content, palette["text"])
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
+        "htmlContent": styled_text,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    return elements
+
+
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None) -> dict:
+    """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
     from models import generate_id
     import hashlib
+
+    if media_config is None:
+        media_config = {}
 
     slides_data = storyboard.get("slides", [])
     project_slides = []
@@ -526,22 +660,36 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             module_names.append(mn)
             seen_modules.add(mn)
 
-    # Pre-fetch stock images for content slides
-    image_urls = {}
+    # Pre-generate media for content slides based on media_config
+    slide_media = {}  # i -> {"type": "image"/"video"/"none", "url": "...", "video_info": {...}}
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
-        if stype in ("content",) and sb_slide.get("imageKeywords"):
-            kw = sb_slide["imageKeywords"]
+        if stype != "content":
+            continue
+        mc = media_config.get(str(i), {})
+        media_type = mc.get("type", "ai_image")  # default to ai_image
+
+        if media_type == "ai_image":
+            kw = sb_slide.get("imageKeywords", sb_slide.get("title", "education"))
             if project_dir and project_id:
                 img_url = await _fetch_stock_image(kw, project_dir, project_id)
                 if img_url:
-                    image_urls[i] = img_url
+                    slide_media[i] = {"type": "image", "url": img_url}
+        elif media_type in ("youtube", "vimeo"):
+            video_url = mc.get("url", "")
+            video_info = _parse_video_url(video_url)
+            if video_info:
+                slide_media[i] = {"type": "video", "video_info": video_info}
+        elif media_type == "heygen":
+            # HeyGen avatar placeholder - user can configure in editor later
+            slide_media[i] = {"type": "heygen_placeholder"}
+        elif media_type == "none":
+            slide_media[i] = {"type": "none"}
 
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
         module_name = sb_slide.get("moduleName", "")
 
-        # Determine background based on slide type
         if stype == "title":
             bg = palette["primary"]
             slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names)
@@ -553,8 +701,30 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             slide_elements = _build_summary_slide(sb_slide, palette, module_name)
         else:
             bg = palette["contentBg"]
-            img_url = image_urls.get(i)
-            slide_elements = _build_content_slide(sb_slide, palette, module_name, img_url)
+            media = slide_media.get(i, {"type": "image"})
+            if media.get("type") == "video":
+                slide_elements = _build_content_slide_with_video(sb_slide, palette, module_name, media["video_info"])
+            elif media.get("type") == "none":
+                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
+            elif media.get("type") == "heygen_placeholder":
+                # Build with a placeholder for HeyGen
+                heygen_html = '''<div style="width:100%;height:100%;border-radius:12px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;border:2px dashed rgba(255,255,255,0.2);">
+<div style="text-align:center;">
+<div style="font-size:48px;margin-bottom:12px;color:rgba(255,255,255,0.3);">&#9658;</div>
+<p style="color:rgba(255,255,255,0.5);font-size:14px;">Avatar HeyGen</p>
+<p style="color:rgba(255,255,255,0.3);font-size:11px;">Configure no editor</p>
+</div></div>'''
+                from models import generate_id as gid
+                placeholder_el = {
+                    "id": gid(), "type": "html", "x": 1160, "y": 90, "width": 700, "height": 440,
+                    "htmlContent": heygen_html, "style": {}, "startTime": 0,
+                    "animations": [{"id": gid(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+                }
+                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
+                slide_elements.append(placeholder_el)
+            else:
+                img_url = media.get("url")
+                slide_elements = _build_content_slide(sb_slide, palette, module_name, img_url)
 
         # Collect quiz questions
         for q in sb_slide.get("quizQuestions", []):

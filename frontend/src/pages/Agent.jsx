@@ -17,7 +17,7 @@ import {
   GraduationCap, Clock, BarChart3, Lightbulb, ChevronRight,
   X, MessageSquare, PanelRightOpen, PanelRightClose,
   Pencil, Plus, Shield, Wrench, Heart, HardHat, TrendingUp, Users,
-  AlertTriangle, Star, Zap,
+  AlertTriangle, Star, Zap, Image, Video, UserCircle,
 } from 'lucide-react';
 
 const API = getApiUrl();
@@ -29,6 +29,7 @@ const CREATE_STEPS = [
   { id: 'configure', label: 'Configurar', icon: Settings },
   { id: 'structure', label: 'Estrutura', icon: Layers },
   { id: 'storyboard', label: 'Storyboard', icon: BookOpen },
+  { id: 'media', label: 'Mídia', icon: Image },
   { id: 'generate', label: 'Gerar Curso', icon: Play },
 ];
 
@@ -67,6 +68,7 @@ export default function Agent() {
   const [generatedProject, setGeneratedProject] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [mediaConfig, setMediaConfig] = useState({});
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -206,7 +208,15 @@ export default function Agent() {
           if (session.step === 'storyboarded' && session.storyboard) {
             clearInterval(pollInterval);
             setStoryboard(session.storyboard);
-            addChatMsg('agent', `Storyboard completo com ${session.storyboard.slides?.length || 0} slides!`);
+            // Initialize media config: all content slides default to ai_image
+            const mc = {};
+            session.storyboard.slides?.forEach((s, i) => {
+              if (s.type === 'content') {
+                mc[String(i)] = { type: 'ai_image' };
+              }
+            });
+            setMediaConfig(mc);
+            addChatMsg('agent', `Storyboard completo com ${session.storyboard.slides?.length || 0} slides! Configure a mídia de cada slide.`);
             setCurrentStep(4);
             setLoading(false);
           } else if (session.step === 'structured') {
@@ -221,16 +231,40 @@ export default function Agent() {
     } catch { toast.error('Erro no storyboard'); setLoading(false); }
   };
 
+  const handleApproveStoryboard = () => {
+    addChatMsg('agent', 'Agora configure a mídia de cada slide: imagem IA, vídeo YouTube/Vimeo, avatar HeyGen ou sem mídia.');
+    setCurrentStep(5); // media config step
+  };
+
+  const handleSaveMediaConfig = async () => {
+    setLoading(true);
+    addChatMsg('agent', 'Salvando configuração de mídia...');
+    try {
+      await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaConfig }),
+      });
+      const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
+      const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
+      const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+      addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares. ${aiImageCount > 0 ? 'A geração de imagens pode levar alguns minutos.' : ''}`);
+      setCurrentStep(6); // generate step
+      handleGenerateCourse();
+    } catch { toast.error('Erro ao salvar mídia'); addChatMsg('agent', 'Erro ao salvar configuração de mídia.'); }
+    finally { setLoading(false); }
+  };
+
   const handleGenerateCourse = async () => {
     setLoading(true);
-    addChatMsg('agent', 'Gerando o curso no Scormfy...');
+    const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
+    addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}`);
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST' });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setGeneratedProject(data);
       addChatMsg('agent', `Curso "${data.projectName}" criado! ${data.slidesCount} slides e ${data.quizCount} perguntas.`);
-      setCurrentStep(5);
+      setCurrentStep(6);
       toast.success('Curso gerado com sucesso!');
     } catch { toast.error('Erro ao gerar curso'); addChatMsg('agent', 'Erro ao gerar o curso.'); }
     finally { setLoading(false); }
@@ -373,8 +407,9 @@ export default function Agent() {
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} />}
-              {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleGenerateCourse} />}
-              {mode === 'create' && currentStep === 5 && <GeneratedPanel project={generatedProject} navigate={navigate} />}
+              {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} />}
+              {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} />}
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
@@ -819,6 +854,165 @@ function StoryboardPanel({ storyboard, loading, onApprove }) {
     </div>
   );
 }
+
+
+const MEDIA_TYPES = [
+  { id: 'ai_image', label: 'Imagem IA', description: 'Fotorealista gerada por IA', icon: Image, color: 'emerald' },
+  { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
+  { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
+  { id: 'heygen', label: 'Avatar HeyGen', description: 'Vídeo com avatar IA', icon: UserCircle, color: 'purple' },
+  { id: 'none', label: 'Sem mídia', description: 'Apenas texto', icon: FileText, color: 'slate' },
+];
+
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm }) {
+  if (!storyboard?.slides) return null;
+
+  const contentSlides = storyboard.slides
+    .map((s, i) => ({ ...s, index: i }))
+    .filter(s => s.type === 'content');
+
+  const updateSlideMedia = (idx, type, url) => {
+    setMediaConfig(prev => ({
+      ...prev,
+      [String(idx)]: { type, ...(url ? { url } : {}) },
+    }));
+  };
+
+  const setAllSlidesMedia = (type) => {
+    const mc = {};
+    contentSlides.forEach(s => { mc[String(s.index)] = { type }; });
+    setMediaConfig(mc);
+  };
+
+  const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
+  const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
+  const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+
+  return (
+    <div className="space-y-4" data-testid="media-config-panel">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Image className="w-5 h-5 text-emerald-400" /> Configurar Mídia dos Slides
+        </h2>
+      </div>
+
+      <p className="text-sm text-slate-400">
+        Escolha o tipo de mídia para cada slide de conteúdo. Imagens IA serão geradas automaticamente baseadas no contexto de cada slide.
+      </p>
+
+      {/* Quick apply buttons */}
+      <div className="flex gap-2 flex-wrap">
+        <Button variant="outline" size="sm" onClick={() => setAllSlidesMedia('ai_image')} className="text-xs" data-testid="set-all-ai-image">
+          <Image className="w-3 h-3 mr-1 text-emerald-400" /> Todas: Imagem IA
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setAllSlidesMedia('none')} className="text-xs" data-testid="set-all-none">
+          <FileText className="w-3 h-3 mr-1" /> Todas: Sem mídia
+        </Button>
+      </div>
+
+      {/* Per-slide config */}
+      <div className="space-y-3">
+        {contentSlides.map((slide) => {
+          const mc = mediaConfig[String(slide.index)] || { type: 'ai_image' };
+          const colorMap = { ai_image: 'emerald', youtube: 'red', vimeo: 'blue', heygen: 'purple', none: 'slate' };
+          const borderColor = mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : 'border-slate-700';
+
+          return (
+            <Card key={slide.index} className={`bg-slate-900/50 ${borderColor} transition-colors`} data-testid={`media-slide-${slide.index}`}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] border-slate-600">Slide {slide.index + 1}</Badge>
+                  <span className="text-sm font-medium truncate">{slide.title}</span>
+                  {slide.moduleName && <span className="text-[10px] text-slate-500 ml-auto shrink-0">{slide.moduleName}</span>}
+                </div>
+
+                {/* Media type selector */}
+                <div className="flex flex-wrap gap-2">
+                  {MEDIA_TYPES.map(mt => {
+                    const Icon = mt.icon;
+                    const isActive = mc.type === mt.id;
+                    const bgColors = {
+                      emerald: 'bg-emerald-600/15 border-emerald-500 text-emerald-300',
+                      red: 'bg-red-600/15 border-red-500 text-red-300',
+                      blue: 'bg-blue-600/15 border-blue-500 text-blue-300',
+                      purple: 'bg-purple-600/15 border-purple-500 text-purple-300',
+                      slate: 'bg-slate-800 border-slate-600 text-slate-300',
+                    };
+                    return (
+                      <button
+                        key={mt.id}
+                        onClick={() => updateSlideMedia(slide.index, mt.id, '')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${
+                          isActive ? bgColors[mt.color] : 'border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                        }`}
+                        data-testid={`media-type-${mt.id}-slide-${slide.index}`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {mt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* URL input for YouTube/Vimeo */}
+                {(mc.type === 'youtube' || mc.type === 'vimeo') && (
+                  <Input
+                    value={mc.url || ''}
+                    onChange={e => updateSlideMedia(slide.index, mc.type, e.target.value)}
+                    placeholder={mc.type === 'youtube' ? 'https://youtube.com/watch?v=...' : 'https://vimeo.com/...'}
+                    className="bg-slate-800 border-slate-700 text-sm"
+                    data-testid={`media-url-slide-${slide.index}`}
+                  />
+                )}
+
+                {/* AI image info */}
+                {mc.type === 'ai_image' && slide.imageKeywords && (
+                  <p className="text-[11px] text-emerald-400/60">
+                    <Sparkles className="w-3 h-3 inline mr-1" />
+                    Será gerada imagem sobre: {slide.imageKeywords}
+                  </p>
+                )}
+
+                {/* HeyGen info */}
+                {mc.type === 'heygen' && (
+                  <p className="text-[11px] text-purple-400/60">
+                    <UserCircle className="w-3 h-3 inline mr-1" />
+                    Placeholder será adicionado. Configure o avatar no editor.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Summary */}
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-3 text-xs">
+            <span className="text-slate-400">Resumo:</span>
+            {aiCount > 0 && <Badge className="bg-emerald-600/20 text-emerald-300"><Image className="w-3 h-3 mr-1" />{aiCount} Imagens IA</Badge>}
+            {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Vídeos</Badge>}
+            {heygenCount > 0 && <Badge className="bg-purple-600/20 text-purple-300"><UserCircle className="w-3 h-3 mr-1" />{heygenCount} Avatares</Badge>}
+            {aiCount === 0 && videoCount === 0 && heygenCount === 0 && <span className="text-slate-500">Nenhuma mídia</span>}
+          </div>
+          {aiCount > 0 && (
+            <p className="text-[11px] text-amber-400/70 mt-2">
+              <AlertTriangle className="w-3 h-3 inline mr-1" />
+              Imagens IA consomem créditos da Emergent LLM Key (~{aiCount} imagens). Tempo estimado: ~{aiCount * 15}s.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Button onClick={onConfirm} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
+        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}
+        Confirmar Mídia e Gerar Curso
+      </Button>
+    </div>
+  );
+}
+
 
 function GeneratedPanel({ project, navigate }) {
   if (!project) return null;
