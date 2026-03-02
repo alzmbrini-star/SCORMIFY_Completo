@@ -3,19 +3,6 @@
 ## Original Problem Statement
 Build a full-featured course authoring tool that allows users to create interactive courses, export them to SCORM/HTML format, and include accessibility features like VLibras (Brazilian Sign Language) translation. Additionally, build an AI Instructional Design Agent that transforms raw content into complete courses.
 
-## Core Requirements
-- Course creation with slides, elements, and multimedia
-- SCORM 1.2 and standalone HTML export
-- Text-to-Speech (ElevenLabs integration)
-- AI content generation (Google Gemini)
-- VLibras LIBRAS accessibility
-- HeyGen avatar video generation
-- PowerPoint import (ConvertAPI)
-- Quiz/assessment support
-- AI Tutor integration
-- Mobile responsive course player
-- **AI Instructional Design Agent** (GPT-5.2)
-
 ## Architecture
 - **Frontend**: React + Tailwind + Shadcn/UI
 - **Backend**: FastAPI + MongoDB
@@ -32,99 +19,63 @@ Build a full-featured course authoring tool that allows users to create interact
 - AI script generation via Gemini
 - HeyGen avatar video generation
 - PowerPoint import via ConvertAPI
-- Quiz/assessment system
-- AI Tutor for exported courses
-- Mobile-responsive course player
+- Quiz/assessment system, AI Tutor, mobile-responsive player
 
-### VLibras Integration (Improved - 2026-02-28)
+### VLibras Integration (Complete)
 - CORS Proxy handling both VLibras domains (dicionario2 + traducao2)
-- XHR monkey-patch in exports intercepts both domains
-- Avatar active with fingerspelling fallback
+- XHR monkey-patch in exports
 
-### AI Instructional Design Agent - Phase 1 MVP (2026-03-02)
-**Backend** (`/app/backend/services/ai_agent.py`):
-- Content analysis with GPT-5.2 (extracts topics, difficulty, duration, gaps)
-- Course structure generation (modules, slides, objectives, competencies)
-- Storyboard generation (batch processing to avoid timeouts, background task)
-- Course creation from storyboard (generates Scormfy Project with slides, quizzes)
-- Chat with agent for adjustments and questions
+### AI Instructional Design Agent - Phase 1 MVP (Complete)
+- Full end-to-end flow: content upload → AI analysis → structure → storyboard → course generation
+- Background task processing for storyboard with frontend polling
+- Chat with agent
 
-**API Endpoints**:
-- `POST /api/agent/sessions` - Create session
-- `POST /api/agent/sessions/{id}/upload` - Upload content (file or text)
-- `POST /api/agent/sessions/{id}/analyze` - AI content analysis
-- `POST /api/agent/sessions/{id}/configure` - Set course parameters
-- `POST /api/agent/sessions/{id}/generate-structure` - Generate course structure (now accepts optional templateId)
-- `POST /api/agent/sessions/{id}/generate-storyboard` - Generate storyboard (background task)
-- `POST /api/agent/sessions/{id}/generate-course` - Generate Scormfy project (now marks createdByAgent)
-- `POST /api/agent/sessions/{id}/chat` - Chat with agent
-- `GET /api/agent/sessions/{id}` - Get session state (polling)
-
-**Frontend** (`/app/frontend/src/pages/Agent.jsx`):
-- Hybrid interface: chat panel + visual content panels
-- 6-step wizard: Upload > Analyze > Configure > Structure > Storyboard > Generate
-- File upload (PDF, PPT, DOC, TXT) with ConvertAPI text extraction
-- Text paste input
-- Real-time polling for background tasks
-- Navigate directly to editor after course generation
-
-**Tested**: 15/15 backend + frontend tests passed (iteration_1.json)
-
-### AI Agent - Phase 2: Course Editing & Visual Templates (2026-03-02)
-**Backend** (`/app/backend/server.py` + `/app/backend/services/ai_agent.py`):
+### AI Agent - Phase 2: Course Editing & Visual Templates (Complete - 2026-03-02)
 - **Visual Templates**: 6 course templates (Onboarding, Compliance, Técnico, Soft Skills, Saúde e Segurança, Vendas)
-  - Each template has default configuration (depth, duration, modules, interactivity, format)
-  - Structure generation can use templates as base via `generate_structure_from_template()`
-- **Course Editing**: AI-powered course analysis and improvement application
-  - `analyze_existing_course()`: Evaluates course quality, identifies strengths, improvements, missing elements
-  - `apply_course_improvements()`: Generates updated content for selected improvements, adds new slides
-- Projects created by agent now marked with `createdByAgent: true` flag
+- **Course Editing**: AI-powered analysis + improvement suggestions + selective application
+- **Mode Selector**: "Criar Novo Curso" vs "Editar Curso Existente"
+- Tested: 27/27 tests (iteration_43.json)
 
-**New API Endpoints**:
-- `GET /api/agent/templates` - List 6 available course templates
-- `GET /api/agent/courses` - List courses created by the AI agent (filtered by createdByAgent flag)
-- `POST /api/agent/courses/{id}/analyze` - AI analysis of existing course with improvement suggestions
-- `POST /api/agent/courses/{id}/apply-improvements` - Apply selected improvements to a course
+### Visual Improvements for Generated Courses (Complete - 2026-03-02)
+- **6 Professional Color Palettes**: Emerald, violet, blue, green, red, amber - selected based on course title hash
+- **Professional Backgrounds**: Dark primary for title/quiz/summary slides, light contentBg for content slides
+- **Two-Column Layout**: Content slides have text (left 55%) + stock image (right 35%)
+- **Header Bars**: Colored accent bars at top of each slide with module name
+- **Stock Images**: Auto-downloaded from picsum.photos, saved to project assets for SCORM compatibility
+- **Styled HTML Elements**: Professional typography with proper font sizes, colors, spacing
+- **Title Slide Enhancements**: Accent bar, large centered title, subtitle, "Trilha do Curso" module trail
+- **Quiz Slides**: Dark background with "Hora de Praticar!" indicator and question preview cards
+- **Summary Slides**: Dark background with styled key takeaways
+- Tested: 20/20 backend + 100% frontend (iteration_44.json)
 
-**Frontend** (`/app/frontend/src/pages/Agent.jsx`):
-- **Mode Selector**: Initial screen with "Criar Novo Curso" and "Editar Curso Existente" cards
-- **Template Grid**: 6 template cards in config step with auto-config population on selection
-- **Edit Mode**: 3-step flow (Select Course > Review Analysis > Apply Improvements)
-  - Course list showing agent-created courses
-  - Score card with overall quality assessment
-  - Improvement suggestions with checkbox selection (priority, type, description)
-  - Missing elements and suggested new slides display
-  - Apply selected improvements button
-
-**Tested**: 27/27 backend + frontend tests passed (iteration_43.json)
-
-## Prioritized Backlog
-
-### P1 - Platform Improvement Suggestions
-- Agent analyzes its own process and suggests improvements for Scormfy platform
-
-### P2 - Enhanced Content Input
-- Accept PDF, DOCX, and website links as source content
-- HeyGen avatar integration for welcome videos
-- AI Tutor auto-configuration per course
-
-### P2 - Refactoring
-- Refactor exporters to use Jinja2 templates
-- Refactor monolithic server.py into separate routers
-
-### P3 - Future
-- SCORM 2004 export support
-- Auto-generate TTS narration for each slide via ElevenLabs
-- Auto-generate quiz questions with AI
-- Timeline/animation suggestions
+## API Endpoints (Agent-specific)
+- `POST /api/agent/sessions` - Create session
+- `POST /api/agent/sessions/{id}/upload` - Upload content
+- `POST /api/agent/sessions/{id}/analyze` - AI analysis
+- `POST /api/agent/sessions/{id}/configure` - Set config
+- `POST /api/agent/sessions/{id}/generate-structure` - Generate structure (accepts optional templateId)
+- `POST /api/agent/sessions/{id}/generate-storyboard` - Background storyboard gen
+- `POST /api/agent/sessions/{id}/generate-course` - Generate Scormfy project
+- `POST /api/agent/sessions/{id}/chat` - Chat with agent
+- `GET /api/agent/templates` - List 6 templates
+- `GET /api/agent/courses` - List agent-created courses
+- `POST /api/agent/courses/{id}/analyze` - AI course analysis
+- `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements
 
 ## Key Files
-- `backend/server.py` - Main server with all API endpoints
-- `backend/services/ai_agent.py` - AI agent service (GPT-5.2) with templates & editing
-- `backend/services/scorm_exporter.py` - SCORM export
-- `backend/services/html_exporter.py` - HTML export
-- `backend/services/export_assets/player.js` - Course player
-- `frontend/src/pages/Agent.jsx` - AI Agent page (mode selector + create/edit flows)
+- `backend/server.py` - Main server with all API routes
+- `backend/services/ai_agent.py` - AI agent service with visual generation, templates, editing
+- `frontend/src/pages/Agent.jsx` - Agent page (mode selector + create/edit flows)
 - `frontend/src/pages/Editor.jsx` - Course editor
-- `frontend/src/pages/Dashboard.jsx` - Project dashboard
-- `frontend/src/App.js` - Routes
+
+## Prioritized Backlog
+### P1
+- Platform Improvement Suggestions (agent self-analysis)
+### P2
+- Enhanced Content Input (PDF, DOCX, links)
+- HeyGen avatar + ElevenLabs narration integration
+- AI Tutor auto-config per course
+- Topic-relevant image search (replace picsum with keyword-based search API)
+### P3
+- Refactor server.py into routers, use Jinja2 for HTML templates
+- SCORM 2004 export
