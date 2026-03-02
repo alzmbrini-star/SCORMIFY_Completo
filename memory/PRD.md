@@ -62,6 +62,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 
 ### Bug Fixes (Complete)
 - LIBRAS/VLibras toggle in export modal fixed with Shadcn Switch
+- **Storyboard Polling Timeout Fix (2026-03-02)**: Polling timeout increased from 3min to 15min, progress indicator always visible, pre-check for existing storyboard, backend duplicate generation protection, final check on timeout expiry
 
 ## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session
