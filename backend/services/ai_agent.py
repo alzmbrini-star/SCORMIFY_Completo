@@ -159,98 +159,404 @@ REGRAS:
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
     all_slides = []
-    
+
     # Flatten all slides from structure
     flat_slides = []
     for mod in structure.get("modules", []):
         for sl in mod.get("slides", []):
             flat_slides.append({**sl, "moduleName": mod.get("title", "")})
-    
+
     # Process in batches of 6 slides for speed
     batch_size = 6
     for batch_start in range(0, len(flat_slides), batch_size):
         batch = flat_slides[batch_start:batch_start + batch_size]
-        batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose","")} for s in batch]
-        
+        batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose",""), "moduleName": s.get("moduleName","")} for s in batch]
+
         chat = _new_chat(f"agent-sb-{session_id}-{batch_start}")
-        prompt = f"""Gere conteúdo para {len(batch)} slides do curso "{config.get('title', '')}".
+        prompt = f"""Gere conteúdo DETALHADO e RICO para {len(batch)} slides do curso "{config.get('title', '')}".
 Nível: {config.get('depth', 'intermediario')}
-Conteúdo-base: {content_text[:2000]}
+Conteúdo-base: {content_text[:3000]}
 
 Slides: {json.dumps(batch_info, ensure_ascii=False)}
 
 Retorne JSON:
 ```json
-{{"slides":[{{"id":"id","title":"T","type":"content","background":"#FFFFFF","elements":[{{"type":"text","content":"<h2>T</h2><p>conteúdo</p>","position":"center","width":800,"height":400}}],"narrationScript":"narração","librasScript":"libras","notes":"","quizQuestions":[]}}]}}
+{{"slides":[{{
+  "id":"id",
+  "title":"Título do Slide",
+  "type":"content",
+  "moduleName":"Nome do Módulo",
+  "imageKeywords":"english keywords for stock photo search",
+  "elements":[
+    {{"type":"text","content":"<h2>Título</h2><p>Conteúdo detalhado com <strong>destaques</strong> e explicações claras. Use listas com <ul><li>item</li></ul> quando apropriado.</p>","position":"left","width":1000,"height":550}}
+  ],
+  "narrationScript":"Texto completo da narração para este slide",
+  "librasScript":"Texto simplificado para LIBRAS",
+  "notes":"Notas do instrutor",
+  "quizQuestions":[]
+}}]}}
 ```
-Regras: title slides usam background #1e3a5f e texto branco. Quiz slides incluem 2 perguntas com 4 alternatives cada (uma isCorrect:true). Max 100 palavras/slide."""
+REGRAS IMPORTANTES:
+- Slides de CONTEÚDO: texto detalhado com pelo menos 50 palavras, use HTML rico (<h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>)
+- Slides de TÍTULO: use <h1> para título principal e <p> para subtítulo/descrição
+- Slides de QUIZ: inclua 2-3 perguntas com 4 alternativas cada (uma isCorrect:true), inclua "explanation" em cada pergunta
+- Slides de SUMMARY: resuma os pontos-chave do módulo com <ul><li>
+- imageKeywords: 2-3 palavras em INGLÊS que descrevem uma imagem adequada (ex: "teamwork office", "data analysis chart", "safety equipment")
+- moduleName: inclua o nome do módulo para cada slide
+- TODOS os slides devem ter conteúdo substantivo, nunca deixe elementos vazios"""
 
         try:
             response = await chat.send_message(UserMessage(text=prompt))
             data = _extract_json(response)
             if data and "slides" in data:
+                # Ensure moduleName propagation from batch
+                for j, slide_data in enumerate(data["slides"]):
+                    if not slide_data.get("moduleName") and j < len(batch):
+                        slide_data["moduleName"] = batch[j].get("moduleName", "")
                 all_slides.extend(data["slides"])
                 continue
         except Exception as e:
             logger.warning(f"Storyboard batch {batch_start} error: {e}")
-        
+
         # Fallback: create basic slides from structure
         for sl in batch:
             all_slides.append({
                 "id": sl.get("id", ""),
                 "title": sl.get("title", "Slide"),
                 "type": sl.get("type", "content"),
-                "background": "#1e3a5f" if sl.get("type") == "title" else "#FFFFFF",
-                "elements": [{"type": "text", "content": f"<h2>{sl.get('title','')}</h2><p>{sl.get('purpose','')}</p>", "position": "center", "width": 800, "height": 400}],
+                "moduleName": sl.get("moduleName", ""),
+                "imageKeywords": sl.get("title", "education").replace(" ", " "),
+                "elements": [{"type": "text", "content": f"<h2>{sl.get('title','')}</h2><p>{sl.get('purpose','')}</p>", "position": "left", "width": 1000, "height": 550}],
                 "narrationScript": sl.get("purpose", ""),
                 "librasScript": sl.get("purpose", ""),
                 "notes": "",
                 "quizQuestions": [],
             })
-    
+
     return {"slides": all_slides}
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict) -> dict:
-    """Step 4: Convert storyboard into actual Scormfy project data."""
+# ========== VISUAL COURSE GENERATION ==========
+
+# Professional color palettes for course themes
+_COURSE_PALETTES = [
+    {"primary": "#0f172a", "accent": "#10b981", "accentLight": "#d1fae5", "contentBg": "#f0fdf4", "text": "#1e293b"},
+    {"primary": "#1e1b4b", "accent": "#8b5cf6", "accentLight": "#ede9fe", "contentBg": "#f5f3ff", "text": "#1e293b"},
+    {"primary": "#172554", "accent": "#3b82f6", "accentLight": "#dbeafe", "contentBg": "#eff6ff", "text": "#1e293b"},
+    {"primary": "#14532d", "accent": "#22c55e", "accentLight": "#dcfce7", "contentBg": "#f0fdf4", "text": "#1e293b"},
+    {"primary": "#7f1d1d", "accent": "#ef4444", "accentLight": "#fee2e2", "contentBg": "#fef2f2", "text": "#1e293b"},
+    {"primary": "#78350f", "accent": "#f59e0b", "accentLight": "#fef3c7", "contentBg": "#fffbeb", "text": "#1e293b"},
+]
+
+
+async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
+    """Download a stock image from picsum.photos and save locally."""
+    import httpx
+    import hashlib
+    try:
+        seed = hashlib.md5(keyword.encode()).hexdigest()[:10]
+        url = f"https://picsum.photos/seed/{seed}/800/450"
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                import os
+                fname = f"stock_{seed}.jpg"
+                fpath = os.path.join(project_dir, project_id, "assets", fname)
+                os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                with open(fpath, "wb") as f:
+                    f.write(resp.content)
+                return f"/api/projects/{project_id}/assets/{fname}"
+    except Exception as e:
+        logger.warning(f"Stock image fetch failed for '{keyword}': {e}")
+    return None
+
+
+def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list) -> dict:
+    """Build a visually rich title/cover slide."""
     from models import generate_id
-    
+    accent = palette["accent"]
+    elements = []
+
+    # Accent bar at top
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 8,
+        "htmlContent": f'<div style="width:100%;height:100%;background:{accent};"></div>',
+        "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Title text - large and centered
+    title_text = sb_slide.get("title", course_title)
+    elements_html = sb_slide.get("elements", [])
+    subtitle = ""
+    for el in elements_html:
+        c = el.get("content", "")
+        if "<p>" in c:
+            import re
+            p_match = re.search(r"<p>(.*?)</p>", c, re.DOTALL)
+            if p_match:
+                subtitle = p_match.group(1).strip()
+                break
+
+    title_html = f'''<div style="text-align:center;padding:20px;">
+<h1 style="font-size:48px;font-weight:800;color:#ffffff;margin:0 0 20px 0;line-height:1.2;">{title_text}</h1>
+{f'<p style="font-size:20px;color:rgba(255,255,255,0.75);margin:0 0 30px 0;max-width:900px;margin-left:auto;margin-right:auto;line-height:1.5;">{subtitle}</p>' if subtitle else ''}
+<div style="width:80px;height:4px;background:{accent};margin:0 auto 30px auto;border-radius:2px;"></div>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 160, "y": 120, "width": 1600, "height": 400,
+        "htmlContent": title_html,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.6, "delay": 0}],
+    })
+
+    # Module list
+    if module_names:
+        modules_html = '<div style="text-align:center;"><p style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:12px;text-transform:uppercase;letter-spacing:2px;">Trilha do Curso</p>'
+        for idx, mn in enumerate(module_names):
+            modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:20px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:13px;border:1px solid rgba(255,255,255,0.1);">{idx+1}. {mn}</span>'
+        modules_html += '</div>'
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 160, "y": 540, "width": 1600, "height": 200,
+            "htmlContent": modules_html,
+            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.4}],
+        })
+
+    return elements
+
+
+def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_url: Optional[str]) -> dict:
+    """Build a visually rich content slide with header bar, text, and image."""
+    from models import generate_id
+    accent = palette["accent"]
+    content_bg = palette["contentBg"]
+    elements = []
+
+    # Header bar with module name
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html,
+        "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Extract text content from storyboard elements
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        c = el.get("content", "")
+        if c:
+            text_content = c
+
+    # If we have an image, use two-column layout
+    if image_url:
+        # Text on the left (55% width)
+        styled_text = _style_content_html(text_content, palette["text"])
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1050, "height": 700,
+            "htmlContent": styled_text,
+            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+        })
+        # Image on the right
+        elements.append({
+            "id": generate_id(), "type": "image", "x": 1160, "y": 90, "width": 700, "height": 440,
+            "src": image_url, "content": image_url,
+            "style": {"borderRadius": "12px"}, "startTime": 0,
+            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+        })
+        # Accent bar under image
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 1160, "y": 545, "width": 700, "height": 4,
+            "htmlContent": f'<div style="width:100%;height:100%;background:{accent};border-radius:2px;"></div>',
+            "style": {}, "startTime": 0, "animations": [],
+        })
+    else:
+        # Full-width text layout
+        styled_text = _style_content_html(text_content, palette["text"])
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
+            "htmlContent": styled_text,
+            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+        })
+
+    return elements
+
+
+def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
+    """Build a visually styled quiz slide."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;">QUIZ - {module_name}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html,
+        "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Quiz indicator
+    quiz_html = f'''<div style="text-align:center;padding:30px;">
+<div style="display:inline-block;padding:8px 24px;border-radius:24px;background:{accent}22;border:1px solid {accent}44;">
+<span style="color:{accent};font-size:14px;font-weight:600;">Hora de Praticar!</span>
+</div>
+<h2 style="font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">Teste seus Conhecimentos</h2>
+<p style="font-size:16px;color:rgba(255,255,255,0.6);">Responda as perguntas abaixo para verificar seu aprendizado</p>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 160, "y": 80, "width": 1600, "height": 250,
+        "htmlContent": quiz_html,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    # Show quiz questions as preview
+    questions = sb_slide.get("quizQuestions", [])
+    if questions:
+        q_html = '<div style="padding:10px;">'
+        for qi, q in enumerate(questions):
+            q_html += f'<div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.1);">'
+            q_html += f'<p style="color:#ffffff;font-size:15px;font-weight:600;margin:0 0 8px 0;">{qi+1}. {q.get("text","")}</p>'
+            for a in q.get("alternatives", []):
+                icon = "&#9679;" if not a.get("isCorrect") else "&#10003;"
+                color = "rgba(255,255,255,0.5)" if not a.get("isCorrect") else "#10b981"
+                q_html += f'<p style="color:{color};font-size:13px;margin:4px 0 4px 16px;">{icon} {a.get("text","")}</p>'
+            q_html += '</div>'
+        q_html += '</div>'
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 260, "y": 340, "width": 1400, "height": 440,
+            "htmlContent": q_html,
+            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+        })
+
+    return elements
+
+
+def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
+    """Build a visually rich summary slide."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;">RESUMO - {module_name}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html,
+        "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Summary content
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        c = el.get("content", "")
+        if c:
+            text_content = c
+
+    styled_text = _style_summary_html(text_content, accent)
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 160, "y": 80, "width": 1600, "height": 700,
+        "htmlContent": styled_text,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    return elements
+
+
+def _style_content_html(raw_html: str, text_color: str) -> str:
+    """Apply professional styling to content HTML."""
+    import re
+    styled = raw_html
+    # Style headings
+    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-size:36px;font-weight:800;color:{text_color};margin:0 0 16px 0;line-height:1.2;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-size:28px;font-weight:700;color:{text_color};margin:0 0 14px 0;line-height:1.3;">', styled)
+    styled = re.sub(r'<h3([^>]*)>', f'<h3\\1 style="font-size:22px;font-weight:600;color:{text_color};margin:0 0 10px 0;line-height:1.3;">', styled)
+    # Style paragraphs
+    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-size:17px;color:{text_color}cc;line-height:1.7;margin:0 0 12px 0;">', styled)
+    # Style lists
+    styled = re.sub(r'<ul([^>]*)>', f'<ul\\1 style="padding-left:20px;margin:8px 0;">', styled)
+    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-size:16px;color:{text_color}cc;line-height:1.6;margin-bottom:6px;">', styled)
+    # Style bold
+    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{text_color};font-weight:700;">', styled)
+    return f'<div style="padding:10px;">{styled}</div>'
+
+
+def _style_summary_html(raw_html: str, accent: str) -> str:
+    """Apply professional styling to summary HTML."""
+    import re
+    styled = raw_html
+    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-size:32px;font-weight:800;color:#ffffff;margin:0 0 20px 0;text-align:center;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-size:26px;font-weight:700;color:#ffffff;margin:20px 0 14px 0;text-align:center;">', styled)
+    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-size:17px;color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 12px 0;text-align:center;">', styled)
+    styled = re.sub(r'<ul([^>]*)>', f'<ul\\1 style="list-style:none;padding:0;margin:16px auto;max-width:800px;">', styled)
+    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-size:16px;color:rgba(255,255,255,0.8);padding:10px 16px;margin-bottom:8px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:3px solid {accent};">', styled)
+    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:#ffffff;">', styled)
+    return f'<div style="padding:20px;">{styled}</div>'
+
+
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "") -> dict:
+    """Step 4: Convert storyboard into actual Scormfy project data with professional visuals."""
+    from models import generate_id
+    import hashlib
+
     slides_data = storyboard.get("slides", [])
     project_slides = []
     quiz_questions = []
-    
+
+    # Select a color palette based on course title
+    title_hash = int(hashlib.md5(config.get("title", "curso").encode()).hexdigest()[:8], 16)
+    palette = _COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)]
+
+    # Collect module names for title slide
+    module_names = []
+    seen_modules = set()
+    for sb_slide in slides_data:
+        mn = sb_slide.get("moduleName", "")
+        if mn and mn not in seen_modules:
+            module_names.append(mn)
+            seen_modules.add(mn)
+
+    # Pre-fetch stock images for content slides
+    image_urls = {}
     for i, sb_slide in enumerate(slides_data):
-        slide_elements = []
-        
-        for elem in sb_slide.get("elements", []):
-            if elem.get("type") == "text":
-                pos = elem.get("position", "center")
-                w = elem.get("width", 800)
-                h = elem.get("height", 400)
-                x = (1920 - w) // 2 if pos == "center" else (100 if pos == "left" else 1020)
-                y = 80 if sb_slide.get("type") == "title" else 40
-                
-                html_content = elem.get("content", "")
-                
-                el = {
-                    "id": generate_id(),
-                    "type": "html",
-                    "x": x,
-                    "y": y,
-                    "width": w,
-                    "height": h,
-                    "content": "",
-                    "htmlContent": html_content,
-                    "style": {
-                        "fontSize": 28 if sb_slide.get("type") == "title" else 18,
-                        "fontFamily": "Inter, sans-serif",
-                        "fontColor": "#FFFFFF" if sb_slide.get("type") == "title" else "#333333",
-                    },
-                    "startTime": 0,
-                    "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3 * len(slide_elements)}],
-                }
-                slide_elements.append(el)
-        
+        stype = sb_slide.get("type", "content")
+        if stype in ("content",) and sb_slide.get("imageKeywords"):
+            kw = sb_slide["imageKeywords"]
+            if project_dir and project_id:
+                img_url = await _fetch_stock_image(kw, project_dir, project_id)
+                if img_url:
+                    image_urls[i] = img_url
+
+    for i, sb_slide in enumerate(slides_data):
+        stype = sb_slide.get("type", "content")
+        module_name = sb_slide.get("moduleName", "")
+
+        # Determine background based on slide type
+        if stype == "title":
+            bg = palette["primary"]
+            slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names)
+        elif stype == "quiz":
+            bg = palette["primary"]
+            slide_elements = _build_quiz_slide(sb_slide, palette, module_name)
+        elif stype == "summary":
+            bg = palette["primary"]
+            slide_elements = _build_summary_slide(sb_slide, palette, module_name)
+        else:
+            bg = palette["contentBg"]
+            img_url = image_urls.get(i)
+            slide_elements = _build_content_slide(sb_slide, palette, module_name, img_url)
+
         # Collect quiz questions
         for q in sb_slide.get("quizQuestions", []):
             qid = generate_id()
@@ -264,11 +570,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "points": 1.0,
                 "tags": [],
             })
-        
-        bg = sb_slide.get("background", "#FFFFFF")
-        if sb_slide.get("type") == "title" and bg == "#FFFFFF":
-            bg = "#1e3a5f"
-        
+
         slide = {
             "id": generate_id(),
             "title": sb_slide.get("title", f"Slide {i+1}"),
@@ -285,7 +587,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "duration": 5.0,
         }
         project_slides.append(slide)
-    
+
     return {
         "slides": project_slides,
         "quizQuestions": quiz_questions,
