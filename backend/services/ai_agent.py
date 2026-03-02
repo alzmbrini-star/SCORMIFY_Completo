@@ -812,13 +812,15 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
     return elements
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None) -> dict:
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None) -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
     from models import generate_id
     import hashlib
 
     if media_config is None:
         media_config = {}
+    if bg_config is None:
+        bg_config = {}
 
     slides_data = storyboard.get("slides", [])
     project_slides = []
@@ -937,6 +939,36 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     hp["slideId"] = actual_slide_id
                     break
 
+        # Apply custom background from bgConfig (overrides palette defaults)
+        custom_bg = bg_config.get(str(i), {})
+        bg_image = None
+        if custom_bg.get("type") == "solid" and custom_bg.get("color"):
+            bg = custom_bg["color"]
+        elif custom_bg.get("type") == "gradient":
+            c1 = custom_bg.get("color1", "#1e293b")
+            c2 = custom_bg.get("color2", "#10b981")
+            direction = custom_bg.get("direction", "to right")
+            bg = f"linear-gradient({direction}, {c1}, {c2})"
+        elif custom_bg.get("type") == "image":
+            # For image backgrounds, we store both the image and an overlay color
+            img_src = custom_bg.get("imageData") or custom_bg.get("imageUrl", "")
+            if img_src:
+                bg_image = img_src
+                # Save base64 image to assets if it's a data URL
+                if img_src.startswith("data:") and project_dir and project_id:
+                    import base64 as b64mod
+                    try:
+                        header, data_part = img_src.split(",", 1)
+                        ext = "png" if "png" in header else "jpg"
+                        fname = f"bg_custom_{i}.{ext}"
+                        fpath = os.path.join(project_dir, project_id, "assets", fname)
+                        os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                        with open(fpath, "wb") as f:
+                            f.write(b64mod.b64decode(data_part))
+                        bg_image = f"/api/projects/{project_id}/assets/{fname}"
+                    except Exception as e:
+                        logger.warning(f"Failed to save bg image for slide {i}: {e}")
+
         slide = {
             "id": actual_slide_id,
             "title": sb_slide.get("title", f"Slide {i+1}"),
@@ -944,6 +976,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "width": 1920,
             "height": 820,
             "background": bg,
+            "backgroundImage": bg_image if bg_image else None,
+            "backgroundOpacity": custom_bg.get("opacity", 100) if bg_image else None,
             "elements": slide_elements,
             "annotations": [],
             "transition": {"type": "fade", "duration": 0.5},

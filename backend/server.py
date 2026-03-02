@@ -4010,18 +4010,50 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     thread.start()
     return {"status": "processing", "message": "Storyboard being generated..."}
 
+
+@api_router.post("/agent/generate-bg-image")
+async def agent_generate_bg_image(data: dict):
+    """Generate a background image using AI based on a text prompt."""
+    prompt = data.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, "Prompt required")
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        image_gen = OpenAIImageGeneration(api_key=emergent_key)
+        full_prompt = f"Abstract artistic background for presentation slide: {prompt}. No text, no watermarks, smooth gradients, professional, suitable as slide background."
+        images = await image_gen.generate_images(prompt=full_prompt, model="gpt-image-1", number_of_images=1)
+        if images and len(images) > 0:
+            img_data = images[0]
+            import hashlib
+            seed = hashlib.md5(prompt.encode()).hexdigest()[:10]
+            fname = f"bg_ai_{seed}.png"
+            fpath = os.path.join(str(PROJECTS_DIR), "bg_temp", fname)
+            os.makedirs(os.path.dirname(fpath), exist_ok=True)
+            with open(fpath, "wb") as f:
+                f.write(img_data)
+            return {"imageUrl": f"/api/projects/bg_temp/assets/{fname}", "imageBase64": f"data:image/png;base64,{base64.b64encode(img_data).decode()}"}
+        raise HTTPException(500, "No image generated")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"BG image generation error: {e}")
+        raise HTTPException(500, f"Failed to generate background image: {str(e)}")
+
+
 @api_router.post("/agent/sessions/{session_id}/media-config")
 async def agent_set_media_config(session_id: str, data: dict):
-    """Save media configuration for each slide."""
+    """Save media and background configuration for each slide."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
     media_config = data.get("mediaConfig", {})
+    bg_config = data.get("bgConfig", {})
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"mediaConfig": media_config, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
-    return {"status": "ok", "configured": len(media_config)}
+    return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
 
 @api_router.post("/agent/sessions/{session_id}/generate-course")
@@ -4035,6 +4067,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
 
     config = s.get("config", {})
     media_config = s.get("mediaConfig", {})
+    bg_config = s.get("bgConfig", {})
     title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
     desc = config.get("description", s.get("analysis", {}).get("summary", ""))
 
@@ -4046,7 +4079,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
     course_data = await generate_course_from_storyboard(
         session_id, s["storyboard"], s.get("config", {}),
         project_dir=str(PROJECTS_DIR), project_id=project.id,
-        media_config=media_config
+        media_config=media_config, bg_config=bg_config
     )
 
     project.course.metadata.title = title

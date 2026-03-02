@@ -1671,7 +1671,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 // Background
                 if (slide.backgroundImage) {{
-                    html += '<img class="slide-background" src="' + slide.backgroundImage + '" alt="">';
+                    var bgOpacity = (slide.backgroundOpacity !== undefined && slide.backgroundOpacity !== null) ? slide.backgroundOpacity / 100 : 1;
+                    html += '<img class="slide-background" src="' + slide.backgroundImage + '" alt="" style="opacity:' + bgOpacity + '">';
+                    if (slide.background && slide.background !== '#fff') {{
+                        container.style.background = slide.background;
+                    }}
                 }} else {{
                     container.style.background = slide.background || '#fff';
                 }}

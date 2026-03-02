@@ -18,7 +18,9 @@ import {
   X, MessageSquare, PanelRightOpen, PanelRightClose,
   Pencil, Plus, Shield, Wrench, Heart, HardHat, TrendingUp, Users,
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
+  Palette, Droplets, ImagePlus, UploadCloud,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 
 const API = getApiUrl();
 
@@ -73,6 +75,7 @@ export default function Agent() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [mediaConfig, setMediaConfig] = useState({});
   const [heygenConfig, setHeygenConfig] = useState({ avatarId: '', voiceId: '' });
+  const [bgConfig, setBgConfig] = useState({});
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -314,7 +317,7 @@ export default function Agent() {
 
   const handleSaveMediaConfig = async () => {
     setLoading(true);
-    addChatMsg('agent', 'Salvando configuração de mídia...');
+    addChatMsg('agent', 'Salvando configuração de mídia e fundos...');
     try {
       // Inject heygen avatar/voice into each heygen slide config
       const enrichedConfig = { ...mediaConfig };
@@ -325,7 +328,7 @@ export default function Agent() {
       }
       await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaConfig: enrichedConfig }),
+        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig }),
       });
       const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
       const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
@@ -495,7 +498,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} />}
 
               {/* EDIT MODE */}
@@ -1058,6 +1061,223 @@ function StoryboardPanel({ storyboard, loading, onApprove }) {
 }
 
 
+const GRADIENT_DIRECTIONS = [
+  { id: 'to right', label: '→' },
+  { id: 'to left', label: '←' },
+  { id: 'to bottom', label: '↓' },
+  { id: 'to top', label: '↑' },
+  { id: 'to bottom right', label: '↘' },
+  { id: 'to bottom left', label: '↙' },
+  { id: 'to top right', label: '↗' },
+  { id: 'to top left', label: '↖' },
+];
+
+function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides }) {
+  const bg = bgConfig[String(slideIndex)] || { type: 'default' };
+
+  const updateBg = (patch) => {
+    setBgConfig(prev => ({ ...prev, [String(slideIndex)]: { ...bg, ...patch } }));
+  };
+
+  const applyToAll = () => {
+    const newCfg = {};
+    allSlides.forEach((_, i) => { newCfg[String(i)] = { ...bg }; });
+    setBgConfig(newCfg);
+    toast.success('Fundo aplicado a todos os slides');
+  };
+
+  const applyToType = (slideType) => {
+    const newCfg = { ...bgConfig };
+    allSlides.forEach((s, i) => { if (s.type === slideType) newCfg[String(i)] = { ...bg }; });
+    setBgConfig(newCfg);
+    toast.success(`Fundo aplicado aos slides "${slideType}"`);
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Imagem deve ter no máximo 5MB'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      updateBg({ type: 'image', imageData: ev.target.result, opacity: bg.opacity ?? 30 });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const generateAiBg = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch(`${API}/api/agent/generate-bg-image`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt }),
+      });
+      const data = await res.json();
+      if (data.imageUrl) {
+        updateBg({ type: 'image', imageUrl: data.imageUrl, opacity: bg.opacity ?? 30, aiPrompt });
+        toast.success('Imagem de fundo gerada!');
+      } else { toast.error('Erro ao gerar imagem'); }
+    } catch { toast.error('Erro ao gerar imagem'); }
+    finally { setAiLoading(false); }
+  };
+
+  const previewStyle = bg.type === 'solid'
+    ? { background: bg.color || '#1e293b' }
+    : bg.type === 'gradient'
+    ? { background: `linear-gradient(${bg.direction || 'to right'}, ${bg.color1 || '#1e293b'}, ${bg.color2 || '#10b981'})` }
+    : bg.type === 'image'
+    ? { backgroundImage: `url(${bg.imageData || bg.imageUrl || ''})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { background: '#1e293b' };
+
+  return (
+    <div className="space-y-2" data-testid={`bg-picker-slide-${slideIndex}`}>
+      <div className="flex items-center gap-2">
+        <Palette className="w-3.5 h-3.5 text-cyan-400" />
+        <span className="text-xs font-medium text-cyan-300">Fundo</span>
+        {/* Mini preview */}
+        <div className="w-8 h-5 rounded border border-slate-600 shrink-0" style={previewStyle} />
+        <div className="ml-auto flex gap-1">
+          <button onClick={applyToAll} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 px-1" title="Aplicar a todos">
+            Todos
+          </button>
+          <button onClick={() => applyToType(allSlides[slideIndex]?.type || 'content')} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 px-1" title="Aplicar ao mesmo tipo">
+            Tipo
+          </button>
+        </div>
+      </div>
+
+      <Tabs value={bg.type || 'default'} onValueChange={(v) => updateBg({ type: v })} className="w-full">
+        <TabsList className="w-full h-7 bg-slate-800/80 p-0.5">
+          <TabsTrigger value="default" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Padrão</TabsTrigger>
+          <TabsTrigger value="solid" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Cor</TabsTrigger>
+          <TabsTrigger value="gradient" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Degradê</TabsTrigger>
+          <TabsTrigger value="image" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Imagem</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="default" className="mt-1">
+          <p className="text-[10px] text-slate-500">Usa a cor do template selecionado.</p>
+        </TabsContent>
+
+        <TabsContent value="solid" className="mt-1">
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={bg.color || '#1e293b'}
+              onChange={(e) => updateBg({ color: e.target.value })}
+              className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent"
+              data-testid={`bg-color-picker-${slideIndex}`}
+            />
+            <Input
+              value={bg.color || '#1e293b'}
+              onChange={(e) => updateBg({ color: e.target.value })}
+              className="h-7 text-xs bg-slate-800 border-slate-700 w-24"
+              placeholder="#1e293b"
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="gradient" className="mt-1">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={bg.color1 || '#1e293b'}
+                onChange={(e) => updateBg({ color1: e.target.value })}
+                className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent"
+                data-testid={`bg-gradient-color1-${slideIndex}`}
+              />
+              <input
+                type="color"
+                value={bg.color2 || '#10b981'}
+                onChange={(e) => updateBg({ color2: e.target.value })}
+                className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent"
+                data-testid={`bg-gradient-color2-${slideIndex}`}
+              />
+              <div className="flex gap-0.5 ml-1">
+                {GRADIENT_DIRECTIONS.map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => updateBg({ direction: d.id })}
+                    className={`w-6 h-6 rounded text-[10px] transition-colors ${
+                      (bg.direction || 'to right') === d.id
+                        ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/50'
+                        : 'bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-700'
+                    }`}
+                    title={d.id}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Gradient preview */}
+            <div
+              className="h-6 rounded border border-slate-700"
+              style={{ background: `linear-gradient(${bg.direction || 'to right'}, ${bg.color1 || '#1e293b'}, ${bg.color2 || '#10b981'})` }}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="image" className="mt-1">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <label className="flex-1">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-slate-600 text-xs text-slate-400 hover:border-cyan-500/50 hover:text-cyan-300 cursor-pointer transition-colors" data-testid={`bg-upload-btn-${slideIndex}`}>
+                  <UploadCloud className="w-3.5 h-3.5" /> Upload
+                </div>
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              </label>
+              <div className="flex-1 flex gap-1">
+                <Input
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Descreva o fundo..."
+                  className="h-8 text-xs bg-slate-800 border-slate-700 flex-1"
+                  data-testid={`bg-ai-prompt-${slideIndex}`}
+                  onKeyDown={(e) => e.key === 'Enter' && generateAiBg()}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={generateAiBg}
+                  disabled={aiLoading || !aiPrompt.trim()}
+                  className="h-8 px-2 text-xs border-cyan-700/50 text-cyan-300"
+                  data-testid={`bg-ai-generate-${slideIndex}`}
+                >
+                  {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                </Button>
+              </div>
+            </div>
+            {(bg.imageData || bg.imageUrl) && (
+              <div className="space-y-1.5">
+                <div className="relative h-16 rounded border border-slate-700 overflow-hidden">
+                  <img src={bg.imageData || bg.imageUrl} alt="bg" className="w-full h-full object-cover" style={{ opacity: (bg.opacity ?? 30) / 100 }} />
+                  <div className="absolute inset-0 bg-slate-900" style={{ opacity: 1 - (bg.opacity ?? 30) / 100 }} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Droplets className="w-3 h-3 text-slate-400" />
+                  <span className="text-[10px] text-slate-400 w-14">Opacidade</span>
+                  <Slider
+                    value={[bg.opacity ?? 30]}
+                    onValueChange={([v]) => updateBg({ opacity: v })}
+                    min={5} max={100} step={5}
+                    className="flex-1"
+                    data-testid={`bg-opacity-slider-${slideIndex}`}
+                  />
+                  <span className="text-[10px] text-slate-400 w-8 text-right">{bg.opacity ?? 30}%</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
 const MEDIA_TYPES = [
   { id: 'ai_image', label: 'Imagem IA', description: 'Fotorealista gerada por IA', icon: Image, color: 'emerald' },
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
@@ -1066,7 +1286,7 @@ const MEDIA_TYPES = [
   { id: 'none', label: 'Sem mídia', description: 'Apenas texto', icon: FileText, color: 'slate' },
 ];
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1321,77 +1541,100 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         </Card>
       )}
 
-      {/* Per-slide config */}
+      {/* Per-slide config - ALL slides for background, content slides for media */}
       <div className="space-y-3">
-        {contentSlides.map((slide) => {
-          const mc = mediaConfig[String(slide.index)] || { type: 'ai_image' };
-          const colorMap = { ai_image: 'emerald', youtube: 'red', vimeo: 'blue', heygen: 'purple', none: 'slate' };
-          const borderColor = mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : 'border-slate-700';
+        {(storyboard?.slides || []).map((slide, idx) => {
+          const isContent = slide.type === 'content';
+          const mc = mediaConfig[String(idx)] || { type: 'ai_image' };
+          const borderColor = !isContent ? 'border-slate-700/50'
+            : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : 'border-slate-700';
+          const typeLabel = { title: 'Capa', content: 'Conteúdo', quiz: 'Quiz', summary: 'Resumo' };
+          const typeColor = { title: 'text-blue-400 border-blue-500/40', content: 'text-slate-400 border-slate-600', quiz: 'text-amber-400 border-amber-500/40', summary: 'text-purple-400 border-purple-500/40' };
 
           return (
-            <Card key={slide.index} className={`bg-slate-900/50 ${borderColor} transition-colors`} data-testid={`media-slide-${slide.index}`}>
+            <Card key={idx} className={`bg-slate-900/50 ${borderColor} transition-colors`} data-testid={`media-slide-${idx}`}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px] border-slate-600">Slide {slide.index + 1}</Badge>
+                  <Badge variant="outline" className={`text-[10px] ${typeColor[slide.type] || 'border-slate-600 text-slate-400'}`}>
+                    {typeLabel[slide.type] || slide.type} {idx + 1}
+                  </Badge>
                   <span className="text-sm font-medium truncate">{slide.title}</span>
                   {slide.moduleName && <span className="text-[10px] text-slate-500 ml-auto shrink-0">{slide.moduleName}</span>}
                 </div>
 
-                {/* Media type selector */}
-                <div className="flex flex-wrap gap-2">
-                  {MEDIA_TYPES.map(mt => {
-                    const Icon = mt.icon;
-                    const isActive = mc.type === mt.id;
-                    const bgColors = {
-                      emerald: 'bg-emerald-600/15 border-emerald-500 text-emerald-300',
-                      red: 'bg-red-600/15 border-red-500 text-red-300',
-                      blue: 'bg-blue-600/15 border-blue-500 text-blue-300',
-                      purple: 'bg-purple-600/15 border-purple-500 text-purple-300',
-                      slate: 'bg-slate-800 border-slate-600 text-slate-300',
-                    };
-                    return (
-                      <button
-                        key={mt.id}
-                        onClick={() => updateSlideMedia(slide.index, mt.id, '')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${
-                          isActive ? bgColors[mt.color] : 'border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
-                        }`}
-                        data-testid={`media-type-${mt.id}-slide-${slide.index}`}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        {mt.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Background picker - ALL slides */}
+                <SlideBackgroundPicker
+                  slideIndex={idx}
+                  bgConfig={bgConfig}
+                  setBgConfig={setBgConfig}
+                  allSlides={storyboard?.slides || []}
+                />
 
-                {/* URL input for YouTube/Vimeo */}
-                {(mc.type === 'youtube' || mc.type === 'vimeo') && (
-                  <Input
-                    value={mc.url || ''}
-                    onChange={e => updateSlideMedia(slide.index, mc.type, e.target.value)}
-                    placeholder={mc.type === 'youtube' ? 'https://youtube.com/watch?v=...' : 'https://vimeo.com/...'}
-                    className="bg-slate-800 border-slate-700 text-sm"
-                    data-testid={`media-url-slide-${slide.index}`}
-                  />
-                )}
+                {/* Media type selector - only content slides */}
+                {isContent && (
+                  <>
+                    <div className="border-t border-slate-800 pt-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Image className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-xs font-medium text-emerald-300">Mídia</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {MEDIA_TYPES.map(mt => {
+                          const Icon = mt.icon;
+                          const isActive = mc.type === mt.id;
+                          const bgColors = {
+                            emerald: 'bg-emerald-600/15 border-emerald-500 text-emerald-300',
+                            red: 'bg-red-600/15 border-red-500 text-red-300',
+                            blue: 'bg-blue-600/15 border-blue-500 text-blue-300',
+                            purple: 'bg-purple-600/15 border-purple-500 text-purple-300',
+                            slate: 'bg-slate-800 border-slate-600 text-slate-300',
+                          };
+                          return (
+                            <button
+                              key={mt.id}
+                              onClick={() => updateSlideMedia(idx, mt.id, '')}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${
+                                isActive ? bgColors[mt.color] : 'border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                              }`}
+                              data-testid={`media-type-${mt.id}-slide-${idx}`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {mt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                {/* AI image info */}
-                {mc.type === 'ai_image' && slide.imageKeywords && (
-                  <p className="text-[11px] text-emerald-400/60">
-                    <Sparkles className="w-3 h-3 inline mr-1" />
-                    Será gerada imagem sobre: {slide.imageKeywords}
-                  </p>
-                )}
+                    {/* URL input for YouTube/Vimeo */}
+                    {(mc.type === 'youtube' || mc.type === 'vimeo') && (
+                      <Input
+                        value={mc.url || ''}
+                        onChange={e => updateSlideMedia(idx, mc.type, e.target.value)}
+                        placeholder={mc.type === 'youtube' ? 'https://youtube.com/watch?v=...' : 'https://vimeo.com/...'}
+                        className="bg-slate-800 border-slate-700 text-sm"
+                        data-testid={`media-url-slide-${idx}`}
+                      />
+                    )}
 
-                {/* HeyGen info */}
-                {mc.type === 'heygen' && (
-                  <p className="text-[11px] text-purple-400/60">
-                    <UserCircle className="w-3 h-3 inline mr-1" />
-                    {heygenConfig.avatarId && heygenConfig.voiceId
-                      ? 'Avatar e voz selecionados. O vídeo será gerado automaticamente.'
-                      : 'Configure o avatar e a voz acima para gerar o vídeo.'}
-                  </p>
+                    {/* AI image info */}
+                    {mc.type === 'ai_image' && slide.imageKeywords && (
+                      <p className="text-[11px] text-emerald-400/60">
+                        <Sparkles className="w-3 h-3 inline mr-1" />
+                        Será gerada imagem sobre: {slide.imageKeywords}
+                      </p>
+                    )}
+
+                    {/* HeyGen info */}
+                    {mc.type === 'heygen' && (
+                      <p className="text-[11px] text-purple-400/60">
+                        <UserCircle className="w-3 h-3 inline mr-1" />
+                        {heygenConfig.avatarId && heygenConfig.voiceId
+                          ? 'Avatar e voz selecionados. O vídeo será gerado automaticamente.'
+                          : 'Configure o avatar e a voz acima para gerar o vídeo.'}
+                      </p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -1407,6 +1650,9 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
             {aiCount > 0 && <Badge className="bg-emerald-600/20 text-emerald-300"><Image className="w-3 h-3 mr-1" />{aiCount} Imagens IA</Badge>}
             {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Vídeos</Badge>}
             {heygenCount > 0 && <Badge className="bg-purple-600/20 text-purple-300"><UserCircle className="w-3 h-3 mr-1" />{heygenCount} Avatares</Badge>}
+            {Object.values(bgConfig).filter(b => b.type && b.type !== 'default').length > 0 && (
+              <Badge className="bg-cyan-600/20 text-cyan-300"><Palette className="w-3 h-3 mr-1" />{Object.values(bgConfig).filter(b => b.type && b.type !== 'default').length} Fundos personalizados</Badge>
+            )}
             {aiCount === 0 && videoCount === 0 && heygenCount === 0 && <span className="text-slate-500">Nenhuma mídia</span>}
           </div>
           {aiCount > 0 && (
