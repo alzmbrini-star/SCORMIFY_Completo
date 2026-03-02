@@ -4154,6 +4154,9 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
         {"$set": {"projectId": project.id, "step": "generated", "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
 
+    # Auto-trigger improvement suggestions analysis in background
+    background_tasks.add_task(_generate_improvement_suggestions, session_id, project.id)
+
     return {
         "status": "ok",
         "projectId": project.id,
@@ -4163,6 +4166,159 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
         "heygenPending": len(heygen_pending),
         "narrationPending": narration_count,
     }
+
+
+
+async def _generate_improvement_suggestions(session_id: str, project_id: str):
+    """Background task: analyze the course creation process and generate improvement suggestions."""
+    try:
+        session = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+        project = await db.projects.find_one({"id": project_id}, {"_id": 0, "course": 0})
+        if not session:
+            return
+
+        # Build analysis context
+        config = session.get("config", {})
+        analysis = session.get("analysis", {})
+        storyboard = session.get("storyboard", {})
+        media_config = session.get("mediaConfig", {})
+        bg_config = session.get("bgConfig", {})
+        slides_count = len(storyboard.get("slides", []))
+        modules_count = len(storyboard.get("modules", []))
+
+        # Collect slide types
+        slide_types = {}
+        for s in storyboard.get("slides", []):
+            t = s.get("type", "unknown")
+            slide_types[t] = slide_types.get(t, 0) + 1
+
+        # Media usage
+        media_types = {}
+        for v in media_config.values():
+            t = v.get("type", "none")
+            media_types[t] = media_types.get(t, 0) + 1
+
+        # Custom backgrounds
+        custom_bg_count = sum(1 for v in bg_config.values() if v.get("type", "default") != "default")
+
+        context = f"""
+ANÁLISE DO PROCESSO DE CRIAÇÃO DO CURSO:
+- Título: {config.get('title', 'N/A')}
+- Template: {config.get('template', 'N/A')}
+- Tom: {config.get('tone', 'N/A')}
+- Idioma: {config.get('language', 'pt-BR')}
+- Módulos: {modules_count}
+- Total de slides: {slides_count}
+- Tipos de slides: {slide_types}
+- Mídias configuradas: {media_types}
+- Fundos personalizados: {custom_bg_count}
+- Narração habilitada: {config.get('narrationEnabled', False)}
+- HeyGen habilitado: {any(v.get('type') == 'heygen' for v in media_config.values())}
+- Conteúdo fonte: {analysis.get('contentType', 'texto')}
+- Palavras no conteúdo fonte: {analysis.get('wordCount', 'N/A')}
+- Tópicos identificados: {', '.join(analysis.get('topics', [])[:5])}
+- Nível de complexidade: {analysis.get('complexity', 'N/A')}
+
+ESTRUTURA DOS MÓDULOS:
+{chr(10).join(f"- {m.get('title', '?')}: {m.get('slidesCount', '?')} slides" for m in storyboard.get('modules', [])[:10])}
+"""
+
+        prompt = f"""Você é um consultor especialista em design instrucional e plataformas de e-learning.
+Analise o seguinte processo de criação de curso e gere sugestões de melhoria detalhadas.
+
+{context}
+
+Gere sugestões organizadas nas seguintes categorias. Para cada sugestão, inclua:
+- "title": título curto (max 60 chars)
+- "description": descrição detalhada (2-3 frases)
+- "priority": "alta", "media" ou "baixa"
+- "impact": breve descrição do impacto esperado
+
+Responda APENAS em JSON válido com esta estrutura exata:
+{{
+  "platform_ux": [sugestões para melhorar a experiência do usuário na plataforma Scormfy],
+  "platform_features": [sugestões de novas funcionalidades para a plataforma],
+  "platform_performance": [sugestões para melhorar performance e confiabilidade],
+  "course_content": [sugestões para melhorar a qualidade do conteúdo do curso gerado],
+  "course_design": [sugestões para melhorar o design visual do curso],
+  "course_pedagogy": [sugestões para melhorar a metodologia pedagógica do curso]
+}}
+
+Gere 2-3 sugestões por categoria, totalizando 12-18 sugestões. Seja específico e actionable."""
+
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+
+        async def _try_llm(model_name):
+            chat = LlmChat(
+                api_key=emergent_key,
+                session_id=f"suggestions_{session_id}",
+                system_message="Você é um consultor especialista em design instrucional e plataformas de e-learning. Responda sempre em JSON válido.",
+            ).with_model("openai", model_name)
+            return await chat.send_message(UserMessage(text=prompt))
+
+        try:
+            raw = await _try_llm("gpt-5.2")
+        except Exception as llm_err:
+            logger.warning(f"Suggestions: gpt-5.2 failed ({str(llm_err)[:60]}), falling back to gpt-4o")
+            raw = await _try_llm("gpt-4o")
+
+        import json
+        import re
+        # Extract JSON from possible markdown blocks
+        json_match = re.search(r"```json\s*([\s\S]*?)```", raw)
+        if json_match:
+            suggestions = json.loads(json_match.group(1).strip())
+        else:
+            suggestions = json.loads(raw.strip())
+
+        # Store suggestions
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {
+                "suggestions": suggestions,
+                "suggestionsGeneratedAt": datetime.now(timezone.utc).isoformat(),
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        logger.info(f"Improvement suggestions generated for session {session_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to generate suggestions for session {session_id}: {e}")
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {"suggestionsError": str(e), "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        )
+
+
+@api_router.get("/agent/sessions/{session_id}/suggestions")
+async def agent_get_suggestions(session_id: str):
+    """Get improvement suggestions for a session."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0, "suggestions": 1, "suggestionsGeneratedAt": 1, "suggestionsError": 1})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.get("suggestions"):
+        return {"status": "ready", "suggestions": s["suggestions"], "generatedAt": s.get("suggestionsGeneratedAt")}
+    if s.get("suggestionsError"):
+        return {"status": "error", "error": s["suggestionsError"]}
+    return {"status": "pending"}
+
+
+@api_router.post("/agent/sessions/{session_id}/suggestions/regenerate")
+async def agent_regenerate_suggestions(session_id: str, background_tasks: BackgroundTasks):
+    """Regenerate improvement suggestions on demand."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0, "projectId": 1, "step": 1})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.get("step") != "generated":
+        raise HTTPException(400, "Course not generated yet")
+    # Clear old suggestions
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$unset": {"suggestions": "", "suggestionsError": ""}, "$set": {"updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    background_tasks.add_task(_generate_improvement_suggestions, session_id, s.get("projectId", ""))
+    return {"status": "regenerating"}
 
 
 async def _trigger_heygen_videos(project_id: str, pending_list: list):

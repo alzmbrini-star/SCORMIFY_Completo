@@ -19,6 +19,8 @@ import {
   Pencil, Plus, Shield, Wrench, Heart, HardHat, TrendingUp, Users,
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
   Palette, Droplets, ImagePlus, UploadCloud,
+  ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
+  PaintBucket, Target,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 
@@ -499,7 +501,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
               {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} />}
-              {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} />}
+              {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
@@ -1673,10 +1675,55 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
 }
 
 
-function GeneratedPanel({ project, navigate }) {
+const PRIORITY_STYLES = {
+  alta: 'bg-red-600/15 text-red-300 border-red-500/40',
+  media: 'bg-amber-600/15 text-amber-300 border-amber-500/40',
+  baixa: 'bg-slate-700/30 text-slate-300 border-slate-600/40',
+};
+
+function SuggestionsCategory({ icon: Icon, title, color, items }) {
+  if (!items || items.length === 0) return null;
+  const colorMap = {
+    blue: 'text-blue-400 border-blue-800/40',
+    purple: 'text-purple-400 border-purple-800/40',
+    amber: 'text-amber-400 border-amber-800/40',
+    emerald: 'text-emerald-400 border-emerald-800/40',
+    pink: 'text-pink-400 border-pink-800/40',
+    orange: 'text-orange-400 border-orange-800/40',
+  };
+  const colors = colorMap[color] || colorMap.blue;
+
+  return (
+    <div className={`border rounded-lg p-3 space-y-2 ${colors.split(' ').slice(1).join(' ')}`} data-testid={`suggestions-category-${color}`}>
+      <div className="flex items-center gap-2">
+        <Icon className={`w-3.5 h-3.5 ${colors.split(' ')[0]}`} />
+        <span className={`text-xs font-semibold ${colors.split(' ')[0]}`}>{title}</span>
+        <Badge variant="outline" className="text-[9px] ml-auto border-slate-700 text-slate-400">{items.length}</Badge>
+      </div>
+      {items.map((item, idx) => (
+        <div key={idx} className="pl-5 space-y-0.5" data-testid={`suggestion-item-${color}-${idx}`}>
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-medium text-slate-200">{item.title}</span>
+            <Badge variant="outline" className={`text-[8px] shrink-0 ${PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.media}`}>
+              {item.priority}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">{item.description}</p>
+          {item.impact && <p className="text-[10px] text-cyan-400/60 italic">{item.impact}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GeneratedPanel({ project, navigate, sessionId }) {
   const [heygenStatus, setHeygenStatus] = useState(null);
   const [narrationStatus, setNarrationStatus] = useState(null);
   const [polling, setPolling] = useState(false);
+  const [suggestions, setSuggestions] = useState(null);
+  const [suggestionsStatus, setSuggestionsStatus] = useState('loading');
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const checkHeygenStatus = useCallback(async () => {
     if (!project?.projectId || !project?.heygenPending) return;
@@ -1713,6 +1760,42 @@ function GeneratedPanel({ project, navigate }) {
       return () => clearInterval(interval);
     }
   }, [project?.narrationPending, checkNarrationStatus]);
+
+  // Poll for suggestions
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.status === 'ready') {
+          setSuggestions(data.suggestions);
+          setSuggestionsStatus('ready');
+        } else if (data.status === 'error') {
+          setSuggestionsStatus('error');
+        } else {
+          setSuggestionsStatus('pending');
+        }
+      } catch { if (!cancelled) setSuggestionsStatus('error'); }
+    };
+    poll();
+    const interval = setInterval(() => {
+      if (suggestionsStatus === 'pending') poll();
+    }, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [sessionId, suggestionsStatus]);
+
+  const handleRegenerateSuggestions = async () => {
+    setRegenerating(true);
+    setSuggestionsStatus('pending');
+    setSuggestions(null);
+    try {
+      await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions/regenerate`, { method: 'POST' });
+    } catch { /* will poll */ }
+    finally { setRegenerating(false); }
+  };
 
   if (!project) return null;
   return (
@@ -1804,6 +1887,63 @@ function GeneratedPanel({ project, navigate }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Improvement Suggestions */}
+      <Card className="bg-slate-900/50 border-cyan-800/30 text-left mx-auto max-w-2xl" data-testid="suggestions-panel">
+        <CardContent className="p-4 space-y-3">
+          <button
+            onClick={() => setSuggestionsOpen(!suggestionsOpen)}
+            className="flex items-center justify-between w-full"
+            data-testid="suggestions-toggle"
+          >
+            <h3 className="text-sm font-semibold text-cyan-300 flex items-center gap-2">
+              <Lightbulb className="w-4 h-4" /> Sugestões de Melhoria
+              {suggestionsStatus === 'pending' && <Loader2 className="w-3 h-3 animate-spin text-cyan-400/60" />}
+              {suggestionsStatus === 'ready' && suggestions && (
+                <Badge className="bg-cyan-600/20 text-cyan-300 text-[10px]">
+                  {Object.values(suggestions).flat().length} sugestões
+                </Badge>
+              )}
+            </h3>
+            {suggestionsOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          </button>
+
+          {suggestionsOpen && (
+            <div className="space-y-4 pt-2">
+              {suggestionsStatus === 'pending' && (
+                <div className="flex items-center gap-2 text-xs text-cyan-400/70 py-4 justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analisando o processo e gerando sugestões...
+                </div>
+              )}
+              {suggestionsStatus === 'error' && (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-xs text-red-400">Erro ao gerar sugestões.</p>
+                  <Button variant="outline" size="sm" onClick={handleRegenerateSuggestions} disabled={regenerating} className="text-xs" data-testid="retry-suggestions-btn">
+                    <RefreshCw className="w-3 h-3 mr-1" /> Tentar novamente
+                  </Button>
+                </div>
+              )}
+              {suggestionsStatus === 'ready' && suggestions && (
+                <>
+                  <SuggestionsCategory icon={Monitor} title="Plataforma — UX" color="blue" items={suggestions.platform_ux} />
+                  <SuggestionsCategory icon={Rocket} title="Plataforma — Features" color="purple" items={suggestions.platform_features} />
+                  <SuggestionsCategory icon={Zap} title="Plataforma — Performance" color="amber" items={suggestions.platform_performance} />
+                  <SuggestionsCategory icon={BookMarked} title="Curso — Conteúdo" color="emerald" items={suggestions.course_content} />
+                  <SuggestionsCategory icon={PaintBucket} title="Curso — Design" color="pink" items={suggestions.course_design} />
+                  <SuggestionsCategory icon={Target} title="Curso — Pedagogia" color="orange" items={suggestions.course_pedagogy} />
+                  <div className="pt-2 flex justify-center">
+                    <Button variant="outline" size="sm" onClick={handleRegenerateSuggestions} disabled={regenerating} className="text-xs border-cyan-700/50 text-cyan-400" data-testid="regenerate-suggestions-btn">
+                      {regenerating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                      Gerar novas sugestões
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="flex gap-3 justify-center">
         <Button onClick={() => navigate(`/editor/${project.projectId}`)} className="bg-emerald-600 hover:bg-emerald-700" data-testid="open-editor-btn">
