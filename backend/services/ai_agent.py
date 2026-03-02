@@ -166,44 +166,70 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         for sl in mod.get("slides", []):
             flat_slides.append({**sl, "moduleName": mod.get("title", "")})
 
-    # Process in batches of 6 slides for speed
-    batch_size = 6
+    # Process in batches of 4 slides (smaller batches = richer content per slide)
+    batch_size = 4
     for batch_start in range(0, len(flat_slides), batch_size):
         batch = flat_slides[batch_start:batch_start + batch_size]
         batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose",""), "moduleName": s.get("moduleName","")} for s in batch]
 
         chat = _new_chat(f"agent-sb-{session_id}-{batch_start}")
-        prompt = f"""Gere conteúdo DETALHADO e RICO para {len(batch)} slides do curso "{config.get('title', '')}".
-Nível: {config.get('depth', 'intermediario')}
-Conteúdo-base: {content_text[:3000]}
+        prompt = f"""Você é um designer instrucional experiente. Gere conteúdo DETALHADO, APROFUNDADO e EDUCACIONAL para {len(batch)} slides do curso "{config.get('title', '')}".
 
-Slides: {json.dumps(batch_info, ensure_ascii=False)}
+Nível do curso: {config.get('depth', 'intermediario')}
+
+CONTEÚDO-BASE COMPLETO para referência:
+{content_text[:6000]}
+
+Slides a gerar: {json.dumps(batch_info, ensure_ascii=False)}
 
 Retorne JSON:
 ```json
 {{"slides":[{{
-  "id":"id",
+  "id":"id_do_slide",
   "title":"Título do Slide",
   "type":"content",
   "moduleName":"Nome do Módulo",
-  "imageKeywords":"english keywords for stock photo search",
+  "imageKeywords":"english keywords for relevant photo",
   "elements":[
-    {{"type":"text","content":"<h2>Título</h2><p>Conteúdo detalhado com <strong>destaques</strong> e explicações claras. Use listas com <ul><li>item</li></ul> quando apropriado.</p>","position":"left","width":1000,"height":550}}
+    {{"type":"text","content":"<h2>Título Principal</h2><h3>Subtítulo da Seção</h3><p>Parágrafo introdutório detalhado explicando o conceito principal com contexto e relevância prática. Este parágrafo deve ter no mínimo 3-4 frases completas.</p><h3>Pontos-Chave</h3><ul><li><strong>Primeiro ponto:</strong> Explicação detalhada com exemplo prático do mundo real</li><li><strong>Segundo ponto:</strong> Descrição aprofundada com dados ou estatísticas quando relevante</li><li><strong>Terceiro ponto:</strong> Aplicação prática e como implementar no dia a dia</li></ul><h3>Na Prática</h3><p>Parágrafo explicando como aplicar este conhecimento no contexto profissional, com exemplos concretos e situações reais.</p>","position":"left","width":1050,"height":680}}
   ],
-  "narrationScript":"Texto completo da narração para este slide",
-  "librasScript":"Texto simplificado para LIBRAS",
-  "notes":"Notas do instrutor",
+  "narrationScript":"Narração completa e detalhada para acompanhar este slide. Deve ser fluida, natural e cobrir todos os pontos do slide em pelo menos 5-6 frases.",
+  "librasScript":"Versão simplificada para LIBRAS mantendo os conceitos essenciais",
+  "notes":"Dicas para o instrutor sobre como apresentar este conteúdo",
   "quizQuestions":[]
 }}]}}
 ```
-REGRAS IMPORTANTES:
-- Slides de CONTEÚDO: texto detalhado com pelo menos 50 palavras, use HTML rico (<h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>)
-- Slides de TÍTULO: use <h1> para título principal e <p> para subtítulo/descrição
-- Slides de QUIZ: inclua 2-3 perguntas com 4 alternativas cada (uma isCorrect:true), inclua "explanation" em cada pergunta
-- Slides de SUMMARY: resuma os pontos-chave do módulo com <ul><li>
-- imageKeywords: 2-3 palavras em INGLÊS que descrevem uma imagem adequada (ex: "teamwork office", "data analysis chart", "safety equipment")
-- moduleName: inclua o nome do módulo para cada slide
-- TODOS os slides devem ter conteúdo substantivo, nunca deixe elementos vazios"""
+
+REGRAS CRÍTICAS DE QUALIDADE:
+
+SLIDES DE CONTEÚDO (type="content"):
+- MÍNIMO 150 palavras de texto por slide, NUNCA menos que isso
+- Use estrutura HTML rica: <h2> para título, <h3> para sub-seções, <p> para parágrafos, <ul><li> para listas
+- Cada slide DEVE ter: 1 parágrafo introdutório (3-4 frases), 1 lista com 3-5 itens detalhados, 1 parágrafo de aplicação prática
+- Use <strong> para termos importantes, <em> para ênfase
+- Inclua exemplos reais, dados, estatísticas e casos práticos
+- O conteúdo deve ser educacional, aprofundado e útil para o aluno
+
+SLIDES DE TÍTULO (type="title"):
+- Use <h1> para título principal grande e impactante
+- Adicione <p> com descrição do que será abordado no módulo (2-3 frases)
+
+SLIDES DE QUIZ (type="quiz"):
+- OBRIGATÓRIO: inclua exatamente 3 perguntas no campo "quizQuestions"
+- Cada pergunta DEVE ter: "text" (pergunta clara), "type": "multiple_choice", "alternatives" (4 opções, exatamente 1 com "isCorrect":true), "explanation" (explicação detalhada de por que a resposta está correta)
+- As perguntas devem testar compreensão REAL do conteúdo, não memorização superficial
+- Formato: {{"text":"Pergunta?","type":"multiple_choice","alternatives":[{{"text":"Opção A","isCorrect":false}},{{"text":"Opção B","isCorrect":true}},{{"text":"Opção C","isCorrect":false}},{{"text":"Opção D","isCorrect":false}}],"explanation":"A resposta correta é B porque..."}}
+
+SLIDES DE RESUMO (type="summary"):
+- Resuma TODOS os pontos-chave do módulo com <ul><li>
+- Cada item deve ser uma frase completa, não apenas uma palavra
+- Adicione um parágrafo final de conclusão
+
+PARA TODOS OS SLIDES:
+- imageKeywords: 2-3 palavras em INGLÊS descrevendo uma foto profissional relevante
+- moduleName: SEMPRE inclua o nome do módulo
+- narrationScript: MÍNIMO 5 frases completas e detalhadas
+- NUNCA retorne conteúdo vazio ou com apenas 1-2 linhas"""
 
         try:
             response = await chat.send_message(UserMessage(text=prompt))
@@ -218,19 +244,55 @@ REGRAS IMPORTANTES:
         except Exception as e:
             logger.warning(f"Storyboard batch {batch_start} error: {e}")
 
-        # Fallback: create basic slides from structure
+        # Fallback: create richer basic slides from structure
         for sl in batch:
+            purpose = sl.get("purpose", "")
+            title_text = sl.get("title", "Slide")
+            module_text = sl.get("moduleName", "Módulo")
+            stype = sl.get("type", "content")
+
+            if stype == "content":
+                fallback_html = f"""<h2>{title_text}</h2>
+<p>{purpose if purpose else 'Este slide aborda conceitos fundamentais sobre ' + title_text.lower() + '.'} É importante compreender estes fundamentos para aplicar corretamente no ambiente profissional.</p>
+<h3>Aspectos Principais</h3>
+<ul>
+<li><strong>Conceito base:</strong> {title_text} envolve uma série de práticas e conhecimentos essenciais para garantir resultados eficazes.</li>
+<li><strong>Aplicação prática:</strong> No dia a dia, estes conceitos se traduzem em ações concretas que melhoram a qualidade e a segurança das operações.</li>
+<li><strong>Importância:</strong> Dominar este tema é fundamental para profissionais que buscam excelência na sua área de atuação.</li>
+</ul>
+<h3>Considerações</h3>
+<p>A aplicação destes conceitos requer atenção contínua e atualização constante, pois as melhores práticas evoluem com o tempo e novas regulamentações podem surgir.</p>"""
+            elif stype == "quiz":
+                fallback_html = f"<h2>Quiz: {module_text}</h2><p>Teste seus conhecimentos sobre os conceitos apresentados neste módulo.</p>"
+            elif stype == "summary":
+                fallback_html = f"<h2>Resumo: {module_text}</h2><ul><li>Revisamos os conceitos fundamentais de {title_text.lower()}</li><li>Aprendemos como aplicar na prática profissional</li><li>Identificamos os pontos-chave para implementação</li></ul><p>Continue praticando estes conceitos para consolidar o aprendizado.</p>"
+            else:
+                fallback_html = f"<h1>{title_text}</h1><p>{purpose if purpose else 'Bem-vindo ao módulo ' + module_text}</p>"
+
+            fallback_quiz = []
+            if stype == "quiz":
+                fallback_quiz = [
+                    {"text": f"Qual é o principal objetivo de {title_text.lower().replace('quiz do módulo', 'este módulo').replace('quiz -', '')}?",
+                     "type": "multiple_choice",
+                     "alternatives": [{"text": "Apenas cumprir requisitos formais", "isCorrect": False}, {"text": "Garantir a aplicação correta dos conceitos apresentados", "isCorrect": True}, {"text": "Substituir a prática profissional", "isCorrect": False}, {"text": "Apenas memorizar termos técnicos", "isCorrect": False}],
+                     "explanation": "O objetivo principal é garantir a aplicação correta dos conceitos na prática profissional."},
+                    {"text": f"Sobre o conteúdo de {module_text}, qual afirmação é correta?",
+                     "type": "multiple_choice",
+                     "alternatives": [{"text": "O conhecimento teórico é suficiente por si só", "isCorrect": False}, {"text": "A prática é irrelevante quando se domina a teoria", "isCorrect": False}, {"text": "A integração entre teoria e prática é essencial", "isCorrect": True}, {"text": "Não é necessário atualização contínua", "isCorrect": False}],
+                     "explanation": "A integração entre teoria e prática é essencial para uma atuação profissional eficaz."},
+                ]
+
             all_slides.append({
                 "id": sl.get("id", ""),
-                "title": sl.get("title", "Slide"),
-                "type": sl.get("type", "content"),
-                "moduleName": sl.get("moduleName", ""),
-                "imageKeywords": sl.get("title", "education").replace(" ", " "),
-                "elements": [{"type": "text", "content": f"<h2>{sl.get('title','')}</h2><p>{sl.get('purpose','')}</p>", "position": "left", "width": 1000, "height": 550}],
-                "narrationScript": sl.get("purpose", ""),
-                "librasScript": sl.get("purpose", ""),
+                "title": title_text,
+                "type": stype,
+                "moduleName": module_text,
+                "imageKeywords": title_text.split(" ")[0].lower() + " professional",
+                "elements": [{"type": "text", "content": fallback_html, "position": "left", "width": 1050, "height": 680}],
+                "narrationScript": purpose if purpose else f"Neste slide, vamos abordar {title_text.lower()}.",
+                "librasScript": purpose if purpose else title_text,
                 "notes": "",
-                "quizQuestions": [],
+                "quizQuestions": fallback_quiz,
             })
 
     return {"slides": all_slides}
@@ -411,13 +473,13 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     return elements
 
 
-def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
-    """Build a visually styled quiz slide."""
+def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_ids: list) -> dict:
+    """Build a quiz slide with actual Scormfy quiz element + visual header."""
     from models import generate_id
     accent = palette["accent"]
     elements = []
 
-    # Header
+    # Header bar
     header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
 <span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;">QUIZ - {module_name}</span>
 </div>'''
@@ -427,37 +489,39 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
         "style": {}, "startTime": 0, "animations": [],
     })
 
-    # Quiz indicator
-    quiz_html = f'''<div style="text-align:center;padding:30px;">
+    # Quiz intro text
+    quiz_html = f'''<div style="text-align:center;padding:20px;">
 <div style="display:inline-block;padding:8px 24px;border-radius:24px;background:{accent}22;border:1px solid {accent}44;">
 <span style="color:{accent};font-size:14px;font-weight:600;">Hora de Praticar!</span>
 </div>
 <h2 style="font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">Teste seus Conhecimentos</h2>
-<p style="font-size:16px;color:rgba(255,255,255,0.6);">Responda as perguntas abaixo para verificar seu aprendizado</p>
+<p style="font-size:16px;color:rgba(255,255,255,0.6);">Responda as perguntas para verificar seu aprendizado sobre {module_name}</p>
 </div>'''
     elements.append({
-        "id": generate_id(), "type": "html", "x": 160, "y": 80, "width": 1600, "height": 250,
+        "id": generate_id(), "type": "html", "x": 160, "y": 60, "width": 1600, "height": 200,
         "htmlContent": quiz_html,
         "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
-    # Show quiz questions as preview
-    questions = sb_slide.get("quizQuestions", [])
-    if questions:
-        q_html = '<div style="padding:10px;">'
-        for qi, q in enumerate(questions):
-            q_html += '<div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.1);">'
-            q_html += f'<p style="color:#ffffff;font-size:15px;font-weight:600;margin:0 0 8px 0;">{qi+1}. {q.get("text","")}</p>'
-            for a in q.get("alternatives", []):
-                icon = "&#9679;" if not a.get("isCorrect") else "&#10003;"
-                color = "rgba(255,255,255,0.5)" if not a.get("isCorrect") else "#10b981"
-                q_html += f'<p style="color:{color};font-size:13px;margin:4px 0 4px 16px;">{icon} {a.get("text","")}</p>'
-            q_html += '</div>'
-        q_html += '</div>'
+    # Actual Scormfy quiz element
+    if question_ids:
+        quiz_config = {
+            "id": generate_id(),
+            "title": f"Quiz - {module_name}",
+            "questionIds": question_ids,
+            "questionCount": len(question_ids),
+            "shuffleQuestions": True,
+            "shuffleAlternatives": True,
+            "showFeedback": True,
+            "showExplanation": True,
+            "passingScore": 60.0,
+            "maxAttempts": 0,
+        }
         elements.append({
-            "id": generate_id(), "type": "html", "x": 260, "y": 340, "width": 1400, "height": 440,
-            "htmlContent": q_html,
+            "id": generate_id(), "type": "quiz", "x": 260, "y": 280, "width": 1400, "height": 500,
+            "content": "", "htmlContent": "",
+            "quizConfig": quiz_config,
             "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
         })
@@ -690,12 +754,29 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         stype = sb_slide.get("type", "content")
         module_name = sb_slide.get("moduleName", "")
 
+        # Process quiz questions FIRST (before building slide elements)
+        slide_question_ids = []
+        if stype == "quiz":
+            for q in sb_slide.get("quizQuestions", []):
+                qid = generate_id()
+                alts = [{"id": generate_id(), "text": a["text"], "isCorrect": a.get("isCorrect", False)} for a in q.get("alternatives", [])]
+                quiz_questions.append({
+                    "id": qid,
+                    "type": q.get("type", "multiple_choice"),
+                    "text": q.get("text", ""),
+                    "alternatives": alts,
+                    "explanation": q.get("explanation", ""),
+                    "points": 1.0,
+                    "tags": [module_name] if module_name else [],
+                })
+                slide_question_ids.append(qid)
+
         if stype == "title":
             bg = palette["primary"]
             slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names)
         elif stype == "quiz":
             bg = palette["primary"]
-            slide_elements = _build_quiz_slide(sb_slide, palette, module_name)
+            slide_elements = _build_quiz_slide(sb_slide, palette, module_name, slide_question_ids)
         elif stype == "summary":
             bg = palette["primary"]
             slide_elements = _build_summary_slide(sb_slide, palette, module_name)
@@ -725,20 +806,6 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             else:
                 img_url = media.get("url")
                 slide_elements = _build_content_slide(sb_slide, palette, module_name, img_url)
-
-        # Collect quiz questions
-        for q in sb_slide.get("quizQuestions", []):
-            qid = generate_id()
-            alts = [{"id": generate_id(), "text": a["text"], "isCorrect": a.get("isCorrect", False)} for a in q.get("alternatives", [])]
-            quiz_questions.append({
-                "id": qid,
-                "type": q.get("type", "multiple_choice"),
-                "text": q.get("text", ""),
-                "alternatives": alts,
-                "explanation": q.get("explanation", ""),
-                "points": 1.0,
-                "tags": [],
-            })
 
         slide = {
             "id": generate_id(),
