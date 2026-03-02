@@ -249,8 +249,13 @@ const SlideThumbnailContent = ({ slide }) => {
 
         if (el.type === 'html') {
           return (
-            <div key={el.id} style={{ ...baseStyle, backgroundColor: 'rgba(100,100,100,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 14, opacity: 0.4 }}>HTML</span>
+            <div key={el.id} style={{ ...baseStyle, overflow: 'hidden', padding: 8 }}>
+              {el.htmlContent ? (
+                <div style={{ fontSize: Math.max(8, (el.style?.fontSize || 14) * 0.5), lineHeight: 1.3, opacity: 0.85, pointerEvents: 'none' }}
+                  dangerouslySetInnerHTML={{ __html: el.htmlContent }} />
+              ) : (
+                <span style={{ fontSize: 14, opacity: 0.4 }}>HTML</span>
+              )}
             </div>
           );
         }
