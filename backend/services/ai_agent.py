@@ -231,28 +231,51 @@ PARA TODOS OS SLIDES:
 - narrationScript: MÍNIMO 5 frases completas e detalhadas
 - NUNCA retorne conteúdo vazio ou com apenas 1-2 linhas"""
 
-        try:
-            response = await chat.send_message(UserMessage(text=prompt))
-            data = _extract_json(response)
-            if data and "slides" in data:
-                # Ensure moduleName propagation from batch
-                for j, slide_data in enumerate(data["slides"]):
-                    if not slide_data.get("moduleName") and j < len(batch):
-                        slide_data["moduleName"] = batch[j].get("moduleName", "")
-                all_slides.extend(data["slides"])
-                continue
-        except Exception as e:
-            logger.warning(f"Storyboard batch {batch_start} error: {e}")
+        retries = 0
+        max_retries = 2
+        while retries <= max_retries:
+            try:
+                response = await chat.send_message(UserMessage(text=prompt))
+                data = _extract_json(response)
+                if data and "slides" in data:
+                    # Ensure moduleName propagation from batch
+                    for j, slide_data in enumerate(data["slides"]):
+                        if not slide_data.get("moduleName") and j < len(batch):
+                            slide_data["moduleName"] = batch[j].get("moduleName", "")
+                    all_slides.extend(data["slides"])
+                    break
+                else:
+                    retries += 1
+                    if retries <= max_retries:
+                        import asyncio
+                        await asyncio.sleep(2 * retries)
+                    continue
+            except Exception as e:
+                error_str = str(e)
+                if "Budget has been exceeded" in error_str:
+                    logger.error(f"Budget exceeded during storyboard generation: {e}")
+                    raise Exception("BUDGET_EXCEEDED: O orçamento da chave Universal foi excedido. Acesse Perfil > Universal Key > Adicionar Saldo para continuar.")
+                if "502" in error_str and retries < max_retries:
+                    retries += 1
+                    logger.warning(f"Storyboard batch {batch_start} retry {retries}/{max_retries} after 502 error")
+                    import asyncio
+                    await asyncio.sleep(3 * retries)
+                    continue
+                logger.warning(f"Storyboard batch {batch_start} error: {e}")
+                break
 
-        # Fallback: create richer basic slides from structure
-        for sl in batch:
-            purpose = sl.get("purpose", "")
-            title_text = sl.get("title", "Slide")
-            module_text = sl.get("moduleName", "Módulo")
-            stype = sl.get("type", "content")
+        # If we exhausted retries or broke out due to non-retryable error, use fallback
+        if not any(s.get("id") == sl.get("id") for sl in batch for s in all_slides if s.get("id")):
+            for sl in batch:
+                if any(s.get("title") == sl.get("title") for s in all_slides):
+                    continue
+                purpose = sl.get("purpose", "")
+                title_text = sl.get("title", "Slide")
+                module_text = sl.get("moduleName", "Módulo")
+                stype = sl.get("type", "content")
 
-            if stype == "content":
-                fallback_html = f"""<h2>{title_text}</h2>
+                if stype == "content":
+                    fallback_html = f"""<h2>{title_text}</h2>
 <p>{purpose if purpose else 'Este slide aborda conceitos fundamentais sobre ' + title_text.lower() + '.'} É importante compreender estes fundamentos para aplicar corretamente no ambiente profissional.</p>
 <h3>Aspectos Principais</h3>
 <ul>
@@ -262,38 +285,38 @@ PARA TODOS OS SLIDES:
 </ul>
 <h3>Considerações</h3>
 <p>A aplicação destes conceitos requer atenção contínua e atualização constante, pois as melhores práticas evoluem com o tempo e novas regulamentações podem surgir.</p>"""
-            elif stype == "quiz":
-                fallback_html = f"<h2>Quiz: {module_text}</h2><p>Teste seus conhecimentos sobre os conceitos apresentados neste módulo.</p>"
-            elif stype == "summary":
-                fallback_html = f"<h2>Resumo: {module_text}</h2><ul><li>Revisamos os conceitos fundamentais de {title_text.lower()}</li><li>Aprendemos como aplicar na prática profissional</li><li>Identificamos os pontos-chave para implementação</li></ul><p>Continue praticando estes conceitos para consolidar o aprendizado.</p>"
-            else:
-                fallback_html = f"<h1>{title_text}</h1><p>{purpose if purpose else 'Bem-vindo ao módulo ' + module_text}</p>"
+                elif stype == "quiz":
+                    fallback_html = f"<h2>Quiz: {module_text}</h2><p>Teste seus conhecimentos sobre os conceitos apresentados neste módulo.</p>"
+                elif stype == "summary":
+                    fallback_html = f"<h2>Resumo: {module_text}</h2><ul><li>Revisamos os conceitos fundamentais de {title_text.lower()}</li><li>Aprendemos como aplicar na prática profissional</li><li>Identificamos os pontos-chave para implementação</li></ul><p>Continue praticando estes conceitos para consolidar o aprendizado.</p>"
+                else:
+                    fallback_html = f"<h1>{title_text}</h1><p>{purpose if purpose else 'Bem-vindo ao módulo ' + module_text}</p>"
 
-            fallback_quiz = []
-            if stype == "quiz":
-                fallback_quiz = [
-                    {"text": f"Qual é o principal objetivo de {title_text.lower().replace('quiz do módulo', 'este módulo').replace('quiz -', '')}?",
-                     "type": "multiple_choice",
-                     "alternatives": [{"text": "Apenas cumprir requisitos formais", "isCorrect": False}, {"text": "Garantir a aplicação correta dos conceitos apresentados", "isCorrect": True}, {"text": "Substituir a prática profissional", "isCorrect": False}, {"text": "Apenas memorizar termos técnicos", "isCorrect": False}],
-                     "explanation": "O objetivo principal é garantir a aplicação correta dos conceitos na prática profissional."},
-                    {"text": f"Sobre o conteúdo de {module_text}, qual afirmação é correta?",
-                     "type": "multiple_choice",
-                     "alternatives": [{"text": "O conhecimento teórico é suficiente por si só", "isCorrect": False}, {"text": "A prática é irrelevante quando se domina a teoria", "isCorrect": False}, {"text": "A integração entre teoria e prática é essencial", "isCorrect": True}, {"text": "Não é necessário atualização contínua", "isCorrect": False}],
-                     "explanation": "A integração entre teoria e prática é essencial para uma atuação profissional eficaz."},
-                ]
+                fallback_quiz = []
+                if stype == "quiz":
+                    fallback_quiz = [
+                        {"text": f"Qual é o principal objetivo de {title_text.lower().replace('quiz do módulo', 'este módulo').replace('quiz -', '')}?",
+                         "type": "multiple_choice",
+                         "alternatives": [{"text": "Apenas cumprir requisitos formais", "isCorrect": False}, {"text": "Garantir a aplicação correta dos conceitos apresentados", "isCorrect": True}, {"text": "Substituir a prática profissional", "isCorrect": False}, {"text": "Apenas memorizar termos técnicos", "isCorrect": False}],
+                         "explanation": "O objetivo principal é garantir a aplicação correta dos conceitos na prática profissional."},
+                        {"text": f"Sobre o conteúdo de {module_text}, qual afirmação é correta?",
+                         "type": "multiple_choice",
+                         "alternatives": [{"text": "O conhecimento teórico é suficiente por si só", "isCorrect": False}, {"text": "A prática é irrelevante quando se domina a teoria", "isCorrect": False}, {"text": "A integração entre teoria e prática é essencial", "isCorrect": True}, {"text": "Não é necessário atualização contínua", "isCorrect": False}],
+                         "explanation": "A integração entre teoria e prática é essencial para uma atuação profissional eficaz."},
+                    ]
 
-            all_slides.append({
-                "id": sl.get("id", ""),
-                "title": title_text,
-                "type": stype,
-                "moduleName": module_text,
-                "imageKeywords": title_text.split(" ")[0].lower() + " professional",
-                "elements": [{"type": "text", "content": fallback_html, "position": "left", "width": 1050, "height": 680}],
-                "narrationScript": purpose if purpose else f"Neste slide, vamos abordar {title_text.lower()}.",
-                "librasScript": purpose if purpose else title_text,
-                "notes": "",
-                "quizQuestions": fallback_quiz,
-            })
+                all_slides.append({
+                    "id": sl.get("id", ""),
+                    "title": title_text,
+                    "type": stype,
+                    "moduleName": module_text,
+                    "imageKeywords": title_text.split(" ")[0].lower() + " professional",
+                    "elements": [{"type": "text", "content": fallback_html, "position": "left", "width": 1050, "height": 680}],
+                    "narrationScript": purpose if purpose else f"Neste slide, vamos abordar {title_text.lower()}.",
+                    "librasScript": purpose if purpose else title_text,
+                    "notes": "",
+                    "quizQuestions": fallback_quiz,
+                })
 
     return {"slides": all_slides}
 
