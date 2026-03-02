@@ -3936,6 +3936,14 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     if not s.get("structure"):
         raise HTTPException(400, "Structure not generated yet")
 
+    # If storyboard already exists, return it
+    if s.get("step") == "storyboarded" and s.get("storyboard"):
+        return {"status": "already_done", "message": "Storyboard already generated"}
+
+    # If already generating, don't start another thread
+    if s.get("step") == "storyboarding":
+        return {"status": "processing", "message": "Storyboard generation already in progress"}
+
     # Mark as processing
     await db.agent_sessions.update_one(
         {"id": session_id},
