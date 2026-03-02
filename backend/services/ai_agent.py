@@ -314,3 +314,305 @@ Responda de forma útil e concisa. Se o usuário pedir mudanças na estrutura ou
     
     response = await chat.send_message(UserMessage(text=prompt))
     return response
+
+
+# ========== COURSE EDITING ==========
+
+async def analyze_existing_course(session_id: str, project: dict) -> dict:
+    """Analyze an existing Scormfy course and suggest improvements."""
+    chat = _new_chat(f"agent-edit-analyze-{session_id}")
+    
+    slides = project.get("course", {}).get("slides", [])
+    slides_summary = []
+    for i, s in enumerate(slides):
+        texts = []
+        for el in s.get("elements", []):
+            c = el.get("htmlContent") or el.get("content") or ""
+            if c:
+                texts.append(c[:200])
+        slides_summary.append({
+            "index": i,
+            "title": s.get("title", f"Slide {i+1}"),
+            "hasAudio": bool(s.get("audio")),
+            "hasNarration": bool(s.get("librasScript")),
+            "elementCount": len(s.get("elements", [])),
+            "textPreview": " | ".join(texts)[:300],
+        })
+    
+    prompt = f"""Analise este curso existente e sugira melhorias.
+
+CURSO: {project.get('name', 'Sem nome')}
+DESCRIÇÃO: {project.get('description', '')}
+TOTAL DE SLIDES: {len(slides)}
+
+RESUMO DOS SLIDES:
+{json.dumps(slides_summary, ensure_ascii=False)[:6000]}
+
+Retorne JSON:
+```json
+{{
+  "overallScore": 7,
+  "strengths": ["ponto forte 1"],
+  "improvements": [
+    {{
+      "slideIndex": 0,
+      "type": "content|structure|quiz|narration|visual",
+      "priority": "alta|media|baixa",
+      "description": "descrição da melhoria",
+      "suggestion": "sugestão concreta"
+    }}
+  ],
+  "missingElements": ["elemento faltante"],
+  "suggestedNewSlides": [
+    {{
+      "position": "after_slide_2",
+      "title": "Título sugerido",
+      "type": "content|quiz|summary",
+      "reason": "motivo"
+    }}
+  ]
+}}
+```"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    return _extract_json(response) or {"overallScore": 0, "strengths": [], "improvements": [], "missingElements": [], "suggestedNewSlides": []}
+
+
+async def apply_course_improvements(session_id: str, project: dict, selected_improvements: list) -> dict:
+    """Apply selected improvements to an existing course."""
+    chat = _new_chat(f"agent-edit-apply-{session_id}")
+    
+    slides = project.get("course", {}).get("slides", [])
+    
+    # Group improvements by slide
+    improvements_desc = json.dumps(selected_improvements, ensure_ascii=False)
+    
+    # Get current slide content for context
+    slides_content = []
+    for i, s in enumerate(slides):
+        texts = []
+        for el in s.get("elements", []):
+            c = el.get("htmlContent") or el.get("content") or ""
+            if c:
+                texts.append(c[:300])
+        slides_content.append({
+            "index": i,
+            "title": s.get("title", ""),
+            "text": " ".join(texts)[:500],
+        })
+    
+    prompt = f"""Aplique as seguintes melhorias ao curso. Gere o conteúdo atualizado para cada slide afetado.
+
+CURSO: {project.get('name', '')}
+SLIDES ATUAIS: {json.dumps(slides_content, ensure_ascii=False)[:4000]}
+
+MELHORIAS SELECIONADAS:
+{improvements_desc}
+
+Retorne JSON com os slides a atualizar:
+```json
+{{
+  "updatedSlides": [
+    {{
+      "slideIndex": 0,
+      "title": "Novo título se mudou",
+      "elements": [{{"type":"text","content":"<h2>Novo conteúdo</h2><p>Texto melhorado</p>","position":"center","width":800,"height":400}}],
+      "narrationScript": "Nova narração",
+      "librasScript": "Novo script LIBRAS",
+      "notes": "Notas atualizadas"
+    }}
+  ],
+  "newSlides": [
+    {{
+      "afterIndex": 2,
+      "title": "Novo slide",
+      "type": "content",
+      "background": "#FFFFFF",
+      "elements": [{{"type":"text","content":"<h2>T</h2><p>conteúdo</p>","position":"center","width":800,"height":400}}],
+      "narrationScript": "",
+      "librasScript": "",
+      "quizQuestions": []
+    }}
+  ]
+}}
+```"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    return _extract_json(response) or {"updatedSlides": [], "newSlides": []}
+
+
+# ========== TEMPLATES ==========
+
+COURSE_TEMPLATES = [
+    {
+        "id": "onboarding",
+        "name": "Onboarding",
+        "description": "Integração de novos colaboradores",
+        "icon": "users",
+        "color": "#3b82f6",
+        "defaultConfig": {
+            "depth": "basico",
+            "duration": 30,
+            "modules": 4,
+            "interactivity": "alta",
+            "format": "curso_completo",
+        },
+        "structure_hint": "Boas-vindas > Cultura e Valores > Processos e Ferramentas > Políticas Internas > Quiz Final",
+    },
+    {
+        "id": "compliance",
+        "name": "Compliance",
+        "description": "Conformidade e regulamentações",
+        "icon": "shield",
+        "color": "#ef4444",
+        "defaultConfig": {
+            "depth": "intermediario",
+            "duration": 45,
+            "modules": 5,
+            "interactivity": "alta",
+            "format": "curso_completo",
+        },
+        "structure_hint": "Introdução > Marco Legal > Situações Práticas > Estudo de Caso > Avaliação Obrigatória",
+    },
+    {
+        "id": "technical",
+        "name": "Técnico",
+        "description": "Treinamento técnico e operacional",
+        "icon": "wrench",
+        "color": "#f59e0b",
+        "defaultConfig": {
+            "depth": "avancado",
+            "duration": 60,
+            "modules": 6,
+            "interactivity": "media",
+            "format": "curso_completo",
+        },
+        "structure_hint": "Fundamentos > Teoria > Procedimentos > Demonstração > Prática Guiada > Avaliação",
+    },
+    {
+        "id": "soft_skills",
+        "name": "Soft Skills",
+        "description": "Habilidades interpessoais e liderança",
+        "icon": "heart",
+        "color": "#8b5cf6",
+        "defaultConfig": {
+            "depth": "intermediario",
+            "duration": 25,
+            "modules": 3,
+            "interactivity": "alta",
+            "format": "microlearning",
+        },
+        "structure_hint": "Conceito > Cenários Práticos > Autoavaliação > Plano de Ação",
+    },
+    {
+        "id": "health_safety",
+        "name": "Saúde e Segurança",
+        "description": "Segurança do trabalho e saúde ocupacional",
+        "icon": "hard-hat",
+        "color": "#10b981",
+        "defaultConfig": {
+            "depth": "basico",
+            "duration": 35,
+            "modules": 4,
+            "interactivity": "alta",
+            "format": "curso_completo",
+        },
+        "structure_hint": "Normas e Legislação > Riscos e Prevenção > EPIs > Emergências > Quiz Obrigatório",
+    },
+    {
+        "id": "sales",
+        "name": "Vendas",
+        "description": "Treinamento comercial e técnicas de vendas",
+        "icon": "trending-up",
+        "color": "#06b6d4",
+        "defaultConfig": {
+            "depth": "intermediario",
+            "duration": 30,
+            "modules": 4,
+            "interactivity": "alta",
+            "format": "microlearning",
+        },
+        "structure_hint": "Produto/Serviço > Técnicas de Abordagem > Objeções > Fechamento > Role Play",
+    },
+]
+
+
+def get_templates():
+    return COURSE_TEMPLATES
+
+
+async def generate_structure_from_template(session_id: str, content_text: str, config: dict, template_id: str) -> dict:
+    """Generate course structure using a template as base."""
+    template = next((t for t in COURSE_TEMPLATES if t["id"] == template_id), None)
+    if not template:
+        from services.ai_agent import generate_structure
+        return await generate_structure(session_id, content_text, config)
+    
+    chat = _new_chat(f"agent-template-{session_id}")
+    
+    prompt = f"""Crie a estrutura do curso usando o template "{template['name']}" como base.
+
+TEMPLATE: {template['name']} - {template['description']}
+ESTRUTURA SUGERIDA: {template['structure_hint']}
+
+CONFIGURAÇÃO:
+- Título: {config.get('title', 'Curso')}
+- Nível: {config.get('depth', template['defaultConfig']['depth'])}
+- Duração: {config.get('duration', template['defaultConfig']['duration'])} min
+- Módulos: {config.get('modules', template['defaultConfig']['modules'])}
+- Formato: {config.get('format', template['defaultConfig']['format'])}
+
+CONTEÚDO BASE:
+{content_text[:6000]}
+
+Retorne JSON com a estrutura completa:
+```json
+{{
+  "courseTitle": "Título",
+  "courseDescription": "Descrição",
+  "learningObjectives": ["objetivo"],
+  "prerequisites": [],
+  "competencies": [],
+  "modules": [
+    {{
+      "id": "mod1",
+      "title": "Módulo",
+      "description": "Desc",
+      "slides": [
+        {{"id": "s1", "title": "Slide", "type": "content|title|quiz|summary", "purpose": "Objetivo", "estimatedDuration": 30}}
+      ]
+    }}
+  ],
+  "totalSlides": 10,
+  "totalDuration": 30
+}}
+```
+
+Siga a estrutura do template mas adapte ao conteúdo fornecido. Primeiro slide=capa, último=resumo, quizzes ao final de cada módulo."""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    return _extract_json(response) or {}
+
+
+# ========== IMAGE SUGGESTIONS ==========
+
+async def suggest_images_for_slides(session_id: str, slides: list) -> list:
+    """Generate image search keywords for each slide."""
+    chat = _new_chat(f"agent-images-{session_id}")
+    
+    slides_info = [{"index": i, "title": s.get("title", ""), "type": s.get("type", "content")} for i, s in enumerate(slides)]
+    
+    prompt = f"""Para cada slide, sugira 1-2 palavras-chave em inglês para buscar imagens relevantes no Unsplash/Pexels.
+
+Slides: {json.dumps(slides_info, ensure_ascii=False)}
+
+Retorne JSON:
+```json
+{{"suggestions": [{{"slideIndex": 0, "keywords": "keyword1 keyword2", "description": "Descrição da imagem ideal"}}]}}
+```
+Apenas slides de conteúdo e título. Ignore quizzes e resumos."""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    data = _extract_json(response)
+    return data.get("suggestions", []) if data else []
+
