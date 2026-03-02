@@ -3837,22 +3837,38 @@ async def agent_generate_structure(session_id: str):
     return structure
 
 @api_router.post("/agent/sessions/{session_id}/generate-storyboard")
-async def agent_generate_storyboard(session_id: str):
-    """Step 3: Generate detailed storyboard."""
+async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks):
+    """Step 3: Generate detailed storyboard (runs as background task)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
     if not s.get("structure"):
         raise HTTPException(400, "Structure not generated yet")
 
-    from services.ai_agent import generate_storyboard
-    storyboard = await generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}))
-
+    # Mark as processing
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"step": "storyboarding", "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
-    return storyboard
+
+    async def _generate():
+        try:
+            from services.ai_agent import generate_storyboard
+            storyboard = await generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}))
+            await db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+        except Exception as e:
+            logger.error(f"Storyboard generation error: {e}")
+            await db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+
+    import asyncio
+    asyncio.create_task(_generate())
+    return {"status": "processing", "message": "Storyboard being generated..."}
 
 @api_router.post("/agent/sessions/{session_id}/generate-course")
 async def agent_generate_course(session_id: str):
