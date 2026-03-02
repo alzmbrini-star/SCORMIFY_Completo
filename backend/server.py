@@ -3949,16 +3949,26 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
         _asyncio.set_event_loop(loop)
         try:
             from services.ai_agent import generate_storyboard
-            storyboard = loop.run_until_complete(
-                generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}))
-            )
             from motor.motor_asyncio import AsyncIOMotorClient
             _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"))
             _db = _client[os.environ.get("DB_NAME")]
+
+            async def _progress(batch_num, total, message):
+                await _db.agent_sessions.update_one(
+                    {"id": session_id},
+                    {"$set": {
+                        "storyboardProgress": {"batch": batch_num, "total": total, "message": message},
+                        "updatedAt": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+
+            storyboard = loop.run_until_complete(
+                generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress)
+            )
             loop.run_until_complete(
                 _db.agent_sessions.update_one(
                     {"id": session_id},
-                    {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                    {"$set": {"storyboard": storyboard, "step": "storyboarded", "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
                 )
             )
             _client.close()
@@ -3977,7 +3987,7 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
                 loop.run_until_complete(
                     _db.agent_sessions.update_one(
                         {"id": session_id},
-                        {"$set": {"step": "structured", "error": error_detail, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                        {"$set": {"step": "structured", "error": error_detail, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
                     )
                 )
                 _client.close()

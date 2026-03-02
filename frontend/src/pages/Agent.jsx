@@ -67,6 +67,7 @@ export default function Agent() {
   });
   const [structure, setStructure] = useState(null);
   const [storyboard, setStoryboard] = useState(null);
+  const [storyboardProgressMsg, setStoryboardProgressMsg] = useState(null);
   const [generatedProject, setGeneratedProject] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -218,7 +219,7 @@ export default function Agent() {
 
   const handleGenerateStoryboard = async () => {
     setLoading(true);
-    addChatMsg('agent', 'Criando storyboard detalhado... Pode levar até 1 minuto.');
+    addChatMsg('agent', 'Criando storyboard detalhado... Pode levar 2-5 minutos. Você verá o progresso abaixo.');
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-storyboard`, { method: 'POST' });
       if (!res.ok) throw new Error();
@@ -226,10 +227,18 @@ export default function Agent() {
         try {
           const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}`);
           const session = await sRes.json();
+
+          // Show progress
+          if (session.storyboardProgress) {
+            const p = session.storyboardProgress;
+            const pct = Math.round((p.batch / p.total) * 100);
+            setStoryboardProgressMsg(`${p.message} (${pct}%)`);
+          }
+
           if (session.step === 'storyboarded' && session.storyboard) {
             clearInterval(pollInterval);
             setStoryboard(session.storyboard);
-            // Initialize media config: all content slides default to ai_image
+            setStoryboardProgressMsg(null);
             const mc = {};
             session.storyboard.slides?.forEach((s, i) => {
               if (s.type === 'content') {
@@ -242,6 +251,7 @@ export default function Agent() {
             setLoading(false);
           } else if (session.step === 'structured') {
             clearInterval(pollInterval);
+            setStoryboardProgressMsg(null);
             addChatMsg('agent', session.error || 'Erro ao gerar storyboard.');
             toast.error(session.error || 'Erro no storyboard');
             setLoading(false);
@@ -438,7 +448,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
-              {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} />}
+              {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
               {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} />}
@@ -864,7 +874,7 @@ function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templat
   );
 }
 
-function StructurePanel({ structure, loading, onApprove }) {
+function StructurePanel({ structure, loading, onApprove, progressMsg }) {
   if (!structure) return null;
   return (
     <div className="space-y-4" data-testid="structure-panel">
@@ -903,9 +913,26 @@ function StructurePanel({ structure, loading, onApprove }) {
           </CardContent>
         </Card>
       ))}
+
+      {/* Progress indicator during storyboard generation */}
+      {loading && progressMsg && (
+        <Card className="bg-emerald-900/10 border-emerald-800/30" data-testid="storyboard-progress-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-emerald-300">Gerando Storyboard...</p>
+                <p className="text-xs text-emerald-400/70 mt-0.5">{progressMsg}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500">Cada lote de slides leva ~30-90s. O GPT-4o é usado automaticamente se o GPT-5.2 estiver lento.</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Button onClick={onApprove} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="approve-structure-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <BookOpen className="w-4 h-4 mr-1" />}
-        Aprovar e Gerar Storyboard
+        {loading ? 'Gerando Storyboard...' : 'Aprovar e Gerar Storyboard'}
       </Button>
     </div>
   );

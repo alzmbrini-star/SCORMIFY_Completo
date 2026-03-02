@@ -45,7 +45,7 @@
     "TestEnableVlibrasToggle::test_reenable_vlibras": "PASS - enableVlibras=true includes VLibras in export"
   },
   "frontend_verification": {
-    "page_load": "PASS - Frontend loads correctly at https://course-builder-ai-2.preview.emergentagent.com",
+    "page_load": "PASS - Frontend loads correctly at https://scormfy-preview.preview.emergentagent.com",
     "vlibras_icon_visible": "PASS - VLibras accessibility icon visible in bottom right corner",
     "no_js_errors": "PASS - No JavaScript errors on the page"
   }

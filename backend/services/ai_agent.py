@@ -181,7 +181,7 @@ REGRAS:
     raise ValueError("Não foi possível gerar a estrutura do curso")
 
 
-async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict) -> dict:
+async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
     all_slides = []
 
@@ -193,9 +193,19 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
 
     # Process in batches of 4 slides (smaller batches = richer content per slide)
     batch_size = 4
+    total_batches = (len(flat_slides) + batch_size - 1) // batch_size
+    batch_num = 0
     for batch_start in range(0, len(flat_slides), batch_size):
         batch = flat_slides[batch_start:batch_start + batch_size]
+        batch_num += 1
         batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose",""), "moduleName": s.get("moduleName","")} for s in batch]
+
+        # Report progress
+        if progress_callback:
+            try:
+                await progress_callback(batch_num, total_batches, f"Gerando slides {batch_start+1}-{min(batch_start+batch_size, len(flat_slides))} de {len(flat_slides)}...")
+            except Exception:
+                pass
 
         prompt = f"""Você é um designer instrucional experiente. Gere conteúdo DETALHADO, APROFUNDADO e EDUCACIONAL para {len(batch)} slides do curso "{config.get('title', '')}".
 

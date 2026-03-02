@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://course-builder-ai-2.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://scormfy-preview.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 

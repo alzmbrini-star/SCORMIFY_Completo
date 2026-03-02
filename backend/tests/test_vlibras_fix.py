@@ -11,7 +11,7 @@ import requests
 import os
 import re
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://course-builder-ai-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scormfy-preview.preview.emergentagent.com')
 
 # File paths for code verification
 PLAYER_JS_PATH = "/app/backend/services/export_assets/player.js"

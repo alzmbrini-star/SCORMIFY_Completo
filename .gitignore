@@ -92,3 +92,4 @@ backend/storage/exports/Ferramenta_de_Criação_de_Rapid_Learning_20260224_12403
 # Sensitive values are auto-replaced by Emergent during deployment
 frontend/node_modules/.cache/default-development/4.pack
 frontend/node_modules/.cache/default-development/10.pack
+frontend/node_modules/.cache/default-development/12.pack
