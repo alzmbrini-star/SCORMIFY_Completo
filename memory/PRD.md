@@ -7,7 +7,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - **Frontend**: React + Tailwind + Shadcn/UI
 - **Backend**: FastAPI + MongoDB
 - **AI**: OpenAI GPT-5.2 (text), GPT Image 1 (images) via Emergent LLM Key
-- **Integrations**: ElevenLabs TTS, Google Gemini, HeyGen, ConvertAPI, VLibras
+- **Integrations**: ElevenLabs TTS, HeyGen Avatars, ConvertAPI, VLibras
 
 ## What's Been Implemented
 
@@ -21,72 +21,72 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Content upload -> AI analysis -> structure -> storyboard -> course generation
 - Background tasks with polling, chat with agent
 
-### AI Agent - Phase 2: Editing & Templates (Complete - 2026-03-02)
+### AI Agent - Phase 2: Editing & Templates (Complete)
 - 6 Visual Templates, Course Editing with AI analysis + improvements
 - Mode Selector: "Criar Novo Curso" vs "Editar Curso Existente"
 
-### Visual Improvements (Complete - 2026-03-02)
+### Visual Improvements (Complete)
 - 6 Professional Color Palettes, two-column layouts, header bars, styled typography
-- Title slides with module trail, quiz slides with indicators, summary slides
 
-### Per-Slide Media Configuration (Complete - 2026-03-02)
-- **New "Midia" step** (step 5) between Storyboard and Generate in create flow
-- **5 media types per content slide**:
-  - **Imagem IA**: Photorealistic images via GPT Image 1 (contextual prompts based on slide content)
-  - **YouTube**: Embed YouTube videos (supports watch, short, and embed URL formats)
-  - **Vimeo**: Embed Vimeo videos
-  - **Avatar HeyGen**: Full avatar video generation (see below)
-  - **Sem midia**: Text-only, full-width layout
-- **Quick-apply buttons**: "Todas: Imagem IA" and "Todas: Sem midia"
-- **Media summary**: Shows count per type with credit usage warning for AI images
+### Per-Slide Media Configuration (Complete)
+- 5 media types: AI Image (GPT Image 1), YouTube, Vimeo, HeyGen Avatar, No Media
+- Quick-apply buttons, media summary
 
-### Content Depth Enhancement (Complete - 2026-03-02)
-- AI prompts generate 100+ words per content slide with structured HTML
-- Summary slides have 400+ words of comprehensive review
+### Content Depth Enhancement (Complete)
+- AI generates 100+ words per content slide, 400+ words summary slides
 
-### Functional Scormfy Quizzes (Complete - 2026-03-02)
-- Agent creates `type: 'quiz'` elements with quizConfig and questionIds
-- Questions saved to MongoDB with alternatives, correctIndex, explanation
+### Functional Scormfy Quizzes (Complete)
+- type='quiz' elements with quizConfig + questionIds linked to MongoDB questions
 
 ### Full HeyGen Avatar Integration (Complete - 2026-03-02)
-- **Avatar Picker**: Grid of HeyGen avatars with preview images in media config step
-- **Voice Picker**: Portuguese voice selection with preview audio playback
-- **Auto-Generation**: When course is generated, HeyGen videos are triggered in background
-- **Status Tracking**: Generated panel auto-polls video status every 15s
-- **Slide Updates**: Completed videos automatically replace processing placeholders
-- **Backend**: Background task triggers HeyGen API, stores video_id mappings, status endpoint
-- **Endpoint**: `GET /api/agent/projects/{id}/heygen-status` - polls all pending videos
+- Avatar grid picker with preview images (1288+ avatars)
+- Portuguese voice picker with audio preview (29+ voices)
+- Background video generation after course creation
+- Auto-polling status with slide auto-update
+- **Avatar Preview**: "Testar Avatar + Voz" button generates short preview video before course generation
 
-### Bug Fixes (Complete - 2026-03-02)
+### Enhanced Content Input (Complete - 2026-03-02)
+- **PDF**: Native extraction via PyPDF2 (fallback to ConvertAPI)
+- **DOCX**: Native extraction via python-docx (including tables)
+- **URL/Website**: Web scraping via httpx + BeautifulSoup (extracts article/main content)
+- Upload panel redesigned with 3 columns: File Upload, Text Input, URL Input
+
+### Automatic Narration - ElevenLabs (Complete - 2026-03-02)
+- Toggle "Narração Automática" in course config step
+- ElevenLabs voice picker with 21+ voices and audio preview
+- Background TTS generation for all content slides after course creation
+- Narration status polling in generated panel with per-slide progress
+- Audio attached to slides as mp3 files accessible via editor
+- Endpoint: POST /api/agent/projects/{id}/generate-narration
+- Endpoint: GET /api/agent/projects/{id}/narration-status
+
+### Bug Fixes (Complete)
 - LIBRAS/VLibras toggle in export modal fixed with Shadcn Switch
 
-## API Endpoints (Agent)
+## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session
-- `POST /api/agent/sessions/{id}/upload` - Upload content
+- `POST /api/agent/sessions/{id}/upload` - Upload content (file, text, or URL)
 - `POST /api/agent/sessions/{id}/analyze` - AI analysis
-- `POST /api/agent/sessions/{id}/configure` - Set config
-- `POST /api/agent/sessions/{id}/generate-structure` - Generate structure (optional templateId)
+- `POST /api/agent/sessions/{id}/configure` - Set config (incl. narration settings)
+- `POST /api/agent/sessions/{id}/generate-structure` - Generate structure
 - `POST /api/agent/sessions/{id}/generate-storyboard` - Background storyboard gen
-- `POST /api/agent/sessions/{id}/media-config` - Save per-slide media config with heygen settings
-- `POST /api/agent/sessions/{id}/generate-course` - Generate project with media + HeyGen background
-- `POST /api/agent/sessions/{id}/chat` - Chat with agent
+- `POST /api/agent/sessions/{id}/media-config` - Save per-slide media + heygen config
+- `POST /api/agent/sessions/{id}/generate-course` - Generate project + HeyGen + narration
+- `GET /api/agent/projects/{id}/heygen-status` - HeyGen video status
+- `GET /api/agent/projects/{id}/narration-status` - Narration status
+- `POST /api/agent/projects/{id}/generate-narration` - Trigger narration
 - `GET /api/agent/templates` - List templates
-- `GET /api/agent/courses` - List agent-created courses
-- `GET /api/agent/projects/{id}/heygen-status` - Check HeyGen video status
-- `POST /api/agent/courses/{id}/analyze` - AI course analysis
-- `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements
+- `GET /api/agent/courses` - List agent courses
 
 ## Key Files
-- `backend/server.py` - Main server with all API routes
-- `backend/services/ai_agent.py` - AI agent: visual generation, media config, templates, editing, heygen
-- `frontend/src/pages/Agent.jsx` - Agent page: mode selector, 7-step create flow, edit flow
+- `backend/server.py` - Main server (~4700 lines)
+- `backend/services/ai_agent.py` - AI agent logic (~1200 lines)
+- `frontend/src/pages/Agent.jsx` - Agent page (~1730 lines)
 
 ## Prioritized Backlog
 ### P1
 - Platform Improvement Suggestions (agent self-analysis)
-### P2
-- Enhanced Content Input (PDF, DOCX, links)
-- ElevenLabs narration auto-generation per slide
 ### P3
-- Refactor server.py into routers, Jinja2 for HTML templates
+- Refactor server.py into routers, ai_agent.py into modules
+- Jinja2 for HTML templates
 - SCORM 2004 export
