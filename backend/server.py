@@ -3929,7 +3929,7 @@ async def agent_generate_structure(session_id: str, request: Request):
 
 @api_router.post("/agent/sessions/{session_id}/generate-storyboard")
 async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks):
-    """Step 3: Generate detailed storyboard (runs as background task)."""
+    """Step 3: Generate detailed storyboard (runs in thread pool to avoid blocking event loop)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
@@ -3942,27 +3942,54 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
         {"$set": {"step": "storyboarding", "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
 
-    async def _generate():
+    def _sync_generate():
+        """Run storyboard generation in its own event loop inside a thread."""
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        _asyncio.set_event_loop(loop)
         try:
             from services.ai_agent import generate_storyboard
-            storyboard = await generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}))
-            await db.agent_sessions.update_one(
-                {"id": session_id},
-                {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            storyboard = loop.run_until_complete(
+                generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}))
             )
+            from motor.motor_asyncio import AsyncIOMotorClient
+            _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME")]
+            loop.run_until_complete(
+                _db.agent_sessions.update_one(
+                    {"id": session_id},
+                    {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                )
+            )
+            _client.close()
         except Exception as e:
             err_msg = str(e)
             logger.error(f"Storyboard generation error: {err_msg}")
             error_detail = "Erro ao gerar storyboard."
             if "Budget" in err_msg or "budget" in err_msg:
                 error_detail = "Orçamento da chave LLM excedido. Acesse Profile > Universal Key > Add Balance para adicionar saldo."
-            await db.agent_sessions.update_one(
-                {"id": session_id},
-                {"$set": {"step": "structured", "error": error_detail, "updatedAt": datetime.now(timezone.utc).isoformat()}}
-            )
+            elif "502" in err_msg or "BadGateway" in err_msg:
+                error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
+            try:
+                from motor.motor_asyncio import AsyncIOMotorClient
+                _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"))
+                _db = _client[os.environ.get("DB_NAME")]
+                loop.run_until_complete(
+                    _db.agent_sessions.update_one(
+                        {"id": session_id},
+                        {"$set": {"step": "structured", "error": error_detail, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                    )
+                )
+                _client.close()
+            except Exception:
+                pass
+        finally:
+            loop.close()
 
-    import asyncio
-    asyncio.create_task(_generate())
+    # Run in thread pool - this keeps the main event loop free for other requests
+    import threading
+    thread = threading.Thread(target=_sync_generate, daemon=True)
+    thread.start()
     return {"status": "processing", "message": "Storyboard being generated..."}
 
 @api_router.post("/agent/sessions/{session_id}/media-config")

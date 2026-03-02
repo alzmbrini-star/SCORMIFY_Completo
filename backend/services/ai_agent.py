@@ -12,12 +12,15 @@ from typing import Optional
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 # Reduce LiteLLM/OpenAI SDK retries and timeout to prevent blocking
-os.environ.setdefault("OPENAI_MAX_RETRIES", "1")
-os.environ.setdefault("OPENAI_TIMEOUT", "90")
-
 import litellm
-litellm.request_timeout = 90
-litellm.num_retries = 1
+
+# Monkey-patch litellm.completion to enforce timeout and disable retries
+_original_litellm_completion = litellm.completion
+def _patched_litellm_completion(*args, **kwargs):
+    kwargs.setdefault('timeout', 90)
+    kwargs['num_retries'] = 0
+    return _original_litellm_completion(*args, **kwargs)
+litellm.completion = _patched_litellm_completion
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +43,12 @@ REGRAS:
 - Para dados estruturados, retorne JSON válido dentro de blocos ```json```
 - Identifique conceitos críticos e sugira reforços visuais"""
 
-def _new_chat(session_id: str) -> LlmChat:
+def _new_chat(session_id: str, model: str = "gpt-5.2") -> LlmChat:
     return LlmChat(
         api_key=EMERGENT_KEY,
         session_id=session_id,
         system_message=SYSTEM_PROMPT,
-    ).with_model("openai", "gpt-5.2")
+    ).with_model("openai", model)
 
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -66,7 +69,6 @@ def _extract_json(text: str) -> Optional[dict]:
 
 async def analyze_content(session_id: str, content_text: str, file_info: str = "") -> dict:
     """Step 1: Analyze uploaded content and extract key information."""
-    chat = _new_chat(f"agent-analyze-{session_id}")
     prompt = f"""Analise o seguinte conteúdo educacional e retorne um JSON com:
 
 1. "title": título sugerido para o curso
@@ -87,27 +89,34 @@ CONTEÚDO:
 
 Retorne APENAS o JSON dentro de ```json```."""
 
-    response = await chat.send_message(UserMessage(text=prompt))
-    data = _extract_json(response)
-    if not data:
-        data = {
-            "title": "Curso sem título",
-            "summary": response[:200],
-            "mainTopics": [],
-            "targetAudience": "Público geral",
-            "difficulty": "intermediario",
-            "estimatedDuration": 30,
-            "suggestedModules": 3,
-            "gaps": [],
-            "strengths": [],
-            "keywords": [],
-        }
-    return data
+    models = ["gpt-5.2", "gpt-4o"]
+    for model in models:
+        try:
+            chat = _new_chat(f"agent-analyze-{session_id}", model=model)
+            response = await chat.send_message(UserMessage(text=prompt))
+            data = _extract_json(response)
+            if data:
+                return data
+        except Exception as e:
+            logger.warning(f"Analyze with {model} failed: {str(e)[:80]}")
+            continue
+
+    return {
+        "title": "Curso sem título",
+        "summary": "Análise não pôde ser concluída",
+        "mainTopics": [],
+        "targetAudience": "Público geral",
+        "difficulty": "intermediario",
+        "estimatedDuration": 30,
+        "suggestedModules": 3,
+        "gaps": [],
+        "strengths": [],
+        "keywords": [],
+    }
 
 
 async def generate_structure(session_id: str, content_text: str, config: dict) -> dict:
     """Step 2: Generate course architecture based on content and configuration."""
-    chat = _new_chat(f"agent-structure-{session_id}")
     prompt = f"""Crie a estrutura pedagógica completa para um curso digital baseado no conteúdo e configuração abaixo.
 
 CONFIGURAÇÃO:
@@ -158,11 +167,18 @@ REGRAS:
 - Aplique progressão de complexidade
 - Use microlearning: máximo 3 conceitos por slide"""
 
-    response = await chat.send_message(UserMessage(text=prompt))
-    data = _extract_json(response)
-    if not data:
-        raise ValueError("Não foi possível gerar a estrutura do curso")
-    return data
+    models = ["gpt-5.2", "gpt-4o"]
+    for model in models:
+        try:
+            chat = _new_chat(f"agent-structure-{session_id}", model=model)
+            response = await chat.send_message(UserMessage(text=prompt))
+            data = _extract_json(response)
+            if data:
+                return data
+        except Exception as e:
+            logger.warning(f"Structure with {model} failed: {str(e)[:80]}")
+            continue
+    raise ValueError("Não foi possível gerar a estrutura do curso")
 
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict) -> dict:
@@ -181,7 +197,6 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         batch = flat_slides[batch_start:batch_start + batch_size]
         batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose",""), "moduleName": s.get("moduleName","")} for s in batch]
 
-        chat = _new_chat(f"agent-sb-{session_id}-{batch_start}")
         prompt = f"""Você é um designer instrucional experiente. Gere conteúdo DETALHADO, APROFUNDADO e EDUCACIONAL para {len(batch)} slides do curso "{config.get('title', '')}".
 
 Nível do curso: {config.get('depth', 'intermediario')}
@@ -243,8 +258,11 @@ PARA TODOS OS SLIDES:
         retries = 0
         max_retries = 2
         batch_success = False
+        models = ["gpt-5.2", "gpt-4o", "gpt-4o"]  # Fallback chain
         while retries <= max_retries:
+            model = models[min(retries, len(models)-1)]
             try:
+                chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", model=model)
                 response = await chat.send_message(UserMessage(text=prompt))
                 data = _extract_json(response)
                 if data and "slides" in data:
@@ -253,20 +271,23 @@ PARA TODOS OS SLIDES:
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
                     all_slides.extend(data["slides"])
                     batch_success = True
+                    if retries > 0:
+                        logger.info(f"Storyboard batch {batch_start} succeeded with {model}")
                     break
                 retries += 1
                 if retries <= max_retries:
-                    await asyncio.sleep(2 * retries)
+                    await asyncio.sleep(2)
             except Exception as e:
                 error_str = str(e)
                 if "Budget has been exceeded" in error_str:
                     raise Exception("BUDGET_EXCEEDED: O orçamento da chave Universal foi excedido. Acesse Perfil > Universal Key > Adicionar Saldo para continuar.")
                 retries += 1
                 if retries <= max_retries:
-                    logger.warning(f"Storyboard batch {batch_start} retry {retries}/{max_retries}: {error_str[:100]}")
-                    await asyncio.sleep(3 * retries)
+                    next_model = models[min(retries, len(models)-1)]
+                    logger.warning(f"Storyboard batch {batch_start} failed with {model}, trying {next_model}: {error_str[:80]}")
+                    await asyncio.sleep(2)
                 else:
-                    logger.warning(f"Storyboard batch {batch_start} failed after retries: {error_str[:150]}")
+                    logger.warning(f"Storyboard batch {batch_start} failed all retries: {error_str[:100]}")
                     break
 
         # If batch failed, use fallback content
