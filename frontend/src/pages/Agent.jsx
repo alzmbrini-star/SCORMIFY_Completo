@@ -202,7 +202,9 @@ export default function Agent() {
             setLoading(false);
           } else if (session.step === 'structured') {
             clearInterval(pollInterval);
-            addChatMsg('agent', 'Erro ao gerar storyboard. Tente novamente.');
+            const errMsg = session.error || 'Erro ao gerar storyboard. Tente novamente.';
+            addChatMsg('agent', errMsg);
+            toast.error(errMsg);
             setLoading(false);
           }
         } catch (e) { /* keep polling */ }
