@@ -3898,18 +3898,24 @@ async def agent_generate_course(session_id: str):
     if not s.get("storyboard"):
         raise HTTPException(400, "Storyboard not generated yet")
 
-    from services.ai_agent import generate_course_from_storyboard
-    course_data = await generate_course_from_storyboard(session_id, s["storyboard"], s.get("config", {}))
-
-    # Create actual Scormfy project
+    # Create project first to get ID for image assets
     config = s.get("config", {})
     title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
     desc = config.get("description", s.get("analysis", {}).get("summary", ""))
 
     project = Project(name=title, description=desc)
+    project_dir = PROJECTS_DIR / project.id
+    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+
+    from services.ai_agent import generate_course_from_storyboard
+    course_data = await generate_course_from_storyboard(
+        session_id, s["storyboard"], s.get("config", {}),
+        project_dir=str(PROJECTS_DIR), project_id=project.id
+    )
+
     project.course.metadata.title = title
     project.course.metadata.description = desc
-    project.course.slides = []  # Will be set from generated data
+    project.course.slides = []
 
     project_dict = project.model_dump()
     project_dict["createdAt"] = project.createdAt.isoformat()
@@ -3923,9 +3929,6 @@ async def agent_generate_course(session_id: str):
     project_dict["agentSessionId"] = session_id
 
     await db.projects.insert_one(project_dict)
-
-    project_dir = PROJECTS_DIR / project.id
-    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
 
     # Save quiz questions if any
     for q in course_data.get("quizQuestions", []):
