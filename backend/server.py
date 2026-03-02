@@ -3821,14 +3821,29 @@ async def agent_configure(session_id: str, data: AgentConfigUpdate):
     return {"status": "ok", "config": config}
 
 @api_router.post("/agent/sessions/{session_id}/generate-structure")
-async def agent_generate_structure(session_id: str):
-    """Step 2: Generate course structure."""
+async def agent_generate_structure(session_id: str, request: Request):
+    """Step 2: Generate course structure (optionally from a template)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
 
-    from services.ai_agent import generate_structure
-    structure = await generate_structure(session_id, s["contentText"], s.get("config", {}))
+    # Check if body contains a templateId
+    template_id = None
+    try:
+        body = await request.json()
+        template_id = body.get("templateId")
+    except Exception:
+        pass
+
+    if template_id:
+        from services.ai_agent import generate_structure_from_template
+        structure = await generate_structure_from_template(session_id, s["contentText"], s.get("config", {}), template_id)
+        if not structure:
+            from services.ai_agent import generate_structure
+            structure = await generate_structure(session_id, s["contentText"], s.get("config", {}))
+    else:
+        from services.ai_agent import generate_structure
+        structure = await generate_structure(session_id, s["contentText"], s.get("config", {}))
 
     await db.agent_sessions.update_one(
         {"id": session_id},
