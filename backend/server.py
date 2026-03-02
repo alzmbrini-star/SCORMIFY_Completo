@@ -3903,6 +3903,10 @@ async def agent_generate_course(session_id: str):
     project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
     project_dict["course"]["slides"] = course_data["slides"]
 
+    # Mark project as created by agent
+    project_dict["createdByAgent"] = True
+    project_dict["agentSessionId"] = session_id
+
     await db.projects.insert_one(project_dict)
 
     project_dir = PROJECTS_DIR / project.id
