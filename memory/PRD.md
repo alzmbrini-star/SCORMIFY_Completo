@@ -66,6 +66,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 
 ### Features Implemented
 - **Background Customization per Slide (2026-03-02)**: Users can customize slide backgrounds in the Media Config step with solid colors, gradients (2 colors + direction), uploaded images with opacity, or AI-generated images with opacity. Applies to all slide types (cover, content, quiz, summary). "Apply to All" and "Apply to Type" quick actions available.
+- **Platform & Course Improvement Suggestions (2026-03-02)**: AI automatically analyzes each course creation process and generates 18 categorized suggestions (Platform UX/Features/Performance, Course Content/Design/Pedagogy). Shows in GeneratedPanel with collapsible UI, priority badges, and on-demand regeneration. Uses GPT-5.2 with GPT-4o fallback via emergentintegrations.
 
 ## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session
