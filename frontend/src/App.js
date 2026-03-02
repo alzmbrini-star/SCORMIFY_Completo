@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
+import Agent from './pages/Agent';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
 import AuthCallback from './pages/AuthCallback';
