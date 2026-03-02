@@ -225,19 +225,22 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         for elem in sb_slide.get("elements", []):
             if elem.get("type") == "text":
                 pos = elem.get("position", "center")
-                x = 100 if pos == "left" else (960 if pos == "center" else 1100)
                 w = elem.get("width", 800)
                 h = elem.get("height", 400)
-                y = 60 if sb_slide.get("type") == "title" else 40
+                x = (1920 - w) // 2 if pos == "center" else (100 if pos == "left" else 1020)
+                y = 80 if sb_slide.get("type") == "title" else 40
+                
+                html_content = elem.get("content", "")
                 
                 el = {
                     "id": generate_id(),
-                    "type": "text",
-                    "x": x - w // 2 if pos == "center" else x,
+                    "type": "html",
+                    "x": x,
                     "y": y,
                     "width": w,
                     "height": h,
-                    "content": elem.get("content", ""),
+                    "content": "",
+                    "htmlContent": html_content,
                     "style": {
                         "fontSize": 28 if sb_slide.get("type") == "title" else 18,
                         "fontFamily": "Inter, sans-serif",
