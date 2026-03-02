@@ -10,6 +10,7 @@ import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
 import { Slider } from '../components/ui/slider';
+import { Switch } from '../components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Dialog,
@@ -2246,25 +2247,19 @@ export default function Editor() {
                             <p className="text-[10px] text-muted-foreground">Avatar de acessibilidade em Língua de Sinais</p>
                           </div>
                         </div>
-                        <button
+                        <Switch
                           data-testid="vlibras-toggle"
-                          onClick={async () => {
-                            const newVal = !(currentProject?.enableVlibras !== false);
-                            try {
-                              await fetch(`${getApiUrl()}/api/projects/${currentProject.id}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ enableVlibras: newVal })
-                              });
-                              setCurrentProject(prev => ({ ...prev, enableVlibras: newVal }));
-                            } catch (err) {
-                              console.error('Failed to update VLibras setting:', err);
-                            }
+                          key={`vlibras-${currentProject?.enableVlibras}`}
+                          defaultChecked={currentProject?.enableVlibras !== false}
+                          onCheckedChange={(newVal) => {
+                            fetch(`${getApiUrl()}/api/projects/${currentProject.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ enableVlibras: newVal })
+                            }).then(() => fetchProject(currentProject.id))
+                              .catch(err => console.error('VLibras toggle error:', err));
                           }}
-                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${currentProject?.enableVlibras !== false ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-                        >
-                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${currentProject?.enableVlibras !== false ? 'translate-x-4.5' : 'translate-x-0.5'}`} style={{ transform: `translateX(${currentProject?.enableVlibras !== false ? '18px' : '2px'})` }} />
-                        </button>
+                        />
                       </div>
                       
                       {/* SCORM Export Option */}
