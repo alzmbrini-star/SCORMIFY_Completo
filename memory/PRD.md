@@ -18,7 +18,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - CORS Proxy for both VLibras domains, XHR monkey-patch in exports
 
 ### AI Agent - Phase 1 MVP (Complete)
-- Content upload → AI analysis → structure → storyboard → course generation
+- Content upload -> AI analysis -> structure -> storyboard -> course generation
 - Background tasks with polling, chat with agent
 
 ### AI Agent - Phase 2: Editing & Templates (Complete - 2026-03-02)
@@ -30,19 +30,35 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Title slides with module trail, quiz slides with indicators, summary slides
 
 ### Per-Slide Media Configuration (Complete - 2026-03-02)
-- **New "Mídia" step** (step 5) between Storyboard and Generate in create flow
+- **New "Midia" step** (step 5) between Storyboard and Generate in create flow
 - **5 media types per content slide**:
   - **Imagem IA**: Photorealistic images via GPT Image 1 (contextual prompts based on slide content)
   - **YouTube**: Embed YouTube videos (supports watch, short, and embed URL formats)
   - **Vimeo**: Embed Vimeo videos
-  - **Avatar HeyGen**: Placeholder for avatar (configure in editor)
-  - **Sem mídia**: Text-only, full-width layout
-- **Quick-apply buttons**: "Todas: Imagem IA" and "Todas: Sem mídia"
+  - **Avatar HeyGen**: Full avatar video generation (see below)
+  - **Sem midia**: Text-only, full-width layout
+- **Quick-apply buttons**: "Todas: Imagem IA" and "Todas: Sem midia"
 - **Media summary**: Shows count per type with credit usage warning for AI images
-- **Backend**: `POST /api/agent/sessions/{id}/media-config` saves config, `generate-course` reads and applies
-- **AI Image fallback**: If GPT Image 1 fails, falls back to picsum.photos stock images
-- **Video parsing**: Extracts YouTube/Vimeo video IDs from various URL formats
-- Tested: 14/14 backend + 100% frontend (iteration_45.json)
+
+### Content Depth Enhancement (Complete - 2026-03-02)
+- AI prompts generate 100+ words per content slide with structured HTML
+- Summary slides have 400+ words of comprehensive review
+
+### Functional Scormfy Quizzes (Complete - 2026-03-02)
+- Agent creates `type: 'quiz'` elements with quizConfig and questionIds
+- Questions saved to MongoDB with alternatives, correctIndex, explanation
+
+### Full HeyGen Avatar Integration (Complete - 2026-03-02)
+- **Avatar Picker**: Grid of HeyGen avatars with preview images in media config step
+- **Voice Picker**: Portuguese voice selection with preview audio playback
+- **Auto-Generation**: When course is generated, HeyGen videos are triggered in background
+- **Status Tracking**: Generated panel auto-polls video status every 15s
+- **Slide Updates**: Completed videos automatically replace processing placeholders
+- **Backend**: Background task triggers HeyGen API, stores video_id mappings, status endpoint
+- **Endpoint**: `GET /api/agent/projects/{id}/heygen-status` - polls all pending videos
+
+### Bug Fixes (Complete - 2026-03-02)
+- LIBRAS/VLibras toggle in export modal fixed with Shadcn Switch
 
 ## API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session
@@ -51,17 +67,18 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - `POST /api/agent/sessions/{id}/configure` - Set config
 - `POST /api/agent/sessions/{id}/generate-structure` - Generate structure (optional templateId)
 - `POST /api/agent/sessions/{id}/generate-storyboard` - Background storyboard gen
-- `POST /api/agent/sessions/{id}/media-config` - Save per-slide media config (NEW)
-- `POST /api/agent/sessions/{id}/generate-course` - Generate project with media (UPDATED)
+- `POST /api/agent/sessions/{id}/media-config` - Save per-slide media config with heygen settings
+- `POST /api/agent/sessions/{id}/generate-course` - Generate project with media + HeyGen background
 - `POST /api/agent/sessions/{id}/chat` - Chat with agent
 - `GET /api/agent/templates` - List templates
 - `GET /api/agent/courses` - List agent-created courses
+- `GET /api/agent/projects/{id}/heygen-status` - Check HeyGen video status
 - `POST /api/agent/courses/{id}/analyze` - AI course analysis
 - `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements
 
 ## Key Files
 - `backend/server.py` - Main server with all API routes
-- `backend/services/ai_agent.py` - AI agent: visual generation, media config, templates, editing
+- `backend/services/ai_agent.py` - AI agent: visual generation, media config, templates, editing, heygen
 - `frontend/src/pages/Agent.jsx` - Agent page: mode selector, 7-step create flow, edit flow
 
 ## Prioritized Backlog
@@ -69,7 +86,6 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Platform Improvement Suggestions (agent self-analysis)
 ### P2
 - Enhanced Content Input (PDF, DOCX, links)
-- HeyGen avatar auto-generation (not just placeholder)
 - ElevenLabs narration auto-generation per slide
 ### P3
 - Refactor server.py into routers, Jinja2 for HTML templates
