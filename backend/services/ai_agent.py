@@ -157,7 +157,7 @@ REGRAS:
 
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict) -> dict:
-    """Step 3: Generate detailed storyboard - processes slides in small batches to avoid timeouts."""
+    """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
     all_slides = []
     
     # Flatten all slides from structure
@@ -166,70 +166,47 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         for sl in mod.get("slides", []):
             flat_slides.append({**sl, "moduleName": mod.get("title", "")})
     
-    # Process in batches of 3-4 slides
-    batch_size = 4
+    # Process in batches of 6 slides for speed
+    batch_size = 6
     for batch_start in range(0, len(flat_slides), batch_size):
         batch = flat_slides[batch_start:batch_start + batch_size]
-        batch_desc = json.dumps(batch, ensure_ascii=False)
+        batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose","")} for s in batch]
         
         chat = _new_chat(f"agent-sb-{session_id}-{batch_start}")
-        prompt = f"""Crie o conteúdo detalhado para os seguintes slides de um curso sobre "{config.get('title', '')}".
+        prompt = f"""Gere conteúdo para {len(batch)} slides do curso "{config.get('title', '')}".
 Nível: {config.get('depth', 'intermediario')}
+Conteúdo-base: {content_text[:2000]}
 
-CONTEÚDO BASE:
-{content_text[:4000]}
+Slides: {json.dumps(batch_info, ensure_ascii=False)}
 
-SLIDES PARA DETALHAR:
-{batch_desc}
-
-Retorne JSON com EXATAMENTE {len(batch)} slides:
+Retorne JSON:
 ```json
-{{
-  "slides": [
-    {{
-      "id": "mesmo id do slide",
-      "title": "Título",
-      "type": "title|content|quiz|summary",
-      "background": "#1e3a5f para title, #FFFFFF para outros",
-      "elements": [
-        {{
-          "type": "text",
-          "content": "<h2>Título</h2><p>Conteúdo educacional claro e objetivo</p>",
-          "position": "center",
-          "width": 800,
-          "height": 400
-        }}
-      ],
-      "narrationScript": "Texto natural para narração",
-      "librasScript": "Versão simplificada para LIBRAS",
-      "notes": "",
-      "quizQuestions": []
-    }}
-  ]
-}}
+{{"slides":[{{"id":"id","title":"T","type":"content","background":"#FFFFFF","elements":[{{"type":"text","content":"<h2>T</h2><p>conteúdo</p>","position":"center","width":800,"height":400}}],"narrationScript":"narração","librasScript":"libras","notes":"","quizQuestions":[]}}]}}
 ```
+Regras: title slides usam background #1e3a5f e texto branco. Quiz slides incluem 2 perguntas com 4 alternatives cada (uma isCorrect:true). Max 100 palavras/slide."""
 
-Para slides tipo "quiz", inclua 2-3 perguntas em quizQuestions com alternatives (4 opções cada, uma isCorrect:true).
-Máximo 120 palavras por slide. Use HTML: h2, p, ul, li, strong."""
-
-        response = await chat.send_message(UserMessage(text=prompt))
-        data = _extract_json(response)
-        if data and "slides" in data:
-            all_slides.extend(data["slides"])
-        else:
-            # Fallback: create basic slides from structure
-            for sl in batch:
-                all_slides.append({
-                    "id": sl.get("id", ""),
-                    "title": sl.get("title", "Slide"),
-                    "type": sl.get("type", "content"),
-                    "background": "#1e3a5f" if sl.get("type") == "title" else "#FFFFFF",
-                    "elements": [{"type": "text", "content": f"<h2>{sl.get('title','')}</h2><p>{sl.get('purpose','')}</p>", "position": "center", "width": 800, "height": 400}],
-                    "narrationScript": sl.get("purpose", ""),
-                    "librasScript": sl.get("purpose", ""),
-                    "notes": "",
-                    "quizQuestions": [],
-                })
+        try:
+            response = await chat.send_message(UserMessage(text=prompt))
+            data = _extract_json(response)
+            if data and "slides" in data:
+                all_slides.extend(data["slides"])
+                continue
+        except Exception as e:
+            logger.warning(f"Storyboard batch {batch_start} error: {e}")
+        
+        # Fallback: create basic slides from structure
+        for sl in batch:
+            all_slides.append({
+                "id": sl.get("id", ""),
+                "title": sl.get("title", "Slide"),
+                "type": sl.get("type", "content"),
+                "background": "#1e3a5f" if sl.get("type") == "title" else "#FFFFFF",
+                "elements": [{"type": "text", "content": f"<h2>{sl.get('title','')}</h2><p>{sl.get('purpose','')}</p>", "position": "center", "width": 800, "height": 400}],
+                "narrationScript": sl.get("purpose", ""),
+                "librasScript": sl.get("purpose", ""),
+                "notes": "",
+                "quizQuestions": [],
+            })
     
     return {"slides": all_slides}
 
