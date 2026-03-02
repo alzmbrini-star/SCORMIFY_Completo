@@ -3687,6 +3687,246 @@ CONTEÚDO DO CURSO:
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
 
+# =============================================================================
+# AI INSTRUCTIONAL DESIGN AGENT
+# =============================================================================
+from pydantic import ConfigDict as PydanticConfigDict
+
+class AgentSessionCreate(BaseModel):
+    """Create agent session - optionally with initial text content"""
+    contentText: Optional[str] = None
+    fileName: Optional[str] = None
+
+class AgentConfigUpdate(BaseModel):
+    model_config = PydanticConfigDict(extra="allow")
+    title: Optional[str] = None
+    depth: Optional[str] = "intermediario"
+    duration: Optional[int] = 30
+    modules: Optional[int] = 3
+    interactivity: Optional[str] = "media"
+    visualStyle: Optional[str] = "moderno e profissional"
+    format: Optional[str] = "curso_completo"
+    description: Optional[str] = None
+
+class AgentChatMessage(BaseModel):
+    message: str
+
+@api_router.post("/agent/sessions")
+async def create_agent_session(data: AgentSessionCreate):
+    """Create a new AI agent session."""
+    session_id = str(uuid.uuid4())
+    session = {
+        "id": session_id,
+        "step": "created",  # created, analyzed, configured, structured, storyboarded, generated
+        "contentText": data.contentText or "",
+        "fileName": data.fileName or "",
+        "analysis": None,
+        "config": {},
+        "structure": None,
+        "storyboard": None,
+        "projectId": None,
+        "chatHistory": [],
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.agent_sessions.insert_one({**session, "_id": session_id})
+    return session
+
+@api_router.get("/agent/sessions/{session_id}")
+async def get_agent_session(session_id: str):
+    """Get agent session state."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    return s
+
+@api_router.post("/agent/sessions/{session_id}/upload")
+async def agent_upload_content(session_id: str, file: UploadFile = File(None), text: str = Form(None)):
+    """Upload content to agent session (file or text)."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    content_text = text or ""
+    file_name = ""
+
+    if file:
+        file_name = file.filename or ""
+        file_bytes = await file.read()
+        ext = file_name.lower().rsplit(".", 1)[-1] if "." in file_name else ""
+
+        if ext == "txt":
+            content_text = file_bytes.decode("utf-8", errors="ignore")
+        elif ext in ("pdf", "pptx", "ppt", "docx", "doc"):
+            # Use ConvertAPI to extract text
+            convert_secret = os.environ.get("CONVERTAPI_SECRET", "")
+            if convert_secret:
+                try:
+                    async with httpx.AsyncClient(timeout=120) as client:
+                        files_payload = {"File": (file_name, file_bytes)}
+                        resp = await client.post(
+                            f"https://v2.convertapi.com/convert/{ext}/to/txt?Secret={convert_secret}",
+                            files=files_payload,
+                        )
+                        if resp.status_code == 200:
+                            result = resp.json()
+                            for f_item in result.get("Files", []):
+                                b64 = f_item.get("FileData", "")
+                                if b64:
+                                    content_text += base64.b64decode(b64).decode("utf-8", errors="ignore")
+                except Exception as e:
+                    logger.warning(f"ConvertAPI text extraction failed: {e}")
+                    content_text = f"[Erro ao extrair texto de {file_name}]"
+            else:
+                content_text = f"[ConvertAPI não configurada - arquivo {file_name} recebido]"
+        else:
+            content_text = file_bytes.decode("utf-8", errors="ignore")
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"contentText": content_text, "fileName": file_name, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"status": "ok", "contentLength": len(content_text), "fileName": file_name}
+
+@api_router.post("/agent/sessions/{session_id}/analyze")
+async def agent_analyze(session_id: str):
+    """Step 1: Analyze content with AI."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if not s.get("contentText"):
+        raise HTTPException(400, "No content uploaded")
+
+    from services.ai_agent import analyze_content
+    analysis = await analyze_content(session_id, s["contentText"], s.get("fileName", ""))
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"analysis": analysis, "step": "analyzed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return analysis
+
+@api_router.post("/agent/sessions/{session_id}/configure")
+async def agent_configure(session_id: str, data: AgentConfigUpdate):
+    """Set course configuration parameters."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    config = data.model_dump(exclude_unset=True)
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"config": config, "step": "configured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"status": "ok", "config": config}
+
+@api_router.post("/agent/sessions/{session_id}/generate-structure")
+async def agent_generate_structure(session_id: str):
+    """Step 2: Generate course structure."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    from services.ai_agent import generate_structure
+    structure = await generate_structure(session_id, s["contentText"], s.get("config", {}))
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"structure": structure, "step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return structure
+
+@api_router.post("/agent/sessions/{session_id}/generate-storyboard")
+async def agent_generate_storyboard(session_id: str):
+    """Step 3: Generate detailed storyboard."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if not s.get("structure"):
+        raise HTTPException(400, "Structure not generated yet")
+
+    from services.ai_agent import generate_storyboard
+    storyboard = await generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}))
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return storyboard
+
+@api_router.post("/agent/sessions/{session_id}/generate-course")
+async def agent_generate_course(session_id: str):
+    """Step 4: Generate actual Scormfy project from storyboard."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if not s.get("storyboard"):
+        raise HTTPException(400, "Storyboard not generated yet")
+
+    from services.ai_agent import generate_course_from_storyboard
+    course_data = await generate_course_from_storyboard(session_id, s["storyboard"], s.get("config", {}))
+
+    # Create actual Scormfy project
+    config = s.get("config", {})
+    title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
+    desc = config.get("description", s.get("analysis", {}).get("summary", ""))
+
+    project = Project(name=title, description=desc)
+    project.course.metadata.title = title
+    project.course.metadata.description = desc
+    project.course.slides = []  # Will be set from generated data
+
+    project_dict = project.model_dump()
+    project_dict["createdAt"] = project.createdAt.isoformat()
+    project_dict["updatedAt"] = project.updatedAt.isoformat()
+    project_dict["course"]["createdAt"] = project.course.createdAt.isoformat()
+    project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
+    project_dict["course"]["slides"] = course_data["slides"]
+
+    await db.projects.insert_one(project_dict)
+
+    project_dir = PROJECTS_DIR / project.id
+    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+
+    # Save quiz questions if any
+    for q in course_data.get("quizQuestions", []):
+        q["projectId"] = project.id
+        q["createdAt"] = datetime.now(timezone.utc).isoformat()
+        q["updatedAt"] = datetime.now(timezone.utc).isoformat()
+        await db.questions.insert_one({**q, "_id": q["id"]})
+
+    # Update session
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"projectId": project.id, "step": "generated", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    return {"status": "ok", "projectId": project.id, "projectName": title, "slidesCount": len(course_data["slides"]), "quizCount": len(course_data.get("quizQuestions", []))}
+
+@api_router.post("/agent/sessions/{session_id}/chat")
+async def agent_chat_endpoint(session_id: str, data: AgentChatMessage):
+    """Chat with the agent for adjustments."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    from services.ai_agent import agent_chat
+    context = {"structure": s.get("structure"), "config": s.get("config"), "analysis": s.get("analysis")}
+    response = await agent_chat(session_id, data.message, context)
+
+    # Save to chat history
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$push": {"chatHistory": {"role": "user", "text": data.message, "ts": datetime.now(timezone.utc).isoformat()}}}
+    )
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$push": {"chatHistory": {"role": "agent", "text": response, "ts": datetime.now(timezone.utc).isoformat()}}}
+    )
+
+    return {"response": response}
+
+
 # Include router
 app.include_router(api_router)
 
