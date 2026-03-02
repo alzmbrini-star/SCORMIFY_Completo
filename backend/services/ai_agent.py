@@ -422,7 +422,7 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
     if questions:
         q_html = '<div style="padding:10px;">'
         for qi, q in enumerate(questions):
-            q_html += f'<div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.1);">'
+            q_html += '<div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.1);">'
             q_html += f'<p style="color:#ffffff;font-size:15px;font-weight:600;margin:0 0 8px 0;">{qi+1}. {q.get("text","")}</p>'
             for a in q.get("alternatives", []):
                 icon = "&#9679;" if not a.get("isCorrect") else "&#10003;"
@@ -485,7 +485,7 @@ def _style_content_html(raw_html: str, text_color: str) -> str:
     # Style paragraphs
     styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-size:17px;color:{text_color}cc;line-height:1.7;margin:0 0 12px 0;">', styled)
     # Style lists
-    styled = re.sub(r'<ul([^>]*)>', f'<ul\\1 style="padding-left:20px;margin:8px 0;">', styled)
+    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="padding-left:20px;margin:8px 0;">', styled)
     styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-size:16px;color:{text_color}cc;line-height:1.6;margin-bottom:6px;">', styled)
     # Style bold
     styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{text_color};font-weight:700;">', styled)
@@ -496,12 +496,12 @@ def _style_summary_html(raw_html: str, accent: str) -> str:
     """Apply professional styling to summary HTML."""
     import re
     styled = raw_html
-    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-size:32px;font-weight:800;color:#ffffff;margin:0 0 20px 0;text-align:center;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-size:26px;font-weight:700;color:#ffffff;margin:20px 0 14px 0;text-align:center;">', styled)
-    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-size:17px;color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 12px 0;text-align:center;">', styled)
-    styled = re.sub(r'<ul([^>]*)>', f'<ul\\1 style="list-style:none;padding:0;margin:16px auto;max-width:800px;">', styled)
+    styled = re.sub(r'<h1([^>]*)>', '<h1\\1 style="font-size:32px;font-weight:800;color:#ffffff;margin:0 0 20px 0;text-align:center;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', '<h2\\1 style="font-size:26px;font-weight:700;color:#ffffff;margin:20px 0 14px 0;text-align:center;">', styled)
+    styled = re.sub(r'<p([^>]*)>', '<p\\1 style="font-size:17px;color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 12px 0;text-align:center;">', styled)
+    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:16px auto;max-width:800px;">', styled)
     styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-size:16px;color:rgba(255,255,255,0.8);padding:10px 16px;margin-bottom:8px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:3px solid {accent};">', styled)
-    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:#ffffff;">', styled)
+    styled = re.sub(r'<strong([^>]*)>', '<strong\\1 style="color:#ffffff;">', styled)
     return f'<div style="padding:20px;">{styled}</div>'
 
 
