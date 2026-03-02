@@ -3951,6 +3951,172 @@ async def agent_chat_endpoint(session_id: str, data: AgentChatMessage):
     return {"response": response}
 
 
+# --- Agent: Templates ---
+
+@api_router.get("/agent/templates")
+async def agent_list_templates():
+    """List available course templates."""
+    from services.ai_agent import get_templates
+    return get_templates()
+
+
+@api_router.post("/agent/sessions/{session_id}/generate-structure-from-template")
+async def agent_generate_structure_from_template(session_id: str, data: dict):
+    """Generate course structure using a template as base."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    template_id = data.get("templateId")
+    if not template_id:
+        raise HTTPException(400, "templateId is required")
+
+    from services.ai_agent import generate_structure_from_template
+    structure = await generate_structure_from_template(session_id, s["contentText"], s.get("config", {}), template_id)
+    if not structure:
+        raise HTTPException(500, "Failed to generate structure from template")
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"structure": structure, "step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return structure
+
+
+# --- Agent: Course Editing ---
+
+@api_router.get("/agent/courses")
+async def agent_list_courses():
+    """List courses created by the AI agent."""
+    projects = await db.projects.find(
+        {"createdByAgent": True}, {"_id": 0, "id": 1, "name": 1, "description": 1, "createdAt": 1, "updatedAt": 1, "agentSessionId": 1}
+    ).sort("createdAt", -1).to_list(100)
+    # Add slide count
+    for p in projects:
+        full_proj = await db.projects.find_one({"id": p["id"]}, {"_id": 0, "course.slides": 1})
+        p["slidesCount"] = len(full_proj.get("course", {}).get("slides", [])) if full_proj else 0
+    return projects
+
+
+class AgentImprovementsApply(BaseModel):
+    improvements: list
+
+
+@api_router.post("/agent/courses/{project_id}/analyze")
+async def agent_analyze_course(project_id: str):
+    """Analyze an existing agent-created course and suggest improvements."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    session_id = project.get("agentSessionId") or str(uuid.uuid4())
+    from services.ai_agent import analyze_existing_course
+    analysis = await analyze_existing_course(session_id, project)
+    return analysis
+
+
+@api_router.post("/agent/courses/{project_id}/apply-improvements")
+async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply):
+    """Apply selected improvements to an existing course."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    session_id = project.get("agentSessionId") or str(uuid.uuid4())
+    from services.ai_agent import apply_course_improvements
+    from models import generate_id
+    result = await apply_course_improvements(session_id, project, data.improvements)
+
+    slides = project.get("course", {}).get("slides", [])
+
+    # Apply updated slides
+    for upd in result.get("updatedSlides", []):
+        idx = upd.get("slideIndex")
+        if idx is not None and 0 <= idx < len(slides):
+            if upd.get("title"):
+                slides[idx]["title"] = upd["title"]
+            if upd.get("notes"):
+                slides[idx]["notes"] = upd["notes"]
+            if upd.get("narrationScript"):
+                slides[idx]["librasScript"] = upd["narrationScript"]
+            if upd.get("librasScript"):
+                slides[idx]["librasScript"] = upd["librasScript"]
+            # Rebuild elements
+            if upd.get("elements"):
+                new_elements = []
+                for elem in upd["elements"]:
+                    el = {
+                        "id": generate_id(),
+                        "type": "html",
+                        "x": 560 if elem.get("position") == "center" else 100,
+                        "y": 40,
+                        "width": elem.get("width", 800),
+                        "height": elem.get("height", 400),
+                        "content": "",
+                        "htmlContent": elem.get("content", ""),
+                        "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
+                        "startTime": 0,
+                        "animations": [],
+                    }
+                    new_elements.append(el)
+                slides[idx]["elements"] = new_elements
+
+    # Insert new slides
+    new_slides_added = 0
+    for ns in sorted(result.get("newSlides", []), key=lambda x: x.get("afterIndex", 999), reverse=True):
+        after_idx = ns.get("afterIndex", len(slides) - 1)
+        insert_at = min(after_idx + 1, len(slides))
+        new_elements = []
+        for elem in ns.get("elements", []):
+            el = {
+                "id": generate_id(),
+                "type": "html",
+                "x": 560 if elem.get("position") == "center" else 100,
+                "y": 40,
+                "width": elem.get("width", 800),
+                "height": elem.get("height", 400),
+                "content": "",
+                "htmlContent": elem.get("content", ""),
+                "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
+                "startTime": 0,
+                "animations": [],
+            }
+            new_elements.append(el)
+        new_slide = {
+            "id": generate_id(),
+            "title": ns.get("title", "Novo Slide"),
+            "order": insert_at,
+            "width": 1920,
+            "height": 820,
+            "background": ns.get("background", "#FFFFFF"),
+            "elements": new_elements,
+            "annotations": [],
+            "transition": {"type": "fade", "duration": 0.5},
+            "audio": [],
+            "notes": "",
+            "librasScript": ns.get("librasScript", ""),
+            "duration": 5.0,
+        }
+        slides.insert(insert_at, new_slide)
+        new_slides_added += 1
+
+    # Re-order
+    for i, s in enumerate(slides):
+        s["order"] = i
+
+    # Save
+    course = project.get("course", {})
+    course["slides"] = slides
+    await update_project(project_id, {"course": course})
+
+    return {
+        "status": "ok",
+        "updatedSlides": len(result.get("updatedSlides", [])),
+        "newSlides": new_slides_added,
+        "totalSlides": len(slides),
+    }
+
+
 # Include router
 app.include_router(api_router)
 
