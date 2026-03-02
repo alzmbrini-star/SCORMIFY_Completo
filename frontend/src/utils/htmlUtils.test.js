@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://libras-proxy-test.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://course-editor-1.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
