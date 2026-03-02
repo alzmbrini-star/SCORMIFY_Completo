@@ -69,6 +69,7 @@ export default function Agent() {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [mediaConfig, setMediaConfig] = useState({});
+  const [heygenConfig, setHeygenConfig] = useState({ avatarId: '', voiceId: '' });
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -240,14 +241,22 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', 'Salvando configuração de mídia...');
     try {
+      // Inject heygen avatar/voice into each heygen slide config
+      const enrichedConfig = { ...mediaConfig };
+      for (const [key, val] of Object.entries(enrichedConfig)) {
+        if (val.type === 'heygen') {
+          enrichedConfig[key] = { ...val, avatar_id: heygenConfig.avatarId, voice_id: heygenConfig.voiceId };
+        }
+      }
       await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaConfig }),
+        body: JSON.stringify({ mediaConfig: enrichedConfig }),
       });
       const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
       const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
       const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
-      addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares. ${aiImageCount > 0 ? 'A geração de imagens pode levar alguns minutos.' : ''}`);
+      const heygenMsg = heygenCount > 0 ? ` ${heygenCount} vídeos avatar HeyGen serão gerados em segundo plano (~1-3 min cada).` : '';
+      addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares.${heygenMsg}${aiImageCount > 0 ? ' A geração de imagens pode levar alguns minutos.' : ''}`);
       setCurrentStep(6); // generate step
       handleGenerateCourse();
     } catch { toast.error('Erro ao salvar mídia'); addChatMsg('agent', 'Erro ao salvar configuração de mídia.'); }
@@ -257,13 +266,15 @@ export default function Agent() {
   const handleGenerateCourse = async () => {
     setLoading(true);
     const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
-    addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}`);
+    const heyCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+    addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST' });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setGeneratedProject(data);
-      addChatMsg('agent', `Curso "${data.projectName}" criado! ${data.slidesCount} slides e ${data.quizCount} perguntas.`);
+      const heygenMsg = data.heygenPending > 0 ? ` ${data.heygenPending} vídeos HeyGen em processamento.` : '';
+      addChatMsg('agent', `Curso "${data.projectName}" criado! ${data.slidesCount} slides e ${data.quizCount} perguntas.${heygenMsg}`);
       setCurrentStep(6);
       toast.success('Curso gerado com sucesso!');
     } catch { toast.error('Erro ao gerar curso'); addChatMsg('agent', 'Erro ao gerar o curso.'); }
@@ -408,7 +419,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} />}
 
               {/* EDIT MODE */}
@@ -864,10 +875,13 @@ const MEDIA_TYPES = [
   { id: 'none', label: 'Sem mídia', description: 'Apenas texto', icon: FileText, color: 'slate' },
 ];
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm }) {
-  if (!storyboard?.slides) return null;
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig }) {
+  const [avatars, setAvatars] = useState([]);
+  const [voices, setVoices] = useState([]);
+  const [loadingAvatars, setLoadingAvatars] = useState(false);
+  const [loadingVoices, setLoadingVoices] = useState(false);
 
-  const contentSlides = storyboard.slides
+  const contentSlides = (storyboard?.slides || [])
     .map((s, i) => ({ ...s, index: i }))
     .filter(s => s.type === 'content');
 
@@ -887,6 +901,30 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
   const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
   const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+
+  // Fetch HeyGen avatars/voices when needed
+  useEffect(() => {
+    if (heygenCount > 0 && avatars.length === 0 && !loadingAvatars) {
+      setLoadingAvatars(true);
+      fetch(`${API}/api/heygen/avatars?limit=50`)
+        .then(r => r.json())
+        .then(data => setAvatars(data.avatars || []))
+        .catch(() => toast.error('Erro ao carregar avatares'))
+        .finally(() => setLoadingAvatars(false));
+    }
+    if (heygenCount > 0 && voices.length === 0 && !loadingVoices) {
+      setLoadingVoices(true);
+      fetch(`${API}/api/heygen/voices?language=portuguese`)
+        .then(r => r.json())
+        .then(data => setVoices(data.voices || []))
+        .catch(() => toast.error('Erro ao carregar vozes'))
+        .finally(() => setLoadingVoices(false));
+    }
+  }, [heygenCount]);
+
+  const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
+
+  if (!storyboard?.slides) return null;
 
   return (
     <div className="space-y-4" data-testid="media-config-panel">
@@ -909,6 +947,98 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
           <FileText className="w-3 h-3 mr-1" /> Todas: Sem mídia
         </Button>
       </div>
+
+      {/* HeyGen Avatar/Voice Picker */}
+      {heygenCount > 0 && (
+        <Card className="bg-purple-900/10 border-purple-800/30" data-testid="heygen-config-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-purple-300 flex items-center gap-2">
+              <UserCircle className="w-4 h-4" /> Configurar Avatar HeyGen
+            </h3>
+            <p className="text-xs text-purple-300/60">
+              Escolha o avatar e a voz que serão usados em {heygenCount} slide{heygenCount > 1 ? 's' : ''}.
+              Os vídeos serão gerados automaticamente após a criação do curso.
+            </p>
+
+            {/* Avatar selection */}
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 font-medium">Avatar</label>
+              {loadingAvatars ? (
+                <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="w-3 h-3 animate-spin" /> Carregando avatares...</div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {avatars.slice(0, 20).map(av => (
+                    <button
+                      key={av.avatar_id}
+                      onClick={() => setHeygenConfig(prev => ({ ...prev, avatarId: av.avatar_id }))}
+                      className={`rounded-lg border-2 overflow-hidden transition-all ${
+                        heygenConfig.avatarId === av.avatar_id
+                          ? 'border-purple-500 ring-1 ring-purple-500/30'
+                          : 'border-slate-700/50 hover:border-purple-500/40'
+                      }`}
+                      data-testid={`heygen-avatar-${av.avatar_id}`}
+                    >
+                      {av.preview_image_url ? (
+                        <img src={av.preview_image_url} alt={av.avatar_name} className="w-full h-16 object-cover" />
+                      ) : (
+                        <div className="w-full h-16 bg-slate-800 flex items-center justify-center">
+                          <UserCircle className="w-6 h-6 text-slate-600" />
+                        </div>
+                      )}
+                      <p className="text-[9px] text-center text-slate-400 truncate px-1 py-0.5">{av.avatar_name}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Voice selection */}
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 font-medium">Voz (Português)</label>
+              {loadingVoices ? (
+                <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="w-3 h-3 animate-spin" /> Carregando vozes...</div>
+              ) : (
+                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                  {voices.map(v => (
+                    <button
+                      key={v.voice_id}
+                      onClick={() => setHeygenConfig(prev => ({ ...prev, voiceId: v.voice_id }))}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all text-left ${
+                        heygenConfig.voiceId === v.voice_id
+                          ? 'border-purple-500 bg-purple-600/10 text-purple-300'
+                          : 'border-slate-700/50 text-slate-400 hover:border-purple-500/30'
+                      }`}
+                      data-testid={`heygen-voice-${v.voice_id}`}
+                    >
+                      <span className="font-medium">{v.name}</span>
+                      <span className="text-slate-500">{v.gender}</span>
+                      {v.country_flag && <span>{v.country_flag}</span>}
+                      {v.preview_audio && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); new Audio(v.preview_audio).play(); }}
+                          className="ml-auto text-purple-400 hover:text-purple-300"
+                          data-testid={`play-voice-${v.voice_id}`}
+                        >
+                          <Play className="w-3 h-3" />
+                        </button>
+                      )}
+                    </button>
+                  ))}
+                  {voices.length === 0 && !loadingVoices && (
+                    <p className="text-xs text-slate-500 text-center py-2">Nenhuma voz portuguesa encontrada</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {!heygenReady && (
+              <p className="text-[11px] text-amber-400/70 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Selecione um avatar e uma voz para continuar.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-slide config */}
       <div className="space-y-3">
@@ -977,7 +1107,9 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                 {mc.type === 'heygen' && (
                   <p className="text-[11px] text-purple-400/60">
                     <UserCircle className="w-3 h-3 inline mr-1" />
-                    Placeholder será adicionado. Configure o avatar no editor.
+                    {heygenConfig.avatarId && heygenConfig.voiceId
+                      ? 'Avatar e voz selecionados. O vídeo será gerado automaticamente.'
+                      : 'Configure o avatar e a voz acima para gerar o vídeo.'}
                   </p>
                 )}
               </CardContent>
@@ -1005,7 +1137,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         </CardContent>
       </Card>
 
-      <Button onClick={onConfirm} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
+      <Button onClick={onConfirm} disabled={loading || !heygenReady} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}
         Confirmar Mídia e Gerar Curso
       </Button>
@@ -1015,6 +1147,28 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
 
 
 function GeneratedPanel({ project, navigate }) {
+  const [heygenStatus, setHeygenStatus] = useState(null);
+  const [polling, setPolling] = useState(false);
+
+  const checkHeygenStatus = useCallback(async () => {
+    if (!project?.projectId || !project?.heygenPending) return;
+    setPolling(true);
+    try {
+      const res = await fetch(`${API}/api/agent/projects/${project.projectId}/heygen-status`);
+      const data = await res.json();
+      setHeygenStatus(data);
+    } catch { /* ignore */ }
+    finally { setPolling(false); }
+  }, [project?.projectId, project?.heygenPending]);
+
+  useEffect(() => {
+    if (project?.heygenPending > 0) {
+      checkHeygenStatus();
+      const interval = setInterval(checkHeygenStatus, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [project?.heygenPending, checkHeygenStatus]);
+
   if (!project) return null;
   return (
     <div className="space-y-6 text-center" data-testid="generated-panel">
@@ -1027,6 +1181,45 @@ function GeneratedPanel({ project, navigate }) {
         <Badge className="bg-emerald-600/20 text-emerald-300"><Layers className="w-3 h-3 mr-1" />{project.slidesCount} slides</Badge>
         <Badge className="bg-amber-600/20 text-amber-300"><BarChart3 className="w-3 h-3 mr-1" />{project.quizCount} perguntas</Badge>
       </div>
+
+      {/* HeyGen Video Status */}
+      {project.heygenPending > 0 && (
+        <Card className="bg-purple-900/10 border-purple-800/30 text-left mx-auto max-w-md" data-testid="heygen-status-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-purple-300 flex items-center gap-2">
+                <UserCircle className="w-4 h-4" /> Vídeos Avatar HeyGen
+              </h3>
+              <Button variant="ghost" size="sm" onClick={checkHeygenStatus} disabled={polling} className="text-xs text-purple-400" data-testid="refresh-heygen-btn">
+                {polling ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />} Atualizar
+              </Button>
+            </div>
+            {heygenStatus?.videos?.map((v, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs" data-testid={`heygen-video-status-${i}`}>
+                {v.status === 'completed' ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : v.status === 'failed' ? (
+                  <X className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 text-purple-400 animate-spin shrink-0" />
+                )}
+                <span className="text-slate-300 truncate flex-1">{v.title}</span>
+                <Badge variant="outline" className={`text-[9px] ${
+                  v.status === 'completed' ? 'border-emerald-700 text-emerald-400' :
+                  v.status === 'failed' ? 'border-red-700 text-red-400' :
+                  'border-purple-700 text-purple-400'
+                }`}>
+                  {v.status === 'completed' ? 'Pronto' : v.status === 'failed' ? 'Falhou' : 'Processando...'}
+                </Badge>
+              </div>
+            ))}
+            {heygenStatus?.status === 'all_done' && (
+              <p className="text-[11px] text-emerald-400/70 text-center">Todos os vídeos foram gerados! Abra o editor para visualizar.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex gap-3 justify-center">
         <Button onClick={() => navigate(`/editor/${project.projectId}`)} className="bg-emerald-600 hover:bg-emerald-700" data-testid="open-editor-btn">
           <BookOpen className="w-4 h-4 mr-2" /> Abrir no Editor

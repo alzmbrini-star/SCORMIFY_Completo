@@ -3904,7 +3904,7 @@ async def agent_set_media_config(session_id: str, data: dict):
 
 
 @api_router.post("/agent/sessions/{session_id}/generate-course")
-async def agent_generate_course(session_id: str):
+async def agent_generate_course(session_id: str, background_tasks: BackgroundTasks):
     """Step 5: Generate actual Scormfy project from storyboard with media."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
@@ -3943,6 +3943,11 @@ async def agent_generate_course(session_id: str):
     project_dict["createdByAgent"] = True
     project_dict["agentSessionId"] = session_id
 
+    # Store HeyGen pending info if any
+    heygen_pending = course_data.get("heygenPending", [])
+    if heygen_pending:
+        project_dict["heygenPending"] = heygen_pending
+
     await db.projects.insert_one(project_dict)
 
     # Save quiz questions if any
@@ -3952,13 +3957,176 @@ async def agent_generate_course(session_id: str):
         q["updatedAt"] = datetime.now(timezone.utc).isoformat()
         await db.questions.insert_one({**q, "_id": q["id"]})
 
+    # Trigger HeyGen video generation in background
+    if heygen_pending and HEYGEN_API_KEY:
+        background_tasks.add_task(_trigger_heygen_videos, project.id, heygen_pending)
+
     # Update session
     await db.agent_sessions.update_one(
         {"id": session_id},
         {"$set": {"projectId": project.id, "step": "generated", "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
 
-    return {"status": "ok", "projectId": project.id, "projectName": title, "slidesCount": len(course_data["slides"]), "quizCount": len(course_data.get("quizQuestions", []))}
+    return {
+        "status": "ok",
+        "projectId": project.id,
+        "projectName": title,
+        "slidesCount": len(course_data["slides"]),
+        "quizCount": len(course_data.get("quizQuestions", [])),
+        "heygenPending": len(heygen_pending),
+    }
+
+
+async def _trigger_heygen_videos(project_id: str, pending_list: list):
+    """Background task: trigger HeyGen video generation for each pending slide."""
+    for item in pending_list:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as http_client:
+                payload = {
+                    "video_inputs": [{
+                        "character": {
+                            "type": "avatar",
+                            "avatar_id": item["avatar_id"],
+                            "avatar_style": "normal"
+                        },
+                        "voice": {
+                            "type": "text",
+                            "input_text": item["script"],
+                            "voice_id": item["voice_id"]
+                        }
+                    }],
+                    "dimension": {"width": 1280, "height": 720},
+                    "title": f"Agent-{project_id}-{item['slideId']}"
+                }
+                response = await http_client.post(
+                    f"{HEYGEN_BASE_URL}/v2/video/generate",
+                    headers=HEYGEN_HEADERS,
+                    json=payload
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    video_id = data.get("data", {}).get("video_id")
+                    if video_id:
+                        await db.heygen_videos.insert_one({
+                            "video_id": video_id,
+                            "avatar_id": item["avatar_id"],
+                            "voice_id": item["voice_id"],
+                            "script": item["script"],
+                            "title": item["title"],
+                            "status": "processing",
+                            "transparent": False,
+                            "project_id": project_id,
+                            "slide_id": item["slideId"],
+                            "created_at": now_utc(),
+                        })
+                        # Update project with video_id mapping
+                        await db.projects.update_one(
+                            {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                            {"$set": {"heygenPending.$.videoId": video_id, "heygenPending.$.status": "processing"}}
+                        )
+                        logger.info(f"HeyGen video triggered: {video_id} for slide {item['slideId']}")
+                else:
+                    logger.error(f"HeyGen video generation failed: {response.status_code} - {response.text}")
+                    await db.projects.update_one(
+                        {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                        {"$set": {"heygenPending.$.status": "failed", "heygenPending.$.error": response.text[:200]}}
+                    )
+        except Exception as e:
+            logger.error(f"HeyGen video trigger error: {e}")
+            await db.projects.update_one(
+                {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                {"$set": {"heygenPending.$.status": "failed", "heygenPending.$.error": str(e)[:200]}}
+            )
+
+
+@api_router.get("/agent/projects/{project_id}/heygen-status")
+async def agent_heygen_status(project_id: str):
+    """Check HeyGen video generation status for a project."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "heygenPending": 1})
+    if not project:
+        raise HTTPException(404, "Project not found")
+    pending = project.get("heygenPending", [])
+    if not pending:
+        return {"status": "no_heygen", "videos": []}
+
+    results = []
+    all_done = True
+    for item in pending:
+        video_id = item.get("videoId")
+        status = item.get("status", "pending")
+        if video_id and status == "processing":
+            # Check HeyGen API for status
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as http_client:
+                    resp = await http_client.get(
+                        f"{HEYGEN_BASE_URL}/v1/video_status.get?video_id={video_id}",
+                        headers=HEYGEN_HEADERS
+                    )
+                    if resp.status_code == 200:
+                        vdata = resp.json().get("data", {})
+                        status = vdata.get("status", "processing")
+                        video_url = vdata.get("video_url")
+
+                        # Update project pending status
+                        update_fields = {"heygenPending.$.status": status}
+                        if video_url:
+                            update_fields["heygenPending.$.videoUrl"] = video_url
+                        await db.projects.update_one(
+                            {"id": project_id, "heygenPending.videoId": video_id},
+                            {"$set": update_fields}
+                        )
+
+                        # If completed, update the slide element
+                        if status == "completed" and video_url:
+                            await _update_slide_with_heygen_video(project_id, item["slideId"], video_url)
+                            await db.heygen_videos.update_one(
+                                {"video_id": video_id},
+                                {"$set": {"status": "completed", "video_url": video_url}}
+                            )
+            except Exception as e:
+                logger.error(f"HeyGen status check error: {e}")
+
+        if status not in ("completed", "failed"):
+            all_done = False
+
+        results.append({
+            "slideId": item.get("slideId"),
+            "slideIndex": item.get("slideIndex"),
+            "title": item.get("title"),
+            "videoId": item.get("videoId"),
+            "status": status,
+            "videoUrl": item.get("videoUrl"),
+        })
+
+    return {"status": "all_done" if all_done else "processing", "videos": results}
+
+
+async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_url: str):
+    """Replace the HeyGen processing element with actual video player."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        return
+
+    slides = project.get("course", {}).get("slides", [])
+    for si, slide in enumerate(slides):
+        if slide.get("id") == slide_id:
+            # Find and replace the heygen processing element
+            for ei, el in enumerate(slide.get("elements", [])):
+                html = el.get("htmlContent", "")
+                if f'data-heygen-slide="{slide_id}"' in html:
+                    from models import generate_id
+                    new_html = f'''<div style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+<video src="{video_url}" style="width:100%;height:100%;object-fit:cover;" controls autoplay muted></video>
+<div style="position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
+<span style="color:rgba(255,255,255,0.6);font-size:11px;">Avatar HeyGen</span>
+</div>
+</div>'''
+                    await db.projects.update_one(
+                        {"id": project_id},
+                        {"$set": {f"course.slides.{si}.elements.{ei}.htmlContent": new_html}}
+                    )
+                    logger.info(f"Updated slide {slide_id} with HeyGen video")
+                    return
 
 @api_router.post("/agent/sessions/{session_id}/chat")
 async def agent_chat_endpoint(session_id: str, data: AgentChatMessage):

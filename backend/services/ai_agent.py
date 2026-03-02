@@ -667,6 +667,60 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
     return elements
 
 
+def _build_heygen_processing_element(slide_id: str) -> dict:
+    """Build an HTML element showing HeyGen video processing state."""
+    from models import generate_id
+    html = f'''<div data-heygen-slide="{slide_id}" style="width:100%;height:100%;border-radius:12px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);display:flex;align-items:center;justify-content:center;border:1px solid rgba(139,92,246,0.3);overflow:hidden;position:relative;">
+<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(139,92,246,0.08) 0%,transparent 70%);"></div>
+<div style="text-align:center;position:relative;z-index:1;">
+<div style="width:48px;height:48px;border:3px solid rgba(139,92,246,0.3);border-top-color:#8b5cf6;border-radius:50%;margin:0 auto 16px;animation:spin 1s linear infinite;"></div>
+<p style="color:#c4b5fd;font-size:15px;font-weight:600;margin:0 0 6px;">Gerando vídeo com Avatar IA...</p>
+<p style="color:rgba(196,181,253,0.5);font-size:12px;margin:0;">Isso pode levar 1-3 minutos</p>
+</div>
+<style>@keyframes spin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}</style>
+</div>'''
+    return {
+        "id": generate_id(), "type": "html", "x": 1120, "y": 80, "width": 740, "height": 460,
+        "htmlContent": html, "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+    }
+
+
+def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name: str, slide_id: str) -> list:
+    """Build content slide with HeyGen processing element on the right."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header bar
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Text on the left
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        if el.get("content"):
+            text_content = el["content"]
+    styled_text = _style_content_html(text_content, palette["text"])
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
+        "htmlContent": styled_text,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    # HeyGen processing element on the right
+    elements.append(_build_heygen_processing_element(slide_id))
+
+    return elements
+
+
 def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: str) -> list:
     """Build content slide without any media - full width text."""
     from models import generate_id
@@ -710,6 +764,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     slides_data = storyboard.get("slides", [])
     project_slides = []
     quiz_questions = []
+    heygen_pending = []
 
     # Select a color palette based on course title
     title_hash = int(hashlib.md5(config.get("title", "curso").encode()).hexdigest()[:8], 16)
@@ -745,8 +800,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             if video_info:
                 slide_media[i] = {"type": "video", "video_info": video_info}
         elif media_type == "heygen":
-            # HeyGen avatar placeholder - user can configure in editor later
-            slide_media[i] = {"type": "heygen_placeholder"}
+            # HeyGen with avatar/voice config - will trigger video generation
+            slide_media[i] = {
+                "type": "heygen",
+                "avatar_id": mc.get("avatar_id", ""),
+                "voice_id": mc.get("voice_id", ""),
+            }
         elif media_type == "none":
             slide_media[i] = {"type": "none"}
 
@@ -787,28 +846,40 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_elements = _build_content_slide_with_video(sb_slide, palette, module_name, media["video_info"])
             elif media.get("type") == "none":
                 slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
-            elif media.get("type") == "heygen_placeholder":
-                # Build with a placeholder for HeyGen
-                heygen_html = '''<div style="width:100%;height:100%;border-radius:12px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;border:2px dashed rgba(255,255,255,0.2);">
-<div style="text-align:center;">
-<div style="font-size:48px;margin-bottom:12px;color:rgba(255,255,255,0.3);">&#9658;</div>
-<p style="color:rgba(255,255,255,0.5);font-size:14px;">Avatar HeyGen</p>
-<p style="color:rgba(255,255,255,0.3);font-size:11px;">Configure no editor</p>
-</div></div>'''
-                from models import generate_id as gid
-                placeholder_el = {
-                    "id": gid(), "type": "html", "x": 1160, "y": 90, "width": 700, "height": 440,
-                    "htmlContent": heygen_html, "style": {}, "startTime": 0,
-                    "animations": [{"id": gid(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
-                }
-                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
-                slide_elements.append(placeholder_el)
+            elif media.get("type") == "heygen":
+                # Build with HeyGen processing element - video will be generated
+                slide_id = generate_id()
+                slide_elements = _build_content_slide_with_heygen(sb_slide, palette, module_name, slide_id)
+                # Extract text for narration script
+                import re
+                text_content = ""
+                for el in sb_slide.get("elements", []):
+                    if el.get("content"):
+                        text_content = el["content"]
+                clean_text = re.sub(r'<[^>]+>', '', text_content)
+                clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                heygen_pending.append({
+                    "slideIndex": i,
+                    "slideId": slide_id,
+                    "script": clean_text[:2000],
+                    "avatar_id": media.get("avatar_id", ""),
+                    "voice_id": media.get("voice_id", ""),
+                    "title": sb_slide.get("title", f"Slide {i+1}"),
+                })
             else:
                 img_url = media.get("url")
                 slide_elements = _build_content_slide(sb_slide, palette, module_name, img_url)
 
+        actual_slide_id = generate_id()
+        # Update heygen pending with the actual slide id
+        if stype == "content" and slide_media.get(i, {}).get("type") == "heygen":
+            for hp in heygen_pending:
+                if hp["slideIndex"] == i:
+                    hp["slideId"] = actual_slide_id
+                    break
+
         slide = {
-            "id": generate_id(),
+            "id": actual_slide_id,
             "title": sb_slide.get("title", f"Slide {i+1}"),
             "order": i,
             "width": 1920,
@@ -827,6 +898,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     return {
         "slides": project_slides,
         "quizQuestions": quiz_questions,
+        "heygenPending": heygen_pending,
         "metadata": {
             "title": config.get("title", "Curso Gerado por IA"),
             "description": config.get("description", ""),
