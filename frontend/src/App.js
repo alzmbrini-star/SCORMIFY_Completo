@@ -49,6 +49,11 @@ function AppRouter() {
           <Admin />
         </ProtectedRoute>
       } />
+      <Route path="/agent" element={
+        <ProtectedRoute>
+          <Agent />
+        </ProtectedRoute>
+      } />
       <Route path="/editor/:projectId" element={
         <ProtectedRoute>
           <Editor />
