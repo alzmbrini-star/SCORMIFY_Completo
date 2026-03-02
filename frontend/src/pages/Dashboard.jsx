@@ -302,6 +302,17 @@ export default function Dashboard() {
                   Import PPT
                 </Button>
               </DialogTrigger>
+
+            {/* AI Agent Button */}
+            <Button
+              variant="outline"
+              className="gap-2 border-emerald-600/40 text-emerald-400 hover:bg-emerald-600/10 hover:text-emerald-300"
+              onClick={() => navigate('/agent')}
+              data-testid="ai-agent-btn"
+            >
+              <Brain className="w-4 h-4" />
+              Agente IA
+            </Button>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Import PowerPoint</DialogTitle>
