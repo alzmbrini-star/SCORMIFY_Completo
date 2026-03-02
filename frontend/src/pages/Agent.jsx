@@ -834,12 +834,13 @@ function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templat
                         {v.gender && <span className="text-slate-500">{v.gender}</span>}
                         {v.accent && <span className="text-slate-600">{v.accent}</span>}
                         {v.preview_url && (
-                          <button
+                          <span
+                            role="button"
                             onClick={(e) => { e.stopPropagation(); new Audio(v.preview_url).play(); }}
-                            className="ml-auto text-amber-400 hover:text-amber-300"
+                            className="ml-auto text-amber-400 hover:text-amber-300 cursor-pointer"
                           >
                             <Play className="w-3 h-3" />
-                          </button>
+                          </span>
                         )}
                       </button>
                     ))}
@@ -1195,13 +1196,14 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                       <span className="text-slate-500">{v.gender}</span>
                       {v.country_flag && <span>{v.country_flag}</span>}
                       {v.preview_audio && (
-                        <button
+                        <span
+                          role="button"
                           onClick={(e) => { e.stopPropagation(); new Audio(v.preview_audio).play(); }}
-                          className="ml-auto text-purple-400 hover:text-purple-300"
+                          className="ml-auto text-purple-400 hover:text-purple-300 cursor-pointer"
                           data-testid={`play-voice-${v.voice_id}`}
                         >
                           <Play className="w-3 h-3" />
-                        </button>
+                        </span>
                       )}
                     </button>
                   ))}

@@ -5,10 +5,19 @@ Transforms raw content into complete Scormfy courses using GPT-5.2
 import os
 import json
 import uuid
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+# Reduce LiteLLM/OpenAI SDK retries and timeout to prevent blocking
+os.environ.setdefault("OPENAI_MAX_RETRIES", "1")
+os.environ.setdefault("OPENAI_TIMEOUT", "90")
+
+import litellm
+litellm.request_timeout = 90
+litellm.num_retries = 1
 
 logger = logging.getLogger(__name__)
 
@@ -233,39 +242,35 @@ PARA TODOS OS SLIDES:
 
         retries = 0
         max_retries = 2
+        batch_success = False
         while retries <= max_retries:
             try:
                 response = await chat.send_message(UserMessage(text=prompt))
                 data = _extract_json(response)
                 if data and "slides" in data:
-                    # Ensure moduleName propagation from batch
                     for j, slide_data in enumerate(data["slides"]):
                         if not slide_data.get("moduleName") and j < len(batch):
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
                     all_slides.extend(data["slides"])
+                    batch_success = True
                     break
-                else:
-                    retries += 1
-                    if retries <= max_retries:
-                        import asyncio
-                        await asyncio.sleep(2 * retries)
-                    continue
+                retries += 1
+                if retries <= max_retries:
+                    await asyncio.sleep(2 * retries)
             except Exception as e:
                 error_str = str(e)
                 if "Budget has been exceeded" in error_str:
-                    logger.error(f"Budget exceeded during storyboard generation: {e}")
                     raise Exception("BUDGET_EXCEEDED: O orçamento da chave Universal foi excedido. Acesse Perfil > Universal Key > Adicionar Saldo para continuar.")
-                if "502" in error_str and retries < max_retries:
-                    retries += 1
-                    logger.warning(f"Storyboard batch {batch_start} retry {retries}/{max_retries} after 502 error")
-                    import asyncio
+                retries += 1
+                if retries <= max_retries:
+                    logger.warning(f"Storyboard batch {batch_start} retry {retries}/{max_retries}: {error_str[:100]}")
                     await asyncio.sleep(3 * retries)
-                    continue
-                logger.warning(f"Storyboard batch {batch_start} error: {e}")
-                break
+                else:
+                    logger.warning(f"Storyboard batch {batch_start} failed after retries: {error_str[:150]}")
+                    break
 
-        # If we exhausted retries or broke out due to non-retryable error, use fallback
-        if not any(s.get("id") == sl.get("id") for sl in batch for s in all_slides if s.get("id")):
+        # If batch failed, use fallback content
+        if not batch_success:
             for sl in batch:
                 if any(s.get("title") == sl.get("title") for s in all_slides):
                     continue
