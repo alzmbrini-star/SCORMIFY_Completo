@@ -3860,10 +3860,14 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
                 {"$set": {"storyboard": storyboard, "step": "storyboarded", "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
         except Exception as e:
-            logger.error(f"Storyboard generation error: {e}")
+            err_msg = str(e)
+            logger.error(f"Storyboard generation error: {err_msg}")
+            error_detail = "Erro ao gerar storyboard."
+            if "Budget" in err_msg or "budget" in err_msg:
+                error_detail = "Orçamento da chave LLM excedido. Acesse Profile > Universal Key > Add Balance para adicionar saldo."
             await db.agent_sessions.update_one(
                 {"id": session_id},
-                {"$set": {"step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                {"$set": {"step": "structured", "error": error_detail, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
 
     import asyncio
