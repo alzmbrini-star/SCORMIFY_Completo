@@ -329,7 +329,6 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     """Build a visually rich content slide with header bar, text, and image."""
     from models import generate_id
     accent = palette["accent"]
-    content_bg = palette["contentBg"]
     elements = []
 
     # Header bar with module name
