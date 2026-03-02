@@ -1,0 +1,86 @@
+{
+  "summary": "Iteration 49 - Testing new features: Enhanced content input (URL/DOCX), ElevenLabs narration, HeyGen preview. Backend: 14/14 tests passed. Frontend: All core features verified including upload panel with 3 input methods, narration toggle, voice selection.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features_iteration49.py",
+    "/app/test_reports/pytest/pytest_new_features_49.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "URL content extraction works correctly - python.org/about extracted 2303 chars",
+    "DOCX native extraction works - test document extracted 221 chars including table content",
+    "ElevenLabs voices endpoint returns 21 voices with voice_id, name, gender, preview_url",
+    "Narration status endpoint correctly returns 'no_narration' for projects without narration tasks",
+    "HeyGen avatars and Portuguese voices endpoints working (5 avatars, 29 PT voices)",
+    "All data-testid attributes present: upload-panel, content-url-input, submit-url-btn, narration-toggle, narration-config-card, heygen-config-card, heygen-preview-btn"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features_iteration49.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (Upload panel with 3 methods, config panel with narration toggle, ElevenLabs voices loaded)"
+  },
+  "test_credentials": "admin@scormify.com / admin123",
+  "seed_data_creation": "Created test DOCX file for DOCX extraction test",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 3 new features tested successfully: 1) URL extraction from python.org returned 2303 chars, 2) DOCX extraction using python-docx returned 221 chars including table data, 3) ElevenLabs voices endpoint returns 21 voices that display in config panel with play preview. HeyGen preview button exists in code (data-testid='heygen-preview-btn') but only visible when HeyGen media type is selected for a slide in the media config step. To test HeyGen preview: create course → generate structure → generate storyboard → select HeyGen for a slide → select avatar + voice → preview button appears.",
+  "backend_tests_executed": {
+    "GET /api/health": "PASS",
+    "POST /api/agent/sessions": "PASS - Creates session with step='created'",
+    "GET /api/agent/templates": "PASS - Returns 6 templates",
+    "POST /api/agent/sessions/{id}/upload (URL)": "PASS - Extracted 2303 chars from python.org/about",
+    "POST /api/agent/sessions/{id}/upload (invalid URL)": "PASS - Handles gracefully",
+    "POST /api/agent/sessions/{id}/upload (DOCX)": "PASS - Extracted 221 chars from test_document.docx",
+    "GET /api/elevenlabs/voices": "PASS - Returns 21 voices with voice_id, name",
+    "GET /api/elevenlabs/voices?gender=female": "PASS - Filters correctly",
+    "GET /api/agent/projects/{id}/narration-status": "PASS - Returns status",
+    "GET /api/agent/projects/{id}/narration-status (404)": "PASS - Returns 404 for invalid project",
+    "POST /api/agent/projects/{id}/generate-narration": "PASS - Returns 400 if no voice configured",
+    "GET /api/heygen/avatars?limit=5": "PASS - Returns 5 avatars",
+    "GET /api/heygen/voices?language=portuguese": "PASS - Returns 29 Portuguese voices",
+    "GET /api/agent/projects/{id}/heygen-status": "PASS - Returns 'no_heygen' for existing project"
+  },
+  "frontend_tests_executed": {
+    "Login flow": "PASS",
+    "Dashboard loads": "PASS - Shows projects",
+    "Agent page navigation": "PASS",
+    "Mode selector (Criar Novo Curso)": "PASS",
+    "Upload panel visible": "PASS (data-testid='upload-panel')",
+    "3 input methods": "PASS - File Upload, Text Input, URL Input columns",
+    "URL input field": "PASS (data-testid='content-url-input')",
+    "Submit URL button": "PASS (data-testid='submit-url-btn')",
+    "Text input field": "PASS (data-testid='content-text-input')",
+    "File upload input": "PASS (data-testid='file-upload-input')",
+    "Config panel": "PASS (data-testid='config-panel')",
+    "Narration toggle": "PASS (data-testid='narration-toggle')",
+    "Narration config card": "PASS (data-testid='narration-config-card')",
+    "ElevenLabs voice buttons": "PASS - 21 voices displayed with play preview",
+    "Template grid": "PASS - 6 templates shown"
+  },
+  "data_testid_verification": {
+    "upload-panel": "PRESENT",
+    "content-url-input": "PRESENT",
+    "submit-url-btn": "PRESENT",
+    "content-text-input": "PRESENT",
+    "file-upload-input": "PRESENT",
+    "narration-toggle": "PRESENT",
+    "narration-config-card": "PRESENT",
+    "heygen-config-card": "PRESENT (Line 1134 in Agent.jsx)",
+    "heygen-preview-btn": "PRESENT (Line 1230 in Agent.jsx)",
+    "heygen-avatar-{id}": "PRESENT",
+    "heygen-voice-{id}": "PRESENT"
+  },
+  "mocked_apis": {
+    "note": "NO MOCKED APIs - All APIs are live (ElevenLabs, HeyGen)"
+  }
+}

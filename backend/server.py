@@ -3741,8 +3741,8 @@ async def get_agent_session(session_id: str):
     return s
 
 @api_router.post("/agent/sessions/{session_id}/upload")
-async def agent_upload_content(session_id: str, file: UploadFile = File(None), text: str = Form(None)):
-    """Upload content to agent session (file or text)."""
+async def agent_upload_content(session_id: str, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None)):
+    """Upload content to agent session (file, text, or URL)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
@@ -3750,35 +3750,86 @@ async def agent_upload_content(session_id: str, file: UploadFile = File(None), t
     content_text = text or ""
     file_name = ""
 
-    if file:
+    # Handle URL scraping
+    if url and url.strip():
+        file_name = url.strip()
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                resp = await client.get(url.strip(), headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml",
+                    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+                })
+                if resp.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    # Remove scripts, styles, nav, footer
+                    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "iframe"]):
+                        tag.decompose()
+                    # Try article/main content first
+                    main = soup.find("article") or soup.find("main") or soup.find("body")
+                    if main:
+                        content_text = main.get_text(separator="\n", strip=True)
+                    else:
+                        content_text = soup.get_text(separator="\n", strip=True)
+                    # Clean up excessive whitespace
+                    import re as _re
+                    content_text = _re.sub(r'\n{3,}', '\n\n', content_text).strip()
+                    content_text = content_text[:50000]  # Limit
+                else:
+                    content_text = f"[Erro ao acessar URL: HTTP {resp.status_code}]"
+        except Exception as e:
+            logger.warning(f"URL scraping failed: {e}")
+            content_text = f"[Erro ao acessar URL: {str(e)[:200]}]"
+
+    # Handle file upload
+    elif file:
         file_name = file.filename or ""
         file_bytes = await file.read()
         ext = file_name.lower().rsplit(".", 1)[-1] if "." in file_name else ""
 
         if ext == "txt":
             content_text = file_bytes.decode("utf-8", errors="ignore")
-        elif ext in ("pdf", "pptx", "ppt", "docx", "doc"):
-            # Use ConvertAPI to extract text
-            convert_secret = os.environ.get("CONVERTAPI_SECRET", "")
-            if convert_secret:
-                try:
-                    async with httpx.AsyncClient(timeout=120) as client:
-                        files_payload = {"File": (file_name, file_bytes)}
-                        resp = await client.post(
-                            f"https://v2.convertapi.com/convert/{ext}/to/txt?Secret={convert_secret}",
-                            files=files_payload,
-                        )
-                        if resp.status_code == 200:
-                            result = resp.json()
-                            for f_item in result.get("Files", []):
-                                b64 = f_item.get("FileData", "")
-                                if b64:
-                                    content_text += base64.b64decode(b64).decode("utf-8", errors="ignore")
-                except Exception as e:
-                    logger.warning(f"ConvertAPI text extraction failed: {e}")
-                    content_text = f"[Erro ao extrair texto de {file_name}]"
-            else:
-                content_text = f"[ConvertAPI não configurada - arquivo {file_name} recebido]"
+
+        elif ext == "pdf":
+            # Native PDF extraction
+            try:
+                from PyPDF2 import PdfReader
+                import io as _io
+                reader = PdfReader(_io.BytesIO(file_bytes))
+                pages = []
+                for page in reader.pages:
+                    t = page.extract_text()
+                    if t:
+                        pages.append(t)
+                content_text = "\n\n".join(pages)
+            except Exception as e:
+                logger.warning(f"PyPDF2 extraction failed: {e}")
+                # Fallback to ConvertAPI
+                content_text = await _convert_api_extract(file_name, file_bytes, ext)
+
+        elif ext in ("docx",):
+            # Native DOCX extraction
+            try:
+                from docx import Document
+                import io as _io
+                doc = Document(_io.BytesIO(file_bytes))
+                paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+                # Also extract from tables
+                for table in doc.tables:
+                    for row in table.rows:
+                        cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if cells:
+                            paragraphs.append(" | ".join(cells))
+                content_text = "\n\n".join(paragraphs)
+            except Exception as e:
+                logger.warning(f"python-docx extraction failed: {e}")
+                content_text = await _convert_api_extract(file_name, file_bytes, ext)
+
+        elif ext in ("pptx", "ppt", "doc"):
+            # Use ConvertAPI for PPT/legacy doc
+            content_text = await _convert_api_extract(file_name, file_bytes, ext)
+
         else:
             content_text = file_bytes.decode("utf-8", errors="ignore")
 
@@ -3787,6 +3838,31 @@ async def agent_upload_content(session_id: str, file: UploadFile = File(None), t
         {"$set": {"contentText": content_text, "fileName": file_name, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     return {"status": "ok", "contentLength": len(content_text), "fileName": file_name}
+
+
+async def _convert_api_extract(file_name: str, file_bytes: bytes, ext: str) -> str:
+    """Fallback: use ConvertAPI to extract text from a file."""
+    convert_secret = os.environ.get("CONVERTAPI_SECRET", "")
+    if not convert_secret:
+        return f"[ConvertAPI não configurada - arquivo {file_name} recebido]"
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            files_payload = {"File": (file_name, file_bytes)}
+            resp = await client.post(
+                f"https://v2.convertapi.com/convert/{ext}/to/txt?Secret={convert_secret}",
+                files=files_payload,
+            )
+            if resp.status_code == 200:
+                result = resp.json()
+                text = ""
+                for f_item in result.get("Files", []):
+                    b64 = f_item.get("FileData", "")
+                    if b64:
+                        text += base64.b64decode(b64).decode("utf-8", errors="ignore")
+                return text
+    except Exception as e:
+        logger.warning(f"ConvertAPI text extraction failed: {e}")
+    return f"[Erro ao extrair texto de {file_name}]"
 
 @api_router.post("/agent/sessions/{session_id}/analyze")
 async def agent_analyze(session_id: str):
@@ -3961,6 +4037,39 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
     if heygen_pending and HEYGEN_API_KEY:
         background_tasks.add_task(_trigger_heygen_videos, project.id, heygen_pending)
 
+    # Trigger narration generation in background if configured
+    narration_enabled = config.get("narrationEnabled", False)
+    narration_voice = config.get("narrationVoiceId", "")
+    narration_count = 0
+    if narration_enabled and narration_voice and ELEVENLABS_API_KEY:
+        # Collect slides for narration
+        import re as _re
+        narration_tasks = []
+        for si, slide_data in enumerate(course_data["slides"]):
+            texts = []
+            for el in slide_data.get("elements", []):
+                html_content = el.get("htmlContent", "")
+                if html_content:
+                    clean = _re.sub(r'<[^>]+>', '', html_content)
+                    clean = _re.sub(r'\s+', ' ', clean).strip()
+                    if len(clean) > 30:
+                        texts.append(clean)
+            if texts:
+                narration_tasks.append({
+                    "slideIndex": si,
+                    "slideId": slide_data.get("id", ""),
+                    "slideTitle": slide_data.get("title", f"Slide {si+1}"),
+                    "text": " ".join(texts)[:2000],
+                    "status": "pending",
+                })
+        if narration_tasks:
+            narration_count = len(narration_tasks)
+            await db.projects.update_one(
+                {"id": project.id},
+                {"$set": {"narrationPending": narration_tasks, "narrationVoiceId": narration_voice}}
+            )
+            background_tasks.add_task(_generate_narrations, project.id, narration_tasks, narration_voice)
+
     # Update session
     await db.agent_sessions.update_one(
         {"id": session_id},
@@ -3974,6 +4083,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
         "slidesCount": len(course_data["slides"]),
         "quizCount": len(course_data.get("quizQuestions", [])),
         "heygenPending": len(heygen_pending),
+        "narrationPending": narration_count,
     }
 
 
@@ -4127,6 +4237,155 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
                     )
                     logger.info(f"Updated slide {slide_id} with HeyGen video")
                     return
+
+
+@api_router.post("/agent/projects/{project_id}/generate-narration")
+async def agent_generate_narration(project_id: str, background_tasks: BackgroundTasks):
+    """Trigger narration generation for all content slides of a project."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Get narration config from the agent session
+    session_id = project.get("agentSessionId", "")
+    session = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0, "config": 1}) if session_id else None
+    config = session.get("config", {}) if session else {}
+    voice_id = config.get("narrationVoiceId", "")
+
+    if not voice_id:
+        raise HTTPException(400, "No narration voice configured")
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(400, "ElevenLabs API key not configured")
+
+    # Collect slides that need narration
+    slides = project.get("course", {}).get("slides", [])
+    narration_tasks = []
+    for si, slide in enumerate(slides):
+        # Skip slides that already have audio
+        if slide.get("audio") and len(slide["audio"]) > 0:
+            continue
+        # Extract text from HTML elements
+        texts = []
+        for el in slide.get("elements", []):
+            html_content = el.get("htmlContent", "")
+            if html_content:
+                import re as _re
+                clean = _re.sub(r'<[^>]+>', '', html_content)
+                clean = _re.sub(r'\s+', ' ', clean).strip()
+                if len(clean) > 30:
+                    texts.append(clean)
+        if texts:
+            narration_tasks.append({
+                "slideIndex": si,
+                "slideId": slide.get("id", ""),
+                "slideTitle": slide.get("title", f"Slide {si+1}"),
+                "text": " ".join(texts)[:2000],
+                "status": "pending",
+            })
+
+    if not narration_tasks:
+        return {"status": "no_slides", "message": "No slides need narration"}
+
+    # Store narration tasks in the project
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"narrationPending": narration_tasks, "narrationVoiceId": voice_id}}
+    )
+
+    # Trigger background generation
+    background_tasks.add_task(_generate_narrations, project_id, narration_tasks, voice_id)
+
+    return {"status": "ok", "slides": len(narration_tasks), "voiceId": voice_id}
+
+
+async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
+    """Background task: generate ElevenLabs narration for each slide."""
+    try:
+        from elevenlabs import ElevenLabs
+        from elevenlabs.types import VoiceSettings
+
+        el_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+        voice_settings = VoiceSettings(stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True)
+
+        for task in tasks:
+            try:
+                # Generate TTS
+                audio_generator = el_client.text_to_speech.convert(
+                    text=task["text"][:1500],
+                    voice_id=voice_id,
+                    model_id="eleven_multilingual_v2",
+                    voice_settings=voice_settings
+                )
+                audio_data = b""
+                for chunk in audio_generator:
+                    audio_data += chunk
+
+                # Save audio file
+                audio_id = str(uuid.uuid4())
+                filename = f"narration_{project_id}_{task['slideIndex']}.mp3"
+                audio_path = STORAGE_DIR / "audio" / filename
+                audio_path.parent.mkdir(exist_ok=True)
+
+                async with aiofiles.open(audio_path, "wb") as f:
+                    await f.write(audio_data)
+
+                # Add audio to the slide
+                slide_audio = {
+                    "id": audio_id,
+                    "url": f"/api/audio/{filename}",
+                    "filename": filename,
+                    "type": "narration",
+                    "volume": 1.0,
+                    "startTime": 0,
+                    "duration": len(audio_data) / 16000,  # Approximate
+                }
+                await db.projects.update_one(
+                    {"id": project_id},
+                    {"$push": {f"course.slides.{task['slideIndex']}.audio": slide_audio}}
+                )
+
+                # Update status
+                await db.projects.update_one(
+                    {"id": project_id, "narrationPending.slideId": task["slideId"]},
+                    {"$set": {"narrationPending.$.status": "completed", "narrationPending.$.audioUrl": f"/api/audio/{filename}"}}
+                )
+                logger.info(f"Narration generated for slide {task['slideIndex']} of project {project_id}")
+
+            except Exception as e:
+                logger.error(f"Narration error for slide {task['slideIndex']}: {e}")
+                await db.projects.update_one(
+                    {"id": project_id, "narrationPending.slideId": task["slideId"]},
+                    {"$set": {"narrationPending.$.status": "failed", "narrationPending.$.error": str(e)[:200]}}
+                )
+    except Exception as e:
+        logger.error(f"Narration generation failed: {e}")
+
+
+@api_router.get("/agent/projects/{project_id}/narration-status")
+async def agent_narration_status(project_id: str):
+    """Check narration generation status for a project."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "narrationPending": 1})
+    if not project:
+        raise HTTPException(404, "Project not found")
+    pending = project.get("narrationPending", [])
+    if not pending:
+        return {"status": "no_narration", "slides": []}
+
+    completed = sum(1 for t in pending if t.get("status") == "completed")
+    failed = sum(1 for t in pending if t.get("status") == "failed")
+    total = len(pending)
+    all_done = (completed + failed) == total
+
+    return {
+        "status": "all_done" if all_done else "processing",
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "slides": [
+            {"slideIndex": t.get("slideIndex"), "title": t.get("slideTitle"), "status": t.get("status", "pending"), "audioUrl": t.get("audioUrl")}
+            for t in pending
+        ],
+    }
 
 @api_router.post("/agent/sessions/{session_id}/chat")
 async def agent_chat_endpoint(session_id: str, data: AgentChatMessage):

@@ -17,7 +17,7 @@ import {
   GraduationCap, Clock, BarChart3, Lightbulb, ChevronRight,
   X, MessageSquare, PanelRightOpen, PanelRightClose,
   Pencil, Plus, Shield, Wrench, Heart, HardHat, TrendingUp, Users,
-  AlertTriangle, Star, Zap, Image, Video, UserCircle,
+  AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
 } from 'lucide-react';
 
 const API = getApiUrl();
@@ -56,12 +56,14 @@ export default function Agent() {
 
   // Create mode data
   const [contentText, setContentText] = useState('');
+  const [contentUrl, setContentUrl] = useState('');
   const [fileName, setFileName] = useState('');
   const [analysis, setAnalysis] = useState(null);
   const [config, setConfig] = useState({
     title: '', depth: 'intermediario', duration: 30, modules: 3,
     interactivity: 'media', visualStyle: 'moderno e profissional',
     format: 'curso_completo', description: '',
+    narrationEnabled: false, narrationVoiceId: '',
   });
   const [structure, setStructure] = useState(null);
   const [storyboard, setStoryboard] = useState(null);
@@ -153,6 +155,24 @@ export default function Agent() {
       addChatMsg('agent', 'Conteúdo recebido! Clique em "Analisar Conteúdo".');
       setCurrentStep(1);
     } catch { toast.error('Erro ao enviar conteúdo'); }
+    finally { setLoading(false); }
+  };
+
+  const handleUrlSubmit = async () => {
+    if (!contentUrl.trim()) return;
+    setLoading(true);
+    addChatMsg('user', `Extraindo conteúdo de: ${contentUrl}`);
+    try {
+      const sid = await ensureSession();
+      if (!sid) return;
+      const form = new FormData();
+      form.append('url', contentUrl);
+      const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', body: form });
+      const data = await res.json();
+      setFileName(contentUrl);
+      addChatMsg('agent', `Conteúdo extraído da URL! ${data.contentLength} caracteres. Clique em "Analisar".`);
+      setCurrentStep(1);
+    } catch { toast.error('Erro ao extrair conteúdo da URL'); addChatMsg('agent', 'Erro ao acessar a URL.'); }
     finally { setLoading(false); }
   };
 
@@ -274,7 +294,8 @@ export default function Agent() {
       const data = await res.json();
       setGeneratedProject(data);
       const heygenMsg = data.heygenPending > 0 ? ` ${data.heygenPending} vídeos HeyGen em processamento.` : '';
-      addChatMsg('agent', `Curso "${data.projectName}" criado! ${data.slidesCount} slides e ${data.quizCount} perguntas.${heygenMsg}`);
+      const narrationMsg = data.narrationPending > 0 ? ` ${data.narrationPending} narrações em geração.` : '';
+      addChatMsg('agent', `Curso "${data.projectName}" criado! ${data.slidesCount} slides e ${data.quizCount} perguntas.${heygenMsg}${narrationMsg}`);
       setCurrentStep(6);
       toast.success('Curso gerado com sucesso!');
     } catch { toast.error('Erro ao gerar curso'); addChatMsg('agent', 'Erro ao gerar o curso.'); }
@@ -414,7 +435,7 @@ export default function Agent() {
               {!mode && <ModeSelector onSelect={handleSelectMode} />}
 
               {/* CREATE MODE */}
-              {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} loading={loading} />}
+              {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} />}
@@ -547,36 +568,58 @@ function ModeSelector({ onSelect }) {
   );
 }
 
-function UploadPanel({ contentText, setContentText, fileName, fileInputRef, handleFileUpload, handleTextSubmit, loading }) {
+function UploadPanel({ contentText, setContentText, contentUrl, setContentUrl, fileName, fileInputRef, handleFileUpload, handleTextSubmit, handleUrlSubmit, loading }) {
   return (
     <div className="space-y-6" data-testid="upload-panel">
       <div className="text-center space-y-2">
         <h1 className="text-xl font-bold">Envie o Conteúdo</h1>
         <p className="text-slate-400 text-sm max-w-lg mx-auto">
-          Faça upload de um arquivo ou cole o texto diretamente.
+          Faça upload de um arquivo, cole o texto ou insira um link.
         </p>
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-3 gap-4">
+        {/* File Upload */}
         <Card className="bg-slate-900/50 border-slate-800 hover:border-emerald-600/40 transition-colors cursor-pointer"
           onClick={() => fileInputRef.current?.click()}>
-          <CardContent className="p-6 text-center space-y-3">
+          <CardContent className="p-5 text-center space-y-3">
             <Upload className="w-10 h-10 text-emerald-400 mx-auto" />
             <div>
               <p className="font-medium text-sm">Upload de Arquivo</p>
-              <p className="text-xs text-slate-400">PDF, PPT, PPTX, DOC, DOCX, TXT</p>
+              <p className="text-xs text-slate-400">PDF, DOCX, PPT, TXT</p>
             </div>
-            {fileName && <Badge variant="secondary" className="text-xs">{fileName}</Badge>}
+            {fileName && !fileName.startsWith('http') && <Badge variant="secondary" className="text-xs">{fileName}</Badge>}
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.ppt,.pptx,.doc,.docx,.txt" onChange={handleFileUpload} data-testid="file-upload-input" />
           </CardContent>
         </Card>
+
+        {/* Text Input */}
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6 space-y-3">
+          <CardContent className="p-5 space-y-3">
             <FileText className="w-10 h-10 text-blue-400 mx-auto" />
             <p className="font-medium text-sm text-center">Texto Direto</p>
-            <Textarea data-testid="content-text-input" value={contentText} onChange={e => setContentText(e.target.value)} placeholder="Cole ou digite o conteúdo aqui..." className="bg-slate-800 border-slate-700 text-sm min-h-[120px]" />
+            <Textarea data-testid="content-text-input" value={contentText} onChange={e => setContentText(e.target.value)} placeholder="Cole ou digite o conteúdo aqui..." className="bg-slate-800 border-slate-700 text-sm min-h-[100px]" />
             <Button onClick={handleTextSubmit} disabled={loading || !contentText.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700" size="sm" data-testid="submit-text-btn">
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
-              Enviar Conteúdo
+              Enviar Texto
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* URL Input */}
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-5 space-y-3">
+            <Lightbulb className="w-10 h-10 text-amber-400 mx-auto" />
+            <p className="font-medium text-sm text-center">Link / Website</p>
+            <Input
+              data-testid="content-url-input"
+              value={contentUrl}
+              onChange={e => setContentUrl(e.target.value)}
+              placeholder="https://example.com/artigo..."
+              className="bg-slate-800 border-slate-700 text-sm"
+            />
+            <Button onClick={handleUrlSubmit} disabled={loading || !contentUrl.trim()} className="w-full bg-amber-600 hover:bg-amber-700" size="sm" data-testid="submit-url-btn">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+              Extrair Conteúdo
             </Button>
           </CardContent>
         </Card>
@@ -640,6 +683,20 @@ function AnalyzePanel({ analysis, loading, onAnalyze }) {
 
 function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templates, selectedTemplate, setSelectedTemplate }) {
   const update = (k, v) => setConfig(prev => ({ ...prev, [k]: v }));
+  const [elVoices, setElVoices] = useState([]);
+  const [loadingVoices, setLoadingVoices] = useState(false);
+
+  useEffect(() => {
+    if (config.narrationEnabled && elVoices.length === 0 && !loadingVoices) {
+      setLoadingVoices(true);
+      fetch(`${API}/api/elevenlabs/voices`)
+        .then(r => r.json())
+        .then(data => setElVoices(data.voices || []))
+        .catch(() => {})
+        .finally(() => setLoadingVoices(false));
+    }
+  }, [config.narrationEnabled]);
+
   return (
     <div className="space-y-4" data-testid="config-panel">
       <h2 className="text-lg font-semibold flex items-center gap-2"><Settings className="w-5 h-5 text-emerald-400" /> Configuração do Curso</h2>
@@ -734,6 +791,67 @@ function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templat
               <label className="text-xs text-slate-400 mb-1 block">Módulos: {config.modules}</label>
               <Slider value={[config.modules]} onValueChange={([v]) => update('modules', v)} min={1} max={12} step={1} className="mt-2" />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Narration Config */}
+        <Card className="bg-slate-900/50 border-slate-800" data-testid="narration-config-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Play className="w-4 h-4 text-amber-400" />
+                <label className="text-sm font-medium">Narração Automática</label>
+              </div>
+              <button
+                onClick={() => update('narrationEnabled', !config.narrationEnabled)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${config.narrationEnabled ? 'bg-amber-600' : 'bg-slate-700'}`}
+                data-testid="narration-toggle"
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${config.narrationEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">Gerar áudio de narração para cada slide usando ElevenLabs (processado após criação do curso).</p>
+
+            {config.narrationEnabled && (
+              <div className="space-y-2 pt-1">
+                <label className="text-xs text-slate-400 font-medium">Voz ElevenLabs</label>
+                {loadingVoices ? (
+                  <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="w-3 h-3 animate-spin" /> Carregando vozes...</div>
+                ) : (
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                    {elVoices.slice(0, 30).map(v => (
+                      <button
+                        key={v.voice_id}
+                        onClick={() => update('narrationVoiceId', v.voice_id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all text-left ${
+                          config.narrationVoiceId === v.voice_id
+                            ? 'border-amber-500 bg-amber-600/10 text-amber-300'
+                            : 'border-slate-700/50 text-slate-400 hover:border-amber-500/30'
+                        }`}
+                        data-testid={`el-voice-${v.voice_id}`}
+                      >
+                        <span className="font-medium">{v.name}</span>
+                        {v.gender && <span className="text-slate-500">{v.gender}</span>}
+                        {v.accent && <span className="text-slate-600">{v.accent}</span>}
+                        {v.preview_url && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); new Audio(v.preview_url).play(); }}
+                            className="ml-auto text-amber-400 hover:text-amber-300"
+                          >
+                            <Play className="w-3 h-3" />
+                          </button>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {config.narrationEnabled && !config.narrationVoiceId && (
+                  <p className="text-[11px] text-amber-400/70 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Selecione uma voz para a narração.
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -880,6 +998,9 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
   const [loadingVoices, setLoadingVoices] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewVideoId, setPreviewVideoId] = useState(null);
 
   const contentSlides = (storyboard?.slides || [])
     .map((s, i) => ({ ...s, index: i }))
@@ -923,6 +1044,66 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   }, [heygenCount]);
 
   const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
+
+  // HeyGen Preview
+  const handleHeygenPreview = async () => {
+    if (!heygenConfig.avatarId || !heygenConfig.voiceId) return;
+    setPreviewLoading(true);
+    setPreviewUrl(null);
+    setPreviewVideoId(null);
+    try {
+      // Get short text from first heygen slide
+      const firstHeygenSlide = contentSlides.find((_, i) => (mediaConfig[String(_.index)] || {}).type === 'heygen');
+      const previewText = firstHeygenSlide
+        ? (firstHeygenSlide.elements?.find(e => e.content)?.content || 'Olá! Este é um preview do avatar.').slice(0, 200)
+        : 'Olá! Este é um preview do avatar para o seu curso.';
+
+      const res = await fetch(`${API}/api/heygen/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: previewText,
+          avatar_id: heygenConfig.avatarId,
+          voice_id: heygenConfig.voiceId,
+          title: 'Agent Preview',
+        }),
+      });
+      const data = await res.json();
+      if (data.video_id) {
+        setPreviewVideoId(data.video_id);
+        toast.success('Preview em geração... (~1-2 min)');
+      } else {
+        toast.error('Erro ao gerar preview');
+        setPreviewLoading(false);
+      }
+    } catch {
+      toast.error('Erro ao gerar preview');
+      setPreviewLoading(false);
+    }
+  };
+
+  // Poll for preview video status
+  useEffect(() => {
+    if (!previewVideoId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API}/api/heygen/video/${previewVideoId}/status`);
+        const data = await res.json();
+        if (data.status === 'completed' && data.video_url) {
+          setPreviewUrl(data.video_url);
+          setPreviewLoading(false);
+          setPreviewVideoId(null);
+          clearInterval(interval);
+        } else if (data.status === 'failed') {
+          toast.error('Preview falhou');
+          setPreviewLoading(false);
+          setPreviewVideoId(null);
+          clearInterval(interval);
+        }
+      } catch { /* ignore */ }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [previewVideoId]);
 
   if (!storyboard?.slides) return null;
 
@@ -1036,6 +1217,32 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                 <AlertTriangle className="w-3 h-3" /> Selecione um avatar e uma voz para continuar.
               </p>
             )}
+
+            {/* Preview button + video */}
+            {heygenReady && (
+              <div className="space-y-2 pt-1 border-t border-purple-800/20">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleHeygenPreview}
+                  disabled={previewLoading}
+                  className="w-full text-xs border-purple-700/50 text-purple-300 hover:bg-purple-600/10"
+                  data-testid="heygen-preview-btn"
+                >
+                  {previewLoading ? (
+                    <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Gerando preview (~1-2 min)...</>
+                  ) : (
+                    <><Eye className="w-3 h-3 mr-1" /> Testar Avatar + Voz</>
+                  )}
+                </Button>
+                {previewUrl && (
+                  <div className="rounded-lg overflow-hidden border border-purple-800/30" data-testid="heygen-preview-video">
+                    <video src={previewUrl} controls autoPlay className="w-full rounded-lg" style={{ maxHeight: '200px' }} />
+                    <p className="text-[10px] text-purple-400/50 text-center py-1">Preview do avatar selecionado</p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1148,6 +1355,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
 
 function GeneratedPanel({ project, navigate }) {
   const [heygenStatus, setHeygenStatus] = useState(null);
+  const [narrationStatus, setNarrationStatus] = useState(null);
   const [polling, setPolling] = useState(false);
 
   const checkHeygenStatus = useCallback(async () => {
@@ -1161,6 +1369,15 @@ function GeneratedPanel({ project, navigate }) {
     finally { setPolling(false); }
   }, [project?.projectId, project?.heygenPending]);
 
+  const checkNarrationStatus = useCallback(async () => {
+    if (!project?.projectId || !project?.narrationPending) return;
+    try {
+      const res = await fetch(`${API}/api/agent/projects/${project.projectId}/narration-status`);
+      const data = await res.json();
+      setNarrationStatus(data);
+    } catch { /* ignore */ }
+  }, [project?.projectId, project?.narrationPending]);
+
   useEffect(() => {
     if (project?.heygenPending > 0) {
       checkHeygenStatus();
@@ -1168,6 +1385,14 @@ function GeneratedPanel({ project, navigate }) {
       return () => clearInterval(interval);
     }
   }, [project?.heygenPending, checkHeygenStatus]);
+
+  useEffect(() => {
+    if (project?.narrationPending > 0) {
+      checkNarrationStatus();
+      const interval = setInterval(checkNarrationStatus, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [project?.narrationPending, checkNarrationStatus]);
 
   if (!project) return null;
   return (
@@ -1215,6 +1440,46 @@ function GeneratedPanel({ project, navigate }) {
             ))}
             {heygenStatus?.status === 'all_done' && (
               <p className="text-[11px] text-emerald-400/70 text-center">Todos os vídeos foram gerados! Abra o editor para visualizar.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Narration Status */}
+      {project.narrationPending > 0 && (
+        <Card className="bg-amber-900/10 border-amber-800/30 text-left mx-auto max-w-md" data-testid="narration-status-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+                <Play className="w-4 h-4" /> Narração ElevenLabs
+              </h3>
+              {narrationStatus && (
+                <Badge variant="outline" className={`text-[10px] ${narrationStatus.status === 'all_done' ? 'border-emerald-700 text-emerald-400' : 'border-amber-700 text-amber-400'}`}>
+                  {narrationStatus.completed || 0}/{narrationStatus.total || 0}
+                </Badge>
+              )}
+            </div>
+            {narrationStatus?.slides?.map((s, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs" data-testid={`narration-status-${i}`}>
+                {s.status === 'completed' ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : s.status === 'failed' ? (
+                  <X className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                )}
+                <span className="text-slate-300 truncate flex-1">{s.title}</span>
+                <Badge variant="outline" className={`text-[9px] ${
+                  s.status === 'completed' ? 'border-emerald-700 text-emerald-400' :
+                  s.status === 'failed' ? 'border-red-700 text-red-400' :
+                  'border-amber-700 text-amber-400'
+                }`}>
+                  {s.status === 'completed' ? 'Pronto' : s.status === 'failed' ? 'Falhou' : 'Gerando...'}
+                </Badge>
+              </div>
+            ))}
+            {narrationStatus?.status === 'all_done' && (
+              <p className="text-[11px] text-emerald-400/70 text-center">Todas as narrações geradas! Abra o editor para ouvir.</p>
             )}
           </CardContent>
         </Card>
