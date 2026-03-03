@@ -4070,10 +4070,11 @@ async def agent_set_media_config(session_id: str, data: dict):
     media_config = data.get("mediaConfig", {})
     bg_config = data.get("bgConfig", {})
     global_text_color = data.get("globalTextColor", "")
+    global_font_size = data.get("globalFontSize", "")
     global_animation = data.get("globalAnimation", "")
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "globalTextColor": global_text_color, "globalAnimation": global_animation, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "globalTextColor": global_text_color, "globalFontSize": global_font_size, "globalAnimation": global_animation, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
@@ -4095,6 +4096,7 @@ async def apply_media_changes(session_id: str, data: dict):
 
     bg_config = s.get("bgConfig", {})
     global_text_color = s.get("globalTextColor", "")
+    global_font_size = s.get("globalFontSize", "")
     global_animation = s.get("globalAnimation", "")
     media_config = s.get("mediaConfig", {})
     slides = project.get("course", {}).get("slides", [])
@@ -4136,6 +4138,18 @@ async def apply_media_changes(session_id: str, data: dict):
                     if not el.get("style"):
                         el["style"] = {}
                     el["style"]["color"] = global_text_color
+                    changed = True
+
+        # Apply global font size scale
+        if global_font_size:
+            scale = int(global_font_size) / 100.0
+            import re as _re
+            for el in slide.get("elements", []):
+                if el.get("type") in ("html", "text") and el.get("htmlContent"):
+                    def _scale_font(m):
+                        orig = float(m.group(1))
+                        return f"font-size:{round(orig * scale)}px"
+                    el["htmlContent"] = _re.sub(r'font-size:\s*(\d+(?:\.\d+)?)px', _scale_font, el["htmlContent"])
                     changed = True
 
         # Apply global animation
@@ -4388,6 +4402,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
     media_config = s.get("mediaConfig", {})
     bg_config = s.get("bgConfig", {})
     global_text_color = s.get("globalTextColor", "")
+    global_font_size = s.get("globalFontSize", "")
     global_animation = s.get("globalAnimation", "")
     title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
     desc = config.get("description", s.get("analysis", {}).get("summary", ""))
@@ -4401,7 +4416,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
         session_id, s["storyboard"], s.get("config", {}),
         project_dir=str(PROJECTS_DIR), project_id=project.id,
         media_config=media_config, bg_config=bg_config,
-        global_text_color=global_text_color, global_animation=global_animation
+        global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation
     )
 
     project.course.metadata.title = title

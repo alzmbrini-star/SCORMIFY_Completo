@@ -21,7 +21,7 @@ import {
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
   Palette, Droplets, ImagePlus, UploadCloud,
   ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
-  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2,
+  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 
@@ -81,6 +81,7 @@ export default function Agent() {
   const [heygenConfig, setHeygenConfig] = useState({ avatarId: '', voiceId: '' });
   const [bgConfig, setBgConfig] = useState({});
   const [globalTextColor, setGlobalTextColor] = useState('');
+  const [globalFontSize, setGlobalFontSize] = useState('');
   const [globalAnimation, setGlobalAnimation] = useState('');
   const [editMediaProjectId, setEditMediaProjectId] = useState(null);
 
@@ -119,6 +120,7 @@ export default function Agent() {
         setMediaConfig(session.mediaConfig || {});
         setBgConfig(session.bgConfig || {});
         setGlobalTextColor(session.globalTextColor || '');
+        setGlobalFontSize(session.globalFontSize || '');
         setGlobalAnimation(session.globalAnimation || '');
         setEditMediaProjectId(editProjectId);
         setConfig(session.config || {});
@@ -361,7 +363,7 @@ export default function Agent() {
       }
       await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalAnimation }),
+        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalFontSize, globalAnimation }),
       });
 
       // If editing existing project, apply changes without regenerating
@@ -548,7 +550,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1433,7 +1435,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalAnimation, setGlobalAnimation, isEditMode }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1649,7 +1651,8 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
 
       {/* Global text color for all slides */}
       <Card className="bg-slate-900/50 border-slate-800" data-testid="global-text-color-card">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-3">
+          {/* Color row */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <Pencil className="w-4 h-4 text-cyan-400" />
@@ -1681,30 +1684,59 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3 mt-2">
+          {/* Font size row */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Type className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-medium text-cyan-300">Tamanho das Fontes</span>
+            </div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              {[
+                { label: 'P', value: '80', title: 'Pequeno (80%)' },
+                { label: 'N', value: '', title: 'Normal (padrão)' },
+                { label: 'G', value: '120', title: 'Grande (120%)' },
+                { label: 'GG', value: '140', title: 'Extra Grande (140%)' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setGlobalFontSize(opt.value)}
+                  title={opt.title}
+                  className={`px-3 py-1.5 rounded text-xs font-semibold transition-all ${
+                    globalFontSize === opt.value
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                  }`}
+                  data-testid={`font-size-${opt.value || 'normal'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Preview */}
+          <div className="flex items-center gap-3">
             <span className="text-[11px] text-slate-500">Preview:</span>
             <div className="flex gap-2">
               {['#1e293b', '#0f172a', '#ffffff', '#f1f5f9'].map(bg => (
                 <div
                   key={bg}
-                  className="flex items-center justify-center w-24 h-8 rounded border border-slate-700 text-xs font-medium"
-                  style={{ background: bg, color: globalTextColor || '#ffffff' }}
+                  className="flex items-center justify-center w-24 h-8 rounded border border-slate-700 font-medium"
+                  style={{ background: bg, color: globalTextColor || '#ffffff', fontSize: `${Math.round(12 * (parseInt(globalFontSize || '100') / 100))}px` }}
                 >
                   Texto
                 </div>
               ))}
-              {/* Preview with first custom background */}
               {Object.values(bgConfig).find(b => b.type === 'solid')?.color && (
                 <div
-                  className="flex items-center justify-center w-24 h-8 rounded border border-cyan-700/50 text-xs font-medium"
-                  style={{ background: Object.values(bgConfig).find(b => b.type === 'solid').color, color: globalTextColor || '#ffffff' }}
+                  className="flex items-center justify-center w-24 h-8 rounded border border-cyan-700/50 font-medium"
+                  style={{ background: Object.values(bgConfig).find(b => b.type === 'solid').color, color: globalTextColor || '#ffffff', fontSize: `${Math.round(12 * (parseInt(globalFontSize || '100') / 100))}px` }}
                 >
                   Seu Fundo
                 </div>
               )}
             </div>
           </div>
-          {!globalTextColor && <p className="text-[10px] text-slate-500 mt-1">Deixe vazio para usar a cor padrão do template selecionado.</p>}
+          {!globalTextColor && !globalFontSize && <p className="text-[10px] text-slate-500 mt-1">Deixe vazio para usar o padrão do template selecionado.</p>}
         </CardContent>
       </Card>
 

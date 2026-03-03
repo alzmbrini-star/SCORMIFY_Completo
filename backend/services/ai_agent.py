@@ -918,7 +918,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
 
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_animation: str = "") -> dict:
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "") -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
     from models import generate_id
     import hashlib
@@ -940,6 +940,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     # Override text color with user's global choice
     if global_text_color:
         palette = {**palette, "text": global_text_color}
+
+    # Font size scale factor
+    font_scale = int(global_font_size) / 100.0 if global_font_size else 1.0
 
     # Collect module names for title slide
     module_names = []
@@ -1137,6 +1140,16 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                         "easing": "cubic-bezier(0.34, 1.56, 0.64, 1)" if global_animation == "bounce" else "ease",
                     }]
                     stagger_index += 1
+
+    # Apply global font size scaling to all generated HTML content
+    if font_scale != 1.0:
+        import re as _re
+        def _scale_font(m):
+            return f"font-size:{round(float(m.group(1)) * font_scale)}px"
+        for slide in project_slides:
+            for el in slide.get("elements", []):
+                if el.get("type") in ("html", "text") and el.get("htmlContent"):
+                    el["htmlContent"] = _re.sub(r'font-size:\s*(\d+(?:\.\d+)?)px', _scale_font, el["htmlContent"])
 
     return {
         "slides": project_slides,
