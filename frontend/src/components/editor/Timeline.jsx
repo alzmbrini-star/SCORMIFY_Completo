@@ -556,7 +556,12 @@ const Timeline = ({
                 {/* Hidden audio element for playback */}
                 <audio
                   ref={el => audioRefs.current[audio.id] = el}
-                  src={audio.src}
+                  src={(() => {
+                    const rawSrc = audio.src || audio.url || '';
+                    if (!rawSrc) return '';
+                    if (rawSrc.startsWith('http') || rawSrc.startsWith('data:') || rawSrc.startsWith('blob:')) return rawSrc;
+                    return `${process.env.REACT_APP_BACKEND_URL}${rawSrc}`;
+                  })()}
                   preload="auto"
                 />
               </div>
