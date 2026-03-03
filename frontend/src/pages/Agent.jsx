@@ -2161,10 +2161,12 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                               {scriptOptions[idx].map((opt, oi) => {
                                 const isSelected = mc.narration?.selectedScript === opt;
                                 return (
-                                  <button
+                                  <div
                                     key={oi}
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => selectNarrationScript(idx, opt)}
-                                    className={`w-full text-left p-2.5 rounded-lg border text-[11px] leading-relaxed transition-all ${
+                                    className={`w-full text-left p-2.5 rounded-lg border text-[11px] leading-relaxed transition-all cursor-pointer ${
                                       isSelected
                                         ? 'border-amber-500 bg-amber-600/10 text-amber-200'
                                         : 'border-slate-700/50 text-slate-400 hover:border-amber-500/30'
@@ -2190,7 +2192,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                                         <Check className="w-3 h-3 text-amber-400 ml-auto" />
                                       </div>
                                     )}
-                                  </button>
+                                  </div>
                                 );
                               })}
                             </div>
