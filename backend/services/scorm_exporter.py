@@ -452,12 +452,23 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         for audio in (slide.get('audio') or []):
             if not isinstance(audio, dict):
                 continue
-            audio_src = audio.get('src') or ''
-            if audio_src and isinstance(audio_src, str) and '/assets/' in audio_src:
-                raw = audio_src.split('/assets/')[-1].split('?')[0]
-                filename = raw.split('/')[-1] if '/' in raw else raw
-                if filename:
-                    audio['src'] = f"assets/{filename}"
+            # Normalize: use 'src' or 'url' field
+            audio_src = audio.get('src') or audio.get('url') or ''
+            if audio_src and isinstance(audio_src, str):
+                if '/assets/' in audio_src:
+                    raw = audio_src.split('/assets/')[-1].split('?')[0]
+                    filename = raw.split('/')[-1] if '/' in raw else raw
+                    if filename:
+                        audio['src'] = f"assets/{filename}"
+                elif '/api/audio/' in audio_src:
+                    filename = audio_src.split('/api/audio/')[-1].split('?')[0]
+                    if filename:
+                        # Copy narration file from audio storage to package assets
+                        audio_storage = Path(os.path.dirname(os.path.dirname(__file__))) / "storage" / "audio" / filename
+                        if audio_storage.exists():
+                            shutil.copy2(str(audio_storage), str(package_dir / "assets" / filename))
+                            logger.info(f"Copied narration audio to package: {filename}")
+                        audio['src'] = f"assets/{filename}"
     
     # Fix global audio URL
     global_audio = course_data.get('globalAudio')
@@ -530,15 +541,21 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                 filename = src[len('assets/'):]
                 audio_path = package_dir / "assets" / filename
                 if not audio_path.exists():
-                    try:
-                        from services.asset_store import retrieve_asset_sync
-                        mongo_url = os.environ.get('MONGO_URL')
-                        db_name = os.environ.get('DB_NAME')
-                        if mongo_url and db_name:
-                            if retrieve_asset_sync(mongo_url, db_name, project.id, filename, str(audio_path)):
-                                logger.info(f"Recovered audio from MongoDB: {filename}")
-                    except Exception as e:
-                        logger.warning(f"Audio recovery failed (non-fatal): {e}")
+                    # Try local audio storage first
+                    audio_storage = Path(os.path.dirname(os.path.dirname(__file__))) / "storage" / "audio" / filename
+                    if audio_storage.exists():
+                        shutil.copy2(str(audio_storage), str(audio_path))
+                        logger.info(f"Recovered narration audio from local storage: {filename}")
+                    else:
+                        try:
+                            from services.asset_store import retrieve_asset_sync
+                            mongo_url = os.environ.get('MONGO_URL')
+                            db_name = os.environ.get('DB_NAME')
+                            if mongo_url and db_name:
+                                if retrieve_asset_sync(mongo_url, db_name, project.id, filename, str(audio_path)):
+                                    logger.info(f"Recovered audio from MongoDB: {filename}")
+                        except Exception as e:
+                            logger.warning(f"Audio recovery failed (non-fatal): {e}")
     
     # Log summary of embedded images
     embedded_count = sum(1 for s in course_data.get('slides', []) 

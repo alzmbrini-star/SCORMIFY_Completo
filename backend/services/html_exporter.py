@@ -355,15 +355,26 @@ async def generate_standalone_html(
         processed_audios = []
         for audio in slide.get('audio', []):
             processed_audio = audio.copy()
-            if audio.get('src'):
-                src = audio['src']
-                if src.startswith('/api/') or src.startswith('assets/'):
+            # Normalize: use 'src' or 'url' field
+            src = audio.get('src') or audio.get('url') or ''
+            if src:
+                if '/api/audio/' in src:
+                    # Narration audio from agent - read from local storage
+                    audio_filename = src.split('/api/audio/')[-1].split('?')[0]
+                    audio_storage = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage", "audio", audio_filename)
+                    if os.path.exists(audio_storage):
+                        processed_audio['src'] = file_to_base64(audio_storage)
+                    else:
+                        full_url = f"{base_url}{src}" if not src.startswith('http') else src
+                        b64 = await url_to_base64(full_url)
+                        if b64:
+                            processed_audio['src'] = b64
+                elif src.startswith('/api/') or src.startswith('assets/'):
                     asset_filename = src.split('/')[-1]
                     local_path = os.path.join(assets_dir, asset_filename)
                     if os.path.exists(local_path):
                         processed_audio['src'] = file_to_base64(local_path)
                     else:
-                        # Try downloading from full URL
                         full_url = f"{base_url}{src}" if not src.startswith('http') else src
                         b64 = await url_to_base64(full_url)
                         if b64:
@@ -379,9 +390,12 @@ async def generate_standalone_html(
     
     # Process global audio
     processed_global_audio = None
-    if global_audio and global_audio.get('src'):
+    ga_src = ''
+    if global_audio:
+        ga_src = global_audio.get('src') or global_audio.get('url') or ''
+    if global_audio and ga_src:
         processed_global_audio = global_audio.copy()
-        src = global_audio['src']
+        src = ga_src
         if src.startswith('/api/') or src.startswith('assets/'):
             asset_filename = src.split('/')[-1]
             local_path = os.path.join(assets_dir, asset_filename)
