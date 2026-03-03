@@ -4077,6 +4077,90 @@ async def agent_set_media_config(session_id: str, data: dict):
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
 
+@api_router.post("/agent/sessions/{session_id}/generate-slide-narration")
+async def agent_generate_slide_narration(session_id: str, data: dict):
+    """Generate 3 narration script options for an agent storyboard slide."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not emergent_key:
+        raise HTTPException(500, "AI key not configured")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    storyboard = s.get("storyboard", {})
+    slides = storyboard.get("slides", [])
+    slide_index = data.get("slideIndex", 0)
+    if slide_index >= len(slides):
+        raise HTTPException(400, "Invalid slide index")
+
+    slide = slides[slide_index]
+    style = data.get("style", "educational")
+    language = data.get("language", "português brasileiro")
+
+    # Extract text content from storyboard slide
+    text_parts = []
+    slide_title = slide.get("title", "")
+    if slide_title:
+        text_parts.append(f"Título: {slide_title}")
+    for el in slide.get("elements", []):
+        content = el.get("content", "")
+        if content:
+            import re as _re
+            clean = _re.sub(r'<[^>]+>', '', content).strip()
+            if clean:
+                text_parts.append(clean)
+    narration_script = slide.get("narrationScript", "")
+    if narration_script:
+        text_parts.append(f"Roteiro sugerido: {narration_script}")
+
+    slide_text = "\n".join(text_parts)
+
+    style_guide = {
+        "educational": "educativo e didático, explicando conceitos de forma clara e objetiva",
+        "conversational": "conversacional e descontraído, como se estivesse falando com um amigo",
+        "formal": "formal e profissional, adequado para ambientes corporativos",
+        "friendly": "amigável e acolhedor, criando conexão com o espectador"
+    }
+
+    try:
+        system_msg = f"""Você é um especialista em criar textos de narração para slides de cursos e apresentações.
+
+Suas diretrizes:
+1. Escreva em {language}
+2. Use tom {style_guide.get(style, style_guide['educational'])}
+3. O texto deve ser adequado para narração em voz alta (TTS)
+4. Escreva de forma natural, fluida e envolvente
+5. Use pausas naturais (vírgulas, pontos) para dar ritmo
+6. O texto deve complementar e explicar o conteúdo do slide
+7. Cada opção deve ter entre 2 e 5 frases (ideal para 20-60 segundos de narração)
+8. Cada opção deve ter uma abordagem ligeiramente diferente
+
+FORMATO DE RESPOSTA OBRIGATÓRIO:
+Retorne exatamente 3 opções, separadas por "---". Cada opção deve conter APENAS o texto de narração, sem numeração, títulos ou marcadores."""
+
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"agent-narration-{uuid.uuid4()}",
+            system_message=system_msg
+        ).with_model("gemini", "gemini-3-flash-preview")
+
+        prompt = f"Crie 3 opções de texto de narração para o seguinte slide:\n\n{slide_text}"
+        response = await chat.send_message(UserMessage(text=prompt))
+
+        options = [opt.strip() for opt in response.split("---") if opt.strip()]
+        while len(options) < 3:
+            options.append(options[-1] if options else "Narração não disponível.")
+        options = options[:3]
+
+        return {"options": options, "slideIndex": slide_index, "style": style}
+    except Exception as e:
+        logger.error(f"Agent narration generation error: {e}")
+        raise HTTPException(500, f"Falha ao gerar narração: {str(e)}")
+
+
+
 @api_router.post("/agent/sessions/{session_id}/cost-estimate")
 async def agent_cost_estimate(session_id: str):
     """Estimate the cost of generating the course before committing."""
@@ -4214,7 +4298,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
     if heygen_pending and HEYGEN_API_KEY:
         background_tasks.add_task(_trigger_heygen_videos, project.id, heygen_pending)
 
-    # Trigger narration generation in background if configured
+    # Trigger narration generation in background if configured (global toggle)
     narration_enabled = config.get("narrationEnabled", False)
     narration_voice = config.get("narrationVoiceId", "")
     narration_count = 0
@@ -4246,6 +4330,31 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
                 {"$set": {"narrationPending": narration_tasks, "narrationVoiceId": narration_voice}}
             )
             background_tasks.add_task(_generate_narrations, project.id, narration_tasks, narration_voice)
+
+    # Trigger per-slide narration from media config (individual narration)
+    per_slide_narration = course_data.get("narrationPending", [])
+    if per_slide_narration and ELEVENLABS_API_KEY:
+        per_slide_tasks = []
+        for nr in per_slide_narration:
+            per_slide_tasks.append({
+                "slideIndex": nr["slideIndex"],
+                "slideId": nr["slideId"],
+                "slideTitle": f"Slide {nr['slideIndex'] + 1}",
+                "text": nr["script"],
+                "status": "pending",
+            })
+        if per_slide_tasks:
+            narration_count += len(per_slide_tasks)
+            # Merge with existing narration pending if any
+            existing = await db.projects.find_one({"id": project.id}, {"_id": 0, "narrationPending": 1})
+            existing_tasks = existing.get("narrationPending", []) if existing else []
+            all_tasks = existing_tasks + per_slide_tasks
+            per_slide_voice = per_slide_narration[0]["voiceId"]
+            await db.projects.update_one(
+                {"id": project.id},
+                {"$set": {"narrationPending": all_tasks, "narrationVoiceId": per_slide_voice}}
+            )
+            background_tasks.add_task(_generate_narrations, project.id, per_slide_tasks, per_slide_voice)
 
     # Update session
     await db.agent_sessions.update_one(

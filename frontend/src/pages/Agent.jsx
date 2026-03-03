@@ -20,7 +20,7 @@ import {
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
   Palette, Droplets, ImagePlus, UploadCloud,
   ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
-  PaintBucket, Target, Code, ExternalLink, BookOpenCheck,
+  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 
@@ -1318,6 +1318,13 @@ const MEDIA_TYPES = [
   { id: 'none', label: 'Sem mídia', description: 'Apenas texto', icon: FileText, color: 'slate' },
 ];
 
+const NARRATION_STYLES = [
+  { id: 'educational', label: 'Educativo' },
+  { id: 'conversational', label: 'Conversacional' },
+  { id: 'formal', label: 'Formal' },
+  { id: 'friendly', label: 'Amigável' },
+];
+
 function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfig }) {
   const [estimate, setEstimate] = useState(null);
   const [loadingEstimate, setLoadingEstimate] = useState(false);
@@ -1414,6 +1421,15 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewVideoId, setPreviewVideoId] = useState(null);
 
+  // ElevenLabs narration state
+  const [elVoices, setElVoices] = useState([]);
+  const [loadingElVoices, setLoadingElVoices] = useState(false);
+  const [narrationVoiceId, setNarrationVoiceId] = useState('');
+  const [narrationStyle, setNarrationStyle] = useState('educational');
+  const [generatingScripts, setGeneratingScripts] = useState({}); // { slideIndex: true }
+  const [scriptOptions, setScriptOptions] = useState({}); // { slideIndex: ["opt1", "opt2", "opt3"] }
+  const [previewingAudio, setPreviewingAudio] = useState(null);
+
   const contentSlides = (storyboard?.slides || [])
     .map((s, i) => ({ ...s, index: i }))
     .filter(s => s.type === 'content');
@@ -1434,6 +1450,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
   const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
   const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+  const narrationCount = Object.values(mediaConfig).filter(m => m.narration?.enabled).length;
 
   // Fetch HeyGen avatars/voices when needed
   useEffect(() => {
@@ -1455,7 +1472,85 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
     }
   }, [heygenCount]);
 
+  // Fetch ElevenLabs voices when narration is active
+  useEffect(() => {
+    if (narrationCount > 0 && elVoices.length === 0 && !loadingElVoices) {
+      setLoadingElVoices(true);
+      fetch(`${API}/api/elevenlabs/voices`)
+        .then(r => r.json())
+        .then(data => setElVoices(data.voices || []))
+        .catch(() => toast.error('Erro ao carregar vozes ElevenLabs'))
+        .finally(() => setLoadingElVoices(false));
+    }
+  }, [narrationCount]);
+
   const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
+  const narrationReady = narrationCount === 0 || narrationVoiceId;
+
+  // Toggle narration for a slide
+  const toggleSlideNarration = (idx, enabled) => {
+    setMediaConfig(prev => ({
+      ...prev,
+      [String(idx)]: {
+        ...prev[String(idx)],
+        narration: { ...(prev[String(idx)]?.narration || {}), enabled, voiceId: narrationVoiceId },
+      },
+    }));
+  };
+
+  // Generate 3 narration script options for a slide
+  const generateNarrationScripts = async (idx) => {
+    setGeneratingScripts(prev => ({ ...prev, [idx]: true }));
+    try {
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-slide-narration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slideIndex: idx, style: narrationStyle }),
+      });
+      const data = await res.json();
+      if (data.options) {
+        setScriptOptions(prev => ({ ...prev, [idx]: data.options }));
+      } else {
+        toast.error('Erro ao gerar roteiros');
+      }
+    } catch {
+      toast.error('Erro ao gerar roteiros de narração');
+    } finally {
+      setGeneratingScripts(prev => ({ ...prev, [idx]: false }));
+    }
+  };
+
+  // Select a narration script for a slide
+  const selectNarrationScript = (idx, script) => {
+    setMediaConfig(prev => ({
+      ...prev,
+      [String(idx)]: {
+        ...prev[String(idx)],
+        narration: { ...(prev[String(idx)]?.narration || {}), enabled: true, voiceId: narrationVoiceId, selectedScript: script },
+      },
+    }));
+  };
+
+  // Preview narration audio
+  const previewNarration = async (idx, text) => {
+    if (!narrationVoiceId || !text) return;
+    setPreviewingAudio(idx);
+    try {
+      const res = await fetch(`${API}/api/elevenlabs/generate-speech`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 200), voice_id: narrationVoiceId }),
+      });
+      const data = await res.json();
+      if (data.audio_base64) {
+        new Audio(data.audio_base64).play();
+      }
+    } catch {
+      toast.error('Erro ao gerar preview de áudio');
+    } finally {
+      setPreviewingAudio(null);
+    }
+  };
 
   // HeyGen Preview
   const handleHeygenPreview = async () => {
@@ -1721,6 +1816,97 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         </Card>
       )}
 
+      {/* ElevenLabs Narration Voice Picker */}
+      {narrationCount > 0 && (
+        <Card className="bg-amber-900/10 border-amber-800/30" data-testid="narration-voice-config-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+              <Volume2 className="w-4 h-4" /> Configurar Narração ElevenLabs
+            </h3>
+            <p className="text-xs text-amber-300/60">
+              Selecione a voz e o estilo para narração em {narrationCount} slide{narrationCount > 1 ? 's' : ''}.
+              O áudio será gerado automaticamente após a criação do curso.
+            </p>
+
+            {/* Narration style */}
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 font-medium">Estilo da Narração</label>
+              <div className="flex gap-2 flex-wrap">
+                {NARRATION_STYLES.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setNarrationStyle(s.id)}
+                    className={`text-[11px] px-3 py-1.5 rounded-lg border transition-all ${
+                      narrationStyle === s.id ? 'border-amber-500 bg-amber-600/15 text-amber-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600'
+                    }`}
+                    data-testid={`narration-style-${s.id}`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Voice selection */}
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 font-medium">Voz ElevenLabs</label>
+              {loadingElVoices ? (
+                <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="w-3 h-3 animate-spin" /> Carregando vozes...</div>
+              ) : (
+                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {elVoices.map(v => (
+                    <button
+                      key={v.voice_id}
+                      onClick={() => {
+                        setNarrationVoiceId(v.voice_id);
+                        // Update all narration-enabled slides with the new voice
+                        setMediaConfig(prev => {
+                          const next = { ...prev };
+                          Object.keys(next).forEach(k => {
+                            if (next[k]?.narration?.enabled) {
+                              next[k] = { ...next[k], narration: { ...next[k].narration, voiceId: v.voice_id } };
+                            }
+                          });
+                          return next;
+                        });
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all text-left ${
+                        narrationVoiceId === v.voice_id
+                          ? 'border-amber-500 bg-amber-600/10 text-amber-300'
+                          : 'border-slate-700/50 text-slate-400 hover:border-amber-500/30'
+                      }`}
+                      data-testid={`el-narration-voice-${v.voice_id}`}
+                    >
+                      <Volume2 className="w-3 h-3 shrink-0" />
+                      <span className="font-medium">{v.name}</span>
+                      {v.labels?.gender && <span className="text-slate-500">{v.labels.gender}</span>}
+                      {v.preview_url && (
+                        <span
+                          role="button"
+                          onClick={(e) => { e.stopPropagation(); new Audio(v.preview_url).play(); }}
+                          className="ml-auto text-amber-400 hover:text-amber-300 cursor-pointer"
+                        >
+                          <Play className="w-3 h-3" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                  {elVoices.length === 0 && !loadingElVoices && (
+                    <p className="text-xs text-slate-500 text-center py-2">Nenhuma voz encontrada</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {!narrationVoiceId && narrationCount > 0 && (
+              <p className="text-[11px] text-amber-400/70 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Selecione uma voz para a narração.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Per-slide config - ALL slides for background, content slides for media */}
       <div className="space-y-3">
         {(storyboard?.slides || []).map((slide, idx) => {
@@ -1921,6 +2107,103 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                         <p className="text-[10px] text-teal-400/50">O botão será inserido no slide com link para URL externa.</p>
                       </div>
                     )}
+
+                    {/* Per-slide Narration */}
+                    <div className="border-t border-slate-800 pt-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-xs font-medium text-amber-300">Narração</span>
+                        <button
+                          onClick={() => toggleSlideNarration(idx, !mc.narration?.enabled)}
+                          className={`ml-auto w-9 h-5 rounded-full transition-colors relative ${mc.narration?.enabled ? 'bg-amber-600' : 'bg-slate-700'}`}
+                          data-testid={`narration-toggle-slide-${idx}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mc.narration?.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+
+                      {mc.narration?.enabled && (
+                        <div className="space-y-2 pl-1">
+                          {/* Generate scripts button */}
+                          {!scriptOptions[idx] && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => generateNarrationScripts(idx)}
+                              disabled={generatingScripts[idx]}
+                              className="w-full text-xs border-amber-700/50 text-amber-300 hover:bg-amber-600/10"
+                              data-testid={`generate-narration-slide-${idx}`}
+                            >
+                              {generatingScripts[idx] ? (
+                                <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Gerando 3 opções...</>
+                              ) : (
+                                <><Sparkles className="w-3 h-3 mr-1" /> Gerar 3 Opções de Roteiro</>
+                              )}
+                            </Button>
+                          )}
+
+                          {/* Script options */}
+                          {scriptOptions[idx] && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-medium">Escolha um roteiro:</span>
+                                <button
+                                  onClick={() => {
+                                    setScriptOptions(prev => { const n = {...prev}; delete n[idx]; return n; });
+                                    generateNarrationScripts(idx);
+                                  }}
+                                  className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                                  disabled={generatingScripts[idx]}
+                                >
+                                  <RefreshCw className="w-3 h-3" /> Regenerar
+                                </button>
+                              </div>
+                              {scriptOptions[idx].map((opt, oi) => {
+                                const isSelected = mc.narration?.selectedScript === opt;
+                                return (
+                                  <button
+                                    key={oi}
+                                    onClick={() => selectNarrationScript(idx, opt)}
+                                    className={`w-full text-left p-2.5 rounded-lg border text-[11px] leading-relaxed transition-all ${
+                                      isSelected
+                                        ? 'border-amber-500 bg-amber-600/10 text-amber-200'
+                                        : 'border-slate-700/50 text-slate-400 hover:border-amber-500/30'
+                                    }`}
+                                    data-testid={`narration-option-${idx}-${oi}`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <Badge variant="outline" className={`text-[9px] shrink-0 mt-0.5 ${isSelected ? 'border-amber-500 text-amber-300' : 'border-slate-600 text-slate-500'}`}>
+                                        {oi + 1}
+                                      </Badge>
+                                      <span>{opt}</span>
+                                    </div>
+                                    {isSelected && narrationVoiceId && (
+                                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-amber-800/30">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); previewNarration(idx, opt); }}
+                                          disabled={previewingAudio === idx}
+                                          className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                                        >
+                                          {previewingAudio === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                                          Ouvir Preview
+                                        </button>
+                                        <Check className="w-3 h-3 text-amber-400 ml-auto" />
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {mc.narration?.selectedScript && (
+                            <p className="text-[10px] text-amber-400/60 flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Roteiro selecionado. Áudio será gerado com a voz escolhida.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -1932,7 +2215,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
       {/* Summary & Cost Estimate */}
       <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} />
 
-      <Button onClick={onConfirm} disabled={loading || !heygenReady} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
+      <Button onClick={onConfirm} disabled={loading || !heygenReady || !narrationReady} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}
         Confirmar Mídia e Gerar Curso
       </Button>

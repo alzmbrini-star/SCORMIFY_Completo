@@ -1104,10 +1104,24 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         }
         project_slides.append(slide)
 
+    # Collect narration pending info from media config
+    narration_pending = []
+    for i, sb_slide in enumerate(slides_data):
+        mc = media_config.get(str(i), {})
+        narr = mc.get("narration", {})
+        if narr.get("enabled") and narr.get("selectedScript") and narr.get("voiceId"):
+            narration_pending.append({
+                "slideIndex": i,
+                "slideId": project_slides[i]["id"] if i < len(project_slides) else "",
+                "script": narr["selectedScript"],
+                "voiceId": narr["voiceId"],
+            })
+
     return {
         "slides": project_slides,
         "quizQuestions": quiz_questions,
         "heygenPending": heygen_pending,
+        "narrationPending": narration_pending,
         "metadata": {
             "title": config.get("title", "Curso Gerado por IA"),
             "description": config.get("description", ""),

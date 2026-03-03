@@ -1,0 +1,60 @@
+{
+  "summary": "Tested ElevenLabs Narration Scripts feature - per-slide narration with 3 AI-generated script options. Backend API tests 8/8 PASSED. Frontend UI tests ALL PASSED. The feature enables narration toggle on each content slide, ElevenLabs voice selection, style selection (Educativo/Conversacional/Formal/Amigável), script generation, and audio preview.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Agent Media Config - Narration Script Options",
+        "issues": ["Minor: Nested button inside button (line 2182 inside 2164 in Agent.jsx) - causes React hydration warning in console. The 'Ouvir Preview' button is nested inside the script selection button."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_elevenlabs_narration_scripts.py",
+    "/app/test_reports/pytest/pytest_elevenlabs_narration_scripts.xml"
+  ],
+  "action_items": [
+    "Optional: Refactor nested button structure in Agent.jsx lines 2164-2193 - change outer button to div with onClick, or move 'Ouvir Preview' outside the selection button"
+  ],
+  "critical_code_review_comments": [
+    "Nested button elements causing React hydration warning - not a blocker but should be addressed for code quality"
+  ],
+  "updated_files": ["/app/backend/tests/test_elevenlabs_narration_scripts.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": {"email": "admin@scormify.com", "password": "admin123"},
+  "seed_data_creation": "Used existing session f5e4d2e6-5f8a-4f46-921d-c126ea498626 and project ebe2ac7b-5565-4d7f-a486-17910291f36a",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ElevenLabs narration feature fully tested and working. The feature adds per-slide narration in Agent Media Config step. Users can enable narration toggle, select ElevenLabs voice (21 voices available including Adam, Alice, Bella, Bill), choose narration style, generate 3 AI script options, select one, and preview audio. Test file: /app/backend/tests/test_elevenlabs_narration_scripts.py. Minor issue: nested button in script options UI causing React warning.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/elevenlabs/voices": "PASS - returns 21 voices with voice_id, name, labels",
+      "POST /api/agent/sessions/{id}/generate-slide-narration": "PASS - generates 3 unique script options based on slide content",
+      "POST /api/agent/sessions/{id}/generate-slide-narration (different styles)": "PASS - educational, conversational, formal, friendly all work",
+      "POST /api/agent/sessions/{id}/generate-slide-narration (invalid slide)": "PASS - returns 400",
+      "POST /api/agent/sessions/{id}/generate-slide-narration (invalid session)": "PASS - returns 404",
+      "POST /api/elevenlabs/generate-speech": "PASS - returns audio_base64",
+      "Session storyboard verification": "PASS - test session has slides for narration"
+    },
+    "frontend_agent_page": {
+      "Narration toggle on content slides": "PASS - 8 toggles found on content slides",
+      "ElevenLabs voice config card visibility": "PASS - appears when narration enabled",
+      "Narration style buttons": "PASS - Educativo, Conversacional, Formal, Amigável all present",
+      "ElevenLabs voices loading": "PASS - 21 voices displayed with gender labels and preview buttons",
+      "Gerar 3 Opções de Roteiro button": "PASS - visible and clickable",
+      "Script generation": "PASS - 3 options generated successfully",
+      "Script options with numbered badges": "PASS - options 1, 2, 3 displayed",
+      "Script selection highlighting": "PASS - selected script highlighted with amber border",
+      "Ouvir Preview button": "PASS - appears on selected script",
+      "Regenerar button": "PASS - visible to regenerate scripts"
+    },
+    "scorm_export_gradient_fix": {
+      "player.js line 837": "PASS - uses container.style.background instead of backgroundColor to support gradients"
+    }
+  }
+}
