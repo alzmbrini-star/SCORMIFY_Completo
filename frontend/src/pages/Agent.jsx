@@ -400,16 +400,52 @@ export default function Agent() {
     addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST' });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setGeneratedProject(data);
-      const heygenMsg = data.heygenPending > 0 ? ` ${data.heygenPending} vídeos HeyGen em processamento.` : '';
-      const narrationMsg = data.narrationPending > 0 ? ` ${data.narrationPending} narrações em geração.` : '';
-      addChatMsg('agent', `Curso "${data.projectName}" criado! ${data.slidesCount} slides e ${data.quizCount} perguntas.${heygenMsg}${narrationMsg}`);
-      setCurrentStep(6);
-      toast.success('Curso gerado com sucesso!');
-    } catch { toast.error('Erro ao gerar curso'); addChatMsg('agent', 'Erro ao gerar o curso.'); }
-    finally { setLoading(false); }
+      if (!res.ok) throw new Error('Falha ao iniciar geração');
+      const initData = await res.json();
+      
+      if (initData.status === 'already_done') {
+        setGeneratedProject(initData);
+        setCurrentStep(6);
+        return;
+      }
+
+      // Poll for completion
+      const pollStatus = async () => {
+        for (let i = 0; i < 120; i++) { // max 10 min (120 * 5s)
+          await new Promise(r => setTimeout(r, 5000));
+          try {
+            const statusRes = await fetch(`${API}/api/agent/sessions/${sessionId}/course-status`);
+            const statusData = await statusRes.json();
+            if (statusData.message) {
+              addChatMsg('agent', `Progresso: ${statusData.message}`);
+            }
+            if (statusData.status === 'done') {
+              setGeneratedProject(statusData);
+              const heygenMsg = statusData.heygenPending > 0 ? ` ${statusData.heygenPending} vídeos HeyGen em processamento.` : '';
+              const narrationMsg = statusData.narrationPending > 0 ? ` ${statusData.narrationPending} narrações em geração.` : '';
+              addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${statusData.quizCount} perguntas.${heygenMsg}${narrationMsg}`);
+              setCurrentStep(6);
+              toast.success('Curso gerado com sucesso!');
+              return;
+            }
+            if (statusData.status === 'error') {
+              throw new Error(statusData.error || 'Erro na geração');
+            }
+          } catch (pollErr) {
+            if (pollErr.message.includes('Erro')) throw pollErr;
+            // Network error, keep polling
+          }
+        }
+        throw new Error('Timeout na geração do curso');
+      };
+      
+      await pollStatus();
+    } catch (e) {
+      toast.error(e.message || 'Erro ao gerar curso');
+      addChatMsg('agent', `Erro ao gerar o curso: ${e.message || 'Erro desconhecido'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ===== EDIT MODE HANDLERS =====

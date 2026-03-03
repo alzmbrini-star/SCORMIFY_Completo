@@ -4411,144 +4411,240 @@ async def agent_cost_estimate(session_id: str):
 
 
 @api_router.post("/agent/sessions/{session_id}/generate-course")
-async def agent_generate_course(session_id: str, background_tasks: BackgroundTasks):
-    """Step 5: Generate actual Scormfy project from storyboard with media."""
+async def agent_generate_course(session_id: str):
+    """Step 5: Generate actual Scormfy project from storyboard with media (background thread)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
     if not s.get("storyboard"):
         raise HTTPException(400, "Storyboard not generated yet")
 
-    config = s.get("config", {})
-    media_config = s.get("mediaConfig", {})
-    bg_config = s.get("bgConfig", {})
-    global_text_color = s.get("globalTextColor", "")
-    global_font_size = s.get("globalFontSize", "")
-    global_animation = s.get("globalAnimation", "")
-    title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
-    desc = config.get("description", s.get("analysis", {}).get("summary", ""))
+    # If already generating, don't start another
+    if s.get("step") == "generating_course":
+        return {"status": "processing", "message": "Geração do curso já em andamento..."}
+    # If already done
+    if s.get("step") == "generated" and s.get("projectId"):
+        return {"status": "already_done", "projectId": s["projectId"]}
 
-    project = Project(name=title, description=desc)
-    project_dir = PROJECTS_DIR / project.id
-    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
-
-    from services.ai_agent import generate_course_from_storyboard
-    course_data = await generate_course_from_storyboard(
-        session_id, s["storyboard"], s.get("config", {}),
-        project_dir=str(PROJECTS_DIR), project_id=project.id,
-        media_config=media_config, bg_config=bg_config,
-        global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation
-    )
-
-    project.course.metadata.title = title
-    project.course.metadata.description = desc
-    project.course.slides = []
-
-    project_dict = project.model_dump()
-    project_dict["createdAt"] = project.createdAt.isoformat()
-    project_dict["updatedAt"] = project.updatedAt.isoformat()
-    project_dict["course"]["createdAt"] = project.course.createdAt.isoformat()
-    project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
-    project_dict["course"]["slides"] = course_data["slides"]
-
-    # Mark project as created by agent
-    project_dict["createdByAgent"] = True
-    project_dict["agentSessionId"] = session_id
-
-    # Store HeyGen pending info if any
-    heygen_pending = course_data.get("heygenPending", [])
-    if heygen_pending:
-        project_dict["heygenPending"] = heygen_pending
-
-    await db.projects.insert_one(project_dict)
-
-    # Save quiz questions if any
-    for q in course_data.get("quizQuestions", []):
-        q["projectId"] = project.id
-        q["createdAt"] = datetime.now(timezone.utc).isoformat()
-        q["updatedAt"] = datetime.now(timezone.utc).isoformat()
-        await db.questions.insert_one({**q, "_id": q["id"]})
-
-    # Trigger HeyGen video generation in background
-    if heygen_pending and HEYGEN_API_KEY:
-        background_tasks.add_task(_trigger_heygen_videos, project.id, heygen_pending)
-
-    # Trigger narration generation in background if configured (global toggle)
-    narration_enabled = config.get("narrationEnabled", False)
-    narration_voice = config.get("narrationVoiceId", "")
-    narration_count = 0
-    if narration_enabled and narration_voice and ELEVENLABS_API_KEY:
-        # Collect slides for narration
-        import re as _re
-        narration_tasks = []
-        for si, slide_data in enumerate(course_data["slides"]):
-            texts = []
-            for el in slide_data.get("elements", []):
-                html_content = el.get("htmlContent", "")
-                if html_content:
-                    clean = _re.sub(r'<[^>]+>', '', html_content)
-                    clean = _re.sub(r'\s+', ' ', clean).strip()
-                    if len(clean) > 30:
-                        texts.append(clean)
-            if texts:
-                narration_tasks.append({
-                    "slideIndex": si,
-                    "slideId": slide_data.get("id", ""),
-                    "slideTitle": slide_data.get("title", f"Slide {si+1}"),
-                    "text": " ".join(texts)[:2000],
-                    "status": "pending",
-                })
-        if narration_tasks:
-            narration_count = len(narration_tasks)
-            await db.projects.update_one(
-                {"id": project.id},
-                {"$set": {"narrationPending": narration_tasks, "narrationVoiceId": narration_voice}}
-            )
-            background_tasks.add_task(_generate_narrations, project.id, narration_tasks, narration_voice)
-
-    # Trigger per-slide narration from media config (individual narration)
-    per_slide_narration = course_data.get("narrationPending", [])
-    if per_slide_narration and ELEVENLABS_API_KEY:
-        per_slide_tasks = []
-        for nr in per_slide_narration:
-            per_slide_tasks.append({
-                "slideIndex": nr["slideIndex"],
-                "slideId": nr["slideId"],
-                "slideTitle": f"Slide {nr['slideIndex'] + 1}",
-                "text": nr["script"],
-                "status": "pending",
-            })
-        if per_slide_tasks:
-            narration_count += len(per_slide_tasks)
-            # Merge with existing narration pending if any
-            existing = await db.projects.find_one({"id": project.id}, {"_id": 0, "narrationPending": 1})
-            existing_tasks = existing.get("narrationPending", []) if existing else []
-            all_tasks = existing_tasks + per_slide_tasks
-            per_slide_voice = per_slide_narration[0]["voiceId"]
-            await db.projects.update_one(
-                {"id": project.id},
-                {"$set": {"narrationPending": all_tasks, "narrationVoiceId": per_slide_voice}}
-            )
-            background_tasks.add_task(_generate_narrations, project.id, per_slide_tasks, per_slide_voice)
-
-    # Update session
+    # Mark as processing
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"projectId": project.id, "step": "generated", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"step": "generating_course", "courseProgress": {"message": "Iniciando geração..."}, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
 
-    # Auto-trigger improvement suggestions analysis in background
-    background_tasks.add_task(_generate_improvement_suggestions, session_id, project.id)
+    def _sync_generate_course():
+        import asyncio as _asyncio
+        loop = _asyncio.new_event_loop()
+        _asyncio.set_event_loop(loop)
+        try:
+            from services.ai_agent import generate_course_from_storyboard
+            from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
 
-    return {
-        "status": "ok",
-        "projectId": project.id,
-        "projectName": title,
-        "slidesCount": len(course_data["slides"]),
-        "quizCount": len(course_data.get("quizQuestions", [])),
-        "heygenPending": len(heygen_pending),
-        "narrationPending": narration_count,
-    }
+            _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+            _db = _client[os.environ.get("DB_NAME")]
+
+            _s = loop.run_until_complete(_db.agent_sessions.find_one({"id": session_id}, {"_id": 0}))
+            config = _s.get("config", {})
+            media_config = _s.get("mediaConfig", {})
+            bg_config = _s.get("bgConfig", {})
+            global_text_color = _s.get("globalTextColor", "")
+            global_font_size = _s.get("globalFontSize", "")
+            global_animation = _s.get("globalAnimation", "")
+            title = config.get("title", _s.get("analysis", {}).get("title", "Curso Gerado por IA"))
+            desc = config.get("description", _s.get("analysis", {}).get("summary", ""))
+
+            from models import Project
+            project = Project(name=title, description=desc)
+            project_dir = PROJECTS_DIR / project.id
+            (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+
+            # Update progress
+            loop.run_until_complete(_db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"courseProgress": {"message": "Gerando slides com IA..."}, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            ))
+
+            course_data = loop.run_until_complete(generate_course_from_storyboard(
+                session_id, _s["storyboard"], config,
+                project_dir=str(PROJECTS_DIR), project_id=project.id,
+                media_config=media_config, bg_config=bg_config,
+                global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation
+            ))
+
+            loop.run_until_complete(_db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"courseProgress": {"message": "Salvando projeto..."}, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            ))
+
+            project.course.metadata.title = title
+            project.course.metadata.description = desc
+            project.course.slides = []
+            project_dict = project.model_dump()
+            project_dict["createdAt"] = project.createdAt.isoformat()
+            project_dict["updatedAt"] = project.updatedAt.isoformat()
+            project_dict["course"]["createdAt"] = project.course.createdAt.isoformat()
+            project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
+            project_dict["course"]["slides"] = course_data["slides"]
+            project_dict["createdByAgent"] = True
+            project_dict["agentSessionId"] = session_id
+
+            heygen_pending = course_data.get("heygenPending", [])
+            if heygen_pending:
+                project_dict["heygenPending"] = heygen_pending
+
+            loop.run_until_complete(_db.projects.insert_one(project_dict))
+
+            # Save quiz questions
+            for q in course_data.get("quizQuestions", []):
+                q["projectId"] = project.id
+                q["createdAt"] = datetime.now(timezone.utc).isoformat()
+                q["updatedAt"] = datetime.now(timezone.utc).isoformat()
+                loop.run_until_complete(_db.questions.insert_one({**q, "_id": q["id"]}))
+
+            # Handle narration (global toggle)
+            narration_enabled = config.get("narrationEnabled", False)
+            narration_voice = config.get("narrationVoiceId", "")
+            narration_count = 0
+            if narration_enabled and narration_voice and ELEVENLABS_API_KEY:
+                import re as _re
+                narration_tasks = []
+                for si, slide_data in enumerate(course_data["slides"]):
+                    texts = []
+                    for el in slide_data.get("elements", []):
+                        html_content = el.get("htmlContent", "")
+                        if html_content:
+                            clean = _re.sub(r'<[^>]+>', '', html_content)
+                            clean = _re.sub(r'\s+', ' ', clean).strip()
+                            if len(clean) > 30:
+                                texts.append(clean)
+                    if texts:
+                        narration_tasks.append({
+                            "slideIndex": si,
+                            "slideId": slide_data.get("id", ""),
+                            "slideTitle": slide_data.get("title", f"Slide {si+1}"),
+                            "text": " ".join(texts)[:2000],
+                            "status": "pending",
+                        })
+                if narration_tasks:
+                    narration_count = len(narration_tasks)
+                    loop.run_until_complete(_db.projects.update_one(
+                        {"id": project.id},
+                        {"$set": {"narrationPending": narration_tasks, "narrationVoiceId": narration_voice}}
+                    ))
+
+            # Handle per-slide narration from media config
+            per_slide_narration = course_data.get("narrationPending", [])
+            if per_slide_narration and ELEVENLABS_API_KEY:
+                per_slide_tasks = []
+                for nr in per_slide_narration:
+                    per_slide_tasks.append({
+                        "slideIndex": nr["slideIndex"],
+                        "slideId": nr["slideId"],
+                        "slideTitle": f"Slide {nr['slideIndex'] + 1}",
+                        "text": nr["script"],
+                        "status": "pending",
+                    })
+                if per_slide_tasks:
+                    narration_count += len(per_slide_tasks)
+                    existing = loop.run_until_complete(_db.projects.find_one({"id": project.id}, {"_id": 0, "narrationPending": 1}))
+                    existing_tasks = existing.get("narrationPending", []) if existing else []
+                    all_tasks = existing_tasks + per_slide_tasks
+                    per_slide_voice = per_slide_narration[0]["voiceId"]
+                    loop.run_until_complete(_db.projects.update_one(
+                        {"id": project.id},
+                        {"$set": {"narrationPending": all_tasks, "narrationVoiceId": per_slide_voice}}
+                    ))
+
+            # Update session with result
+            result_data = {
+                "projectId": project.id,
+                "projectName": title,
+                "slidesCount": len(course_data["slides"]),
+                "quizCount": len(course_data.get("quizQuestions", [])),
+                "heygenPending": len(heygen_pending),
+                "narrationPending": narration_count,
+            }
+            loop.run_until_complete(_db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {
+                    "projectId": project.id,
+                    "step": "generated",
+                    "courseProgress": None,
+                    "courseResult": result_data,
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            ))
+
+            # Trigger background tasks (HeyGen, narration, suggestions) in their own threads
+            if heygen_pending and HEYGEN_API_KEY:
+                import threading
+                threading.Thread(target=lambda: asyncio.run(_trigger_heygen_videos(project.id, heygen_pending)), daemon=True).start()
+            if narration_count > 0:
+                all_narr = []
+                if narration_enabled and narration_voice and ELEVENLABS_API_KEY:
+                    all_narr = narration_tasks if 'narration_tasks' in dir() else []
+                if per_slide_narration and ELEVENLABS_API_KEY:
+                    all_narr += per_slide_tasks if 'per_slide_tasks' in dir() else []
+                if all_narr:
+                    voice = narration_voice or (per_slide_narration[0]["voiceId"] if per_slide_narration else "")
+                    import threading
+                    threading.Thread(target=lambda: asyncio.run(_generate_narrations(project.id, all_narr, voice)), daemon=True).start()
+
+            # Suggestions in background
+            import threading
+            threading.Thread(target=lambda: asyncio.run(_generate_improvement_suggestions(session_id, project.id)), daemon=True).start()
+
+            _client.close()
+            logger.info(f"Course generation completed for session {session_id}, project {project.id}")
+
+        except Exception as e:
+            err_msg = str(e)
+            logger.error(f"Course generation error: {err_msg}")
+            error_detail = "Erro ao gerar curso."
+            if "Budget" in err_msg or "budget" in err_msg:
+                error_detail = "Orçamento da chave LLM excedido. Acesse Profile > Universal Key > Add Balance para adicionar saldo."
+            elif "502" in err_msg or "BadGateway" in err_msg:
+                error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
+            try:
+                from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient2
+                _c2 = _MotorClient2(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000)
+                _d2 = _c2[os.environ.get("DB_NAME")]
+                loop.run_until_complete(_d2.agent_sessions.update_one(
+                    {"id": session_id},
+                    {"$set": {"step": "media_configured", "error": error_detail, "courseProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                ))
+                _c2.close()
+            except Exception:
+                pass
+        finally:
+            loop.close()
+
+    import threading
+    thread = threading.Thread(target=_sync_generate_course, daemon=True)
+    thread.start()
+    return {"status": "processing", "message": "Geração do curso iniciada..."}
+
+
+@api_router.get("/agent/sessions/{session_id}/course-status")
+async def agent_course_status(session_id: str):
+    """Poll for course generation status."""
+    s = await db.agent_sessions.find_one(
+        {"id": session_id},
+        {"_id": 0, "step": 1, "courseProgress": 1, "courseResult": 1, "error": 1, "projectId": 1}
+    )
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    if s.get("step") == "generated" and (s.get("courseResult") or s.get("projectId")):
+        result = s.get("courseResult", {"projectId": s.get("projectId"), "status": "done"})
+        return {"status": "done", **result}
+    elif s.get("step") == "generating_course":
+        progress = s.get("courseProgress", {})
+        return {"status": "processing", "message": progress.get("message", "Gerando...")}
+    elif s.get("error"):
+        return {"status": "error", "error": s["error"]}
+    else:
+        return {"status": "unknown", "step": s.get("step")}
 
 
 
