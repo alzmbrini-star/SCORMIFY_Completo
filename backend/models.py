@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import uuid
+import re
 
 def generate_id():
     return str(uuid.uuid4())
@@ -25,6 +26,18 @@ class ElementStyle(BaseModel):
     verticalAlign: Optional[str] = None
     shadow: Optional[Dict[str, Any]] = None
     borderRadius: Optional[float] = None
+
+    @field_validator('borderRadius', mode='before')
+    @classmethod
+    def parse_border_radius(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            m = re.match(r'^([\d.]+)', v)
+            return float(m.group(1)) if m else None
+        return None
 
 class Animation(BaseModel):
     model_config = ConfigDict(extra="allow")
