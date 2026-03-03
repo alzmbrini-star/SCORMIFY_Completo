@@ -93,6 +93,15 @@ heygen_sse_subscribers: Dict[str, List[asyncio.Queue]] = {}
 # Create the main app
 app = FastAPI(title="Scormify API", version="1.0.0")
 
+# Register health endpoints FIRST - critical for deployment probes
+@app.get("/health")
+async def root_health():
+    return {"status": "healthy"}
+
+@app.get("/")
+async def root():
+    return {"status": "running", "app": "Scormify API"}
+
 # Create routers
 api_router = APIRouter(prefix="/api")
 
@@ -5201,17 +5210,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
 # Include router
 app.include_router(api_router)
 
-# Root-level endpoints for Kubernetes health checks and startup detection
-@app.get("/")
-async def root():
-    return {"status": "ok"}
-
-@app.get("/health")
-async def root_health():
-    return {"status": "healthy"}
-
 # CORS - Allow all origins for cross-domain production deployments
-# With credentials=True, we must echo back the specific origin (not "*")
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https?://.*",
