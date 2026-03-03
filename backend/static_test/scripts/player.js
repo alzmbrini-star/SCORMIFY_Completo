@@ -795,8 +795,17 @@ var CoursePlayer = (function() {
                 container.appendChild(el);
                 
                 // Apply entrance animations
-                if (element.animations && element.animations.length > 0) {
-                    scheduleAnimations(el, element.animations);
+                var anims = element.animations && element.animations.length > 0 ? element.animations : [];
+                if (!anims.length && element.animation && element.animation.effect) {
+                    anims = [{
+                        type: element.animation.type || 'entrance',
+                        effect: element.animation.effect,
+                        duration: element.animation.duration || 0.5,
+                        startTime: element.animation.delay || 0,
+                    }];
+                }
+                if (anims.length > 0) {
+                    scheduleAnimations(el, anims);
                 }
             }
         });
@@ -1334,28 +1343,34 @@ var CoursePlayer = (function() {
         animations.forEach(function(anim, index) {
             var delay = (anim.startTime || anim.delay || index * 0.3) * 1000;
             var duration = (anim.duration || 0.5) * 1000;
+            var effect = anim.effect || '';
+            var easing = anim.easing || 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
             
-            // Initial state for entrance animations
             if (anim.type === 'entrance') {
                 el.style.opacity = '0';
+                switch (effect) {
+                    case 'slideInLeft': el.style.transform = 'translateX(-60px)'; break;
+                    case 'slideInRight': el.style.transform = 'translateX(60px)'; break;
+                    case 'slideInUp': el.style.transform = 'translateY(40px)'; break;
+                    case 'slideInDown': el.style.transform = 'translateY(-40px)'; break;
+                    case 'zoomIn': el.style.transform = 'scale(0.5)'; break;
+                    case 'bounce': el.style.transform = 'translateY(-30px)'; break;
+                    case 'typewriter': el.style.opacity = '1'; el.style.clipPath = 'inset(0 100% 0 0)'; break;
+                }
             }
             
             setTimeout(function() {
-                el.style.transition = 'all ' + duration + 'ms ' + (anim.easing || 'ease');
-                
-                switch (anim.effect) {
-                    case 'fade':
-                        el.style.opacity = anim.type === 'exit' ? '0' : '1';
-                        break;
-                    case 'fly':
-                        el.style.opacity = '1';
-                        break;
-                    case 'zoom':
-                        el.style.transform = anim.type === 'entrance' ? 'scale(1)' : 'scale(0)';
-                        el.style.opacity = '1';
-                        break;
-                    default:
-                        el.style.opacity = '1';
+                if (effect === 'typewriter') {
+                    el.style.transition = 'clip-path ' + duration + 'ms steps(20, end)';
+                    el.style.clipPath = 'inset(0 0% 0 0)';
+                } else if (effect === 'bounce') {
+                    el.style.transition = 'opacity ' + duration + 'ms ease, transform ' + duration + 'ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0) translateX(0) scale(1)';
+                } else {
+                    el.style.transition = 'opacity ' + duration + 'ms ' + easing + ', transform ' + duration + 'ms ' + easing;
+                    el.style.opacity = anim.type === 'exit' ? '0' : '1';
+                    el.style.transform = 'translateY(0) translateX(0) scale(1)';
                 }
             }, delay);
         });

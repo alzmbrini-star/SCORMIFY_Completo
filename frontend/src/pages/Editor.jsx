@@ -4763,6 +4763,62 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
         </div>
       )}
 
+      {/* Animation */}
+      <div className="panel-section">
+        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-amber-400" /> Animação de Entrada
+        </h4>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={() => onUpdate({ animation: null })}
+              className={`text-[11px] px-2 py-1.5 rounded border transition-all ${
+                !element.animation?.effect ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700 text-slate-500 hover:border-slate-600'
+              }`}
+              data-testid="anim-none"
+            >
+              Nenhuma
+            </button>
+            {[
+              { id: 'fadeIn', label: 'Fade In' },
+              { id: 'slideInLeft', label: 'Slide Esq.' },
+              { id: 'slideInRight', label: 'Slide Dir.' },
+              { id: 'slideInUp', label: 'Slide Baixo' },
+              { id: 'slideInDown', label: 'Slide Cima' },
+              { id: 'zoomIn', label: 'Zoom In' },
+              { id: 'typewriter', label: 'Typewriter' },
+              { id: 'bounce', label: 'Bounce' },
+            ].map(a => (
+              <button
+                key={a.id}
+                onClick={() => onUpdate({ animation: { type: 'entrance', effect: a.id, duration: element.animation?.duration || 0.5, delay: 0 } })}
+                className={`text-[11px] px-2 py-1.5 rounded border transition-all ${
+                  element.animation?.effect === a.id ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700 text-slate-500 hover:border-slate-600'
+                }`}
+                data-testid={`anim-${a.id}`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+          {element.animation?.effect && (
+            <div>
+              <label className="text-xs text-muted-foreground">Duração: {element.animation?.duration || 0.5}s</label>
+              <input
+                type="range"
+                min="0.2"
+                max="2"
+                step="0.1"
+                value={element.animation?.duration || 0.5}
+                onChange={(e) => onUpdate({ animation: { ...element.animation, duration: parseFloat(e.target.value) } })}
+                className="w-full h-1.5 accent-amber-500"
+                data-testid="anim-duration-slider"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="panel-section">
         <h4 className="text-sm font-medium mb-3">Hyperlink</h4>
         <Input

@@ -918,7 +918,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
 
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "") -> dict:
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_animation: str = "") -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
     from models import generate_id
     import hashlib
@@ -1116,6 +1116,27 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "script": narr["selectedScript"],
                 "voiceId": narr["voiceId"],
             })
+
+    # Apply global animation to all text elements
+    if global_animation:
+        for slide in project_slides:
+            stagger_index = 0
+            for el in slide.get("elements", []):
+                if el.get("type") in ("html", "text"):
+                    el["animation"] = {
+                        "type": "entrance",
+                        "effect": global_animation,
+                        "duration": 0.5,
+                        "delay": stagger_index * 0.2,
+                    }
+                    el["animations"] = [{
+                        "type": "entrance",
+                        "effect": global_animation,
+                        "duration": 0.5,
+                        "startTime": (el.get("startTime", 0) or 0) + stagger_index * 0.2,
+                        "easing": "cubic-bezier(0.34, 1.56, 0.64, 1)" if global_animation == "bounce" else "ease",
+                    }]
+                    stagger_index += 1
 
     return {
         "slides": project_slides,

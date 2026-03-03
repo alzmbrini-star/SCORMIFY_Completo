@@ -1709,9 +1709,18 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var isHighlightElement = elem.type === 'animation_highlight';
                         var isAnimationElement = isClipElement || isMaskElement || isHighlightElement;
                         
-                        // Check if element has animations
-                        var hasAnimations = elem.animations && elem.animations.length > 0;
-                        var hasEntranceAnimation = hasAnimations && elem.animations.some(function(a) {{ return a.type === 'entrance'; }});
+                        // Check if element has animations (support both arrays and single object)
+                        var anims = (elem.animations && elem.animations.length > 0) ? elem.animations : [];
+                        if (!anims.length && elem.animation && elem.animation.effect) {{
+                            anims = [{{
+                                type: elem.animation.type || 'entrance',
+                                effect: elem.animation.effect,
+                                duration: elem.animation.duration || 0.5,
+                                startTime: elem.animation.delay || 0,
+                            }}];
+                        }}
+                        var hasAnimations = anims.length > 0;
+                        var hasEntranceAnimation = hasAnimations && anims.some(function(a) {{ return a.type === 'entrance'; }});
                         
                         // Determine initial visibility
                         // For clips/masks: they should START VISIBLE (to cover content)
@@ -2036,12 +2045,22 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             var isMask = elem.type === 'animation_mask';
                             var isHighlight = elem.type === 'animation_highlight';
                             
-                            // Check if element has PPT animations
-                            var hasAnimations = elem.animations && elem.animations.length > 0;
+                            // Check if element has animations (support both arrays and single object)
+                            var elemAnims = (elem.animations && elem.animations.length > 0) ? elem.animations : [];
+                            if (!elemAnims.length && elem.animation && elem.animation.effect) {{
+                                elemAnims = [{{
+                                    type: elem.animation.type || 'entrance',
+                                    effect: elem.animation.effect,
+                                    duration: elem.animation.duration || 0.5,
+                                    delay: elem.animation.delay || 0,
+                                    startTime: elem.animation.delay || 0,
+                                }}];
+                            }}
+                            var hasAnimations = elemAnims.length > 0;
                             
                             if (hasAnimations) {{
                                 // Process each animation
-                                elem.animations.forEach(function(anim, animIdx) {{
+                                elemAnims.forEach(function(anim, animIdx) {{
                                     var animEffect = animationEffectMap[anim.effect] || 'ppt-fade';
                                     var animDuration = anim.duration || 0.5;
                                     var animDelay = anim.delay || 0;
@@ -2127,11 +2146,31 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                         // Regular entrance animation
                                         element.style.opacity = '0';
                                         element.style.visibility = 'hidden';
+                                        var eff = anim.effect || 'fadeIn';
+                                        // Set initial transform based on effect
+                                        if (eff === 'slideInLeft') element.style.transform = 'translateX(-60px)';
+                                        else if (eff === 'slideInRight') element.style.transform = 'translateX(60px)';
+                                        else if (eff === 'slideInUp') element.style.transform = 'translateY(40px)';
+                                        else if (eff === 'slideInDown') element.style.transform = 'translateY(-40px)';
+                                        else if (eff === 'zoomIn') element.style.transform = 'scale(0.5)';
+                                        else if (eff === 'bounce') element.style.transform = 'translateY(-30px)';
+                                        else if (eff === 'typewriter') {{ element.style.opacity = '1'; element.style.clipPath = 'inset(0 100% 0 0)'; }}
                                         
                                         var showTimer = setTimeout(function() {{
                                             element.style.visibility = 'visible';
-                                            element.style.opacity = '1';
-                                            element.style.animation = animEffect + ' ' + animDuration + 's ' + (anim.easing || 'ease') + ' forwards';
+                                            if (eff === 'typewriter') {{
+                                                element.style.transition = 'clip-path ' + animDuration + 's steps(20, end)';
+                                                element.style.clipPath = 'inset(0 0% 0 0)';
+                                            }} else if (eff === 'bounce') {{
+                                                element.style.transition = 'opacity ' + animDuration + 's ease, transform ' + animDuration + 's cubic-bezier(0.34, 1.56, 0.64, 1)';
+                                                element.style.opacity = '1';
+                                                element.style.transform = 'translateY(0) translateX(0) scale(1)';
+                                            }} else {{
+                                                var easeFunc = anim.easing || 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                                                element.style.transition = 'opacity ' + animDuration + 's ' + easeFunc + ', transform ' + animDuration + 's ' + easeFunc;
+                                                element.style.opacity = '1';
+                                                element.style.transform = 'translateY(0) translateX(0) scale(1)';
+                                            }}
                                         }}, (startTime + actualDelay) * 1000);
                                         timelineTimers.push(showTimer);
                                         

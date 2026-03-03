@@ -4070,9 +4070,10 @@ async def agent_set_media_config(session_id: str, data: dict):
     media_config = data.get("mediaConfig", {})
     bg_config = data.get("bgConfig", {})
     global_text_color = data.get("globalTextColor", "")
+    global_animation = data.get("globalAnimation", "")
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "globalTextColor": global_text_color, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "globalTextColor": global_text_color, "globalAnimation": global_animation, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
@@ -4250,6 +4251,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
     media_config = s.get("mediaConfig", {})
     bg_config = s.get("bgConfig", {})
     global_text_color = s.get("globalTextColor", "")
+    global_animation = s.get("globalAnimation", "")
     title = config.get("title", s.get("analysis", {}).get("title", "Curso Gerado por IA"))
     desc = config.get("description", s.get("analysis", {}).get("summary", ""))
 
@@ -4262,7 +4264,7 @@ async def agent_generate_course(session_id: str, background_tasks: BackgroundTas
         session_id, s["storyboard"], s.get("config", {}),
         project_dir=str(PROJECTS_DIR), project_id=project.id,
         media_config=media_config, bg_config=bg_config,
-        global_text_color=global_text_color
+        global_text_color=global_text_color, global_animation=global_animation
     )
 
     project.course.metadata.title = title

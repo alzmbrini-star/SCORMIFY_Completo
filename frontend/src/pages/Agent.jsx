@@ -80,6 +80,7 @@ export default function Agent() {
   const [heygenConfig, setHeygenConfig] = useState({ avatarId: '', voiceId: '' });
   const [bgConfig, setBgConfig] = useState({});
   const [globalTextColor, setGlobalTextColor] = useState('');
+  const [globalAnimation, setGlobalAnimation] = useState('');
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -116,6 +117,7 @@ export default function Agent() {
         setMediaConfig(session.mediaConfig || {});
         setBgConfig(session.bgConfig || {});
         setGlobalTextColor(session.globalTextColor || '');
+        setGlobalAnimation(session.globalAnimation || '');
         setConfig(session.config || {});
         setStructure(session.structure);
         setCurrentStep(5); // Go directly to Media Config step
@@ -357,7 +359,7 @@ export default function Agent() {
       }
       await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor }),
+        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalAnimation }),
       });
       const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
       const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
@@ -527,7 +529,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1412,7 +1414,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalAnimation, setGlobalAnimation }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1684,6 +1686,44 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
             </div>
           </div>
           {!globalTextColor && <p className="text-[10px] text-slate-500 mt-1">Deixe vazio para usar a cor padrão do template selecionado.</p>}
+        </CardContent>
+      </Card>
+
+      {/* Global Animation Picker */}
+      <Card className="bg-slate-900/50 border-slate-800" data-testid="global-animation-card">
+        <CardContent className="p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" /> Animação de Entrada dos Textos
+          </h3>
+          <p className="text-xs text-slate-400">Aplique uma animação de entrada em todos os textos durante a transição de slides.</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button onClick={() => setGlobalAnimation('')}
+              className={`text-[11px] px-2 py-2 rounded-lg border transition-all ${!globalAnimation ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600'}`}
+              data-testid="global-anim-none">
+              Nenhuma
+            </button>
+            {[
+              { id: 'fadeIn', label: 'Fade In' },
+              { id: 'slideInLeft', label: 'Slide Esq.' },
+              { id: 'slideInRight', label: 'Slide Dir.' },
+              { id: 'slideInUp', label: 'Slide Baixo' },
+              { id: 'slideInDown', label: 'Slide Cima' },
+              { id: 'zoomIn', label: 'Zoom In' },
+              { id: 'typewriter', label: 'Typewriter' },
+              { id: 'bounce', label: 'Bounce' },
+            ].map(a => (
+              <button key={a.id} onClick={() => setGlobalAnimation(a.id)}
+                className={`text-[11px] px-2 py-2 rounded-lg border transition-all ${globalAnimation === a.id ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600'}`}
+                data-testid={`global-anim-${a.id}`}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+          {globalAnimation && (
+            <div className="text-[10px] text-amber-400/60 flex items-center gap-1">
+              <Check className="w-3 h-3" /> Animação "{globalAnimation}" será aplicada a todos os textos.
+            </div>
+          )}
         </CardContent>
       </Card>
 

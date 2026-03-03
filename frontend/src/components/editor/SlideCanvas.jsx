@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { Trash2, Move, RotateCw } from 'lucide-react';
 import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
+import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransition } from '../../lib/animations';
 
 import { getApiUrl } from '../../utils/apiUrl';
 const API_URL = getApiUrl();
@@ -547,6 +548,25 @@ const SlideCanvas = ({
           ? displayElement.y
           : (displayElement.y || 0) * scale;
         
+        // Compute animation style during timeline playback
+        const elemAnim = element.animation || (element.animations?.[0]);
+        const animEffect = elemAnim?.effect || elemAnim?.type || '';
+        let animStyle = {};
+        let animTransition = '';
+        if (animEffect && timelineIsPlaying) {
+          const elStart = element.startTime || 0;
+          const animDur = elemAnim?.duration || 0.5;
+          const elapsed = timelineTime - elStart;
+          if (elapsed < 0) {
+            animStyle = getAnimationInitialStyle(animEffect);
+          } else if (elapsed < animDur) {
+            animStyle = getAnimationFinalStyle(animEffect);
+            animTransition = getAnimationTransition(animEffect, animDur);
+          } else {
+            animStyle = getAnimationFinalStyle(animEffect);
+          }
+        }
+        
         return (
           <div
             key={element.id}
@@ -558,9 +578,10 @@ const SlideCanvas = ({
               height: elementHeight,
               transform: displayElement.rotation ? `rotate(${displayElement.rotation}deg)` : undefined,
               zIndex: (displayElement.zIndex || 0) + 1,
-              // Show at least 30% opacity for hidden elements during editing
               opacity: displayElement.visible === false ? Math.max(0.3, displayElement.style?.opacity ?? 1) : (displayElement.style?.opacity ?? 1),
               cursor: isDragging && isSelected ? 'grabbing' : 'grab',
+              ...animStyle,
+              transition: animTransition || undefined,
             }}
             onMouseDown={(e) => handleElementMouseDown(e, element)}
             onDoubleClick={(e) => handleDoubleClick(e, element)}
