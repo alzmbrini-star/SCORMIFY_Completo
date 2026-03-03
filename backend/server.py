@@ -5345,9 +5345,36 @@ async def startup_persist_local_assets():
                         if not existing:
                             store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, asset.name, str(asset))
                             total += 1
+            
+            # Also persist TTS/narration audio files to MongoDB
+            audio_dir = STORAGE_DIR / "audio"
+            audio_migrated = 0
+            if audio_dir.exists():
+                for audio_file in audio_dir.iterdir():
+                    if audio_file.is_file() and audio_file.suffix.lower() in ('.mp3', '.wav', '.ogg'):
+                        existing = _db.tts_generations.find_one(
+                            {"filename": audio_file.name, "audio_data": {"$exists": True}},
+                            {"_id": 1}
+                        )
+                        if not existing:
+                            with open(audio_file, 'rb') as f:
+                                audio_data = f.read()
+                            _db.tts_generations.update_one(
+                                {"filename": audio_file.name},
+                                {"$set": {
+                                    "filename": audio_file.name,
+                                    "audio_data": base64.b64encode(audio_data).decode(),
+                                    "file_size": len(audio_data),
+                                    "type": "narration",
+                                    "migrated_at": datetime.now(timezone.utc).isoformat()
+                                }},
+                                upsert=True
+                            )
+                            audio_migrated += 1
+            
             _client.close()
-            if total > 0:
-                logger.info(f"Background asset persistence: saved {total} new assets to MongoDB")
+            if total > 0 or audio_migrated > 0:
+                logger.info(f"Background asset persistence: saved {total} project assets, {audio_migrated} audio files to MongoDB")
             else:
                 logger.info("Background asset persistence: all assets already in MongoDB")
         except Exception as e:
