@@ -918,7 +918,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
 
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None) -> dict:
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "") -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
     from models import generate_id
     import hashlib
@@ -936,6 +936,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     # Select a color palette based on course title
     title_hash = int(hashlib.md5(config.get("title", "curso").encode()).hexdigest()[:8], 16)
     palette = _COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)]
+
+    # Override text color with user's global choice
+    if global_text_color:
+        palette = {**palette, "text": global_text_color}
 
     # Collect module names for title slide
     module_names = []

@@ -520,6 +520,8 @@ export default function Editor() {
   const [showButtonDialog, setShowButtonDialog] = useState(false);
   const [showHtmlDialog, setShowHtmlDialog] = useState(false);
   const [showFlipbookDialog, setShowFlipbookDialog] = useState(false);
+  const [showBulkTextColorDialog, setShowBulkTextColorDialog] = useState(false);
+  const [bulkTextColor, setBulkTextColor] = useState('#ffffff');
   const [buttonConfig, setButtonConfig] = useState({
     text: 'Clique aqui',
     url: '',
@@ -1165,6 +1167,45 @@ export default function Editor() {
   };
 
   // Add Flipbook element
+
+  const handleBulkTextColorChange = async () => {
+    if (!bulkTextColor) return;
+    try {
+      const updatedSlides = slides.map(slide => ({
+        ...slide,
+        elements: slide.elements.map(el => {
+          if (el.type === 'text' || el.type === 'html') {
+            // Update text color in style
+            const newStyle = { ...el.style, color: bulkTextColor };
+            // Also update htmlContent if it contains color styles
+            let newHtmlContent = el.htmlContent || '';
+            if (newHtmlContent) {
+              // Replace color in inline styles
+              newHtmlContent = newHtmlContent.replace(/color:\s*#[a-fA-F0-9]{3,8}/g, `color:${bulkTextColor}`);
+              newHtmlContent = newHtmlContent.replace(/color:\s*rgba?\([^)]+\)/g, `color:${bulkTextColor}`);
+            }
+            return { ...el, style: newStyle, htmlContent: newHtmlContent };
+          }
+          return el;
+        }),
+      }));
+      // Save all slides via API
+      for (const slide of updatedSlides) {
+        for (const el of slide.elements) {
+          const origEl = slides.find(s => s.id === slide.id)?.elements.find(e => e.id === el.id);
+          if (origEl && (origEl.style?.color !== el.style?.color || origEl.htmlContent !== el.htmlContent)) {
+            await updateElement(slide.id, el.id, { style: el.style, htmlContent: el.htmlContent });
+          }
+        }
+      }
+      toast.success(`Cor de texto alterada para ${bulkTextColor} em todos os slides`);
+      setShowBulkTextColorDialog(false);
+    } catch (err) {
+      toast.error('Erro ao alterar cor de texto: ' + err.message);
+    }
+  };
+
+
   const handleAddFlipbook = async () => {
     if (flipbookConfig.type === 'external' && !flipbookConfig.url) {
       toast.error('Por favor, insira a URL do flipbook');
@@ -2189,6 +2230,15 @@ export default function Editor() {
             >
               <Settings className="w-4 h-4" />
               Editar Mídia
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-amber-700/50 text-amber-300 hover:bg-amber-900/20"
+              onClick={() => setShowBulkTextColorDialog(true)}
+              data-testid="bulk-text-color-btn"
+            >
+              <Type className="w-4 h-4" />
+              Cor do Texto
             </Button>
             <Dialog open={showExportDialog} onOpenChange={(open) => {
               setShowExportDialog(open);
@@ -3326,6 +3376,62 @@ export default function Editor() {
         </Dialog>
 
         {/* Flipbook Dialog */}
+        {/* Bulk Text Color Dialog */}
+        <Dialog open={showBulkTextColorDialog} onOpenChange={setShowBulkTextColorDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Alterar Cor do Texto — Todos os Slides</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                A cor selecionada será aplicada a todos os textos em todos os {slides.length} slides do curso.
+              </p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={bulkTextColor}
+                  onChange={e => setBulkTextColor(e.target.value)}
+                  className="w-12 h-12 rounded cursor-pointer border-0 bg-transparent"
+                  data-testid="bulk-text-color-picker"
+                />
+                <Input
+                  value={bulkTextColor}
+                  onChange={e => setBulkTextColor(e.target.value)}
+                  placeholder="#ffffff"
+                  className="flex-1"
+                  data-testid="bulk-text-color-hex"
+                />
+              </div>
+              {/* Quick presets */}
+              <div className="flex gap-2 flex-wrap">
+                {['#ffffff', '#f1f5f9', '#e2e8f0', '#1e293b', '#0f172a', '#000000', '#fbbf24', '#34d399', '#60a5fa', '#f472b6'].map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setBulkTextColor(c)}
+                    className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${bulkTextColor === c ? 'border-cyan-400 ring-2 ring-cyan-400/30' : 'border-slate-600'}`}
+                    style={{ background: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+              {/* Preview */}
+              <div className="flex gap-2">
+                {(slides.slice(0, 3)).map((s, i) => (
+                  <div key={i} className="flex-1 h-12 rounded border border-slate-700 flex items-center justify-center text-xs font-medium" style={{ background: s.background || '#1e293b', color: bulkTextColor }}>
+                    Slide {i + 1}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setShowBulkTextColorDialog(false)}>Cancelar</Button>
+              <Button onClick={handleBulkTextColorChange} className="bg-amber-600 hover:bg-amber-700" data-testid="apply-bulk-text-color">
+                Aplicar a Todos os Slides
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={showFlipbookDialog} onOpenChange={setShowFlipbookDialog}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>

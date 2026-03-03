@@ -79,6 +79,7 @@ export default function Agent() {
   const [mediaConfig, setMediaConfig] = useState({});
   const [heygenConfig, setHeygenConfig] = useState({ avatarId: '', voiceId: '' });
   const [bgConfig, setBgConfig] = useState({});
+  const [globalTextColor, setGlobalTextColor] = useState('');
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -114,6 +115,7 @@ export default function Agent() {
         setStoryboard(session.storyboard);
         setMediaConfig(session.mediaConfig || {});
         setBgConfig(session.bgConfig || {});
+        setGlobalTextColor(session.globalTextColor || '');
         setConfig(session.config || {});
         setStructure(session.structure);
         setCurrentStep(5); // Go directly to Media Config step
@@ -355,7 +357,7 @@ export default function Agent() {
       }
       await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig }),
+        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor }),
       });
       const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
       const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
@@ -525,7 +527,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1403,7 +1405,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1528,6 +1530,67 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
       <p className="text-sm text-slate-400">
         Escolha o tipo de mídia para cada slide de conteúdo. Imagens IA serão geradas automaticamente baseadas no contexto de cada slide.
       </p>
+
+      {/* Global text color for all slides */}
+      <Card className="bg-slate-900/50 border-slate-800" data-testid="global-text-color-card">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-medium text-cyan-300">Cor das Fontes (Todos os Slides)</span>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <input
+                type="color"
+                value={globalTextColor || '#ffffff'}
+                onChange={e => setGlobalTextColor(e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent"
+                data-testid="global-text-color-picker"
+              />
+              <Input
+                value={globalTextColor || ''}
+                onChange={e => setGlobalTextColor(e.target.value)}
+                placeholder="#ffffff (padrão do template)"
+                className="h-8 text-xs bg-slate-800 border-slate-700 w-44"
+                data-testid="global-text-color-input"
+              />
+              {globalTextColor && (
+                <button
+                  onClick={() => setGlobalTextColor('')}
+                  className="text-[10px] text-slate-500 hover:text-red-400 px-1"
+                  title="Resetar para cor do template"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[11px] text-slate-500">Preview:</span>
+            <div className="flex gap-2">
+              {['#1e293b', '#0f172a', '#ffffff', '#f1f5f9'].map(bg => (
+                <div
+                  key={bg}
+                  className="flex items-center justify-center w-24 h-8 rounded border border-slate-700 text-xs font-medium"
+                  style={{ background: bg, color: globalTextColor || '#ffffff' }}
+                >
+                  Texto
+                </div>
+              ))}
+              {/* Preview with first custom background */}
+              {Object.values(bgConfig).find(b => b.type === 'solid')?.color && (
+                <div
+                  className="flex items-center justify-center w-24 h-8 rounded border border-cyan-700/50 text-xs font-medium"
+                  style={{ background: Object.values(bgConfig).find(b => b.type === 'solid').color, color: globalTextColor || '#ffffff' }}
+                >
+                  Seu Fundo
+                </div>
+              )}
+            </div>
+          </div>
+          {!globalTextColor && <p className="text-[10px] text-slate-500 mt-1">Deixe vazio para usar a cor padrão do template selecionado.</p>}
+        </CardContent>
+      </Card>
 
       {/* Quick apply buttons */}
       <div className="flex gap-2 flex-wrap">

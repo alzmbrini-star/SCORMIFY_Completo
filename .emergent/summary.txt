@@ -1,177 +1,159 @@
 <analysis>**original_problem_statement:**
-The user's initial goal was to start **Phase 2** of the Instructional Design AI Agent, focusing on course editing and visual templates. Over the session, the requirements evolved based on user feedback to address the quality of the generated courses. The final set of implemented requests includes:
-1.  **Phase 2 MVP:** Implement course editing and visual template selection. (Completed)
-2.  **Visual Overhaul:** Fix visual issues in generated courses, such as missing backgrounds and poor text positioning. (Completed)
-3.  **Media Selection:** Instead of just adding random images, provide a per-slide media selection step with options for:
-    *   AI-generated photorealistic images.
-    *   YouTube/Vimeo video embeds.
-    *   HeyGen avatar videos.
-    *   No media.
-4.  **Bug Fix:** The LIBRAS toggle in the SCORM export modal was unresponsive and needed to be fixed. (Completed)
-5.  **Content Depth:** The text generated for slides was too superficial (1-2 lines) and needed to be significantly more detailed and structured. (Completed)
-6.  **Functional Quizzes:** The agent was generating HTML previews of quizzes instead of using the functional Scormfy quiz generator. This needed to be corrected to create interactive quizzes. (Completed)
+The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses.
+
+Throughout the sessions, the user has requested and the agent has implemented several key features on top of the initial base:
+-   **Content Ingestion**: From , , and website URLs.
+-   **Multimedia Integration**: HeyGen avatars, ElevenLabs narration, YouTube/Vimeo videos.
+-   **UX/Performance**: Fixed a critical backend blocking issue by moving AI calls to a background thread and added a real-time progress UI for the user.
+-   **Customization**: Implemented a detailed per-slide background customizer (solid color, gradient, image upload, AI-generated image).
+-   **AI-powered Self-Improvement**: The agent can now analyze its own generation process and provide suggestions to improve the Scormfy platform.
+-   **Cost Optimization**: Migrated core LLM usage from OpenAI's expensive models to more cost-effective Google Gemini models (Gemini 3 Flash & Nano Banana) and added a pre-generation cost estimate.
+-   **Expanded Functionality**: Added Flipbook, raw HTML, and external link buttons as configurable media types.
+-   **Course Editing Workflow**: Added the ability for users to re-enter the media configuration step for an already-generated course directly from the editor.
+-   **Global Styling**: Added a feature to set a global font color for the entire course, both during initial generation and as a bulk-edit action in the editor.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application now has a significantly enhanced Instructional Design AI Agent. It has successfully completed its MVP (Phase 1) and most of Phase 2.
+The application is a feature-rich Instructional Design AI assistant. It takes various forms of input, generates a course structure, allows for deep customization of media and styling, and exports a complete SCORM/HTML package.
 
-Key features include:
--   **End-to-End Course Generation:** Creates a full course from raw text.
--   **Course Editing:** Users can select and request edits on courses previously created by the agent.
--   **Visual Templates:** Users can choose a visual theme before course generation.
--   **Advanced Visuals & Layouts:** The agent now generates slides with professional layouts, backgrounds, and content positioning.
--   **Per-Slide Media Configuration:** A new step in the generation process allows the user to choose the media type (AI Image, Video Embed, HeyGen, or None) for each content slide. The AI Image generation (GPT Image 1) and video embeds are fully functional.
--   **Deep Content Generation:** The AI prompts have been updated to produce detailed, well-structured text (100+ words) for each slide.
--   **Functional Scormfy Quizzes:** The agent now correctly creates interactive quiz elements () with questions, alternatives, and explanations, which are fully compatible with the Scormfy player and exporter.
--   **Bug Fixes:** The previously unresponsive LIBRAS toggle in the export modal has been fixed and is now functional. The critical VLibras CORS bug remains resolved.
+**Key Components:**
+-   **Backend (FastAPI)**: Manages agent sessions, orchestrates AI generation in background threads, handles file uploads, and serves the generated course data. It uses Google Gemini models for text/image generation with a fallback to GPT-4o.
+-   **Frontend (React)**: A step-by-step wizard for course creation (Content -> Structure -> Media -> Generated). It includes a full-featured course editor for post-generation tweaks.
+-   **Database (MongoDB)**: Stores user sessions, course structure, storyboard, media configurations, and AI-generated suggestions.
 
 **Last working item**:
--   Last item agent was working: The agent had just finished implementing two major improvements: increasing the depth of the generated text content and fixing the quiz generation to create functional Scormfy quiz elements. After successful manual testing ( and database checks), the agent attempted to run the  for a comprehensive validation, but the tool call failed.
--   Status: **BLOCKED**
--   Agent Testing Done: N (Manual self-testing was done, but the comprehensive automated test failed to execute).
--   Which testing method agent to use? **testing_agent_v3_fork**. The agent must retry calling the testing agent to get a full report on the latest significant changes.
+-   Last item agent was working: The user requested a feature to set a global font color for all slides in a course. The agent implemented this in two places:
+    1.  A color picker in the Media step of the agent flow to set the color before generation.
+    2.  A Global Text Color bulk-action button in the course editor to change the color on an existing course.
+-   Status: **IN PROGRESS**
+-   Agent Testing Done: N
+-   Which testing method agent to use? Self-testing followed by the testing agent.
+    1.  **Manual Testing**: Use screenshots to verify the new UI components in the Media step and the Editor. Use  to test that the  is saved correctly via the  endpoint.
+    2.  **Testing Agent**: After manual verification, call  to run a full end-to-end test, ensuring the new color is applied correctly during generation and that the editor's bulk-action works without regressions.
 -   User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Testing Agent Failure (P0)**
-    -   The call to  failed with a . This blocks the final validation of the latest features.
-    -   **Attempted fixes:** None. The failure was the last action of the previous session.
+-   **Issue 1: Test and Validate Global Text Color Feature (P0)**
+    -   **Description:** The implementation for the global text color feature is complete, but it has not been tested. This is the immediate next step.
     -   **Next debug checklist:**
-        1.  Review the parameters sent to the  tool in the last attempt (message 358).
-        2.  Ensure the request format is correct.
-        3.  Retry calling  with the same parameters.
-        4.  If it fails again, simplify the test request to see if a specific part of it is causing the failure.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical blocker. Resolving it will allow for a full regression and feature test, ensuring the major improvements to content depth and quiz functionality are stable and haven't introduced regressions.
-    -   **Status**: NOT STARTED
+        1.  Verify the new color picker appears correctly in the Agent's Media step UI.
+        2.  Confirm that selecting a color there and generating a course results in the correct font color in the final output.
+        3.  Verify the Global Text Color button and dialog appear correctly in the Editor UI.
+        4.  Confirm that using this button on an existing course successfully updates the font color on all text elements across all slides.
+    -   **Why fix this issue and what will be achieved with the fix?**: This completes the user's latest feature request and is crucial for usability, allowing users to ensure text is readable against custom backgrounds.
+    -   **Status**: IN PROGRESS
     -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: both
-    -   **Blocked on other issue**: None.
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on other issue**: None
 
 **In progress Task List**:
--   **Task 1: Validate Content and Quiz Generation Improvements (P0)**
-    -   This task involves confirming that the enhanced text generation and functional quizzes work correctly across the application.
-    -   **Where to resume**: Retry the failed  call.
-    -   **What will be achieved with this?**: Confirms the successful implementation of the user's latest and most critical requirements for content quality.
+-   **Task 1: Complete Global Text Color Feature (P0)**
+    -   **Where to resume**: Begin the testing phase for the newly implemented code.
+    -   **What will be achieved with this?**: A fully functional and validated global font color feature, both at generation time and for existing courses.
     -   **Status**: IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?**: both
-    -   **Blocked on something**: Issue 1: Testing Agent Failure.
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on something**: None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-    - (P1) **Full HeyGen Avatar Integration:** The UI for selecting a HeyGen avatar exists, but the backend implementation is a placeholder. This task involves integrating with the HeyGen API to generate and embed avatar videos into slides.
-    - (P1) **Platform Improvement Suggestions:** Implement the feature for the agent to analyze its own process and suggest improvements for the Scormfy platform.
+    - (P1) After user validation of the current feature, the agent should ask the user for the next priority.
 - **Future Tasks:**
-    - (P2) **Enhanced Content Input:** Allow the agent to accept , , and website links as source content.
     - (P2) **Advanced Interactivity:** Implement a per-course Tutor IA to answer student questions.
-    - (P3) **Code Refactoring:**
-        -   Break down the monolithic  into dedicated router files.
-        -   Refactor  which has grown significantly.
-        -   Refactor  and  to use a templating engine (e.g., Jinja2).
+    - (P3) **Code Refactoring:** This is becoming critical.
+        -   Break down the monolithic  into dedicated router files (e.g., , ).
+        -   Refactor the complex  (currently >5000 lines) into smaller, manageable components and custom hooks.
+        -   Refactor  which has also grown very complex.
 
 **Completed work in this session**
--   **Phase 2 AI Agent:** Implemented course editing and visual template selection features.
--   **Visual & Content Overhaul:**
-    -   Rewrote course generation logic in  to produce professional layouts with appropriate backgrounds and styling.
-    -   Enhanced AI prompts to generate deep, structured text content (100+ words per slide).
--   **Interactive Media Selection:**
-    -   Added a Mídia step to the  UI.
-    -   Implemented backend logic in  and a new endpoint  to handle media choices.
-    -   Integrated  for AI image generation and added support for YouTube/Vimeo embeds.
--   **Functional Quiz Implementation:**
-    -   Modified  to create true Scormfy quiz elements () instead of HTML previews.
-    -   Ensured quiz questions are saved to the project's database and linked correctly in the slide elements.
--   **Bug Fix: LIBRAS Toggle:**
-    -   Replaced the custom button with a Shadcn  component in  to resolve click interception issues within the export modal.
+-   **Bug Fix:** Resolved a UI freeze where the storyboard generation polling would time out before the background task completed.
+-   **Bug Fix:** Fixed a UI crash in the editor caused by  backgrounds being incompatible with the  CSS property.
+-   **Feature: Custom Slide Backgrounds:** Implemented a full-featured background picker for each slide (solid color, gradient, image upload, AI image).
+-   **Feature: AI-powered Platform Suggestions:** Implemented a system where the AI analyzes the generation process and provides suggestions for improvement.
+-   **Feature: LLM Migration for Cost Savings:** Switched the primary text and image generation models from OpenAI to Google Gemini, adding a cost estimation UI.
+-   **Feature: Expanded Media Types:** Added support for Flipbook, raw HTML, and external Buttons as slide media.
+-   **Feature: Edit Media Workflow:** Created a flow for users to return to the media configuration step from the course editor for post-generation changes.
 
 **Earlier issues found/mentioned but not fixed**
--   None.
+-   None that are currently active, but the agent has shown a tendency to introduce bugs through complex  operations on large files (), which reinforces the need for refactoring.
 
 **Known issue recurrence from previous fork**
--   None. The previously recurring VLibras issue was permanently resolved and has not resurfaced.
+-   **Pattern:** Underestimating the user experience implications of long-running background tasks. The agent has repeatedly implemented a backend fix without fully considering the frontend feedback loop (e.g., lack of progress bar, short polling timeouts), requiring user feedback to identify and fix the UX issue.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Functional Quiz Generation**: Creating  elements with  and  that link to questions stored in the project's data model, making them interactive in the Scormfy player.
--   **Dynamic Media Orchestration**: A multi-step UI flow allowing users to configure media (AI image, video, avatar) on a per-slide basis before final course generation.
--   **AI Image Generation**: Using  () to generate context-aware, photorealistic images based on slide content.
--   **Robust UI Component Interaction**: Solved a modal interaction bug by replacing a custom HTML toggle with a standard library component () that correctly handles state and events within a dialog.
--   **Prompt Engineering for Content Depth**: Refining LLM prompts to enforce a minimum word count and a specific JSON structure to generate significantly more detailed and well-formatted slide content.
+-   **LLM Migration & Costing:** Switched from OpenAI to Google Gemini models (, ) and built a pre-generation cost estimation endpoint.
+-   **Stateful Cross-Component Navigation:** Used URL query parameters () to link from the Editor back to the Agent page, loading a specific state.
+-   **Dynamic Element Injection:** The backend now dynamically builds and injects  and  tags into slide content based on the new , , and  media types.
+-   **Bulk DOM Manipulation (Frontend):** Implemented a function in  to iterate through all slides and their elements to apply a global style change (text color).
 
 **key DB schema**
--   **projects collection**:
-    -   The  array now contains elements of  with a  object that includes , , etc.
-    -   The  array within the project document now stores the full quiz question objects (text, alternatives, correct index, explanation).
+-   **agent_sessions collection**:
+    -    (object): Maps slide IDs to their custom background configurations.
+    -    (string): Stores the hex code for the course-wide font color.
+    -    (object): Stores AI-generated suggestions.
 
 **changes in tech stack**
--   : Used for AI Image Generation ().
+-   Primary LLMs for text and image generation were switched from OpenAI to **Google Gemini** models via the  library.
 
 **All files of reference**
--   : The core logic for all AI agent functionality. Contains the recent major changes to visuals, content depth, and quizzes.
--   : The main UI for the AI agent, including the new media selection step.
--   : Contains the fix for the LIBRAS toggle.
--   : Defines all API endpoints for the agent.
--   : The product requirements document.
+-   : Contains the logic for almost all new features and is a primary focus for refactoring.
+-   : The core generation logic.
+-   : The UI for most new customization features.
+-   : The location of the new bulk-editing features and a critical file for refactoring.
 
 **Areas that need refactoring**:
--   : This file has become very large and complex. It should be broken down into smaller, more focused modules (e.g., , , ).
--   : Still monolithic. The agent routes should be moved to a dedicated file under a  directory.
+-   ****: URGENT. This file is a monolith. API routes and their business logic should be broken out into a  directory.
+-   ****: URGENT. At over 5000 lines, this file is unmaintainable. It must be decomposed into smaller components and custom hooks.
+-   ****: This component has also become overly complex and should be broken down into sub-components.
 
 **key api endpoints**
--   : Saves the user's media choices for each slide.
--   : Lists courses created by the agent (for the editing flow).
--   : The endpoint to trigger course editing.
--   : The endpoint for exporting, which was tested for the LIBRAS toggle fix.
+-   : **NEW**. Finds an agent session from a project ID, enabling the Edit Media flow.
+-   : **NEW**. Calculates generation cost.
+-   : **NEW**. Fetches AI-generated improvement suggestions.
+-   : Heavily updated to accept  and .
 
 **Critical Info for New Agent**
--   **Your immediate task is to resolve the failed  call.** This is a P0 blocker preventing validation of the latest work. Retry the call first.
--   The user is highly focused on the quality of the generated course. Do not regress on the text depth or quiz functionality.
--   The HeyGen avatar integration is the next logical feature to complete, as the UI is already in place.
--   Remember to respond to the user in **Português**.
+-   Your immediate task is to **test the Global Text Color feature**, which was just implemented but is unvalidated. Follow the testing plan outlined in the Last working item section.
+-   The application now uses **Google Gemini** models as the primary, cost-effective choice for all AI generation. The fallback is . All LLM calls are made through the  library.
+-   The codebase is becoming critically complex. ** and  urgently need refactoring.** While you should prioritize user requests, be prepared to strongly advocate for a refactoring phase to ensure future stability.
+-   You MUST respond to the user in **Português**.
 
 **documents and test reports created in this job**
--    (Updated twice)
+-    (Updated)
 -   
 -   
 -   
 
 **Last 10 User Messages and any pending HUMAN messages**
-10. **User:** Asks to vary media, giving options for AI image, YouTube/Vimeo video, or HeyGen avatar. (Request implemented)
-9.  **Agent:** Confirms understanding and plans implementation of the media selection step.
-8.  **User:** Reports that the LIBRAS toggle in the export modal is not working. (Bug reported)
-7.  **Agent:** Investigates and fixes the LIBRAS toggle bug.
-6.  **Agent:** Confirms the toggle fix is working with screenshots and finishes the task.
-5.  **User:** Asks for deeper text content on slides and for the agent to use the proper Scormfy quiz generator. (New requirements)
-4.  **Agent:** Asks for confirmation to proceed with these two improvements.
-3.  **User:** Sim (Confirms).
-2.  **Agent:** Investigates and implements fixes for both content depth and functional quiz generation. Verifies success with  and database checks.
-1.  **Agent:** Attempts to run  for final validation, but the call fails. (Current state)
+-   (Latest) **User:** Requests a global text color changer for both new and existing courses.
+-   **User:** Asks for clarification on whether gradient backgrounds will export correctly to SCORM (Agent confirmed yes).
+-   **User:** Raises concerns about AI generation costs, asking for cheaper alternatives.
+-   **User:** Reports a bug where gradient backgrounds were crashing the editor.
+-   **User:** Reports that storyboard generation failed due to an LLM error (which was a budget issue).
+-   **User:** Requests the ability to add Flipbooks, HTML, and Buttons as media, and a way to edit media on existing courses.
 
 **Project Health Check:**
--   **Broken**: No, the application itself is running. However, the final validation of the last implemented features is blocked.
--   **Mocked**: The HeyGen avatar integration is currently a mocked placeholder.
+-   **Broken**: No
+-   **Mocked**: No
 
 **3rd Party Integrations**
--   **OpenAI GPT-5.2/gpt-4o:** For AI script/storyboard generation. Uses **Emergent LLM Key**.
--   **OpenAI GPT Image 1:** For AI image generation. Uses **Emergent LLM Key**.
--   **ElevenLabs:** For Text-to-Speech (future/planned).
--   **HeyGen:** For avatar video generation (UI/placeholder exists, full integration pending).
--   **ConvertAPI:** For PPT conversion. Requires **User API Key**.
--   **VLibras:** Brazilian Sign Language integration, routed through a stable internal proxy.
+-   **Google Gemini 3 Flash & Nano Banana**: Primary text/image generation. Uses **Emergent LLM Key**.
+-   **OpenAI gpt-4o**: Fallback for text generation. Uses **Emergent LLM Key**.
+-   **ElevenLabs**: For audio narration. Requires User API Key.
+-   **HeyGen**: For avatar video. Requires User API Key.
+-   **ConvertAPI**: For PPT conversion. Requires User API Key.
+-   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: **ATTEMPTED**. The last call to  failed. Previous major features in this session were successfully tested by the agent.
--   Troubleshoot agent used after agent stuck in loop: No.
--   Test files created:
-    -   
-    -   
-    -   
--   Known regressions: None known, but full regression testing is pending due to the blocked testing agent.
+-   Testing agent used after significant changes: YES. However, the most recent call timed out, forcing a switch to manual testing.
+-   Known regressions: None.
 
 **Credentials to test flow:**
-- Credentials for logging in can be found in  if needed for testing.
+-   All necessary credentials are in .
 
 **What agent forgot to execute**
-- The agent was in the process of executing the final validation step () but was blocked by a tool failure. It did not forget, but was unable to complete the action.</analysis>
+-   The agent has not tested the Global Text Color feature after implementing it. This is the immediate next step.
+-   The agent has not investigated why the  timed out on the last run. This could indicate growing complexity in the test suite that needs addressing.</analysis>
