@@ -470,6 +470,8 @@ export default function Dashboard() {
                         alt=""
                         className="w-full h-full object-cover"
                       />
+                    ) : project.course?.slides?.[0] ? (
+                      <SlideMinPreview slide={project.course.slides[0]} title={project.title || project.name} />
                     ) : (
                       <Presentation className="w-12 h-12 text-muted-foreground" />
                     )}
@@ -495,6 +497,42 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+
+function SlideMinPreview({ slide, title }) {
+  const bg = slide.background || '#1e293b';
+  const isGradient = bg.includes('gradient');
+  const elements = slide.elements || [];
+  const titleEl = elements.find(e => e.htmlContent?.includes('<h1') || e.htmlContent?.includes('font-size:4'));
+  let titleText = title || slide.title || '';
+  if (titleEl?.htmlContent) {
+    const m = titleEl.htmlContent.match(/>([^<]{3,})</);
+    if (m) titleText = m[1];
+  }
+  const subtitleEl = elements.find(e => e !== titleEl && (e.htmlContent?.includes('<p') || e.htmlContent?.includes('font-size:1')));
+  let subtitleText = '';
+  if (subtitleEl?.htmlContent) {
+    const m = subtitleEl.htmlContent.match(/>([^<]{3,})</);
+    if (m) subtitleText = m[1];
+  }
+  const textColor = elements[0]?.style?.color || (isGradient || bg < '#888' ? '#e2e8f0' : '#1e293b');
+  const accentEl = elements.find(e => e.htmlContent?.includes('background:') || e.htmlContent?.includes('background-color:'));
+  let accentColor = '';
+  if (accentEl?.htmlContent) {
+    const m = accentEl.htmlContent.match(/background(?:-color)?:\s*(#[0-9a-fA-F]{3,8})/);
+    if (m) accentColor = m[1];
+  }
+
+  return (
+    <div className="w-full h-full relative" style={{ background: bg }} data-testid="slide-min-preview">
+      {accentColor && <div className="absolute top-0 left-0 right-0 h-1" style={{ background: accentColor }} />}
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center gap-1">
+        <span className="font-bold text-[11px] leading-tight line-clamp-2" style={{ color: textColor }}>{titleText}</span>
+        {subtitleText && <span className="text-[8px] leading-tight line-clamp-1 opacity-70" style={{ color: textColor }}>{subtitleText}</span>}
+      </div>
     </div>
   );
 }
