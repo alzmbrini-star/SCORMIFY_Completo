@@ -936,9 +936,20 @@ export default function Editor() {
     setPlayingAudioId(null);
   };
 
-  const getAudioUrl = (filename) => {
-    if (!filename || !currentProject) return '';
-    return `${API_URL}/api/projects/${currentProject.id}/assets/${filename}`;
+  const getAudioUrl = (audioOrFilename) => {
+    if (!audioOrFilename) return '';
+    // If it's an object with url/src, use the direct path
+    if (typeof audioOrFilename === 'object') {
+      const path = audioOrFilename.url || audioOrFilename.src;
+      if (path) {
+        return path.startsWith('http') ? path : `${API_URL}${path}`;
+      }
+      if (!currentProject) return '';
+      return `${API_URL}/api/projects/${currentProject.id}/assets/${audioOrFilename.filename}`;
+    }
+    // Fallback: it's a filename string
+    if (!currentProject) return '';
+    return `${API_URL}/api/projects/${currentProject.id}/assets/${audioOrFilename}`;
   };
 
   const handleAddSlide = async () => {
@@ -3013,7 +3024,7 @@ export default function Editor() {
                                   : 'bg-primary/20 hover:bg-primary/30'
                               }`}
                               onClick={() => playAudio(
-                                getAudioUrl(currentProject.course.globalAudio.filename),
+                                getAudioUrl(currentProject.course.globalAudio),
                                 'global'
                               )}
                               data-testid="play-global-audio"
@@ -3099,7 +3110,7 @@ export default function Editor() {
                                       : 'bg-slate-500/20 hover:bg-slate-500/30'
                                   }`}
                                   onClick={() => playAudio(
-                                    getAudioUrl(audio.filename),
+                                    getAudioUrl(audio),
                                     audio.id
                                   )}
                                   data-testid={`play-slide-audio-${audio.id}`}
