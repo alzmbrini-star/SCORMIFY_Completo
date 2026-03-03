@@ -2558,6 +2558,14 @@ function GeneratedPanel({ project, navigate, sessionId }) {
 /* ====================== EDIT MODE PANELS ====================== */
 
 function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
+  const gradients = [
+    'from-blue-600/80 to-cyan-500/80',
+    'from-violet-600/80 to-fuchsia-500/80',
+    'from-emerald-600/80 to-teal-500/80',
+    'from-amber-600/80 to-orange-500/80',
+    'from-rose-600/80 to-pink-500/80',
+    'from-indigo-600/80 to-sky-500/80',
+  ];
   return (
     <div className="space-y-4" data-testid="course-list-panel">
       <div className="flex items-center justify-between">
@@ -2576,28 +2584,26 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          {courses.map(course => (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {courses.map((course, idx) => (
             <Card
               key={course.id}
-              className="bg-slate-900/50 border-slate-800 hover:border-blue-500/40 transition-all cursor-pointer"
+              className="bg-slate-900/50 border-slate-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all cursor-pointer group overflow-hidden"
               onClick={() => onSelect(course)}
               data-testid={`course-item-${course.id}`}
             >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-blue-600/10 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5 text-blue-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm truncate">{course.name}</h3>
-                  <p className="text-xs text-slate-400 truncate">{course.description || 'Sem descrição'}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="outline" className="text-[10px] border-slate-600">
-                    <Layers className="w-3 h-3 mr-1" />{course.slidesCount} slides
-                  </Badge>
-                  <ChevronRight className="w-4 h-4 text-slate-500" />
-                </div>
+              <div className={`h-24 bg-gradient-to-br ${gradients[idx % gradients.length]} flex items-center justify-center relative`}>
+                <BookOpen className="w-10 h-10 text-white/30 group-hover:text-white/50 transition-colors" />
+                <Badge className="absolute top-2 right-2 bg-black/40 text-white text-[10px] border-0">
+                  <Layers className="w-3 h-3 mr-1" />{course.slidesCount} slides
+                </Badge>
+              </div>
+              <CardContent className="p-3 space-y-1.5">
+                <h3 className="font-medium text-sm leading-tight line-clamp-2">{course.name}</h3>
+                <p className="text-[11px] text-slate-400 line-clamp-2">{course.description || 'Sem descrição'}</p>
+                {course.createdAt && (
+                  <p className="text-[10px] text-slate-500">{new Date(course.createdAt).toLocaleDateString('pt-BR')}</p>
+                )}
               </CardContent>
             </Card>
           ))}
