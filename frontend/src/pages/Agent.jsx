@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { AnimPreviewButton } from '../components/AnimPreviewButton';
 import { Slider } from '../components/ui/slider';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
@@ -1697,27 +1698,15 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
           </h3>
           <p className="text-xs text-slate-400">Aplique uma animação de entrada em todos os textos durante a transição de slides.</p>
           <div className="grid grid-cols-3 gap-1.5">
-            <button onClick={() => setGlobalAnimation('')}
-              className={`text-[11px] px-2 py-2 rounded-lg border transition-all ${!globalAnimation ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600'}`}
-              data-testid="global-anim-none">
-              Nenhuma
-            </button>
-            {[
-              { id: 'fadeIn', label: 'Fade In' },
-              { id: 'slideInLeft', label: 'Slide Esq.' },
-              { id: 'slideInRight', label: 'Slide Dir.' },
-              { id: 'slideInUp', label: 'Slide Baixo' },
-              { id: 'slideInDown', label: 'Slide Cima' },
-              { id: 'zoomIn', label: 'Zoom In' },
-              { id: 'typewriter', label: 'Typewriter' },
-              { id: 'bounce', label: 'Bounce' },
-            ].map(a => (
-              <button key={a.id} onClick={() => setGlobalAnimation(a.id)}
-                className={`text-[11px] px-2 py-2 rounded-lg border transition-all ${globalAnimation === a.id ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600'}`}
-                data-testid={`global-anim-${a.id}`}>
-                {a.label}
-              </button>
-            ))}
+            <AnimPreviewButton animId="" label="Nenhuma" selected={!globalAnimation} onClick={() => setGlobalAnimation('')} testId="global-anim-none" />
+            <AnimPreviewButton animId="fadeIn" label="Fade In" selected={globalAnimation === 'fadeIn'} onClick={() => setGlobalAnimation('fadeIn')} testId="global-anim-fadeIn" />
+            <AnimPreviewButton animId="slideInLeft" label="Slide Esq." selected={globalAnimation === 'slideInLeft'} onClick={() => setGlobalAnimation('slideInLeft')} testId="global-anim-slideInLeft" />
+            <AnimPreviewButton animId="slideInRight" label="Slide Dir." selected={globalAnimation === 'slideInRight'} onClick={() => setGlobalAnimation('slideInRight')} testId="global-anim-slideInRight" />
+            <AnimPreviewButton animId="slideInUp" label="Slide Baixo" selected={globalAnimation === 'slideInUp'} onClick={() => setGlobalAnimation('slideInUp')} testId="global-anim-slideInUp" />
+            <AnimPreviewButton animId="slideInDown" label="Slide Cima" selected={globalAnimation === 'slideInDown'} onClick={() => setGlobalAnimation('slideInDown')} testId="global-anim-slideInDown" />
+            <AnimPreviewButton animId="zoomIn" label="Zoom In" selected={globalAnimation === 'zoomIn'} onClick={() => setGlobalAnimation('zoomIn')} testId="global-anim-zoomIn" />
+            <AnimPreviewButton animId="typewriter" label="Typewriter" selected={globalAnimation === 'typewriter'} onClick={() => setGlobalAnimation('typewriter')} testId="global-anim-typewriter" />
+            <AnimPreviewButton animId="bounce" label="Bounce" selected={globalAnimation === 'bounce'} onClick={() => setGlobalAnimation('bounce')} testId="global-anim-bounce" />
           </div>
           {globalAnimation && (
             <div className="text-[10px] text-amber-400/60 flex items-center gap-1">

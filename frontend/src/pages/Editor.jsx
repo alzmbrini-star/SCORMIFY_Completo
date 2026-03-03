@@ -118,6 +118,7 @@ import AnnotationToolbar from '../components/editor/AnnotationToolbar';
 import CoursePreview from '../components/editor/CoursePreview';
 import SplitPreview from '../components/editor/SplitPreview';
 import RichTextEditor from '../components/RichTextEditor';
+import { AnimPreviewButton } from '../components/AnimPreviewButton';
 import QuizGenerator from '../components/quiz/QuizGenerator';
 
 // Helper to get full asset URL for thumbnails
@@ -4769,16 +4770,8 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
           <Sparkles className="w-4 h-4 text-amber-400" /> Animação de Entrada
         </h4>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              onClick={() => onUpdate({ animation: null })}
-              className={`text-[11px] px-2 py-1.5 rounded border transition-all ${
-                !element.animation?.effect ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700 text-slate-500 hover:border-slate-600'
-              }`}
-              data-testid="anim-none"
-            >
-              Nenhuma
-            </button>
+          <div className="grid grid-cols-3 gap-1.5">
+            <AnimPreviewButton animId="" label="Nenhuma" selected={!element.animation?.effect} onClick={() => onUpdate({ animation: null })} testId="anim-none" />
             {[
               { id: 'fadeIn', label: 'Fade In' },
               { id: 'slideInLeft', label: 'Slide Esq.' },
@@ -4789,16 +4782,14 @@ function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 
               { id: 'typewriter', label: 'Typewriter' },
               { id: 'bounce', label: 'Bounce' },
             ].map(a => (
-              <button
+              <AnimPreviewButton
                 key={a.id}
+                animId={a.id}
+                label={a.label}
+                selected={element.animation?.effect === a.id}
                 onClick={() => onUpdate({ animation: { type: 'entrance', effect: a.id, duration: element.animation?.duration || 0.5, delay: 0 } })}
-                className={`text-[11px] px-2 py-1.5 rounded border transition-all ${
-                  element.animation?.effect === a.id ? 'border-amber-500 bg-amber-600/10 text-amber-300' : 'border-slate-700 text-slate-500 hover:border-slate-600'
-                }`}
-                data-testid={`anim-${a.id}`}
-              >
-                {a.label}
-              </button>
+                testId={`anim-${a.id}`}
+              />
             ))}
           </div>
           {element.animation?.effect && (
