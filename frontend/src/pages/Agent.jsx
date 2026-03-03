@@ -1530,14 +1530,21 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slideIndex: idx, style: narrationStyle }),
       });
+      if (!res.ok) {
+        const err = await res.text();
+        console.error('Narration API error:', res.status, err);
+        toast.error(`Erro ${res.status}: ${err.slice(0, 100)}`);
+        return;
+      }
       const data = await res.json();
       if (data.options) {
         setScriptOptions(prev => ({ ...prev, [idx]: data.options }));
       } else {
-        toast.error('Erro ao gerar roteiros');
+        toast.error('Erro ao gerar roteiros: resposta sem opções');
       }
-    } catch {
-      toast.error('Erro ao gerar roteiros de narração');
+    } catch (e) {
+      console.error('Narration fetch error:', e);
+      toast.error(`Erro de rede ao gerar roteiros: ${e.message}`);
     } finally {
       setGeneratingScripts(prev => ({ ...prev, [idx]: false }));
     }
@@ -1564,12 +1571,19 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.slice(0, 200), voice_id: narrationVoiceId }),
       });
+      if (!res.ok) {
+        const err = await res.text();
+        console.error('ElevenLabs API error:', res.status, err);
+        toast.error(`Erro ElevenLabs ${res.status}: ${err.slice(0, 100)}`);
+        return;
+      }
       const data = await res.json();
       if (data.audio_base64) {
         new Audio(data.audio_base64).play();
       }
-    } catch {
-      toast.error('Erro ao gerar preview de áudio');
+    } catch (e) {
+      console.error('ElevenLabs fetch error:', e);
+      toast.error(`Erro de rede ao gerar áudio: ${e.message}`);
     } finally {
       setPreviewingAudio(null);
     }
