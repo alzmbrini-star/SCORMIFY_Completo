@@ -4078,6 +4078,143 @@ async def agent_set_media_config(session_id: str, data: dict):
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
 
+@api_router.post("/agent/sessions/{session_id}/apply-media-changes")
+async def apply_media_changes(session_id: str, data: dict):
+    """Apply media config changes (backgrounds, animations, text color) to an existing project."""
+    project_id = data.get("projectId")
+    if not project_id:
+        raise HTTPException(400, "projectId is required")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    bg_config = s.get("bgConfig", {})
+    global_text_color = s.get("globalTextColor", "")
+    global_animation = s.get("globalAnimation", "")
+    media_config = s.get("mediaConfig", {})
+    slides = project.get("course", {}).get("slides", [])
+    storyboard_slides = s.get("storyboard", {}).get("slides", [])
+    updated_count = 0
+
+    for i, slide in enumerate(slides):
+        changed = False
+        idx_str = str(i)
+
+        # Apply background from bgConfig
+        bg = bg_config.get(idx_str, {})
+        if bg:
+            bg_type = bg.get("type", "")
+            if bg_type == "solid":
+                slide["background"] = bg.get("color", "#FFFFFF")
+                slide.pop("backgroundImage", None)
+                changed = True
+            elif bg_type == "gradient":
+                c1 = bg.get("color1", "#1e293b")
+                c2 = bg.get("color2", "#10b981")
+                direction = bg.get("direction", "to right")
+                slide["background"] = f"linear-gradient({direction}, {c1}, {c2})"
+                slide.pop("backgroundImage", None)
+                changed = True
+            elif bg_type == "image" and bg.get("imageUrl"):
+                slide["backgroundImage"] = bg["imageUrl"]
+                slide["backgroundOpacity"] = bg.get("opacity", 0.3)
+                changed = True
+            elif bg_type == "ai_image" and bg.get("imageUrl"):
+                slide["backgroundImage"] = bg["imageUrl"]
+                slide["backgroundOpacity"] = bg.get("opacity", 0.3)
+                changed = True
+
+        # Apply global text color
+        if global_text_color:
+            for el in slide.get("elements", []):
+                if el.get("type") in ("html", "text"):
+                    if not el.get("style"):
+                        el["style"] = {}
+                    el["style"]["color"] = global_text_color
+                    changed = True
+
+        # Apply global animation
+        if global_animation:
+            stagger_idx = 0
+            for el in slide.get("elements", []):
+                if el.get("type") in ("html", "text"):
+                    el["animation"] = {
+                        "type": "entrance",
+                        "effect": global_animation,
+                        "duration": 0.5,
+                        "delay": stagger_idx * 0.2,
+                    }
+                    el["animations"] = [{
+                        "type": "entrance",
+                        "effect": global_animation,
+                        "duration": 0.5,
+                        "startTime": (el.get("startTime", 0) or 0) + stagger_idx * 0.2,
+                    }]
+                    stagger_idx += 1
+                    changed = True
+
+        # Apply narration config from media config
+        mc = media_config.get(idx_str, {})
+        narr = mc.get("narration", {})
+        if narr.get("enabled") and narr.get("selectedScript") and narr.get("voiceId"):
+            # Mark for narration generation
+            slide.setdefault("_narrationPending", {
+                "script": narr["selectedScript"],
+                "voiceId": narr["voiceId"],
+            })
+            changed = True
+
+        if changed:
+            updated_count += 1
+
+    # Save updated slides
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"course.slides": slides, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    # Handle narration generation for new narration configs
+    narration_tasks = []
+    for i, slide in enumerate(slides):
+        pending = slide.pop("_narrationPending", None)
+        if pending:
+            # Check if this slide already has narration audio
+            has_narration = any(a.get("type") == "narration" for a in slide.get("audio", []))
+            if not has_narration:
+                narration_tasks.append({
+                    "slideIndex": i,
+                    "slideId": slide.get("id", ""),
+                    "slideTitle": slide.get("title", f"Slide {i+1}"),
+                    "text": pending["script"],
+                    "status": "pending",
+                })
+
+    if narration_tasks and ELEVENLABS_API_KEY:
+        voice_id = narration_tasks[0].get("voiceId", "") if narration_tasks else ""
+        # Get voiceId from first narration config
+        for idx_str, mc in media_config.items():
+            narr = mc.get("narration", {})
+            if narr.get("voiceId"):
+                voice_id = narr["voiceId"]
+                break
+        if voice_id:
+            await db.projects.update_one(
+                {"id": project_id},
+                {"$set": {"narrationPending": narration_tasks, "narrationVoiceId": voice_id}}
+            )
+            # Generate narrations in background
+            import asyncio
+            asyncio.create_task(_generate_narrations(project_id, narration_tasks, voice_id))
+
+    return {"status": "ok", "updatedSlides": updated_count, "projectId": project_id}
+
+
+
 @api_router.post("/agent/sessions/{session_id}/generate-slide-narration")
 async def agent_generate_slide_narration(session_id: str, data: dict):
     """Generate 3 narration script options for an agent storyboard slide."""

@@ -82,6 +82,7 @@ export default function Agent() {
   const [bgConfig, setBgConfig] = useState({});
   const [globalTextColor, setGlobalTextColor] = useState('');
   const [globalAnimation, setGlobalAnimation] = useState('');
+  const [editMediaProjectId, setEditMediaProjectId] = useState(null);
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -104,12 +105,12 @@ export default function Agent() {
 
   // Handle editMedia query param - load existing session for media editing
   useEffect(() => {
-    const editMediaProjectId = searchParams.get('editMedia');
-    if (!editMediaProjectId || mode) return;
+    const editProjectId = searchParams.get('editMedia');
+    if (!editProjectId || mode) return;
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/api/agent/sessions/by-project/${editMediaProjectId}`);
+        const res = await fetch(`${API}/api/agent/sessions/by-project/${editProjectId}`);
         if (!res.ok) { toast.error('Sessão não encontrada para este projeto'); setLoading(false); return; }
         const session = await res.json();
         setSessionId(session.id);
@@ -119,10 +120,11 @@ export default function Agent() {
         setBgConfig(session.bgConfig || {});
         setGlobalTextColor(session.globalTextColor || '');
         setGlobalAnimation(session.globalAnimation || '');
+        setEditMediaProjectId(editProjectId);
         setConfig(session.config || {});
         setStructure(session.structure);
         setCurrentStep(5); // Go directly to Media Config step
-        addChatMsg('agent', `Editando mídia do projeto. Você pode alterar a configuração de mídia e fundos, incluindo Flipbook, HTML e Botões.`);
+        addChatMsg('agent', `Editando mídia do projeto. Altere configurações e clique em "Aplicar Alterações" para atualizar o projeto.`);
       } catch { toast.error('Erro ao carregar sessão'); }
       finally { setLoading(false); }
     })();
@@ -351,7 +353,6 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', 'Salvando configuração de mídia e fundos...');
     try {
-      // Inject heygen avatar/voice into each heygen slide config
       const enrichedConfig = { ...mediaConfig };
       for (const [key, val] of Object.entries(enrichedConfig)) {
         if (val.type === 'heygen') {
@@ -362,12 +363,29 @@ export default function Agent() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalAnimation }),
       });
+
+      // If editing existing project, apply changes without regenerating
+      if (editMediaProjectId) {
+        addChatMsg('agent', 'Aplicando alterações ao projeto existente...');
+        const res = await fetch(`${API}/api/agent/sessions/${sessionId}/apply-media-changes`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: editMediaProjectId }),
+        });
+        if (!res.ok) throw new Error('Falha ao aplicar alterações');
+        const data = await res.json();
+        addChatMsg('agent', `Alterações aplicadas! ${data.updatedSlides || 0} slides atualizados.`);
+        toast.success('Alterações aplicadas com sucesso!');
+        navigate(`/editor/${editMediaProjectId}`);
+        return;
+      }
+
+      // New course: proceed to generation
       const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
       const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
       const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
       const heygenMsg = heygenCount > 0 ? ` ${heygenCount} vídeos avatar HeyGen serão gerados em segundo plano (~1-3 min cada).` : '';
       addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares.${heygenMsg}${aiImageCount > 0 ? ' A geração de imagens pode levar alguns minutos.' : ''}`);
-      setCurrentStep(6); // generate step
+      setCurrentStep(6);
       handleGenerateCourse();
     } catch { toast.error('Erro ao salvar mídia'); addChatMsg('agent', 'Erro ao salvar configuração de mídia.'); }
     finally { setLoading(false); }
@@ -530,7 +548,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1415,7 +1433,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalAnimation, setGlobalAnimation }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalAnimation, setGlobalAnimation, isEditMode }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -2246,9 +2264,9 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
       {/* Summary & Cost Estimate */}
       <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} />
 
-      <Button onClick={onConfirm} disabled={loading || !heygenReady || !narrationReady} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
-        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}
-        Confirmar Mídia e Gerar Curso
+      <Button onClick={onConfirm} disabled={loading || !heygenReady || !narrationReady} className={`w-full ${isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`} data-testid="confirm-media-btn">
+        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isEditMode ? <Check className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
+        {isEditMode ? 'Aplicar Alterações ao Projeto' : 'Confirmar Mídia e Gerar Curso'}
       </Button>
     </div>
   );
