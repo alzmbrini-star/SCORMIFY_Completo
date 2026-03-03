@@ -56,7 +56,12 @@ EXPORTS_DIR.mkdir(exist_ok=True)
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(
+    mongo_url,
+    serverSelectionTimeoutMS=10000,
+    connectTimeoutMS=10000,
+    socketTimeoutMS=30000,
+)
 db = client[os.environ['DB_NAME']]
 
 # GridFS bucket for persistent export storage
@@ -158,7 +163,7 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         jobs[job_id]['message'] = 'Saving course data...'
         
         # Use synchronous MongoDB client for background task
-        sync_client = MongoClient(mongo_url)
+        sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
         sync_db = sync_client[os.environ['DB_NAME']]
         
         course_dict = course.model_dump()
@@ -5199,9 +5204,11 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_migrate_urls():
     """Auto-migrate absolute asset URLs to relative on startup (non-blocking background task)"""
-    import asyncio
-    asyncio.create_task(_run_migrate_urls())
-    logger.info("Startup URL migration: started in background task")
+    try:
+        asyncio.create_task(_run_migrate_urls())
+        logger.info("Startup URL migration: started in background task")
+    except Exception as e:
+        logger.warning(f"Startup URL migration scheduling failed (non-fatal): {e}")
 
 
 async def _run_migrate_urls():
@@ -5250,9 +5257,11 @@ async def _run_migrate_urls():
 @app.on_event("startup")
 async def startup_ensure_admin():
     """Ensure super admin user exists in database (non-blocking background task)"""
-    import asyncio
-    asyncio.create_task(_run_ensure_admin())
-    logger.info("Startup admin check: started in background task")
+    try:
+        asyncio.create_task(_run_ensure_admin())
+        logger.info("Startup admin check: started in background task")
+    except Exception as e:
+        logger.warning(f"Startup admin check scheduling failed (non-fatal): {e}")
 
 
 async def _run_ensure_admin():
@@ -5293,7 +5302,7 @@ async def startup_persist_local_assets():
             from services.asset_store import store_asset_sync
             from pymongo import MongoClient
             
-            _client = MongoClient(mongo_url)
+            _client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
             _db = _client[os.environ['DB_NAME']]
             
             total = 0
