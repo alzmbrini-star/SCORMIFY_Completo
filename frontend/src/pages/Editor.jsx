@@ -2181,6 +2181,15 @@ export default function Editor() {
               <Download className="w-4 h-4" />
               Exportar
             </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-cyan-700/50 text-cyan-300 hover:bg-cyan-900/20"
+              onClick={() => navigate(`/agent?editMedia=${projectId}`)}
+              data-testid="edit-media-btn"
+            >
+              <Settings className="w-4 h-4" />
+              Editar Mídia
+            </Button>
             <Dialog open={showExportDialog} onOpenChange={(open) => {
               setShowExportDialog(open);
               if (!open) {

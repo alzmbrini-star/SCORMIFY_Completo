@@ -4048,6 +4048,19 @@ async def agent_generate_bg_image(data: dict):
         raise HTTPException(500, f"Failed to generate background image: {str(e)}")
 
 
+@api_router.get("/agent/sessions/by-project/{project_id}")
+async def agent_get_session_by_project(project_id: str):
+    """Find the agent session associated with a project (for editing media of existing course)."""
+    s = await db.agent_sessions.find_one(
+        {"projectId": project_id},
+        {"_id": 0, "contentText": 0}
+    )
+    if not s:
+        raise HTTPException(404, "No agent session found for this project")
+    return s
+
+
+
 @api_router.post("/agent/sessions/{session_id}/media-config")
 async def agent_set_media_config(session_id: str, data: dict):
     """Save media and background configuration for each slide."""

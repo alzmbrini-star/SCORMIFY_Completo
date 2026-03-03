@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -20,7 +20,7 @@ import {
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
   Palette, Droplets, ImagePlus, UploadCloud,
   ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
-  PaintBucket, Target,
+  PaintBucket, Target, Code, ExternalLink, BookOpenCheck,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 
@@ -51,6 +51,7 @@ const TEMPLATE_ICONS = {
 
 export default function Agent() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   // Mode: null = selection, 'create' = new course, 'edit' = edit existing
   const [mode, setMode] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -97,6 +98,30 @@ export default function Agent() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Handle editMedia query param - load existing session for media editing
+  useEffect(() => {
+    const editMediaProjectId = searchParams.get('editMedia');
+    if (!editMediaProjectId || mode) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API}/api/agent/sessions/by-project/${editMediaProjectId}`);
+        if (!res.ok) { toast.error('Sessão não encontrada para este projeto'); setLoading(false); return; }
+        const session = await res.json();
+        setSessionId(session.id);
+        setMode('create');
+        setStoryboard(session.storyboard);
+        setMediaConfig(session.mediaConfig || {});
+        setBgConfig(session.bgConfig || {});
+        setConfig(session.config || {});
+        setStructure(session.structure);
+        setCurrentStep(5); // Go directly to Media Config step
+        addChatMsg('agent', `Editando mídia do projeto. Você pode alterar a configuração de mídia e fundos, incluindo Flipbook, HTML e Botões.`);
+      } catch { toast.error('Erro ao carregar sessão'); }
+      finally { setLoading(false); }
+    })();
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addChatMsg = useCallback((role, text) => {
     setChatMessages(prev => [...prev, { role, text, ts: new Date().toISOString() }]);
@@ -1285,6 +1310,9 @@ const MEDIA_TYPES = [
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
   { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
   { id: 'heygen', label: 'Avatar HeyGen', description: 'Vídeo com avatar IA', icon: UserCircle, color: 'purple' },
+  { id: 'flipbook', label: 'Flipbook', description: 'PDF/URL interativo', icon: BookOpenCheck, color: 'orange' },
+  { id: 'html', label: 'HTML', description: 'Código HTML ou URL', icon: Code, color: 'cyan' },
+  { id: 'button', label: 'Botão Link', description: 'Botão com link externo', icon: ExternalLink, color: 'teal' },
   { id: 'none', label: 'Sem mídia', description: 'Apenas texto', icon: FileText, color: 'slate' },
 ];
 
@@ -1388,10 +1416,10 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
     .map((s, i) => ({ ...s, index: i }))
     .filter(s => s.type === 'content');
 
-  const updateSlideMedia = (idx, type, url) => {
+  const updateSlideMedia = (idx, type, url, extra = {}) => {
     setMediaConfig(prev => ({
       ...prev,
-      [String(idx)]: { type, ...(url ? { url } : {}) },
+      [String(idx)]: { ...prev[String(idx)], type, ...(url ? { url } : {}), ...extra },
     }));
   };
 
@@ -1676,6 +1704,9 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                             red: 'bg-red-600/15 border-red-500 text-red-300',
                             blue: 'bg-blue-600/15 border-blue-500 text-blue-300',
                             purple: 'bg-purple-600/15 border-purple-500 text-purple-300',
+                            orange: 'bg-orange-600/15 border-orange-500 text-orange-300',
+                            cyan: 'bg-cyan-600/15 border-cyan-500 text-cyan-300',
+                            teal: 'bg-teal-600/15 border-teal-500 text-teal-300',
                             slate: 'bg-slate-800 border-slate-600 text-slate-300',
                           };
                           return (
@@ -1722,6 +1753,110 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                           ? 'Avatar e voz selecionados. O vídeo será gerado automaticamente.'
                           : 'Configure o avatar e a voz acima para gerar o vídeo.'}
                       </p>
+                    )}
+
+                    {/* Flipbook config */}
+                    {mc.type === 'flipbook' && (
+                      <div className="space-y-2" data-testid={`flipbook-config-${idx}`}>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => updateSlideMedia(idx, 'flipbook', mc.url || '', { flipbookSource: 'url' })}
+                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${mc.flipbookSource !== 'upload' ? 'border-orange-500/50 text-orange-300 bg-orange-600/10' : 'border-slate-700 text-slate-500'}`}
+                          >URL</button>
+                          <button
+                            onClick={() => updateSlideMedia(idx, 'flipbook', mc.url || '', { flipbookSource: 'upload' })}
+                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${mc.flipbookSource === 'upload' ? 'border-orange-500/50 text-orange-300 bg-orange-600/10' : 'border-slate-700 text-slate-500'}`}
+                          >Upload PDF</button>
+                        </div>
+                        {mc.flipbookSource === 'upload' ? (
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-slate-600 text-xs text-slate-400 hover:border-orange-500/50 hover:text-orange-300 cursor-pointer transition-colors">
+                              <UploadCloud className="w-3.5 h-3.5" /> {mc.fileName || 'Selecionar PDF'}
+                              <input type="file" accept=".pdf" onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) updateSlideMedia(idx, 'flipbook', '', { flipbookSource: 'upload', fileName: file.name, file });
+                              }} className="hidden" />
+                            </label>
+                          </div>
+                        ) : (
+                          <Input
+                            value={mc.url || ''}
+                            onChange={e => updateSlideMedia(idx, 'flipbook', e.target.value)}
+                            placeholder="https://flipbook-url.com/embed/..."
+                            className="bg-slate-800 border-slate-700 text-sm"
+                            data-testid={`flipbook-url-${idx}`}
+                          />
+                        )}
+                        <p className="text-[10px] text-orange-400/50">O flipbook será embutido como elemento interativo no slide.</p>
+                      </div>
+                    )}
+
+                    {/* HTML embed config */}
+                    {mc.type === 'html' && (
+                      <div className="space-y-2" data-testid={`html-config-${idx}`}>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => updateSlideMedia(idx, 'html', mc.url || '', { htmlSource: 'url' })}
+                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${mc.htmlSource !== 'code' ? 'border-cyan-500/50 text-cyan-300 bg-cyan-600/10' : 'border-slate-700 text-slate-500'}`}
+                          >URL / iframe</button>
+                          <button
+                            onClick={() => updateSlideMedia(idx, 'html', mc.url || '', { htmlSource: 'code' })}
+                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${mc.htmlSource === 'code' ? 'border-cyan-500/50 text-cyan-300 bg-cyan-600/10' : 'border-slate-700 text-slate-500'}`}
+                          >Código HTML</button>
+                        </div>
+                        {mc.htmlSource === 'code' ? (
+                          <textarea
+                            value={mc.htmlCode || ''}
+                            onChange={e => updateSlideMedia(idx, 'html', '', { htmlSource: 'code', htmlCode: e.target.value })}
+                            placeholder="<div>Seu HTML aqui...</div>"
+                            rows={4}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs font-mono text-cyan-300 resize-y"
+                            data-testid={`html-code-${idx}`}
+                          />
+                        ) : (
+                          <Input
+                            value={mc.url || ''}
+                            onChange={e => updateSlideMedia(idx, 'html', e.target.value)}
+                            placeholder="https://site.com/embed/..."
+                            className="bg-slate-800 border-slate-700 text-sm"
+                            data-testid={`html-url-${idx}`}
+                          />
+                        )}
+                        <p className="text-[10px] text-cyan-400/50">Conteúdo HTML será renderizado dentro do slide.</p>
+                      </div>
+                    )}
+
+                    {/* Button with external link config */}
+                    {mc.type === 'button' && (
+                      <div className="space-y-2" data-testid={`button-config-${idx}`}>
+                        <Input
+                          value={mc.buttonText || ''}
+                          onChange={e => updateSlideMedia(idx, 'button', mc.url || '', { buttonText: e.target.value })}
+                          placeholder="Texto do botão (ex: Saiba Mais)"
+                          className="bg-slate-800 border-slate-700 text-sm"
+                          data-testid={`button-text-${idx}`}
+                        />
+                        <Input
+                          value={mc.url || ''}
+                          onChange={e => updateSlideMedia(idx, 'button', e.target.value, { buttonText: mc.buttonText })}
+                          placeholder="https://link-externo.com"
+                          className="bg-slate-800 border-slate-700 text-sm"
+                          data-testid={`button-url-${idx}`}
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-400">Cor:</span>
+                          <input
+                            type="color"
+                            value={mc.buttonColor || '#10b981'}
+                            onChange={e => updateSlideMedia(idx, 'button', mc.url || '', { buttonText: mc.buttonText, buttonColor: e.target.value })}
+                            className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                          />
+                          <div className="flex-1 flex items-center justify-center px-3 py-1.5 rounded-lg text-xs text-white font-medium" style={{ background: mc.buttonColor || '#10b981' }}>
+                            {mc.buttonText || 'Botão'}
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-teal-400/50">O botão será inserido no slide com link para URL externa.</p>
+                      </div>
                     )}
                   </>
                 )}

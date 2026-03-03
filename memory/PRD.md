@@ -68,6 +68,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 ### Features Implemented
 - **Background Customization per Slide (2026-03-02)**: Users can customize slide backgrounds in the Media Config step with solid colors, gradients (2 colors + direction), uploaded images with opacity, or AI-generated images with opacity. Applies to all slide types (cover, content, quiz, summary). "Apply to All" and "Apply to Type" quick actions available.
 - **Gemini Model Switch & Cost Optimization (2026-03-03)**: Replaced GPT-5.2 ($0.06/batch) with Gemini 3 Flash ($0.006/batch) for text generation. Replaced GPT Image 1 ($0.08/image) with Gemini Nano Banana ($0.02/image) for image generation. ~79% cost reduction. Added cost estimation endpoint and UI card showing breakdown before course generation, with savings comparison vs old GPT pricing. GPT-4o kept as fallback model.
+- **Flipbook, HTML, Button Media Types (2026-03-03)**: Added 3 new media types in Agent Media Config: Flipbook (PDF upload or URL), HTML embed (custom code or URL/iframe), Button with external link (text, URL, color). All types generate corresponding slide elements during course generation. Edit Media button added to Editor header for returning to media configuration of existing courses.
 
 ## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session

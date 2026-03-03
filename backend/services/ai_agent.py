@@ -810,6 +810,113 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
 
     return elements
 
+def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: str, media: dict, embed_type: str) -> list:
+    """Build content slide with embedded content (flipbook or HTML) on the right."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header bar
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Text on the left
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        if el.get("content"):
+            text_content = el["content"]
+    styled_text = _style_content_html(text_content, palette["text"])
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 850, "height": 700,
+        "htmlContent": styled_text,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    # Embedded content on the right
+    if media.get("htmlSource") == "code" and media.get("htmlCode"):
+        embed_html = media["htmlCode"]
+    elif media.get("url"):
+        url = media["url"]
+        if embed_type == "flipbook":
+            embed_html = f'<iframe src="{url}" style="width:100%;height:100%;border:none;border-radius:8px;" allowfullscreen></iframe>'
+        else:
+            embed_html = f'<iframe src="{url}" style="width:100%;height:100%;border:none;border-radius:8px;" sandbox="allow-scripts allow-same-origin" allowfullscreen></iframe>'
+    else:
+        label = "Flipbook" if embed_type == "flipbook" else "HTML"
+        embed_html = f'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);border-radius:8px;border:1px dashed rgba(255,255,255,0.2);"><span style="color:rgba(255,255,255,0.4);font-size:14px;">{label} não configurado</span></div>'
+
+    element_type = "flipbook" if embed_type == "flipbook" else "html"
+    elements.append({
+        "id": generate_id(), "type": element_type, "x": 940, "y": 70, "width": 940, "height": 720,
+        "htmlContent": embed_html,
+        "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.2}],
+    })
+
+    return elements
+
+
+def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name: str, media: dict) -> list:
+    """Build content slide with an external link button."""
+    from models import generate_id
+    accent = palette["accent"]
+    elements = []
+
+    # Header bar
+    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Full-width text
+    text_content = ""
+    for el in sb_slide.get("elements", []):
+        if el.get("content"):
+            text_content = el["content"]
+    styled_text = _style_content_html(text_content, palette["text"])
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 560,
+        "htmlContent": styled_text,
+        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    # Button element
+    btn_text = media.get("buttonText", "Saiba Mais")
+    btn_url = media.get("url", "#")
+    btn_color = media.get("buttonColor", accent)
+    button_html = f'''<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+<a href="{btn_url}" target="_blank" rel="noopener noreferrer"
+   style="display:inline-flex;align-items:center;gap:8px;padding:14px 40px;background:{btn_color};color:#ffffff;
+   font-size:16px;font-weight:600;border-radius:8px;text-decoration:none;
+   box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;"
+   onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.4)'"
+   onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 15px rgba(0,0,0,0.3)'">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+{btn_text}
+</a></div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 580, "y": 660, "width": 760, "height": 80,
+        "htmlContent": button_html,
+        "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+    })
+
+    return elements
+
+
+
 
 async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None) -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
@@ -926,6 +1033,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "voice_id": media.get("voice_id", ""),
                     "title": sb_slide.get("title", f"Slide {i+1}"),
                 })
+            elif media.get("type") == "flipbook":
+                slide_elements = _build_content_slide_with_embed(sb_slide, palette, module_name, media, "flipbook")
+            elif media.get("type") == "html":
+                slide_elements = _build_content_slide_with_embed(sb_slide, palette, module_name, media, "html")
+            elif media.get("type") == "button":
+                slide_elements = _build_content_slide_with_button(sb_slide, palette, module_name, media)
             else:
                 img_url = media.get("url")
                 slide_elements = _build_content_slide(sb_slide, palette, module_name, img_url)
