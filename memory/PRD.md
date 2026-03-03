@@ -22,6 +22,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Background tasks with polling, chat with agent
 
 ### AI Agent - Phase 2: Editing & Templates (Complete)
+- **Platform & Course Improvement Suggestions (2026-03-02)**: AI automatically analyzes each course creation process and generates 18 categorized suggestions (Platform UX/Features/Performance, Course Content/Design/Pedagogy). Shows in GeneratedPanel with collapsible UI, priority badges, and on-demand regeneration. Uses Gemini 3 Flash with GPT-4o fallback.
 - 6 Visual Templates, Course Editing with AI analysis + improvements
 - Mode Selector: "Criar Novo Curso" vs "Editar Curso Existente"
 
@@ -66,7 +67,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 
 ### Features Implemented
 - **Background Customization per Slide (2026-03-02)**: Users can customize slide backgrounds in the Media Config step with solid colors, gradients (2 colors + direction), uploaded images with opacity, or AI-generated images with opacity. Applies to all slide types (cover, content, quiz, summary). "Apply to All" and "Apply to Type" quick actions available.
-- **Platform & Course Improvement Suggestions (2026-03-02)**: AI automatically analyzes each course creation process and generates 18 categorized suggestions (Platform UX/Features/Performance, Course Content/Design/Pedagogy). Shows in GeneratedPanel with collapsible UI, priority badges, and on-demand regeneration. Uses GPT-5.2 with GPT-4o fallback via emergentintegrations.
+- **Gemini Model Switch & Cost Optimization (2026-03-03)**: Replaced GPT-5.2 ($0.06/batch) with Gemini 3 Flash ($0.006/batch) for text generation. Replaced GPT Image 1 ($0.08/image) with Gemini Nano Banana ($0.02/image) for image generation. ~79% cost reduction. Added cost estimation endpoint and UI card showing breakdown before course generation, with savings comparison vs old GPT pricing. GPT-4o kept as fallback model.
 
 ## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session
