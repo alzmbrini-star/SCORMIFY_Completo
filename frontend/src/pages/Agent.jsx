@@ -500,7 +500,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1288,7 +1288,94 @@ const MEDIA_TYPES = [
   { id: 'none', label: 'Sem mídia', description: 'Apenas texto', icon: FileText, color: 'slate' },
 ];
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig }) {
+function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfig }) {
+  const [estimate, setEstimate] = useState(null);
+  const [loadingEstimate, setLoadingEstimate] = useState(false);
+
+  const fetchEstimate = useCallback(async () => {
+    if (!sessionId) return;
+    setLoadingEstimate(true);
+    try {
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/cost-estimate`, { method: 'POST' });
+      const data = await res.json();
+      setEstimate(data.estimate);
+    } catch { /* ignore */ }
+    finally { setLoadingEstimate(false); }
+  }, [sessionId]);
+
+  useEffect(() => { fetchEstimate(); }, [fetchEstimate]);
+
+  const customBgCount = Object.values(bgConfig || {}).filter(b => b.type && b.type !== 'default').length;
+
+  return (
+    <Card className="bg-slate-900/50 border-emerald-800/30" data-testid="cost-estimate-card">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+            <BarChart3 className="w-3.5 h-3.5" /> Resumo & Estimativa de Custo
+          </h4>
+          <button onClick={fetchEstimate} className="text-[10px] text-slate-500 hover:text-slate-300" disabled={loadingEstimate}>
+            {loadingEstimate ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          </button>
+        </div>
+
+        {/* Media summary badges */}
+        <div className="flex flex-wrap gap-2 text-xs">
+          {aiCount > 0 && <Badge className="bg-emerald-600/20 text-emerald-300"><Image className="w-3 h-3 mr-1" />{aiCount} Imagens IA</Badge>}
+          {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Vídeos</Badge>}
+          {heygenCount > 0 && <Badge className="bg-purple-600/20 text-purple-300"><UserCircle className="w-3 h-3 mr-1" />{heygenCount} Avatares</Badge>}
+          {customBgCount > 0 && <Badge className="bg-cyan-600/20 text-cyan-300"><Palette className="w-3 h-3 mr-1" />{customBgCount} Fundos</Badge>}
+        </div>
+
+        {estimate && (
+          <div className="space-y-2">
+            {/* Cost breakdown */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-slate-800/60 rounded-lg p-2">
+                <p className="text-[10px] text-slate-400">Texto (IA)</p>
+                <p className="text-sm font-bold text-slate-200">${estimate.costs.text.toFixed(3)}</p>
+                <p className="text-[9px] text-cyan-400/60">{estimate.models.text}</p>
+              </div>
+              <div className="bg-slate-800/60 rounded-lg p-2">
+                <p className="text-[10px] text-slate-400">Imagens ({estimate.aiImages})</p>
+                <p className="text-sm font-bold text-slate-200">${estimate.costs.images.toFixed(3)}</p>
+                <p className="text-[9px] text-cyan-400/60">{estimate.models.images}</p>
+              </div>
+              <div className="bg-slate-800/60 rounded-lg p-2">
+                <p className="text-[10px] text-slate-400">Narração</p>
+                <p className="text-sm font-bold text-slate-200">${estimate.costs.narration.toFixed(3)}</p>
+                <p className="text-[9px] text-cyan-400/60">{estimate.models.narration}</p>
+              </div>
+            </div>
+
+            {/* Total and savings */}
+            <div className="flex items-center justify-between bg-emerald-900/20 border border-emerald-800/30 rounded-lg px-3 py-2">
+              <div>
+                <p className="text-xs text-slate-400">Custo estimado total</p>
+                <p className="text-lg font-bold text-emerald-300">${estimate.costs.total.toFixed(3)}</p>
+              </div>
+              {estimate.comparison.savingsPercent > 0 && (
+                <div className="text-right">
+                  <Badge className="bg-emerald-600/30 text-emerald-300 text-xs">
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    {estimate.comparison.savingsPercent}% economia
+                  </Badge>
+                  <p className="text-[10px] text-slate-500 mt-0.5 line-through">${estimate.comparison.oldTotal.toFixed(3)} (GPT-5.2)</p>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[10px] text-slate-500 text-center">
+              {estimate.totalSlides} slides | {estimate.storyboardBatches} batches | Gemini 3 Flash + Nano Banana
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1644,27 +1731,8 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         })}
       </div>
 
-      {/* Summary */}
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3 text-xs">
-            <span className="text-slate-400">Resumo:</span>
-            {aiCount > 0 && <Badge className="bg-emerald-600/20 text-emerald-300"><Image className="w-3 h-3 mr-1" />{aiCount} Imagens IA</Badge>}
-            {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Vídeos</Badge>}
-            {heygenCount > 0 && <Badge className="bg-purple-600/20 text-purple-300"><UserCircle className="w-3 h-3 mr-1" />{heygenCount} Avatares</Badge>}
-            {Object.values(bgConfig).filter(b => b.type && b.type !== 'default').length > 0 && (
-              <Badge className="bg-cyan-600/20 text-cyan-300"><Palette className="w-3 h-3 mr-1" />{Object.values(bgConfig).filter(b => b.type && b.type !== 'default').length} Fundos personalizados</Badge>
-            )}
-            {aiCount === 0 && videoCount === 0 && heygenCount === 0 && <span className="text-slate-500">Nenhuma mídia</span>}
-          </div>
-          {aiCount > 0 && (
-            <p className="text-[11px] text-amber-400/70 mt-2">
-              <AlertTriangle className="w-3 h-3 inline mr-1" />
-              Imagens IA consomem créditos da Emergent LLM Key (~{aiCount} imagens). Tempo estimado: ~{aiCount * 15}s.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Summary & Cost Estimate */}
+      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} />
 
       <Button onClick={onConfirm} disabled={loading || !heygenReady} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="confirm-media-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}

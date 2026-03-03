@@ -1,30 +1,25 @@
 """
 AI Instructional Design Agent Service
-Transforms raw content into complete Scormfy courses using GPT-5.2
+Transforms raw content into complete Scormfy courses using Gemini 3 Flash
 """
 import os
 import json
 import uuid
 import asyncio
 import logging
+import base64
 from datetime import datetime, timezone
 from typing import Optional
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-
-# Reduce LiteLLM/OpenAI SDK retries and timeout to prevent blocking
-import litellm
-
-# Monkey-patch litellm.completion to enforce timeout and disable retries
-_original_litellm_completion = litellm.completion
-def _patched_litellm_completion(*args, **kwargs):
-    kwargs.setdefault('timeout', 90)
-    kwargs['num_retries'] = 0
-    return _original_litellm_completion(*args, **kwargs)
-litellm.completion = _patched_litellm_completion
+from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 logger = logging.getLogger(__name__)
 
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+
+# Primary model: Gemini 3 Flash (fast + cheap), Fallback: GPT-4o
+PRIMARY_MODEL = ("gemini", "gemini-3-flash-preview")
+FALLBACK_MODEL = ("openai", "gpt-4o")
+IMAGE_MODEL = ("gemini", "gemini-3-pro-image-preview")
 
 SYSTEM_PROMPT = """Você é um Agente de Design Instrucional Sênior especializado em criar cursos digitais.
 
@@ -43,12 +38,14 @@ REGRAS:
 - Para dados estruturados, retorne JSON válido dentro de blocos ```json```
 - Identifique conceitos críticos e sugira reforços visuais"""
 
-def _new_chat(session_id: str, model: str = "gpt-5.2") -> LlmChat:
+def _new_chat(session_id: str, provider: str = None, model: str = None) -> LlmChat:
+    p = provider or PRIMARY_MODEL[0]
+    m = model or PRIMARY_MODEL[1]
     return LlmChat(
         api_key=EMERGENT_KEY,
         session_id=session_id,
         system_message=SYSTEM_PROMPT,
-    ).with_model("openai", model)
+    ).with_model(p, m)
 
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -89,16 +86,16 @@ CONTEÚDO:
 
 Retorne APENAS o JSON dentro de ```json```."""
 
-    models = ["gpt-5.2", "gpt-4o"]
-    for model in models:
+    models = [PRIMARY_MODEL, FALLBACK_MODEL]
+    for provider, model in models:
         try:
-            chat = _new_chat(f"agent-analyze-{session_id}", model=model)
+            chat = _new_chat(f"agent-analyze-{session_id}", provider=provider, model=model)
             response = await chat.send_message(UserMessage(text=prompt))
             data = _extract_json(response)
             if data:
                 return data
         except Exception as e:
-            logger.warning(f"Analyze with {model} failed: {str(e)[:80]}")
+            logger.warning(f"Analyze with {provider}/{model} failed: {str(e)[:80]}")
             continue
 
     return {
@@ -167,16 +164,16 @@ REGRAS:
 - Aplique progressão de complexidade
 - Use microlearning: máximo 3 conceitos por slide"""
 
-    models = ["gpt-5.2", "gpt-4o"]
-    for model in models:
+    models = [PRIMARY_MODEL, FALLBACK_MODEL]
+    for provider, model in models:
         try:
-            chat = _new_chat(f"agent-structure-{session_id}", model=model)
+            chat = _new_chat(f"agent-structure-{session_id}", provider=provider, model=model)
             response = await chat.send_message(UserMessage(text=prompt))
             data = _extract_json(response)
             if data:
                 return data
         except Exception as e:
-            logger.warning(f"Structure with {model} failed: {str(e)[:80]}")
+            logger.warning(f"Structure with {provider}/{model} failed: {str(e)[:80]}")
             continue
     raise ValueError("Não foi possível gerar a estrutura do curso")
 
@@ -268,11 +265,11 @@ PARA TODOS OS SLIDES:
         retries = 0
         max_retries = 2
         batch_success = False
-        models = ["gpt-5.2", "gpt-4o", "gpt-4o"]  # Fallback chain
+        models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
         while retries <= max_retries:
-            model = models[min(retries, len(models)-1)]
+            provider, model = models[min(retries, len(models)-1)]
             try:
-                chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", model=model)
+                chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", provider=provider, model=model)
                 response = await chat.send_message(UserMessage(text=prompt))
                 data = _extract_json(response)
                 if data and "slides" in data:
@@ -282,7 +279,7 @@ PARA TODOS OS SLIDES:
                     all_slides.extend(data["slides"])
                     batch_success = True
                     if retries > 0:
-                        logger.info(f"Storyboard batch {batch_start} succeeded with {model}")
+                        logger.info(f"Storyboard batch {batch_start} succeeded with {provider}/{model}")
                     break
                 retries += 1
                 if retries <= max_retries:
@@ -293,8 +290,8 @@ PARA TODOS OS SLIDES:
                     raise Exception("BUDGET_EXCEEDED: O orçamento da chave Universal foi excedido. Acesse Perfil > Universal Key > Adicionar Saldo para continuar.")
                 retries += 1
                 if retries <= max_retries:
-                    next_model = models[min(retries, len(models)-1)]
-                    logger.warning(f"Storyboard batch {batch_start} failed with {model}, trying {next_model}: {error_str[:80]}")
+                    next_provider, next_model = models[min(retries, len(models)-1)]
+                    logger.warning(f"Storyboard batch {batch_start} failed with {provider}/{model}, trying {next_provider}/{next_model}: {error_str[:80]}")
                     await asyncio.sleep(2)
                 else:
                     logger.warning(f"Storyboard batch {batch_start} failed all retries: {error_str[:100]}")
@@ -371,28 +368,30 @@ _COURSE_PALETTES = [
 
 
 async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
-    """Generate a photorealistic AI image using GPT Image 1 and save locally."""
+    """Generate an AI image using Gemini Nano Banana and save locally."""
     try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        image_gen = OpenAIImageGeneration(api_key=EMERGENT_KEY)
-        prompt = f"Professional photorealistic image for an educational course slide about: {keyword}. High quality, clean composition, no text or watermarks, suitable for corporate training material. Natural lighting, sharp focus."
-        images = await image_gen.generate_images(
-            prompt=prompt,
-            model="gpt-image-1",
-            number_of_images=1,
-        )
+        chat = LlmChat(
+            api_key=EMERGENT_KEY,
+            session_id=f"img_{uuid.uuid4().hex[:8]}",
+            system_message="You are an image generator.",
+        ).with_model(IMAGE_MODEL[0], IMAGE_MODEL[1]).with_params(modalities=["image", "text"])
+
+        prompt = f"Professional photorealistic image for an educational course slide about: {keyword}. High quality, clean composition, no text or watermarks, suitable for corporate training material."
+        text_resp, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+
         if images and len(images) > 0:
             import hashlib
             seed = hashlib.md5(keyword.encode()).hexdigest()[:10]
             fname = f"ai_img_{seed}.png"
             fpath = os.path.join(project_dir, project_id, "assets", fname)
             os.makedirs(os.path.dirname(fpath), exist_ok=True)
+            img_bytes = base64.b64decode(images[0]['data'])
             with open(fpath, "wb") as f:
-                f.write(images[0])
-            logger.info(f"AI image generated for '{keyword}' -> {fname}")
+                f.write(img_bytes)
+            logger.info(f"AI image generated (Gemini) for '{keyword}' -> {fname}")
             return f"/api/projects/{project_id}/assets/{fname}"
     except Exception as e:
-        logger.warning(f"AI image generation failed for '{keyword}': {e}")
+        logger.warning(f"AI image generation failed for '{keyword}': {str(e)[:80]}")
     # Fallback to picsum
     return await _fetch_picsum_image(keyword, project_dir, project_id)
 

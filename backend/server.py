@@ -2770,25 +2770,26 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         raise HTTPException(status_code=500, detail="AI API key not configured")
     
     try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from emergentintegrations.llm.chat import LlmChat, UserMessage as UM
         
-        logger.info(f"Generating image with prompt: {request.prompt[:50]}...")
+        logger.info(f"Generating image with Gemini Nano Banana, prompt: {request.prompt[:50]}...")
         
-        # Initialize the image generator
-        image_gen = OpenAIImageGeneration(api_key=emergent_key)
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"img_{uuid.uuid4().hex[:8]}",
+            system_message="You are an image generator.",
+        ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
         
-        # Generate the image
-        images = await image_gen.generate_images(
-            prompt=request.prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
+        text_resp, gen_images = await chat.send_message_multimodal_response(UM(text=request.prompt))
         
-        if not images or len(images) == 0:
+        if not gen_images or len(gen_images) == 0:
             raise HTTPException(status_code=500, detail="No image was generated")
         
+        # Decode base64 image data
+        raw_image_data = base64.b64decode(gen_images[0]['data'])
+        
         # Optimize the image - convert to JPEG with compression
-        original_image = Image.open(io.BytesIO(images[0]))
+        original_image = Image.open(io.BytesIO(raw_image_data))
         
         # Convert RGBA to RGB if necessary (JPEG doesn't support transparency)
         if original_image.mode in ('RGBA', 'LA', 'P'):
@@ -2815,7 +2816,7 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         optimized_data = optimized_buffer.getvalue()
         
         # Log size comparison
-        original_size = len(images[0])
+        original_size = len(raw_image_data)
         optimized_size = len(optimized_data)
         compression_ratio = (1 - optimized_size / original_size) * 100
         logger.info(f"Image optimized: {original_size/1024:.1f}KB -> {optimized_size/1024:.1f}KB ({compression_ratio:.1f}% reduction)")
@@ -4013,26 +4014,32 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
 
 @api_router.post("/agent/generate-bg-image")
 async def agent_generate_bg_image(data: dict):
-    """Generate a background image using AI based on a text prompt."""
+    """Generate a background image using Gemini Nano Banana based on a text prompt."""
     prompt = data.get("prompt", "")
     if not prompt:
         raise HTTPException(400, "Prompt required")
     try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import uuid as _uuid
         emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
-        image_gen = OpenAIImageGeneration(api_key=emergent_key)
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"bg_{_uuid.uuid4().hex[:8]}",
+            system_message="You are an image generator.",
+        ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+
         full_prompt = f"Abstract artistic background for presentation slide: {prompt}. No text, no watermarks, smooth gradients, professional, suitable as slide background."
-        images = await image_gen.generate_images(prompt=full_prompt, model="gpt-image-1", number_of_images=1)
+        text_resp, images = await chat.send_message_multimodal_response(UserMessage(text=full_prompt))
         if images and len(images) > 0:
-            img_data = images[0]
+            img_bytes = base64.b64decode(images[0]['data'])
             import hashlib
             seed = hashlib.md5(prompt.encode()).hexdigest()[:10]
             fname = f"bg_ai_{seed}.png"
             fpath = os.path.join(str(PROJECTS_DIR), "bg_temp", fname)
             os.makedirs(os.path.dirname(fpath), exist_ok=True)
             with open(fpath, "wb") as f:
-                f.write(img_data)
-            return {"imageUrl": f"/api/projects/bg_temp/assets/{fname}", "imageBase64": f"data:image/png;base64,{base64.b64encode(img_data).decode()}"}
+                f.write(img_bytes)
+            return {"imageUrl": f"/api/projects/bg_temp/assets/{fname}", "imageBase64": f"data:image/png;base64,{images[0]['data']}"}
         raise HTTPException(500, "No image generated")
     except HTTPException:
         raise
@@ -4054,6 +4061,82 @@ async def agent_set_media_config(session_id: str, data: dict):
         {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
+
+
+@api_router.post("/agent/sessions/{session_id}/cost-estimate")
+async def agent_cost_estimate(session_id: str):
+    """Estimate the cost of generating the course before committing."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    structure = s.get("structure", {})
+    config = s.get("config", {})
+    media_config = s.get("mediaConfig", {})
+
+    # Count slides by type
+    total_slides = 0
+    content_slides = 0
+    for mod in structure.get("modules", []):
+        for sl in mod.get("slides", []):
+            total_slides += 1
+            if sl.get("type") == "content":
+                content_slides += 1
+
+    # Count AI images needed
+    ai_images = sum(1 for v in media_config.values() if v.get("type") == "ai_image")
+    if ai_images == 0:
+        ai_images = content_slides  # Default: all content slides get AI images
+
+    # Storyboard batches (4 slides per batch)
+    storyboard_batches = (total_slides + 3) // 4
+
+    # Cost estimates (approximate, in USD)
+    # Gemini 3 Flash: ~$0.001 per 1K input tokens, ~$0.004 per 1K output tokens
+    # ~2K input + ~1K output per batch = ~$0.006 per batch
+    text_cost_per_batch = 0.006
+    # Gemini Nano Banana: ~$0.02 per image
+    image_cost_per_image = 0.02
+
+    text_cost = (storyboard_batches + 2) * text_cost_per_batch  # +2 for analysis & structure
+    image_cost = ai_images * image_cost_per_image
+    narration_cost = 0.0
+    if config.get("narrationEnabled"):
+        narration_cost = total_slides * 0.01  # ElevenLabs ~$0.01 per slide
+
+    total_cost = text_cost + image_cost + narration_cost
+
+    # Compare with old GPT-5.2 + GPT Image 1 costs
+    old_text_cost = (storyboard_batches + 2) * 0.06  # GPT-5.2 ~10x more expensive
+    old_image_cost = ai_images * 0.08  # GPT Image 1 ~4x more expensive
+    old_total = old_text_cost + old_image_cost + narration_cost
+    savings_pct = round((1 - total_cost / old_total) * 100) if old_total > 0 else 0
+
+    return {
+        "estimate": {
+            "totalSlides": total_slides,
+            "contentSlides": content_slides,
+            "aiImages": ai_images,
+            "storyboardBatches": storyboard_batches,
+            "narrationEnabled": config.get("narrationEnabled", False),
+            "costs": {
+                "text": round(text_cost, 3),
+                "images": round(image_cost, 3),
+                "narration": round(narration_cost, 3),
+                "total": round(total_cost, 3),
+            },
+            "comparison": {
+                "oldTotal": round(old_total, 3),
+                "newTotal": round(total_cost, 3),
+                "savingsPercent": savings_pct,
+            },
+            "models": {
+                "text": "Gemini 3 Flash",
+                "images": "Gemini Nano Banana",
+                "narration": "ElevenLabs" if config.get("narrationEnabled") else "N/A",
+            }
+        }
+    }
 
 
 @api_router.post("/agent/sessions/{session_id}/generate-course")
@@ -4173,7 +4256,6 @@ async def _generate_improvement_suggestions(session_id: str, project_id: str):
     """Background task: analyze the course creation process and generate improvement suggestions."""
     try:
         session = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
-        project = await db.projects.find_one({"id": project_id}, {"_id": 0, "course": 0})
         if not session:
             return
 
@@ -4249,19 +4331,19 @@ Gere 2-3 sugestões por categoria, totalizando 12-18 sugestões. Seja específic
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
 
-        async def _try_llm(model_name):
+        async def _try_llm(provider, model_name):
             chat = LlmChat(
                 api_key=emergent_key,
                 session_id=f"suggestions_{session_id}",
                 system_message="Você é um consultor especialista em design instrucional e plataformas de e-learning. Responda sempre em JSON válido.",
-            ).with_model("openai", model_name)
+            ).with_model(provider, model_name)
             return await chat.send_message(UserMessage(text=prompt))
 
         try:
-            raw = await _try_llm("gpt-5.2")
+            raw = await _try_llm("gemini", "gemini-3-flash-preview")
         except Exception as llm_err:
-            logger.warning(f"Suggestions: gpt-5.2 failed ({str(llm_err)[:60]}), falling back to gpt-4o")
-            raw = await _try_llm("gpt-4o")
+            logger.warning(f"Suggestions: gemini-3-flash failed ({str(llm_err)[:60]}), falling back to gpt-4o")
+            raw = await _try_llm("openai", "gpt-4o")
 
         import json
         import re
