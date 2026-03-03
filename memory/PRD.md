@@ -71,6 +71,7 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - **Flipbook, HTML, Button Media Types (2026-03-03)**: Added 3 new media types in Agent Media Config: Flipbook (PDF upload or URL), HTML embed (custom code or URL/iframe), Button with external link (text, URL, color). All types generate corresponding slide elements during course generation. Edit Media button added to Editor header for returning to media configuration of existing courses.
 - **Global Text Color (2026-03-03)**: Color picker in Agent Media Config step to set global font color before generation. "Cor do Texto" bulk-action button in Editor to change font color on all slides of existing courses. Includes hex input, preset colors, live preview, and reset option. Backend stores globalTextColor in agent_sessions and applies to palette during generation. TESTED & VALIDATED.
 - **SCORM Export borderRadius Fix (2026-03-03)**: Fixed Pydantic validation error where `borderRadius: '12px'` strings in MongoDB caused SCORM export 500 errors. Added `field_validator` to `ElementStyle.borderRadius` that parses both numeric and `px`-suffixed string values. TESTED & VALIDATED.
+- **SCORM/HTML Gradient Background Fix (2026-03-03)**: Fixed gradient backgrounds not rendering in SCORM player. Root cause: `container.style.backgroundColor` doesn't support CSS gradients — changed to `container.style.background` in both `player.js` files (export_assets and static_test), including thumbnails. TESTED & VALIDATED.
 
 ## Key API Endpoints (Agent)
 - `POST /api/agent/sessions` - Create session

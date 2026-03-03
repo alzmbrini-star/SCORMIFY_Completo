@@ -833,8 +833,8 @@ var CoursePlayer = (function() {
         // already handles proportional sizing for ALL elements.
         // Position/size overrides were causing element overlap on multi-element slides.
         
-        // Set background
-        container.style.backgroundColor = slide.background || '#FFFFFF';
+        // Set background (use 'background' shorthand to support gradients)
+        container.style.background = slide.background || '#FFFFFF';
         if (slide.backgroundImage) {
             // Create background image element - must fill entire container
             var bgImg = document.createElement('img');
@@ -1847,7 +1847,7 @@ var CoursePlayer = (function() {
             if (slide.backgroundImage) {
                 thumbnail.style.backgroundImage = 'url(' + slide.backgroundImage + ')';
             } else {
-                thumbnail.style.backgroundColor = slide.background || '#f0f0f0';
+                thumbnail.style.background = slide.background || '#f0f0f0';
             }
             
             // Create slide info
