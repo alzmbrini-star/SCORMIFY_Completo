@@ -3462,7 +3462,7 @@ async def generate_elevenlabs_speech(request: TTSRequest):
         async with aiofiles.open(audio_path, "wb") as f:
             await f.write(audio_data)
         
-        # Save metadata to database
+        # Save metadata and audio data to database (persists across container restarts)
         tts_record = {
             "id": audio_id,
             "voice_id": request.voice_id,
@@ -3470,6 +3470,7 @@ async def generate_elevenlabs_speech(request: TTSRequest):
             "filename": filename,
             "file_path": str(audio_path),
             "file_size": len(audio_data),
+            "audio_data": base64.b64encode(audio_data).decode(),
             "created_at": now_utc().isoformat()
         }
         await db.tts_generations.insert_one(tts_record)
@@ -3491,17 +3492,23 @@ async def generate_elevenlabs_speech(request: TTSRequest):
 
 @api_router.get("/audio/{filename}")
 async def get_audio_file(filename: str):
-    """Serve generated audio file"""
+    """Serve generated audio file - from local storage or MongoDB fallback"""
     audio_path = STORAGE_DIR / "audio" / filename
     
-    if not audio_path.exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
+    # Try local file first
+    if audio_path.exists():
+        return FileResponse(audio_path, media_type="audio/mpeg", filename=filename)
     
-    return FileResponse(
-        audio_path,
-        media_type="audio/mpeg",
-        filename=filename
-    )
+    # Fallback: try to restore from MongoDB
+    record = await db.tts_generations.find_one({"filename": filename}, {"_id": 0, "audio_data": 1})
+    if record and record.get("audio_data"):
+        audio_data = base64.b64decode(record["audio_data"])
+        audio_path.parent.mkdir(exist_ok=True)
+        async with aiofiles.open(audio_path, "wb") as f:
+            await f.write(audio_data)
+        return FileResponse(audio_path, media_type="audio/mpeg", filename=filename)
+    
+    raise HTTPException(status_code=404, detail="Audio file not found")
 
 
 @api_router.get("/elevenlabs/voices/recommended")
@@ -4928,6 +4935,20 @@ async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
 
                 async with aiofiles.open(audio_path, "wb") as f:
                     await f.write(audio_data)
+
+                # Persist audio data to MongoDB for production durability
+                await db.tts_generations.update_one(
+                    {"filename": filename},
+                    {"$set": {
+                        "filename": filename,
+                        "audio_data": base64.b64encode(audio_data).decode(),
+                        "file_size": len(audio_data),
+                        "project_id": project_id,
+                        "type": "narration",
+                        "created_at": now_utc().isoformat()
+                    }},
+                    upsert=True
+                )
 
                 # Add audio to the slide
                 slide_audio = {
