@@ -1888,27 +1888,39 @@ var CoursePlayer = (function() {
         
         course.slides.forEach(function(slide, index) {
             var item = document.createElement('div');
-            item.className = 'sidebar-slide-item' + (index === currentSlide ? ' active' : '');
+            var hasPptThumb = !!slide.backgroundImage;
+            item.className = 'sidebar-slide-item' + (index === currentSlide ? ' active' : '') + (hasPptThumb ? '' : ' no-thumb');
             item.onclick = function() {
                 goToSlide(index);
             };
-            
-            // Create thumbnail using background image or placeholder
-            var thumbnail = document.createElement('div');
-            thumbnail.className = 'sidebar-thumbnail';
-            if (slide.backgroundImage) {
-                thumbnail.style.backgroundImage = 'url(' + slide.backgroundImage + ')';
-            } else {
-                thumbnail.style.background = slide.background || '#f0f0f0';
-            }
             
             // Create slide info
             var info = document.createElement('div');
             info.className = 'sidebar-slide-info';
             
-            var title = document.createElement('div');
-            title.className = 'sidebar-slide-title';
-            title.textContent = 'Slide ' + (index + 1);
+            if (hasPptThumb) {
+                // PPT import: show thumbnail + "Slide N" + status
+                var thumbnail = document.createElement('div');
+                thumbnail.className = 'sidebar-thumbnail';
+                thumbnail.style.backgroundImage = 'url(' + slide.backgroundImage + ')';
+                item.appendChild(thumbnail);
+                
+                var title = document.createElement('div');
+                title.className = 'sidebar-slide-title';
+                title.textContent = 'Slide ' + (index + 1);
+                info.appendChild(title);
+            } else {
+                // Agent/manual: show slide number + title (like HTML export)
+                var label = document.createElement('div');
+                label.className = 'sidebar-slide-label';
+                label.textContent = 'Slide ' + (index + 1);
+                info.appendChild(label);
+                
+                var title = document.createElement('div');
+                title.className = 'sidebar-slide-title';
+                title.textContent = slide.title || 'Slide ' + (index + 1);
+                info.appendChild(title);
+            }
             
             var status = document.createElement('div');
             status.className = 'sidebar-slide-status';
@@ -1922,9 +1934,7 @@ var CoursePlayer = (function() {
                 status.innerHTML = '○ Pendente';
             }
             
-            info.appendChild(title);
             info.appendChild(status);
-            item.appendChild(thumbnail);
             item.appendChild(info);
             sidebarList.appendChild(item);
         });
