@@ -117,6 +117,11 @@ app = FastAPI(title="Scormify API", version="1.0.0")
 async def root_health():
     return {"status": "healthy"}
 
+# Also register /api/health directly on app for faster response during startup
+@app.get("/api/health")
+async def api_health_direct():
+    return {"status": "healthy"}
+
 @app.get("/")
 async def root():
     return {"status": "running", "app": "Scormify API"}
@@ -233,10 +238,6 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
 @api_router.get("/")
 async def api_root():
     return {"message": "Scormify API v1.0"}
-
-@api_router.get("/health")
-async def health():
-    return {"status": "healthy"}
 
 # VLibras CORS proxy - resolves cross-origin issues with VLibras government servers
 # Handles both dicionario2.vlibras.gov.br and traducao2.vlibras.gov.br
