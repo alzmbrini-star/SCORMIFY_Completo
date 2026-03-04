@@ -52,6 +52,10 @@ async def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
     Get current user from session token.
     Checks cookies first, then Authorization header.
     """
+    # Check if database is available
+    if db is None:
+        return None
+    
     session_token = request.cookies.get("session_token")
     
     if not session_token:
@@ -162,6 +166,10 @@ def create_session_response(response: Response, session_token: str, user_data: D
 async def login(request: Request, response: Response):
     """Login with email and password"""
     try:
+        # Check if database is available
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available. Please try again later.")
+        
         body = await request.json()
         email = body.get("email", "").lower().strip()
         password = body.get("password", "")
