@@ -71,27 +71,32 @@ db_name = os.environ.get('DB_NAME', 'scormify')
 print(f"[STARTUP] MONGO_URL set: {'yes' if mongo_url else 'no'}, DB_NAME: {db_name}", file=sys.stderr, flush=True)
 
 # Initialize MongoDB client with error handling for production
-try:
-    if not mongo_url:
-        print("[STARTUP] MONGO_URL not set, using localhost", file=sys.stderr, flush=True)
-        mongo_url = "mongodb://localhost:27017"
-    
-    print("[STARTUP] Creating AsyncIOMotorClient...", file=sys.stderr, flush=True)
-    client = AsyncIOMotorClient(
-        mongo_url,
-        serverSelectionTimeoutMS=10000,
-        connectTimeoutMS=10000,
-        socketTimeoutMS=30000,
-    )
-    db = client[db_name]
-    print("[STARTUP] MongoDB client created successfully", file=sys.stderr, flush=True)
-    logger.info(f"MongoDB client initialized for database: {db_name}")
-except Exception as e:
-    print(f"[STARTUP] MongoDB error: {e}", file=sys.stderr, flush=True)
-    logger.error(f"MongoDB connection setup error: {e}")
-    # Create a dummy client that will fail gracefully on actual operations
-    client = None
-    db = None
+# Use very short timeouts to avoid blocking startup
+client = None
+db = None
+
+def _create_mongo_client():
+    global client, db
+    try:
+        _mongo_url = mongo_url or "mongodb://localhost:27017"
+        print(f"[STARTUP] Creating MongoDB client (non-blocking)...", file=sys.stderr, flush=True)
+        client = AsyncIOMotorClient(
+            _mongo_url,
+            serverSelectionTimeoutMS=5000,  # 5 seconds max
+            connectTimeoutMS=5000,
+            socketTimeoutMS=10000,
+            maxPoolSize=10,
+            retryWrites=True,
+        )
+        db = client[db_name]
+        print("[STARTUP] MongoDB client created", file=sys.stderr, flush=True)
+        logger.info(f"MongoDB client initialized for database: {db_name}")
+    except Exception as e:
+        print(f"[STARTUP] MongoDB error (non-fatal): {e}", file=sys.stderr, flush=True)
+        logger.warning(f"MongoDB connection setup warning: {e}")
+
+# Create client immediately but don't block if it fails
+_create_mongo_client()
 
 # GridFS bucket for persistent export storage (only if db is available)
 exports_bucket = None
