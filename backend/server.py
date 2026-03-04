@@ -5548,6 +5548,9 @@ async def startup_migrate_urls():
 
 async def _run_migrate_urls():
     """Background task: migrate absolute URLs to relative paths"""
+    if db is None:
+        logger.warning("_run_migrate_urls: db is None, skipping")
+        return
     import re
     try:
         migrated_count = 0
@@ -5601,6 +5604,9 @@ async def startup_ensure_admin():
 
 async def _run_ensure_admin():
     """Background task: ensure super admin user exists"""
+    if db is None:
+        logger.warning("_run_ensure_admin: db is None, skipping")
+        return
     import bcrypt
     try:
         admin_email = "admin@scormify.com"
