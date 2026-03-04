@@ -5738,4 +5738,5 @@ async def startup_check_system_deps():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client is not None:
+        client.close()
