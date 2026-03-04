@@ -76,8 +76,22 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Fixed truncated shutdown event handler
 - Applied timeouts to asset_store.py sync MongoClient instances
 
+### Role-Based Access Control for AI Agent (Complete - 2026-03-04)
+- **Permission System**: `agentAccess` permission in `company.permissions` controls access to AI Agent
+- **Super Admin Access**: Super Admins always have full access regardless of company permissions
+- **Company Permissions UI**: Checkbox "Agente IA" in Admin panel for each company under "Permissões de API"
+- **Frontend Protection**: 
+  - Dashboard: "Agente IA" button only visible if `hasPermission('agentAccess')` or `isSuperAdmin`
+  - Agent Page: Redirects to "/" with error toast if user lacks permission
+- **Backend Protection**: 
+  - New `require_agent_access` dependency in `routes/auth.py`
+  - All `/api/agent/*` endpoints protected with 403 response for unauthorized users
+  - New `GET /api/agent/check-access` endpoint for frontend permission checking
+- **Default Behavior**: New companies created with `agentAccess: false`
+
 ## Key API Endpoints (Agent)
-- `POST /api/agent/sessions` - Create session
+- `GET /api/agent/check-access` - Check if current user has AI Agent access
+- `POST /api/agent/sessions` - Create session (protected)
 - `POST /api/agent/sessions/{id}/upload` - Upload content
 - `POST /api/agent/sessions/{id}/analyze` - AI analysis
 - `POST /api/agent/sessions/{id}/configure` - Set config
@@ -90,20 +104,23 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - `GET /api/agent/sessions/by-project/{id}` - Get session for project editing
 
 ## Key Files
-- `backend/server.py` - Main server (~5350 lines)
+- `backend/server.py` - Main server (~5500 lines) - **NEEDS REFACTORING**
+- `backend/routes/auth.py` - Auth routes incl. `require_agent_access`
+- `backend/routes/companies.py` - Company CRUD with `agentAccess` permission
 - `backend/services/ai_agent.py` - AI agent logic (~1480 lines)
-- `frontend/src/pages/Agent.jsx` - Agent page (~2825 lines)
-- `frontend/src/pages/Editor.jsx` - Course editor
-- `frontend/src/pages/Dashboard.jsx` - Project dashboard
+- `frontend/src/pages/Agent.jsx` - Agent page (~2900 lines) - **NEEDS REFACTORING**
+- `frontend/src/pages/Editor.jsx` - Course editor - **NEEDS REFACTORING**
+- `frontend/src/pages/Dashboard.jsx` - Project dashboard (has `hasAgentAccess` check)
+- `frontend/src/contexts/AuthContext.jsx` - Auth context with `hasPermission` helper
 
 ## Prioritized Backlog
-### P1
-- User-requested features (ask user for next priority)
+### P1 - URGENT
+- **Refactor `server.py`**: Split into `/backend/routes/` using FastAPI APIRouter
+- **Refactor `Editor.jsx`**: Break into smaller components and hooks
+- **Refactor `Agent.jsx`**: Break MediaConfigPanel into sub-components
 ### P2
 - Advanced Interactivity: Per-course "Tutor IA"
+- User-requested features
 ### P3
-- Refactor server.py into routers
-- Refactor Editor.jsx into smaller components
-- Refactor Agent.jsx MediaConfigPanel into sub-components
 - Jinja2 for HTML templates
 - SCORM 2004 export
