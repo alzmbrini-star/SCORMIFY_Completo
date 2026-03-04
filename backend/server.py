@@ -55,14 +55,19 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 EXPORTS_DIR.mkdir(exist_ok=True)
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ.get('MONGO_URL', '')
+if not mongo_url:
+    logger.error("MONGO_URL environment variable is not set!")
+    raise RuntimeError("MONGO_URL is required")
+
 client = AsyncIOMotorClient(
     mongo_url,
     serverSelectionTimeoutMS=10000,
     connectTimeoutMS=10000,
     socketTimeoutMS=30000,
 )
-db = client[os.environ['DB_NAME']]
+db_name = os.environ.get('DB_NAME', 'scormify')
+db = client[db_name]
 
 # GridFS bucket for persistent export storage
 exports_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="exports")
@@ -176,7 +181,7 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         
         # Use synchronous MongoDB client for background task
         sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
-        sync_db = sync_client[os.environ['DB_NAME']]
+        sync_db = sync_client[db_name]
         
         course_dict = course.model_dump()
         course_dict['createdAt'] = course.createdAt.isoformat()
@@ -212,7 +217,7 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
 # API Routes
 
 @api_router.get("/")
-async def root():
+async def api_root():
     return {"message": "Scormify API v1.0"}
 
 @api_router.get("/health")
@@ -3409,16 +3414,6 @@ class TTSRequest(BaseModel):
     style: float = 0.0
     use_speaker_boost: bool = True
 
-
-from pydantic import BaseModel as PydanticBaseModel
-
-class TTSRequest(PydanticBaseModel):
-    text: str
-    voice_id: str
-    stability: float = 0.5
-    similarity_boost: float = 0.75
-    style: float = 0.0
-    use_speaker_boost: bool = True
 
 
 @api_router.post("/elevenlabs/generate-speech")
