@@ -76,6 +76,19 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Fixed truncated shutdown event handler
 - Applied timeouts to asset_store.py sync MongoClient instances
 
+### AI Image Persistence Fix (Complete - 2026-03-04)
+- **Problem**: AI-generated images (backgrounds and slide images) were being lost in production due to ephemeral filesystem
+- **Solution**: Images are now automatically persisted to MongoDB's `project_assets` collection
+- **Files Modified**:
+  - `backend/server.py`: `agent_generate_bg_image` now persists bg images to MongoDB
+  - `backend/services/ai_agent.py`: `_fetch_stock_image` and `_fetch_picsum_image` now persist images to MongoDB
+  - `backend/server.py`: Startup task now also persists `bg_temp` folder images
+- **Fallback**: The `serve_asset` endpoint already had MongoDB fallback for when local files are missing
+- **Affected Image Types**:
+  - Background images (`/api/projects/bg_temp/assets/bg_ai_*.png`)
+  - AI-generated slide images (`/api/projects/{id}/assets/ai_img_*.png`)
+  - Stock images from Picsum (`/api/projects/{id}/assets/stock_*.jpg`)
+
 ### Role-Based Access Control for AI Agent (Complete - 2026-03-04)
 - **Permission System**: `agentAccess` permission in `company.permissions` controls access to AI Agent
 - **Super Admin Access**: Super Admins always have full access regardless of company permissions

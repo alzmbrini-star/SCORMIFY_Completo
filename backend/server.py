@@ -4086,6 +4086,20 @@ async def agent_generate_bg_image(data: dict):
             os.makedirs(os.path.dirname(fpath), exist_ok=True)
             with open(fpath, "wb") as f:
                 f.write(img_bytes)
+            
+            # Persist in MongoDB for production environments with ephemeral storage (non-blocking)
+            import threading
+            try:
+                from services.asset_store import store_asset_sync
+                threading.Thread(
+                    target=store_asset_sync,
+                    args=(mongo_url, os.environ['DB_NAME'], "bg_temp", fname, fpath),
+                    daemon=True
+                ).start()
+                logger.info(f"BG image generated and persisting to MongoDB: {fname}")
+            except Exception as e:
+                logger.warning(f"Failed to persist BG image in MongoDB (non-fatal): {e}")
+            
             return {"imageUrl": f"/api/projects/bg_temp/assets/{fname}", "imageBase64": f"data:image/png;base64,{images[0]['data']}"}
         raise HTTPException(500, "No image generated")
     except HTTPException:
@@ -5448,8 +5462,23 @@ async def startup_persist_local_assets():
             _db = _client[os.environ['DB_NAME']]
             
             total = 0
+            
+            # First, handle bg_temp folder (AI-generated background images) - different structure
+            bg_temp_dir = PROJECTS_DIR / "bg_temp"
+            if bg_temp_dir.exists() and bg_temp_dir.is_dir():
+                for asset in bg_temp_dir.iterdir():
+                    if asset.is_file() and asset.suffix.lower() in ('.png', '.jpg', '.jpeg', '.gif', '.webp'):
+                        existing = _db.project_assets.find_one(
+                            {"project_id": "bg_temp", "filename": asset.name},
+                            {"_id": 1}
+                        )
+                        if not existing:
+                            store_asset_sync(mongo_url, os.environ['DB_NAME'], "bg_temp", asset.name, str(asset))
+                            total += 1
+            
+            # Then handle regular project assets
             for project_dir in PROJECTS_DIR.iterdir():
-                if not project_dir.is_dir():
+                if not project_dir.is_dir() or project_dir.name == "bg_temp":
                     continue
                 assets_dir = project_dir / "assets"
                 if not assets_dir.exists():

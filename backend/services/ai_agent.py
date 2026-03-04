@@ -389,6 +389,23 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
             with open(fpath, "wb") as f:
                 f.write(img_bytes)
             logger.info(f"AI image generated (Gemini) for '{keyword}' -> {fname}")
+            
+            # Persist in MongoDB for production environments with ephemeral storage (non-blocking)
+            import threading
+            try:
+                from services.asset_store import store_asset_sync
+                mongo_url = os.environ.get('MONGO_URL', '')
+                db_name = os.environ.get('DB_NAME', '')
+                if mongo_url and db_name:
+                    threading.Thread(
+                        target=store_asset_sync,
+                        args=(mongo_url, db_name, project_id, fname, fpath),
+                        daemon=True
+                    ).start()
+                    logger.info(f"AI image persisting to MongoDB: {project_id}/{fname}")
+            except Exception as e:
+                logger.warning(f"Failed to persist AI image in MongoDB (non-fatal): {e}")
+            
             return f"/api/projects/{project_id}/assets/{fname}"
     except Exception as e:
         logger.warning(f"AI image generation failed for '{keyword}': {str(e)[:80]}")
@@ -411,6 +428,23 @@ async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -
                 os.makedirs(os.path.dirname(fpath), exist_ok=True)
                 with open(fpath, "wb") as f:
                     f.write(resp.content)
+                
+                # Persist in MongoDB for production environments with ephemeral storage (non-blocking)
+                import threading
+                try:
+                    from services.asset_store import store_asset_sync
+                    mongo_url = os.environ.get('MONGO_URL', '')
+                    db_name = os.environ.get('DB_NAME', '')
+                    if mongo_url and db_name:
+                        threading.Thread(
+                            target=store_asset_sync,
+                            args=(mongo_url, db_name, project_id, fname, fpath),
+                            daemon=True
+                        ).start()
+                        logger.info(f"Stock image persisting to MongoDB: {project_id}/{fname}")
+                except Exception as e:
+                    logger.warning(f"Failed to persist stock image in MongoDB (non-fatal): {e}")
+                
                 return f"/api/projects/{project_id}/assets/{fname}"
     except Exception as e:
         logger.warning(f"Picsum fetch failed for '{keyword}': {e}")
