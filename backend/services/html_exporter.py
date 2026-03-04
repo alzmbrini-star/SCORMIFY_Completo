@@ -1677,8 +1677,26 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 container.style.width = slideWidth + 'px';
                 container.style.height = slideHeight + 'px';
                 
-                // Get slide duration for timeline
+                // Get slide duration for timeline - consider audio and video durations
                 var slideDuration = slide.duration || 5;
+                var maxMediaDuration = 0;
+                if (slide.audio && slide.audio.length > 0) {{
+                    slide.audio.forEach(function(a) {{
+                        var audioEnd = (a.startTime || 0) + (a.duration || 0);
+                        if (audioEnd > maxMediaDuration) maxMediaDuration = audioEnd;
+                    }});
+                }}
+                if (slide.elements) {{
+                    slide.elements.forEach(function(el) {{
+                        if (el.type === 'video' || el.type === 'heygen') {{
+                            var videoEnd = (el.startTime || 0) + (el.duration || 0);
+                            if (videoEnd > maxMediaDuration) maxMediaDuration = videoEnd;
+                        }}
+                    }});
+                }}
+                if (maxMediaDuration > 0 && maxMediaDuration > slideDuration) {{
+                    slideDuration = maxMediaDuration + 1;
+                }}
                 
                 // Build slide HTML
                 var html = '';

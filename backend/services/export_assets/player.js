@@ -851,8 +851,30 @@ var CoursePlayer = (function() {
             container.appendChild(bgImg);
         }
         
-        // Get slide duration for timeline
+        // Get slide duration for timeline - consider audio and video durations
         var slideDuration = slide.duration || 10;
+        
+        // Calculate actual media duration (audio + video)
+        var maxMediaDuration = 0;
+        if (slide.audio && slide.audio.length > 0) {
+            slide.audio.forEach(function(a) {
+                var audioEnd = (a.startTime || 0) + (a.duration || 0);
+                if (audioEnd > maxMediaDuration) maxMediaDuration = audioEnd;
+            });
+        }
+        // Check for HeyGen/video elements
+        if (slide.elements) {
+            slide.elements.forEach(function(el) {
+                if (el.type === 'video' || el.type === 'heygen') {
+                    var videoEnd = (el.startTime || 0) + (el.duration || 0);
+                    if (videoEnd > maxMediaDuration) maxMediaDuration = videoEnd;
+                }
+            });
+        }
+        // Use the longer of slide duration or media duration (with 1s buffer)
+        if (maxMediaDuration > 0 && maxMediaDuration > slideDuration) {
+            slideDuration = maxMediaDuration + 1;
+        }
         
         // Render elements
         slide.elements.forEach(function(element, elemIndex) {
@@ -946,7 +968,13 @@ var CoursePlayer = (function() {
         // Play slide audio (only if user has interacted or not first slide)
         if (slide.audio && slide.audio.length > 0) {
             if (userHasInteracted || index > 0) {
-                playSlideAudio(slide.audio);
+                playSlideAudio(slide.audio, slideDuration, function(actualDuration) {
+                    // When audio reveals its real duration, restart progress bar if needed
+                    if (actualDuration > slideDuration) {
+                        slideDuration = actualDuration + 1;
+                        startSlideProgress(slideDuration);
+                    }
+                });
             }
         }
         
@@ -1569,7 +1597,7 @@ var CoursePlayer = (function() {
         return svg; // Return the created element for timeline control
     }
     
-    function playSlideAudio(audioList) {
+    function playSlideAudio(audioList, currentSlideDuration, onDurationKnown) {
         // Clear any previously tracked audios and timers
         stopAllSlideAudios();
         
@@ -1585,14 +1613,20 @@ var CoursePlayer = (function() {
             return (a.startTime || 0) - (b.startTime || 0);
         });
         
-        // Log all audio entries for debugging
-        sortedList.forEach(function(a, i) {
-            console.log('[Audio]', i + 1, '- startTime:', a.startTime, 'duration:', a.duration, 'src:', (a.src || '').split('/').pop());
-        });
+        // Helper to track max real audio end time and report back
+        var reportedDuration = false;
+        function reportAudioDuration(audioEl, startTime) {
+            if (reportedDuration) return;
+            audioEl.addEventListener('loadedmetadata', function() {
+                var realEnd = (startTime || 0) + audioEl.duration;
+                if (realEnd > (currentSlideDuration || 10) && onDurationKnown) {
+                    reportedDuration = true;
+                    onDurationKnown(realEnd);
+                }
+            });
+        }
         
-        // Determine playback mode:
-        // - If any audio has startTime > 0, use timeline mode (setTimeout at each startTime)
-        // - If all startTimes are 0/null/undefined, use sequential mode (chain via 'ended' event)
+        // Determine playback mode
         var hasExplicitTimeline = sortedList.some(function(a) {
             return typeof a.startTime === 'number' && a.startTime > 0;
         });
@@ -1607,6 +1641,7 @@ var CoursePlayer = (function() {
                     var audioEl = new Audio(audio.src);
                     audioEl.volume = audio.volume || 1;
                     activeSlideAudios.push(audioEl);
+                    reportAudioDuration(audioEl, audio.startTime || 0);
                     console.log('[Audio] Playing audio', idx + 1, 'at', audio.startTime, 's');
                     audioEl.play().catch(function(e) {
                         console.log('[Audio] Play blocked for audio', idx + 1, ':', e.message);
@@ -1643,6 +1678,7 @@ var CoursePlayer = (function() {
             var audioEl = new Audio(audio.src);
             audioEl.volume = audio.volume || 1;
             activeSlideAudios.push(audioEl);
+            reportAudioDuration(audioEl, 0);
             audioEl.play().catch(function(e) {
                 console.log('[Audio] Single play blocked:', e.message);
             });
