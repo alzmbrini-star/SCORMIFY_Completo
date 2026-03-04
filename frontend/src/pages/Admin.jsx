@@ -19,7 +19,14 @@ import {
   Settings,
   Bot,
   MessageSquare,
-  Save
+  Save,
+  BarChart3,
+  Calendar,
+  DollarSign,
+  FileText,
+  Loader2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
@@ -54,6 +61,11 @@ export default function Admin() {
   });
   const [newSuggestion, setNewSuggestion] = useState('');
   const [tutorLoading, setTutorLoading] = useState(false);
+  
+  // Reports states
+  const [reports, setReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [expandedCompany, setExpandedCompany] = useState(null);
 
   useEffect(() => {
     if (!isCompanyAdmin) {
@@ -104,6 +116,33 @@ export default function Admin() {
       else toast.error('Erro ao salvar configuracoes');
     } catch (e) { toast.error('Erro ao salvar'); }
     finally { setTutorLoading(false); }
+  };
+
+  const fetchReports = async () => {
+    setReportsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/reports`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setReports(data.reports || []);
+      } else {
+        toast.error('Erro ao carregar relatórios');
+      }
+    } catch (e) { 
+      console.error('Reports fetch error:', e); 
+      toast.error('Erro ao carregar relatórios');
+    }
+    finally { setReportsLoading(false); }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      return new Date(dateStr).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch { return dateStr; }
   };
 
   const addSuggestion = () => {
@@ -337,6 +376,14 @@ export default function Admin() {
           >
             <Bot className="w-4 h-4" />
             Tutor IA
+          </Button>
+          <Button
+            variant={activeTab === 'reports' ? 'default' : 'outline'}
+            onClick={() => { setActiveTab('reports'); if (reports.length === 0) fetchReports(); }}
+            className="gap-2"
+          >
+            <BarChart3 className="w-4 h-4" />
+            Relatórios
           </Button>
         </div>
 
@@ -612,6 +659,169 @@ export default function Admin() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Reports Tab */}
+      {activeTab === 'reports' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-white">Relatórios de Uso</h2>
+            <Button 
+              onClick={fetchReports} 
+              disabled={reportsLoading} 
+              variant="outline" 
+              className="gap-2"
+              data-testid="refresh-reports-btn"
+            >
+              {reportsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
+              {reportsLoading ? 'Carregando...' : 'Atualizar'}
+            </Button>
+          </div>
+
+          {reportsLoading && reports.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="bg-slate-800 rounded-lg p-12 text-center border border-slate-700">
+              <BarChart3 className="w-12 h-12 mx-auto text-slate-500 mb-4" />
+              <p className="text-slate-400">Nenhum dado de uso encontrado</p>
+              <p className="text-sm text-slate-500 mt-2">Os dados aparecem após a criação de cursos pelo Agente IA</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports.map((report, idx) => (
+                <div 
+                  key={report.company?.id || idx} 
+                  className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden"
+                  data-testid={`report-company-${report.company?.id || 'orphan'}`}
+                >
+                  {/* Company Header */}
+                  <div 
+                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-750"
+                    onClick={() => setExpandedCompany(expandedCompany === report.company?.id ? null : report.company?.id)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="bg-indigo-600/20 p-2 rounded-lg">
+                        <Building2 className="w-5 h-5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">{report.company?.name}</h3>
+                        <p className="text-sm text-slate-400">{report.company?.slug}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      {/* Stats Summary */}
+                      <div className="flex items-center gap-6 text-sm">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-white">{report.stats?.totalCourses || 0}</div>
+                          <div className="text-slate-400">Cursos</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-emerald-400">
+                            R$ {(report.stats?.totalCostBRL || 0).toFixed(2)}
+                          </div>
+                          <div className="text-slate-400">Custo Total</div>
+                        </div>
+                      </div>
+                      {expandedCompany === report.company?.id ? (
+                        <ChevronUp className="w-5 h-5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded Details */}
+                  {expandedCompany === report.company?.id && (
+                    <div className="border-t border-slate-700 p-4 space-y-6">
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                          <FileText className="w-5 h-5 mx-auto text-blue-400 mb-1" />
+                          <div className="text-xl font-bold text-white">{report.stats?.totalSlides || 0}</div>
+                          <div className="text-xs text-slate-400">Slides Gerados</div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                          <div className="w-5 h-5 mx-auto text-purple-400 mb-1 flex items-center justify-center">🖼️</div>
+                          <div className="text-xl font-bold text-white">{report.stats?.totalAiImages || 0}</div>
+                          <div className="text-xs text-slate-400">Imagens IA</div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                          <div className="w-5 h-5 mx-auto text-orange-400 mb-1 flex items-center justify-center">🔊</div>
+                          <div className="text-xl font-bold text-white">{report.stats?.totalNarrations || 0}</div>
+                          <div className="text-xs text-slate-400">Narrações</div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                          <DollarSign className="w-5 h-5 mx-auto text-green-400 mb-1" />
+                          <div className="text-xl font-bold text-white">${report.stats?.totalCostUSD?.toFixed(4) || '0.00'}</div>
+                          <div className="text-xs text-slate-400">Custo USD</div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+                          <DollarSign className="w-5 h-5 mx-auto text-emerald-400 mb-1" />
+                          <div className="text-xl font-bold text-white">R$ {report.stats?.totalCostBRL?.toFixed(2) || '0.00'}</div>
+                          <div className="text-xs text-slate-400">Custo BRL</div>
+                        </div>
+                      </div>
+
+                      {/* Editors List */}
+                      {report.editors && report.editors.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                            <Users className="w-4 h-4" /> Editores ({report.editors.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {report.editors.map((editor, editorIdx) => (
+                              <span 
+                                key={editor.id || editorIdx}
+                                className="px-3 py-1 bg-slate-700 rounded-full text-sm text-slate-300"
+                              >
+                                {editor.name} <span className="text-slate-500">({editor.email})</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Courses Table */}
+                      {report.courses && report.courses.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                            <FileText className="w-4 h-4" /> Cursos Criados ({report.courses.length})
+                          </h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-slate-700">
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Curso</th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Editor</th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Data</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {report.courses.map((course, courseIdx) => (
+                                  <tr key={course.id || courseIdx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                                    <td className="py-2 px-3 text-white">{course.name || 'Sem nome'}</td>
+                                    <td className="py-2 px-3 text-slate-300">{course.editorName || 'Desconhecido'}</td>
+                                    <td className="py-2 px-3 text-slate-400">{formatDate(course.createdAt)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {(!report.courses || report.courses.length === 0) && (
+                        <p className="text-sm text-slate-500 text-center py-4">Nenhum curso criado ainda</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       </div>

@@ -3629,6 +3629,150 @@ async def update_tutor_settings(request: Request):
     return {"status": "ok", "message": "Tutor settings updated"}
 
 
+# =============================================================================
+# Admin Reports - Usage and Cost Reports
+# =============================================================================
+
+@api_router.get("/admin/reports")
+async def get_admin_reports(request: Request, user: dict = Depends(require_auth)):
+    """Get usage reports by company - Super Admin sees all, Company Admin sees own company only"""
+    is_super = user.get("role") == "super_admin"
+    user_company_id = user.get("companyId")
+    
+    if not is_super and user.get("role") != "company_admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get companies (all for super admin, own for company admin)
+    if is_super:
+        companies = await db.companies.find({"isActive": True}, {"_id": 0}).to_list(1000)
+    else:
+        company = await db.companies.find_one({"id": user_company_id}, {"_id": 0})
+        companies = [company] if company else []
+    
+    company_ids = [c["id"] for c in companies]
+    
+    # Get all users for these companies
+    users_query = {"companyId": {"$in": company_ids}} if company_ids else {}
+    if is_super:
+        users_query = {}  # Super admin can see users without company too
+    all_users = await db.users.find(users_query, {"_id": 0, "passwordHash": 0}).to_list(5000)
+    users_map = {u["user_id"]: u for u in all_users}
+    
+    # Get projects with companyId (agent-created projects)
+    projects_query = {}
+    if is_super:
+        projects_query = {"createdByAgent": True}
+    else:
+        projects_query = {"companyId": user_company_id}
+    
+    projects = await db.projects.find(
+        projects_query,
+        {"_id": 0, "id": 1, "name": 1, "companyId": 1, "userId": 1, "createdAt": 1, "createdByAgent": 1, "course.slides": {"$size": "$course.slides"}}
+    ).sort("createdAt", -1).to_list(5000)
+    
+    # Get usage logs for cost calculation
+    usage_query = {}
+    if not is_super:
+        usage_query = {"companyId": user_company_id}
+    usage_logs = await db.usage_logs.find(usage_query, {"_id": 0}).to_list(10000)
+    
+    # Build report by company
+    USD_TO_BRL = 5.50  # Approximate conversion rate
+    reports = []
+    
+    for company in companies:
+        company_id = company["id"]
+        company_projects = [p for p in projects if p.get("companyId") == company_id]
+        company_usage = [u for u in usage_logs if u.get("companyId") == company_id]
+        company_users = [u for u in all_users if u.get("companyId") == company_id]
+        
+        # Calculate total costs from usage logs
+        total_cost_usd = sum(
+            u.get("estimatedCost", {}).get("textGeneration", 0) +
+            u.get("estimatedCost", {}).get("imageGeneration", 0) +
+            u.get("estimatedCost", {}).get("narration", 0)
+            for u in company_usage
+        )
+        
+        # Aggregate stats
+        total_slides = sum(u.get("details", {}).get("slides", 0) for u in company_usage)
+        total_images = sum(u.get("details", {}).get("aiImages", 0) for u in company_usage)
+        total_narrations = sum(u.get("details", {}).get("narrations", 0) for u in company_usage)
+        
+        # Build project details
+        project_details = []
+        for p in company_projects:
+            editor_id = p.get("userId")
+            editor = users_map.get(editor_id, {})
+            project_details.append({
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "createdAt": p.get("createdAt"),
+                "editorId": editor_id,
+                "editorName": editor.get("name", "Desconhecido"),
+                "editorEmail": editor.get("email", ""),
+            })
+        
+        reports.append({
+            "company": {
+                "id": company_id,
+                "name": company["name"],
+                "slug": company.get("slug", ""),
+            },
+            "stats": {
+                "totalCourses": len(company_projects),
+                "totalSlides": total_slides,
+                "totalAiImages": total_images,
+                "totalNarrations": total_narrations,
+                "totalCostUSD": round(total_cost_usd, 4),
+                "totalCostBRL": round(total_cost_usd * USD_TO_BRL, 2),
+            },
+            "editors": [
+                {"id": u["user_id"], "name": u["name"], "email": u["email"]}
+                for u in company_users if u.get("role") in ("editor", "company_admin")
+            ],
+            "courses": project_details[:50],  # Limit to 50 most recent
+        })
+    
+    # For super admin, also include projects without company
+    if is_super:
+        orphan_projects = [p for p in projects if not p.get("companyId")]
+        orphan_usage = [u for u in usage_logs if not u.get("companyId")]
+        if orphan_projects:
+            total_cost_orphan = sum(
+                u.get("estimatedCost", {}).get("textGeneration", 0) +
+                u.get("estimatedCost", {}).get("imageGeneration", 0) +
+                u.get("estimatedCost", {}).get("narration", 0)
+                for u in orphan_usage
+            )
+            reports.append({
+                "company": {
+                    "id": None,
+                    "name": "Sem Empresa (Projetos Órfãos)",
+                    "slug": "orphan",
+                },
+                "stats": {
+                    "totalCourses": len(orphan_projects),
+                    "totalSlides": sum(u.get("details", {}).get("slides", 0) for u in orphan_usage),
+                    "totalAiImages": sum(u.get("details", {}).get("aiImages", 0) for u in orphan_usage),
+                    "totalNarrations": sum(u.get("details", {}).get("narrations", 0) for u in orphan_usage),
+                    "totalCostUSD": round(total_cost_orphan, 4),
+                    "totalCostBRL": round(total_cost_orphan * USD_TO_BRL, 2),
+                },
+                "editors": [],
+                "courses": [
+                    {"id": p.get("id"), "name": p.get("name"), "createdAt": p.get("createdAt"), "editorId": p.get("userId"), "editorName": users_map.get(p.get("userId"), {}).get("name", "Desconhecido")}
+                    for p in orphan_projects[:50]
+                ],
+            })
+    
+    return {
+        "reports": reports,
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "currency": {"USD_TO_BRL": USD_TO_BRL}
+    }
+
+
 @api_router.post("/tutor/chat")
 async def tutor_chat(request: Request):
     """AI Tutor chat endpoint - called from SCORM packages running in LMS"""
@@ -4527,6 +4671,10 @@ async def agent_generate_course(session_id: str):
             project_dict["course"]["slides"] = course_data["slides"]
             project_dict["createdByAgent"] = True
             project_dict["agentSessionId"] = session_id
+            
+            # Add userId and companyId from session (for reporting)
+            project_dict["userId"] = _s.get("userId")
+            project_dict["companyId"] = _s.get("companyId")
 
             heygen_pending = course_data.get("heygenPending", [])
             if heygen_pending:
@@ -4633,6 +4781,35 @@ async def agent_generate_course(session_id: str):
             # Suggestions in background
             import threading
             threading.Thread(target=lambda: asyncio.run(_generate_improvement_suggestions(session_id, project.id)), daemon=True).start()
+
+            # Log usage for reporting
+            try:
+                slides_count = len(course_data.get("slides", []))
+                ai_images_count = sum(1 for s in course_data.get("slides", []) for e in s.get("elements", []) if e.get("type") == "image" and "ai_img" in e.get("src", ""))
+                usage_log = {
+                    "id": str(uuid.uuid4()),
+                    "type": "course_generation",
+                    "userId": _s.get("userId"),
+                    "companyId": _s.get("companyId"),
+                    "projectId": project.id,
+                    "sessionId": session_id,
+                    "details": {
+                        "slides": slides_count,
+                        "aiImages": ai_images_count,
+                        "narrations": narration_count + len(per_slide_narration) if per_slide_narration else narration_count,
+                        "heygenVideos": len(heygen_pending) if heygen_pending else 0,
+                    },
+                    "estimatedCost": {
+                        "textGeneration": round((len(_s.get("storyboard", {}).get("slides", [])) / 5 + 2) * 0.006, 4),
+                        "imageGeneration": round(ai_images_count * 0.02, 4),
+                        "narration": round(narration_count * 0.01, 4) if narration_count else 0,
+                        "currency": "USD"
+                    },
+                    "createdAt": datetime.now(timezone.utc).isoformat()
+                }
+                loop.run_until_complete(_db.usage_logs.insert_one(usage_log))
+            except Exception as e:
+                logger.warning(f"Failed to log usage (non-fatal): {e}")
 
             _client.close()
             logger.info(f"Course generation completed for session {session_id}, project {project.id}")

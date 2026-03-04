@@ -76,6 +76,24 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - Fixed truncated shutdown event handler
 - Applied timeouts to asset_store.py sync MongoClient instances
 
+### Admin Reports Tab (Complete - 2026-03-04)
+- **New "Relatórios" Tab**: Added to Admin panel showing usage statistics by company
+- **Access Control**:
+  - Super Admin: sees all companies + orphan projects
+  - Company Admin: sees only their own company
+- **Stats Displayed**:
+  - Total courses created
+  - Total slides generated
+  - AI images generated
+  - Narrations generated
+  - Cost in USD and BRL (R$)
+- **Course Details**: Name, editor, creation date
+- **Editors List**: All editors in the company
+- **Usage Logging**: New `usage_logs` collection tracks AI usage during course generation
+- **Files Modified**:
+  - `backend/server.py`: Added `GET /api/admin/reports` endpoint, usage logging in course generation
+  - `frontend/src/pages/Admin.jsx`: Added Reports tab with expandable company cards
+
 ### AI Image Persistence Fix (Complete - 2026-03-04)
 - **Problem**: AI-generated images (backgrounds and slide images) were being lost in production due to ephemeral filesystem
 - **Solution**: Images are now automatically persisted to MongoDB's `project_assets` collection
