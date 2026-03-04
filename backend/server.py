@@ -1,9 +1,3 @@
-# Early startup diagnostic - print immediately before any imports
-import sys
-print("=" * 50, file=sys.stderr, flush=True)
-print("SCORMIFY BACKEND STARTING...", file=sys.stderr, flush=True)
-print("=" * 50, file=sys.stderr, flush=True)
-
 from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,8 +19,6 @@ import asyncio
 import json
 import base64
 
-print("[STARTUP] Core imports done", file=sys.stderr, flush=True)
-
 from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
     Slide, SlideCreate, SlideUpdate, SlideElement, ElementCreate, ElementUpdate,
@@ -35,8 +27,6 @@ from models import (
     QuizQuestion, QuizQuestionCreate, QuizQuestionUpdate, QuizAlternative,
     QuizConfig, QuizAttempt, QuizGenerateRequest, QuizSubmitRequest
 )
-
-print("[STARTUP] Models imported", file=sys.stderr, flush=True)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=False)
@@ -65,38 +55,20 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 EXPORTS_DIR.mkdir(exist_ok=True)
 
 # MongoDB connection
-print("[STARTUP] Setting up MongoDB connection...", file=sys.stderr, flush=True)
 mongo_url = os.environ.get('MONGO_URL', '')
 db_name = os.environ.get('DB_NAME', 'scormify')
-print(f"[STARTUP] MONGO_URL set: {'yes' if mongo_url else 'no'}, DB_NAME: {db_name}", file=sys.stderr, flush=True)
 
-# Initialize MongoDB client with error handling for production
-# Use very short timeouts to avoid blocking startup
-client = None
-db = None
+if not mongo_url:
+    mongo_url = "mongodb://localhost:27017"
 
-def _create_mongo_client():
-    global client, db
-    try:
-        _mongo_url = mongo_url or "mongodb://localhost:27017"
-        print(f"[STARTUP] Creating MongoDB client (non-blocking)...", file=sys.stderr, flush=True)
-        client = AsyncIOMotorClient(
-            _mongo_url,
-            serverSelectionTimeoutMS=5000,  # 5 seconds max
-            connectTimeoutMS=5000,
-            socketTimeoutMS=10000,
-            maxPoolSize=10,
-            retryWrites=True,
-        )
-        db = client[db_name]
-        print("[STARTUP] MongoDB client created", file=sys.stderr, flush=True)
-        logger.info(f"MongoDB client initialized for database: {db_name}")
-    except Exception as e:
-        print(f"[STARTUP] MongoDB error (non-fatal): {e}", file=sys.stderr, flush=True)
-        logger.warning(f"MongoDB connection setup warning: {e}")
-
-# Create client immediately but don't block if it fails
-_create_mongo_client()
+client = AsyncIOMotorClient(
+    mongo_url,
+    serverSelectionTimeoutMS=10000,
+    connectTimeoutMS=10000,
+    socketTimeoutMS=30000,
+)
+db = client[db_name]
+logger.info(f"MongoDB client initialized for database: {db_name}")
 
 # GridFS bucket for persistent export storage (only if db is available)
 exports_bucket = None
@@ -130,16 +102,13 @@ heygen_credits_cache: Dict[str, Any] = {
 heygen_sse_subscribers: Dict[str, List[asyncio.Queue]] = {}
 
 # Create the main app
-print("[STARTUP] Creating FastAPI app...", file=sys.stderr, flush=True)
 app = FastAPI(title="Scormify API", version="1.0.0")
-print("[STARTUP] FastAPI app created", file=sys.stderr, flush=True)
 
 # Register health endpoints FIRST - critical for deployment probes
 @app.get("/health")
 async def root_health():
     return {"status": "healthy"}
 
-# Also register /api/health directly on app for faster response during startup
 @app.get("/api/health")
 async def api_health_direct():
     return {"status": "healthy"}
@@ -147,8 +116,6 @@ async def api_health_direct():
 @app.get("/")
 async def root():
     return {"status": "running", "app": "Scormify API"}
-
-print("[STARTUP] Health endpoints registered", file=sys.stderr, flush=True)
 
 # Create routers
 api_router = APIRouter(prefix="/api")
