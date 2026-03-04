@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -114,6 +114,9 @@ from routes import users as users_routes
 auth_routes.set_db(db)
 companies_routes.set_db(db)
 users_routes.set_db(db)
+
+# Import auth helpers for agent protection
+from routes.auth import require_agent_access, require_auth, get_current_user
 
 # Include routers
 api_router.include_router(auth_routes.router)
@@ -3733,8 +3736,29 @@ class AgentConfigUpdate(BaseModel):
 class AgentChatMessage(BaseModel):
     message: str
 
+@api_router.get("/agent/check-access")
+async def check_agent_access(request: Request):
+    """Check if the current user has access to the AI Agent feature."""
+    user = await get_current_user(request)
+    if not user:
+        return {"hasAccess": False, "reason": "not_authenticated"}
+    
+    # Super admins always have access
+    if user.get("role") == "super_admin":
+        return {"hasAccess": True, "reason": "super_admin"}
+    
+    # Check company permissions
+    company = user.get("company")
+    if not company:
+        return {"hasAccess": False, "reason": "no_company"}
+    
+    if company.get("permissions", {}).get("agentAccess", False):
+        return {"hasAccess": True, "reason": "company_permission"}
+    
+    return {"hasAccess": False, "reason": "not_authorized"}
+
 @api_router.post("/agent/sessions")
-async def create_agent_session(data: AgentSessionCreate):
+async def create_agent_session(data: AgentSessionCreate, request: Request, user: dict = Depends(require_agent_access)):
     """Create a new AI agent session."""
     session_id = str(uuid.uuid4())
     session = {
@@ -3748,6 +3772,8 @@ async def create_agent_session(data: AgentSessionCreate):
         "storyboard": None,
         "projectId": None,
         "chatHistory": [],
+        "userId": user.get("user_id"),
+        "companyId": user.get("companyId"),
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -3755,7 +3781,7 @@ async def create_agent_session(data: AgentSessionCreate):
     return session
 
 @api_router.get("/agent/sessions/{session_id}")
-async def get_agent_session(session_id: str):
+async def get_agent_session(session_id: str, request: Request, user: dict = Depends(require_agent_access)):
     """Get agent session state."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
@@ -3763,7 +3789,7 @@ async def get_agent_session(session_id: str):
     return s
 
 @api_router.post("/agent/sessions/{session_id}/upload")
-async def agent_upload_content(session_id: str, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None)):
+async def agent_upload_content(session_id: str, request: Request, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None), user: dict = Depends(require_agent_access)):
     """Upload content to agent session (file, text, or URL)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:

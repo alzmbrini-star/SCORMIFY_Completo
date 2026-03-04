@@ -122,6 +122,24 @@ async def require_company_admin(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
+async def require_agent_access(request: Request) -> Dict[str, Any]:
+    """Dependency that requires agent access permission"""
+    user = await require_auth(request)
+    
+    # Super admins always have access
+    if user.get("role") == "super_admin":
+        return user
+    
+    # Check company permissions
+    company = user.get("company")
+    if not company:
+        raise HTTPException(status_code=403, detail="Acesso ao Agente IA não autorizado")
+    
+    if not company.get("permissions", {}).get("agentAccess", False):
+        raise HTTPException(status_code=403, detail="Acesso ao Agente IA não autorizado para sua empresa")
+    
+    return user
+
 def create_session_response(response: Response, session_token: str, user_data: Dict[str, Any]) -> Dict[str, Any]:
     """Set session cookie and return user data"""
     response.set_cookie(

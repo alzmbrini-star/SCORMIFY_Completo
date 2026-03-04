@@ -1,0 +1,71 @@
+{
+  "summary": "Tested AI Agent RBAC (Role-Based Access Control) feature - All 11 backend API tests PASSED, All 7 frontend UI tests PASSED. Feature allows Super Admins to control company access to AI Agent via 'agentAccess' permission in admin panel.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_agent_rbac.py",
+    "/app/test_reports/pytest/pytest_agent_rbac.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_agent_rbac.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": {
+    "super_admin": {"email": "admin@scormify.com", "password": "admin123"},
+    "test_user": {"email": "usuario@teste.com", "password": "teste123", "companyId": "company_d9dec773d063"}
+  },
+  "seed_data_creation": "Used existing test company 'Empresa Teste RBAC' (company_d9dec773d063) with user 'usuario@teste.com'",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "RBAC feature fully tested. Permission 'agentAccess' in company.permissions controls AI Agent access. Toggle via Admin panel checkboxes or API PUT /api/companies/{id}. Frontend checks hasPermission('agentAccess') to show/hide button and redirect from /agent.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/agent/check-access": {
+        "super_admin": "PASS - returns hasAccess: true, reason: 'super_admin'",
+        "user_with_permission": "PASS - returns hasAccess: true, reason: 'company_permission'",
+        "user_without_permission": "PASS - returns hasAccess: false, reason: 'not_authorized'",
+        "unauthenticated": "PASS - returns hasAccess: false, reason: 'not_authenticated'"
+      },
+      "POST /api/agent/sessions": {
+        "super_admin": "PASS - returns 200 with session",
+        "user_with_permission": "PASS - returns 200 with session",
+        "user_without_permission": "PASS - returns 403",
+        "unauthenticated": "PASS - returns 401"
+      },
+      "PUT /api/companies/{id}": {
+        "update_permissions": "PASS - agentAccess can be toggled true/false"
+      }
+    },
+    "frontend_ui": {
+      "dashboard_agent_button": {
+        "super_admin": "PASS - 'Agente IA' button visible (data-testid='ai-agent-btn')",
+        "user_with_permission": "PASS - 'Agente IA' button visible",
+        "user_without_permission": "PASS - 'Agente IA' button NOT visible"
+      },
+      "agent_page_access": {
+        "super_admin": "PASS - /agent loads normally",
+        "user_with_permission": "PASS - /agent loads normally",
+        "user_without_permission": "PASS - redirected to '/' with toast error 'Você não tem permissão para acessar o Agente IA'"
+      },
+      "admin_panel_permissions": {
+        "agente_ia_checkbox": "PASS - visible for each company under 'Permissões de API'",
+        "toggle_permission": "PASS - checkbox updates company.permissions.agentAccess"
+      }
+    }
+  },
+  "code_files_verified": {
+    "backend/routes/auth.py": "require_agent_access dependency (line 125-141)",
+    "backend/server.py": "GET /api/agent/check-access endpoint (line 3739-3758)",
+    "backend/routes/companies.py": "default permissions include agentAccess: false (line 81-85)",
+    "frontend/src/pages/Dashboard.jsx": "hasAgentAccess check (line 61), conditional button (line 310-320)",
+    "frontend/src/pages/Agent.jsx": "access check useEffect with redirect (line 115-124)",
+    "frontend/src/contexts/AuthContext.jsx": "hasPermission function (line 118-127)"
+  }
+}

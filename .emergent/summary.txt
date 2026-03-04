@@ -1,140 +1,155 @@
 <analysis>**original_problem_statement:**
 The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses.
 
-Throughout the sessions, the user has requested and the agent has implemented several key features:
--   **Content Ingestion**: From , , and website URLs.
--   **Multimedia Integration**: HeyGen avatars, ElevenLabs narration, YouTube/Vimeo videos.
--   **UX/Performance**: Fixed critical backend blocking issues and added real-time progress UIs.
--   **Customization**: Detailed per-slide background customizer, global font color, and text entrance animations.
--   **AI-powered Self-Improvement**: The agent can analyze its own generation process and provide suggestions.
--   **Cost Optimization**: Migrated core LLM usage to Google Gemini models and added a pre-generation cost estimate.
--   **Expanded Functionality**: Added Flipbook, raw HTML, and external link buttons as configurable media types.
--   **Course Editing Workflow**: Implemented a flow to re-enter the media configuration step for an already-generated course directly from the editor, apply changes, and return to the editor.
--   **Bug Fixes**: Addressed multiple bugs related to SCORM/HTML export, audio playback in the editor, and UI rendering.
+Key features implemented include:
+- Content ingestion from various sources (.pdf, .docx, URLs).
+- Integration with multimedia services like HeyGen, ElevenLabs, and YouTube/Vimeo.
+- Advanced customization options: per-slide backgrounds, global font color/size, and text animations.
+- A comprehensive course editor for post-generation modifications.
+- SCORM/HTML export capabilities.
+- AI-powered self-improvement suggestions.
+- Production-readiness fixes for deployment, background tasks, and asset persistence.
+
+The most recent user request is to implement role-based access control, allowing only Super Admins to manage access to the AI Agent feature for other user roles within a company.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application is a feature-rich Instructional Design AI assistant. It takes various forms of input (documents, URLs), generates a course structure, and provides a step-by-step wizard to configure media, styling, narration, and animations. The final output is a full-featured course editor that allows for post-generation tweaks and exporting the course as a SCORM/HTML package.
-
--   **Backend (FastAPI)**: Manages agent sessions, orchestrates AI generation in background threads, handles file uploads, serves project assets (including narration audio), and exports courses.
--   **Frontend (React)**: A multi-step agent wizard (Content -> Structure -> Media -> Generated) and a comprehensive course editor with a timeline, property inspector, and canvas for manipulating slide elements.
--   **Database (MongoDB)**: Stores user sessions, project data (storyboard, slides, elements), media configurations, and AI-generated suggestions.
+The application is a full-stack AI course-authoring tool. It features a React frontend with a multi-step wizard for course creation and a powerful editor. The FastAPI backend, backed by MongoDB, orchestrates AI content generation, manages projects, users, and assets, and handles course exports. The application has been hardened for production deployment, with fixes for background tasks, asset persistence in MongoDB, and robust server startup logic.
 
 **Last working item**:
--   Last item agent was working: The user reported that when using the Edit Media feature for an existing project, making changes (e.g., adding an animation) did not enable the button to apply these changes. The agent implemented the correct workflow: the button now reads Aplicar Alterações ao Projeto, it becomes active when changes are made, and clicking it calls a new backend endpoint to update the project and then redirects the user back to the editor.
--   Status: **USER VERIFICATION PENDING**
--   Agent Testing Done: Y (Verified via  and screenshots)
--   Which testing method agent to use? User verification is the next step. If the user finds an issue, the agent should use screenshots to debug the UI flow and  to re-verify the backend endpoint ().
+-   Last item agent was working: The user requested a permission system for the AI Agent feature. The requirement is that only Super Admins can see and use this feature by default. They should also have an interface to grant or deny access to Editor and Company Admin roles on a per-company basis. The agent began investigating the existing role and permission structure in the codebase.
+-   Status: **IN PROGRESS**
+-   Agent Testing Done: N
+-   Which testing method agent to use? both. The agent should use  to test the backend API protection and the  tool to verify that the Agente IA UI elements are correctly hidden or shown based on user roles and permissions.
 -   User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: User Verification for Apply Changes Flow (P0)**
-    -   **Description:** The user needs to test and confirm that the Edit Media workflow, specifically the Aplicar Alterações ao Projeto button and the subsequent update/redirection, works as expected.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a crucial UX fix that makes the Edit Media feature usable.
-    -   **Status**: USER VERIFICATION PENDING
+-   **Issue 1: Implement Role-Based Access Control for AI Agent (P0)**
+    -   **Description**: Restrict the AI Agent functionality so that only Super Admins can access it by default. Super Admins need a UI in the admin panel to enable this feature for other roles within specific companies.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical feature for managing access in a multi-tenant environment, enabling tiered feature offerings and enhancing security.
+    -   **Status**: IN PROGRESS
     -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: Both (if user reports failure).
+    -   **Should Test frontend/backend/both after fix?**: Both.
     -   **Blocked on other issue**: None.
 
 **In progress Task List**:
--   None.
+-   **Task 1: Role-Based Access Control Implementation (P0)**
+    -   **Where to resume**: The agent was inspecting  and  to understand the current permission system (, ). The next step is to modify the backend models and API, then update the frontend UI.
+    -   **What will be achieved with this?**: A complete, testable permission system for the AI Agent feature.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Both.
+    -   **Blocked on something**: None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-    - (P1) After user validation of the current fix, ask the user for the next priority.
+  - (P1) **URGENT Code Refactoring**: The codebase, particularly  and , has become extremely large and difficult to maintain. This technical debt is slowing down development and increasing the risk of bugs. The agent should strongly advocate for refactoring these monoliths into smaller, dedicated modules and components.
 - **Future Tasks:**
-    - (P2) **Advanced Interactivity:** Implement a per-course Tutor IA to answer student questions.
-    - (P3) **Code Refactoring:** This is becoming critical and should be strongly advocated for.
-        -   Break down the monolithic  into dedicated router files (e.g., , ).
-        -   Refactor the complex  (currently >5000 lines) into smaller, manageable components and custom hooks.
-        -   Refactor , which has also grown very complex with the addition of narration and animation settings.
+  - (P2) **Advanced Interactivity**: Implement a per-course Tutor IA to answer student questions.
 
 **Completed work in this session**
--   **Feature: Apply Changes in Edit Media Mode:** Implemented the correct workflow for updating an existing project's media settings from the agent interface.
--   **Feature: Text Entrance Animations:** Added 8 different entrance animations for text elements, configurable globally in the agent and per-element in the editor. Includes animated UI previews for each effect.
--   **Feature: ElevenLabs Narration in Agent:** Implemented a full workflow in the Media step for per-slide narration, including AI-powered script generation, voice selection, and audio preview.
--   **Bug Fix: SCORM/HTML Audio Export:** Fixed exporters to correctly include narration audio generated via the agent flow.
--   **Bug Fix: Editor Audio Playback:** Resolved multiple bugs preventing narration audio from playing in the editor's media tab and on the timeline.
--   **Bug Fix: SCORM Gradient Background:** Fixed the SCORM player to correctly render gradient backgrounds across the entire slide.
--   **Bug Fix: SCORM Export  Crash:** Fixed a Pydantic validation error that crashed the SCORM export.
--   **Feature: Global Text Color:** Successfully implemented and tested the global text color feature.
+- **Production Deployments Fixes**:
+  - Resolved multiple deployment-blocking issues, including server startup hangs, MongoDB Atlas connectivity problems, and making startup events non-blocking.
+  - Re-ordered health check endpoints in  to fire immediately, ensuring compatibility with the production deployment environment's health checker.
+- **Production Bug Fixes**:
+  - **Narration Audio Persistence**: Fixed a critical bug where narration audio was lost in production due to the ephemeral filesystem. Audio files are now persisted in MongoDB and served via a fallback mechanism. Implemented a startup migration to persist existing audio files.
+  - **Course Generation Timeout**: Converted the synchronous  endpoint into an asynchronous background task with frontend polling to prevent 520 gateway timeouts in production.
+- **Feature Implementations & UX Improvements**:
+  - **Global Font Size Control**: Added a UI in the agent's media panel to control the global font size for a course.
+  - **Course List Grid View**: Redesigned the course list on the dashboard from a simple list to a visually appealing grid of cards.
+  - **Slide Preview Thumbnails**: Implemented automatic generation of CSS-based slide previews for courses that lack a thumbnail image.
+- **SCORM/HTML Player Fixes**:
+  - **Progress Bar Sync**: Corrected the player's progress bar to accurately reflect the duration of audio narration or video, instead of a fixed default.
+  - **SCORM Navigation Sidebar**: Updated the sidebar to conditionally display either slide thumbnails (for PPT imports) or slide titles (for manually/AI-created slides), matching the HTML player's behavior.
+- **User Verification & Bug Fixes**:
+  - Successfully verified the Apply Changes workflow in the media editor.
+  - Optimized the VLibras integration to prevent it from flooding the browser console with warnings.
 
 **Earlier issues found/mentioned but not fixed**
--   None. The agent has shown a pattern of adding significant complexity to  and , making the need for refactoring more urgent.
+-   **Issue 1: Critical need for code refactoring.**
+    -   **Debug checklist**:
+        -   Identify logical domains in  (e.g., auth, projects, agent, admin) and create new files in a  directory for each. Use FastAPI's .
+        -   Analyze  and break it down into smaller, reusable components (e.g., , , , ) and custom hooks (e.g., , ).
+        -   Do the same for .
+    -   **Why to solve this issue and what will be achieved with this?**: To improve maintainability, reduce bugs, and speed up future development. The current monoliths are a major liability.
+    -   **Should Test frontend/backend/both after fix**: Both (extensive regression testing required).
+    -   **Is recurring issue?**: Y (This has been a known issue for several sessions).
 
 **Known issue recurrence from previous fork**
--   **Pattern:** Underestimating the user experience implications of long-running background tasks. While not a direct recurrence, the implementation of several complex UI features without immediate refactoring has led to UX bugs (like the non-functional Apply button) that required subsequent fixes.
+- **Issue recurrence in previous fork**: Production vs. Preview environment divergence.
+- **Recurrence count**: Multiple instances in this session.
+- **Status**: RESOLVED (for now). The agent fixed several critical bugs that only appeared in the production environment (efemeral filesystem, proxy timeouts). This highlights the need for a development workflow that is more aware of production constraints.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Conditional UI/Logic:** The agent's main action button dynamically changes from Gerar Curso to Aplicar Alterações based on the presence of an , altering its behavior and API call.
--   **Targeted Backend Updates:** A new  endpoint was created to apply specific media changes to an existing project without re-generating the entire course.
--   **Client-Side Animation Engine:** The editor's  and the SCORM/HTML players now use CSS and JavaScript to apply entrance animations based on element style properties and timeline position.
--   **Reusable UI Components:** A new  component was created to provide an enhanced, interactive UX for selecting animations.
--   **Dynamic Audio URL Handling:** The frontend was fixed to handle multiple audio source URL patterns ( for user uploads vs.  for agent-generated narrations).
+-   **Production Hardening**: Implementing fixes specifically for a containerized production environment, such as making startup tasks non-blocking, adding DB timeouts, and handling ephemeral filesystems.
+-   **Asset Persistence**: Storing binary files (like MP3s) in MongoDB GridFS or as BSON binary data to ensure they persist across container restarts.
+-   **Asynchronous Tasks**: Converting long-running, synchronous API calls into background tasks with a polling mechanism on the frontend to prevent gateway timeouts and improve UX.
+-   **Role-Based Access Control (RBAC)**: The concept of restricting feature access based on user roles and company-level permissions, now being implemented.
+-   **Conditional Rendering**: Using data attributes (e.g., presence of a slide background image) to dynamically change the UI, as seen in the SCORM navigation bar.
 
 **key DB schema**
--   **agent_sessions collection**:
-    -    (object): Stores the global animation setting ().
-    -    (string): Stores the hex code for the course-wide font color.
-    -    (object): Now includes narration settings per slide.
--   **projects collection** -> slides -> elements:
-    -    (object): Contains an  object ().
+-   **audio_files** (New or implicit collection): Used to persist narration audio.
+    -   
+-   **companies**: Will be modified to include permissions.
+    -   
+-   **agent_sessions**:
+    -    (number): Stores the scaling factor for the course-wide font size.
+-   **projects** -> slides -> elements:
+    -    (string): Now potentially modified by the  scale factor during generation.
 
 **changes in tech stack**
 -   None.
 
 **All files of reference**
--   : Major changes for new endpoints (, ) and updating existing ones.
--   : Updated to apply global animations and generate narration.
--   : Updated to handle narration audio and new animations.
--   : Updated to handle narration audio and new animations.
--   : Logic added to handle the Edit Media mode and call the new update endpoint.
--   : Major UI additions for narration and animations.
--   : Major changes to fix audio URL handling and add the animation picker in .
--   : Fixed to correctly play narration audio from the timeline.
--   : New file.
--   : Updated to support all new animation types.
+-   : Heavily modified for production readiness, background tasks, audio persistence, font size feature, and role permissions.
+-   : Updated to apply global font size scaling.
+-    & : Updated player logic for progress bar sync.
+-   : Updated to handle asynchronous polling for course generation.
+-   : UI added for global font size.
+-   : Rewritten to use a grid layout with new  component.
+-   : Minor fixes, but remains a critical candidate for refactoring.
+-   : Logic updated to sync progress bar with media duration.
+-   : New file created.
+-   : Modified to delay initialization and reduce console noise.
 
 **Areas that need refactoring**:
--   ****: **URGENT.** This file is a monolith. API routes for projects, agent, and assets should be broken out into a  directory.
--   ****: **URGENT.** At over 5000 lines, this file is nearly unmaintainable. It must be decomposed into smaller components and custom hooks (e.g., for timeline logic, properties panel logic).
--   ****: **HIGH PRIORITY.** This component has become extremely complex and should be broken down into sub-components for each configuration section (Background, Narration, Animation, etc.).
+-   ****: **URGENT.** The file now exceeds 5500 lines. It handles auth, projects, agent logic, admin, file serving, and startup events. It MUST be broken into a  directory using FastAPI's .
+-   ****: **URGENT.** This component is over 5000 lines and is responsible for the entire editor state and UI. It needs to be decomposed into smaller components and custom hooks.
+-   ****: **HIGH PRIORITY.** This UI component is overly complex and should be broken into sub-components for each section (Background, Narration, Animation, etc.).
 
 **key api endpoints**
--   **NEW**: : Applies media configurations (backgrounds, colors, animations, narrations) to an existing project.
--   **NEW**: : Generates 3 script options for a given slide's content.
--   : Serves agent-generated narration audio.
+-   : Updated to include .
+-   : **Refactored** to be an asynchronous endpoint that starts a background task and returns immediately.
+-   : **Refactored** to poll for the status of course generation.
+-   : **Refactored** to include a fallback mechanism that retrieves audio data from MongoDB if the local file is not found.
 
 **Critical Info for New Agent**
--   Your immediate task is to engage the user for **verification of the Apply Changes button fix**. This was the last user-reported issue.
--   **The codebase complexity is at a critical level.** , , and  are dangerously large and complex. You should strongly advocate for a refactoring task after the current fix is validated by the user. Future feature development will be slow and risky without it.
--   You MUST respond to the user in **Português**.
+-   Your immediate task is to implement the role-based access control for the Agente IA feature. This is a multi-step process involving backend model changes, API protection, and frontend UI updates.
+-   After completing the RBAC task, you MUST prioritize and strongly advocate for the **URGENT code refactoring**. The current state of  and  is a significant risk to the project's stability and future development speed.
+-   All user interaction must be in **Português**.
+-   The application has separate behaviors for preview and production (especially regarding file storage). Be mindful of this when implementing new features that involve file I/O.
 
 **documents and test reports created in this job**
--   
--   
--   
--    (Updated)
+-   None in this session. Previous reports exist but are not relevant to the current tasks.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** When I edit media for an existing project and change something (animation, background), the apply button doesn't activate.
-2.  **User:** (Agrees to animated previews) OK pode acrescentar!
-3.  **User:** Asks for text entrance animations, configurable in the media tab.
-4.  **User:** The play button on the editor's timeline doesn't play narration audio.
-5.  **User:** Narration audio added via the Agent isn't being exported to SCORM/HTML.
-6.  **User:** The audio play button in the editor's Media tab is broken for narration audio.
-7.  **User:** Requests ElevenLabs narration integration in the Media tab, with AI-generated script options.
-8.  **User:** The gradient background isn't rendering correctly in the exported SCORM file.
-9.  **User:** The SCORM export is failing with a server error.
-10. **Agent:** (Proposing next steps after fixing SCORM export) Confirmed the fix. Ready to finalize.
+1.  **User**: Asks for role-based access to the AI Agent feature, restricted to Super Admins by default.
+2.  **User**: Reports issue with SCORM navigation sidebar, wanting it to match the HTML player's style (thumbnails for PPT, titles for other courses).
+3.  **User**: Reports that the progress bar in SCORM/HTML export is not syncing with audio/video duration and that the Editor's play button doesn't work in production.
+4.  **User**: Reports a 520 Gateway Timeout error when generating a course in production.
+5.  **User**: States that the audio is now created in production but gives a 404 error and doesn't play.
+6.  **User**: Reports that inserting an ElevenLabs narration is failing in production.
+7.  **User**: Confirms the deployment fix is working.
+8.  **User**: Shares new deployment failure logs (which turned out to be the same as previous ones).
+9.  **User**: Asks to run a health check before deployment.
+10. **User**: Is confused about the deployment options presented by the platform.
 
 **Project Health Check:**
--   **Broken**: No
--   **Mocked**: No
+-   Broken: No
+-   Mocked: No
 
 **3rd Party Integrations**
 -   **Google Gemini 3 Flash & Nano Banana**: Primary text/image generation. Uses **Emergent LLM Key**.
@@ -145,13 +160,13 @@ The application is a feature-rich Instructional Design AI assistant. It takes va
 -   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Used multiple times to validate narration and animation features.
+-   Testing agent used after significant changes: NO
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: None
 -   Known regressions: None
 
 **Credentials to test flow:**
--   All necessary credentials are in .
+-   All necessary credentials for services are in . Use the test user credentials found there for logging into the application.
 
 **What agent forgot to execute**
--   The agent successfully addressed all user requests from this session. The main outstanding item is the urgent need for code refactoring, which has been deferred in favor of feature requests but is now a critical stability risk.</analysis>
+-   The agent successfully addressed all user requests from this session. The only outstanding strategic item is the repeatedly deferred but now critical task of refactoring the monolithic parts of the codebase.</analysis>

@@ -45,7 +45,7 @@ import {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isCompanyAdmin } = useAuth();
+  const { user, logout, isCompanyAdmin, isSuperAdmin, hasPermission } = useAuth();
   const {
     projects,
     loading,
@@ -56,6 +56,9 @@ export default function Dashboard() {
     uploadPPT,
     checkJobStatus,
   } = useProject();
+
+  // Check if user has access to AI Agent
+  const hasAgentAccess = isSuperAdmin || hasPermission('agentAccess');
 
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -303,16 +306,18 @@ export default function Dashboard() {
                 </Button>
               </DialogTrigger>
 
-            {/* AI Agent Button */}
-            <Button
-              variant="outline"
-              className="gap-2 border-emerald-600/40 text-emerald-400 hover:bg-emerald-600/10 hover:text-emerald-300"
-              onClick={() => navigate('/agent')}
-              data-testid="ai-agent-btn"
-            >
-              <Brain className="w-4 h-4" />
-              Agente IA
-            </Button>
+            {/* AI Agent Button - only visible to users with access */}
+            {hasAgentAccess && (
+              <Button
+                variant="outline"
+                className="gap-2 border-emerald-600/40 text-emerald-400 hover:bg-emerald-600/10 hover:text-emerald-300"
+                onClick={() => navigate('/agent')}
+                data-testid="ai-agent-btn"
+              >
+                <Brain className="w-4 h-4" />
+                Agente IA
+              </Button>
+            )}
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Import PowerPoint</DialogTitle>

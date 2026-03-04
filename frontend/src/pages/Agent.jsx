@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -53,11 +54,17 @@ const TEMPLATE_ICONS = {
 export default function Agent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isSuperAdmin, hasPermission, loading: authLoading } = useAuth();
+  
+  // Check access to AI Agent
+  const hasAgentAccess = isSuperAdmin || hasPermission('agentAccess');
+  
   // Mode: null = selection, 'create' = new course, 'edit' = edit existing
   const [mode, setMode] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
   const [showChat, setShowChat] = useState(true);
 
   // Create mode data
@@ -103,6 +110,18 @@ export default function Agent() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Check access to AI Agent and redirect if not authorized
+  useEffect(() => {
+    if (authLoading) return;
+    
+    if (!hasAgentAccess) {
+      toast.error('Você não tem permissão para acessar o Agente IA');
+      navigate('/');
+      return;
+    }
+    setAccessChecked(true);
+  }, [authLoading, hasAgentAccess, navigate]);
 
   // Handle editMedia query param - load existing session for media editing
   useEffect(() => {
@@ -534,6 +553,18 @@ export default function Agent() {
   };
 
   const steps = mode === 'edit' ? EDIT_STEPS : CREATE_STEPS;
+
+  // Show loading while checking access
+  if (authLoading || !accessChecked) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950" data-testid="agent-loading">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+          <span className="text-slate-400">Verificando acesso...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-white" data-testid="agent-page">

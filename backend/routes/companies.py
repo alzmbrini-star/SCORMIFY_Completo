@@ -79,6 +79,7 @@ async def create_company(request: Request, user: Dict = Depends(require_super_ad
         "slug": slug,
         "logo": body.get("logo"),
         "permissions": body.get("permissions", {
+            "agentAccess": False,
             "heygen": False,
             "elevenlabs": False
         }),

@@ -396,6 +396,16 @@ export default function Admin() {
                       <label className="flex items-center gap-2 text-white cursor-pointer">
                         <input
                           type="checkbox"
+                          checked={company.permissions?.agentAccess || false}
+                          onChange={(e) => handleUpdatePermissions(company, 'agentAccess', e.target.checked)}
+                          className="rounded"
+                          data-testid={`perm-agent-${company.id}`}
+                        />
+                        Agente IA
+                      </label>
+                      <label className="flex items-center gap-2 text-white cursor-pointer">
+                        <input
+                          type="checkbox"
                           checked={company.permissions?.heygen || false}
                           onChange={(e) => handleUpdatePermissions(company, 'heygen', e.target.checked)}
                           className="rounded"
