@@ -78,6 +78,9 @@ def retrieve_asset_sync(mongo_url: str, db_name: str, project_id: str, filename:
 async def retrieve_asset_async(db, project_id: str, filename: str) -> tuple:
     """Retrieve asset data and content_type from MongoDB (async).
     Returns (bytes, content_type) or (None, None)."""
+    if db is None:
+        logger.warning("retrieve_asset_async called with db=None")
+        return None, None
     try:
         doc = await db.project_assets.find_one(
             {"project_id": project_id, "filename": filename},

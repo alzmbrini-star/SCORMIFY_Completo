@@ -1631,18 +1631,19 @@ async def serve_asset(project_id: str, filename: str):
         return FileResponse(file_path)
     
     # Fallback: try to restore from MongoDB (production ephemeral storage)
-    try:
-        from services.asset_store import retrieve_asset_async
-        data, content_type = await retrieve_asset_async(db, project_id, filename)
-        if data:
-            # Restore to filesystem for future requests
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'wb') as f:
-                f.write(data)
-            logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
-            return FileResponse(file_path)
-    except Exception as e:
-        logger.warning(f"MongoDB asset fallback failed: {e}")
+    if db is not None:
+        try:
+            from services.asset_store import retrieve_asset_async
+            data, content_type = await retrieve_asset_async(db, project_id, filename)
+            if data:
+                # Restore to filesystem for future requests
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(file_path, 'wb') as f:
+                    f.write(data)
+                logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
+                return FileResponse(file_path)
+        except Exception as e:
+            logger.warning(f"MongoDB asset fallback failed: {e}")
     
     raise HTTPException(status_code=404, detail="File not found")
 
