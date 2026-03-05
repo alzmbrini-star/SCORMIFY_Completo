@@ -333,7 +333,9 @@ const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDel
         ref={thumbRef}
         className="w-full h-full relative"
         style={{
-          background: slide.background || '#fff',
+          ...(slide.background?.includes?.('gradient')
+            ? { background: slide.background }
+            : { backgroundColor: slide.background || '#fff' }),
         }}
       >
         {/* Background Image Layer - rendered as img like main canvas */}
