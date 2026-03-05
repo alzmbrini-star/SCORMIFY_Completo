@@ -151,10 +151,27 @@ backend/
   - Detecção de header bars tolerante (width >= 1700)
   - Testes: 17/17 backend, 0 problemas de contraste em todos os 6 templates (iteration_62)
 
+### P0: Per-Slide Narration Control & Cost Estimation (Complete - 2026-03-05)
+- **Feature**: Per-slide narration toggle on Storyboard screen (step 4)
+  - Global enable/disable narration toggle
+  - Per-slide checkboxes to control which slides get narration
+  - ElevenLabs voice selector with preview playback
+  - Select all / Deselect all buttons
+  - Character count per slide and total
+  - Cost estimation based on ElevenLabs Starter plan ($5/30,000 chars)
+  - Monthly quota usage percentage with progress bar
+  - Narration config saved to session before proceeding to media config
+- **Backend**: New endpoint `POST /api/agent/sessions/{id}/save-narration-config`
+  - Saves `narrationSlides` map, `narrationVoiceId`, `narrationEnabled` to session config
+  - Updated `cost-estimate` endpoint to calculate narration cost from storyboard character counts
+  - Updated `generate-course` to respect per-slide narration toggles (`narrationSlides` map)
+- **Frontend**: Rewritten `StoryboardPanel` component in `Agent.jsx`
+- **Testing**: 15/15 backend tests passed (iteration_63)
+
 ## Prioritized Backlog
 ### P1 - URGENT
 - **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks
-- **Refactor `Agent.jsx`** (~3200 lines): Break MediaConfigPanel into sub-components
+- **Refactor `Agent.jsx`** (~3400 lines): Break MediaConfigPanel into sub-components
 ### P2
 - Advanced Interactivity: Per-course "Tutor IA"
 ### P3
