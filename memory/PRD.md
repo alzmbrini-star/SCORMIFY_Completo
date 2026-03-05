@@ -108,6 +108,15 @@ backend/
 - "Aplicar Alterações" button: Fixed narrationVoiceId restoration from session
 - Editor Slide Thumbnails: Fixed background image rendering + HTML font-size
 
+### P0 Bug Fix: AI Image Generation in Edit Media (Complete - 2026-03-05)
+- **Root Cause**: `apply_media_changes` endpoint only handled backgrounds/animations/narration but never processed `mediaConfig` for image generation
+- **Fix**: Added media processing logic to `apply_media_changes` in `backend/routes/agent.py`:
+  - `ai_image`: Calls `_fetch_stock_image` from `services/ai_agent.py` to generate images via Gemini Nano Banana
+  - `youtube`/`vimeo`: Creates video embed elements in slides
+  - `none`: Removes image/video elements and expands text to full width
+- **Additional Fix**: Handled MongoDB null values for storyboard using `or {}` pattern
+- **Testing**: 12/12 backend tests passed (100%)
+
 ## Prioritized Backlog
 ### P1 - URGENT
 - **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks
