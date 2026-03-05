@@ -131,7 +131,12 @@ backend/
   - `gallery_image` media type reuses existing images (no generation cost)
 - **Backend**: `backend/routes/gallery.py` (new), `backend/routes/agent.py`, `backend/services/ai_agent.py`
 - **Frontend**: `frontend/src/pages/Agent.jsx` (ImageGalleryModal component, design template picker)
-- **Testing**: 11/11 backend tests + all frontend features verified (100%)
+- **Testing**: 11/11 backend + all frontend (iteration_59), then 20/20 visual diff tests (iteration_60)
+- **Visual Differentiation Fix (2026-03-05)**: Each template now generates visually distinct slides:
+  - `_build_header_bar()`: 6 header styles (solid/rounded/minimal/neon/gradient/elegant)
+  - Fonts applied in all HTML: headings use `fontHeading`, body uses `fontBody`
+  - `cornerRadius` applied to image elements per template
+  - Title slide dividers and module list badges vary per template style
 
 ## Prioritized Backlog
 ### P1 - URGENT
