@@ -740,8 +740,22 @@ export default function Admin() {
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="bg-slate-900/50 rounded-lg p-3 text-center">
                           <FileText className="w-5 h-5 mx-auto text-blue-400 mb-1" />
-                          <div className="text-xl font-bold text-white">{report.stats?.totalSlides || 0}</div>
-                          <div className="text-xs text-slate-400">Slides Gerados</div>
+                          <div className="text-xl font-bold text-white">{report.stats?.totalCourses || 0}</div>
+                          <div className="text-xs text-slate-400">Cursos Total</div>
+                          {report.courses && report.courses.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-1 mt-1">
+                              {(() => {
+                                const agentCount = report.courses.filter(c => (c.source || (c.createdByAgent ? 'agent' : 'manual')) === 'agent').length;
+                                const pptCount = report.courses.filter(c => c.source === 'ppt').length;
+                                const manualCount = report.courses.length - agentCount - pptCount;
+                                return <>
+                                  {agentCount > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300">{agentCount} IA</span>}
+                                  {pptCount > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-600/20 text-blue-300">{pptCount} PPT</span>}
+                                  {manualCount > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-600/20 text-slate-300">{manualCount} Manual</span>}
+                                </>;
+                              })()}
+                            </div>
+                          )}
                         </div>
                         <div className="bg-slate-900/50 rounded-lg p-3 text-center">
                           <div className="w-5 h-5 mx-auto text-purple-400 mb-1 flex items-center justify-center">🖼️</div>
@@ -796,17 +810,28 @@ export default function Admin() {
                                 <tr className="border-b border-slate-700">
                                   <th className="text-left py-2 px-3 text-slate-400 font-medium">Curso</th>
                                   <th className="text-left py-2 px-3 text-slate-400 font-medium">Editor</th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Origem</th>
                                   <th className="text-left py-2 px-3 text-slate-400 font-medium">Data</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {report.courses.map((course, courseIdx) => (
-                                  <tr key={course.id || courseIdx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                                    <td className="py-2 px-3 text-white">{course.name || 'Sem nome'}</td>
-                                    <td className="py-2 px-3 text-slate-300">{course.editorName || 'Desconhecido'}</td>
-                                    <td className="py-2 px-3 text-slate-400">{formatDate(course.createdAt)}</td>
-                                  </tr>
-                                ))}
+                                {report.courses.map((course, courseIdx) => {
+                                  const sourceLabels = { agent: 'Agente IA', ppt: 'PPT Import', manual: 'Manual' };
+                                  const sourceColors = { agent: 'bg-emerald-600/20 text-emerald-300', ppt: 'bg-blue-600/20 text-blue-300', manual: 'bg-slate-600/20 text-slate-300' };
+                                  const src = course.source || 'manual';
+                                  return (
+                                    <tr key={course.id || courseIdx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                                      <td className="py-2 px-3 text-white">{course.name || 'Sem nome'}</td>
+                                      <td className="py-2 px-3 text-slate-300">{course.editorName || 'Desconhecido'}</td>
+                                      <td className="py-2 px-3">
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${sourceColors[src] || sourceColors.manual}`}>
+                                          {sourceLabels[src] || src}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-slate-400">{formatDate(course.createdAt)}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

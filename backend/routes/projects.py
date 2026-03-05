@@ -95,6 +95,7 @@ async def create_project(data: ProjectCreate):
     project_dict['updatedAt'] = project.updatedAt.isoformat()
     project_dict['course']['createdAt'] = project.course.createdAt.isoformat()
     project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
+    project_dict['source'] = 'manual'
     
     await db.projects.insert_one(project_dict)
     
@@ -173,6 +174,7 @@ async def upload_ppt(
     project_dict['course']['createdAt'] = project.course.createdAt.isoformat()
     project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
     project_dict['status'] = 'processing'
+    project_dict['source'] = 'ppt'
     
     await db.projects.insert_one(project_dict)
     

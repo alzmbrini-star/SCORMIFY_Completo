@@ -52,12 +52,12 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
     users_map = {u["user_id"]: u for u in all_users}
     projects_query = {}
     if is_super:
-        projects_query = {"createdByAgent": True}
+        projects_query = {}  # Show ALL projects for super admin
     else:
         projects_query = {"companyId": user_company_id}
     projects = await db.projects.find(
         projects_query,
-        {"_id": 0, "id": 1, "name": 1, "companyId": 1, "userId": 1, "createdAt": 1, "createdByAgent": 1, "course.slides": {"$size": "$course.slides"}}
+        {"_id": 0, "id": 1, "name": 1, "companyId": 1, "userId": 1, "createdAt": 1, "createdByAgent": 1, "source": 1, "status": 1, "course.slides": {"$size": "$course.slides"}}
     ).sort("createdAt", -1).to_list(5000)
     usage_query = {}
     if not is_super:
@@ -83,10 +83,15 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
         for p in company_projects:
             editor_id = p.get("userId")
             editor = users_map.get(editor_id, {})
+            # Determine source/origin of the project
+            source = p.get("source", "")
+            if not source:
+                source = "agent" if p.get("createdByAgent") else "manual"
             project_details.append({
                 "id": p.get("id"), "name": p.get("name"), "createdAt": p.get("createdAt"),
                 "editorId": editor_id, "editorName": editor.get("name", "Desconhecido"),
                 "editorEmail": editor.get("email", ""),
+                "source": source,
             })
         reports.append({
             "company": {"id": company_id, "name": company["name"], "slug": company.get("slug", "")},
@@ -124,7 +129,8 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
                 "editors": [],
                 "courses": [
                     {"id": p.get("id"), "name": p.get("name"), "createdAt": p.get("createdAt"),
-                     "editorId": p.get("userId"), "editorName": users_map.get(p.get("userId"), {}).get("name", "Desconhecido")}
+                     "editorId": p.get("userId"), "editorName": users_map.get(p.get("userId"), {}).get("name", "Desconhecido"),
+                     "source": p.get("source") or ("agent" if p.get("createdByAgent") else "manual")}
                     for p in orphan_projects[:50]
                 ],
             })
