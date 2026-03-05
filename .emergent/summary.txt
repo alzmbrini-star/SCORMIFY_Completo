@@ -1,66 +1,60 @@
 <analysis>**original_problem_statement:**
-The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses. Key features include content ingestion, multimedia integration, advanced customization, a course editor, and SCORM/HTML export.
+The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses.
 
 Recent user requests included:
-1.  **Intelligent Media Editing**: When editing media for an existing course, the system should only alter the slides that were actually modified, and the cost estimate should reflect only those changes, not the entire course.
-2.  **Global Background Control**: Add a feature to apply a single background (color, gradient, or image) to all slides of a course at once from the Edit Media screen.
-3.  **Comprehensive Reports**: The Reports tab in the admin panel should show all created courses, including those imported from PPT or created manually, not just those created by the AI Agent.
-4.  **Image Generation Bug**: The user reported that generating an AI image within the Edit Media flow is not working.
+1.  **AI Image Generation Bug**: An image generation bug in the Edit Media flow was reported and has been fixed.
+2.  **Professional Layout Templates**: Implement a system of 6 visually distinct professional layout templates. This feature should be available during AI course creation.
+3.  **Template Application Everywhere**: The user wants to apply these design templates not only when creating new courses but also from the Edit Media screen and within the manual course Editor.
+4.  **Visual Contrast Bug**: A bug where applying light-themed templates resulted in unreadable light-colored text was reported and has been fixed.
+5.  **Image Gallery in Editor**: The user requested the AI-generated Image Gallery to be accessible from the manual course Editor.
+6.  **Narration Bug & Feature**: The user reported that narration generation via ElevenLabs was not working. They also requested a new feature: on the Storyboard screen, show the estimated cost for narration, and add controls to enable/disable narration for each slide individually before final generation.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application is a full-stack AI course authoring tool with a React frontend, a FastAPI backend, and a MongoDB database. It includes a multi-step course creation wizard, a course editor, user/project management, role-based access control (RBAC), and AI-powered content generation.
+The application is a full-stack AI course authoring tool with a React frontend, a FastAPI backend, and a MongoDB database.
 
-In this session, a major backend refactoring was completed, breaking down a monolithic 5,700-line  into 14 modular, maintainable route files. The agent also successfully implemented the intelligent media editing, global background, and comprehensive reports features.
+In this session, the agent has successfully:
+- Fixed a P0 bug preventing AI image generation in the Edit Media flow.
+- Implemented a Professional Design Templates system with 6 visually distinct styles.
+- Integrated an Image Gallery for AI-generated images, accessible from both the AI agent flow and the manual editor.
+- Made the design templates applicable to existing courses from the Editor and Edit Media screens.
+- Fixed a critical visual contrast bug where applying templates made slide text unreadable.
+- Fixed a bug that prevented ElevenLabs narration from being generated due to a missing API key import.
 
-The application is currently functional and deployable, but a critical bug is preventing AI image generation within the media editing workflow.
+The application is stable and the major feature work on design templates is complete and verified. The agent has just fixed the narration generation bug and is about to start implementing the user's requested narration features.
 
 **Last working item**:
--   Last item agent was working: Debugging a bug where AI images are not being created when requested through the Editar Mídia (Edit Media) page. The user clicks to generate an image, but nothing happens. The agent confirmed via  that the direct image generation API () is working correctly, which isolates the problem to the orchestrating endpoint () that is supposed to trigger it.
--   Status: **IN PROGRESS**
--   Agent Testing Done: N (Agent tested the sub-component API, but not the failing end-to-end flow).
--   Which testing method agent to use? Backend testing. The agent should send a  request to the  endpoint, simulating a payload from the frontend that requests a new AI image for a specific slide. This will test if the backend logic correctly processes the request and calls the image generation service.
--   User Testing Done: Y (User has confirmed the bug exists in the UI).
+-   Last item agent was working: Implementing per-slide narration control and cost estimation. The user wants to see the cost of using the ElevenLabs API on the Storyboard screen and be able to toggle narration on/off for each slide before generating the course. The underlying bug preventing narration has been fixed, but this new UI/UX feature is pending.
+-   Status: **NOT STARTED**
+-   Agent Testing Done: N/A
+-   Which testing method agent to use? Both. The backend will need a new endpoint or logic to calculate character counts for ElevenLabs API cost estimation. The frontend will require significant changes to the Storyboard UI, which needs to be tested with the .
+-   User Testing Done: N/A
 
 **All Pending/In progress Issue list**:
--   **Issue 1: AI image generation fails in the Edit Media workflow (P0)**
-    -   **Description**: When a user is on the Edit Media page for a course and tries to generate a new AI image by providing a prompt for a slide, the image is not created after clicking Apply Changes. The API for direct image generation works, but the integration within the apply changes flow is broken.
-    -   **Attempted fixes**: The agent confirmed the  endpoint functions correctly when called directly. The investigation started on the  endpoint.
-    -   **Next debug checklist**:
-        1.  Examine the  function inside .
-        2.  Add extensive logging to see the exact payload received from the frontend when an image prompt is submitted.
-        3.  Verify the logic that iterates through . Check if it correctly identifies a slide with a new image prompt.
-        4.  Confirm that the condition to call the image generation service () is being met and that the function is being invoked with the correct prompt.
-        5.  Trace how the  of the newly generated image is (or isn't) being saved back into the project's slide data in the database.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: Both. An end-to-end test from the UI is necessary to confirm the fix.
-    -   **Blocked on other issue**: None.
+-   None.
 
 **In progress Task List**:
--   None.
+-   **Task 1: Narration Control & Cost Estimation (P0)**
+    -   **Where to resume**: Start by planning the implementation. First, investigate the ElevenLabs API to determine how to calculate costs (likely based on character count). Then, design the backend logic to return this cost estimate. Finally, implement the frontend UI changes on the Storyboard screen ().
+    -   **What will be achieved with this?**: Users will have granular control over which slides get narration and will be informed of the potential cost before committing, fulfilling the user's explicit request.
+    -   **Status**: NOT STARTED
+    -   **Should Test frontend/backend/both after fix?**: Both.
+    -   **Blocked on something**: No.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P1) **URGENT Frontend Refactoring**: Refactor the monolithic  (over 5000 lines) and  (over 1500 lines) into smaller, reusable components and custom hooks. This is a critical piece of technical debt that the user previously agreed to but paused.
+    -   (P1) **CRITICAL Frontend Refactoring**: Refactor the monolithic  (over 5000 lines) and  (over 1500 lines) into smaller, reusable components and custom hooks. This is a critical piece of technical debt that the user previously agreed to but paused in favor of feature work.
 -   **Future Tasks:**
     -   (P2) **Advanced Interactivity**: Implement a per-course Tutor IA to answer student questions.
-    -   (P3) **Professional Layout Templates**: Implement a system for professional, pre-defined slide layouts, design tokens (colors, fonts), and better stock image integration.
 
 **Completed work in this session**
--   **CRITICAL Backend Refactoring**: Successfully refactored the monolithic  from 5,740 lines into 14 modular route files located in . The main  is now a slim 318-line orchestrator. The refactoring was fully validated by the testing agent.
--   **Intelligent Media Editing**: Implemented logic to detect modified slides in the Edit Media flow, ensuring that cost estimates and backend updates apply only to the changed slides.
-    -   Files: , .
--   **Global Background Feature**: Added a UI control to apply a background theme to all slides of a course simultaneously.
-    -   File: .
--   **Comprehensive Reports Fix**: Updated the Admin Reports to include all courses, regardless of their creation source (AI Agent, PPT, Manual). Added a  field to the  collection and updated the UI to display it.
-    -   Files: , , .
--   **Bug Fixes**:
-    -   Resolved a bug where slide thumbnails in the Editor were not rendering content correctly ().
-    -   Fixed an issue where the Apply Changes button was silently disabled in the AI Agent if narration was present ().
-    -   Resolved initial environment setup issue where MongoDB was not starting automatically ().
-    -   Cleaned up React console warnings related to CSS properties ().
+-   **Bug Fix: AI Image Generation**: Resolved the P0 bug where AI images failed to generate in the Edit Media flow. The fix was in .
+-   **Feature: Professional Design Templates**: Implemented 6 visually distinct design templates with unique colors, fonts, and styles. This involved creating  and heavily refactoring .
+-   **Feature: Apply Templates to Existing Courses**: Added functionality to apply templates from the manual Editor () and the Edit Media screen () via a new endpoint in .
+-   **Bug Fix: Template Visual Contrast**: Fixed a major bug where applying templates with light backgrounds made text unreadable. The fix involved complex HTML parsing and color correction logic in .
+-   **Feature: Image Gallery**: Created a gallery for AI-generated images, accessible from the AI agent flow and the manual editor. Involved  and frontend changes in  and .
+-   **Bug Fix: Narration Generation**: Fixed a bug where ElevenLabs narration failed because the  was not imported in .
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: Critical need for frontend refactoring.**
@@ -70,81 +64,86 @@ The application is currently functional and deployable, but a critical bug is pr
     -   **Is recurring issue?**: Y.
 
 **Known issue recurrence from previous fork**
--   The previous fork's primary blocker, **Production vs. Preview environment divergence,** appears to be **RESOLVED**. The agent fixed the underlying  issue that prevented MongoDB from starting, which has stabilized the deployment environment for this job.
+-   None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend Refactoring (Monolith to Router-based)**: Using FastAPI's  to break down a single large file into multiple, domain-focused route modules, included by a central application instance.
--   **State Diffing on Frontend**: Using  to compare initial and current state objects (, ) to generate a diff () that is sent to the backend for partial updates.
--   **Modular Python with Shared Dependencies**: Created a  module to provide common dependencies like the database connection to all router modules, avoiding circular imports.
+-   **Dynamic Template Application**: Using backend logic () with regex to parse and rewrite slide HTML on-the-fly, applying new styles (backgrounds, text colors, headers) based on a selected design template.
+-   **Color Contrast Correction**: Programmatically detecting background color luminance and adjusting all text colors within an HTML snippet to ensure readability (WCAG compliance).
+-   **State Lifting in React**: Lifting state (e.g., ) from child components () to parent components () to share state across siblings.
 
 **key DB schema**
--   **projects**: Added a  field to track creation method. Can be , , or .
-
-**changes in tech stack**
--   None.
+-   No new schema changes. Functionality was added by modifying existing  collection documents.
 
 **All files of reference**
--   : Major refactoring, now an orchestrator.
--    (New Directory): Contains the 14 new route modules (, , etc.).
--   : Heavily modified for intelligent editing, global background, and bug fixes.
--   : Modified to fix thumbnail rendering.
--   : Modified for the improved reports feature.
--   : Modified to fix a React style warning.
--   : Modified to ensure MongoDB starts automatically.
+-   : Heavily modified for multiple bug fixes and features (image gen, template application, contrast fix, narration fix).
+-   : Heavily refactored to remove hardcoded styles and apply visual distinctions from design templates.
+-   : Modified to add an endpoint for applying templates to existing projects.
+-   : New file containing the data for the 6 design templates.
+-   : New file for the API endpoint serving templates.
+-   : New file for the API endpoint serving the image gallery.
+-   : Modified to add toolbar buttons and dialogs for applying templates and using the image gallery.
+-   : Modified to manage state for design templates.
+-   : Modified to add a template selector and image gallery access.
+-   : Modified to add the design template picker with visual previews.
 
 **Areas that need refactoring**:
--   ****: **CRITICAL**. This 5000+ line component is unmaintainable and must be decomposed.
--   ****: **URGENT**. This component has grown to over 1500 lines and handles complex multi-step logic that should be broken down.
+-   ****: **CRITICAL**. Still over 5000 lines.
+-   ****: **URGENT**. Still over 1500 lines.
 
 **key api endpoints**
--   : Modified to accept a  array for partial updates. This endpoint is currently being debugged for the image generation issue.
--   All API endpoints were moved from  into their respective modules under . For example, all project-related endpoints are now in .
+-   : Applies a design template to all slides of an existing project.
+-   : Fetches the list of available design templates.
+-   : Fetches the list of images in the user's gallery.
 
 **Critical Info for New Agent**
--   Your immediate priority is to fix the **P0 bug** where AI images are not created in the Edit Media flow. The investigation should focus on the  function in .
--   The previous deployment blocker is resolved. The environment is stable.
--   A major backend refactoring is complete and tested. Do not modify  for new routes; instead, identify and edit the correct module in the  directory.
--   The next major task after the bug fix is to address the **critical frontend technical debt** by refactoring  and .
--   **All communication with the user must be in Português.**
+-   Your immediate priority (P0) is to implement the **narration feature request**: add per-slide narration toggles and a cost estimate to the Storyboard screen. The underlying bug preventing narration is already **fixed**.
+-   The user has consistently prioritized new features (P3) over the critical frontend refactoring (P1). Be prepared to continue this pattern, but keep track of the tech debt.
+-   The agent has been successfully using the  after every major feature/fix. Continue this practice.
+-   All communication with the user must be in **Português**.
 
 **documents and test reports created in this job**
--   : Contains the successful test results from the  run that validated the backend refactoring.
+-   
+-   
+-   
+-   
+-   
+-    (Updated multiple times)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: I need adjustments. In Edit Media, only update what's changed and show the cost for only those changes. Also, I need a way to change the background for all slides at once. (Complete)
-2.  **User**: (Correction) Not just the cost, make sure only the modified slides are actually saved/changed. (Complete)
-3.  **User**: I also noticed the reports only show courses from the AI Agent. I need imported PPT courses to be included and valued too. (Complete)
-4.  **User**: When I edit media and insert an image, I get this error in the F12 console locally. Can you check before I deploy? (Complete - agent identified it as a harmless warning and fixed it).
-5.  **User**: But the image is not being created! (In Progress - this is the current P0 bug).
-6.  **User**: I need to remove the Made with Emergent link. (Complete - agent consulted support and informed the user it's not possible via the agent).
-7.  **User**: No, thank you [for the frontend refactoring right now]. (Complete - user paused the refactoring task).
-8.  **User**: Confirmed [that the agent should proceed with the backend refactoring]. (Complete)
-9.  **User**: Yes [agent can proceed with the backend refactoring plan]. (Complete)
-10. **User**: The thumbnail images in the Editor's slide menu are broken. Could you fix it? (Complete)
+1.  **User**: The templates look the same. (In Progress -> Resolved)
+2.  **User**: I want to use templates in the manual editor and on the Edit Media screen too. (In Progress -> Resolved)
+3.  **User**: Applying a template makes the text invisible. (In Progress -> Resolved)
+4.  **User**: Where did you put the image library? (Clarification)
+5.  **User**: I want an icon for the gallery in the manual editor too! (In Progress -> Resolved)
+6.  **User**: The narration feature isn't working. (In Progress -> Resolved)
+7.  **User**: I want to see the ElevenLabs API cost and choose which slides get narration on the storyboard screen. (Pending - Current P0 Task)
+8.  **User**: (Confirms plan for narration fix) Yes.
+9.  **User**: (Confirms ElevenLabs plan) Starter.
+10. **User**: Ok [to agent's plan for templates].
 
 **Project Health Check:**
--   **Broken**: No. The application is running and deployable. However, a P0 bug is impacting a key feature (AI image generation).
+-   **Broken**: No. The application is stable and all known bugs are fixed.
 -   **Mocked**: No.
 
 **3rd Party Integrations**
 -   **Google Gemini 3 Flash & Nano Banana**: Primary text/image generation. Uses **Emergent LLM Key**.
 -   **OpenAI gpt-4o**: Fallback for text generation. Uses **Emergent LLM Key**.
--   **ElevenLabs**: For audio narration. Requires User API Key.
+-   **ElevenLabs**: For audio narration. Requires User API Key. (Bug fixed, feature pending).
 -   **HeyGen**: For avatar video. Requires User API Key.
 -   **ConvertAPI**: For PPT conversion. Requires User API Key.
 -   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: YES (After backend refactoring, all tests passed).
+-   Testing agent used after significant changes: YES. Used multiple times to validate bug fixes and new features. All recent runs passed 100%.
 -   Troubleshoot agent used after agent stuck in loop: NO.
 -   Test files created: None.
--   Known regressions: AI image generation within the Edit Media flow is broken.
+-   Known regressions: None.
 
 **Credentials to test flow:**
 -   Super Admin:  / 
 
 **What agent forgot to execute**
--   The agent has not forgotten any tasks. It has been methodically addressing user requests and is currently focused on the latest reported bug.</analysis>
+-   Nothing. The agent has been methodically following user requests. The next step is the explicitly requested narration feature.</analysis>

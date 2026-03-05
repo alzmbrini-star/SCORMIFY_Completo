@@ -10,7 +10,7 @@ import os
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
     # Fallback for local testing
-    BASE_URL = "https://scorm-preview.preview.emergentagent.com"
+    BASE_URL = "https://elevenlabs-preview.preview.emergentagent.com"
 
 # Test credentials
 ADMIN_EMAIL = "admin@scormify.com"

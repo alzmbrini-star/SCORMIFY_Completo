@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from routes.deps import (
     db, now_utc, serialize_doc, get_project_by_id, update_project,
-    PROJECTS_DIR, STORAGE_DIR, mongo_url
+    PROJECTS_DIR, STORAGE_DIR, mongo_url, ELEVENLABS_API_KEY, HEYGEN_API_KEY
 )
 from routes.auth import require_agent_access, require_auth, get_current_user
 
@@ -944,6 +944,31 @@ Retorne exatamente 3 opções, separadas por "---". Cada opção deve conter APE
 
 
 
+@router.post("/agent/sessions/{session_id}/save-narration-config")
+async def agent_save_narration_config(session_id: str, data: dict):
+    """Save per-slide narration configuration from the Storyboard screen."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    narration_slides = data.get("narrationSlides", {})
+    narration_voice_id = data.get("narrationVoiceId", "")
+    narration_enabled = data.get("narrationEnabled", False)
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "config.narrationEnabled": narration_enabled,
+            "config.narrationVoiceId": narration_voice_id,
+            "config.narrationSlides": narration_slides,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    enabled_count = sum(1 for v in narration_slides.values() if v)
+    return {"status": "ok", "enabledSlides": enabled_count}
+
+
 @router.post("/agent/sessions/{session_id}/cost-estimate")
 async def agent_cost_estimate(session_id: str):
     """Estimate the cost of generating the course before committing."""
@@ -981,9 +1006,23 @@ async def agent_cost_estimate(session_id: str):
 
     text_cost = (storyboard_batches + 2) * text_cost_per_batch  # +2 for analysis & structure
     image_cost = ai_images * image_cost_per_image
+
+    # ElevenLabs narration cost based on per-slide config
     narration_cost = 0.0
+    narration_slides = config.get("narrationSlides", {})
     if config.get("narrationEnabled"):
-        narration_cost = total_slides * 0.01  # ElevenLabs ~$0.01 per slide
+        storyboard = s.get("storyboard", {})
+        sb_slides = storyboard.get("slides", [])
+        # ElevenLabs Starter: $5/30,000 chars = $0.000167/char
+        cost_per_char = 5.0 / 30000.0
+        for i, sb_slide in enumerate(sb_slides):
+            # If narrationSlides configured, use it; otherwise default to all
+            if narration_slides:
+                if not narration_slides.get(str(i), False):
+                    continue
+            script = sb_slide.get("narrationScript", "")
+            if script:
+                narration_cost += len(script) * cost_per_char
 
     total_cost = text_cost + image_cost + narration_cost
 
@@ -1116,14 +1155,19 @@ async def agent_generate_course(session_id: str):
                 q["updatedAt"] = datetime.now(timezone.utc).isoformat()
                 loop.run_until_complete(_db.questions.insert_one({**q, "_id": q["id"]}))
 
-            # Handle narration (global toggle)
+            # Handle narration (global toggle with per-slide control)
             narration_enabled = config.get("narrationEnabled", False)
             narration_voice = config.get("narrationVoiceId", "")
+            narration_slides_map = config.get("narrationSlides", {})
             narration_count = 0
             if narration_enabled and narration_voice and ELEVENLABS_API_KEY:
                 import re as _re
                 narration_tasks = []
                 for si, slide_data in enumerate(course_data["slides"]):
+                    # Check per-slide toggle: if map exists, only narrate enabled slides
+                    if narration_slides_map:
+                        if not narration_slides_map.get(str(si), False):
+                            continue
                     texts = []
                     for el in slide_data.get("elements", []):
                         html_content = el.get("htmlContent", "")

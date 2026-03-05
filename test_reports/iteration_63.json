@@ -1,0 +1,95 @@
+{
+  "summary": "P0 Per-Slide Narration Control & Cost Estimation Testing - All 15 backend tests PASSED. Frontend components verified for proper structure and data-testid attributes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "save-narration-config",
+        "issue": "Required backend restart to register route (hot reload didn't pick up endpoint initially)",
+        "priority": "LOW - resolved after restart"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_narration_perslide_cost.py",
+    "/app/test_reports/pytest/pytest_narration_perslide.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Cost calculation uses correct ElevenLabs Starter pricing ($5/30,000 chars = $0.000167/char)",
+    "GOOD: Per-slide narration toggle persists to session config.narrationSlides as {slideIndex: boolean} map",
+    "GOOD: Cost estimate endpoint reads narrationSlides from config and calculates per-slide costs from storyboard.slides[i].narrationScript",
+    "GOOD: Frontend StoryboardPanel correctly displays quota percentage (chars/30000 * 100) and progress bar",
+    "GOOD: handleApprove function calls save-narration-config before proceeding to media config step"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_narration_perslide_cost.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "Verified - Component structure correct with all required data-testid attributes"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "Test sessions created/cleaned up automatically by test fixtures (TEST_narration_* prefix)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Per-slide narration control and cost estimation feature verified. Key endpoints: POST /api/agent/sessions/{id}/save-narration-config (saves narrationSlides map, voiceId, enabled status), POST /api/agent/sessions/{id}/cost-estimate (returns costs including narration based on per-slide character counts). Frontend StoryboardPanel at step 4 has global toggle, voice selector, per-slide checkboxes, select all/deselect all, cost summary with quota percentage. ElevenLabs voices available at GET /api/elevenlabs/voices.",
+  "features_tested": {
+    "backend": {
+      "save-narration-config endpoint": {
+        "status": "PASS",
+        "tests_passed": 4,
+        "details": "Returns 200 with enabledSlides count, persists config to session, 404 for invalid session"
+      },
+      "cost-estimate endpoint": {
+        "status": "PASS",
+        "tests_passed": 6,
+        "details": "Returns full estimate structure, calculates narration cost when enabled, uses $5/30k chars pricing, returns 0 when disabled"
+      },
+      "elevenlabs voices endpoint": {
+        "status": "PASS",
+        "tests_passed": 2,
+        "details": "Returns voice list with voice_id and name fields"
+      },
+      "cost calculation formulas": {
+        "status": "PASS",
+        "tests_passed": 3,
+        "details": "Cost per char ($0.000167), sample calculations (100-30000 chars), quota percentage verified"
+      }
+    },
+    "frontend": {
+      "StoryboardPanel component": {
+        "status": "VERIFIED",
+        "details": "Has data-testid attributes for: storyboard-panel, storyboard-narration-global-toggle, storyboard-voice-*, narration-slide-row-*, narration-select-all, narration-deselect-all, narration-cost-summary, narration-total-cost, approve-storyboard-btn"
+      },
+      "Cost display": {
+        "status": "VERIFIED",
+        "details": "Shows total cost ($X.XXXX), total characters, Starter plan quota percentage with progress bar"
+      },
+      "Integration": {
+        "status": "VERIFIED",
+        "details": "handleApprove calls save-narration-config API before proceeding"
+      }
+    }
+  },
+  "pricing_verification": {
+    "plan": "ElevenLabs Starter",
+    "monthly_cost": "$5",
+    "monthly_chars": 30000,
+    "cost_per_char": "$0.0001667",
+    "example_calculations": {
+      "100_chars": "$0.0167",
+      "1000_chars": "$0.167",
+      "10000_chars": "$1.667",
+      "30000_chars": "$5.00"
+    }
+  }
+}
