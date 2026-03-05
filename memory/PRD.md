@@ -168,6 +168,11 @@ backend/
 - **Frontend**: Rewritten `StoryboardPanel` component in `Agent.jsx`
 - **Testing**: 15/15 backend tests passed (iteration_63)
 
+### Bug Fix: Narration & Suggestions Background Tasks (Complete - 2026-03-05)
+- **Root Cause**: `_generate_narrations` and `_generate_improvement_suggestions` were async functions using the global `db` Motor client which was bound to the main event loop, but they ran in background threads with separate event loops via `asyncio.run()`. Also `aiofiles` was not imported inside the narration function.
+- **Fix**: Both functions now create their own Motor client (`AsyncIOMotorClient`) inside the function body, matching the pattern used by `_sync_generate_course`. Added explicit `import aiofiles` inside `_generate_narrations`.
+- **Result**: 10/10 narrations generated successfully for test project. 0 failures.
+
 ## Prioritized Backlog
 ### P1 - URGENT
 - **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks

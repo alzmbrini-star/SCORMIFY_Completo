@@ -1339,8 +1339,13 @@ async def agent_course_status(session_id: str):
 async def _generate_improvement_suggestions(session_id: str, project_id: str):
     """Background task: analyze the course creation process and generate improvement suggestions."""
     try:
-        session = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+        from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
+        _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        _db = _client[os.environ.get("DB_NAME")]
+
+        session = await _db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
         if not session:
+            _client.close()
             return
 
         # Build analysis context
@@ -1439,7 +1444,7 @@ Gere 2-3 sugestões por categoria, totalizando 12-18 sugestões. Seja específic
             suggestions = json.loads(raw.strip())
 
         # Store suggestions
-        await db.agent_sessions.update_one(
+        await _db.agent_sessions.update_one(
             {"id": session_id},
             {"$set": {
                 "suggestions": suggestions,
@@ -1449,12 +1454,17 @@ Gere 2-3 sugestões por categoria, totalizando 12-18 sugestões. Seja específic
         )
         logger.info(f"Improvement suggestions generated for session {session_id}")
 
+        _client.close()
     except Exception as e:
         logger.error(f"Failed to generate suggestions for session {session_id}: {e}")
-        await db.agent_sessions.update_one(
-            {"id": session_id},
-            {"$set": {"suggestionsError": str(e), "updatedAt": datetime.now(timezone.utc).isoformat()}}
-        )
+        try:
+            await _db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"suggestionsError": str(e), "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+        except Exception:
+            pass
 
 
 @router.get("/agent/sessions/{session_id}/suggestions")
@@ -1701,8 +1711,14 @@ async def agent_generate_narration(project_id: str, background_tasks: Background
 async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
     """Background task: generate ElevenLabs narration for each slide."""
     try:
+        import aiofiles as _aiofiles
         from elevenlabs import ElevenLabs
         from elevenlabs.types import VoiceSettings
+        from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
+
+        # Create own DB connection for this thread's event loop
+        _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        _db = _client[os.environ.get("DB_NAME")]
 
         el_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         voice_settings = VoiceSettings(stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True)
@@ -1726,11 +1742,11 @@ async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
                 audio_path = STORAGE_DIR / "audio" / filename
                 audio_path.parent.mkdir(exist_ok=True)
 
-                async with aiofiles.open(audio_path, "wb") as f:
+                async with _aiofiles.open(audio_path, "wb") as f:
                     await f.write(audio_data)
 
                 # Persist audio data to MongoDB for production durability
-                await db.tts_generations.update_one(
+                await _db.tts_generations.update_one(
                     {"filename": filename},
                     {"$set": {
                         "filename": filename,
@@ -1753,13 +1769,13 @@ async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
                     "startTime": 0,
                     "duration": len(audio_data) / 16000,  # Approximate
                 }
-                await db.projects.update_one(
+                await _db.projects.update_one(
                     {"id": project_id},
                     {"$push": {f"course.slides.{task['slideIndex']}.audio": slide_audio}}
                 )
 
                 # Update status
-                await db.projects.update_one(
+                await _db.projects.update_one(
                     {"id": project_id, "narrationPending.slideId": task["slideId"]},
                     {"$set": {"narrationPending.$.status": "completed", "narrationPending.$.audioUrl": f"/api/audio/{filename}"}}
                 )
@@ -1767,10 +1783,12 @@ async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
 
             except Exception as e:
                 logger.error(f"Narration error for slide {task['slideIndex']}: {e}")
-                await db.projects.update_one(
+                await _db.projects.update_one(
                     {"id": project_id, "narrationPending.slideId": task["slideId"]},
                     {"$set": {"narrationPending.$.status": "failed", "narrationPending.$.error": str(e)[:200]}}
                 )
+
+        _client.close()
     except Exception as e:
         logger.error(f"Narration generation failed: {e}")
 
