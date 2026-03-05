@@ -618,6 +618,10 @@ export default function Editor() {
   const [showDesignTemplateDialog, setShowDesignTemplateDialog] = useState(false);
   const [designTemplates, setDesignTemplates] = useState([]);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [showEditorGallery, setShowEditorGallery] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [gallerySearch, setGallerySearch] = useState('');
 
 
   // ElevenLabs TTS states
@@ -797,6 +801,46 @@ export default function Editor() {
       toast.error('Erro ao aplicar template: ' + (e.response?.data?.detail || e.message));
     } finally {
       setApplyingTemplate(false);
+    }
+  };
+
+  // Open gallery and load images
+  const handleOpenGallery = async () => {
+    setShowEditorGallery(true);
+    setGalleryLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/gallery/images`);
+      setGalleryImages(res.data?.images || []);
+    } catch (e) {
+      toast.error('Erro ao carregar galeria');
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  // Add gallery image to current slide
+  const handleSelectGalleryImage = async (img) => {
+    if (!currentSlide) {
+      toast.error('Selecione um slide primeiro');
+      return;
+    }
+    try {
+      const slideWidth = currentSlide?.width || 960;
+      const slideHeight = currentSlide?.height || 540;
+      await addElement(currentSlide.id, {
+        type: 'image',
+        x: Math.round(slideWidth * 0.55),
+        y: Math.round(slideHeight * 0.1),
+        width: Math.round(slideWidth * 0.4),
+        height: Math.round(slideHeight * 0.5),
+        src: img.imageUrl,
+        objectFit: 'contain',
+        style: { borderRadius: '12px' },
+      });
+      setShowEditorGallery(false);
+      toast.success('Imagem da galeria adicionada ao slide!');
+    } catch (e) {
+      toast.error('Erro ao adicionar imagem: ' + e.message);
     }
   };
 
@@ -2749,6 +2793,21 @@ export default function Editor() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 hover:from-yellow-500/20 hover:to-amber-500/20"
+                    onClick={handleOpenGallery}
+                    data-testid="gallery-btn"
+                  >
+                    <Image className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Galeria de Imagens IA</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 bg-gradient-to-r from-green-500/10 to-cyan-500/10 hover:from-green-500/20 hover:to-cyan-500/20"
                     onClick={() => setShowQuizDialog(true)}
                     data-testid="add-quiz-btn"
@@ -3554,6 +3613,69 @@ export default function Editor() {
                   <span className="text-sm">Aplicando tema...</span>
                 </div>
               )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Image Gallery Dialog */}
+        <Dialog open={showEditorGallery} onOpenChange={setShowEditorGallery}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Image className="w-5 h-5 text-amber-400" />
+                Galeria de Imagens IA
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-2">
+              <Input
+                value={gallerySearch}
+                onChange={e => setGallerySearch(e.target.value)}
+                placeholder="Buscar por palavras-chave ou projeto..."
+                className="mb-3"
+                data-testid="editor-gallery-search"
+              />
+              {galleryLoading ? (
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
+                  <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                  Carregando...
+                </div>
+              ) : galleryImages.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Image className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">Nenhuma imagem na galeria ainda.</p>
+                  <p className="text-xs mt-1 opacity-60">As imagens geradas por IA serão salvas aqui automaticamente.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3 max-h-[50vh] overflow-y-auto">
+                  {galleryImages
+                    .filter(img => !gallerySearch || (img.keywords || '').toLowerCase().includes(gallerySearch.toLowerCase()) || (img.projectName || '').toLowerCase().includes(gallerySearch.toLowerCase()))
+                    .map(img => (
+                    <button
+                      key={img.id}
+                      onClick={() => handleSelectGalleryImage(img)}
+                      className="group relative rounded-lg overflow-hidden border border-border hover:border-amber-500 transition-all aspect-[4/3]"
+                      data-testid={`editor-gallery-img-${img.id}`}
+                    >
+                      <img
+                        src={img.imageUrl.startsWith('/') ? `${API_URL}${img.imageUrl}` : img.imageUrl}
+                        alt={img.keywords || ''}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
+                        <p className="text-[10px] text-white/90 truncate">{img.keywords || 'Sem palavras-chave'}</p>
+                        <p className="text-[9px] text-white/50 truncate">{img.projectName || ''}</p>
+                      </div>
+                      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-amber-500 text-black rounded-full p-1"><Plus className="w-3 h-3" /></div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground text-center mt-2">
+                {galleryImages.filter(img => !gallerySearch || (img.keywords || '').toLowerCase().includes(gallerySearch.toLowerCase()) || (img.projectName || '').toLowerCase().includes(gallerySearch.toLowerCase())).length} de {galleryImages.length} imagens
+              </p>
             </div>
           </DialogContent>
         </Dialog>
