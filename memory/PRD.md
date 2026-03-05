@@ -9,6 +9,31 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 - **AI**: Gemini 3 Flash (text), Gemini Nano Banana (images) via Emergent LLM Key
 - **Integrations**: ElevenLabs TTS, HeyGen Avatars, ConvertAPI, VLibras
 
+## Backend Architecture (Refactored 2026-03-05)
+```
+backend/
+├── server.py              # 318 lines - Thin orchestrator (FastAPI app, CORS, startup events)
+├── routes/
+│   ├── deps.py           # 93 lines - Shared dependencies (db, paths, helpers)
+│   ├── auth.py           # 415 lines - Authentication (login, logout, me, change-password)
+│   ├── companies.py      # 169 lines - Company CRUD
+│   ├── users.py          # 278 lines - User management
+│   ├── projects.py       # 985 lines - Project CRUD, slides, elements, media, audio, annotations
+│   ├── export.py         # 431 lines - SCORM/HTML export, asset serving
+│   ├── heygen.py         # 1031 lines - HeyGen avatar video integration
+│   ├── ai_gen.py         # 263 lines - AI text/image generation
+│   ├── questions.py      # 218 lines - Quiz questions CRUD and generation
+│   ├── elevenlabs.py     # 195 lines - ElevenLabs TTS
+│   ├── admin.py          # 184 lines - Admin reports, tutor settings, tutor chat
+│   ├── agent.py          # 1687 lines - AI Instructional Design Agent
+│   └── vlibras.py        # 134 lines - VLibras CORS proxy
+├── services/
+│   ├── ai_agent.py       # AI agent logic
+│   ├── asset_store.py    # MongoDB asset persistence
+│   └── ppt_image_parser.py
+└── models.py
+```
+
 ## What's Been Implemented
 
 ### Core Features (Complete)
@@ -23,15 +48,13 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 
 ### AI Agent - Phase 2: Editing & Templates (Complete)
 - 6 Visual Templates, Course Editing with AI analysis + improvements
-- Mode Selector: "Criar Novo Curso" vs "Editar Curso Existente"
-- Platform & Course Improvement Suggestions with AI self-analysis
+- Mode Selector, Platform & Course Improvement Suggestions
 
 ### Visual Improvements (Complete)
 - 6 Professional Color Palettes, two-column layouts, header bars, styled typography
 
 ### Per-Slide Media Configuration (Complete)
 - 8 media types: AI Image, YouTube, Vimeo, HeyGen Avatar, Flipbook, HTML, Button, No Media
-- Quick-apply buttons, media summary
 
 ### Content Depth Enhancement (Complete)
 - AI generates 100+ words per content slide, 400+ words summary slides
@@ -54,65 +77,43 @@ Build a full-featured course authoring tool with AI-powered course generation, S
 ### Cost Optimization (Complete)
 - Gemini 3 Flash + Nano Banana (~79% cost reduction vs GPT), cost estimation UI
 
-### Global Text Styling (Complete - 2026-03-03)
-- **Global Text Color**: Color picker in Agent Media Config, bulk action in Editor
-- **Global Font Size**: Size scale control (P=80%, N=100%, G=120%, GG=140%) in Agent Media Config
+### Global Text Styling (Complete)
+- Global Text Color, Global Font Size in Agent Media Config
 
 ### Text Entrance Animations (Complete)
-- 8 animation types: Fade In, Slide In (4 directions), Zoom In, Typewriter, Bounce
+- 8 animation types: Fade In, Slide In (4 dirs), Zoom In, Typewriter, Bounce
 
 ### Apply Media Changes to Existing Project (Complete)
 - "Editar Mídia" button in Editor -> Agent Media Config -> "Aplicar Alterações ao Projeto"
 
-### Dashboard Improvements (Complete - 2026-03-03)
+### Dashboard Improvements (Complete)
 - Course Grid View, Slide Mini-Preview Thumbnails
 
-### Admin Reports Tab (Complete - 2026-03-04)
+### Admin Reports Tab (Complete)
 - Usage statistics by company, AI credit tracking, role-based access
 
-### AI Image Persistence Fix (Complete - 2026-03-04)
+### AI Image Persistence Fix (Complete)
 - Images persisted to MongoDB to survive ephemeral storage restarts
 
-### Role-Based Access Control for AI Agent (Complete - 2026-03-04)
+### Role-Based Access Control for AI Agent (Complete)
 - Permission system with `agentAccess` in company permissions
 
+### Backend Refactoring (Complete - 2026-03-05)
+- server.py: 5740 → 318 lines (95% reduction)
+- 14 modular route files in routes/ directory
+- Testing: 23/23 backend endpoints passed, all frontend pages verified
+
 ### Bug Fixes (2026-03-05)
-- **MongoDB Supervisor**: Re-added MongoDB to supervisor config (was removed in previous session)
-- **"Aplicar Alterações" button disabled silently**: Fixed narrationVoiceId not restored from session when editing media, added feedback message when button is disabled
-- **Editor Slide Thumbnails broken**: Fixed background images using CSS instead of `<img>` tag, removed double font-size reduction for HTML content, applied proper opacity
-
-## Key API Endpoints (Agent)
-- `GET /api/agent/check-access` - Check user permission for AI Agent
-- `POST /api/agent/sessions` - Create session (protected)
-- `POST /api/agent/sessions/{id}/upload` - Upload content
-- `POST /api/agent/sessions/{id}/analyze` - AI analysis
-- `POST /api/agent/sessions/{id}/configure` - Set config
-- `POST /api/agent/sessions/{id}/generate-structure` - Generate structure
-- `POST /api/agent/sessions/{id}/generate-storyboard` - Background storyboard gen
-- `POST /api/agent/sessions/{id}/media-config` - Save per-slide media config
-- `POST /api/agent/sessions/{id}/generate-course` - Generate project
-- `POST /api/agent/sessions/{id}/apply-media-changes` - Apply changes to existing project
-- `GET /api/admin/reports` - Admin reports data
-
-## Key Files
-- `backend/server.py` - Main server (~5740 lines) - **NEEDS REFACTORING**
-- `backend/routes/auth.py` - Auth routes incl. `require_agent_access`
-- `backend/routes/companies.py` - Company CRUD with `agentAccess` permission
-- `backend/services/ai_agent.py` - AI agent logic (~1480 lines)
-- `frontend/src/pages/Agent.jsx` - Agent page (~2920 lines) - **NEEDS REFACTORING**
-- `frontend/src/pages/Editor.jsx` - Course editor (~4943 lines) - **NEEDS REFACTORING**
-- `frontend/src/pages/Dashboard.jsx` - Project dashboard
-- `frontend/src/contexts/AuthContext.jsx` - Auth context with `hasPermission` helper
+- MongoDB Supervisor: Re-added MongoDB to supervisor config
+- "Aplicar Alterações" button: Fixed narrationVoiceId restoration from session
+- Editor Slide Thumbnails: Fixed background image rendering + HTML font-size
 
 ## Prioritized Backlog
 ### P1 - URGENT
-- **Refactor `server.py`**: Split into `/backend/routes/` using FastAPI APIRouter
-- **Refactor `Editor.jsx`**: Break into smaller components and hooks
-- **Refactor `Agent.jsx`**: Break MediaConfigPanel into sub-components
+- **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks
+- **Refactor `Agent.jsx`** (~2920 lines): Break MediaConfigPanel into sub-components
 ### P2
 - Advanced Interactivity: Per-course "Tutor IA"
-- User-requested features
 ### P3
-- Jinja2 for HTML templates
-- SCORM 2004 export
 - Professional Layout Templates (design tokens, colors, fonts)
+- SCORM 2004 export
