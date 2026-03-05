@@ -469,13 +469,14 @@ async def apply_media_changes(session_id: str, data: dict):
     if not project:
         raise HTTPException(404, "Project not found")
 
-    bg_config = s.get("bgConfig", {})
-    global_text_color = s.get("globalTextColor", "")
-    global_font_size = s.get("globalFontSize", "")
-    global_animation = s.get("globalAnimation", "")
-    media_config = s.get("mediaConfig", {})
+    bg_config = s.get("bgConfig") or {}
+    global_text_color = s.get("globalTextColor") or ""
+    global_font_size = s.get("globalFontSize") or ""
+    global_animation = s.get("globalAnimation") or ""
+    media_config = s.get("mediaConfig") or {}
     slides = project.get("course", {}).get("slides", [])
-    storyboard_slides = s.get("storyboard", {}).get("slides", [])
+    storyboard = s.get("storyboard") or {}
+    storyboard_slides = storyboard.get("slides", []) if isinstance(storyboard, dict) else []
     updated_count = 0
 
     for i, slide in enumerate(slides):
@@ -551,8 +552,97 @@ async def apply_media_changes(session_id: str, data: dict):
                     stagger_idx += 1
                     changed = True
 
-        # Apply narration config from media config
+        # Apply media config (AI image generation, video embeds, etc.)
         mc = media_config.get(idx_str, {})
+        media_type = mc.get("type", "")
+
+        if media_type == "ai_image":
+            # Generate AI image for this slide
+            sb_slide = storyboard_slides[i] if i < len(storyboard_slides) else {}
+            kw = sb_slide.get("imageKeywords", slide.get("title", "education"))
+            try:
+                from services.ai_agent import _fetch_stock_image
+                img_url = await _fetch_stock_image(kw, str(PROJECTS_DIR), project_id)
+                if img_url:
+                    # Find existing image element and update, or add one
+                    img_found = False
+                    for el in slide.get("elements", []):
+                        if el.get("type") == "image":
+                            el["src"] = img_url
+                            el["content"] = img_url
+                            img_found = True
+                            break
+                    if not img_found:
+                        from models import generate_id
+                        # Add image element and resize text to two-column layout
+                        slide.setdefault("elements", [])
+                        slide["elements"].append({
+                            "id": generate_id(), "type": "image",
+                            "x": 1160, "y": 90, "width": 700, "height": 440,
+                            "src": img_url, "content": img_url,
+                            "style": {"borderRadius": "12px"}, "startTime": 0,
+                            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+                        })
+                        # Resize text elements to left column
+                        for el in slide.get("elements", []):
+                            if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                                el["width"] = 1050
+                                el["x"] = 60
+                    changed = True
+                    logger.info(f"AI image generated for slide {i}: {img_url}")
+            except Exception as e:
+                logger.error(f"Failed to generate AI image for slide {i}: {e}")
+
+        elif media_type in ("youtube", "vimeo"):
+            video_url = mc.get("url", "")
+            if video_url:
+                from services.ai_agent import _parse_video_url
+                video_info = _parse_video_url(video_url)
+                if video_info:
+                    from models import generate_id
+                    embed_url = video_info["embedUrl"]
+                    platform = "YouTube" if video_info["type"] == "youtube" else "Vimeo"
+                    video_html = f'''<div style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+<iframe src="{embed_url}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+<div style="position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
+<span style="color:rgba(255,255,255,0.6);font-size:11px;">{platform}</span>
+</div>
+</div>'''
+                    # Replace existing image/video or add new
+                    replaced = False
+                    for el in slide.get("elements", []):
+                        if el.get("type") == "image":
+                            el["type"] = "html"
+                            el["htmlContent"] = video_html
+                            el.pop("src", None)
+                            el.pop("content", None)
+                            replaced = True
+                            break
+                    if not replaced:
+                        slide.setdefault("elements", [])
+                        slide["elements"].append({
+                            "id": generate_id(), "type": "html",
+                            "x": 1160, "y": 90, "width": 700, "height": 440,
+                            "htmlContent": video_html,
+                            "style": {}, "startTime": 0,
+                            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+                        })
+                        for el in slide.get("elements", []):
+                            if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                                el["width"] = 1050
+                                el["x"] = 60
+                    changed = True
+
+        elif media_type == "none":
+            # Remove image/video elements and expand text to full width
+            slide["elements"] = [el for el in slide.get("elements", []) if el.get("type") != "image"]
+            for el in slide.get("elements", []):
+                if el.get("type") in ("html", "text") and el.get("x", 0) <= 80:
+                    el["width"] = 1760
+                    el["x"] = 80
+            changed = True
+
+        # Apply narration config from media config
         narr = mc.get("narration", {})
         if narr.get("enabled") and narr.get("selectedScript") and narr.get("voiceId"):
             # Mark for narration generation

@@ -1,138 +1,132 @@
 <analysis>**original_problem_statement:**
 The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses. Key features include content ingestion, multimedia integration, advanced customization, a course editor, and SCORM/HTML export.
 
-Recent requests implemented in this session:
-1.  **Role-Based Access Control (RBAC):** Restrict the AI Agent feature to Super Admins by default, with an admin interface to grant access to other user roles within a company.
-2.  **Image Persistence:** Fix a bug where AI-generated images were stored on an ephemeral filesystem and lost on production restarts. They are now persisted in MongoDB.
-3.  **Reports Tab:** Add a new Relatórios tab in the admin panel to show course creation statistics and AI credit usage, with access controlled by user role.
-
-After implementing these features, the agent spent a significant amount of time trying to resolve persistent deployment failures, which is the current unresolved problem.
+Recent user requests included:
+1.  **Intelligent Media Editing**: When editing media for an existing course, the system should only alter the slides that were actually modified, and the cost estimate should reflect only those changes, not the entire course.
+2.  **Global Background Control**: Add a feature to apply a single background (color, gradient, or image) to all slides of a course at once from the Edit Media screen.
+3.  **Comprehensive Reports**: The Reports tab in the admin panel should show all created courses, including those imported from PPT or created manually, not just those created by the AI Agent.
+4.  **Image Generation Bug**: The user reported that generating an AI image within the Edit Media flow is not working.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application is a full-stack AI course authoring tool with a React frontend and a FastAPI/MongoDB backend. It features a multi-step course creation wizard, a course editor, user/project management, and AI-powered content generation.
+The application is a full-stack AI course authoring tool with a React frontend, a FastAPI backend, and a MongoDB database. It includes a multi-step course creation wizard, a course editor, user/project management, role-based access control (RBAC), and AI-powered content generation.
 
-The following features were successfully implemented and tested in this session:
-- Role-based access for the AI Agent feature.
-- A new Reports tab in the admin dashboard.
-- A critical bug fix for persisting AI-generated images in the database.
+In this session, a major backend refactoring was completed, breaking down a monolithic 5,700-line  into 14 modular, maintainable route files. The agent also successfully implemented the intelligent media editing, global background, and comprehensive reports features.
 
-The codebase, however, is stuck in a state where it cannot be deployed successfully from the current forked environment due to platform-level issues.
+The application is currently functional and deployable, but a critical bug is preventing AI image generation within the media editing workflow.
 
 **Last working item**:
--   Last item agent was working: The agent was stuck in a loop trying to debug a persistent deployment failure. The application crashes in the production environment associated with this job, despite working flawlessly locally and on a different production deployment URL (). The agent concluded the issue is **environmental/platform-related**, not a bug in the application code. The user is in a deadlock, as they cannot command the agent in the original job (which deploys to the working URL) and this agent cannot deploy to a working environment.
--   Status: **BLOCKED**
--   Agent Testing Done: N/A
--   Which testing method agent to use? None. The next agent should not attempt to debug the code for deployment. The focus must be on resolving the user's deadlock.
--   User Testing Done: Y (User has repeatedly confirmed the deployment is failing.)
+-   Last item agent was working: Debugging a bug where AI images are not being created when requested through the Editar Mídia (Edit Media) page. The user clicks to generate an image, but nothing happens. The agent confirmed via  that the direct image generation API () is working correctly, which isolates the problem to the orchestrating endpoint () that is supposed to trigger it.
+-   Status: **IN PROGRESS**
+-   Agent Testing Done: N (Agent tested the sub-component API, but not the failing end-to-end flow).
+-   Which testing method agent to use? Backend testing. The agent should send a  request to the  endpoint, simulating a payload from the frontend that requests a new AI image for a specific slide. This will test if the backend logic correctly processes the request and calls the image generation service.
+-   User Testing Done: Y (User has confirmed the bug exists in the UI).
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Deployment Environment is Broken (P0 - BLOCKER)**
-    -   **Description**: The application fails to stay running after deployment from this job. The backend process starts, handles a few requests, and then crashes, leading to 502/520 errors. This is an environment-specific issue, as the identical codebase is confirmed to be stable and running on a different deployment URL from a previous job.
-    -   **Attempted fixes**: The agent exhausted all code-level debugging options, including improving DB connection resilience, adding extensive  checks, optimizing startup order, and adding diagnostics. None of these fixed the underlying crash, confirming the issue is not with the application code.
+-   **Issue 1: AI image generation fails in the Edit Media workflow (P0)**
+    -   **Description**: When a user is on the Edit Media page for a course and tries to generate a new AI image by providing a prompt for a slide, the image is not created after clicking Apply Changes. The API for direct image generation works, but the integration within the apply changes flow is broken.
+    -   **Attempted fixes**: The agent confirmed the  endpoint functions correctly when called directly. The investigation started on the  endpoint.
     -   **Next debug checklist**:
-        1.  **DO NOT** attempt to debug the application code for the deployment issue. It is a waste of time.
-        2.  Acknowledge the user's deadlock: they cannot update the working deployment () because its associated job is non-interactive, and the current interactive job deploys to a broken environment.
-        3.  The immediate priority is to provide the user with a way to transfer the completed features (RBAC, Reports, Image Persistence) to the working application.
-        4.  **Proposed Solution**: Generate a patch file or provide the full code for all modified files (, , , , , ). Instruct the user to create a **new fork from the original job** (the one that deploys to ) and apply these changes.
-    -   **Status**: BLOCKED
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Both, after successful deployment in a working environment.
-    -   **Blocked on other issue**: This is the root blocker.
+        1.  Examine the  function inside .
+        2.  Add extensive logging to see the exact payload received from the frontend when an image prompt is submitted.
+        3.  Verify the logic that iterates through . Check if it correctly identifies a slide with a new image prompt.
+        4.  Confirm that the condition to call the image generation service () is being met and that the function is being invoked with the correct prompt.
+        5.  Trace how the  of the newly generated image is (or isn't) being saved back into the project's slide data in the database.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Both. An end-to-end test from the UI is necessary to confirm the fix.
+    -   **Blocked on other issue**: None.
 
 **In progress Task List**:
--   None. All development tasks are complete.
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P1) **URGENT Code Refactoring**: The handoff summary and this session's work have confirmed that  (now >5700 lines) and  are dangerously monolithic. This technical debt MUST be addressed to ensure future stability and development speed. This should be the first task after resolving the deployment deadlock.
+    -   (P1) **URGENT Frontend Refactoring**: Refactor the monolithic  (over 5000 lines) and  (over 1500 lines) into smaller, reusable components and custom hooks. This is a critical piece of technical debt that the user previously agreed to but paused.
 -   **Future Tasks:**
     -   (P2) **Advanced Interactivity**: Implement a per-course Tutor IA to answer student questions.
-    -   (P3) **Professional Layout Templates**: Implement a system for professional, pre-defined slide layouts, design tokens (colors, fonts), and better stock image integration to elevate the visual quality of AI-generated courses, as discussed with the user.
+    -   (P3) **Professional Layout Templates**: Implement a system for professional, pre-defined slide layouts, design tokens (colors, fonts), and better stock image integration.
 
 **Completed work in this session**
--   **Role-Based Access Control (RBAC)**: Implemented a permission system for the Agente IA feature. Access is now restricted by default and can be managed in the admin panel.
-    -   Files: , , , .
--   **Admin Reports Tab**: Added a Relatórios tab to the admin panel showing course creation stats and AI credit usage, with role-based visibility.
+-   **CRITICAL Backend Refactoring**: Successfully refactored the monolithic  from 5,740 lines into 14 modular route files located in . The main  is now a slim 318-line orchestrator. The refactoring was fully validated by the testing agent.
+-   **Intelligent Media Editing**: Implemented logic to detect modified slides in the Edit Media flow, ensuring that cost estimates and backend updates apply only to the changed slides.
     -   Files: , .
--   **Image Persistence Fix**: Corrected a critical production bug where AI-generated images were not being saved permanently. They are now stored in MongoDB.
-    -   Files: , .
+-   **Global Background Feature**: Added a UI control to apply a background theme to all slides of a course simultaneously.
+    -   File: .
+-   **Comprehensive Reports Fix**: Updated the Admin Reports to include all courses, regardless of their creation source (AI Agent, PPT, Manual). Added a  field to the  collection and updated the UI to display it.
+    -   Files: , , .
+-   **Bug Fixes**:
+    -   Resolved a bug where slide thumbnails in the Editor were not rendering content correctly ().
+    -   Fixed an issue where the Apply Changes button was silently disabled in the AI Agent if narration was present ().
+    -   Resolved initial environment setup issue where MongoDB was not starting automatically ().
+    -   Cleaned up React console warnings related to CSS properties ().
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Critical need for code refactoring.**
-    -   **Debug checklist**:
-        -   Break  into multiple route files under a  directory using FastAPI's .
-        -   Decompose  into smaller, manageable components and custom hooks.
+-   **Issue 1: Critical need for frontend refactoring.**
+    -   **Debug checklist**: Decompose  and  into smaller components and custom hooks.
     -   **Why to solve this issue and what will be achieved with this?**: To improve maintainability, reduce the risk of bugs, and increase development velocity. The monolithic files are a major liability.
-    -   **Should Test frontend/backend/both after fix**: Both (extensive regression testing needed).
+    -   **Should Test frontend/backend/both after fix**: Frontend (extensive regression testing is required).
     -   **Is recurring issue?**: Y.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: Production vs. Preview environment divergence.
--   **Recurrence count**: This issue dominated the entire session.
--   **Status**: **NOT RESOLVED**. It escalated into a complete deployment blocker for this forked environment.
+-   The previous fork's primary blocker, **Production vs. Preview environment divergence,** appears to be **RESOLVED**. The agent fixed the underlying  issue that prevented MongoDB from starting, which has stabilized the deployment environment for this job.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Role-Based Access Control (RBAC)**: Implemented using FastAPI dependencies on the backend and React Context on the frontend to control feature access.
--   **Asset Persistence in MongoDB**: Extended the existing pattern of storing binary files (assets) in MongoDB to fix a data loss bug with AI-generated images.
--   **Deployment Deadlock**: A platform-specific issue where a forked job is tied to a broken deployment environment, preventing updates to a separate, working deployment from a non-interactive parent job.
+-   **Backend Refactoring (Monolith to Router-based)**: Using FastAPI's  to break down a single large file into multiple, domain-focused route modules, included by a central application instance.
+-   **State Diffing on Frontend**: Using  to compare initial and current state objects (, ) to generate a diff () that is sent to the backend for partial updates.
+-   **Modular Python with Shared Dependencies**: Created a  module to provide common dependencies like the database connection to all router modules, avoiding circular imports.
 
 **key DB schema**
--   **companies**: The  object in this collection now includes .
--   **projects**: Documents in this collection now store  and  on creation to support the reporting feature.
--   **usage_logs** (New Collection): Created to track AI feature usage and costs.
-    -   
+-   **projects**: Added a  field to track creation method. Can be , , or .
 
 **changes in tech stack**
 -   None.
 
 **All files of reference**
--   : Heavily modified for RBAC, image persistence, and the reports endpoint.
--   : New file created for authorization logic.
--   : Modified to persist AI images to MongoDB.
--   : Modified to add the Relatórios (Reports) tab.
--   : Modified to conditionally show the Agente IA button.
--   : Modified to redirect users without permission.
--   : Modified to remove  and the  flag.
+-   : Major refactoring, now an orchestrator.
+-    (New Directory): Contains the 14 new route modules (, , etc.).
+-   : Heavily modified for intelligent editing, global background, and bug fixes.
+-   : Modified to fix thumbnail rendering.
+-   : Modified for the improved reports feature.
+-   : Modified to fix a React style warning.
+-   : Modified to ensure MongoDB starts automatically.
 
 **Areas that need refactoring**:
--   ****: **CRITICAL**. Now over 5700 lines, this file is unmaintainable and a source of risk. It must be broken into a  directory.
--   ****: **URGENT.** This 5000+ line component is responsible for the entire editor and must be decomposed.
+-   ****: **CRITICAL**. This 5000+ line component is unmaintainable and must be decomposed.
+-   ****: **URGENT**. This component has grown to over 1500 lines and handles complex multi-step logic that should be broken down.
 
 **key api endpoints**
--   : **NEW**. Verifies if the logged-in user has permission to use the AI Agent.
--   : **NEW**. Provides aggregated data for the admin reports tab.
--   All  routes are now protected with an RBAC dependency ().
+-   : Modified to accept a  array for partial updates. This endpoint is currently being debugged for the image generation issue.
+-   All API endpoints were moved from  into their respective modules under . For example, all project-related endpoints are now in .
 
 **Critical Info for New Agent**
--   **Your immediate task is to help the user break a deployment deadlock.** Do NOT attempt to debug the code to fix the deployment issue; it is an environmental problem with the platform.
--   Your goal is to help the user apply the features developed in this session (RBAC, Reports, Image Persistence) to their working application, which is deployed from a different, non-interactive job.
--   **Proposed Plan**: Generate a patch/diff of all modified files and instruct the user to create a new fork from their *original job* and apply the changes there. This will allow them to deploy the new features to their working URL.
--   Once the user has a working, updated application, the next task is to **prioritize the URGENT code refactoring** of  and . Do not start new features until this technical debt is addressed.
--   **All user communication must be in Português.**
+-   Your immediate priority is to fix the **P0 bug** where AI images are not created in the Edit Media flow. The investigation should focus on the  function in .
+-   The previous deployment blocker is resolved. The environment is stable.
+-   A major backend refactoring is complete and tested. Do not modify  for new routes; instead, identify and edit the correct module in the  directory.
+-   The next major task after the bug fix is to address the **critical frontend technical debt** by refactoring  and .
+-   **All communication with the user must be in Português.**
 
 **documents and test reports created in this job**
--   : Contains the successful test results from the  for the RBAC feature.
--   : Updated to reflect the completion of RBAC, image persistence, and the reports tab.
+-   : Contains the successful test results from the  run that validated the backend refactoring.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: I'm redeploying the previous agent on the working URL. How do I get the updates from this fork? (Complete)
-2.  **User**: The agent in the original job is in a fork state, I can't command it. (Complete)
-3.  **User**: I don't see the option to replace the working deployment from here. (Complete)
-4.  **User**: I want the new features (image persistence, RBAC) on the working URL. Can you do that? (Pending - this is the core problem to solve).
-5.  **User**: I'm seeing errors in F12 after deploying. (Complete)
-6.  **User**: The backend crashed after I logged in again. (Complete)
-7.  **User**: The AI-generated images are not persisting. (Complete - this was fixed).
-8.  **User**: Getting 404s when trying to insert images again. (Complete - explained these were old images).
-9.  **User**: This deployment URL is wrong. (Complete)
-10. **User**: Which URL should I test? (Complete)
+1.  **User**: I need adjustments. In Edit Media, only update what's changed and show the cost for only those changes. Also, I need a way to change the background for all slides at once. (Complete)
+2.  **User**: (Correction) Not just the cost, make sure only the modified slides are actually saved/changed. (Complete)
+3.  **User**: I also noticed the reports only show courses from the AI Agent. I need imported PPT courses to be included and valued too. (Complete)
+4.  **User**: When I edit media and insert an image, I get this error in the F12 console locally. Can you check before I deploy? (Complete - agent identified it as a harmless warning and fixed it).
+5.  **User**: But the image is not being created! (In Progress - this is the current P0 bug).
+6.  **User**: I need to remove the Made with Emergent link. (Complete - agent consulted support and informed the user it's not possible via the agent).
+7.  **User**: No, thank you [for the frontend refactoring right now]. (Complete - user paused the refactoring task).
+8.  **User**: Confirmed [that the agent should proceed with the backend refactoring]. (Complete)
+9.  **User**: Yes [agent can proceed with the backend refactoring plan]. (Complete)
+10. **User**: The thumbnail images in the Editor's slide menu are broken. Could you fix it? (Complete)
 
 **Project Health Check:**
--   **Broken**: Yes. The deployment environment for this specific job is broken, preventing the application from running stably. The application code itself is functional.
+-   **Broken**: No. The application is running and deployable. However, a P0 bug is impacting a key feature (AI image generation).
 -   **Mocked**: No.
 
 **3rd Party Integrations**
@@ -144,13 +138,13 @@ The codebase, however, is stuck in a state where it cannot be deployed successfu
 -   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: YES (for RBAC feature, passed).
--   Troubleshoot agent used after agent stuck in loop: YES ( was used repeatedly but failed to solve the environmental issue).
+-   Testing agent used after significant changes: YES (After backend refactoring, all tests passed).
+-   Troubleshoot agent used after agent stuck in loop: NO.
 -   Test files created: None.
--   Known regressions: The deployment for this job is non-functional.
+-   Known regressions: AI image generation within the Edit Media flow is broken.
 
 **Credentials to test flow:**
--   Credentials are in . Use  /  for Super Admin login.
+-   Super Admin:  / 
 
 **What agent forgot to execute**
--   The agent did not forget any tasks. It successfully completed all feature requests and correctly diagnosed the subsequent deployment issue as a platform-level problem beyond its ability to fix via code changes.</analysis>
+-   The agent has not forgotten any tasks. It has been methodically addressing user requests and is currently focused on the latest reported bug.</analysis>
