@@ -561,19 +561,44 @@ async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -
 
 
 def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list) -> dict:
-    """Build a visually rich title/cover slide."""
+    """Build a visually rich title/cover slide with template-specific styling."""
     from models import generate_id
     accent = palette["accent"]
+    primary = palette.get("primary", "#0f172a")
+    header_style = palette.get("headerStyle", "solid")
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
+    font_body = palette.get("fontBody", "'Inter', sans-serif")
     elements = []
 
-    # Accent bar at top
-    elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 8,
-        "htmlContent": f'<div style="width:100%;height:100%;background:{accent};"></div>',
-        "style": {}, "startTime": 0, "animations": [],
-    })
+    # Top decorative element - varies by template
+    if header_style == "neon":
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 8,
+            "htmlContent": f'<div style="width:100%;height:100%;background:{accent};box-shadow:0 0 20px {accent}66;"></div>',
+            "style": {}, "startTime": 0, "animations": [],
+        })
+    elif header_style == "gradient":
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 12,
+            "htmlContent": f'<div style="width:100%;height:100%;background:linear-gradient(90deg, {primary}, {accent}, {primary});"></div>',
+            "style": {}, "startTime": 0, "animations": [],
+        })
+    elif header_style == "minimal":
+        pass  # No top bar for minimal
+    elif header_style == "elegant":
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 6,
+            "htmlContent": f'<div style="width:100%;height:100%;background:linear-gradient(90deg, transparent, {accent}, transparent);"></div>',
+            "style": {}, "startTime": 0, "animations": [],
+        })
+    else:
+        elements.append({
+            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 8,
+            "htmlContent": f'<div style="width:100%;height:100%;background:{accent};"></div>',
+            "style": {}, "startTime": 0, "animations": [],
+        })
 
-    # Title text - large and centered
+    # Title text
     title_text = sb_slide.get("title", course_title)
     elements_html = sb_slide.get("elements", [])
     subtitle = ""
@@ -586,48 +611,96 @@ def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_
                 subtitle = p_match.group(1).strip()
                 break
 
-    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
-    font_body = palette.get("fontBody", "'Inter', sans-serif")
+    # Style-specific title alignment and decoration
+    title_align = "center" if header_style not in ("minimal",) else "left"
+    divider_html = ""
+    if header_style == "neon":
+        divider_html = f'<div style="width:120px;height:3px;background:{accent};margin:{"0 auto" if title_align=="center" else "0"} 30px {"auto" if title_align=="center" else "0"};box-shadow:0 0 10px {accent};border-radius:2px;"></div>'
+    elif header_style == "elegant":
+        divider_html = f'<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:30px;"><div style="width:60px;height:1px;background:{accent}88;"></div><div style="width:8px;height:8px;border:1px solid {accent};transform:rotate(45deg);"></div><div style="width:60px;height:1px;background:{accent}88;"></div></div>'
+    elif header_style == "minimal":
+        divider_html = f'<div style="width:40px;height:2px;background:{accent};margin-bottom:30px;"></div>'
+    else:
+        divider_html = f'<div style="width:80px;height:4px;background:{accent};margin:{"0 auto" if title_align=="center" else "0"} 30px {"auto" if title_align=="center" else "0"};border-radius:2px;"></div>'
 
-    title_html = f'''<div style="text-align:center;padding:20px;">
+    title_html = f'''<div style="text-align:{title_align};padding:20px;">
 <h1 style="font-family:{font_heading};font-size:48px;font-weight:800;color:#ffffff;margin:0 0 20px 0;line-height:1.2;">{title_text}</h1>
-{f'<p style="font-family:{font_body};font-size:20px;color:rgba(255,255,255,0.75);margin:0 0 30px 0;max-width:900px;margin-left:auto;margin-right:auto;line-height:1.5;">{subtitle}</p>' if subtitle else ''}
-<div style="width:80px;height:4px;background:{accent};margin:0 auto 30px auto;border-radius:2px;"></div>
+{f'<p style="font-family:{font_body};font-size:20px;color:rgba(255,255,255,0.75);margin:0 0 30px 0;max-width:900px;{"margin-left:auto;margin-right:auto;" if title_align=="center" else ""}line-height:1.5;">{subtitle}</p>' if subtitle else ''}
+{divider_html}
 </div>'''
     elements.append({
         "id": generate_id(), "type": "html", "x": 160, "y": 120, "width": 1600, "height": 400,
         "htmlContent": title_html,
-        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
+        "style": {"fontFamily": font_body}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.6, "delay": 0}],
     })
 
     # Module list
     if module_names:
-        modules_html = '<div style="text-align:center;"><p style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:12px;text-transform:uppercase;letter-spacing:2px;">Trilha do Curso</p>'
+        modules_html = f'<div style="text-align:{title_align};"><p style="font-family:{font_heading};font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:12px;text-transform:uppercase;letter-spacing:2px;">Trilha do Curso</p>'
         for idx, mn in enumerate(module_names):
-            modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:20px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:13px;border:1px solid rgba(255,255,255,0.1);">{idx+1}. {mn}</span>'
+            if header_style == "neon":
+                modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:4px;background:rgba(255,255,255,0.03);color:{accent};font-size:13px;border:1px solid {accent}44;font-family:{font_body};">{idx+1}. {mn}</span>'
+            elif header_style == "elegant":
+                modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:2px;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.7);font-size:13px;border-bottom:1px solid {accent}44;font-family:{font_body};">{idx+1}. {mn}</span>'
+            else:
+                modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:20px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:13px;border:1px solid rgba(255,255,255,0.1);font-family:{font_body};">{idx+1}. {mn}</span>'
         modules_html += '</div>'
         elements.append({
             "id": generate_id(), "type": "html", "x": 160, "y": 540, "width": 1600, "height": 200,
             "htmlContent": modules_html,
-            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
+            "style": {"fontFamily": font_body}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.4}],
         })
 
     return elements
 
 
+def _build_header_bar(palette: dict, left_text: str, right_text: str = "") -> str:
+    """Build a header bar HTML with style variation based on design template."""
+    accent = palette["accent"]
+    primary = palette.get("primary", "#0f172a")
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
+    style = palette.get("headerStyle", "solid")
+    right_part = f'<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;font-family:{font_heading};">{right_text}</span>' if right_text else ''
+
+    if style == "rounded":
+        return f'''<div style="width:calc(100% - 40px);height:100%;margin:0 20px;background:{accent};border-radius:0 0 16px 16px;display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
+{right_part}</div>'''
+    elif style == "minimal":
+        return f'''<div style="width:100%;height:100%;display:flex;align-items:flex-end;padding:0 30px 8px 30px;border-bottom:2px solid {accent}40;">
+<span style="color:{accent};font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
+{right_part.replace("rgba(255,255,255,0.6)", accent+"99") if right_part else ''}</div>'''
+    elif style == "neon":
+        return f'''<div style="width:100%;height:100%;background:{primary};display:flex;align-items:center;padding:0 30px;border-bottom:2px solid {accent};box-shadow:0 2px 12px {accent}44;">
+<span style="color:{accent};font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:{font_heading};text-shadow:0 0 8px {accent}66;">{left_text}</span>
+{right_part.replace("rgba(255,255,255,0.6)", accent+"88") if right_part else ''}</div>'''
+    elif style == "gradient":
+        return f'''<div style="width:100%;height:100%;background:linear-gradient(90deg, {primary}, {accent});display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
+{right_part}</div>'''
+    elif style == "elegant":
+        return f'''<div style="width:100%;height:100%;background:{primary};display:flex;align-items:center;padding:0 30px;border-bottom:3px solid {accent};">
+<div style="width:4px;height:24px;background:{accent};border-radius:2px;margin-right:12px;"></div>
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
+{right_part}</div>'''
+    else:  # solid (default)
+        return f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
+<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
+{right_part}</div>'''
+
+
 def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_url: Optional[str]) -> dict:
     """Build a visually rich content slide with header bar, text, and image."""
     from models import generate_id
     accent = palette["accent"]
+    corner_radius = palette.get("cornerRadius", "12px")
+    font_body = palette.get("fontBody", "'Inter', sans-serif")
     elements = []
 
-    # Header bar with module name
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
-</div>'''
+    # Header bar (template-specific style)
+    header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html,
@@ -644,18 +717,18 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     # If we have an image, use two-column layout
     if image_url:
         # Text on the left (55% width)
-        styled_text = _style_content_html(text_content, palette["text"])
+        styled_text = _style_content_html(text_content, palette["text"], palette)
         elements.append({
             "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1050, "height": 700,
             "htmlContent": styled_text,
-            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
+            "style": {"fontFamily": font_body}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
         # Image on the right
         elements.append({
             "id": generate_id(), "type": "image", "x": 1160, "y": 90, "width": 700, "height": 440,
             "src": image_url, "content": image_url,
-            "style": {"borderRadius": "12px"}, "startTime": 0,
+            "style": {"borderRadius": corner_radius}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
         })
         # Accent bar under image
@@ -666,11 +739,11 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
         })
     else:
         # Full-width text layout
-        styled_text = _style_content_html(text_content, palette["text"])
+        styled_text = _style_content_html(text_content, palette["text"], palette)
         elements.append({
             "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
             "htmlContent": styled_text,
-            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
+            "style": {"fontFamily": font_body}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
 
@@ -681,12 +754,12 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     """Build a quiz slide with actual Scormfy quiz element + visual header."""
     from models import generate_id
     accent = palette["accent"]
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
+    font_body = palette.get("fontBody", "'Inter', sans-serif")
     elements = []
 
-    # Header bar
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;">QUIZ - {module_name}</span>
-</div>'''
+    # Header bar (template-specific)
+    header_html = _build_header_bar(palette, f"QUIZ - {module_name}")
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html,
@@ -696,10 +769,10 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     # Quiz intro text
     quiz_html = f'''<div style="text-align:center;padding:20px;">
 <div style="display:inline-block;padding:8px 24px;border-radius:24px;background:{accent}22;border:1px solid {accent}44;">
-<span style="color:{accent};font-size:14px;font-weight:600;">Hora de Praticar!</span>
+<span style="color:{accent};font-size:14px;font-weight:600;font-family:{font_heading};">Hora de Praticar!</span>
 </div>
-<h2 style="font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">Teste seus Conhecimentos</h2>
-<p style="font-size:16px;color:rgba(255,255,255,0.6);">Responda as perguntas para verificar seu aprendizado sobre {module_name}</p>
+<h2 style="font-family:{font_heading};font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">Teste seus Conhecimentos</h2>
+<p style="font-family:{font_body};font-size:16px;color:rgba(255,255,255,0.6);">Responda as perguntas para verificar seu aprendizado sobre {module_name}</p>
 </div>'''
     elements.append({
         "id": generate_id(), "type": "html", "x": 160, "y": 60, "width": 1600, "height": 200,
@@ -737,12 +810,11 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
     """Build a visually rich summary slide."""
     from models import generate_id
     accent = palette["accent"]
+    font_body = palette.get("fontBody", "'Inter', sans-serif")
     elements = []
 
-    # Header
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;">RESUMO - {module_name}</span>
-</div>'''
+    # Header (template-specific)
+    header_html = _build_header_bar(palette, f"RESUMO - {module_name}")
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html,
@@ -756,46 +828,50 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
         if c:
             text_content = c
 
-    styled_text = _style_summary_html(text_content, accent)
+    styled_text = _style_summary_html(text_content, accent, palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 160, "y": 80, "width": 1600, "height": 700,
         "htmlContent": styled_text,
-        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
+        "style": {"fontFamily": font_body}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
     return elements
 
 
-def _style_content_html(raw_html: str, text_color: str) -> str:
-    """Apply professional styling to content HTML."""
+def _style_content_html(raw_html: str, text_color: str, palette: dict = None) -> str:
+    """Apply professional styling to content HTML with template fonts."""
     import re
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
+    font_body = palette.get("fontBody", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
     styled = raw_html
-    # Style headings
-    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-size:36px;font-weight:800;color:{text_color};margin:0 0 16px 0;line-height:1.2;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-size:28px;font-weight:700;color:{text_color};margin:0 0 14px 0;line-height:1.3;">', styled)
-    styled = re.sub(r'<h3([^>]*)>', f'<h3\\1 style="font-size:22px;font-weight:600;color:{text_color};margin:0 0 10px 0;line-height:1.3;">', styled)
-    # Style paragraphs
-    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-size:17px;color:{text_color}cc;line-height:1.7;margin:0 0 12px 0;">', styled)
+    # Style headings with heading font
+    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{font_heading};font-size:36px;font-weight:800;color:{text_color};margin:0 0 16px 0;line-height:1.2;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{font_heading};font-size:28px;font-weight:700;color:{text_color};margin:0 0 14px 0;line-height:1.3;">', styled)
+    styled = re.sub(r'<h3([^>]*)>', f'<h3\\1 style="font-family:{font_heading};font-size:22px;font-weight:600;color:{text_color};margin:0 0 10px 0;line-height:1.3;">', styled)
+    # Style paragraphs with body font
+    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{font_body};font-size:17px;color:{text_color}cc;line-height:1.7;margin:0 0 12px 0;">', styled)
     # Style lists
     styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="padding-left:20px;margin:8px 0;">', styled)
-    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-size:16px;color:{text_color}cc;line-height:1.6;margin-bottom:6px;">', styled)
+    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{font_body};font-size:16px;color:{text_color}cc;line-height:1.6;margin-bottom:6px;">', styled)
     # Style bold
     styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{text_color};font-weight:700;">', styled)
-    return f'<div style="padding:10px;">{styled}</div>'
+    return f'<div style="padding:10px;font-family:{font_body};">{styled}</div>'
 
 
-def _style_summary_html(raw_html: str, accent: str) -> str:
-    """Apply professional styling to summary HTML."""
+def _style_summary_html(raw_html: str, accent: str, palette: dict = None) -> str:
+    """Apply professional styling to summary HTML with template fonts."""
     import re
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
+    font_body = palette.get("fontBody", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
     styled = raw_html
-    styled = re.sub(r'<h1([^>]*)>', '<h1\\1 style="font-size:32px;font-weight:800;color:#ffffff;margin:0 0 20px 0;text-align:center;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', '<h2\\1 style="font-size:26px;font-weight:700;color:#ffffff;margin:20px 0 14px 0;text-align:center;">', styled)
-    styled = re.sub(r'<p([^>]*)>', '<p\\1 style="font-size:17px;color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 12px 0;text-align:center;">', styled)
+    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{font_heading};font-size:32px;font-weight:800;color:#ffffff;margin:0 0 20px 0;text-align:center;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{font_heading};font-size:26px;font-weight:700;color:#ffffff;margin:20px 0 14px 0;text-align:center;">', styled)
+    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{font_body};font-size:17px;color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 12px 0;text-align:center;">', styled)
     styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:16px auto;max-width:800px;">', styled)
-    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-size:16px;color:rgba(255,255,255,0.8);padding:10px 16px;margin-bottom:8px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:3px solid {accent};">', styled)
+    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{font_body};font-size:16px;color:rgba(255,255,255,0.8);padding:10px 16px;margin-bottom:8px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:3px solid {accent};">', styled)
     styled = re.sub(r'<strong([^>]*)>', '<strong\\1 style="color:#ffffff;">', styled)
-    return f'<div style="padding:20px;">{styled}</div>'
+    return f'<div style="padding:20px;font-family:{font_body};">{styled}</div>'
 
 
 def _parse_video_url(url: str) -> Optional[dict]:
@@ -839,14 +915,10 @@ def _build_video_element(video_info: dict, palette: dict) -> dict:
 def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: str, video_info: dict) -> list:
     """Build content slide with video embed instead of image."""
     from models import generate_id
-    accent = palette["accent"]
     elements = []
 
-    # Header bar
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
-</div>'''
+    # Header bar (template-specific)
+    header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
@@ -857,7 +929,7 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
     for el in sb_slide.get("elements", []):
         if el.get("content"):
             text_content = el["content"]
-    styled_text = _style_content_html(text_content, palette["text"])
+    styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
         "htmlContent": styled_text,
@@ -893,14 +965,10 @@ def _build_heygen_processing_element(slide_id: str) -> dict:
 def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name: str, slide_id: str) -> list:
     """Build content slide with HeyGen processing element on the right."""
     from models import generate_id
-    accent = palette["accent"]
     elements = []
 
-    # Header bar
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
-</div>'''
+    # Header bar (template-specific)
+    header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
@@ -911,7 +979,7 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
     for el in sb_slide.get("elements", []):
         if el.get("content"):
             text_content = el["content"]
-    styled_text = _style_content_html(text_content, palette["text"])
+    styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
         "htmlContent": styled_text,
@@ -928,14 +996,10 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
 def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: str) -> list:
     """Build content slide without any media - full width text."""
     from models import generate_id
-    accent = palette["accent"]
     elements = []
 
-    # Header bar
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
-</div>'''
+    # Header bar (template-specific)
+    header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
@@ -946,7 +1010,7 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
     for el in sb_slide.get("elements", []):
         if el.get("content"):
             text_content = el["content"]
-    styled_text = _style_content_html(text_content, palette["text"])
+    styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
         "htmlContent": styled_text,
@@ -959,14 +1023,10 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
 def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: str, media: dict, embed_type: str) -> list:
     """Build content slide with embedded content (flipbook or HTML) on the right."""
     from models import generate_id
-    accent = palette["accent"]
     elements = []
 
-    # Header bar
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
-</div>'''
+    # Header bar (template-specific)
+    header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
@@ -977,7 +1037,7 @@ def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: 
     for el in sb_slide.get("elements", []):
         if el.get("content"):
             text_content = el["content"]
-    styled_text = _style_content_html(text_content, palette["text"])
+    styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 850, "height": 700,
         "htmlContent": styled_text,
@@ -1015,11 +1075,8 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
     accent = palette["accent"]
     elements = []
 
-    # Header bar
-    header_html = f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{module_name}</span>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;">{sb_slide.get("title","")}</span>
-</div>'''
+    # Header bar (template-specific)
+    header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
         "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
@@ -1030,7 +1087,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
     for el in sb_slide.get("elements", []):
         if el.get("content"):
             text_content = el["content"]
-    styled_text = _style_content_html(text_content, palette["text"])
+    styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 560,
         "htmlContent": styled_text,
@@ -1102,6 +1159,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     # Inject font info into palette for use by builder functions
     palette["fontHeading"] = font_heading
     palette["fontBody"] = font_body
+    palette["headerStyle"] = design_token.get("headerStyle", "solid") if design_token else "solid"
+    palette["cornerRadius"] = design_token.get("cornerRadius", "12px") if design_token else "12px"
 
     # Font size scale factor
     font_scale = int(global_font_size) / 100.0 if global_font_size else 1.0

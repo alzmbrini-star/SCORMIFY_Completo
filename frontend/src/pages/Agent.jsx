@@ -965,35 +965,59 @@ function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templat
       {designTemplates.length > 0 && (
         <div className="space-y-2">
           <label className="text-xs text-slate-400 block flex items-center gap-1"><Palette className="w-3 h-3" /> Tema Visual</label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2" data-testid="design-template-grid">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="design-template-grid">
             {designTemplates.map(dt => {
               const isSelected = selectedDesignTemplate?.id === dt.id;
+              const p = dt.palette || {};
               return (
                 <button
                   key={dt.id}
                   onClick={() => setSelectedDesignTemplate(isSelected ? null : dt)}
-                  className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-all text-sm ${
+                  className={`relative overflow-hidden rounded-xl border text-left transition-all ${
                     isSelected
-                      ? 'border-emerald-500 bg-emerald-600/10 ring-1 ring-emerald-500/30'
-                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.02]'
+                      : 'border-slate-700 hover:border-slate-500'
                   }`}
                   data-testid={`design-template-${dt.id}`}
                 >
-                  <div className="w-8 h-8 rounded-lg shrink-0" style={{ background: dt.preview }} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-xs truncate">{dt.name}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{dt.description}</p>
+                  {/* Mini slide preview */}
+                  <div className="aspect-[16/9] relative" style={{ background: p.primary || '#0f172a' }}>
+                    {/* Header bar */}
+                    <div className="absolute top-0 left-0 right-0 h-[6px]" style={{ background: p.accent || '#10b981' }} />
+                    {/* Content area */}
+                    <div className="absolute bottom-0 left-0 right-0 h-[55%] mx-2 mb-1 rounded-t-sm" style={{ background: p.contentBg || '#f0fdf4' }}>
+                      <div className="p-1.5 space-y-0.5">
+                        <div className="h-1 rounded-full w-[60%]" style={{ background: (p.text || '#1e293b') + '88' }} />
+                        <div className="h-0.5 rounded-full w-[80%]" style={{ background: (p.text || '#1e293b') + '44' }} />
+                        <div className="h-0.5 rounded-full w-[50%]" style={{ background: (p.text || '#1e293b') + '44' }} />
+                      </div>
+                    </div>
+                    {/* Font preview */}
+                    <div className="absolute top-2 left-2 right-2 text-center">
+                      <span style={{ fontFamily: dt.fonts?.heading, color: '#fff', fontSize: '9px', fontWeight: 700 }}>Aa</span>
+                    </div>
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 bg-emerald-500 rounded-full p-0.5">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    )}
                   </div>
-                  {isSelected && <Check className="w-4 h-4 text-emerald-400 shrink-0 ml-auto" />}
+                  {/* Name and description */}
+                  <div className="p-2 bg-slate-900/80">
+                    <p className="font-medium text-[11px] truncate" style={{ fontFamily: dt.fonts?.heading }}>{dt.name}</p>
+                    <p className="text-[9px] text-slate-500 truncate">{dt.description}</p>
+                  </div>
                 </button>
               );
             })}
           </div>
           {selectedDesignTemplate && (
-            <p className="text-xs text-emerald-400/70">
-              <Palette className="w-3 h-3 inline mr-1" />
-              Tema "{selectedDesignTemplate.name}" será aplicado aos slides
-            </p>
+            <div className="p-2 rounded-lg border border-emerald-500/20 bg-emerald-900/10 flex items-center gap-2">
+              <div className="w-5 h-5 rounded shrink-0" style={{ background: selectedDesignTemplate.preview }} />
+              <p className="text-xs text-emerald-400/80">
+                Tema <span className="font-semibold" style={{ fontFamily: selectedDesignTemplate.fonts?.heading }}>"{selectedDesignTemplate.name}"</span> será aplicado a todos os slides
+              </p>
+            </div>
           )}
         </div>
       )}
