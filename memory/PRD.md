@@ -117,12 +117,27 @@ backend/
 - **Additional Fix**: Handled MongoDB null values for storyboard using `or {}` pattern
 - **Testing**: 12/12 backend tests passed (100%)
 
+### P3: Professional Layout Templates + AI Image Gallery (Complete - 2026-03-05)
+- **6 Design Templates**: Corporativo, Educacional, Minimalista, Tech & Inovação, Criativo Bold, Elegante Premium
+  - Each with distinct palette, heading/body fonts, corner radius, header style
+  - Template picker UI in ConfigPanel step 2 with gradient previews
+  - `designTemplateId` saved in session config, passed to course generation
+- **AI Image Gallery**: Company-wide shared library of generated images
+  - New `image_gallery` MongoDB collection
+  - CRUD API: GET/POST/DELETE `/api/gallery/images`
+  - Per-company visibility (super_admin sees all)
+  - Auto-save when AI images are generated via `_fetch_stock_image`
+  - Gallery modal in MediaConfigPanel with search, preview, and selection
+  - `gallery_image` media type reuses existing images (no generation cost)
+- **Backend**: `backend/routes/gallery.py` (new), `backend/routes/agent.py`, `backend/services/ai_agent.py`
+- **Frontend**: `frontend/src/pages/Agent.jsx` (ImageGalleryModal component, design template picker)
+- **Testing**: 11/11 backend tests + all frontend features verified (100%)
+
 ## Prioritized Backlog
 ### P1 - URGENT
 - **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks
-- **Refactor `Agent.jsx`** (~2920 lines): Break MediaConfigPanel into sub-components
+- **Refactor `Agent.jsx`** (~3200 lines): Break MediaConfigPanel into sub-components
 ### P2
 - Advanced Interactivity: Per-course "Tutor IA"
 ### P3
-- Professional Layout Templates (design tokens, colors, fonts)
 - SCORM 2004 export
