@@ -47,6 +47,19 @@ class AgentChatMessage(BaseModel):
     message: str
 
 
+def _is_light_color(hex_color: str) -> bool:
+    """Check if a hex color is light (luminance > 0.5)."""
+    try:
+        c = hex_color.lstrip('#')
+        if len(c) < 6:
+            return True
+        r, g, b = int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return luminance > 0.5
+    except Exception:
+        return False
+
+
 def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict = None):
     """Apply a design template's visual styling to a single slide."""
     import re as _re
@@ -60,24 +73,44 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
     content_bg = palette.get("contentBg", "#f0fdf4")
     text_color = palette.get("text", "#1e293b")
 
-    slide_type = slide.get("type", "content")
+    slide_type = slide.get("type", "")
+
+    # Better slide type detection for slides without explicit type
+    if not slide_type:
+        title = (slide.get("title") or "").lower()
+        if any(k in title for k in ("capa", "cover", "título", "title", "intro")):
+            slide_type = "title"
+        elif any(k in title for k in ("quiz", "prova", "teste", "avaliação")):
+            slide_type = "quiz"
+        elif any(k in title for k in ("resumo", "summary", "conclus")):
+            slide_type = "summary"
+        else:
+            slide_type = "content"
 
     # Set background based on slide type
-    if slide_type in ("title", "cover", "quiz", "summary"):
+    is_dark_slide = slide_type in ("title", "cover", "quiz", "summary")
+    if is_dark_slide:
         slide["background"] = primary
+        slide_text_color = "#ffffff"
+        slide_text_muted = "rgba(255,255,255,0.75)"
     else:
         slide["background"] = content_bg
+        # Determine text color based on background lightness
+        if _is_light_color(content_bg):
+            slide_text_color = text_color
+            slide_text_muted = text_color + "cc"
+        else:
+            slide_text_color = "#ffffff"
+            slide_text_muted = "rgba(255,255,255,0.75)"
 
     # Update elements
     for el in slide.get("elements", []):
-        # Update header bars (first html element at y=0, height=50)
-        if el.get("type") == "html" and el.get("y", -1) == 0 and el.get("height", 0) == 50 and el.get("width", 0) >= 1900:
-            # This is a header bar - rebuild it
+        # Update header bars (html element at top, reasonable height, wide)
+        if el.get("type") == "html" and el.get("y", -1) <= 5 and el.get("height", 0) <= 55 and el.get("height", 0) >= 40 and el.get("width", 0) >= 1700:
             from services.ai_agent import _build_header_bar
             pal = {**palette, "fontHeading": font_heading, "fontBody": font_body, "headerStyle": header_style}
             module_name = ""
             slide_title = ""
-            # Try to extract existing text from header
             hc = el.get("htmlContent", "")
             import re
             spans = re.findall(r'>([^<]+)<', hc)
@@ -86,16 +119,31 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
                 if len(spans) > 1:
                     slide_title = spans[1].strip()
             el["htmlContent"] = _build_header_bar(pal, module_name, slide_title)
+            continue
 
-        # Update fonts in html content
+        # Update fonts AND text colors in html content
         if el.get("type") in ("html", "text") and el.get("htmlContent"):
             html = el["htmlContent"]
-            # Replace font-family in inline styles
+            # Replace font-family
             html = _re.sub(r"font-family:[^;\"']+", f"font-family:{font_body}", html)
-            # For headings, use heading font
             html = _re.sub(r'(<h[1-3][^>]*style="[^"]*?)font-family:[^;"]+', lambda m: m.group(1) + f"font-family:{font_heading}", html)
+
+            # Replace text colors in inline styles
+            def _replace_text_color(match):
+                prefix = match.group(1)
+                old_color = match.group(2).strip()
+                # Skip accent-colored elements
+                if accent.lower().replace('#', '') in old_color.lower().replace('#', '').replace(' ', ''):
+                    return match.group(0)
+                # Simple rule: dark slide = white text, light slide = dark text
+                if is_dark_slide:
+                    return prefix + "#ffffff"
+                else:
+                    return prefix + slide_text_color
+
+            html = _re.sub(r'((?:^|;|\s|")color\s*:\s*)(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))', _replace_text_color, html)
             el["htmlContent"] = html
-            # Update element style
+
             if el.get("style"):
                 el["style"]["fontFamily"] = font_body
 
@@ -105,11 +153,10 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
                 el["style"] = {}
             el["style"]["borderRadius"] = corner_radius
 
-        # Update accent colors in decorative elements
-        if el.get("type") == "html" and el.get("htmlContent"):
+        # Update accent colors in small decorative elements
+        if el.get("type") == "html" and el.get("htmlContent") and el.get("height", 0) <= 12:
             hc = el["htmlContent"]
-            # Update accent-colored bars (4px height accent bars)
-            if el.get("height", 0) <= 12 and "background:" in hc:
+            if "background:" in hc:
                 hc = _re.sub(r'background:#[0-9a-fA-F]{3,8}', f'background:{accent}', hc)
                 el["htmlContent"] = hc
 

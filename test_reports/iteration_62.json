@@ -1,0 +1,87 @@
+{
+  "summary": "Text Color Contrast Bug Fix - All 17 tests PASSED. Backend testing confirmed: _is_light_color correctly identifies light vs dark colors, _apply_design_token_to_slide properly applies white text on dark backgrounds and dark text on light backgrounds, all 6 templates produce zero contrast issues, header bar detection works (width >= 1700), and slide type detection by title keywords works correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_text_color_contrast_fix.py",
+    "/app/test_reports/pytest/pytest_text_color_contrast_fix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_text_color_contrast_fix.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "N/A - backend only testing requested"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123",
+    "test_project_id": "c7de35a7-0f1a-4270-86d4-703151b377e5"
+  },
+  "seed_data_creation": "None - used existing project",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Text color contrast fix verified. Key findings: 1) _is_light_color(hex_color) uses luminance formula (0.299*R + 0.587*G + 0.114*B)/255 > 0.5 to determine if color is light. 2) _apply_design_token_to_slide sets slide_text_color='#ffffff' for dark slides (title/quiz/summary) and slide_text_color from palette.text for light content slides. 3) _replace_text_color inner function replaces text colors in HTML inline styles: white on dark, dark on light. 4) Tech template correctly uses white text on both primary (#0a0a0a) AND contentBg (#111827) since both are dark. 5) Header bars (y<=5, width>=1700, height 40-55) are skipped for text color replacement and rebuilt with _build_header_bar instead. 6) Slide type detection works via title keywords when type field is missing.",
+  "features_tested": {
+    "backend": {
+      "_is_light_color helper": {
+        "status": "PASS",
+        "tests_passed": 3,
+        "details": "Correctly identifies light colors (luminance>0.5) vs dark colors. #ffffff=light, #111827=dark, #0a0a0a=dark, #f8fafc=light"
+      },
+      "Text color on dark slides": {
+        "status": "PASS",
+        "tests_passed": 2,
+        "details": "Title/quiz/summary slides with dark primary background correctly get white text (#ffffff)"
+      },
+      "Text color on light slides": {
+        "status": "PASS",
+        "tests_passed": 2,
+        "details": "Content slides with light contentBg correctly get dark text from palette.text"
+      },
+      "All 6 templates no contrast issues": {
+        "status": "PASS",
+        "tests_passed": 6,
+        "details": "corporativo, educacional, minimalista, tech, criativo, elegante - all produce readable text with proper contrast"
+      },
+      "Header bar detection": {
+        "status": "PASS",
+        "tests_passed": 2,
+        "details": "Header bars at y<=5 with width>=1700 correctly detected and rebuilt with accent color, not modified by _replace_text_color"
+      },
+      "Slide type detection by keywords": {
+        "status": "PASS",
+        "tests_passed": 3,
+        "details": "Slides without explicit type field correctly detected by title keywords: capa/cover→title, quiz/prova→quiz, resumo/summary→summary"
+      }
+    }
+  },
+  "verified_text_colors": {
+    "educacional_template": {
+      "dark_slides_bg": "#065f46",
+      "dark_slides_text": "#ffffff",
+      "light_slides_bg": "#f0fdf4",
+      "light_slides_text": "#1e293b"
+    },
+    "tech_template": {
+      "primary_bg": "#0a0a0a",
+      "content_bg": "#111827",
+      "all_text": "#ffffff (both backgrounds are dark)"
+    }
+  },
+  "bug_fix_verification": {
+    "original_bug": "Light text on light backgrounds after template application made slides 'muito embranquecido' (washed out)",
+    "root_cause": "Text colors were not being updated to match new background colors in _apply_design_token_to_slide",
+    "fix_applied": "Simplified _replace_text_color to always use #ffffff on dark slides and palette.text on light slides based on _is_light_color(content_bg)",
+    "verification_status": "CONFIRMED FIXED - all slides now have appropriate text contrast"
+  }
+}
