@@ -380,10 +380,11 @@ export default function Agent() {
           enrichedConfig[key] = { ...val, avatar_id: heygenConfig.avatarId, voice_id: heygenConfig.voiceId };
         }
       }
-      await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
+      const saveRes = await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalFontSize, globalAnimation }),
       });
+      if (!saveRes.ok) throw new Error('Falha ao salvar configuração de mídia');
 
       // If editing existing project, apply changes without regenerating
       if (editMediaProjectId) {
@@ -408,7 +409,7 @@ export default function Agent() {
       addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares.${heygenMsg}${aiImageCount > 0 ? ' A geração de imagens pode levar alguns minutos.' : ''}`);
       setCurrentStep(6);
       handleGenerateCourse();
-    } catch { toast.error('Erro ao salvar mídia'); addChatMsg('agent', 'Erro ao salvar configuração de mídia.'); }
+    } catch (err) { toast.error(err.message || 'Erro ao salvar mídia'); addChatMsg('agent', `Erro: ${err.message || 'Erro ao salvar configuração de mídia.'}`); }
     finally { setLoading(false); }
   };
 
@@ -1511,10 +1512,18 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewVideoId, setPreviewVideoId] = useState(null);
 
-  // ElevenLabs narration state
+  // ElevenLabs narration state - restore voiceId from existing mediaConfig when editing
   const [elVoices, setElVoices] = useState([]);
   const [loadingElVoices, setLoadingElVoices] = useState(false);
-  const [narrationVoiceId, setNarrationVoiceId] = useState('');
+  const [narrationVoiceId, setNarrationVoiceId] = useState(() => {
+    // Extract voiceId from first narration-enabled slide in mediaConfig
+    for (const val of Object.values(mediaConfig || {})) {
+      if (val?.narration?.enabled && val?.narration?.voiceId) {
+        return val.narration.voiceId;
+      }
+    }
+    return '';
+  });
   const [narrationStyle, setNarrationStyle] = useState('educational');
   const [generatingScripts, setGeneratingScripts] = useState({}); // { slideIndex: true }
   const [scriptOptions, setScriptOptions] = useState({}); // { slideIndex: ["opt1", "opt2", "opt3"] }
@@ -2377,6 +2386,12 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
       {/* Summary & Cost Estimate */}
       <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} />
 
+      {(!heygenReady || !narrationReady) && !loading && (
+        <p className="text-xs text-amber-400/80 text-center">
+          {!heygenReady && 'Selecione avatar e voz do HeyGen. '}
+          {!narrationReady && 'Selecione uma voz para a narração antes de aplicar.'}
+        </p>
+      )}
       <Button onClick={onConfirm} disabled={loading || !heygenReady || !narrationReady} className={`w-full ${isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`} data-testid="confirm-media-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isEditMode ? <Check className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
         {isEditMode ? 'Aplicar Alterações ao Projeto' : 'Confirmar Mídia e Gerar Curso'}
