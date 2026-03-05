@@ -395,7 +395,7 @@ export default function Agent() {
       }
       const saveRes = await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalFontSize, globalAnimation }),
+        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalFontSize, globalAnimation, designTemplateId: selectedDesignTemplate?.id || '' }),
       });
       if (!saveRes.ok) throw new Error('Falha ao salvar configuração de mídia');
 
@@ -415,7 +415,7 @@ export default function Agent() {
           if (mcChanged || bgChanged) changedSlides.push(parseInt(key, 10));
         }
         // Also add if global settings changed (affects all slides)
-        const hasGlobalChanges = !!globalTextColor || !!globalFontSize || !!globalAnimation;
+        const hasGlobalChanges = !!globalTextColor || !!globalFontSize || !!globalAnimation || !!selectedDesignTemplate;
 
         addChatMsg('agent', hasGlobalChanges
           ? 'Aplicando alterações globais ao projeto...'
@@ -653,7 +653,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1635,7 +1635,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1645,6 +1645,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const [previewVideoId, setPreviewVideoId] = useState(null);
   const [showGallery, setShowGallery] = useState(false);
   const [gallerySlideIndex, setGallerySlideIndex] = useState(null);
+  const [designTemplates, setDesignTemplates] = useState([]);
 
   // ElevenLabs narration state - restore voiceId from existing mediaConfig when editing
   const [elVoices, setElVoices] = useState([]);
@@ -1684,6 +1685,33 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
   const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
   const narrationCount = Object.values(mediaConfig).filter(m => m.narration?.enabled).length;
+
+  // Load design templates
+  useEffect(() => {
+    fetch(`${API}/api/agent/design-templates`)
+      .then(r => r.json())
+      .then(setDesignTemplates)
+      .catch(() => {});
+  }, []);
+
+  // Apply design template: sets backgrounds for all slides based on template colors
+  const applyDesignTemplate = (dt) => {
+    if (!dt) return;
+    setSelectedDesignTemplate(dt);
+    const p = dt.palette;
+    const slides = storyboard?.slides || [];
+    const newBg = {};
+    slides.forEach((s, i) => {
+      const slideType = s.type || 'content';
+      if (slideType === 'title' || slideType === 'cover' || slideType === 'quiz' || slideType === 'summary') {
+        newBg[String(i)] = { type: 'solid', color: p.primary };
+      } else {
+        newBg[String(i)] = { type: 'solid', color: p.contentBg };
+      }
+    });
+    setBgConfig(newBg);
+    toast.success(`Tema "${dt.name}" aplicado a ${slides.length} slides!`);
+  };
 
   // Fetch HeyGen avatars/voices when needed
   useEffect(() => {
@@ -2227,6 +2255,61 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
       )}
 
       {/* Global Background Control - Apply to ALL slides at once */}
+      {/* Design Template Picker */}
+      {designTemplates.length > 0 && (
+        <Card className="bg-gradient-to-br from-amber-900/20 to-slate-900/50 border-amber-700/30">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-semibold text-amber-300">Tema Visual</span>
+              <Badge variant="outline" className="text-[9px] border-amber-600/40 text-amber-400">Aplica fundos + estilos</Badge>
+            </div>
+            <p className="text-xs text-slate-400">Selecione um tema para aplicar cores, fontes e estilos de header a todos os slides</p>
+            <div className="grid grid-cols-3 gap-2" data-testid="media-design-template-grid">
+              {designTemplates.map(dt => {
+                const isSelected = selectedDesignTemplate?.id === dt.id;
+                const p = dt.palette || {};
+                return (
+                  <button
+                    key={dt.id}
+                    onClick={() => applyDesignTemplate(isSelected ? null : dt)}
+                    className={`relative overflow-hidden rounded-lg border text-left transition-all ${
+                      isSelected ? 'border-amber-500 ring-1 ring-amber-500/30' : 'border-slate-700 hover:border-slate-500'
+                    }`}
+                    data-testid={`media-design-template-${dt.id}`}
+                  >
+                    <div className="aspect-[16/10] relative" style={{ background: p.primary || '#0f172a' }}>
+                      <div className="absolute top-0 left-0 right-0 h-[5px]" style={{ background: p.accent || '#10b981' }} />
+                      <div className="absolute bottom-0 left-0 right-0 h-[50%] mx-1.5 mb-1 rounded-t-sm" style={{ background: p.contentBg || '#f0fdf4' }}>
+                        <div className="p-1 space-y-0.5">
+                          <div className="h-0.5 rounded-full w-[60%]" style={{ background: (p.text || '#1e293b') + '88' }} />
+                          <div className="h-0.5 rounded-full w-[40%]" style={{ background: (p.text || '#1e293b') + '44' }} />
+                        </div>
+                      </div>
+                      <div className="absolute top-1.5 left-0 right-0 text-center">
+                        <span style={{ fontFamily: dt.fonts?.heading, color: '#fff', fontSize: '8px', fontWeight: 700 }}>Aa</span>
+                      </div>
+                      {isSelected && <div className="absolute top-0.5 right-0.5 bg-amber-500 rounded-full p-0.5"><Check className="w-2 h-2 text-white" /></div>}
+                    </div>
+                    <div className="p-1.5 bg-slate-900/80">
+                      <p className="font-medium text-[10px] truncate" style={{ fontFamily: dt.fonts?.heading }}>{dt.name}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedDesignTemplate && (
+              <div className="p-2 rounded-lg border border-amber-500/20 bg-amber-900/10 flex items-center gap-2">
+                <div className="w-4 h-4 rounded shrink-0" style={{ background: selectedDesignTemplate.preview }} />
+                <p className="text-[10px] text-amber-400/80">
+                  Tema <span className="font-semibold">"{selectedDesignTemplate.name}"</span> — fundos, fontes e headers serão aplicados ao clicar "Aplicar Alterações"
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-gradient-to-br from-cyan-900/30 to-slate-900/50 border-cyan-700/30">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">

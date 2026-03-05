@@ -46,6 +46,75 @@ class AgentConfigUpdate(BaseModel):
 class AgentChatMessage(BaseModel):
     message: str
 
+
+def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict = None):
+    """Apply a design template's visual styling to a single slide."""
+    import re as _re
+    palette = design_token["palette"]
+    font_heading = design_token["fonts"]["heading"]
+    font_body = design_token["fonts"]["body"]
+    header_style = design_token.get("headerStyle", "solid")
+    corner_radius = design_token.get("cornerRadius", "12px")
+    primary = palette["primary"]
+    accent = palette["accent"]
+    content_bg = palette.get("contentBg", "#f0fdf4")
+    text_color = palette.get("text", "#1e293b")
+
+    slide_type = slide.get("type", "content")
+
+    # Set background based on slide type
+    if slide_type in ("title", "cover", "quiz", "summary"):
+        slide["background"] = primary
+    else:
+        slide["background"] = content_bg
+
+    # Update elements
+    for el in slide.get("elements", []):
+        # Update header bars (first html element at y=0, height=50)
+        if el.get("type") == "html" and el.get("y", -1) == 0 and el.get("height", 0) == 50 and el.get("width", 0) >= 1900:
+            # This is a header bar - rebuild it
+            from services.ai_agent import _build_header_bar
+            pal = {**palette, "fontHeading": font_heading, "fontBody": font_body, "headerStyle": header_style}
+            module_name = ""
+            slide_title = ""
+            # Try to extract existing text from header
+            hc = el.get("htmlContent", "")
+            import re
+            spans = re.findall(r'>([^<]+)<', hc)
+            if spans:
+                module_name = spans[0].strip()
+                if len(spans) > 1:
+                    slide_title = spans[1].strip()
+            el["htmlContent"] = _build_header_bar(pal, module_name, slide_title)
+
+        # Update fonts in html content
+        if el.get("type") in ("html", "text") and el.get("htmlContent"):
+            html = el["htmlContent"]
+            # Replace font-family in inline styles
+            html = _re.sub(r"font-family:[^;\"']+", f"font-family:{font_body}", html)
+            # For headings, use heading font
+            html = _re.sub(r'(<h[1-3][^>]*style="[^"]*?)font-family:[^;"]+', lambda m: m.group(1) + f"font-family:{font_heading}", html)
+            el["htmlContent"] = html
+            # Update element style
+            if el.get("style"):
+                el["style"]["fontFamily"] = font_body
+
+        # Update image corner radius
+        if el.get("type") == "image":
+            if not el.get("style"):
+                el["style"] = {}
+            el["style"]["borderRadius"] = corner_radius
+
+        # Update accent colors in decorative elements
+        if el.get("type") == "html" and el.get("htmlContent"):
+            hc = el["htmlContent"]
+            # Update accent-colored bars (4px height accent bars)
+            if el.get("height", 0) <= 12 and "background:" in hc:
+                hc = _re.sub(r'background:#[0-9a-fA-F]{3,8}', f'background:{accent}', hc)
+                el["htmlContent"] = hc
+
+
+
 @router.get("/agent/check-access")
 async def check_agent_access(request: Request):
     """Check if the current user has access to the AI Agent feature."""
@@ -443,10 +512,16 @@ async def agent_set_media_config(session_id: str, data: dict):
     global_text_color = data.get("globalTextColor", "")
     global_font_size = data.get("globalFontSize", "")
     global_animation = data.get("globalAnimation", "")
-    await db.agent_sessions.update_one(
-        {"id": session_id},
-        {"$set": {"mediaConfig": media_config, "bgConfig": bg_config, "globalTextColor": global_text_color, "globalFontSize": global_font_size, "globalAnimation": global_animation, "updatedAt": datetime.now(timezone.utc).isoformat()}}
-    )
+    design_template_id = data.get("designTemplateId", "")
+    update_data = {
+        "mediaConfig": media_config, "bgConfig": bg_config,
+        "globalTextColor": global_text_color, "globalFontSize": global_font_size,
+        "globalAnimation": global_animation,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if design_template_id:
+        update_data["config.designTemplateId"] = design_template_id
+    await db.agent_sessions.update_one({"id": session_id}, {"$set": update_data})
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
 
@@ -478,6 +553,13 @@ async def apply_media_changes(session_id: str, data: dict):
     storyboard = s.get("storyboard") or {}
     storyboard_slides = storyboard.get("slides", []) if isinstance(storyboard, dict) else []
     updated_count = 0
+
+    # Design template support - apply visual theme to all slides
+    design_template_id = s.get("config", {}).get("designTemplateId", "") or data.get("designTemplateId", "")
+    design_token = None
+    if design_template_id:
+        from services.ai_agent import get_design_template_by_id
+        design_token = get_design_template_by_id(design_template_id)
 
     for i, slide in enumerate(slides):
         # Skip slides that were not changed (if changedSlides is specified)
@@ -551,6 +633,11 @@ async def apply_media_changes(session_id: str, data: dict):
                     }]
                     stagger_idx += 1
                     changed = True
+
+        # Apply design template styling (headers, fonts, backgrounds, corner radius)
+        if design_token:
+            _apply_design_token_to_slide(slide, design_token, storyboard_slides[i] if i < len(storyboard_slides) else {})
+            changed = True
 
         # Apply media config (AI image generation, video embeds, etc.)
         mc = media_config.get(idx_str, {})

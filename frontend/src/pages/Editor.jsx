@@ -111,6 +111,7 @@ import {
   FileText,
   HelpCircle,
   Maximize2,
+  Palette,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -614,6 +615,10 @@ export default function Editor() {
 
   // Quiz Generator states
   const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [showDesignTemplateDialog, setShowDesignTemplateDialog] = useState(false);
+  const [designTemplates, setDesignTemplates] = useState([]);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+
 
   // ElevenLabs TTS states
   const [showTTSDialog, setShowTTSDialog] = useState(false);
@@ -774,6 +779,26 @@ export default function Editor() {
       fetchProject(projectId);
     }
   }, [projectId, fetchProject]);
+
+  // Apply design template to current project
+  const handleApplyDesignTemplate = async (templateId) => {
+    if (!currentProject?.id || !templateId) return;
+    setApplyingTemplate(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/projects/${currentProject.id}/apply-design-template`, {
+        designTemplateId: templateId,
+      });
+      if (res.data?.status === 'ok') {
+        toast.success(`Tema "${res.data.templateName}" aplicado a ${res.data.updatedSlides} slides!`);
+        await fetchProject(currentProject.id);
+        setShowDesignTemplateDialog(false);
+      }
+    } catch (e) {
+      toast.error('Erro ao aplicar template: ' + (e.response?.data?.detail || e.message));
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
 
   // Reset timeline when slide changes
   useEffect(() => {
@@ -2701,6 +2726,29 @@ export default function Editor() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20"
+                    onClick={() => {
+                      if (designTemplates.length === 0) {
+                        fetch(`${API_URL}/api/agent/design-templates`)
+                          .then(r => r.json())
+                          .then(setDesignTemplates)
+                          .catch(() => toast.error('Erro ao carregar templates'));
+                      }
+                      setShowDesignTemplateDialog(true);
+                    }}
+                    data-testid="apply-template-btn"
+                  >
+                    <Palette className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Aplicar Tema Visual</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 bg-gradient-to-r from-green-500/10 to-cyan-500/10 hover:from-green-500/20 hover:to-cyan-500/20"
                     onClick={() => setShowQuizDialog(true)}
                     data-testid="add-quiz-btn"
@@ -3450,6 +3498,62 @@ export default function Editor() {
               <Button onClick={handleBulkTextColorChange} className="bg-amber-600 hover:bg-amber-700" data-testid="apply-bulk-text-color">
                 Aplicar a Todos os Slides
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Design Template Dialog */}
+        <Dialog open={showDesignTemplateDialog} onOpenChange={setShowDesignTemplateDialog}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5 text-amber-400" />
+                Aplicar Tema Visual
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-slate-400 mb-4">Selecione um tema para aplicar cores, fontes e estilos a todos os slides do curso</p>
+              <div className="grid grid-cols-3 gap-3" data-testid="editor-design-template-grid">
+                {designTemplates.map(dt => {
+                  const p = dt.palette || {};
+                  return (
+                    <button
+                      key={dt.id}
+                      disabled={applyingTemplate}
+                      onClick={() => handleApplyDesignTemplate(dt.id)}
+                      className="relative overflow-hidden rounded-xl border border-slate-700 hover:border-amber-500 transition-all text-left group disabled:opacity-50"
+                      data-testid={`editor-design-template-${dt.id}`}
+                    >
+                      <div className="aspect-[16/9] relative" style={{ background: p.primary || '#0f172a' }}>
+                        <div className="absolute top-0 left-0 right-0 h-[6px]" style={{ background: p.accent || '#10b981' }} />
+                        <div className="absolute bottom-0 left-0 right-0 h-[55%] mx-2 mb-1 rounded-t-sm" style={{ background: p.contentBg || '#f0fdf4' }}>
+                          <div className="p-2 space-y-1">
+                            <div className="h-1 rounded-full w-[60%]" style={{ background: (p.text || '#1e293b') + '88' }} />
+                            <div className="h-0.5 rounded-full w-[80%]" style={{ background: (p.text || '#1e293b') + '44' }} />
+                            <div className="h-0.5 rounded-full w-[50%]" style={{ background: (p.text || '#1e293b') + '44' }} />
+                          </div>
+                        </div>
+                        <div className="absolute top-2 left-2 right-2 text-center">
+                          <span style={{ fontFamily: dt.fonts?.heading, color: '#fff', fontSize: '11px', fontWeight: 700 }}>Aa</span>
+                        </div>
+                        <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/10 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-white font-semibold bg-amber-600/80 px-3 py-1 rounded-full">Aplicar</span>
+                        </div>
+                      </div>
+                      <div className="p-2 bg-slate-900/80">
+                        <p className="font-medium text-xs" style={{ fontFamily: dt.fonts?.heading }}>{dt.name}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{dt.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {applyingTemplate && (
+                <div className="flex items-center justify-center gap-2 mt-4 text-amber-400">
+                  <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Aplicando tema...</span>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

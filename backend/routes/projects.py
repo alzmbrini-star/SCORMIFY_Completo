@@ -985,3 +985,40 @@ async def delete_annotation(project_id: str, slide_id: str, annotation_id: str):
     
     return {"message": "Annotation deleted"}
 
+
+
+@router.post("/projects/{project_id}/apply-design-template")
+async def apply_design_template_to_project(project_id: str, data: dict):
+    """Apply a design template to all slides of an existing project (for manual editor)."""
+    from datetime import datetime, timezone
+    design_template_id = data.get("designTemplateId", "")
+    if not design_template_id:
+        raise HTTPException(400, "designTemplateId is required")
+
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    from services.ai_agent import get_design_template_by_id
+    design_token = get_design_template_by_id(design_template_id)
+    if not design_token:
+        raise HTTPException(404, "Design template not found")
+
+    slides = project.get("course", {}).get("slides", [])
+    updated = 0
+
+    from routes.agent import _apply_design_token_to_slide
+    for slide in slides:
+        _apply_design_token_to_slide(slide, design_token)
+        updated += 1
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "designTemplateId": design_template_id,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    return {"status": "ok", "updatedSlides": updated, "templateId": design_template_id, "templateName": design_token["name"]}
