@@ -253,7 +253,7 @@ const SlideThumbnailContent = ({ slide }) => {
           return (
             <div key={el.id} style={{ ...baseStyle, overflow: 'hidden', padding: 8 }}>
               {el.htmlContent ? (
-                <div style={{ fontSize: Math.max(8, (el.style?.fontSize || 14) * 0.5), lineHeight: 1.3, opacity: 0.85, pointerEvents: 'none' }}
+                <div style={{ lineHeight: 1.3, opacity: 0.9, pointerEvents: 'none' }}
                   dangerouslySetInnerHTML={{ __html: el.htmlContent }} />
               ) : (
                 <span style={{ fontSize: 14, opacity: 0.4 }}>HTML</span>
@@ -334,11 +334,19 @@ const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDel
         className="w-full h-full relative"
         style={{
           background: slide.background || '#fff',
-          backgroundImage: slide.backgroundImage ? `url(${slide.backgroundImage})` : undefined,
-          backgroundSize: slide.backgroundImage ? 'cover' : undefined,
-          backgroundPosition: slide.backgroundImage ? 'center' : undefined,
         }}
       >
+        {/* Background Image Layer - rendered as img like main canvas */}
+        {slide.backgroundImage && (
+          <img
+            src={getThumbAssetUrl(slide.backgroundImage)}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            style={{ zIndex: 0, opacity: slide.backgroundOpacity != null ? slide.backgroundOpacity : 1 }}
+            loading="lazy"
+            draggable={false}
+          />
+        )}
         {/* Render miniature slide elements */}
         {hasElements && (
           <div
