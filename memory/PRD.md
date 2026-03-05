@@ -143,6 +143,13 @@ backend/
   - MediaConfigPanel: Seletor de tema na tela "Editar Mídia" auto-preenche bgConfig com cores do template
   - `_apply_design_token_to_slide()`: helper que atualiza headers, fontes, backgrounds e corner radius
   - Testes: 13/13 backend + all frontend flows (iteration_61)
+- **Bug Fix: Contraste de Texto nos Templates (2026-03-05)**:
+  - Problema: texto claro em fundos claros ficava invisível após aplicar template
+  - Correção: `_apply_design_token_to_slide` agora atualiza TODAS as cores de texto (branco em fundos escuros, escuro em fundos claros)
+  - `_is_light_color()`: detecta luminância do fundo para escolher cor de texto adequada
+  - Detecção inteligente de tipo de slide por keywords no título (capa, quiz, resumo)
+  - Detecção de header bars tolerante (width >= 1700)
+  - Testes: 17/17 backend, 0 problemas de contraste em todos os 6 templates (iteration_62)
 
 ## Prioritized Backlog
 ### P1 - URGENT
