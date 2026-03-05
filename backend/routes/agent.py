@@ -452,10 +452,14 @@ async def agent_set_media_config(session_id: str, data: dict):
 
 @router.post("/agent/sessions/{session_id}/apply-media-changes")
 async def apply_media_changes(session_id: str, data: dict):
-    """Apply media config changes (backgrounds, animations, text color) to an existing project."""
+    """Apply media config changes (backgrounds, animations, text color) to an existing project.
+    Supports changedSlides parameter to only update specific slides."""
     project_id = data.get("projectId")
     if not project_id:
         raise HTTPException(400, "projectId is required")
+
+    # changedSlides: list of slide indices that were modified, or None for all
+    changed_slides = data.get("changedSlides")  # None = apply to all, [] = none, [0,2,5] = specific
 
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
@@ -475,6 +479,10 @@ async def apply_media_changes(session_id: str, data: dict):
     updated_count = 0
 
     for i, slide in enumerate(slides):
+        # Skip slides that were not changed (if changedSlides is specified)
+        if changed_slides is not None and i not in changed_slides:
+            continue
+
         changed = False
         idx_str = str(i)
 

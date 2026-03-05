@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
@@ -91,6 +91,9 @@ export default function Agent() {
   const [globalFontSize, setGlobalFontSize] = useState('');
   const [globalAnimation, setGlobalAnimation] = useState('');
   const [editMediaProjectId, setEditMediaProjectId] = useState(null);
+  // Track original configs for smart edit (only apply changed slides)
+  const [originalMediaConfig, setOriginalMediaConfig] = useState(null);
+  const [originalBgConfig, setOriginalBgConfig] = useState(null);
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -138,6 +141,8 @@ export default function Agent() {
         setStoryboard(session.storyboard);
         setMediaConfig(session.mediaConfig || {});
         setBgConfig(session.bgConfig || {});
+        setOriginalMediaConfig(JSON.parse(JSON.stringify(session.mediaConfig || {})));
+        setOriginalBgConfig(JSON.parse(JSON.stringify(session.bgConfig || {})));
         setGlobalTextColor(session.globalTextColor || '');
         setGlobalFontSize(session.globalFontSize || '');
         setGlobalAnimation(session.globalAnimation || '');
@@ -386,12 +391,34 @@ export default function Agent() {
       });
       if (!saveRes.ok) throw new Error('Falha ao salvar configuração de mídia');
 
-      // If editing existing project, apply changes without regenerating
+      // If editing existing project, detect changed slides and apply only those
       if (editMediaProjectId) {
-        addChatMsg('agent', 'Aplicando alterações ao projeto existente...');
+        // Compute changed slide indices
+        const changedSlides = [];
+        const allKeys = new Set([
+          ...Object.keys(enrichedConfig),
+          ...Object.keys(originalMediaConfig || {}),
+          ...Object.keys(bgConfig),
+          ...Object.keys(originalBgConfig || {}),
+        ]);
+        for (const key of allKeys) {
+          const mcChanged = JSON.stringify(enrichedConfig[key] || {}) !== JSON.stringify((originalMediaConfig || {})[key] || {});
+          const bgChanged = JSON.stringify((bgConfig || {})[key] || {}) !== JSON.stringify((originalBgConfig || {})[key] || {});
+          if (mcChanged || bgChanged) changedSlides.push(parseInt(key, 10));
+        }
+        // Also add if global settings changed (affects all slides)
+        const hasGlobalChanges = !!globalTextColor || !!globalFontSize || !!globalAnimation;
+
+        addChatMsg('agent', hasGlobalChanges
+          ? 'Aplicando alterações globais ao projeto...'
+          : `Aplicando alterações em ${changedSlides.length} slide(s) modificado(s)...`);
+
         const res = await fetch(`${API}/api/agent/sessions/${sessionId}/apply-media-changes`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: editMediaProjectId }),
+          body: JSON.stringify({
+            projectId: editMediaProjectId,
+            changedSlides: hasGlobalChanges ? null : changedSlides,
+          }),
         });
         if (!res.ok) throw new Error('Falha ao aplicar alterações');
         const data = await res.json();
@@ -618,7 +645,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -1192,7 +1219,7 @@ const GRADIENT_DIRECTIONS = [
   { id: 'to top left', label: '↖' },
 ];
 
-function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides }) {
+function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, isGlobal }) {
   const bg = bgConfig[String(slideIndex)] || { type: 'default' };
 
   const updateBg = (patch) => {
@@ -1259,14 +1286,16 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides })
         <span className="text-xs font-medium text-cyan-300">Fundo</span>
         {/* Mini preview */}
         <div className="w-8 h-5 rounded border border-slate-600 shrink-0" style={previewStyle} />
-        <div className="ml-auto flex gap-1">
-          <button onClick={applyToAll} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 px-1" title="Aplicar a todos">
-            Todos
-          </button>
-          <button onClick={() => applyToType(allSlides[slideIndex]?.type || 'content')} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 px-1" title="Aplicar ao mesmo tipo">
-            Tipo
-          </button>
-        </div>
+        {!isGlobal && (
+          <div className="ml-auto flex gap-1">
+            <button onClick={applyToAll} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 px-1" title="Aplicar a todos">
+              Todos
+            </button>
+            <button onClick={() => applyToType(allSlides[slideIndex]?.type || 'content')} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 px-1" title="Aplicar ao mesmo tipo">
+              Tipo
+            </button>
+          </div>
+        )}
       </div>
 
       <Tabs value={bg.type || 'default'} onValueChange={(v) => updateBg({ type: v })} className="w-full">
@@ -1416,7 +1445,7 @@ const NARRATION_STYLES = [
   { id: 'friendly', label: 'Amigável' },
 ];
 
-function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfig }) {
+function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfig, isEditMode, changedSlideCount }) {
   const [estimate, setEstimate] = useState(null);
   const [loadingEstimate, setLoadingEstimate] = useState(false);
 
@@ -1435,6 +1464,31 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
 
   const customBgCount = Object.values(bgConfig || {}).filter(b => b.type && b.type !== 'default').length;
 
+  // In edit mode, scale costs by ratio of changed slides to total
+  const getEditScaledEstimate = () => {
+    if (!estimate || !isEditMode || changedSlideCount == null) return estimate;
+    const total = estimate.totalSlides || 1;
+    const ratio = Math.min(changedSlideCount / total, 1);
+    return {
+      ...estimate,
+      totalSlides: changedSlideCount,
+      aiImages: Math.round(estimate.aiImages * ratio),
+      costs: {
+        text: Math.round(estimate.costs.text * ratio * 1000) / 1000,
+        images: Math.round(estimate.costs.images * ratio * 1000) / 1000,
+        narration: Math.round(estimate.costs.narration * ratio * 1000) / 1000,
+        total: Math.round(estimate.costs.total * ratio * 1000) / 1000,
+      },
+      comparison: {
+        ...estimate.comparison,
+        oldTotal: Math.round(estimate.comparison.oldTotal * ratio * 1000) / 1000,
+        newTotal: Math.round(estimate.costs.total * ratio * 1000) / 1000,
+        savingsPercent: estimate.comparison.savingsPercent,
+      },
+    };
+  };
+  const displayEstimate = isEditMode ? getEditScaledEstimate() : estimate;
+
   return (
     <Card className="bg-slate-900/50 border-emerald-800/30" data-testid="cost-estimate-card">
       <CardContent className="p-4 space-y-3">
@@ -1447,6 +1501,14 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
           </button>
         </div>
 
+        {isEditMode && changedSlideCount != null && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <Badge className="bg-blue-600/20 text-blue-300">
+              {changedSlideCount} slide(s) modificado(s) de {estimate?.totalSlides || '?'}
+            </Badge>
+          </div>
+        )}
+
         {/* Media summary badges */}
         <div className="flex flex-wrap gap-2 text-xs">
           {aiCount > 0 && <Badge className="bg-emerald-600/20 text-emerald-300"><Image className="w-3 h-3 mr-1" />{aiCount} Imagens IA</Badge>}
@@ -1455,46 +1517,46 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
           {customBgCount > 0 && <Badge className="bg-cyan-600/20 text-cyan-300"><Palette className="w-3 h-3 mr-1" />{customBgCount} Fundos</Badge>}
         </div>
 
-        {estimate && (
+        {displayEstimate && (
           <div className="space-y-2">
             {/* Cost breakdown */}
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-slate-800/60 rounded-lg p-2">
                 <p className="text-[10px] text-slate-400">Texto (IA)</p>
-                <p className="text-sm font-bold text-slate-200">${estimate.costs.text.toFixed(3)}</p>
-                <p className="text-[9px] text-cyan-400/60">{estimate.models.text}</p>
+                <p className="text-sm font-bold text-slate-200">${displayEstimate.costs.text.toFixed(3)}</p>
+                <p className="text-[9px] text-cyan-400/60">{displayEstimate.models.text}</p>
               </div>
               <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[10px] text-slate-400">Imagens ({estimate.aiImages})</p>
-                <p className="text-sm font-bold text-slate-200">${estimate.costs.images.toFixed(3)}</p>
-                <p className="text-[9px] text-cyan-400/60">{estimate.models.images}</p>
+                <p className="text-[10px] text-slate-400">Imagens ({displayEstimate.aiImages})</p>
+                <p className="text-sm font-bold text-slate-200">${displayEstimate.costs.images.toFixed(3)}</p>
+                <p className="text-[9px] text-cyan-400/60">{displayEstimate.models.images}</p>
               </div>
               <div className="bg-slate-800/60 rounded-lg p-2">
                 <p className="text-[10px] text-slate-400">Narração</p>
-                <p className="text-sm font-bold text-slate-200">${estimate.costs.narration.toFixed(3)}</p>
-                <p className="text-[9px] text-cyan-400/60">{estimate.models.narration}</p>
+                <p className="text-sm font-bold text-slate-200">${displayEstimate.costs.narration.toFixed(3)}</p>
+                <p className="text-[9px] text-cyan-400/60">{displayEstimate.models.narration}</p>
               </div>
             </div>
 
             {/* Total and savings */}
             <div className="flex items-center justify-between bg-emerald-900/20 border border-emerald-800/30 rounded-lg px-3 py-2">
               <div>
-                <p className="text-xs text-slate-400">Custo estimado total</p>
-                <p className="text-lg font-bold text-emerald-300">${estimate.costs.total.toFixed(3)}</p>
+                <p className="text-xs text-slate-400">{isEditMode ? 'Custo dos slides modificados' : 'Custo estimado total'}</p>
+                <p className="text-lg font-bold text-emerald-300">${displayEstimate.costs.total.toFixed(3)}</p>
               </div>
-              {estimate.comparison.savingsPercent > 0 && (
+              {displayEstimate.comparison.savingsPercent > 0 && (
                 <div className="text-right">
                   <Badge className="bg-emerald-600/30 text-emerald-300 text-xs">
                     <TrendingUp className="w-3 h-3 mr-1" />
-                    {estimate.comparison.savingsPercent}% economia
+                    {displayEstimate.comparison.savingsPercent}% economia
                   </Badge>
-                  <p className="text-[10px] text-slate-500 mt-0.5 line-through">${estimate.comparison.oldTotal.toFixed(3)} (GPT-5.2)</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 line-through">${displayEstimate.comparison.oldTotal.toFixed(3)} (GPT-5.2)</p>
                 </div>
               )}
             </div>
 
             <p className="text-[10px] text-slate-500 text-center">
-              {estimate.totalSlides} slides | {estimate.storyboardBatches} batches | Gemini 3 Flash + Nano Banana
+              {displayEstimate.totalSlides} slides | {displayEstimate.storyboardBatches || Math.ceil(displayEstimate.totalSlides / 4)} batches | Gemini 3 Flash + Nano Banana
             </p>
           </div>
         )}
@@ -1503,7 +1565,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1585,6 +1647,22 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
 
   const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
   const narrationReady = narrationCount === 0 || narrationVoiceId;
+
+  // Compute changed slides count in edit mode
+  const changedSlideCount = useMemo(() => {
+    if (!isEditMode || !originalMediaConfig) return null;
+    const allKeys = new Set([
+      ...Object.keys(mediaConfig), ...Object.keys(originalMediaConfig || {}),
+      ...Object.keys(bgConfig), ...Object.keys(originalBgConfig || {}),
+    ]);
+    let count = 0;
+    for (const key of allKeys) {
+      const mcChanged = JSON.stringify(mediaConfig[key] || {}) !== JSON.stringify((originalMediaConfig || {})[key] || {});
+      const bgChanged = JSON.stringify((bgConfig || {})[key] || {}) !== JSON.stringify((originalBgConfig || {})[key] || {});
+      if (mcChanged || bgChanged) count++;
+    }
+    return count;
+  }, [isEditMode, mediaConfig, bgConfig, originalMediaConfig, originalBgConfig]);
 
   // Toggle narration for a slide
   const toggleSlideNarration = (idx, enabled) => {
@@ -2076,6 +2154,40 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         </Card>
       )}
 
+      {/* Global Background Control - Apply to ALL slides at once */}
+      <Card className="bg-gradient-to-br from-cyan-900/30 to-slate-900/50 border-cyan-700/30">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-semibold text-cyan-300">Fundo Global</span>
+              <Badge variant="outline" className="text-[9px] border-cyan-600/40 text-cyan-400">Todos os Slides</Badge>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400">Aplicar o mesmo fundo a todos os slides de uma vez</p>
+          <SlideBackgroundPicker
+            slideIndex="__global__"
+            bgConfig={bgConfig}
+            setBgConfig={(fn) => {
+              const globalBg = typeof fn === 'function' ? fn(bgConfig)['__global__'] : fn['__global__'];
+              if (globalBg) {
+                setBgConfig(() => {
+                  const newConfig = {};
+                  const totalSlides = storyboard?.slides?.length || 0;
+                  for (let i = 0; i < totalSlides; i++) {
+                    newConfig[String(i)] = { ...globalBg };
+                  }
+                  return newConfig;
+                });
+                toast.success(`Fundo aplicado a todos os ${storyboard?.slides?.length || 0} slides!`);
+              }
+            }}
+            allSlides={storyboard?.slides || []}
+            isGlobal
+          />
+        </CardContent>
+      </Card>
+
       {/* Per-slide config - ALL slides for background, content slides for media */}
       <div className="space-y-3">
         {(storyboard?.slides || []).map((slide, idx) => {
@@ -2384,7 +2496,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
       </div>
 
       {/* Summary & Cost Estimate */}
-      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} />
+      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} isEditMode={isEditMode} changedSlideCount={changedSlideCount} />
 
       {(!heygenReady || !narrationReady) && !loading && (
         <p className="text-xs text-amber-400/80 text-center">
