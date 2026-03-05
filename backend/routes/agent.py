@@ -593,6 +593,34 @@ async def apply_media_changes(session_id: str, data: dict):
             except Exception as e:
                 logger.error(f"Failed to generate AI image for slide {i}: {e}")
 
+        elif media_type == "gallery_image":
+            # Use a pre-existing image from the gallery
+            gallery_url = mc.get("galleryImageUrl", "")
+            if gallery_url:
+                img_found = False
+                for el in slide.get("elements", []):
+                    if el.get("type") == "image":
+                        el["src"] = gallery_url
+                        el["content"] = gallery_url
+                        img_found = True
+                        break
+                if not img_found:
+                    from models import generate_id
+                    slide.setdefault("elements", [])
+                    slide["elements"].append({
+                        "id": generate_id(), "type": "image",
+                        "x": 1160, "y": 90, "width": 700, "height": 440,
+                        "src": gallery_url, "content": gallery_url,
+                        "style": {"borderRadius": "12px"}, "startTime": 0,
+                        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+                    })
+                    for el in slide.get("elements", []):
+                        if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                            el["width"] = 1050
+                            el["x"] = 60
+                changed = True
+                logger.info(f"Gallery image applied to slide {i}: {gallery_url}")
+
         elif media_type in ("youtube", "vimeo"):
             video_url = mc.get("url", "")
             if video_url:
@@ -916,7 +944,8 @@ async def agent_generate_course(session_id: str):
                 session_id, _s["storyboard"], config,
                 project_dir=str(PROJECTS_DIR), project_id=project.id,
                 media_config=media_config, bg_config=bg_config,
-                global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation
+                global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation,
+                design_template_id=config.get("designTemplateId", "")
             ))
 
             loop.run_until_complete(_db.agent_sessions.update_one(
@@ -1625,6 +1654,14 @@ async def agent_list_templates():
     """List available course templates."""
     from services.ai_agent import get_templates
     return get_templates()
+
+
+@router.get("/agent/design-templates")
+async def agent_list_design_templates():
+    """List available visual/design templates for course styling."""
+    from services.ai_agent import get_design_templates
+    return get_design_templates()
+
 
 
 @router.post("/agent/sessions/{session_id}/generate-structure-from-template")

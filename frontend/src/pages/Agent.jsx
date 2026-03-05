@@ -84,6 +84,8 @@ export default function Agent() {
   const [generatedProject, setGeneratedProject] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [designTemplates, setDesignTemplates] = useState([]);
+  const [selectedDesignTemplate, setSelectedDesignTemplate] = useState(null);
   const [mediaConfig, setMediaConfig] = useState({});
   const [heygenConfig, setHeygenConfig] = useState({ avatarId: '', voiceId: '' });
   const [bgConfig, setBgConfig] = useState({});
@@ -165,6 +167,10 @@ export default function Agent() {
     fetch(`${API}/api/agent/templates`)
       .then(r => r.json())
       .then(setTemplates)
+      .catch(() => {});
+    fetch(`${API}/api/agent/design-templates`)
+      .then(r => r.json())
+      .then(setDesignTemplates)
       .catch(() => {});
   }, []);
 
@@ -263,8 +269,10 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', selectedTemplate ? `Gerando estrutura usando template "${selectedTemplate.name}"...` : 'Gerando a estrutura pedagógica...');
     try {
+      const configToSend = { ...config };
+      if (selectedDesignTemplate) configToSend.designTemplateId = selectedDesignTemplate.id;
       await fetch(`${API}/api/agent/sessions/${sessionId}/configure`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(configToSend),
       });
       const body = selectedTemplate ? { templateId: selectedTemplate.id } : {};
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-structure`, {
@@ -642,10 +650,10 @@ export default function Agent() {
               {/* CREATE MODE */}
               {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
-              {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />}
+              {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} />}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -886,7 +894,7 @@ function AnalyzePanel({ analysis, loading, onAnalyze }) {
   );
 }
 
-function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templates, selectedTemplate, setSelectedTemplate }) {
+function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templates, selectedTemplate, setSelectedTemplate, designTemplates, selectedDesignTemplate, setSelectedDesignTemplate }) {
   const update = (k, v) => setConfig(prev => ({ ...prev, [k]: v }));
   const [elVoices, setElVoices] = useState([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
@@ -948,6 +956,43 @@ function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templat
             <p className="text-xs text-emerald-400/70">
               <Zap className="w-3 h-3 inline mr-1" />
               Template "{selectedTemplate.name}" selecionado - configuração ajustada automaticamente
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Design Template (Visual Theme) Selection */}
+      {designTemplates.length > 0 && (
+        <div className="space-y-2">
+          <label className="text-xs text-slate-400 block flex items-center gap-1"><Palette className="w-3 h-3" /> Tema Visual</label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2" data-testid="design-template-grid">
+            {designTemplates.map(dt => {
+              const isSelected = selectedDesignTemplate?.id === dt.id;
+              return (
+                <button
+                  key={dt.id}
+                  onClick={() => setSelectedDesignTemplate(isSelected ? null : dt)}
+                  className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-all text-sm ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-600/10 ring-1 ring-emerald-500/30'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                  data-testid={`design-template-${dt.id}`}
+                >
+                  <div className="w-8 h-8 rounded-lg shrink-0" style={{ background: dt.preview }} />
+                  <div className="min-w-0">
+                    <p className="font-medium text-xs truncate">{dt.name}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{dt.description}</p>
+                  </div>
+                  {isSelected && <Check className="w-4 h-4 text-emerald-400 shrink-0 ml-auto" />}
+                </button>
+              );
+            })}
+          </div>
+          {selectedDesignTemplate && (
+            <p className="text-xs text-emerald-400/70">
+              <Palette className="w-3 h-3 inline mr-1" />
+              Tema "{selectedDesignTemplate.name}" será aplicado aos slides
             </p>
           )}
         </div>
@@ -1429,6 +1474,7 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, i
 
 const MEDIA_TYPES = [
   { id: 'ai_image', label: 'Imagem IA', description: 'Fotorealista gerada por IA', icon: Image, color: 'emerald' },
+  { id: 'gallery_image', label: 'Da Galeria', description: 'Reutilizar imagem existente', icon: ImagePlus, color: 'amber' },
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
   { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
   { id: 'heygen', label: 'Avatar HeyGen', description: 'Vídeo com avatar IA', icon: UserCircle, color: 'purple' },
@@ -1565,7 +1611,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
   );
 }
 
-function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig }) {
+function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1573,6 +1619,8 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewVideoId, setPreviewVideoId] = useState(null);
+  const [showGallery, setShowGallery] = useState(false);
+  const [gallerySlideIndex, setGallerySlideIndex] = useState(null);
 
   // ElevenLabs narration state - restore voiceId from existing mediaConfig when editing
   const [elVoices, setElVoices] = useState([]);
@@ -2194,7 +2242,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
           const isContent = slide.type === 'content';
           const mc = mediaConfig[String(idx)] || { type: 'ai_image' };
           const borderColor = !isContent ? 'border-slate-700/50'
-            : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : 'border-slate-700';
+            : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'gallery_image' ? 'border-amber-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : 'border-slate-700';
           const typeLabel = { title: 'Capa', content: 'Conteúdo', quiz: 'Quiz', summary: 'Resumo' };
           const typeColor = { title: 'text-blue-400 border-blue-500/40', content: 'text-slate-400 border-slate-600', quiz: 'text-amber-400 border-amber-500/40', summary: 'text-purple-400 border-purple-500/40' };
 
@@ -2231,6 +2279,7 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                           const isActive = mc.type === mt.id;
                           const bgColors = {
                             emerald: 'bg-emerald-600/15 border-emerald-500 text-emerald-300',
+                            amber: 'bg-amber-600/15 border-amber-500 text-amber-300',
                             red: 'bg-red-600/15 border-red-500 text-red-300',
                             blue: 'bg-blue-600/15 border-blue-500 text-blue-300',
                             purple: 'bg-purple-600/15 border-purple-500 text-purple-300',
@@ -2242,7 +2291,14 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                           return (
                             <button
                               key={mt.id}
-                              onClick={() => updateSlideMedia(idx, mt.id, '')}
+                              onClick={() => {
+                                if (mt.id === 'gallery_image') {
+                                  setGallerySlideIndex(idx);
+                                  setShowGallery(true);
+                                } else {
+                                  updateSlideMedia(idx, mt.id, '');
+                                }
+                              }}
                               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${
                                 isActive ? bgColors[mt.color] : 'border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400'
                               }`}
@@ -2273,6 +2329,22 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
                         <Sparkles className="w-3 h-3 inline mr-1" />
                         Será gerada imagem sobre: {slide.imageKeywords}
                       </p>
+                    )}
+
+                    {/* Gallery image preview */}
+                    {mc.type === 'gallery_image' && mc.galleryImageUrl && (
+                      <div className="flex items-center gap-3 p-2 bg-amber-900/10 rounded-lg border border-amber-700/30">
+                        <img src={mc.galleryImageUrl.startsWith('/') ? `${API}${mc.galleryImageUrl}` : mc.galleryImageUrl} alt="" className="w-16 h-12 object-cover rounded" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-amber-300 truncate">{mc.galleryKeywords || 'Imagem da galeria'}</p>
+                          <button onClick={() => { setGallerySlideIndex(idx); setShowGallery(true); }} className="text-[10px] text-amber-400/70 hover:text-amber-300 underline">Trocar imagem</button>
+                        </div>
+                      </div>
+                    )}
+                    {mc.type === 'gallery_image' && !mc.galleryImageUrl && (
+                      <button onClick={() => { setGallerySlideIndex(idx); setShowGallery(true); }} className="text-[11px] text-amber-400/70 hover:text-amber-300 flex items-center gap-1">
+                        <ImagePlus className="w-3 h-3" /> Clique para selecionar da galeria
+                      </button>
                     )}
 
                     {/* HeyGen info */}
@@ -2508,6 +2580,108 @@ function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, on
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isEditMode ? <Check className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
         {isEditMode ? 'Aplicar Alterações ao Projeto' : 'Confirmar Mídia e Gerar Curso'}
       </Button>
+
+      {/* Image Gallery Modal */}
+      {showGallery && (
+        <ImageGalleryModal
+          onClose={() => setShowGallery(false)}
+          onSelect={(img) => {
+            if (gallerySlideIndex !== null) {
+              updateSlideMedia(gallerySlideIndex, 'gallery_image', '', {
+                galleryImageUrl: img.imageUrl,
+                galleryKeywords: img.keywords,
+                galleryImageId: img.id,
+              });
+            }
+            setShowGallery(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+function ImageGalleryModal({ onClose, onSelect }) {
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API}/api/gallery/images`)
+      .then(r => r.json())
+      .then(data => setImages(data.images || []))
+      .catch(() => toast.error('Erro ao carregar galeria'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = search
+    ? images.filter(img =>
+        (img.keywords || '').toLowerCase().includes(search.toLowerCase()) ||
+        (img.projectName || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : images;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="gallery-modal">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-slate-800">
+          <h3 className="text-base font-semibold flex items-center gap-2">
+            <ImagePlus className="w-5 h-5 text-amber-400" />
+            Galeria de Imagens
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-4 border-b border-slate-800">
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por palavras-chave ou projeto..."
+            className="bg-slate-800 border-slate-700"
+            data-testid="gallery-search"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <ImagePlus className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">{images.length === 0 ? 'Nenhuma imagem na galeria ainda.' : 'Nenhuma imagem encontrada.'}</p>
+              <p className="text-xs mt-1 text-slate-500">{images.length === 0 ? 'As imagens geradas por IA serão salvas aqui automaticamente.' : 'Tente outra busca.'}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {filtered.map(img => (
+                <button
+                  key={img.id}
+                  onClick={() => onSelect(img)}
+                  className="group relative rounded-lg overflow-hidden border border-slate-700 hover:border-amber-500 transition-all aspect-[4/3]"
+                  data-testid={`gallery-image-${img.id}`}
+                >
+                  <img
+                    src={img.imageUrl.startsWith('/') ? `${API}${img.imageUrl}` : img.imageUrl}
+                    alt={img.keywords || ''}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
+                    <p className="text-[10px] text-white/90 truncate">{img.keywords || 'Sem palavras-chave'}</p>
+                    <p className="text-[9px] text-white/50 truncate">{img.projectName || ''}</p>
+                  </div>
+                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="bg-amber-500 text-black rounded-full p-1"><Check className="w-3 h-3" /></div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="p-3 border-t border-slate-800 text-center">
+          <p className="text-[10px] text-slate-500">{filtered.length} de {images.length} imagens</p>
+        </div>
+      </div>
     </div>
   );
 }

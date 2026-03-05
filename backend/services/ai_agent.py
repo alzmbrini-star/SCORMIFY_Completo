@@ -356,15 +356,84 @@ PARA TODOS OS SLIDES:
 
 # ========== VISUAL COURSE GENERATION ==========
 
-# Professional color palettes for course themes
-_COURSE_PALETTES = [
-    {"primary": "#0f172a", "accent": "#10b981", "accentLight": "#d1fae5", "contentBg": "#f0fdf4", "text": "#1e293b"},
-    {"primary": "#1e1b4b", "accent": "#8b5cf6", "accentLight": "#ede9fe", "contentBg": "#f5f3ff", "text": "#1e293b"},
-    {"primary": "#172554", "accent": "#3b82f6", "accentLight": "#dbeafe", "contentBg": "#eff6ff", "text": "#1e293b"},
-    {"primary": "#14532d", "accent": "#22c55e", "accentLight": "#dcfce7", "contentBg": "#f0fdf4", "text": "#1e293b"},
-    {"primary": "#7f1d1d", "accent": "#ef4444", "accentLight": "#fee2e2", "contentBg": "#fef2f2", "text": "#1e293b"},
-    {"primary": "#78350f", "accent": "#f59e0b", "accentLight": "#fef3c7", "contentBg": "#fffbeb", "text": "#1e293b"},
+# ========== DESIGN TEMPLATES (Visual Themes) ==========
+
+DESIGN_TEMPLATES = [
+    {
+        "id": "corporativo",
+        "name": "Corporativo Clássico",
+        "description": "Profissional e elegante, ideal para treinamentos empresariais",
+        "preview": "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
+        "palette": {"primary": "#0f172a", "accent": "#c9a227", "accentLight": "#fef3c7", "contentBg": "#f8fafc", "text": "#1e293b"},
+        "fonts": {"heading": "'Georgia', 'Times New Roman', serif", "body": "'Inter', sans-serif"},
+        "headerStyle": "solid",
+        "cornerRadius": "4px",
+    },
+    {
+        "id": "educacional",
+        "name": "Educacional Moderno",
+        "description": "Acolhedor e didático, perfeito para cursos de capacitação",
+        "preview": "linear-gradient(135deg, #065f46 0%, #10b981 100%)",
+        "palette": {"primary": "#065f46", "accent": "#10b981", "accentLight": "#d1fae5", "contentBg": "#f0fdf4", "text": "#1e293b"},
+        "fonts": {"heading": "'Nunito', 'Segoe UI', sans-serif", "body": "'Nunito', sans-serif"},
+        "headerStyle": "rounded",
+        "cornerRadius": "12px",
+    },
+    {
+        "id": "minimalista",
+        "name": "Minimalista",
+        "description": "Limpo e focado, com bastante espaço em branco",
+        "preview": "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+        "palette": {"primary": "#334155", "accent": "#64748b", "accentLight": "#f1f5f9", "contentBg": "#ffffff", "text": "#334155"},
+        "fonts": {"heading": "'Outfit', 'Helvetica Neue', sans-serif", "body": "'Outfit', sans-serif"},
+        "headerStyle": "minimal",
+        "cornerRadius": "2px",
+    },
+    {
+        "id": "tech",
+        "name": "Tech & Inovação",
+        "description": "Moderno e futurista, ideal para TI e tecnologia",
+        "preview": "linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%)",
+        "palette": {"primary": "#0a0a0a", "accent": "#06b6d4", "accentLight": "#164e63", "contentBg": "#111827", "text": "#e2e8f0"},
+        "fonts": {"heading": "'JetBrains Mono', 'Fira Code', monospace", "body": "'Inter', sans-serif"},
+        "headerStyle": "neon",
+        "cornerRadius": "8px",
+    },
+    {
+        "id": "criativo",
+        "name": "Criativo Bold",
+        "description": "Ousado e vibrante, para conteúdos dinâmicos",
+        "preview": "linear-gradient(135deg, #4c1d95 0%, #ec4899 100%)",
+        "palette": {"primary": "#4c1d95", "accent": "#ec4899", "accentLight": "#fce7f3", "contentBg": "#fdf4ff", "text": "#1e293b"},
+        "fonts": {"heading": "'Poppins', 'Montserrat', sans-serif", "body": "'Poppins', sans-serif"},
+        "headerStyle": "gradient",
+        "cornerRadius": "16px",
+    },
+    {
+        "id": "elegante",
+        "name": "Elegante Premium",
+        "description": "Sofisticado e refinado, para apresentações de alto nível",
+        "preview": "linear-gradient(135deg, #1c1917 0%, #78350f 100%)",
+        "palette": {"primary": "#1c1917", "accent": "#d97706", "accentLight": "#fef3c7", "contentBg": "#fefce8", "text": "#292524"},
+        "fonts": {"heading": "'Playfair Display', 'Georgia', serif", "body": "'Lato', 'Helvetica', sans-serif"},
+        "headerStyle": "elegant",
+        "cornerRadius": "6px",
+    },
 ]
+
+def get_design_templates():
+    """Return available design templates for the frontend."""
+    return DESIGN_TEMPLATES
+
+def get_design_template_by_id(template_id: str) -> dict:
+    """Get a specific design template, or return default (educacional)."""
+    for t in DESIGN_TEMPLATES:
+        if t["id"] == template_id:
+            return t
+    return DESIGN_TEMPLATES[1]  # default: educacional
+
+# Legacy palettes (kept for backward compatibility, mapped from design templates)
+_COURSE_PALETTES = [t["palette"] for t in DESIGN_TEMPLATES]
 
 
 async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
@@ -406,11 +475,51 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
             except Exception as e:
                 logger.warning(f"Failed to persist AI image in MongoDB (non-fatal): {e}")
             
-            return f"/api/projects/{project_id}/assets/{fname}"
+            # Auto-save to image gallery
+            img_url = f"/api/projects/{project_id}/assets/{fname}"
+            import asyncio as _asyncio
+            try:
+                _asyncio.ensure_future(_auto_save_gallery(img_url, keyword, project_id))
+            except Exception:
+                pass
+            
+            return img_url
     except Exception as e:
         logger.warning(f"AI image generation failed for '{keyword}': {str(e)[:80]}")
     # Fallback to picsum
     return await _fetch_picsum_image(keyword, project_dir, project_id)
+
+
+async def _auto_save_gallery(image_url: str, keywords: str, project_id: str):
+    """Auto-save generated image to gallery (fire-and-forget)."""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _mongo_url = os.environ.get('MONGO_URL', '')
+        _db_name = os.environ.get('DB_NAME', '')
+        if not _mongo_url or not _db_name:
+            return
+        _client = AsyncIOMotorClient(_mongo_url)
+        _db = _client[_db_name]
+        existing = await _db.image_gallery.find_one({"imageUrl": image_url})
+        if not existing:
+            # Get project info for context
+            project = await _db.projects.find_one({"id": project_id}, {"_id": 0, "name": 1, "userId": 1, "companyId": 1})
+            doc = {
+                "_id": str(uuid.uuid4()),
+                "id": str(uuid.uuid4()),
+                "imageUrl": image_url,
+                "keywords": keywords,
+                "projectId": project_id,
+                "projectName": project.get("name", "") if project else "",
+                "userId": project.get("userId", "") if project else "",
+                "companyId": project.get("companyId", "") if project else "",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            }
+            await _db.image_gallery.insert_one(doc)
+            logger.info(f"Image auto-saved to gallery: {image_url}")
+        _client.close()
+    except Exception as e:
+        logger.warning(f"Gallery auto-save failed (non-fatal): {e}")
 
 
 async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
@@ -477,15 +586,18 @@ def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_
                 subtitle = p_match.group(1).strip()
                 break
 
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
+    font_body = palette.get("fontBody", "'Inter', sans-serif")
+
     title_html = f'''<div style="text-align:center;padding:20px;">
-<h1 style="font-size:48px;font-weight:800;color:#ffffff;margin:0 0 20px 0;line-height:1.2;">{title_text}</h1>
-{f'<p style="font-size:20px;color:rgba(255,255,255,0.75);margin:0 0 30px 0;max-width:900px;margin-left:auto;margin-right:auto;line-height:1.5;">{subtitle}</p>' if subtitle else ''}
+<h1 style="font-family:{font_heading};font-size:48px;font-weight:800;color:#ffffff;margin:0 0 20px 0;line-height:1.2;">{title_text}</h1>
+{f'<p style="font-family:{font_body};font-size:20px;color:rgba(255,255,255,0.75);margin:0 0 30px 0;max-width:900px;margin-left:auto;margin-right:auto;line-height:1.5;">{subtitle}</p>' if subtitle else ''}
 <div style="width:80px;height:4px;background:{accent};margin:0 auto 30px auto;border-radius:2px;"></div>
 </div>'''
     elements.append({
         "id": generate_id(), "type": "html", "x": 160, "y": 120, "width": 1600, "height": 400,
         "htmlContent": title_html,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.6, "delay": 0}],
     })
 
@@ -498,7 +610,7 @@ def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_
         elements.append({
             "id": generate_id(), "type": "html", "x": 160, "y": 540, "width": 1600, "height": 200,
             "htmlContent": modules_html,
-            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.4}],
         })
 
@@ -536,7 +648,7 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
         elements.append({
             "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1050, "height": 700,
             "htmlContent": styled_text,
-            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
         # Image on the right
@@ -558,7 +670,7 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
         elements.append({
             "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
             "htmlContent": styled_text,
-            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
 
@@ -592,7 +704,7 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     elements.append({
         "id": generate_id(), "type": "html", "x": 160, "y": 60, "width": 1600, "height": 200,
         "htmlContent": quiz_html,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -614,7 +726,7 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
             "id": generate_id(), "type": "quiz", "x": 260, "y": 280, "width": 1400, "height": 500,
             "content": "", "htmlContent": "",
             "quizConfig": quiz_config,
-            "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+            "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
         })
 
@@ -648,7 +760,7 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
     elements.append({
         "id": generate_id(), "type": "html", "x": 160, "y": 80, "width": 1600, "height": 700,
         "htmlContent": styled_text,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -749,7 +861,7 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
     elements.append({
         "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
         "htmlContent": styled_text,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -803,7 +915,7 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
     elements.append({
         "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
         "htmlContent": styled_text,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -838,7 +950,7 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
     elements.append({
         "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
         "htmlContent": styled_text,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -869,7 +981,7 @@ def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: 
     elements.append({
         "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 850, "height": 700,
         "htmlContent": styled_text,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -922,7 +1034,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
     elements.append({
         "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 560,
         "htmlContent": styled_text,
-        "style": {"fontFamily": "Inter, sans-serif"}, "startTime": 0,
+        "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
     })
 
@@ -952,7 +1064,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
 
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "") -> dict:
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "", design_template_id: str = "") -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
     from models import generate_id
     import hashlib
@@ -967,13 +1079,29 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     quiz_questions = []
     heygen_pending = []
 
-    # Select a color palette based on course title
-    title_hash = int(hashlib.md5(config.get("title", "curso").encode()).hexdigest()[:8], 16)
-    palette = _COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)]
+    # Get design template (new system) or fall back to legacy palette selection
+    design_token = None
+    if design_template_id:
+        design_token = get_design_template_by_id(design_template_id)
+    
+    if design_token:
+        palette = design_token["palette"]
+        font_heading = design_token["fonts"]["heading"]
+        font_body = design_token["fonts"]["body"]
+    else:
+        # Legacy: select palette by title hash
+        title_hash = int(hashlib.md5(config.get("title", "curso").encode()).hexdigest()[:8], 16)
+        palette = _COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)]
+        font_heading = "'Inter', sans-serif"
+        font_body = "'Inter', sans-serif"
 
     # Override text color with user's global choice
     if global_text_color:
         palette = {**palette, "text": global_text_color}
+
+    # Inject font info into palette for use by builder functions
+    palette["fontHeading"] = font_heading
+    palette["fontBody"] = font_body
 
     # Font size scale factor
     font_scale = int(global_font_size) / 100.0 if global_font_size else 1.0
@@ -1002,6 +1130,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 img_url = await _fetch_stock_image(kw, project_dir, project_id)
                 if img_url:
                     slide_media[i] = {"type": "image", "url": img_url}
+        elif media_type == "gallery_image":
+            gallery_url = mc.get("galleryImageUrl", "")
+            if gallery_url:
+                slide_media[i] = {"type": "image", "url": gallery_url}
         elif media_type in ("youtube", "vimeo"):
             video_url = mc.get("url", "")
             video_info = _parse_video_url(video_url)
