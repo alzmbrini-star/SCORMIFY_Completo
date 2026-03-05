@@ -1,0 +1,95 @@
+{
+  "summary": "Comprehensive regression testing completed after server.py refactoring (5740 -> 318 lines). Backend: 23/23 tests PASSED. Frontend: All pages load correctly (Login, Dashboard, Editor, Agent, Admin). All 14 route modules integrated properly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_refactored_endpoints.py",
+    "/app/test_reports/pytest/pytest_refactor_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_refactored_endpoints.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": {
+    "super_admin": {"email": "admin@scormify.com", "password": "admin123"}
+  },
+  "seed_data_creation": "None - used existing test project c7de35a7-0f1a-4270-86d4-703151b377e5",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend refactoring verified. All route modules working: auth, projects, course, questions, admin, agent, elevenlabs, vlibras, heygen, ai_gen, export, companies, users. Server.py is now 318 lines (orchestrator only), routes split into 14 modular files in /app/backend/routes/",
+  "features_tested": {
+    "backend_endpoints": {
+      "health_checks": {
+        "GET /health": "PASS - returns {status: healthy}",
+        "GET /api/health": "PASS - returns {status: healthy}",
+        "GET /api/": "PASS - returns API info"
+      },
+      "auth_routes": {
+        "POST /api/auth/login": "PASS - returns token + user for valid credentials",
+        "POST /api/auth/login (invalid)": "PASS - returns 401 for invalid credentials",
+        "GET /api/auth/me (with token)": "PASS - returns current user",
+        "GET /api/auth/me (no token)": "PASS - returns 401"
+      },
+      "project_routes": {
+        "GET /api/projects": "PASS - returns list of projects",
+        "GET /api/projects/{id}": "PASS - returns project with course data",
+        "GET /api/projects/non-existent": "PASS - returns 404"
+      },
+      "course_routes": {
+        "GET /api/course/{id}": "PASS - returns course data with slides",
+        "GET /api/course/non-existent": "PASS - returns 404"
+      },
+      "questions_routes": {
+        "GET /api/questions": "PASS - returns list of questions",
+        "GET /api/questions?project_id={id}": "PASS - filters by project"
+      },
+      "admin_routes": {
+        "GET /api/admin/tutor-settings": "PASS - returns tutor settings",
+        "GET /api/admin/reports": "PASS - returns company reports with auth",
+        "GET /api/admin/reports (no auth)": "PASS - returns 401"
+      },
+      "agent_routes": {
+        "GET /api/agent/check-access (with token)": "PASS - super_admin has access",
+        "GET /api/agent/check-access (no token)": "PASS - returns hasAccess: false"
+      },
+      "elevenlabs_routes": {
+        "GET /api/elevenlabs/voices": "PASS - returns voice list (API key configured)"
+      },
+      "vlibras_routes": {
+        "GET /api/vlibras-proxy-test": "PASS - returns HTML test page"
+      },
+      "asset_serving": {
+        "GET /api/projects/{id}/assets/{file}": "PASS - serves project assets"
+      }
+    },
+    "frontend_pages": {
+      "login_page": "PASS - Login form renders with email/password fields",
+      "dashboard": "PASS - Shows projects list, New Project, Import PPT, Agente IA buttons",
+      "editor": "PASS - Full editor with slide canvas, timeline, properties, LIBRAS panel",
+      "agent": "PASS - Shows Agente de Design Instrucional with Criar/Editar options",
+      "admin": "PASS - Shows tabs: Empresas, Usuários, Tutor IA, Relatórios with company list"
+    }
+  },
+  "route_modules_verified": [
+    "routes/auth.py - Authentication (login, logout, me, change-password)",
+    "routes/projects.py - Project CRUD, slides, elements, media, audio, annotations",
+    "routes/export.py - SCORM/HTML export",
+    "routes/heygen.py - HeyGen avatar video integration",
+    "routes/ai_gen.py - AI text/image generation",
+    "routes/questions.py - Quiz questions CRUD and generation",
+    "routes/elevenlabs.py - ElevenLabs TTS voices and speech",
+    "routes/admin.py - Admin reports and tutor settings",
+    "routes/agent.py - AI Instructional Design Agent",
+    "routes/vlibras.py - VLibras CORS proxy",
+    "routes/companies.py - Company management",
+    "routes/users.py - User management",
+    "routes/deps.py - Shared dependencies (db, paths, helpers)"
+  ]
+}
