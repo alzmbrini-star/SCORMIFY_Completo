@@ -137,6 +137,12 @@ backend/
   - Fonts applied in all HTML: headings use `fontHeading`, body uses `fontBody`
   - `cornerRadius` applied to image elements per template
   - Title slide dividers and module list badges vary per template style
+- **Templates no Editor Manual + Editar Mídia (2026-03-05)**:
+  - Editor: Botão "Aplicar Tema Visual" (Palette icon) na toolbar abre dialog com 6 templates
+  - Endpoint: `POST /api/projects/{id}/apply-design-template` aplica tema a todos os slides existentes
+  - MediaConfigPanel: Seletor de tema na tela "Editar Mídia" auto-preenche bgConfig com cores do template
+  - `_apply_design_token_to_slide()`: helper que atualiza headers, fontes, backgrounds e corner radius
+  - Testes: 13/13 backend + all frontend flows (iteration_61)
 
 ## Prioritized Backlog
 ### P1 - URGENT
