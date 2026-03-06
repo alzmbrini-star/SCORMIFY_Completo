@@ -787,11 +787,22 @@ async def get_heygen_credits(force_refresh: bool = False):
             data = response.json()
             quota_data = data.get("data", {})
             
+            # HeyGen API returns credits in different fields depending on plan type
+            # - remaining_quota: legacy/pay-as-you-go quota
+            # - details.plan_credit: credits available on subscription plans (Enterprise, etc.)
+            remaining_quota = quota_data.get("remaining_quota", 0)
+            details = quota_data.get("details", {})
+            plan_credit = details.get("plan_credit", 0)
+            
+            # Use whichever is greater - plan_credit for subscription plans, remaining_quota for PAYG
+            effective_credits = max(remaining_quota, plan_credit)
+            
             result = {
-                "remaining_quota": quota_data.get("remaining_quota", 0),
+                "remaining_quota": effective_credits,
+                "plan_credit": plan_credit,
                 "used_quota": quota_data.get("used_quota"),
                 "plan": quota_data.get("plan"),
-                "has_credits": quota_data.get("remaining_quota", 0) > 0
+                "has_credits": effective_credits > 0
             }
             
             # Update cache

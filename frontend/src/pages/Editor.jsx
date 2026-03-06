@@ -3785,7 +3785,9 @@ export default function Editor() {
                   </span>
                   <span className={`font-bold ${heygenCredits.has_credits ? 'text-green-500' : 'text-red-500'}`}>
                     {typeof heygenCredits.remaining_quota === 'number' 
-                      ? `${heygenCredits.remaining_quota.toFixed(1)} minutos`
+                      ? (heygenCredits.plan_credit > 0 
+                          ? `${heygenCredits.plan_credit} créditos`
+                          : `${heygenCredits.remaining_quota.toFixed(1)} minutos`)
                       : 'N/A'}
                   </span>
                 </div>
