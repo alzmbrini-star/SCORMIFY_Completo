@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone
 import httpx
 import asyncio
 import os
@@ -11,7 +12,8 @@ import logging
 
 from routes.deps import (
     db, now_utc, HEYGEN_API_KEY, HEYGEN_BASE_URL, HEYGEN_HEADERS,
-    heygen_credits_cache, heygen_sse_subscribers, PROJECTS_DIR, STORAGE_DIR
+    heygen_credits_cache, heygen_sse_subscribers, PROJECTS_DIR, STORAGE_DIR,
+    get_project_by_id
 )
 from routes.auth import require_agent_access, get_current_user
 import base64

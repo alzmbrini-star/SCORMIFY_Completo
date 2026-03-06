@@ -173,6 +173,12 @@ backend/
 - **Fix**: Both functions now create their own Motor client (`AsyncIOMotorClient`) inside the function body, matching the pattern used by `_sync_generate_course`. Added explicit `import aiofiles` inside `_generate_narrations`.
 - **Result**: 10/10 narrations generated successfully for test project. 0 failures.
 
+### Bug Fix: HeyGen Credits & Narration Generation (Complete - 2026-03-06)
+- **Bug 1**: `/api/heygen/credits` returning 500 - Missing `datetime` and `timezone` imports in `heygen.py`
+- **Bug 2**: `/api/projects/{id}/slides/{id}/generate-narration` returning 500 - Missing `get_project_by_id` import in `heygen.py`
+- **Fix**: Added `from datetime import datetime, timezone` and `get_project_by_id` to imports in `heygen.py`
+- **Result**: Credits display restored, OCR narration generation working (3 options generated via Gemini 3 Flash vision)
+
 ## Prioritized Backlog
 ### P1 - URGENT
 - **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks
