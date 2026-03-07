@@ -4475,6 +4475,11 @@ export default function Editor() {
                       </div>
                     </div>
                     <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[240px] overflow-y-auto p-1" data-testid="avatar-grid">
+                      {heygenLoading && heygenAvatars.length === 0 && (
+                        <div className="col-span-full flex items-center justify-center py-8 text-sm text-muted-foreground">
+                          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Carregando avatares...
+                        </div>
+                      )}
                       {heygenAvatars
                         .filter(a => avatarGenderFilter === 'all' || a.gender === avatarGenderFilter)
                         .filter(a => !avatarSearch || (a.avatar_name || '').toLowerCase().includes(avatarSearch.toLowerCase()))
@@ -4544,6 +4549,11 @@ export default function Editor() {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-[180px] overflow-y-auto" data-testid="voice-list">
+                      {heygenLoading && heygenVoices.length === 0 && (
+                        <div className="col-span-full flex items-center justify-center py-6 text-sm text-muted-foreground">
+                          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Carregando vozes...
+                        </div>
+                      )}
                       {heygenVoices
                         .filter(v => !voiceLanguageFilter || (v.language || '').includes(voiceLanguageFilter))
                         .filter(v => voiceGenderFilter === 'all' || v.gender === voiceGenderFilter)

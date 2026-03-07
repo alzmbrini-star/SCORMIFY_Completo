@@ -197,6 +197,16 @@ backend/
 - **Frontend**: New "Slides para Vídeo com Avatar" dialog accessible from Editor toolbar (Presentation icon)
 - **Testing**: 17/17 backend tests passed, frontend verified (iteration_64)
 
+### Improvements: Slide Video UX Overhaul (Complete - 2026-03-07)
+- **Bug Fix**: Video generation failing with `invalid_avatar` - replaced dropdown with visual avatar grid
+- **3-Step Wizard**: Reorganized dialog into Avatar&Voz > Scripts > Gerar
+- **Avatar Grid**: Visual grid with photos, search input, gender filters (Todos/Masculino/Feminino)
+- **Voice Filters**: Cards with M/F indicator, language dropdown (Português/English/etc), gender filter, audio preview
+- **Selective Script Generation**: Generate AI scripts only for checked slides
+- **Slide Pre-rendering**: Renders slides as PNG images (PIL/Pillow: bg color + AI image + text overlay) before sending to HeyGen
+- **Backend endpoints**: `POST /api/heygen/render-slide/{id}/{index}`, `POST /api/heygen/render-all-slides/{id}` (with selectedIndices)
+- **Testing**: 37/37 backend tests passed (iteration_65)
+
 ## Prioritized Backlog
 ### P1 - URGENT
 - **Refactor `Editor.jsx`** (~4943 lines): Break into smaller components and hooks
