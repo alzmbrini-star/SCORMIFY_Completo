@@ -2,66 +2,67 @@
 The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses.
 
 Recent user requests included:
-1.  **AI Image Generation Bug**: An image generation bug in the Edit Media flow was reported and has been fixed.
-2.  **Professional Layout Templates**: Implement a system of 6 visually distinct professional layout templates. This feature should be available during AI course creation.
-3.  **Template Application Everywhere**: The user wants to apply these design templates not only when creating new courses but also from the Edit Media screen and within the manual course Editor.
-4.  **Visual Contrast Bug**: A bug where applying light-themed templates resulted in unreadable light-colored text was reported and has been fixed.
-5.  **Image Gallery in Editor**: The user requested the AI-generated Image Gallery to be accessible from the manual course Editor.
-6.  **Narration Bug & Feature**: The user reported that narration generation via ElevenLabs was not working. They also requested a new feature: on the Storyboard screen, show the estimated cost for narration, and add controls to enable/disable narration for each slide individually before final generation.
+1.  **Narration Bug & Feature**: The user reported that narration generation via ElevenLabs was not working. They also requested a new feature: on the Storyboard screen, show the estimated cost for narration, and add controls to enable/disable narration for each slide individually before final generation. (This has been implemented and fixed).
+2.  **HeyGen Integration Bugs**: The user reported a 500 error when trying to generate a HeyGen video narration and that their credit balance had disappeared from the UI. (This has been fixed).
+3.  **HeyGen Credits Misinterpretation**: The user reported that their Unlimited HeyGen plan was showing 0 credits. (This was investigated and fixed to show the correct credit types).
+4.  **New Feature: PPT/PDF to Video**: The user requested a feature to convert an entire presentation (PPT/PDF) into a single video with an avatar narrating each slide, similar to the functionality in HeyGen's web studio. (This has been implemented).
+5.  **HeyGen UX Improvements**: The user requested several improvements for the new PPT-to-Video feature: selective script generation, visual avatar selection with filters (gender, language), and visual enhancements to the slides before video generation. (This has been implemented).
+6.  **HeyGen Video Generation Failure**: After implementation, video generation failed. (This was investigated and found to be an external issue with the user's HeyGen API credits).
+7.  **New Feature Request (P0)**: The user requested the implementation of  and  export formats.
+8.  **Technical Debt (P1)**: The user approved prioritizing the critical refactoring of the massive  and  frontend files.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application is a full-stack AI course authoring tool with a React frontend, a FastAPI backend, and a MongoDB database.
+The application is a full-stack AI course authoring tool with a React frontend, a FastAPI backend, and MongoDB. In this session, the agent successfully implemented a complex PPT-to-Video feature using the HeyGen API, allowing users to generate a multi-scene video from their course slides. This included a new 3-step UI for selecting avatars/voices, generating/editing scripts for each slide, and generating the final video. The agent also fixed several critical bugs related to narration generation (asyncio event loops) and the HeyGen integration (missing imports, incorrect credit display). The agent discovered that the final video generation is blocked by an external issue: the user's HeyGen account has 0 API credits, despite having credits for the web studio.
 
-In this session, the agent has successfully:
-- Fixed a P0 bug preventing AI image generation in the Edit Media flow.
-- Implemented a Professional Design Templates system with 6 visually distinct styles.
-- Integrated an Image Gallery for AI-generated images, accessible from both the AI agent flow and the manual editor.
-- Made the design templates applicable to existing courses from the Editor and Edit Media screens.
-- Fixed a critical visual contrast bug where applying templates made slide text unreadable.
-- Fixed a bug that prevented ElevenLabs narration from being generated due to a missing API key import.
-
-The application is stable and the major feature work on design templates is complete and verified. The agent has just fixed the narration generation bug and is about to start implementing the user's requested narration features.
+The user has now approved tackling a critical piece of technical debt (P1) before implementing the next feature (P0).
 
 **Last working item**:
--   Last item agent was working: Implementing per-slide narration control and cost estimation. The user wants to see the cost of using the ElevenLabs API on the Storyboard screen and be able to toggle narration on/off for each slide before generating the course. The underlying bug preventing narration has been fixed, but this new UI/UX feature is pending.
--   Status: **NOT STARTED**
+-   Last item agent was working: Starting the critical frontend refactoring of . The agent was in the initial phase of planning and creating the necessary file structure to decompose the 5000+ line component.
+-   Status: **IN PROGRESS**
 -   Agent Testing Done: N/A
--   Which testing method agent to use? Both. The backend will need a new endpoint or logic to calculate character counts for ElevenLabs API cost estimation. The frontend will require significant changes to the Storyboard UI, which needs to be tested with the .
+-   Which testing method agent to use? The  will be **essential** for comprehensive frontend regression testing after this major refactoring is complete.
 -   User Testing Done: N/A
 
 **All Pending/In progress Issue list**:
--   None.
+-   **Issue 1: HeyGen Video Generation Fails Due to Insufficient Credit (P2)**
+    -   **Description**: The HeyGen API returns an Insufficient credit error during video generation. Investigation revealed the user's account has 0 credits for API usage, although they have credits for the HeyGen web studio. This is an external account limitation, not a bug in the Scormfy code.
+    -   **Attempted fixes**: The agent updated the backend to correctly read both API and Plan credits from the HeyGen API. The frontend was updated to display both credit types clearly to the user, informing them that API Credits are required for generation.
+    -   **Next debug checklist**: The issue is blocked on the user. The next agent should re-verify this if the user claims to have added credits. The check involves calling the  endpoint and inspecting the  value.
+    -   **Why fix this issue and what will be achieved with the fix?**: This will unblock the entire PPT-to-Video feature.
+    -   **Status**: **BLOCKED** (on user action/account update)
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Backend (by triggering a video generation).
+    -   **Blocked on other issue**: No.
 
 **In progress Task List**:
--   **Task 1: Narration Control & Cost Estimation (P0)**
-    -   **Where to resume**: Start by planning the implementation. First, investigate the ElevenLabs API to determine how to calculate costs (likely based on character count). Then, design the backend logic to return this cost estimate. Finally, implement the frontend UI changes on the Storyboard screen ().
-    -   **What will be achieved with this?**: Users will have granular control over which slides get narration and will be informed of the potential cost before committing, fulfilling the user's explicit request.
-    -   **Status**: NOT STARTED
-    -   **Should Test frontend/backend/both after fix?**: Both.
+-   **Task 1: CRITICAL Frontend Refactoring (P1)**
+    -   **Description**: Decompose the monolithic  (~5000 lines) and  (~1500 lines) files into smaller, reusable components and custom hooks.
+    -   **Where to resume**: The agent created the  and  directories. The next step is to finalize the creation of the first custom hook, , to encapsulate all HeyGen-related state and functions from . After that, extract the dialog components (, , etc.) into the new  directory.
+    -   **What will be achieved with this?**: Dramatically improve code maintainability, reduce bug risk, and speed up future development in the editor.
+    -   **Status**: **IN PROGRESS**
+    -   **Should Test frontend/backend/both after fix?**: Frontend (Extensive regression testing required).
     -   **Blocked on something**: No.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P1) **CRITICAL Frontend Refactoring**: Refactor the monolithic  (over 5000 lines) and  (over 1500 lines) into smaller, reusable components and custom hooks. This is a critical piece of technical debt that the user previously agreed to but paused in favor of feature work.
+    -   (P0) **Implement SCORM 2004 & xAPI Export**: The user explicitly requested this feature. This should be the next task after the refactoring is complete.
 -   **Future Tasks:**
     -   (P2) **Advanced Interactivity**: Implement a per-course Tutor IA to answer student questions.
 
 **Completed work in this session**
--   **Bug Fix: AI Image Generation**: Resolved the P0 bug where AI images failed to generate in the Edit Media flow. The fix was in .
--   **Feature: Professional Design Templates**: Implemented 6 visually distinct design templates with unique colors, fonts, and styles. This involved creating  and heavily refactoring .
--   **Feature: Apply Templates to Existing Courses**: Added functionality to apply templates from the manual Editor () and the Edit Media screen () via a new endpoint in .
--   **Bug Fix: Template Visual Contrast**: Fixed a major bug where applying templates with light backgrounds made text unreadable. The fix involved complex HTML parsing and color correction logic in .
--   **Feature: Image Gallery**: Created a gallery for AI-generated images, accessible from the AI agent flow and the manual editor. Involved  and frontend changes in  and .
--   **Bug Fix: Narration Generation**: Fixed a bug where ElevenLabs narration failed because the  was not imported in .
+-   **Feature: PPT/PDF-to-Video with HeyGen**: Implemented an end-to-end flow to generate a multi-scene video from all course slides.
+    -   Backend endpoints for generating scripts () and videos ().
+    -   Backend endpoint to pre-render slides as PNGs for higher visual fidelity ().
+    -   New 3-step frontend dialog () with a visual avatar grid, voice selection with filters, selective script generation, and progress tracking.
+-   **Bug Fix: Critical Narration Generation Error**: Resolved a  asyncio error in  by creating a new Motor client inside the background thread.
+-   **Bug Fix: HeyGen Integration Stability**: Fixed multiple 500 errors in  caused by missing  and  imports.
+-   **Bug Fix & UX: HeyGen Credit Display**: Corrected the logic to read and display the user's two different HeyGen credit balances (API vs. Plan), clarifying why video generation was failing.
+-   **Feature: Per-Slide Narration Control**: Implemented UI on the Storyboard screen to toggle narration for individual slides and view cost estimates.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Critical need for frontend refactoring.**
-    -   **Debug checklist**: Decompose  and  into smaller components and custom hooks.
-    -   **Why to solve this issue and what will be achieved with this?**: To improve maintainability, reduce the risk of bugs, and increase development velocity. The monolithic files are a major liability.
-    -   **Should Test frontend/backend/both after fix**: Frontend (extensive regression testing is required).
-    -   **Is recurring issue?**: Y.
+-   None. The major refactoring issue is now in progress.
 
 **Known issue recurrence from previous fork**
 -   None.
@@ -70,74 +71,70 @@ The application is stable and the major feature work on design templates is comp
 
 
 **Key Technical Concepts**
--   **Dynamic Template Application**: Using backend logic () with regex to parse and rewrite slide HTML on-the-fly, applying new styles (backgrounds, text colors, headers) based on a selected design template.
--   **Color Contrast Correction**: Programmatically detecting background color luminance and adjusting all text colors within an HTML snippet to ensure readability (WCAG compliance).
--   **State Lifting in React**: Lifting state (e.g., ) from child components () to parent components () to share state across siblings.
+-   ** Event Loops in Background Tasks**: Resolved a  error by creating a new Motor DB client instance within FastAPI , as they run in separate threads from the main application's event loop.
+-   **Multi-Scene Video Generation (HeyGen API)**: Programmatically constructing a complex JSON payload for the  endpoint with an array of , where each scene has a background image URL, avatar, voice, and script.
+-   **Dynamic Image Pre-rendering (Pillow)**: Using the Pillow library on the backend to render a slide's content into a static PNG, serving it via a public URL to be used as a background in the HeyGen video. This enhances visual fidelity.
+-   **React Custom Hooks for State Encapsulation**: Initiating the process of extracting complex, related state and logic (e.g., all HeyGen integration functionality) from a large component into a reusable custom hook () to simplify the parent component.
 
 **key DB schema**
--   No new schema changes. Functionality was added by modifying existing  collection documents.
+-   No new schema changes.
 
 **All files of reference**
--   : Heavily modified for multiple bug fixes and features (image gen, template application, contrast fix, narration fix).
--   : Heavily refactored to remove hardcoded styles and apply visual distinctions from design templates.
--   : Modified to add an endpoint for applying templates to existing projects.
--   : New file containing the data for the 6 design templates.
--   : New file for the API endpoint serving templates.
--   : New file for the API endpoint serving the image gallery.
--   : Modified to add toolbar buttons and dialogs for applying templates and using the image gallery.
--   : Modified to manage state for design templates.
--   : Modified to add a template selector and image gallery access.
--   : Modified to add the design template picker with visual previews.
+-   : Heavily modified to add the new PPT-to-Video feature; now the primary target for refactoring.
+-   : New file containing the complex 3-step dialog for the PPT-to-Video feature.
+-   : New, in-progress file to encapsulate all HeyGen logic.
+-   : Heavily modified with new endpoints for multi-scene video generation, slide rendering, and fixes for credit display and stability.
+-   : Modified to fix a critical  bug in narration generation.
 
 **Areas that need refactoring**:
--   ****: **CRITICAL**. Still over 5000 lines.
--   ****: **URGENT**. Still over 1500 lines.
+-   ****: **CRITICAL (IN PROGRESS)**. The current active task is to decompose this 5000+ line file.
+-   ****: **URGENT**. Should be refactored after .
 
 **key api endpoints**
--   : Applies a design template to all slides of an existing project.
--   : Fetches the list of available design templates.
--   : Fetches the list of images in the user's gallery.
+-   : Generates AI narration scripts for selected slides.
+-   : Triggers the multi-scene video generation with HeyGen.
+-   : Polls for the status of a video being generated by HeyGen.
+-   : Returns a PNG image of the rendered slide content.
+-   : Fetches HeyGen credit status (now returns both API and Plan credits).
 
 **Critical Info for New Agent**
--   Your immediate priority (P0) is to implement the **narration feature request**: add per-slide narration toggles and a cost estimate to the Storyboard screen. The underlying bug preventing narration is already **fixed**.
--   The user has consistently prioritized new features (P3) over the critical frontend refactoring (P1). Be prepared to continue this pattern, but keep track of the tech debt.
--   The agent has been successfully using the  after every major feature/fix. Continue this practice.
+-   Your immediate priority is to continue the **P1 frontend refactoring of **. The user has approved this. Start by completing the  custom hook.
+-   The **PPT-to-Video feature is BLOCKED** by the user's HeyGen account having  API credits. Do not attempt to debug video generation failures. The UI now clearly explains this to the user. If the user states they have added credits, verify with the  endpoint.
+-   The user's next feature request is **(P0) SCORM 2004 and xAPI export**. This should be addressed after the refactoring is complete and stable.
 -   All communication with the user must be in **Português**.
 
 **documents and test reports created in this job**
 -   
 -   
 -   
--   
--   
--    (Updated multiple times)
+-    (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: The templates look the same. (In Progress -> Resolved)
-2.  **User**: I want to use templates in the manual editor and on the Edit Media screen too. (In Progress -> Resolved)
-3.  **User**: Applying a template makes the text invisible. (In Progress -> Resolved)
-4.  **User**: Where did you put the image library? (Clarification)
-5.  **User**: I want an icon for the gallery in the manual editor too! (In Progress -> Resolved)
-6.  **User**: The narration feature isn't working. (In Progress -> Resolved)
-7.  **User**: I want to see the ElevenLabs API cost and choose which slides get narration on the storyboard screen. (Pending - Current P0 Task)
-8.  **User**: (Confirms plan for narration fix) Yes.
-9.  **User**: (Confirms ElevenLabs plan) Starter.
-10. **User**: Ok [to agent's plan for templates].
+1.  **User**: Asks to implement PPT/PDF to video with HeyGen. (Status: Completed)
+2.  **User**: Provides choices for the video feature: 1 video per slide, avatar overlaid, both IA and editable scripts. (Status: Completed)
+3.  **User**: Reports video generation failed and requests UX improvements (selective script generation, avatar/voice filters). (Status: Completed)
+4.  **User**: Asks if HeyGen's visual touch-ups from their studio will be applied. (Status: Clarified API limitations)
+5.  **User**: Approves the proposed approach of pre-rendering slides for better visuals. (Status: Completed)
+6.  **User**: Reports an error creating the avatar in step 3. (Status: Investigated, was a credit issue)
+7.  **User**: Asks to prioritize the major frontend refactoring. (Status: In Progress)
+8.  **User**: Confirms the refactoring plan. (Status: In Progress)
+9.  **User**: Confirms to start the refactoring. (Status: In Progress)
+10. **User**: [Message from previous feature] where possp ver me diga o fluxo - Asks for the flow to find the new feature. (Status: Answered)
 
 **Project Health Check:**
--   **Broken**: No. The application is stable and all known bugs are fixed.
+-   **Broken**: The PPT-to-Video feature is currently non-functional due to an external dependency (user's HeyGen API credits are 0).
 -   **Mocked**: No.
 
 **3rd Party Integrations**
--   **Google Gemini 3 Flash & Nano Banana**: Primary text/image generation. Uses **Emergent LLM Key**.
--   **OpenAI gpt-4o**: Fallback for text generation. Uses **Emergent LLM Key**.
--   **ElevenLabs**: For audio narration. Requires User API Key. (Bug fixed, feature pending).
--   **HeyGen**: For avatar video. Requires User API Key.
--   **ConvertAPI**: For PPT conversion. Requires User API Key.
+-   **HeyGen**: For avatar video. **Currently blocked for video generation due to 0 API credits on the user's account**. API for listing avatars/voices works.
+-   **Google Gemini 3 Flash & Nano Banana**: Text/image generation. Uses **Emergent LLM Key**.
+-   **OpenAI gpt-4o**: Text generation. Uses **Emergent LLM Key**.
+-   **ElevenLabs**: Audio narration. Requires User API Key.
+-   **ConvertAPI**: PPT conversion. Requires User API Key.
 -   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Used multiple times to validate bug fixes and new features. All recent runs passed 100%.
+-   Testing agent used after significant changes: YES. Multiple times. The last run had a false positive on the frontend (did not wait for avatar grid to load), but manual verification confirmed functionality.
 -   Troubleshoot agent used after agent stuck in loop: NO.
 -   Test files created: None.
 -   Known regressions: None.
@@ -146,4 +143,4 @@ The application is stable and the major feature work on design templates is comp
 -   Super Admin:  / 
 
 **What agent forgot to execute**
--   Nothing. The agent has been methodically following user requests. The next step is the explicitly requested narration feature.</analysis>
+-   Nothing. The agent has been methodically implementing user requests and is now addressing approved technical debt.</analysis>
