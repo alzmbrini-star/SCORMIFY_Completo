@@ -5,7 +5,7 @@ import { getApiUrl } from '../../../utils/apiUrl';
 
 const API_URL = getApiUrl();
 
-export function useHeygenIntegration({ currentProject, currentSlide, projectId }) {
+export function useHeygenIntegration({ currentProject, currentSlide, projectId, addElement }) {
   // HeyGen Avatar Video states
   const [showHeygenDialog, setShowHeygenDialog] = useState(false);
   const [heygenAvatars, setHeygenAvatars] = useState([]);
@@ -408,6 +408,55 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId }
     } finally { setRefreshingVideoId(null); }
   };
 
+  // Add HeyGen video to slide
+  const handleAddHeygenVideoToSlide = async () => {
+    if (!heygenVideoUrl || !currentSlide || !addElement) return;
+    try {
+      await addElement(currentSlide.id, {
+        type: 'video', src: heygenVideoUrl,
+        x: 0, y: 0, width: currentSlide.width || 960, height: currentSlide.height || 540,
+        objectFit: 'contain', autoplay: true, loop: false,
+      });
+      toast.success('Video adicionado ao slide!');
+      setShowHeygenDialog(false);
+    } catch (err) {
+      toast.error('Falha ao adicionar video ao slide');
+    }
+  };
+
+  // Add library video to slide
+  const handleAddLibraryVideoToSlide = async (videoUrl) => {
+    if (!videoUrl || !currentSlide || !addElement) return;
+    try {
+      await addElement(currentSlide.id, {
+        type: 'video', src: videoUrl,
+        x: 0, y: 0, width: currentSlide.width || 960, height: currentSlide.height || 540,
+        objectFit: 'contain', autoplay: true, loop: false,
+      });
+      toast.success('Video adicionado ao slide!');
+      setShowVideoLibrary(false);
+    } catch (err) {
+      toast.error('Falha ao adicionar video ao slide');
+    }
+  };
+
+  // Delete library video
+  const handleDeleteLibraryVideo = async (videoId) => {
+    try {
+      await axios.delete(`${API_URL}/api/heygen/videos/${videoId}`);
+      setVideoLibraryItems(prev => prev.filter(v => v.video_id !== videoId));
+      toast.success('Video removido');
+    } catch (err) {
+      toast.error('Falha ao remover video');
+    }
+  };
+
+  // Open video library
+  const handleOpenVideoLibrary = () => {
+    setShowVideoLibrary(true);
+    loadVideoLibrary();
+  };
+
   return {
     // HeyGen Dialog
     showHeygenDialog, setShowHeygenDialog,
@@ -421,6 +470,8 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId }
     // HeyGen Actions
     loadHeygenData, reloadHeygenAvatars, reloadHeygenVoices,
     handleOpenHeygenDialog, handleGenerateHeygenVideo,
+    handleAddHeygenVideoToSlide, handleAddLibraryVideoToSlide,
+    handleDeleteLibraryVideo, handleOpenVideoLibrary,
     // AI Script
     scriptMode, setScriptMode,
     aiScriptTopic, setAiScriptTopic,
