@@ -176,8 +176,26 @@ backend/
 ### Bug Fix: HeyGen Credits & Narration Generation (Complete - 2026-03-06)
 - **Bug 1**: `/api/heygen/credits` returning 500 - Missing `datetime` and `timezone` imports in `heygen.py`
 - **Bug 2**: `/api/projects/{id}/slides/{id}/generate-narration` returning 500 - Missing `get_project_by_id` import in `heygen.py`
-- **Fix**: Added `from datetime import datetime, timezone` and `get_project_by_id` to imports in `heygen.py`
-- **Result**: Credits display restored, OCR narration generation working (3 options generated via Gemini 3 Flash vision)
+- **Bug 3**: HeyGen credits showing 0 for subscription plans - Fixed to read `data.details.plan_credit` from HeyGen API
+- **Fix**: Added imports, updated credits parsing to use `plan_credit` for subscription plans
+- **Result**: Credits display restored (399 créditos), OCR narration and video generation working
+
+### Feature: Slides para Vídeo com Avatar (HeyGen) (Complete - 2026-03-07)
+- **Feature**: Convert course slides to avatar-narrated videos via HeyGen API
+  - One video per slide with slide image as background + avatar overlay (PiP)
+  - AI-generated narration scripts via Gemini 3 Flash Vision (with slide image OCR)
+  - Editable scripts per slide with character count
+  - Enable/disable slides individually via checkboxes
+  - Avatar and voice selection (reusing existing HeyGen integration)
+  - Batch video generation with progress polling
+  - HeyGen credits display
+- **Backend endpoints**:
+  - `POST /api/heygen/generate-all-slide-scripts?project_id={id}` - Generate AI scripts for all slides
+  - `POST /api/heygen/generate-slide-video` - Generate video for single slide
+  - `POST /api/heygen/generate-batch-slide-videos` - Batch video generation
+  - `GET /api/heygen/batch-status/{batch_id}` - Poll batch status
+- **Frontend**: New "Slides para Vídeo com Avatar" dialog accessible from Editor toolbar (Presentation icon)
+- **Testing**: 17/17 backend tests passed, frontend verified (iteration_64)
 
 ## Prioritized Backlog
 ### P1 - URGENT
