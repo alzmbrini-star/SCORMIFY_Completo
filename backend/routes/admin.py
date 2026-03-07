@@ -14,6 +14,38 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Admin"])
 
 
+@router.get("/dashboard/metrics")
+async def get_dashboard_metrics():
+    """Get dashboard metrics: total courses, total slides, total exports"""
+    try:
+        total_projects = await db.projects.count_documents({})
+        
+        # Count total slides across all projects
+        pipeline = [
+            {"$project": {"slideCount": {"$size": {"$ifNull": ["$course.slides", []]}}}},
+            {"$group": {"_id": None, "total": {"$sum": "$slideCount"}}}
+        ]
+        slide_result = await db.projects.aggregate(pipeline).to_list(1)
+        total_slides = slide_result[0]["total"] if slide_result else 0
+        
+        # Count exports from the exports tracking collection
+        total_exports = await db.export_logs.count_documents({})
+        
+        return {
+            "totalCourses": total_projects,
+            "totalSlides": total_slides,
+            "totalExports": total_exports,
+        }
+    except Exception as e:
+        logger.error(f"Dashboard metrics error: {e}")
+        return {
+            "totalCourses": 0,
+            "totalSlides": 0,
+            "totalExports": 0,
+        }
+
+
+
 @router.get("/admin/tutor-settings")
 async def get_tutor_settings():
     settings = await db.settings.find_one({"key": "tutor"}, {"_id": 0})

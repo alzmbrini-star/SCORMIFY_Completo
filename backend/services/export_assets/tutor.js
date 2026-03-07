@@ -18,11 +18,13 @@ var AiTutor = (function() {
     }
 
     function buildUI() {
-        // Inject CSS
-        var cssLink = document.createElement('link');
-        cssLink.rel = 'stylesheet';
-        cssLink.href = 'styles/tutor.css';
-        document.head.appendChild(cssLink);
+        // Inject CSS (skip if already inlined in HTML export)
+        if (!config.cssInlined) {
+            var cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = 'styles/tutor.css';
+            document.head.appendChild(cssLink);
+        }
 
         // FAB button
         var fab = document.createElement('button');

@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from fastapi.responses import FileResponse
 from typing import Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import os
 import re
@@ -199,6 +199,17 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             'downloadUrl': f"/api/exports/{export_filename}"
         }
         
+        # Log export for metrics
+        try:
+            await db.export_logs.insert_one({
+                "projectId": project_id,
+                "type": "scorm",
+                "filename": export_filename,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        
         return {
             "jobId": job_id,
             "downloadUrl": f"/api/exports/{export_filename}"
@@ -216,7 +227,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
 # HTML Standalone Export
 
 @router.post("/course/{project_id}/export-html")
-async def export_html(project_id: str, background_tasks: BackgroundTasks):
+async def export_html(project_id: str, request: Request, background_tasks: BackgroundTasks):
     """Export project as standalone HTML file"""
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
@@ -250,13 +261,67 @@ async def export_html(project_id: str, background_tasks: BackgroundTasks):
             questions = question_docs
             logger.info(f"Loaded {len(questions)} questions for HTML export")
         
-        # Generate HTML with questions
+        # Load tutor settings for HTML export
+        tutor_settings = None
+        try:
+            settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
+            if settings_doc and settings_doc.get("enabled"):
+                origin = request.headers.get('origin', '')
+                if origin:
+                    html_backend_url = origin
+                else:
+                    fwd_host = request.headers.get('x-forwarded-host', '')
+                    scheme = request.headers.get('x-forwarded-proto', 'https')
+                    if fwd_host:
+                        html_backend_url = f"{scheme}://{fwd_host}"
+                    else:
+                        html_backend_url = base_url or ''
+                
+                # Build course context from slide content
+                course_context_parts = []
+                for slide in course_data.get('slides', []):
+                    slide_title = slide.get('title', '')
+                    elements_text = []
+                    for el in slide.get('elements', []):
+                        if el.get('type') == 'text' and el.get('content'):
+                            elements_text.append(el['content'])
+                        elif el.get('type') == 'html' and el.get('htmlContent'):
+                            import re as re_mod
+                            clean = re_mod.sub(r'<[^>]+>', '', el['htmlContent'])
+                            if clean.strip():
+                                elements_text.append(clean.strip())
+                    notes = slide.get('notes', '')
+                    libras = slide.get('librasScript', '')
+                    parts = [f"Slide: {slide_title}"] if slide_title else []
+                    if elements_text:
+                        parts.append("Conteudo: " + " | ".join(elements_text))
+                    if notes:
+                        parts.append(f"Notas: {notes}")
+                    if libras:
+                        parts.append(f"Narracao: {libras}")
+                    if parts:
+                        course_context_parts.append("\n".join(parts))
+                
+                tutor_settings = {
+                    'enabled': True,
+                    'apiUrl': html_backend_url,
+                    'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
+                    'messageLimit': settings_doc.get('messageLimit', 50),
+                    'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
+                    'courseTopic': course_data.get('metadata', {}).get('title', '') or project_doc.get('name', ''),
+                    'courseContext': "\n---\n".join(course_context_parts)[:8000]
+                }
+        except Exception as e:
+            logger.warning(f"Tutor settings load for HTML export failed (non-fatal): {e}")
+        
+        # Generate HTML with questions and tutor
         html_content = await generate_standalone_html(
             project_doc,
             assets_dir,
             base_url,
             questions=questions,
-            backend_url=base_url
+            backend_url=base_url,
+            tutor_config=tutor_settings
         )
         
         # Save HTML file
@@ -271,6 +336,17 @@ async def export_html(project_id: str, background_tasks: BackgroundTasks):
         
         # Persist to GridFS in background (don't block the response)
         background_tasks.add_task(save_export_to_gridfs, str(html_path), filename)
+        
+        # Log export for metrics
+        try:
+            await db.export_logs.insert_one({
+                "projectId": project_id,
+                "type": "html",
+                "filename": filename,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
         
         return {
             "downloadUrl": f"/api/exports/{filename}",

@@ -40,7 +40,11 @@ import {
   User,
   Pencil,
   Brain,
+  BookOpen,
+  Layers,
+  Download,
 } from 'lucide-react';
+import axios from 'axios';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -70,10 +74,18 @@ export default function Dashboard() {
   const [processingJobId, setProcessingJobId] = useState(null);
   const [processingStatus, setProcessingStatus] = useState('');
   const fileInputRef = useRef(null);
+  const API_URL = getApiUrl();
+
+  // Dashboard metrics
+  const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
     fetchProjects();
-  }, [fetchProjects]);
+    // Fetch dashboard metrics
+    axios.get(`${API_URL}/api/dashboard/metrics`)
+      .then(res => setMetrics(res.data))
+      .catch(() => {});
+  }, [fetchProjects, API_URL]);
 
   useEffect(() => {
     let interval;
@@ -260,6 +272,45 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Metrics Cards */}
+        {metrics && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8" data-testid="dashboard-metrics">
+            <Card className="border-border/50 bg-card/80 backdrop-blur-sm hover:border-primary/30 transition-colors">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Cursos Criados</p>
+                  <p className="text-2xl font-bold" data-testid="metric-courses">{metrics.totalCourses}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/50 bg-card/80 backdrop-blur-sm hover:border-amber-500/30 transition-colors">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Layers className="w-6 h-6 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total de Slides</p>
+                  <p className="text-2xl font-bold" data-testid="metric-slides">{metrics.totalSlides}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/50 bg-card/80 backdrop-blur-sm hover:border-emerald-500/30 transition-colors">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                  <Download className="w-6 h-6 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Exportacoes</p>
+                  <p className="text-2xl font-bold" data-testid="metric-exports">{metrics.totalExports}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="gradient-hero rounded-2xl p-8 mb-8">
           <h2 className="text-3xl font-bold mb-2">Welcome to Scormify</h2>

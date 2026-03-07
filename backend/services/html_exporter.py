@@ -168,12 +168,54 @@ async def process_html_content_images(
     return result
 
 
+def _generate_tutor_block(tutor_config: dict = None) -> str:
+    """Generate the AI Tutor chat widget HTML/CSS/JS for standalone HTML export"""
+    if not tutor_config or not tutor_config.get('enabled'):
+        return ''
+    
+    # Read tutor.css and tutor.js from export_assets
+    export_assets_dir = Path(__file__).parent / "export_assets"
+    
+    tutor_css = ''
+    tutor_js = ''
+    try:
+        with open(export_assets_dir / "tutor.css", 'r') as f:
+            tutor_css = f.read()
+    except Exception as e:
+        logger.warning(f"Could not read tutor.css: {e}")
+    
+    try:
+        with open(export_assets_dir / "tutor.js", 'r') as f:
+            tutor_js = f.read()
+    except Exception as e:
+        logger.warning(f"Could not read tutor.js: {e}")
+    
+    if not tutor_js:
+        return ''
+    
+    tutor_config_json = json.dumps({**tutor_config, 'cssInlined': True}, ensure_ascii=False)
+    
+    return f'''
+    <style>{tutor_css}</style>
+    <script>{tutor_js}</script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            if (typeof AiTutor !== 'undefined') {{
+                var tutorConfig = {tutor_config_json};
+                AiTutor.init(tutorConfig);
+            }}
+        }});
+    </script>'''
+
+
+
 async def generate_standalone_html(
     project: Dict[str, Any],
     assets_dir: str,
     base_url: str = "",
     questions: list = None,
-    backend_url: str = ""
+    backend_url: str = "",
+    tutor_config: dict = None
 ) -> str:
     """
     Generate a standalone HTML file with all assets embedded as base64
@@ -425,12 +467,12 @@ async def generate_standalone_html(
         logger.info(f"Added {len(questions)} questions to HTML export")
     
     # Generate HTML
-    html = generate_html_template(title, course_data, default_width, default_height, enable_vlibras)
+    html = generate_html_template(title, course_data, default_width, default_height, enable_vlibras, tutor_config=tutor_config)
     
     return html
 
 
-def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "") -> str:
+def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "", tutor_config: dict = None) -> str:
     """Generate the complete HTML template with embedded player"""
     
     # VLibras block for accessibility (LIBRAS - Brazilian Sign Language)
@@ -2938,6 +2980,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         }});
     </script>
     {vlibras_block}
+    {_generate_tutor_block(tutor_config)}
 </body>
 </html>'''
     
