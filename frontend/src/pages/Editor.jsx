@@ -112,6 +112,7 @@ import {
   HelpCircle,
   Maximize2,
   Palette,
+  Presentation,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -594,6 +595,15 @@ export default function Editor() {
   const [heygenOcrLoading, setHeygenOcrLoading] = useState(false);
   const [heygenOcrOptions, setHeygenOcrOptions] = useState([]);
   const [heygenOcrStyle, setHeygenOcrStyle] = useState('educational');
+  
+  // Slide Video Generation states
+  const [showSlideVideoDialog, setShowSlideVideoDialog] = useState(false);
+  const [slideVideoScripts, setSlideVideoScripts] = useState([]);
+  const [slideVideoGenerating, setSlideVideoGenerating] = useState(false);
+  const [slideVideoScriptsLoading, setSlideVideoScriptsLoading] = useState(false);
+  const [slideVideoBatchId, setSlideVideoBatchId] = useState(null);
+  const [slideVideoBatchResults, setSlideVideoBatchResults] = useState([]);
+  const [slideVideoBatchPolling, setSlideVideoBatchPolling] = useState(false);
   
   // Timeline playback state (shared between Timeline and SlideCanvas)
   const [timelineTime, setTimelineTime] = useState(0);
@@ -1446,6 +1456,120 @@ export default function Editor() {
       heygenTimerRef.current = null;
     }
   };
+
+  // === SLIDE VIDEO GENERATION ===
+  const handleOpenSlideVideoDialog = () => {
+    setShowSlideVideoDialog(true);
+    loadHeygenData();
+    // Initialize scripts from existing slide data
+    const slides = currentProject?.course?.slides || [];
+    const initialScripts = slides.map((s, i) => ({
+      index: i,
+      title: s.title || `Slide ${i + 1}`,
+      script: '',
+      enabled: true,
+      status: 'pending',
+    }));
+    setSlideVideoScripts(initialScripts);
+    setSlideVideoBatchId(null);
+    setSlideVideoBatchResults([]);
+  };
+
+  const handleGenerateAllScripts = async () => {
+    setSlideVideoScriptsLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/heygen/generate-all-slide-scripts?project_id=${currentProject.id}`);
+      const scripts = response.data.scripts || [];
+      setSlideVideoScripts(prev => prev.map((s, i) => {
+        const generated = scripts.find(g => g.index === i);
+        return generated ? { ...s, script: generated.script, charCount: generated.charCount } : s;
+      }));
+      toast.success(`${scripts.length} scripts gerados com sucesso!`);
+    } catch (err) {
+      console.error('Error generating scripts:', err);
+      toast.error('Falha ao gerar scripts');
+    }
+    setSlideVideoScriptsLoading(false);
+  };
+
+  const handleGenerateBatchSlideVideos = async () => {
+    if (!heygenConfig.avatarId || !heygenConfig.voiceId) {
+      toast.error('Selecione um avatar e uma voz');
+      return;
+    }
+    const enabledSlides = slideVideoScripts.filter(s => s.enabled && s.script.trim());
+    if (enabledSlides.length === 0) {
+      toast.error('Nenhum slide com script habilitado');
+      return;
+    }
+
+    setSlideVideoGenerating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/heygen/generate-batch-slide-videos`, {
+        project_id: currentProject.id,
+        avatar_id: heygenConfig.avatarId,
+        voice_id: heygenConfig.voiceId,
+        slides: enabledSlides.map(s => ({
+          index: s.index,
+          script: s.script,
+          title: s.title,
+        })),
+      });
+
+      const data = response.data;
+      setSlideVideoBatchId(data.batch_id);
+      setSlideVideoBatchResults(data.results || []);
+
+      // Update script statuses
+      setSlideVideoScripts(prev => prev.map(s => {
+        const result = data.results?.find(r => r.slide_index === s.index);
+        if (result) return { ...s, status: result.status, videoId: result.video_id };
+        return s;
+      }));
+
+      toast.success(`${data.processing} vídeos em processamento!`);
+
+      // Start polling
+      setSlideVideoBatchPolling(true);
+    } catch (err) {
+      console.error('Error generating batch videos:', err);
+      toast.error('Falha ao gerar vídeos em lote');
+    }
+    setSlideVideoGenerating(false);
+  };
+
+  // Poll batch status
+  useEffect(() => {
+    if (!slideVideoBatchId || !slideVideoBatchPolling) return;
+    const interval = setInterval(async () => {
+      try {
+        // Refresh each video individually
+        const updatedScripts = [...slideVideoScripts];
+        let allDone = true;
+        for (const s of updatedScripts) {
+          if (s.videoId && s.status === 'processing') {
+            try {
+              const res = await axios.get(`${API_URL}/api/heygen/videos/${s.videoId}/refresh`);
+              s.status = res.data.status;
+              s.videoUrl = res.data.video_url;
+              s.thumbnailUrl = res.data.thumbnail_url;
+              s.duration = res.data.duration;
+              if (s.status === 'processing') allDone = false;
+            } catch (e) { allDone = false; }
+          }
+        }
+        setSlideVideoScripts(updatedScripts);
+        if (allDone) {
+          setSlideVideoBatchPolling(false);
+          const completed = updatedScripts.filter(s => s.status === 'completed').length;
+          toast.success(`${completed} vídeos concluídos!`);
+        }
+      } catch (err) {
+        console.error('Batch polling error:', err);
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [slideVideoBatchId, slideVideoBatchPolling, slideVideoScripts]);
 
   // AI Script Generation
   const handleGenerateAiScript = async () => {
@@ -2831,6 +2955,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>🎭 Criar Vídeo com Avatar (HeyGen)</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-amber-500/10 to-rose-500/10 hover:from-amber-500/20 hover:to-rose-500/20"
+                    onClick={handleOpenSlideVideoDialog}
+                    data-testid="slide-video-btn"
+                  >
+                    <Presentation className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Slides para Vídeo com Avatar</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -4239,6 +4378,179 @@ export default function Editor() {
                   )}
                 </Button>
               )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Slide Video Generation Dialog */}
+        <Dialog open={showSlideVideoDialog} onOpenChange={setShowSlideVideoDialog}>
+          <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Presentation className="w-5 h-5 text-amber-500" />
+                Slides para Vídeo com Avatar
+              </DialogTitle>
+              <DialogDescription>
+                Gere vídeos com avatar narrando cada slide do curso
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+              {/* Credits */}
+              {heygenCredits && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${heygenCredits.has_credits ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+                  <span className="font-medium">
+                    {heygenCredits.has_credits ? '✅' : '⚠️'} HeyGen:
+                  </span>
+                  <span className={`font-bold ${heygenCredits.has_credits ? 'text-green-500' : 'text-red-500'}`}>
+                    {heygenCredits.plan_credit > 0 ? `${heygenCredits.plan_credit} créditos` : `${(heygenCredits.remaining_quota || 0).toFixed(1)} min`}
+                  </span>
+                </div>
+              )}
+
+              {/* Avatar & Voice Selection */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Avatar</label>
+                  <select
+                    value={heygenConfig.avatarId}
+                    onChange={e => setHeygenConfig(prev => ({ ...prev, avatarId: e.target.value }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    data-testid="slide-video-avatar-select"
+                  >
+                    <option value="">Selecione um avatar...</option>
+                    {heygenAvatars.slice(0, 50).map(a => (
+                      <option key={a.avatar_id} value={a.avatar_id}>{a.avatar_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Voz</label>
+                  <select
+                    value={heygenConfig.voiceId}
+                    onChange={e => setHeygenConfig(prev => ({ ...prev, voiceId: e.target.value }))}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    data-testid="slide-video-voice-select"
+                  >
+                    <option value="">Selecione uma voz...</option>
+                    {heygenVoices.filter(v => (v.language || '').toLowerCase().includes('portugu')).map(v => (
+                      <option key={v.voice_id} value={v.voice_id}>{v.display_name || v.name} ({v.language})</option>
+                    ))}
+                    <option disabled>--- Todas ---</option>
+                    {heygenVoices.slice(0, 100).map(v => (
+                      <option key={`all-${v.voice_id}`} value={v.voice_id}>{v.display_name || v.name} ({v.language})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Generate All Scripts button */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleGenerateAllScripts}
+                  disabled={slideVideoScriptsLoading}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  data-testid="generate-all-scripts-btn"
+                >
+                  {slideVideoScriptsLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                  {slideVideoScriptsLoading ? 'Gerando scripts com IA...' : 'Gerar Scripts com IA para Todos'}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {slideVideoScripts.filter(s => s.script.trim()).length}/{slideVideoScripts.length} prontos
+                </span>
+              </div>
+
+              {/* Slide list with scripts */}
+              <div className="space-y-2 max-h-[340px] overflow-y-auto" data-testid="slide-video-list">
+                {slideVideoScripts.map((s, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg border p-3 transition-all ${
+                      s.status === 'completed' ? 'border-green-500/40 bg-green-500/5' :
+                      s.status === 'processing' ? 'border-amber-500/40 bg-amber-500/5' :
+                      s.status === 'failed' ? 'border-red-500/40 bg-red-500/5' :
+                      s.enabled ? 'border-border' : 'border-border/30 opacity-50'
+                    }`}
+                    data-testid={`slide-video-row-${i}`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={s.enabled}
+                        onChange={() => setSlideVideoScripts(prev =>
+                          prev.map((ss, ii) => ii === i ? { ...ss, enabled: !ss.enabled } : ss)
+                        )}
+                        className="rounded"
+                      />
+                      <span className="text-sm font-medium flex-1 truncate">{i + 1}. {s.title}</span>
+                      {s.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin text-amber-500" />}
+                      {s.status === 'completed' && <Check className="w-3 h-3 text-green-500" />}
+                      {s.status === 'failed' && <X className="w-3 h-3 text-red-500" />}
+                      {s.videoUrl && (
+                        <a href={s.videoUrl} target="_blank" rel="noreferrer"
+                          className="text-xs text-cyan-400 hover:text-cyan-300 underline">
+                          Assistir
+                        </a>
+                      )}
+                    </div>
+                    <textarea
+                      value={s.script}
+                      onChange={e => setSlideVideoScripts(prev =>
+                        prev.map((ss, ii) => ii === i ? { ...ss, script: e.target.value } : ss)
+                      )}
+                      placeholder="Script de narração para este slide..."
+                      rows={2}
+                      className="w-full text-xs bg-background border border-input rounded-md p-2 resize-none"
+                      disabled={s.status === 'processing' || s.status === 'completed'}
+                      data-testid={`slide-video-script-${i}`}
+                    />
+                    {s.script && (
+                      <span className="text-[10px] text-muted-foreground">{s.script.length} caracteres</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Batch progress */}
+              {slideVideoBatchId && (
+                <div className="rounded-lg bg-muted/50 p-3 border" data-testid="slide-video-batch-progress">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Progresso</span>
+                    <span className="text-xs text-muted-foreground">
+                      {slideVideoScripts.filter(s => s.status === 'completed').length}/
+                      {slideVideoScripts.filter(s => s.enabled && s.script.trim()).length} concluídos
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all"
+                      style={{
+                        width: `${(slideVideoScripts.filter(s => s.status === 'completed').length / Math.max(slideVideoScripts.filter(s => s.enabled && s.script.trim()).length, 1)) * 100}%`
+                      }}
+                    />
+                  </div>
+                  {slideVideoBatchPolling && (
+                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Aguardando processamento do HeyGen...
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSlideVideoDialog(false)}>Fechar</Button>
+              <Button
+                onClick={handleGenerateBatchSlideVideos}
+                disabled={slideVideoGenerating || slideVideoBatchPolling || !heygenConfig.avatarId || !heygenConfig.voiceId || slideVideoScripts.filter(s => s.enabled && s.script.trim()).length === 0}
+                className="bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600"
+                data-testid="generate-batch-videos-btn"
+              >
+                {slideVideoGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}
+                Gerar {slideVideoScripts.filter(s => s.enabled && s.script.trim()).length} Vídeos
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -8,6 +8,7 @@ import httpx
 import asyncio
 import os
 import uuid
+import json
 import logging
 
 from routes.deps import (
@@ -1042,3 +1043,390 @@ async def heygen_video_events(video_id: str, request: Request):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+
+# ============================================================
+# SLIDE-TO-VIDEO: Generate avatar videos from course slides
+# ============================================================
+
+class SlideVideoRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    project_id: str
+    slide_index: int
+    avatar_id: str
+    voice_id: str
+    script: str
+    title: Optional[str] = ""
+
+class BatchSlideVideoRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    project_id: str
+    avatar_id: str
+    voice_id: str
+    slides: List[Dict[str, Any]]  # [{index, script, title}]
+
+
+def _get_slide_background_url(project_id: str, slide: dict, base_url: str) -> dict:
+    """Get the best background for a slide (image URL or solid color)."""
+    # 1. Check for backgroundImage (PPT imports)
+    bg_image = slide.get('backgroundImage', '')
+    if bg_image and bg_image.startswith('/api/'):
+        return {"type": "image", "url": f"{base_url}{bg_image}"}
+
+    # 2. Check for image elements (AI-generated images)
+    for el in slide.get('elements', []):
+        if el.get('type') == 'image' and el.get('src', '').startswith('/api/'):
+            return {"type": "image", "url": f"{base_url}{el['src']}"}
+
+    # 3. Fallback to background color
+    bg_color = slide.get('background', '#1e293b')
+    if not bg_color or bg_color == 'transparent':
+        bg_color = '#1e293b'
+    return {"type": "color", "value": bg_color}
+
+
+@router.post("/heygen/generate-slide-video")
+async def generate_slide_video(request: SlideVideoRequest):
+    """Generate a HeyGen avatar video for a single slide with the slide as background."""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+
+    project = await get_project_by_id(request.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    slides = project.get('course', {}).get('slides', [])
+    if request.slide_index >= len(slides):
+        raise HTTPException(status_code=404, detail="Slide not found")
+
+    slide = slides[request.slide_index]
+    base_url = os.environ.get('BASE_URL', '').rstrip('/')
+    if not base_url:
+        base_url = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+
+    bg = _get_slide_background_url(request.project_id, slide, base_url)
+
+    # Build HeyGen payload
+    video_input = {
+        "character": {
+            "type": "avatar",
+            "avatar_id": request.avatar_id,
+            "avatar_style": "normal"
+        },
+        "voice": {
+            "type": "text",
+            "input_text": request.script[:5000],
+            "voice_id": request.voice_id
+        }
+    }
+
+    # Add background
+    if bg["type"] == "image":
+        video_input["background"] = {"type": "image", "url": bg["url"]}
+    else:
+        video_input["background"] = {"type": "color", "value": bg["value"]}
+
+    payload = {
+        "video_inputs": [video_input],
+        "dimension": {"width": 1280, "height": 720},
+        "title": request.title or f"Slide {request.slide_index + 1} - {slide.get('title', '')}"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            response = await http_client.post(
+                f"{HEYGEN_BASE_URL}/v2/video/generate",
+                headers=HEYGEN_HEADERS,
+                json=payload
+            )
+
+            if response.status_code != 200:
+                logger.error(f"HeyGen slide video error: {response.status_code} - {response.text}")
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", "")
+                if not error_msg:
+                    error_msg = error_data.get("data", {}).get("error", {}).get("message", response.text)
+                raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
+
+            data = response.json()
+            video_id = data.get("data", {}).get("video_id")
+
+            if not video_id:
+                raise HTTPException(status_code=500, detail="No video ID returned from HeyGen")
+
+            # Store in database
+            await db.heygen_videos.insert_one({
+                "video_id": video_id,
+                "avatar_id": request.avatar_id,
+                "voice_id": request.voice_id,
+                "script": request.script,
+                "title": request.title or f"Slide {request.slide_index + 1}",
+                "status": "processing",
+                "transparent": False,
+                "project_id": request.project_id,
+                "slide_index": request.slide_index,
+                "batch_type": "slide_video",
+                "created_at": now_utc()
+            })
+
+            return {
+                "video_id": video_id,
+                "status": "processing",
+                "slide_index": request.slide_index,
+            }
+
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen request error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+
+@router.post("/heygen/generate-batch-slide-videos")
+async def generate_batch_slide_videos(request: BatchSlideVideoRequest):
+    """Generate HeyGen avatar videos for multiple slides in batch."""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+
+    project = await get_project_by_id(request.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    course_slides = project.get('course', {}).get('slides', [])
+    base_url = os.environ.get('BASE_URL', '').rstrip('/')
+    if not base_url:
+        base_url = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+
+    batch_id = str(uuid.uuid4())
+    results = []
+
+    for slide_info in request.slides:
+        idx = slide_info.get("index", 0)
+        script = slide_info.get("script", "")
+        title = slide_info.get("title", f"Slide {idx + 1}")
+
+        if idx >= len(course_slides) or not script.strip():
+            results.append({"slide_index": idx, "status": "skipped", "reason": "No script or invalid index"})
+            continue
+
+        slide = course_slides[idx]
+        bg = _get_slide_background_url(request.project_id, slide, base_url)
+
+        video_input = {
+            "character": {
+                "type": "avatar",
+                "avatar_id": request.avatar_id,
+                "avatar_style": "normal"
+            },
+            "voice": {
+                "type": "text",
+                "input_text": script[:5000],
+                "voice_id": request.voice_id
+            }
+        }
+
+        if bg["type"] == "image":
+            video_input["background"] = {"type": "image", "url": bg["url"]}
+        else:
+            video_input["background"] = {"type": "color", "value": bg["value"]}
+
+        payload = {
+            "video_inputs": [video_input],
+            "dimension": {"width": 1280, "height": 720},
+            "title": title
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as http_client:
+                response = await http_client.post(
+                    f"{HEYGEN_BASE_URL}/v2/video/generate",
+                    headers=HEYGEN_HEADERS,
+                    json=payload
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    video_id = data.get("data", {}).get("video_id")
+                    if video_id:
+                        await db.heygen_videos.insert_one({
+                            "video_id": video_id,
+                            "avatar_id": request.avatar_id,
+                            "voice_id": request.voice_id,
+                            "script": script,
+                            "title": title,
+                            "status": "processing",
+                            "transparent": False,
+                            "project_id": request.project_id,
+                            "slide_index": idx,
+                            "batch_id": batch_id,
+                            "batch_type": "slide_video",
+                            "created_at": now_utc()
+                        })
+                        results.append({"slide_index": idx, "video_id": video_id, "status": "processing"})
+                    else:
+                        results.append({"slide_index": idx, "status": "failed", "reason": "No video ID"})
+                else:
+                    err = response.json()
+                    msg = err.get("error", {}).get("message", response.text[:100])
+                    results.append({"slide_index": idx, "status": "failed", "reason": msg})
+                    logger.error(f"HeyGen batch slide {idx} error: {response.status_code} - {msg}")
+
+        except Exception as e:
+            results.append({"slide_index": idx, "status": "failed", "reason": str(e)[:100]})
+            logger.error(f"HeyGen batch slide {idx} exception: {e}")
+
+        # Small delay between API calls to avoid rate limiting
+        await asyncio.sleep(0.5)
+
+    # Save batch info
+    await db.heygen_batches.insert_one({
+        "batch_id": batch_id,
+        "project_id": request.project_id,
+        "avatar_id": request.avatar_id,
+        "voice_id": request.voice_id,
+        "total_slides": len(request.slides),
+        "results": results,
+        "created_at": now_utc()
+    })
+
+    return {
+        "batch_id": batch_id,
+        "total": len(request.slides),
+        "processing": sum(1 for r in results if r["status"] == "processing"),
+        "failed": sum(1 for r in results if r["status"] == "failed"),
+        "skipped": sum(1 for r in results if r["status"] == "skipped"),
+        "results": results
+    }
+
+
+@router.get("/heygen/batch-status/{batch_id}")
+async def get_batch_status(batch_id: str):
+    """Get status of all videos in a batch."""
+    batch = await db.heygen_batches.find_one({"batch_id": batch_id}, {"_id": 0})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    # Get updated status for each video
+    updated_results = []
+    for r in batch.get("results", []):
+        if r.get("video_id"):
+            video = await db.heygen_videos.find_one({"video_id": r["video_id"]}, {"_id": 0})
+            if video:
+                updated_results.append({
+                    "slide_index": r["slide_index"],
+                    "video_id": r["video_id"],
+                    "status": video.get("status", "unknown"),
+                    "video_url": video.get("video_url"),
+                    "thumbnail_url": video.get("thumbnail_url"),
+                    "duration": video.get("duration"),
+                })
+            else:
+                updated_results.append(r)
+        else:
+            updated_results.append(r)
+
+    completed = sum(1 for r in updated_results if r.get("status") == "completed")
+    processing = sum(1 for r in updated_results if r.get("status") == "processing")
+    failed = sum(1 for r in updated_results if r.get("status") in ("failed", "error"))
+
+    return {
+        "batch_id": batch_id,
+        "total": batch.get("total_slides", 0),
+        "completed": completed,
+        "processing": processing,
+        "failed": failed,
+        "all_done": processing == 0,
+        "results": updated_results
+    }
+
+
+@router.post("/heygen/generate-all-slide-scripts")
+async def generate_all_slide_scripts(project_id: str):
+    """Generate narration scripts for ALL slides using AI (Gemini 3 Flash Vision)."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
+    import re as _re
+
+    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="AI key not configured")
+
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    slides = project.get('course', {}).get('slides', [])
+    scripts = []
+
+    for i, slide in enumerate(slides):
+        text_parts = []
+        image_files = []
+
+        # Extract text from elements
+        for el in slide.get('elements', []):
+            el_type = el.get('type', '')
+            raw = el.get('content') or el.get('htmlContent') or ''
+            if el_type in ('text', 'html') and raw:
+                clean = _re.sub(r'<[^>]+>', ' ', raw)
+                clean = _re.sub(r'\s+', ' ', clean).strip()
+                if clean:
+                    text_parts.append(clean)
+            elif el_type == 'image' and el.get('src', '').startswith('/api/'):
+                parts = el['src'].split('/assets/')
+                if len(parts) == 2:
+                    local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
+                    if local_path.exists():
+                        try:
+                            img_data = local_path.read_bytes()
+                            ext = local_path.suffix.lower()
+                            mime = 'image/png' if ext == '.png' else 'image/jpeg'
+                            image_files.append(FileContent(
+                                content_type=mime,
+                                file_content_base64=base64.b64encode(img_data).decode()
+                            ))
+                        except Exception:
+                            pass
+
+        slide_text = "\n".join(text_parts) if text_parts else f"Slide {i+1}: {slide.get('title', '')}"
+
+        prompt = f"""Gere um script de narração educativo para um apresentador de vídeo avatar.
+
+Slide {i+1}: "{slide.get('title', '')}"
+Conteúdo do slide:
+{slide_text[:1500]}
+
+Regras:
+- Escreva em português brasileiro fluente e natural
+- Fale como um professor/apresentador profissional
+- Máximo 200 palavras
+- Não mencione "este slide" ou "como podemos ver"
+- Seja direto e informativo
+- Dê contexto e exemplos quando possível"""
+
+        try:
+            messages_content = [prompt]
+            file_contents = image_files[:2] if image_files else None
+
+            chat = LlmChat(
+                api_key=emergent_key,
+                session_id=f"slide-script-{uuid.uuid4().hex[:8]}",
+                system_message="Você é um roteirista profissional de vídeos educativos. Gere scripts naturais e envolventes em português brasileiro."
+            ).with_model("gemini", "gemini-3-flash-preview")
+
+            user_msg = UserMessage(text=prompt, file_contents=file_contents)
+            response = await chat.send_message(user_msg)
+            scripts.append({
+                "index": i,
+                "title": slide.get('title', f'Slide {i+1}'),
+                "script": response.strip(),
+                "charCount": len(response.strip()),
+            })
+        except Exception as e:
+            logger.error(f"Script generation error for slide {i}: {e}")
+            scripts.append({
+                "index": i,
+                "title": slide.get('title', f'Slide {i+1}'),
+                "script": f"Vamos falar sobre {slide.get('title', 'este tópico')}. {slide_text[:300]}",
+                "charCount": 0,
+                "error": str(e)[:100]
+            })
+
+    return {"scripts": scripts, "total": len(scripts)}
