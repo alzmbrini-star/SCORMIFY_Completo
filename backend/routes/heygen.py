@@ -799,11 +799,13 @@ async def get_heygen_credits(force_refresh: bool = False):
             effective_credits = max(remaining_quota, plan_credit)
             
             result = {
-                "remaining_quota": effective_credits,
+                "remaining_quota": remaining_quota,
                 "plan_credit": plan_credit,
                 "used_quota": quota_data.get("used_quota"),
                 "plan": quota_data.get("plan"),
-                "has_credits": effective_credits > 0
+                "has_credits": remaining_quota > 0,
+                "has_plan_credits": plan_credit > 0,
+                "api_note": "remaining_quota = créditos para API de vídeo, plan_credit = créditos do plano Studio"
             }
             
             # Update cache
