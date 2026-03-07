@@ -1069,21 +1069,184 @@ class BatchSlideVideoRequest(BaseModel):
 
 def _get_slide_background_url(project_id: str, slide: dict, base_url: str) -> dict:
     """Get the best background for a slide (image URL or solid color)."""
-    # 1. Check for backgroundImage (PPT imports)
+    # 1. Check for rendered slide image (best quality - includes text + images)
+    rendered_path = PROJECTS_DIR / project_id / "assets" / f"slide_render_{slide.get('id', '')}.png"
+    if rendered_path.exists():
+        return {"type": "image", "url": f"{base_url}/api/projects/{project_id}/assets/slide_render_{slide.get('id', '')}.png"}
+
+    # 2. Check for backgroundImage (PPT imports)
     bg_image = slide.get('backgroundImage', '')
     if bg_image and bg_image.startswith('/api/'):
         return {"type": "image", "url": f"{base_url}{bg_image}"}
 
-    # 2. Check for image elements (AI-generated images)
+    # 3. Check for image elements (AI-generated images)
     for el in slide.get('elements', []):
         if el.get('type') == 'image' and el.get('src', '').startswith('/api/'):
             return {"type": "image", "url": f"{base_url}{el['src']}"}
 
-    # 3. Fallback to background color
+    # 4. Fallback to background color
     bg_color = slide.get('background', '#1e293b')
     if not bg_color or bg_color == 'transparent':
         bg_color = '#1e293b'
     return {"type": "color", "value": bg_color}
+
+
+@router.post("/heygen/render-slide/{project_id}/{slide_index}")
+async def render_slide_image(project_id: str, slide_index: int):
+    """Render a course slide as a PNG image for HeyGen video background.
+    Composites: background color + AI image + text overlay with design template styling."""
+    from PIL import Image, ImageDraw, ImageFont
+    import re as _re
+    import io
+
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    slides = project.get('course', {}).get('slides', [])
+    if slide_index >= len(slides):
+        raise HTTPException(status_code=404, detail="Slide not found")
+
+    slide = slides[slide_index]
+    width, height = 1280, 720
+
+    # Parse background color
+    bg_color_str = slide.get('background', '#1e293b')
+    if not bg_color_str or bg_color_str == 'transparent':
+        bg_color_str = '#1e293b'
+    try:
+        bg_color = bg_color_str.lstrip('#')
+        bg_rgb = tuple(int(bg_color[i:i+2], 16) for i in (0, 2, 4))
+    except Exception:
+        bg_rgb = (30, 41, 59)
+
+    # Create canvas
+    img = Image.new('RGB', (width, height), bg_rgb)
+    draw = ImageDraw.Draw(img)
+
+    # Try to load and composite the AI/background image
+    for el in slide.get('elements', []):
+        if el.get('type') == 'image' and el.get('src', '').startswith('/api/'):
+            parts = el['src'].split('/assets/')
+            if len(parts) == 2:
+                local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
+                if local_path.exists():
+                    try:
+                        bg_img = Image.open(local_path).convert('RGB')
+                        # Calculate position based on element properties
+                        el_x = int(el.get('x', 0) * width / slide.get('width', 1920))
+                        el_y = int(el.get('y', 0) * height / slide.get('height', 1080))
+                        el_w = int(el.get('width', width) * width / slide.get('width', 1920))
+                        el_h = int(el.get('height', height) * height / slide.get('height', 1080))
+                        bg_img = bg_img.resize((el_w, el_h), Image.LANCZOS)
+                        img.paste(bg_img, (el_x, el_y))
+                    except Exception as e:
+                        logger.warning(f"Failed to composite image: {e}")
+
+    # Extract and render text elements
+    try:
+        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
+    except Exception:
+        font_large = ImageFont.load_default()
+        font_medium = ImageFont.load_default()
+
+    text_y = 40
+    for el in slide.get('elements', []):
+        if el.get('type') in ('text', 'html'):
+            raw = el.get('content') or el.get('htmlContent') or ''
+            clean = _re.sub(r'<[^>]+>', '', raw)
+            clean = _re.sub(r'&[a-z]+;', ' ', clean)
+            clean = _re.sub(r'\s+', ' ', clean).strip()
+            if not clean:
+                continue
+
+            # Determine if header or body text
+            is_header = '<h1' in raw or '<h2' in raw or '<h3' in raw or el.get('y', 999) < 200
+            font = font_large if is_header else font_medium
+            text_color = (255, 255, 255)
+
+            # Wrap text
+            max_chars = 55 if is_header else 70
+            lines = []
+            words = clean.split()
+            current_line = ""
+            for word in words:
+                test = f"{current_line} {word}".strip()
+                if len(test) <= max_chars:
+                    current_line = test
+                else:
+                    if current_line:
+                        lines.append(current_line)
+                    current_line = word
+            if current_line:
+                lines.append(current_line)
+
+            # Add semi-transparent background for text readability
+            if lines:
+                line_height = 36 if is_header else 24
+                text_block_h = len(lines) * line_height + 16
+                overlay = Image.new('RGBA', (width, text_block_h), (0, 0, 0, 140))
+                img_rgba = img.convert('RGBA')
+                img_rgba.paste(overlay, (0, text_y - 8), overlay)
+                img = img_rgba.convert('RGB')
+                draw = ImageDraw.Draw(img)
+
+            for line in lines[:6]:
+                draw.text((40, text_y), line, fill=text_color, font=font)
+                text_y += 36 if is_header else 24
+            text_y += 20
+
+    # Add subtle gradient at bottom (for avatar area)
+    for y_pos in range(height - 100, height):
+        alpha = int((y_pos - (height - 100)) / 100 * 80)
+        draw.rectangle([(0, y_pos), (width, y_pos + 1)], fill=(0, 0, 0, alpha) if alpha > 0 else (0, 0, 0))
+
+    # Save rendered image
+    assets_dir = PROJECTS_DIR / project_id / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    render_filename = f"slide_render_{slide.get('id', str(slide_index))}.png"
+    render_path = assets_dir / render_filename
+
+    img.save(render_path, 'PNG', optimize=True)
+    logger.info(f"Rendered slide {slide_index} for project {project_id}: {render_path}")
+
+    return {
+        "url": f"/api/projects/{project_id}/assets/{render_filename}",
+        "width": width,
+        "height": height,
+        "slide_index": slide_index,
+    }
+
+
+@router.post("/heygen/render-all-slides/{project_id}")
+async def render_all_slides(project_id: str, request: Request):
+    """Render all selected slides as PNG images for video backgrounds."""
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    selected_indices = body.get("selectedIndices")
+
+    slides = project.get('course', {}).get('slides', [])
+    results = []
+
+    for i in range(len(slides)):
+        if selected_indices is not None and i not in selected_indices:
+            continue
+        try:
+            result = await render_slide_image(project_id, i)
+            results.append(result)
+        except Exception as e:
+            logger.error(f"Failed to render slide {i}: {e}")
+            results.append({"slide_index": i, "error": str(e)[:100]})
+
+    return {"rendered": len(results), "results": results}
 
 
 @router.post("/heygen/generate-slide-video")
@@ -1340,8 +1503,8 @@ async def get_batch_status(batch_id: str):
 
 
 @router.post("/heygen/generate-all-slide-scripts")
-async def generate_all_slide_scripts(project_id: str):
-    """Generate narration scripts for ALL slides using AI (Gemini 3 Flash Vision)."""
+async def generate_all_slide_scripts(project_id: str, request: Request):
+    """Generate narration scripts for selected slides using AI (Gemini 3 Flash Vision)."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
     import re as _re
 
@@ -1353,14 +1516,25 @@ async def generate_all_slide_scripts(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # Parse optional body for selected slide indices
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    selected_indices = body.get("selectedIndices")  # None = all slides
+
     slides = project.get('course', {}).get('slides', [])
     scripts = []
 
     for i, slide in enumerate(slides):
+        # Skip unselected slides if filter provided
+        if selected_indices is not None and i not in selected_indices:
+            continue
+
         text_parts = []
         image_files = []
 
-        # Extract text from elements
         for el in slide.get('elements', []):
             el_type = el.get('type', '')
             raw = el.get('content') or el.get('htmlContent') or ''
@@ -1402,9 +1576,7 @@ Regras:
 - Dê contexto e exemplos quando possível"""
 
         try:
-            messages_content = [prompt]
             file_contents = image_files[:2] if image_files else None
-
             chat = LlmChat(
                 api_key=emergent_key,
                 session_id=f"slide-script-{uuid.uuid4().hex[:8]}",
