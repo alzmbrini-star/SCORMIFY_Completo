@@ -60,8 +60,20 @@ app = FastAPI(title="Scormify API", version="2.0.0")
 async def root_health():
     return {"status": "healthy"}
 
+@app.get("/healthz")
+async def healthz():
+    return {"status": "healthy"}
+
+@app.get("/ready")
+async def readyz():
+    return {"status": "ready"}
+
 @app.get("/api/health")
 async def api_health_direct():
+    return {"status": "healthy"}
+
+@app.get("/api/healthz")
+async def api_healthz():
     return {"status": "healthy"}
 
 @app.get("/")
@@ -231,7 +243,7 @@ async def startup_persist_local_assets():
             from pymongo import MongoClient
 
             _client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
-            _db = _client[os.environ['DB_NAME']]
+            _db = _client[db_name]
 
             total = 0
 

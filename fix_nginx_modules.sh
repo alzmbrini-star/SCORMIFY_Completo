@@ -113,6 +113,18 @@ server {
         add_header Content-Type application/json;
     }
 
+    location = /healthz {
+        default_type application/json;
+        return 200 '{"status":"healthy"}';
+        add_header Content-Type application/json;
+    }
+
+    location = /ready {
+        default_type application/json;
+        return 200 '{"status":"ready"}';
+        add_header Content-Type application/json;
+    }
+
     # Proxy API requests to FastAPI backend
     location /api/ {
         # Handle CORS preflight at Nginx level as backup

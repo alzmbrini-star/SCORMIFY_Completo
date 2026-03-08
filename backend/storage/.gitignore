@@ -1,0 +1,6 @@
+# Runtime storage files (generated at runtime)
+exports/
+projects/
+uploads/
+fonts/
+!.gitkeep

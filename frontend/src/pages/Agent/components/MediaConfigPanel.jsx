@@ -610,7 +610,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
         .catch(() => toast.error('Erro ao carregar vozes'))
         .finally(() => setLoadingVoices(false));
     }
-  }, [heygenCount]);
+  }, [heygenCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch ElevenLabs voices when narration is active
   useEffect(() => {
@@ -622,7 +622,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
         .catch(() => toast.error('Erro ao carregar vozes ElevenLabs'))
         .finally(() => setLoadingElVoices(false));
     }
-  }, [narrationCount]);
+  }, [narrationCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
   const narrationReady = narrationCount === 0 || narrationVoiceId;

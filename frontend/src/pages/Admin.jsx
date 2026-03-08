@@ -74,7 +74,7 @@ export default function Admin() {
     }
     fetchData();
     fetchTutorSettings();
-  }, [isCompanyAdmin, navigate]);
+  }, [isCompanyAdmin, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = async () => {
     setLoading(true);

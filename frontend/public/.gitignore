@@ -1,0 +1,5 @@
+# SCORM test/export files (too large for build)
+scorm_*
+test_scorm/
+test-scorm/
+mobile-test.html

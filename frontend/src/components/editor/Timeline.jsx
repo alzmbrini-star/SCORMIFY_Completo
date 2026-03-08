@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Slider } from '../ui/slider';
 import { Input } from '../ui/input';
@@ -61,9 +61,9 @@ const Timeline = ({
   const setIsPlaying = onPlayPause || setLocalIsPlaying;
 
   const duration = slide?.duration || 10;
-  const elements = slide?.elements || [];
-  const annotations = slide?.annotations || [];
-  const audioList = slide?.audio || [];
+  const elements = useMemo(() => slide?.elements || [], [slide?.elements]);
+  const annotations = useMemo(() => slide?.annotations || [], [slide?.annotations]);
+  const audioList = useMemo(() => slide?.audio || [], [slide?.audio]);
 
   // Animation loop
   useEffect(() => {
@@ -89,7 +89,7 @@ const Timeline = ({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isPlaying, duration]);
+  }, [isPlaying, duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle audio playback
   useEffect(() => {
@@ -122,12 +122,13 @@ const Timeline = ({
         }
       });
     }
-  }, [isPlaying, currentTime, isMuted, audioList, duration]);
+  }, [isPlaying, currentTime, isMuted, audioList, duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup audio on unmount
   useEffect(() => {
+    const refs = audioRefs.current;
     return () => {
-      Object.values(audioRefs.current).forEach(audio => {
+      Object.values(refs).forEach(audio => {
         if (audio) {
           audio.pause();
           audio.src = '';

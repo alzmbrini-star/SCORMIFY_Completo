@@ -102,7 +102,7 @@ export default function QuizPlayer({
       // Quiz complete - calculate results
       calculateResults();
     }
-  }, [currentIndex, totalQuestions]);
+  }, [currentIndex, totalQuestions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const calculateResults = useCallback(() => {
     const updatedAnswers = [...answers];

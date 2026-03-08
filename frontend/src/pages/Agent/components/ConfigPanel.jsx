@@ -45,7 +45,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
         .catch(() => {})
         .finally(() => setLoadingVoices(false));
     }
-  }, [config.narrationEnabled]);
+  }, [config.narrationEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-4" data-testid="config-panel">

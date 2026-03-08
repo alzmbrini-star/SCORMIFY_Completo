@@ -44,7 +44,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
       setNarrationSlides(initial);
       if (config.narrationEnabled) setShowNarrationPanel(true);
     }
-  }, [storyboard?.slides?.length]);
+  }, [storyboard?.slides?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch voices when narration is enabled
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
         .catch(() => {})
         .finally(() => setLoadingVoices(false));
     }
-  }, [config.narrationEnabled]);
+  }, [config.narrationEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cost calculation - ElevenLabs Starter: $5/30,000 chars
   const COST_PER_CHAR = 5.0 / 30000.0;
@@ -68,7 +68,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
       const enabled = !!narrationSlides[i];
       return { charCount, cost, enabled, hasScript: !!s.narrationScript };
     });
-  }, [storyboard?.slides, narrationSlides]);
+  }, [storyboard?.slides, narrationSlides, COST_PER_CHAR]);
 
   const totalChars = slideCosts.filter(s => s.enabled).reduce((sum, s) => sum + s.charCount, 0);
   const totalCost = slideCosts.filter(s => s.enabled).reduce((sum, s) => sum + s.cost, 0);
