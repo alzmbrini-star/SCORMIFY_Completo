@@ -26,6 +26,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui
 
 const API = getApiUrl();
 
+const GRADIENT_DIRECTIONS = [
+  { id: 'to right', label: '\u2192' },
+  { id: 'to left', label: '\u2190' },
+  { id: 'to bottom', label: '\u2193' },
+  { id: 'to top', label: '\u2191' },
+  { id: 'to bottom right', label: '\u2198' },
+  { id: 'to bottom left', label: '\u2199' },
+  { id: 'to top right', label: '\u2197' },
+  { id: 'to top left', label: '\u2196' },
+];
+
 function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, isGlobal }) {
   const bg = bgConfig[String(slideIndex)] || { type: 'default' };
 
