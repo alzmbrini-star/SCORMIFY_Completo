@@ -26,6 +26,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui
 
 const API = getApiUrl();
 
+const TEMPLATE_ICONS = {
+  users: Users, shield: Shield, wrench: Wrench, heart: Heart,
+  'hard-hat': HardHat, 'trending-up': TrendingUp,
+};
+
 export default function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templates, selectedTemplate, setSelectedTemplate, designTemplates, selectedDesignTemplate, setSelectedDesignTemplate }) {
   const update = (k, v) => setConfig(prev => ({ ...prev, [k]: v }));
   const [elVoices, setElVoices] = useState([]);
