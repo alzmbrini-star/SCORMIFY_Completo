@@ -55,6 +55,13 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 
 ## Recent Changes
 
+### Mar 9, 2026 - Bug Fix: AI Tutor Fails in SCORM Export
+- **Root Cause**: The `apiUrl` embedded in SCORM (and HTML) exports was derived from HTTP request headers (`Origin`, `x-forwarded-host`, `host`). In production, these headers contained internal Kubernetes cluster URLs (e.g., `scorm-tutor-qa.cluster-0.preview.emergentcf.cloud`) which are NOT accessible from outside the cluster. When users tested the SCORM package locally or in SCORM Cloud, the AI Tutor's `fetch()` call to this internal URL failed.
+- **Fix (export.py)**: Changed URL detection to use `BASE_URL` env var (or `REACT_APP_BACKEND_URL` from frontend `.env`) as the **primary** source instead of request headers. This always resolves to the correct external-facing URL.
+- **Fix (tutor.js)**: Improved error handling in the `fetch` catch block to show descriptive error messages including HTTP status codes, and log the `apiUrl` being used for easier debugging.
+- **Also fixed**: Removed duplicated per-slide contexts code in HTML export section.
+- **Verified**: SCORM export now embeds `https://scorm-tutor-qa.preview.emergentagent.com` (external URL) and tutor API calls succeed with `Origin: null`.
+
 ### Mar 9, 2026 - Bug Fixes: Timeline & Media Overlap
 - **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
 - **Media Editing Image Overlap**: Fixed by tracking original global settings (`originalGlobalTextColor`, `originalGlobalFontSize`, `originalGlobalAnimation`, `originalDesignTemplate`) in Agent.jsx and comparing current vs original values in `hasGlobalChanges` instead of just checking existence. Also sends empty array `[]` instead of `null` when no slides changed.
@@ -121,6 +128,8 @@ backend/
 - SCORM 2004 & xAPI Export implementation
 ### P1
 - Further Editor.jsx dialog extraction (~1200 lines)
+### P2
+- Advanced AI Tutor interactivity features
 ### Cancelled
 - Synthesia Integration (user decided cost was too high)
 

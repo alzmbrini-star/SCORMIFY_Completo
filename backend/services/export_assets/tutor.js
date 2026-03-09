@@ -215,7 +215,14 @@ var AiTutor = (function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         })
-        .then(function(res) { return res.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                return res.text().then(function(text) {
+                    throw new Error('HTTP ' + res.status + ': ' + text.substring(0, 200));
+                });
+            }
+            return res.json();
+        })
         .then(function(data) {
             setLoading(false);
             if (data.response) {
@@ -233,8 +240,12 @@ var AiTutor = (function() {
         })
         .catch(function(err) {
             setLoading(false);
-            appendMessage('assistant', 'Desculpe, ocorreu um erro ao conectar com o tutor. Verifique se o servidor esta acessivel.');
-            console.error('Tutor error:', err);
+            var errorMsg = 'Desculpe, ocorreu um erro ao conectar com o tutor.';
+            if (err.message) {
+                errorMsg += ' (' + err.message + ')';
+            }
+            appendMessage('assistant', errorMsg);
+            console.error('Tutor error:', err, 'API URL:', config.apiUrl);
         });
     }
 

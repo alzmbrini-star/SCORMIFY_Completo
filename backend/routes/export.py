@@ -119,23 +119,19 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                # Detect the backend URL from the current request
-                # This works automatically in both dev and production
-                origin = request.headers.get('origin', '')
-                if origin:
-                    backend_url = origin
-                else:
-                    fwd_host = request.headers.get('x-forwarded-host', '')
-                    scheme = request.headers.get('x-forwarded-proto', 'https')
-                    if fwd_host:
-                        backend_url = f"{scheme}://{fwd_host}"
-                    else:
-                        host = request.headers.get('host', '')
-                        backend_url = f"{scheme}://{host}" if host else ''
-                
-                # Fallback to BASE_URL from env if header detection fails
-                if not backend_url or backend_url in ('https://', 'http://'):
-                    backend_url = os.environ.get('BASE_URL', '')
+                # Use BASE_URL from env as primary source (always the correct external URL)
+                # Request headers may contain internal cluster URLs that are unreachable externally
+                backend_url = os.environ.get('BASE_URL', '').strip()
+                if not backend_url:
+                    # Fallback: read from frontend .env
+                    try:
+                        env_path = Path(__file__).parent.parent / "frontend" / ".env"
+                        for line in env_path.read_text().splitlines():
+                            if line.startswith("REACT_APP_BACKEND_URL="):
+                                backend_url = line.split("=", 1)[1].strip()
+                                break
+                    except Exception:
+                        pass
                 
                 tutor_settings = {
                     'enabled': True,
@@ -154,27 +150,17 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         from services.scorm_exporter import export_scorm_package
         import asyncio
         
-        # Detect backend URL for VLibras dictionary proxy
-        # Priority: origin header (from frontend) > x-forwarded-host > frontend .env fallback
-        origin = request.headers.get('origin', '')
-        if origin:
-            scorm_backend_url = origin
-        else:
-            fwd_host = request.headers.get('x-forwarded-host', '')
-            scheme = request.headers.get('x-forwarded-proto', 'https')
-            if fwd_host:
-                scorm_backend_url = f"{scheme}://{fwd_host}"
-            else:
-                # Read from frontend .env as last resort
-                scorm_backend_url = ''
-                try:
-                    env_path = Path(__file__).parent.parent / "frontend" / ".env"
-                    for line in env_path.read_text().splitlines():
-                        if line.startswith("REACT_APP_BACKEND_URL="):
-                            scorm_backend_url = line.split("=", 1)[1].strip()
-                            break
-                except Exception:
-                    pass
+        # Use BASE_URL from env for VLibras proxy (always the correct external URL)
+        scorm_backend_url = os.environ.get('BASE_URL', '').strip()
+        if not scorm_backend_url:
+            try:
+                env_path = Path(__file__).parent.parent / "frontend" / ".env"
+                for line in env_path.read_text().splitlines():
+                    if line.startswith("REACT_APP_BACKEND_URL="):
+                        scorm_backend_url = line.split("=", 1)[1].strip()
+                        break
+            except Exception:
+                pass
         
         zip_path = await asyncio.to_thread(
             export_scorm_package,
@@ -270,16 +256,8 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                origin = request.headers.get('origin', '')
-                if origin:
-                    html_backend_url = origin
-                else:
-                    fwd_host = request.headers.get('x-forwarded-host', '')
-                    scheme = request.headers.get('x-forwarded-proto', 'https')
-                    if fwd_host:
-                        html_backend_url = f"{scheme}://{fwd_host}"
-                    else:
-                        html_backend_url = base_url or ''
+                # Use BASE_URL from env as primary source (always the correct external URL)
+                html_backend_url = os.environ.get('BASE_URL', '').strip() or base_url or ''
                 
                 # Build course context from slide content
                 course_context_parts = []
@@ -315,29 +293,6 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                     'courseTopic': course_data.get('metadata', {}).get('title', '') or project_doc.get('name', ''),
                     'courseContext': "\n---\n".join(course_context_parts)[:8000]
                 }
-                
-                # Build per-slide contexts for slide-aware tutoring
-                per_slide_contexts = []
-                for slide in course_data.get('slides', []):
-                    elements_text = []
-                    for el in slide.get('elements', []):
-                        raw = el.get('content') or el.get('htmlContent') or el.get('text') or ''
-                        if raw:
-                            clean = re.sub(r'<[^>]+>', ' ', raw).strip()
-                            clean = re.sub(r'\s+', ' ', clean)
-                            if clean:
-                                elements_text.append(clean[:500])
-                        btn_text = el.get('buttonText')
-                        if btn_text:
-                            elements_text.append(btn_text)
-                    notes = slide.get('notes', '')
-                    libras = slide.get('librasScript', '')
-                    if notes:
-                        elements_text.append(f"Notas: {notes}")
-                    if libras:
-                        elements_text.append(f"Narracao: {libras}")
-                    per_slide_contexts.append(" | ".join(elements_text) if elements_text else '')
-                tutor_settings['slideContexts'] = per_slide_contexts
                 
                 # Build per-slide contexts for slide-aware tutoring
                 per_slide_contexts = []
