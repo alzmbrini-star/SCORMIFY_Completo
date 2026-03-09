@@ -255,7 +255,7 @@ async def startup_persist_local_assets():
                             {"project_id": "bg_temp", "filename": asset.name}, {"_id": 1}
                         )
                         if not existing:
-                            store_asset_sync(mongo_url, os.environ['DB_NAME'], "bg_temp", asset.name, str(asset))
+                            store_asset_sync(mongo_url, db_name, "bg_temp", asset.name, str(asset))
                             total += 1
 
             for project_dir in PROJECTS_DIR.iterdir():
@@ -274,7 +274,7 @@ async def startup_persist_local_assets():
                             {"project_id": project_id, "filename": asset.name}, {"_id": 1}
                         )
                         if not existing:
-                            store_asset_sync(mongo_url, os.environ['DB_NAME'], project_id, asset.name, str(asset))
+                            store_asset_sync(mongo_url, db_name, project_id, asset.name, str(asset))
                             total += 1
 
             audio_dir = STORAGE_DIR / "audio"
