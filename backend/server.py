@@ -129,8 +129,8 @@ app.include_router(api_router)
 # CORS - Allow all origins for cross-domain production deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     max_age=3600,
