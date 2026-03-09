@@ -59,6 +59,14 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
 - **Media Editing Image Overlap**: Fixed by tracking original global settings (`originalGlobalTextColor`, `originalGlobalFontSize`, `originalGlobalAnimation`, `originalDesignTemplate`) in Agent.jsx and comparing current vs original values in `hasGlobalChanges` instead of just checking existence. Also sends empty array `[]` instead of `null` when no slides changed.
 
+### Mar 9, 2026 - Feature: Tutor IA Slide-Aware em Exportações
+- **tutor.js**: Reescrito para ser slide-aware. Rastreia `currentSlideIndex`, mostra indicador do slide atual, envia contexto específico do slide com cada mensagem.
+- **player.js**: Adicionadas chamadas `AiTutor.onSlideChange(currentSlide)` em `nextSlide`, `prevSlide`, e `goToSlide`.
+- **scorm_exporter.py**: Gera array `slideContexts` com conteúdo de cada slide (texto, HTML, quiz, botões).
+- **export.py**: Gera `slideContexts` para exportação HTML, fallback para `BASE_URL` na detecção de `apiUrl`.
+- **html_exporter.py**: Chama `AiTutor.onSlideChange()` quando slides são renderizados.
+- **tutor.css**: Adicionado estilo para indicador de slide no chat.
+
 ### Mar 9, 2026 - Bug Fix: Gallery Images Broken in Export
 - **Root Cause**: SCORM and HTML exporters used current project ID to look up gallery images, but gallery images reference assets from OTHER projects (`/api/projects/OTHER_ID/assets/...`). The asset wasn't found because it doesn't belong to the current project.
 - **Fix (scorm_exporter.py)**: Added a pre-scan of all slide elements to collect referenced project IDs, then copies their assets into the package. Also modified the embed logic to extract source project ID from URLs and search in the correct project's directory.
