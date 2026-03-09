@@ -129,8 +129,19 @@ async def process_html_content_images(
                 base64_src = file_to_base64(local_path)
                 logger.info(f"Embedded project asset: {asset_filename}")
             else:
-                full_url = f"{base_url}{src}"
-                base64_src = await url_to_base64(full_url)
+                # Try source project's assets directory (gallery images from other projects)
+                import re as _re
+                pid_match = _re.search(r'/api/projects/([^/]+)/assets/', src)
+                if pid_match:
+                    source_pid = pid_match.group(1)
+                    source_dir = os.path.join(os.path.dirname(assets_dir), '..', source_pid, 'assets')
+                    source_path = os.path.join(source_dir, asset_filename)
+                    if os.path.exists(source_path):
+                        base64_src = file_to_base64(source_path)
+                        logger.info(f"Embedded gallery image from source project {source_pid}: {asset_filename}")
+                if not base64_src:
+                    full_url = f"{base_url}{src}"
+                    base64_src = await url_to_base64(full_url)
         
         # Handle other external URLs (not /api/assets/)
         elif src.startswith('http'):
@@ -346,26 +357,44 @@ async def generate_standalone_html(
                 elif src.startswith('/api/') or src.startswith('assets/'):
                     asset_filename = src.split('/')[-1]
                     local_path = os.path.join(assets_dir, asset_filename)
+                    
+                    # Extract source project ID from gallery image URLs
+                    source_project_id = project.get('id', '')
+                    if '/api/projects/' in src:
+                        import re as _re
+                        pid_match = _re.search(r'/api/projects/([^/]+)/assets/', src)
+                        if pid_match:
+                            source_project_id = pid_match.group(1)
+                    
                     if os.path.exists(local_path):
                         processed_element['src'] = file_to_base64(local_path)
                     else:
-                        # Try MongoDB fallback
-                        mongo_restored = False
-                        try:
-                            from services.asset_store import retrieve_asset_sync
-                            mongo_url = os.environ.get('MONGO_URL')
-                            db_name = os.environ.get('DB_NAME')
-                            project_id = project.get('id', '')
-                            if mongo_url and db_name and project_id:
-                                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                                if retrieve_asset_sync(mongo_url, db_name, project_id, asset_filename, local_path):
-                                    processed_element['src'] = file_to_base64(local_path)
-                                    mongo_restored = True
-                        except Exception:
-                            pass
-                        if not mongo_restored:
-                            full_url = f"{base_url}{src}" if not src.startswith('http') else src
-                            processed_element['src'] = await url_to_base64(full_url)
+                        # Try source project's assets directory (for gallery images from other projects)
+                        source_local_path = None
+                        if source_project_id != project.get('id', ''):
+                            source_assets_dir = os.path.join(os.path.dirname(assets_dir), '..', source_project_id, 'assets')
+                            source_local_path = os.path.join(source_assets_dir, asset_filename)
+                            if os.path.exists(source_local_path):
+                                processed_element['src'] = file_to_base64(source_local_path)
+                        
+                        if not processed_element.get('src') or processed_element['src'] == src:
+                            # Try MongoDB fallback
+                            mongo_restored = False
+                            try:
+                                from services.asset_store import retrieve_asset_sync
+                                mongo_url = os.environ.get('MONGO_URL')
+                                db_name = os.environ.get('DB_NAME')
+                                lookup_project_id = source_project_id or project.get('id', '')
+                                if mongo_url and db_name and lookup_project_id:
+                                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                                    if retrieve_asset_sync(mongo_url, db_name, lookup_project_id, asset_filename, local_path):
+                                        processed_element['src'] = file_to_base64(local_path)
+                                        mongo_restored = True
+                            except Exception:
+                                pass
+                            if not mongo_restored:
+                                full_url = f"{base_url}{src}" if not src.startswith('http') else src
+                                processed_element['src'] = await url_to_base64(full_url)
                 elif src.startswith('http'):
                     processed_element['src'] = await url_to_base64(src)
             

@@ -59,7 +59,11 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
 - **Media Editing Image Overlap**: Fixed by tracking original global settings (`originalGlobalTextColor`, `originalGlobalFontSize`, `originalGlobalAnimation`, `originalDesignTemplate`) in Agent.jsx and comparing current vs original values in `hasGlobalChanges` instead of just checking existence. Also sends empty array `[]` instead of `null` when no slides changed.
 
-### Mar 9, 2026 - Deployment Fix: Nginx Config
+### Mar 9, 2026 - Bug Fix: Gallery Images Broken in Export
+- **Root Cause**: SCORM and HTML exporters used current project ID to look up gallery images, but gallery images reference assets from OTHER projects (`/api/projects/OTHER_ID/assets/...`). The asset wasn't found because it doesn't belong to the current project.
+- **Fix (scorm_exporter.py)**: Added a pre-scan of all slide elements to collect referenced project IDs, then copies their assets into the package. Also modified the embed logic to extract source project ID from URLs and search in the correct project's directory.
+- **Fix (html_exporter.py)**: Modified image element processing and HTML content image processing to extract source project ID from gallery URLs and search in the correct directories + MongoDB.
+- **Verified**: Export now shows `Embedded image as data URI from local file: ai_img_xxx.png` instead of `Could not find image anywhere`.
 - **Root Cause**: `pre-start.sh` ran `fix_nginx_modules.sh` which replaced the deployment's nginx config with a preview proxy config that forwards `location /` to `localhost:3000` (React dev server). In deployment, there is NO dev server - frontend is pre-built static files. This caused all health checks to timeout.
 - **Fix**: Modified `fix_nginx_modules.sh` to detect deployment mode (checks for `asset-manifest.json` and `static/` directory in `/usr/share/nginx/html/`). In deployment mode, serves static files with `try_files`. In preview mode, proxies to dev server on port 3000.
 - **Also fixed**: Cleaned up `.gitignore` - removed broken `-e ` entries and duplicate/redundant patterns.

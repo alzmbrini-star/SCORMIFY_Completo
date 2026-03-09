@@ -298,6 +298,50 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     except Exception as e:
         logger.warning(f"Failed to restore assets from MongoDB (non-fatal): {e}")
     
+    # Collect gallery images from other referenced projects
+    import re as _re
+    referenced_project_ids = set()
+    course_data_pre = course.model_dump()
+    for slide in (course_data_pre.get('slides') or []):
+        if not isinstance(slide, dict):
+            continue
+        for element in (slide.get('elements') or []):
+            if not isinstance(element, dict):
+                continue
+            elem_src = element.get('src') or ''
+            if elem_src and '/api/projects/' in elem_src:
+                pid_match = _re.search(r'/api/projects/([^/]+)/assets/', elem_src)
+                if pid_match and pid_match.group(1) != project.id:
+                    referenced_project_ids.add(pid_match.group(1))
+        bg = slide.get('backgroundImage') or ''
+        if bg and '/api/projects/' in bg:
+            pid_match = _re.search(r'/api/projects/([^/]+)/assets/', bg)
+            if pid_match and pid_match.group(1) != project.id:
+                referenced_project_ids.add(pid_match.group(1))
+    
+    if referenced_project_ids:
+        logger.info(f"Found gallery images from {len(referenced_project_ids)} other project(s), collecting assets...")
+        for ref_pid in referenced_project_ids:
+            ref_assets = Path(storage_dir) / ref_pid / "assets"
+            if ref_assets.exists():
+                for asset in ref_assets.iterdir():
+                    if asset.is_dir():
+                        continue
+                    dest = package_dir / "assets" / asset.name
+                    if not dest.exists():
+                        shutil.copy2(asset, dest)
+                        logger.info(f"Copied gallery asset from project {ref_pid}: {asset.name}")
+            # Also restore from MongoDB
+            try:
+                if mongo_url and db_name:
+                    restored = restore_project_assets_sync(
+                        mongo_url, db_name, ref_pid, str(package_dir / "assets")
+                    )
+                    if restored > 0:
+                        logger.info(f"Restored {restored} gallery assets from MongoDB for project {ref_pid}")
+            except Exception as e:
+                logger.warning(f"Failed to restore gallery assets for {ref_pid}: {e}")
+    
     # Also copy global assets (AI-generated images are stored here)
     # storage_dir points to /storage/projects, so parent is /storage
     storage_base = Path(storage_dir).parent
@@ -377,10 +421,28 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                 raw = elem_src.split('/assets/')[-1].split('?')[0]
                 filename = raw.split('/')[-1] if '/' in raw else raw
                 if filename:
+                    # Extract source project ID from URL (gallery images may reference other projects)
+                    source_project_id = project.id
+                    if '/api/projects/' in elem_src:
+                        import re as _re
+                        pid_match = _re.search(r'/api/projects/([^/]+)/assets/', elem_src)
+                        if pid_match:
+                            source_project_id = pid_match.group(1)
+                    
                     # For image elements or files with image extensions, embed as data URI
                     is_image_ext = any(filename.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'))
                     if (elem_type in ('image', '') or not elem_type) and is_image_ext:
+                        # First try with current project assets, then source project
                         data_uri = _read_image_as_data_uri(project.id, filename, package_assets)
+                        if not data_uri and source_project_id != project.id:
+                            # Try from source project's assets directory
+                            source_assets = Path(storage_dir) / source_project_id / "assets"
+                            if source_assets.exists():
+                                source_file = source_assets / filename
+                                if source_file.exists():
+                                    shutil.copy2(source_file, package_assets / filename)
+                            # Also try restoring from MongoDB with source project ID
+                            data_uri = _read_image_as_data_uri(source_project_id, filename, package_assets)
                         element['src'] = data_uri if data_uri else f"assets/{filename}"
                     else:
                         element['src'] = f"assets/{filename}"
