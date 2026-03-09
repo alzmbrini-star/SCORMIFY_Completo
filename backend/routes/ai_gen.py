@@ -1,5 +1,6 @@
 """AI text/image generation routes"""
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import uuid
@@ -14,6 +15,15 @@ from routes.deps import db, now_utc, serialize_doc, STORAGE_DIR, PROJECTS_DIR, U
 logger = logging.getLogger("server")
 
 router = APIRouter(tags=["AI Generation"])
+
+
+@router.get("/assets/{filename}")
+async def serve_global_asset(filename: str):
+    """Serve AI-generated images and other global assets from storage/assets/"""
+    asset_path = STORAGE_DIR / "assets" / filename
+    if not asset_path.exists():
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return FileResponse(str(asset_path))
 
 
 class AITextGenerateRequest(BaseModel):
