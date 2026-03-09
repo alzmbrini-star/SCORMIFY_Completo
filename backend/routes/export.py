@@ -22,6 +22,33 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Export"])
 
 
+def _get_external_url() -> str:
+    """Get the external-facing URL for the app.
+    Reads directly from .env files to avoid issues with hot-reload not re-running load_dotenv."""
+    # Try 1: backend .env BASE_URL
+    try:
+        backend_env = Path(__file__).parent.parent / '.env'
+        for line in backend_env.read_text().splitlines():
+            if line.startswith('BASE_URL='):
+                val = line.split('=', 1)[1].strip()
+                if val:
+                    return val
+    except Exception:
+        pass
+    # Try 2: frontend .env REACT_APP_BACKEND_URL
+    try:
+        frontend_env = Path(__file__).parent.parent.parent / 'frontend' / '.env'
+        for line in frontend_env.read_text().splitlines():
+            if line.startswith('REACT_APP_BACKEND_URL='):
+                val = line.split('=', 1)[1].strip()
+                if val:
+                    return val
+    except Exception:
+        pass
+    # Try 3: os.environ fallback
+    return os.environ.get('BASE_URL', '') or os.environ.get('REACT_APP_BACKEND_URL', '')
+
+
 def _cleanup_old_exports(exports_dir: str, max_age_hours: int = 24):
     import time
     exports_path = Path(exports_dir)
@@ -119,19 +146,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                # Use BASE_URL from env as primary source (always the correct external URL)
-                # Request headers may contain internal cluster URLs that are unreachable externally
-                backend_url = os.environ.get('BASE_URL', '').strip()
-                if not backend_url:
-                    # Fallback: read from frontend .env
-                    try:
-                        env_path = Path(__file__).parent.parent / "frontend" / ".env"
-                        for line in env_path.read_text().splitlines():
-                            if line.startswith("REACT_APP_BACKEND_URL="):
-                                backend_url = line.split("=", 1)[1].strip()
-                                break
-                    except Exception:
-                        pass
+                backend_url = _get_external_url()
                 
                 tutor_settings = {
                     'enabled': True,
@@ -150,17 +165,8 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         from services.scorm_exporter import export_scorm_package
         import asyncio
         
-        # Use BASE_URL from env for VLibras proxy (always the correct external URL)
-        scorm_backend_url = os.environ.get('BASE_URL', '').strip()
-        if not scorm_backend_url:
-            try:
-                env_path = Path(__file__).parent.parent / "frontend" / ".env"
-                for line in env_path.read_text().splitlines():
-                    if line.startswith("REACT_APP_BACKEND_URL="):
-                        scorm_backend_url = line.split("=", 1)[1].strip()
-                        break
-            except Exception:
-                pass
+        # Use reliable external URL for VLibras proxy
+        scorm_backend_url = _get_external_url()
         
         zip_path = await asyncio.to_thread(
             export_scorm_package,
@@ -229,7 +235,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         assets_dir = str(PROJECTS_DIR / project_id / "assets")
         
         # Get base URL for external assets
-        base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+        base_url = _get_external_url()
         
         # Collect question IDs from quiz elements
         question_ids = set()
@@ -256,8 +262,8 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                # Use BASE_URL from env as primary source (always the correct external URL)
-                html_backend_url = os.environ.get('BASE_URL', '').strip() or base_url or ''
+                # Use reliable external URL (reads directly from .env files)
+                html_backend_url = _get_external_url()
                 
                 # Build course context from slide content
                 course_context_parts = []
