@@ -55,6 +55,10 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 
 ## Recent Changes
 
+### Mar 9, 2026 - Bug Fixes: Timeline & Media Overlap
+- **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
+- **Media Editing Image Overlap**: Fixed by tracking original global settings (`originalGlobalTextColor`, `originalGlobalFontSize`, `originalGlobalAnimation`, `originalDesignTemplate`) in Agent.jsx and comparing current vs original values in `hasGlobalChanges` instead of just checking existence. Also sends empty array `[]` instead of `null` when no slides changed.
+
 ### Mar 7, 2026 - Dashboard Metrics & AI Tutor
 - Added `GET /api/dashboard/metrics` endpoint (totalCourses, totalSlides, totalExports)
 - Added export logging to `export_logs` collection
@@ -100,6 +104,8 @@ backend/
 - SCORM 2004 & xAPI Export implementation
 ### P1
 - Further Editor.jsx dialog extraction (~1200 lines)
+### Cancelled
+- Synthesia Integration (user decided cost was too high)
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
