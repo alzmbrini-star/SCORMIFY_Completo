@@ -425,8 +425,14 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId, 
   };
 
   // Add library video to slide
-  const handleAddLibraryVideoToSlide = async (videoUrl) => {
-    if (!videoUrl || !currentSlide || !addElement) return;
+  const handleAddLibraryVideoToSlide = async (video) => {
+    if (!video || !currentSlide || !addElement) return;
+    // Accept either a video object or a URL string
+    const videoUrl = typeof video === 'string' ? video : (video.video_url || video.src || '');
+    if (!videoUrl) {
+      toast.error('URL do video nao encontrada');
+      return;
+    }
     try {
       await addElement(currentSlide.id, {
         type: 'video', src: videoUrl,
