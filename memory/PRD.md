@@ -59,6 +59,11 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
 - **Media Editing Image Overlap**: Fixed by tracking original global settings (`originalGlobalTextColor`, `originalGlobalFontSize`, `originalGlobalAnimation`, `originalDesignTemplate`) in Agent.jsx and comparing current vs original values in `hasGlobalChanges` instead of just checking existence. Also sends empty array `[]` instead of `null` when no slides changed.
 
+### Mar 9, 2026 - Deployment Fix: Nginx Config
+- **Root Cause**: `pre-start.sh` ran `fix_nginx_modules.sh` which replaced the deployment's nginx config with a preview proxy config that forwards `location /` to `localhost:3000` (React dev server). In deployment, there is NO dev server - frontend is pre-built static files. This caused all health checks to timeout.
+- **Fix**: Modified `fix_nginx_modules.sh` to detect deployment mode (checks for `asset-manifest.json` and `static/` directory in `/usr/share/nginx/html/`). In deployment mode, serves static files with `try_files`. In preview mode, proxies to dev server on port 3000.
+- **Also fixed**: Cleaned up `.gitignore` - removed broken `-e ` entries and duplicate/redundant patterns.
+
 ### Mar 7, 2026 - Dashboard Metrics & AI Tutor
 - Added `GET /api/dashboard/metrics` endpoint (totalCourses, totalSlides, totalExports)
 - Added export logging to `export_logs` collection

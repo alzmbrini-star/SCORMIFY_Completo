@@ -30,8 +30,7 @@ next-env.d.ts
 dist/
 dist
 
-# Environment files (comprehensive coverage)
-
+# Sensitive tokens
 *token.json*
 *credentials.json*
 
@@ -77,25 +76,7 @@ agenthub/agents/youtube/db
 .cache/
 
 # Mobile development
-android-sdk/ frontend/node_modules/.cache/default-development/2.pack
-frontend/node_modules/.cache/default-development/2.pack
-frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/7.pack
-frontend/node_modules/.cache/default-development/1.pack
-frontend/node_modules/.cache/default-development/3.pack
-frontend/node_modules/.cache/default-development/5.pack
-frontend/node_modules/.cache/default-development/6.pack
-frontend/node_modules/.cache/default-development/8.pack
-backend/storage/exports/Ferramenta_de_Criação_de_Rapid_Learning_20260224_124034.zip
--e 
-# Environment files - DO NOT block .env files (required for Emergent deployment)
-# Sensitive values are auto-replaced by Emergent during deployment
+android-sdk/
 frontend/node_modules/.cache/default-development/4.pack
-frontend/node_modules/.cache/default-development/10.pack
-frontend/node_modules/.cache/default-development/12.pack
--e 
-# Environment files
-
 frontend/node_modules/.cache/default-development/16.pack
 frontend/node_modules/.cache/default-development/9.pack
-frontend/node_modules/.cache/default-development/13.pack

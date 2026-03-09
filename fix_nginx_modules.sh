@@ -98,8 +98,91 @@ fi
 DEFAULT_SITE="/etc/nginx/sites-enabled/default"
 if [ -f "$DEFAULT_SITE" ] && ! grep -q "emergent-app-proxy" "$DEFAULT_SITE" 2>/dev/null; then
     echo "[fix-nginx] Replacing /etc/nginx/sites-enabled/default with app proxy config..."
-    cat > "$DEFAULT_SITE" << 'SITE_CONF'
-# emergent-app-proxy - managed by fix_nginx_modules.sh
+
+    # Detect if this is a deployment (built React frontend exists) vs preview (dev server)
+    HTML_DIR="/usr/share/nginx/html"
+    IS_DEPLOYMENT=false
+    if [ -f "$HTML_DIR/asset-manifest.json" ] && [ -d "$HTML_DIR/static" ]; then
+        IS_DEPLOYMENT=true
+        echo "[fix-nginx] Detected DEPLOYMENT mode (built frontend found in $HTML_DIR)"
+    else
+        echo "[fix-nginx] Detected PREVIEW mode (no built frontend, will proxy to dev server)"
+    fi
+
+    if [ "$IS_DEPLOYMENT" = true ]; then
+        # DEPLOYMENT: Serve static files from HTML directory
+        cat > "$DEFAULT_SITE" << 'SITE_CONF'
+# emergent-app-proxy - managed by fix_nginx_modules.sh (DEPLOYMENT MODE)
+# Serves static frontend files and proxies API to backend
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html index.htm;
+
+    # Health check endpoint (for deployment probe)
+    location = /health {
+        default_type application/json;
+        return 200 '{"status":"healthy","service":"nginx-proxy"}';
+        add_header Content-Type application/json;
+    }
+
+    location = /healthz {
+        default_type application/json;
+        return 200 '{"status":"healthy"}';
+        add_header Content-Type application/json;
+    }
+
+    location = /ready {
+        default_type application/json;
+        return 200 '{"status":"ready"}';
+        add_header Content-Type application/json;
+    }
+
+    # Proxy API requests to FastAPI backend
+    location /api/ {
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Max-Age' 3600;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+
+        proxy_pass http://127.0.0.1:8001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Origin $http_origin;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # Proxy asset/export requests to FastAPI
+    location /exports/ {
+        proxy_pass http://127.0.0.1:8001/exports/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_read_timeout 300s;
+    }
+
+    # Serve static frontend files (SPA routing)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+SITE_CONF
+    else
+        # PREVIEW: Proxy to React dev server on port 3000
+        cat > "$DEFAULT_SITE" << 'SITE_CONF'
+# emergent-app-proxy - managed by fix_nginx_modules.sh (PREVIEW MODE)
 # Serves health check on port 80 and proxies to app services
 server {
     listen 80 default_server;
@@ -127,7 +210,6 @@ server {
 
     # Proxy API requests to FastAPI backend
     location /api/ {
-        # Handle CORS preflight at Nginx level as backup
         if ($request_method = 'OPTIONS') {
             add_header 'Access-Control-Allow-Origin' $http_origin always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -177,6 +259,7 @@ server {
     }
 }
 SITE_CONF
+    fi
     echo "[fix-nginx] /etc/nginx/sites-enabled/default updated"
 fi
 
