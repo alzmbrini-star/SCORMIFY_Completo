@@ -1,5 +1,5 @@
 """Project CRUD, slides, elements, media, audio, annotations routes"""
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from pathlib import Path
@@ -148,15 +148,145 @@ async def delete_project(project_id: str):
 
 # PPT Upload
 
+@router.post("/ppt/upload/init")
+async def init_chunked_upload(
+    request: Request
+):
+    """Initialize a chunked PPT upload - returns an upload_id"""
+    body = await request.json()
+    filename = body.get('filename', 'upload.pptx')
+    total_size = body.get('totalSize', 0)
+    
+    if not filename.lower().endswith(('.ppt', '.pptx')):
+        raise HTTPException(status_code=400, detail="Tipo de arquivo invalido. Apenas PPT/PPTX sao permitidos.")
+    
+    if total_size > 100 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande. Tamanho maximo: 100MB.")
+    
+    upload_id = str(uuid.uuid4())
+    upload_path = UPLOADS_DIR / f"chunk_{upload_id}"
+    upload_path.mkdir(parents=True, exist_ok=True)
+    
+    # Store upload metadata
+    jobs[f"upload_{upload_id}"] = {
+        'filename': filename,
+        'totalSize': total_size,
+        'receivedSize': 0,
+        'chunkCount': 0,
+        'path': str(upload_path),
+    }
+    
+    logger.info(f"Chunked upload initialized: {upload_id}, file={filename}, size={total_size}")
+    return {"uploadId": upload_id}
+
+
+@router.post("/ppt/upload/chunk/{upload_id}")
+async def upload_chunk(
+    upload_id: str,
+    chunk: UploadFile = File(...),
+    chunk_index: int = 0,
+):
+    """Upload a single chunk of a PPT file"""
+    meta_key = f"upload_{upload_id}"
+    meta = jobs.get(meta_key)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Upload nao encontrado. Inicie um novo upload.")
+    
+    content = await chunk.read()
+    chunk_path = Path(meta['path']) / f"chunk_{chunk_index:04d}"
+    async with aiofiles.open(chunk_path, 'wb') as f:
+        await f.write(content)
+    
+    meta['receivedSize'] += len(content)
+    meta['chunkCount'] += 1
+    
+    return {"received": len(content), "totalReceived": meta['receivedSize']}
+
+
+@router.post("/ppt/upload/complete/{upload_id}")
+async def complete_chunked_upload(
+    upload_id: str,
+    background_tasks: BackgroundTasks,
+    project_name: Optional[str] = None,
+):
+    """Complete a chunked upload and start processing"""
+    meta_key = f"upload_{upload_id}"
+    meta = jobs.get(meta_key)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Upload nao encontrado.")
+    
+    filename = meta['filename']
+    chunk_dir = Path(meta['path'])
+    
+    # Reassemble chunks
+    project_name = project_name or Path(filename).stem
+    final_path = UPLOADS_DIR / f"{upload_id}_{filename}"
+    
+    chunk_files = sorted(chunk_dir.glob("chunk_*"))
+    if not chunk_files:
+        raise HTTPException(status_code=400, detail="Nenhum chunk recebido.")
+    
+    async with aiofiles.open(final_path, 'wb') as out:
+        for cf in chunk_files:
+            async with aiofiles.open(cf, 'rb') as inp:
+                data = await inp.read()
+                await out.write(data)
+    
+    # Cleanup chunk dir
+    import shutil
+    shutil.rmtree(str(chunk_dir), ignore_errors=True)
+    del jobs[meta_key]
+    
+    # Create project
+    project = Project(name=project_name)
+    project_dict = project.model_dump()
+    project_dict['createdAt'] = project.createdAt.isoformat()
+    project_dict['updatedAt'] = project.updatedAt.isoformat()
+    project_dict['course']['createdAt'] = project.course.createdAt.isoformat()
+    project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
+    project_dict['status'] = 'processing'
+    project_dict['source'] = 'ppt'
+    
+    await db.projects.insert_one(project_dict)
+    
+    # Create project directory
+    project_dir = PROJECTS_DIR / project.id
+    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+    
+    # Create job
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        'id': job_id,
+        'status': 'pending',
+        'progress': 0,
+        'message': 'Upload completo, iniciando processamento...',
+        'result': None
+    }
+    
+    # Start background processing
+    background_tasks.add_task(process_ppt_upload, job_id, str(final_path), project.id)
+    
+    logger.info(f"Chunked upload complete: {upload_id}, file={filename}, project={project.id}")
+    return {
+        "jobId": job_id,
+        "projectId": project.id,
+        "message": "File uploaded, processing started"
+    }
+
+
 @router.post("/ppt/upload")
 async def upload_ppt(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     project_name: Optional[str] = None
 ):
     """Upload and process a PPT/PPTX file"""
+    logger.info(f"PPT upload received: filename={file.filename}, content_type={file.content_type}, size_hint={file.size}")
+    
     # Validate file type
     if not file.filename.lower().endswith(('.ppt', '.pptx')):
+        logger.warning(f"PPT upload rejected: invalid file type: {file.filename}")
         raise HTTPException(status_code=400, detail="Invalid file type. Only PPT/PPTX files are allowed.")
     
     # Validate file size (max 50MB)

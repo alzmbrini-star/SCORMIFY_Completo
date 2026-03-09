@@ -55,6 +55,13 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 
 ## Recent Changes
 
+### Mar 9, 2026 - Fix: PPT Upload 400 em Producao + Chunked Upload
+- **Problema**: Upload PPT falhava com 400 em producao (nginx sem `client_max_body_size`) e arquivos grandes falhavam por limites de proxy.
+- **Correcao nginx**: Adicionado `client_max_body_size 100M` em `fix_nginx_modules.sh` (DEPLOYMENT + PREVIEW)
+- **Chunked Upload**: Novos endpoints `POST /api/ppt/upload/init`, `/chunk/{id}`, `/complete/{id}` para envio em pedacos de 5MB
+- Frontend usa upload direto para <5MB e chunked para >=5MB
+- Mensagem de erro detalhada no Dashboard ao falhar upload
+
 ### Mar 9, 2026 - YouTube/Vimeo Autoplay com Audio
 - URLs de embed agora incluem `autoplay=1` (YouTube e Vimeo) e `muted=0` (Vimeo)
 - Corrigido no Editor, CoursePreview, SlideCanvas, SplitPreview, html_exporter.py e player.js (SCORM)

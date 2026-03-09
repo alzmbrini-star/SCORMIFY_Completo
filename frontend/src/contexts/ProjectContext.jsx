@@ -103,15 +103,42 @@ export const ProjectProvider = ({ children }) => {
   const uploadPPT = useCallback(async (file, projectName) => {
     try {
       setLoading(true);
-      const formData = new FormData();
-      formData.append('file', file);
-      if (projectName) {
-        formData.append('project_name', projectName);
+      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+      
+      // For small files (<5MB), use direct upload
+      if (file.size < CHUNK_SIZE) {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (projectName) formData.append('project_name', projectName);
+        const response = await axios.post(`${API_URL}/ppt/upload`, formData);
+        return response.data;
       }
-      const response = await axios.post(`${API_URL}/ppt/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      
+      // For large files, use chunked upload
+      // Step 1: Init
+      const initRes = await axios.post(`${API_URL}/ppt/upload/init`, {
+        filename: file.name,
+        totalSize: file.size,
       });
-      return response.data;
+      const uploadId = initRes.data.uploadId;
+      
+      // Step 2: Upload chunks
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        
+        const chunkForm = new FormData();
+        chunkForm.append('chunk', chunk, `chunk_${i}`);
+        await axios.post(`${API_URL}/ppt/upload/chunk/${uploadId}?chunk_index=${i}`, chunkForm);
+      }
+      
+      // Step 3: Complete
+      const completeRes = await axios.post(`${API_URL}/ppt/upload/complete/${uploadId}`, null, {
+        params: { project_name: projectName || undefined },
+      });
+      return completeRes.data;
     } catch (err) {
       setError(err.message);
       throw err;

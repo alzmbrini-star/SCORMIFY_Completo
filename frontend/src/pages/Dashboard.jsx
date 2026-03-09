@@ -153,7 +153,8 @@ export default function Dashboard() {
       setUploadProgress(30);
       setProcessingStatus('Processing PowerPoint...');
     } catch (err) {
-      toast.error('Failed to upload file');
+      const detail = err.response?.data?.detail || err.message || 'Erro desconhecido';
+      toast.error(`Falha no upload: ${detail}`);
       setShowUploadDialog(false);
     }
   };
