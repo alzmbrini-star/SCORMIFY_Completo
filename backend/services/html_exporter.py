@@ -1920,14 +1920,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 
                                 // For YouTube: Use iframe embed directly
                                 if (isYouTube && videoId) {{
-                                    var ytEmbedUrl = 'https://www.youtube.com/embed/' + videoId + '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1';
+                                    var ytEmbedUrl = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1';
                                     html += '<iframe class="video-iframe" src="' + ytEmbedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen frameborder="0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else if (isVimeo) {{
                                     // Vimeo: use iframe directly (generally more permissive)
                                     // Add parameters for better fullscreen experience
                                     var iframeUrl = embedUrl;
                                     var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
-                                    iframeUrl += sep + 'autoplay=1&muted=1&background=0&dnt=1&title=0&byline=0&portrait=0';
+                                    iframeUrl += sep + 'autoplay=1&muted=0&background=0&dnt=1&title=0&byline=0&portrait=0';
                                     html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else {{
                                     // Other embeds

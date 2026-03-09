@@ -55,6 +55,15 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 
 ## Recent Changes
 
+### Mar 9, 2026 - YouTube/Vimeo Autoplay com Audio
+- URLs de embed agora incluem `autoplay=1` (YouTube e Vimeo) e `muted=0` (Vimeo)
+- Corrigido no Editor, CoursePreview, SlideCanvas, SplitPreview, html_exporter.py e player.js (SCORM)
+- Helper `ensureEmbedAutoplay()` garante parametros corretos para videos existentes
+
+### Mar 9, 2026 - Bug Fix: 404 em Imagens AI / Video Library 422
+- Adicionada rota `GET /api/assets/{filename}` (ai_gen.py) para servir imagens AI globais
+- Corrigido `handleAddLibraryVideoToSlide` que passava objeto video inteiro em vez de URL
+
 ### Mar 9, 2026 - Bug Fix: AI Tutor Fails in SCORM Export
 - **Root Cause**: The `apiUrl` embedded in SCORM (and HTML) exports was derived from HTTP request headers (`Origin`, `x-forwarded-host`, `host`). In production, these headers contained internal Kubernetes cluster URLs (e.g., `scorm-tutor-qa.cluster-0.preview.emergentcf.cloud`) which are NOT accessible from outside the cluster. When users tested the SCORM package locally or in SCORM Cloud, the AI Tutor's `fetch()` call to this internal URL failed.
 - **Fix (export.py)**: Changed URL detection to use `BASE_URL` env var (or `REACT_APP_BACKEND_URL` from frontend `.env`) as the **primary** source instead of request headers. This always resolves to the correct external-facing URL.

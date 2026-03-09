@@ -598,14 +598,14 @@ export default function Editor() {
       // Parse YouTube URL
       const youtubeMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
       if (youtubeMatch) {
-        embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+        embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&rel=0`;
         embedType = 'youtube';
       }
       
       // Parse Vimeo URL
       const vimeoMatch = videoUrl.match(/vimeo\.com\/(\d+)/);
       if (vimeoMatch) {
-        embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+        embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
         embedType = 'vimeo';
       }
 

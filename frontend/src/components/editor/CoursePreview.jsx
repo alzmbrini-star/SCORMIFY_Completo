@@ -49,6 +49,26 @@ const getAssetUrl = (src, projectId) => {
   return src;
 };
 
+// Ensure embed URLs always have autoplay=1 and correct audio params
+const ensureEmbedAutoplay = (url) => {
+  if (!url) return url;
+  // YouTube
+  if (url.includes('youtube.com/embed/') || url.includes('youtu.be/')) {
+    if (!url.includes('autoplay=')) {
+      url += (url.includes('?') ? '&' : '?') + 'autoplay=1';
+    }
+  }
+  // Vimeo
+  if (url.includes('player.vimeo.com/')) {
+    if (!url.includes('autoplay=')) {
+      url += (url.includes('?') ? '&' : '?') + 'autoplay=1';
+    }
+    // Fix muted=1 to muted=0
+    url = url.replace('muted=1', 'muted=0');
+  }
+  return url;
+};
+
 // Helper to process HTML content and fix image URLs
 const processHtmlContent = (htmlContent, projectId) => {
   if (!htmlContent) return '<p>HTML</p>';
@@ -752,10 +772,11 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                   >
                     {element.embedUrl ? (
                       <iframe
-                        src={getAssetUrl(element.embedUrl, projectId)}
+                        src={ensureEmbedAutoplay(getAssetUrl(element.embedUrl, projectId))}
                         className="w-full h-full border-0"
                         style={{ background: 'transparent' }}
-                        allow="autoplay; fullscreen"
+                        allow="autoplay; fullscreen; encrypted-media"
+                        allowFullScreen
                         title="Video"
                       />
                     ) : element.src ? (

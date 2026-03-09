@@ -725,7 +725,8 @@ const SlideCanvas = ({
                         <iframe
                           src={element.embedUrl}
                           className="w-full h-full border-0"
-                          allow="autoplay; fullscreen"
+                          allow="autoplay; fullscreen; encrypted-media"
+                          allowFullScreen
                           title="Video"
                           style={{ pointerEvents: 'none', objectFit: element.objectFit || 'contain' }}
                         />

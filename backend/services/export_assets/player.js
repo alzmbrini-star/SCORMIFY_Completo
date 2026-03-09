@@ -1080,7 +1080,7 @@ var CoursePlayer = (function() {
                         var iframe = document.createElement('iframe');
                         // Build proper YouTube embed URL
                         var ytEmbedUrl = 'https://www.youtube.com/embed/' + videoId;
-                        ytEmbedUrl += '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1';
+                        ytEmbedUrl += '?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1';
                         
                         iframe.src = ytEmbedUrl;
                         iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
@@ -1098,7 +1098,7 @@ var CoursePlayer = (function() {
                         var iframe = document.createElement('iframe');
                         var vimeoSep = embedUrl.indexOf('?') !== -1 ? '&' : '?';
                         // Add parameters for better fullscreen experience
-                        embedUrl += vimeoSep + 'autoplay=1&muted=1&background=0&dnt=1&title=0&byline=0&portrait=0';
+                        embedUrl += vimeoSep + 'autoplay=1&muted=0&background=0&dnt=1&title=0&byline=0&portrait=0';
                         
                         iframe.src = embedUrl;
                         iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
