@@ -2,67 +2,77 @@
 The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses.
 
 Recent user requests included:
-1.  **Narration Bug & Feature**: The user reported that narration generation via ElevenLabs was not working. They also requested a new feature: on the Storyboard screen, show the estimated cost for narration, and add controls to enable/disable narration for each slide individually before final generation. (This has been implemented and fixed).
-2.  **HeyGen Integration Bugs**: The user reported a 500 error when trying to generate a HeyGen video narration and that their credit balance had disappeared from the UI. (This has been fixed).
-3.  **HeyGen Credits Misinterpretation**: The user reported that their Unlimited HeyGen plan was showing 0 credits. (This was investigated and fixed to show the correct credit types).
-4.  **New Feature: PPT/PDF to Video**: The user requested a feature to convert an entire presentation (PPT/PDF) into a single video with an avatar narrating each slide, similar to the functionality in HeyGen's web studio. (This has been implemented).
-5.  **HeyGen UX Improvements**: The user requested several improvements for the new PPT-to-Video feature: selective script generation, visual avatar selection with filters (gender, language), and visual enhancements to the slides before video generation. (This has been implemented).
-6.  **HeyGen Video Generation Failure**: After implementation, video generation failed. (This was investigated and found to be an external issue with the user's HeyGen API credits).
-7.  **New Feature Request (P0)**: The user requested the implementation of  and  export formats.
-8.  **Technical Debt (P1)**: The user approved prioritizing the critical refactoring of the massive  and  frontend files.
+1.  **Frontend Refactoring (P1)**: The user approved prioritizing the critical refactoring of the massive  and  frontend files. (This is now complete).
+2.  **Dashboard and AI Tutor (P2)**: The user requested a metrics panel on the dashboard and for the AI Tutor to be available in HTML exports. (This is now complete).
+3.  **Deployment and Runtime Bugs**: The user reported several runtime errors and deployment failures which appeared after the refactoring. (These have been fixed).
+4.  **New Feature Request (P0)**: The user requested a new integration with **Synthesia** for avatar video generation, to be offered as an alternative to the existing HeyGen integration. The user specified how the choice should be presented in the UI.
+5.  **Future Feature Request (P1)**: The user has a standing request to implement  and  export formats.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application is a full-stack AI course authoring tool with a React frontend, a FastAPI backend, and MongoDB. In this session, the agent successfully implemented a complex PPT-to-Video feature using the HeyGen API, allowing users to generate a multi-scene video from their course slides. This included a new 3-step UI for selecting avatars/voices, generating/editing scripts for each slide, and generating the final video. The agent also fixed several critical bugs related to narration generation (asyncio event loops) and the HeyGen integration (missing imports, incorrect credit display). The agent discovered that the final video generation is blocked by an external issue: the user's HeyGen account has 0 API credits, despite having credits for the web studio.
+The application is a full-stack AI course authoring tool (React, FastAPI, MongoDB). In this session, the agent successfully completed a massive and critical refactoring of the two largest frontend files,  (5709 lines -> 3639 lines) and  (3593 lines -> 1024 lines), decomposing them into smaller, manageable components and custom hooks.
 
-The user has now approved tackling a critical piece of technical debt (P1) before implementing the next feature (P0).
+Following the refactoring, the agent implemented two new user-requested features: a metrics panel on the dashboard (, , ) and the integration of the AI Tutor feature into standalone HTML exports.
+
+The agent also debugged and fixed several critical issues that arose post-refactoring and during deployment attempts:
+-   Runtime errors caused by missing constants in the new component files (, ).
+-   Deployment failures caused by an incorrect  file blocking  files.
+-   Frontend build failures caused by large test files in the  directory (leading to  errors) and React warnings being treated as errors in the CI environment.
+
+The application is now stable, and the agent has just received the integration playbook for the next major feature: Synthesia integration.
 
 **Last working item**:
--   Last item agent was working: Starting the critical frontend refactoring of . The agent was in the initial phase of planning and creating the necessary file structure to decompose the 5000+ line component.
--   Status: **IN PROGRESS**
+-   Last item agent was working: Kicking off the new P0 feature: **Synthesia integration**. The agent has gathered the user's requirements for the integration and has successfully used the  tool to get the implementation plan.
+-   Status: **NOT STARTED**
 -   Agent Testing Done: N/A
--   Which testing method agent to use? The  will be **essential** for comprehensive frontend regression testing after this major refactoring is complete.
+-   Which testing method agent to use? The  will be necessary after implementation to test the new Synthesia flow and ensure the existing HeyGen flow has not regressed.
 -   User Testing Done: N/A
 
 **All Pending/In progress Issue list**:
 -   **Issue 1: HeyGen Video Generation Fails Due to Insufficient Credit (P2)**
-    -   **Description**: The HeyGen API returns an Insufficient credit error during video generation. Investigation revealed the user's account has 0 credits for API usage, although they have credits for the HeyGen web studio. This is an external account limitation, not a bug in the Scormfy code.
-    -   **Attempted fixes**: The agent updated the backend to correctly read both API and Plan credits from the HeyGen API. The frontend was updated to display both credit types clearly to the user, informing them that API Credits are required for generation.
-    -   **Next debug checklist**: The issue is blocked on the user. The next agent should re-verify this if the user claims to have added credits. The check involves calling the  endpoint and inspecting the  value.
-    -   **Why fix this issue and what will be achieved with the fix?**: This will unblock the entire PPT-to-Video feature.
-    -   **Status**: **BLOCKED** (on user action/account update)
-    -   **Is recurring issue?**: N
+    -   **Description**: The HeyGen API returns an Insufficient credit error during video generation. This is an external account limitation, as the user's account has 0 credits for API usage.
+    -   **Next debug checklist**: The issue is blocked on the user adding API credits to their HeyGen account. The next agent should only re-verify this if the user claims to have added credits. The check involves calling the  endpoint and inspecting the  value.
+    -   **Why fix this issue and what will be achieved with the fix?**: This will unblock the HeyGen-based PPT-to-Video feature.
+    -   **Status**: **BLOCKED** (on user action)
+    -   **Is recurring issue?**: Y
     -   **Should Test frontend/backend/both after fix?**: Backend (by triggering a video generation).
     -   **Blocked on other issue**: No.
 
 **In progress Task List**:
--   **Task 1: CRITICAL Frontend Refactoring (P1)**
-    -   **Description**: Decompose the monolithic  (~5000 lines) and  (~1500 lines) files into smaller, reusable components and custom hooks.
-    -   **Where to resume**: The agent created the  and  directories. The next step is to finalize the creation of the first custom hook, , to encapsulate all HeyGen-related state and functions from . After that, extract the dialog components (, , etc.) into the new  directory.
-    -   **What will be achieved with this?**: Dramatically improve code maintainability, reduce bug risk, and speed up future development in the editor.
-    -   **Status**: **IN PROGRESS**
-    -   **Should Test frontend/backend/both after fix?**: Frontend (Extensive regression testing required).
+-   **Task 1: Implement Synthesia Integration (P0)**
+    -   **Description**: Integrate Synthesia as a second provider for avatar video generation. This involves adding backend routes to interact with the Synthesia API (create/check video) and updating the frontend UI () to allow the user to choose between HeyGen and Synthesia.
+    -   **Where to resume**: The  has been called and has returned the playbook (see previous tool call response). The next step is to begin implementing the backend endpoints as described in the playbook. This will involve creating a new  route file or adding to , creating new service functions, and asking the user for their Synthesia API key.
+    -   **What will be achieved with this?**: Users will have a choice of video generation providers, adding flexibility and a fallback option.
+    -   **Status**: **NOT STARTED**
+    -   **Should Test frontend/backend/both after fix?**: Both.
     -   **Blocked on something**: No.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P0) **Implement SCORM 2004 & xAPI Export**: The user explicitly requested this feature. This should be the next task after the refactoring is complete.
+    -   (P1) **Implement SCORM 2004 & xAPI Export**: After the Synthesia integration is complete, this is the next priority feature.
 -   **Future Tasks:**
-    -   (P2) **Advanced Interactivity**: Implement a per-course Tutor IA to answer student questions.
+    -   (P2) **Advanced Interactivity**: Further enhancements to the Tutor IA feature.
 
 **Completed work in this session**
--   **Feature: PPT/PDF-to-Video with HeyGen**: Implemented an end-to-end flow to generate a multi-scene video from all course slides.
-    -   Backend endpoints for generating scripts () and videos ().
-    -   Backend endpoint to pre-render slides as PNGs for higher visual fidelity ().
-    -   New 3-step frontend dialog () with a visual avatar grid, voice selection with filters, selective script generation, and progress tracking.
--   **Bug Fix: Critical Narration Generation Error**: Resolved a  asyncio error in  by creating a new Motor client inside the background thread.
--   **Bug Fix: HeyGen Integration Stability**: Fixed multiple 500 errors in  caused by missing  and  imports.
--   **Bug Fix & UX: HeyGen Credit Display**: Corrected the logic to read and display the user's two different HeyGen credit balances (API vs. Plan), clarifying why video generation was failing.
--   **Feature: Per-Slide Narration Control**: Implemented UI on the Storyboard screen to toggle narration for individual slides and view cost estimates.
+-   **CRITICAL Frontend Refactoring**:
+    -   Decomposed monolithic  (from ~5700 to ~3600 lines) into 10+ custom hooks and components.
+    -   Decomposed monolithic  (from ~3600 to ~1000 lines) into separate panel components.
+    -   Verified with  that no regressions were introduced.
+-   **Feature: Dashboard Metrics**:
+    -   Created backend endpoint  to aggregate counts of courses, slides, and exports.
+    -   Added a new Métricas section to the  page to display these stats.
+-   **Feature: AI Tutor in HTML Export**:
+    -   Modified  to embed the AI Tutor widget and configuration into standalone HTML exports.
+-   **Deployment & Build Fixes**:
+    -   **Build Failures**: Resolved  build errors by deleting 190MB of test files from  and adding  and  to . Fixed all React warnings causing the CI build to fail.
+    -   **Deployment Failures**: Corrected  to stop blocking  files from being included in the deployment package.
+-   **Bug Fixes**:
+    -   Fixed  runtime error in  by adding the missing constant to .
+    -   Fixed  runtime error in  by adding the missing constant to .
 
 **Earlier issues found/mentioned but not fixed**
--   None. The major refactoring issue is now in progress.
+-   None.
 
 **Known issue recurrence from previous fork**
 -   None.
@@ -71,62 +81,64 @@ The user has now approved tackling a critical piece of technical debt (P1) befor
 
 
 **Key Technical Concepts**
--   ** Event Loops in Background Tasks**: Resolved a  error by creating a new Motor DB client instance within FastAPI , as they run in separate threads from the main application's event loop.
--   **Multi-Scene Video Generation (HeyGen API)**: Programmatically constructing a complex JSON payload for the  endpoint with an array of , where each scene has a background image URL, avatar, voice, and script.
--   **Dynamic Image Pre-rendering (Pillow)**: Using the Pillow library on the backend to render a slide's content into a static PNG, serving it via a public URL to be used as a background in the HeyGen video. This enhances visual fidelity.
--   **React Custom Hooks for State Encapsulation**: Initiating the process of extracting complex, related state and logic (e.g., all HeyGen integration functionality) from a large component into a reusable custom hook () to simplify the parent component.
+-   **Monolithic Component Decomposition**: Systematically breaking down massive React components (, ) into smaller, single-responsibility presentational components and stateful custom hooks.
+-   **Build Process Debugging**: Identifying and fixing CI/CD pipeline failures by analyzing build logs, fixing  errors by cleaning the  directory, and resolving build-blocking warnings.
+-   **Deployment Environment Configuration**: Debugging deployment-specific issues by ensuring necessary files (like ) are not excluded by source control rules ().
+-   **State Lifting and Hook Composition**: Using custom hooks to encapsulate complex, related state and logic (e.g., , ) and providing a clean interface to the main component.
 
 **key DB schema**
--   No new schema changes.
+-   :  - New collection to track export events for dashboard metrics.
 
 **All files of reference**
--   : Heavily modified to add the new PPT-to-Video feature; now the primary target for refactoring.
--   : New file containing the complex 3-step dialog for the PPT-to-Video feature.
--   : New, in-progress file to encapsulate all HeyGen logic.
--   : Heavily modified with new endpoints for multi-scene video generation, slide rendering, and fixes for credit display and stability.
--   : Modified to fix a critical  bug in narration generation.
+-   : **Heavily refactored**.
+-   : **Heavily refactored**.
+-   , : **New directories** with all extracted components/hooks.
+-   : **New directory** with all extracted panel components.
+-   : Modified to add the metrics UI.
+-   : Modified to add the  endpoint.
+-   : Modified to add AI Tutor to HTML exports.
+-   : Modified to log exports to the new  collection.
+-   : Modified to remove  exclusion.
+-   : Modified to exclude build artifacts.
+-   : **New file** to exclude zipped test courses.
 
 **Areas that need refactoring**:
--   ****: **CRITICAL (IN PROGRESS)**. The current active task is to decompose this 5000+ line file.
--   ****: **URGENT**. Should be refactored after .
+-   The most critical refactoring targets (, ) have been completed. No other urgent refactoring is needed.
 
 **key api endpoints**
--   : Generates AI narration scripts for selected slides.
--   : Triggers the multi-scene video generation with HeyGen.
--   : Polls for the status of a video being generated by HeyGen.
--   : Returns a PNG image of the rendered slide content.
--   : Fetches HeyGen credit status (now returns both API and Plan credits).
+-   : **(NEW)** Fetches statistics for the dashboard.
+-   : **(MODIFIED)** Now logs an event to the  collection.
+-   : **(MODIFIED)** Now logs an event to the  collection and can embed the AI Tutor.
 
 **Critical Info for New Agent**
--   Your immediate priority is to continue the **P1 frontend refactoring of **. The user has approved this. Start by completing the  custom hook.
--   The **PPT-to-Video feature is BLOCKED** by the user's HeyGen account having  API credits. Do not attempt to debug video generation failures. The UI now clearly explains this to the user. If the user states they have added credits, verify with the  endpoint.
--   The user's next feature request is **(P0) SCORM 2004 and xAPI export**. This should be addressed after the refactoring is complete and stable.
+-   Your immediate priority is to start the **(P0) Synthesia Integration**. You have the playbook; begin with the backend implementation and remember to ask the user for their API key.
+-   The HeyGen video generation feature remains **BLOCKED** due to the user's account having  API credits. Do not spend time debugging it unless the user confirms they've added credits.
+-   The next feature after Synthesia is **(P1) SCORM 2004 and xAPI export**.
 -   All communication with the user must be in **Português**.
+-   The major frontend refactoring is complete and has been tested. The codebase is now much more modular and easier to work with.
 
 **documents and test reports created in this job**
--   
--   
--   
+-    (Refactoring regression test)
+-    (New features test)
 -    (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Asks to implement PPT/PDF to video with HeyGen. (Status: Completed)
-2.  **User**: Provides choices for the video feature: 1 video per slide, avatar overlaid, both IA and editable scripts. (Status: Completed)
-3.  **User**: Reports video generation failed and requests UX improvements (selective script generation, avatar/voice filters). (Status: Completed)
-4.  **User**: Asks if HeyGen's visual touch-ups from their studio will be applied. (Status: Clarified API limitations)
-5.  **User**: Approves the proposed approach of pre-rendering slides for better visuals. (Status: Completed)
-6.  **User**: Reports an error creating the avatar in step 3. (Status: Investigated, was a credit issue)
-7.  **User**: Asks to prioritize the major frontend refactoring. (Status: In Progress)
-8.  **User**: Confirms the refactoring plan. (Status: In Progress)
-9.  **User**: Confirms to start the refactoring. (Status: In Progress)
-10. **User**: [Message from previous feature] where possp ver me diga o fluxo - Asks for the flow to find the new feature. (Status: Answered)
+1.  **User**: Confirms starting the implementation of Dashboard Metrics and AI Tutor. (Status: Completed)
+2.  **User**: Reports a runtime error () with a screenshot after the agent refactored . (Status: Fixed)
+3.  **User**: Provides deployment logs showing the backend is not becoming healthy. (Status: Investigated and Fixed)
+4.  **User**: Reports another runtime error () with a screenshot. (Status: Fixed)
+5.  **User**: Provides new deployment logs showing the backend is still not healthy. (Status: Investigated and Fixed - found build issue).
+6.  **User**: Requests to integrate Synthesia as a second video generation provider. (Status: In Progress)
+7.  **User**: Provides specifications for the Synthesia integration UI/UX. (Status: Acknowledged)
+8.  **User**: [Pending] Waiting for agent to start implementation of Synthesia.
 
 **Project Health Check:**
--   **Broken**: The PPT-to-Video feature is currently non-functional due to an external dependency (user's HeyGen API credits are 0).
+-   **Broken**: The PPT-to-Video feature using **HeyGen** is non-functional due to an external dependency (user's HeyGen API credits are 0).
 -   **Mocked**: No.
 
 **3rd Party Integrations**
--   **HeyGen**: For avatar video. **Currently blocked for video generation due to 0 API credits on the user's account**. API for listing avatars/voices works.
+-   **HeyGen**: For avatar video. **Currently blocked for video generation due to 0 API credits on the user's account**.
+-   **Synthesia**: For avatar video. **Pending Implementation (P0)**. Requires User API Key.
 -   **Google Gemini 3 Flash & Nano Banana**: Text/image generation. Uses **Emergent LLM Key**.
 -   **OpenAI gpt-4o**: Text generation. Uses **Emergent LLM Key**.
 -   **ElevenLabs**: Audio narration. Requires User API Key.
@@ -134,8 +146,8 @@ The user has now approved tackling a critical piece of technical debt (P1) befor
 -   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Multiple times. The last run had a false positive on the frontend (did not wait for avatar grid to load), but manual verification confirmed functionality.
--   Troubleshoot agent used after agent stuck in loop: NO.
+-   Testing agent used after significant changes: YES. Two successful runs were completed for the major refactoring and the new features, with all tests passing.
+-   Troubleshoot agent used after agent stuck in loop: YES, the deployment agent was used to debug deployment failures.
 -   Test files created: None.
 -   Known regressions: None.
 
@@ -143,4 +155,4 @@ The user has now approved tackling a critical piece of technical debt (P1) befor
 -   Super Admin:  / 
 
 **What agent forgot to execute**
--   Nothing. The agent has been methodically implementing user requests and is now addressing approved technical debt.</analysis>
+-   Nothing. The agent successfully executed a complex refactoring, implemented new features, and fixed several critical bugs and deployment blockers, all while adhering to user priorities.</analysis>

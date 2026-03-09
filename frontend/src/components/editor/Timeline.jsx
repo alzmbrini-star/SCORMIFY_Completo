@@ -49,13 +49,16 @@ const Timeline = ({
   const [dragItemType, setDragItemType] = useState(null); // 'element', 'annotation', or 'audio'
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState({ start: 0, end: 0 });
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubTime, setScrubTime] = useState(0);
   const timelineRef = useRef(null);
   const tracksRef = useRef(null);
   const animationRef = useRef(null);
   const audioRefs = useRef({});
+  const throttleRef = useRef(null);
 
   // Use external time/play state if provided, otherwise use local state
-  const currentTime = externalTime !== undefined ? externalTime : localTime;
+  const currentTime = isScrubbing ? scrubTime : (externalTime !== undefined ? externalTime : localTime);
   const isPlaying = externalIsPlaying !== undefined ? externalIsPlaying : localIsPlaying;
   const setCurrentTime = onTimeChange || setLocalTime;
   const setIsPlaying = onPlayPause || setLocalIsPlaying;
@@ -137,6 +140,15 @@ const Timeline = ({
     };
   }, []);
 
+  // Cleanup throttle on unmount
+  useEffect(() => {
+    return () => {
+      if (throttleRef.current) {
+        cancelAnimationFrame(throttleRef.current);
+      }
+    };
+  }, []);
+
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
   };
@@ -147,10 +159,32 @@ const Timeline = ({
   };
 
   const handleSeek = (value) => {
-    setCurrentTime(value[0]);
+    const newTime = value[0];
+    // Use local scrub state for smooth visual feedback
+    setIsScrubbing(true);
+    setScrubTime(newTime);
+
     if (isPlaying) {
       setIsPlaying(false);
     }
+
+    // Throttle parent updates to avoid cascading re-renders
+    if (throttleRef.current) {
+      cancelAnimationFrame(throttleRef.current);
+    }
+    throttleRef.current = requestAnimationFrame(() => {
+      setCurrentTime(newTime);
+    });
+  };
+
+  const handleSeekCommit = (value) => {
+    const newTime = value[0];
+    setIsScrubbing(false);
+    if (throttleRef.current) {
+      cancelAnimationFrame(throttleRef.current);
+      throttleRef.current = null;
+    }
+    setCurrentTime(newTime);
   };
 
   const formatTime = (seconds) => {
@@ -224,25 +258,30 @@ const Timeline = ({
       newEndTime = Math.max(dragStartTime.start + minDuration, Math.min(duration, dragStartTime.end + deltaTime));
     }
 
-    // Update timing based on item type
-    if (dragItemType === 'annotation' && onUpdateAnnotation) {
-      onUpdateAnnotation(item.id, {
-        startTime: parseFloat(newStartTime.toFixed(2)),
-        endTime: parseFloat(newEndTime.toFixed(2)),
-      });
-    } else if (dragItemType === 'audio' && onUpdateAudio) {
-      // For audio, we update startTime and duration (which effectively controls endTime)
-      const newDuration = parseFloat((newEndTime - newStartTime).toFixed(2));
-      onUpdateAudio(item.id, {
-        startTime: parseFloat(newStartTime.toFixed(2)),
-        duration: newDuration,
-      });
-    } else if (onUpdateElement) {
-      onUpdateElement(item.id, {
-        startTime: parseFloat(newStartTime.toFixed(2)),
-        endTime: parseFloat(newEndTime.toFixed(2)),
-      });
+    // Throttle API updates to avoid excessive calls during drag
+    if (throttleRef.current) {
+      cancelAnimationFrame(throttleRef.current);
     }
+    throttleRef.current = requestAnimationFrame(() => {
+      // Update timing based on item type
+      if (dragItemType === 'annotation' && onUpdateAnnotation) {
+        onUpdateAnnotation(item.id, {
+          startTime: parseFloat(newStartTime.toFixed(2)),
+          endTime: parseFloat(newEndTime.toFixed(2)),
+        });
+      } else if (dragItemType === 'audio' && onUpdateAudio) {
+        const newDuration = parseFloat((newEndTime - newStartTime).toFixed(2));
+        onUpdateAudio(item.id, {
+          startTime: parseFloat(newStartTime.toFixed(2)),
+          duration: newDuration,
+        });
+      } else if (onUpdateElement) {
+        onUpdateElement(item.id, {
+          startTime: parseFloat(newStartTime.toFixed(2)),
+          endTime: parseFloat(newEndTime.toFixed(2)),
+        });
+      }
+    });
   }, [isDraggingClip, dragType, dragItemType, dragStartX, dragStartTime, duration, elements, annotations, audioList, onUpdateElement, onUpdateAnnotation, onUpdateAudio]);
 
   const handleMouseUp = useCallback(() => {
@@ -350,6 +389,7 @@ const Timeline = ({
             max={duration}
             step={0.1}
             onValueChange={handleSeek}
+            onValueCommit={handleSeekCommit}
             className="cursor-pointer"
             data-testid="timeline-scrubber"
           />

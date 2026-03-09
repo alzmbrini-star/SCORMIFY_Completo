@@ -104,6 +104,10 @@ export default function Agent() {
   // Track original configs for smart edit (only apply changed slides)
   const [originalMediaConfig, setOriginalMediaConfig] = useState(null);
   const [originalBgConfig, setOriginalBgConfig] = useState(null);
+  const [originalGlobalTextColor, setOriginalGlobalTextColor] = useState('');
+  const [originalGlobalFontSize, setOriginalGlobalFontSize] = useState('');
+  const [originalGlobalAnimation, setOriginalGlobalAnimation] = useState('');
+  const [originalDesignTemplate, setOriginalDesignTemplate] = useState(null);
 
   // Edit mode data
   const [agentCourses, setAgentCourses] = useState([]);
@@ -156,6 +160,9 @@ export default function Agent() {
         setGlobalTextColor(session.globalTextColor || '');
         setGlobalFontSize(session.globalFontSize || '');
         setGlobalAnimation(session.globalAnimation || '');
+        setOriginalGlobalTextColor(session.globalTextColor || '');
+        setOriginalGlobalFontSize(session.globalFontSize || '');
+        setOriginalGlobalAnimation(session.globalAnimation || '');
         setEditMediaProjectId(editProjectId);
         setConfig(session.config || {});
         setStructure(session.structure);
@@ -422,8 +429,12 @@ export default function Agent() {
           const bgChanged = JSON.stringify((bgConfig || {})[key] || {}) !== JSON.stringify((originalBgConfig || {})[key] || {});
           if (mcChanged || bgChanged) changedSlides.push(parseInt(key, 10));
         }
-        // Also add if global settings changed (affects all slides)
-        const hasGlobalChanges = !!globalTextColor || !!globalFontSize || !!globalAnimation || !!selectedDesignTemplate;
+        // Also add if global settings actually CHANGED (compare to originals)
+        const hasGlobalChanges = 
+          (globalTextColor !== originalGlobalTextColor) ||
+          (globalFontSize !== originalGlobalFontSize) ||
+          (globalAnimation !== originalGlobalAnimation) ||
+          (!!selectedDesignTemplate && selectedDesignTemplate?.id !== originalDesignTemplate?.id);
 
         addChatMsg('agent', hasGlobalChanges
           ? 'Aplicando alterações globais ao projeto...'
@@ -433,7 +444,7 @@ export default function Agent() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             projectId: editMediaProjectId,
-            changedSlides: hasGlobalChanges ? null : changedSlides,
+            changedSlides: hasGlobalChanges ? null : (changedSlides.length > 0 ? changedSlides : []),
           }),
         });
         if (!res.ok) throw new Error('Falha ao aplicar alterações');
