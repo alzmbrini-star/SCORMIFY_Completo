@@ -1,75 +1,284 @@
 <analysis>**original_problem_statement:**
 The user's goal is to build an advanced Instructional Design AI Agent, Scormfy, that can generate SCORM-compliant courses.
 
-Recent user requests included:
-1.  **Frontend Refactoring (P1)**: The user approved prioritizing the critical refactoring of the massive  and  frontend files. (This is now complete).
-2.  **Dashboard and AI Tutor (P2)**: The user requested a metrics panel on the dashboard and for the AI Tutor to be available in HTML exports. (This is now complete).
-3.  **Deployment and Runtime Bugs**: The user reported several runtime errors and deployment failures which appeared after the refactoring. (These have been fixed).
-4.  **New Feature Request (P0)**: The user requested a new integration with **Synthesia** for avatar video generation, to be offered as an alternative to the existing HeyGen integration. The user specified how the choice should be presented in the UI.
-5.  **Future Feature Request (P1)**: The user has a standing request to implement  and  export formats.
+The user's recent focus has been on fixing a series of critical bugs and enhancing existing features.
+
+**P0 Bug Fixes (All recently completed):**
+1.  **Editor Instability**: The timeline slider caused screen instability and console errors.
+2.  **Image Overlap**: Editing media for one slide was incorrectly overwriting images on other slides.
+3.  **Deployment Failures**: The application was failing to deploy due to health check timeouts and incorrect Nginx configurations.
+4.  **Broken Images in Exports**: Images added from the shared gallery were appearing as broken in SCORM and HTML exports because the exporter was only looking for assets within the current project.
+5.  **Local Login Failure**: The local MongoDB instance crashed due to excessive GridFS usage from old exports, preventing login.
+6.  **CORS Error in Local HTML Export**: The exported HTML file could not communicate with the AI Tutor when opened locally due to CORS restrictions.
+
+**P1 Feature Enhancement (Recently completed):**
+1.  **Slide-Aware AI Tutor**: The user requested that the AI Tutor in both SCORM and HTML exports be aware of the current slide the student is viewing and provide context-specific explanations.
+
+**New P0 Bug:**
+1.  **AI Tutor Error in SCORM Export**: After fixing the HTML export, the user is now reporting a new error with the AI Tutor, this time specifically within the SCORM package when tested locally.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The application is a full-stack AI course authoring tool (React, FastAPI, MongoDB). In this session, the agent successfully completed a massive and critical refactoring of the two largest frontend files,  (5709 lines -> 3639 lines) and  (3593 lines -> 1024 lines), decomposing them into smaller, manageable components and custom hooks.
+The application is a full-stack AI course authoring tool (React, FastAPI, MongoDB). In this session, the agent successfully pivoted from a planned feature implementation (Synthesia) to address a series of user-reported bugs.
 
-Following the refactoring, the agent implemented two new user-requested features: a metrics panel on the dashboard (, , ) and the integration of the AI Tutor feature into standalone HTML exports.
+The agent fixed several critical frontend, backend, and deployment issues:
+-   **Frontend**: Optimized the editor's timeline slider to prevent excessive re-renders and fixed a state management bug that caused images to overlap between slides.
+-   **Backend**: Corrected logic in the SCORM and HTML exporters to correctly handle images from shared galleries (cross-project assets). The MongoDB database was also repaired and cleaned of old export data to resolve a local login failure.
+-   **Deployment**: Resolved deployment health check failures by fixing the Nginx startup script () to correctly serve static files in a production environment and adding a static health check endpoint.
+-   **Feature Enhancement**: Implemented a slide-aware AI Tutor for both SCORM and HTML exports, allowing it to provide context-specific responses based on the slide the user is currently viewing.
+-   **CORS**: Fixed a CORS issue that prevented local HTML exports from communicating with the backend API.
 
-The agent also debugged and fixed several critical issues that arose post-refactoring and during deployment attempts:
--   Runtime errors caused by missing constants in the new component files (, ).
--   Deployment failures caused by an incorrect  file blocking  files.
--   Frontend build failures caused by large test files in the  directory (leading to  errors) and React warnings being treated as errors in the CI environment.
-
-The application is now stable, and the agent has just received the integration playbook for the next major feature: Synthesia integration.
+The application is now mostly stable, but a new bug has surfaced with the SCORM export's AI Tutor.
 
 **Last working item**:
--   Last item agent was working: Kicking off the new P0 feature: **Synthesia integration**. The agent has gathered the user's requirements for the integration and has successfully used the  tool to get the implementation plan.
--   Status: **NOT STARTED**
--   Agent Testing Done: N/A
--   Which testing method agent to use? The  will be necessary after implementation to test the new Synthesia flow and ensure the existing HeyGen flow has not regressed.
--   User Testing Done: N/A
+-   Last item agent was working: The user reported a new bug. After the agent fixed the CORS issue for local HTML exports, the user tested the **SCORM export** locally and received an error with the AI Tutor, providing a screenshot of the error message. The agent acknowledged the new bug report just before the session ended.
+-   Status: **BLOCKED**
+-   Agent Testing Done: N
+-   Which testing method agent to use? The next agent should first attempt to reproduce the error by exporting a course to SCORM and running it in a local SCORM player. Checking backend logs (==> /var/log/supervisor/backend.err.log <==
+2026-03-09 14:39:58,430 - server - INFO - Startup URL migration: no absolute URLs found, all clean
+2026-03-09 14:39:58,543 - server - INFO - Background asset persistence: all assets already in MongoDB
+[92m14:40:05 - LiteLLM:INFO[0m: utils.py:3427 - 
+LiteLLM completion() model= gemini/gemini-3-flash-preview; provider = openai
+2026-03-09 14:40:05,215 - LiteLLM - INFO - 
+LiteLLM completion() model= gemini/gemini-3-flash-preview; provider = openai
+[92m14:40:09 - LiteLLM:INFO[0m: utils.py:1307 - Wrapper: Completed Call, calling success_handler
+2026-03-09 14:40:09,850 - LiteLLM - INFO - Wrapper: Completed Call, calling success_handler
+[92m14:40:23 - LiteLLM:INFO[0m: utils.py:3427 - 
+LiteLLM completion() model= gemini/gemini-3-flash-preview; provider = openai
+2026-03-09 14:40:23,790 - LiteLLM - INFO - 
+LiteLLM completion() model= gemini/gemini-3-flash-preview; provider = openai
+[92m14:40:31 - LiteLLM:INFO[0m: utils.py:1307 - Wrapper: Completed Call, calling success_handler
+2026-03-09 14:40:31,725 - LiteLLM - INFO - Wrapper: Completed Call, calling success_handler
+2026-03-09 14:41:38,081 - services.html_exporter - INFO - Embedded AI image from local storage: 139437f3-4366-4ddd-9d04-e4476be9fb02.jpg
+2026-03-09 14:41:38,081 - services.html_exporter - INFO - Processed 1 images in HTML content
+2026-03-09 14:41:38,081 - services.html_exporter - INFO - Processed HTML element content for embedded images
+2026-03-09 14:41:38,094 - server - INFO - Saved export to GridFS: Slides_manuais_20260309_144138.html (577749 bytes)
+2026-03-09 14:43:58,409 - services.scorm_exporter - INFO - Exporting SCORM package for project: 5be8cb80-828b-4b7b-84f0-2b1edd92565f
+2026-03-09 14:43:58,409 - services.scorm_exporter - INFO - Looking for project assets in: /app/backend/storage/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets
+2026-03-09 14:43:58,415 - services.scorm_exporter - INFO - Copied asset: slide_render_da571049-7bcc-4e26-9088-edd9a75828a5.png
+2026-03-09 14:43:58,416 - services.scorm_exporter - INFO - Copied asset: a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg
+2026-03-09 14:43:58,416 - services.scorm_exporter - INFO - Copied asset: slide_render_b1955363-ff42-4758-a2d7-362fd2654354.png
+2026-03-09 14:43:58,416 - services.scorm_exporter - INFO - Total project assets copied: 3
+2026-03-09 14:43:58,422 - services.scorm_exporter - INFO - Looking for global assets in: /app/backend/storage/assets
+2026-03-09 14:43:58,423 - services.scorm_exporter - INFO - Copied global asset (AI image): f96f0247-09a2-4d0d-8391-d33ca6a85506.png
+2026-03-09 14:43:58,424 - services.scorm_exporter - INFO - Copied global asset (AI image): 59701cbc-85dc-4293-8e9c-a1e232432b09.png
+2026-03-09 14:43:58,425 - services.scorm_exporter - INFO - Copied global asset (AI image): 55891c08-df36-4d1e-80aa-d16584f1f11e.png
+2026-03-09 14:43:58,425 - services.scorm_exporter - INFO - Copied global asset (AI image): 139437f3-4366-4ddd-9d04-e4476be9fb02.jpg
+2026-03-09 14:43:58,426 - services.scorm_exporter - INFO - Copied global asset (AI image): ba64e6f8-57f9-4f82-b67e-c93e59934ed5.png
+2026-03-09 14:43:58,426 - services.scorm_exporter - INFO - Copied global asset (AI image): ffdd1838-ed70-4d40-a7ba-9b7445f435e3.jpg
+2026-03-09 14:43:58,426 - services.scorm_exporter - INFO - Copied global asset (AI image): 15548071-db3f-4cdc-b5eb-c61fe4db0e12.jpg
+2026-03-09 14:43:58,427 - services.scorm_exporter - INFO - Copied global asset (AI image): 3d16a601-662c-4d2e-8b08-90b55f8b94a3.png
+2026-03-09 14:43:58,427 - services.scorm_exporter - INFO - Copied global asset (AI image): 4fb59014-d495-43c9-8179-ad6f8523cb28.jpg
+2026-03-09 14:43:58,427 - services.scorm_exporter - INFO - Copied global asset (AI image): 006ff336-0049-4d1d-ab25-dd9928ea32b1.jpg
+2026-03-09 14:43:58,427 - services.scorm_exporter - INFO - Copied global asset (AI image): a80b9d93-59b5-4cda-8f72-c42c8314de94.jpg
+2026-03-09 14:43:58,428 - services.scorm_exporter - INFO - Copied global asset (AI image): 2c0e3315-ed50-4650-8113-5d587a3b7c75.png
+2026-03-09 14:43:58,429 - services.scorm_exporter - INFO - Copied global asset (AI image): 723c75aa-6bc6-40b1-a536-63e53d8e26f3.jpg
+2026-03-09 14:43:58,429 - services.scorm_exporter - INFO - Copied global asset (AI image): cde40c31-128a-40f7-970e-d7265f2b263c.jpg
+2026-03-09 14:43:58,429 - services.scorm_exporter - INFO - Copied global asset (AI image): 048bd1e5-d4c1-4584-b5c0-a729faef514a.jpg
+2026-03-09 14:43:58,429 - services.scorm_exporter - INFO - Copied global asset (AI image): 0e787e8e-8427-4391-a30b-f443a1637df7.jpg
+2026-03-09 14:43:58,430 - services.scorm_exporter - INFO - Copied global asset (AI image): 569c7e20-c75f-4a57-bbe5-0f5ec5443edb.png
+2026-03-09 14:43:58,430 - services.scorm_exporter - INFO - Copied global asset (AI image): ce1727d3-7e20-4121-bb66-fc8cc1be900d.jpg
+2026-03-09 14:43:58,430 - services.scorm_exporter - INFO - Copied global asset (AI image): 9a232602-92a3-43a6-a9ef-0de0ed5a6b8e.jpg
+2026-03-09 14:43:58,430 - services.scorm_exporter - INFO - Copied global asset (AI image): dea21ae6-b165-4f17-8237-cdef2d21ba21.jpg
+2026-03-09 14:43:58,430 - services.scorm_exporter - INFO - Copied global asset (AI image): 62984ec2-6364-45a7-baf2-8c7867a4e2dc.jpg
+2026-03-09 14:43:58,431 - services.scorm_exporter - INFO - Copied global asset (AI image): d6e13e3e-dd06-4aa4-acaf-249e3aafdeb4.png
+2026-03-09 14:43:58,432 - services.scorm_exporter - INFO - Copied global asset (AI image): 841a4ce8-84d8-4691-acac-401e7919769c.png
+2026-03-09 14:43:58,433 - services.scorm_exporter - INFO - Copied global asset (AI image): 6ff438fc-9a1d-4947-9579-3c164b9968f8.png
+2026-03-09 14:43:58,433 - services.scorm_exporter - INFO - Copied global asset (AI image): 61b3a788-a69c-456c-b1c6-34a0b294063a.jpg
+2026-03-09 14:43:58,433 - services.scorm_exporter - INFO - Copied global asset (AI image): 9f7410b7-35db-4cb6-b962-93f087761108.jpg
+2026-03-09 14:43:58,433 - services.scorm_exporter - INFO - Copied global asset (AI image): 9cb74a07-b372-48ad-b463-6121c7ddaf97.jpg
+2026-03-09 14:43:58,434 - services.scorm_exporter - INFO - Copied global asset (AI image): eda15588-52e2-4d6d-a7f8-fef37f21832f.png
+2026-03-09 14:43:58,434 - services.scorm_exporter - INFO - Copied global asset (AI image): 53fd8708-a653-4ff9-b6e2-41c2edb8f37b.jpg
+2026-03-09 14:43:58,434 - services.scorm_exporter - INFO - Copied global asset (AI image): 07bb29e0-b29a-4d40-8233-9f9dc0490fd5.jpg
+2026-03-09 14:43:58,435 - services.scorm_exporter - INFO - Copied global asset (AI image): a164da20-7d5c-48ce-80f6-5420496fabdc.png
+2026-03-09 14:43:58,436 - services.scorm_exporter - INFO - Copied global asset (AI image): d88feda8-5443-4b53-9b90-15a8b78b25ba.jpg
+2026-03-09 14:43:58,436 - services.scorm_exporter - INFO - Copied global asset (AI image): e82f60b5-5627-4a3c-995d-f743c0b3b0c0.png
+2026-03-09 14:43:58,437 - services.scorm_exporter - INFO - Copied global asset (AI image): 6dd259b6-83d4-40fb-88c3-562457078924.png
+2026-03-09 14:43:58,438 - services.scorm_exporter - INFO - Copied global asset (AI image): 9640efb5-3094-4b70-8748-e9e65762d442.png
+2026-03-09 14:43:58,439 - services.scorm_exporter - INFO - Copied global asset (AI image): 78136a9d-7fa7-4ee6-80ed-0dda5cf40cae.png
+2026-03-09 14:43:58,439 - services.scorm_exporter - INFO - Copied global asset (AI image): 1bb6ea09-8883-4bcd-ae15-d2a4c6c57457.jpg
+2026-03-09 14:43:58,440 - services.scorm_exporter - INFO - Copied global asset (AI image): 5d13dde2-4200-43ef-83e9-3fe535b09417.png
+2026-03-09 14:43:58,440 - services.scorm_exporter - INFO - Copied global asset (AI image): 27d5dbaf-b9fb-48b8-9b24-38b7982fbbdb.jpg
+2026-03-09 14:43:58,440 - services.scorm_exporter - INFO - Copied global asset (AI image): 23ee1c2c-6cd0-4623-ad9d-5647e0cb084b.jpg
+2026-03-09 14:43:58,440 - services.scorm_exporter - INFO - Copied global asset (AI image): d6e16721-128f-49ab-9852-b732fcc1508b.jpg
+2026-03-09 14:43:58,441 - services.scorm_exporter - INFO - Copied global asset (AI image): 73aa07d2-c201-4fe2-9d68-1efd04d99c3e.png
+2026-03-09 14:43:58,441 - services.scorm_exporter - INFO - Copied global asset (AI image): 7e53d874-f05a-4629-bee5-9c582b2cc42e.jpg
+2026-03-09 14:43:58,441 - services.scorm_exporter - INFO - Copied global asset (AI image): 17742f12-4200-46fa-b3ba-d4f58b75bf2f.jpg
+2026-03-09 14:43:58,442 - services.scorm_exporter - INFO - Copied global asset (AI image): 64b6f410-131c-4a7c-8a84-5f19f0c206b6.png
+2026-03-09 14:43:58,443 - services.scorm_exporter - INFO - Copied global asset (AI image): 5fdd533c-160f-4308-8f56-6080436fe6af.png
+2026-03-09 14:43:58,443 - services.scorm_exporter - INFO - Total global assets copied: 46
+2026-03-09 14:43:58,444 - services.scorm_exporter - INFO - Embedded image as data URI from local file: 139437f3-4366-4ddd-9d04-e4476be9fb02.jpg (111762 bytes)
+2026-03-09 14:43:58,444 - services.scorm_exporter - INFO - Embedded image as data URI from local file: a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg (167944 bytes)
+2026-03-09 14:43:58,444 - services.scorm_exporter - INFO - Downloading external video: https://files2.heygen.ai/aws_pacific/avatar_tmp/73edcec2e0ad40738d036658aff63987/79ac996f318644fba51...
+2026-03-09 14:43:58,957 - services.scorm_exporter - INFO - Downloaded video as: video_ec8efb46db09.mp4
+2026-03-09 14:43:58,958 - services.scorm_exporter - INFO - AI Tutor enabled for SCORM package with 1 slide summaries
+2026-03-09 14:43:58,958 - services.scorm_exporter - INFO - SCORM package: 0 background images embedded as data URIs
+2026-03-09 14:44:00,262 - services.scorm_exporter - INFO - SCORM package created: /app/backend/storage/exports/Slides_manuais_20260309_144358.zip
+2026-03-09 14:44:00,405 - server - INFO - Saved export to GridFS: Slides_manuais_20260309_144358.zip (64373829 bytes)
+2026-03-09 14:48:43,196 - server - INFO - Starting Scormify API server...
+2026-03-09 14:48:43,209 - server - INFO - MongoDB client initialized for database: test_database
+INFO:     Started server process [50]
+INFO:     Waiting for application startup.
+2026-03-09 14:48:43,476 - server - INFO - Startup URL migration: started in background task
+2026-03-09 14:48:43,476 - server - INFO - Startup admin check: started in background task
+2026-03-09 14:48:43,476 - server - INFO - Startup asset persistence: started in background thread
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+2026-03-09 14:48:43,483 - utils.system_deps - INFO - ==================================================
+2026-03-09 14:48:43,483 - utils.system_deps - INFO - Checking system dependencies (non-blocking)...
+2026-03-09 14:48:43,483 - utils.system_deps - INFO - ==================================================
+2026-03-09 14:48:43,485 - utils.system_deps - WARNING - ⚠ LibreOffice not found - PPT import will be unavailable
+2026-03-09 14:48:43,485 - utils.system_deps - WARNING - ⚠ poppler-utils not found - some PDF features may be unavailable
+2026-03-09 14:48:43,485 - utils.system_deps - INFO - ==================================================
+2026-03-09 14:48:43,485 - utils.system_deps - INFO - ✓ Server startup complete!
+2026-03-09 14:48:43,485 - utils.system_deps - INFO - ==================================================
+2026-03-09 14:48:43,499 - server - INFO - Startup URL migration: no absolute URLs found, all clean
+2026-03-09 14:48:43,500 - server - INFO - Super admin user already exists
+2026-03-09 14:48:45,857 - server - INFO - Background asset persistence: all assets already in MongoDB
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.208.138.66:50958 - "GET /api/projects/49c430b9-1c62-49a0-821c-08ca6f572741/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:54680 - "GET /api/projects/5a2f0807-e248-4ec4-9426-e827de6d3940/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:54680 - "GET /api/projects/82f4d13b-a6c6-4c13-9903-2aa3a90f4d96/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:50958 - "GET /api/projects/a155773e-516b-401c-8467-6b6505b05004/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:54680 - "GET /api/projects/a216f89f-3e56-4d5b-b2a5-7fda05c05600/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:50958 - "GET /api/projects/3fded379-d3ec-4eda-a48c-b97ab0ea314b/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:54680 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.71:54684 - "GET /api/dashboard/metrics HTTP/1.1" 200 OK
+INFO:     10.208.138.71:54680 - "GET /api/projects/a643925a-04f7-4a37-a0c3-3458fafc036f/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:50958 - "GET /api/projects/cb4e0112-3e45-44fe-ab29-304b0ef8f0a0/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:50958 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:50958 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.66:50958 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:50958 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.66:50958 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:55680 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:55680 - "POST /api/course/5be8cb80-828b-4b7b-84f0-2b1edd92565f/export-html HTTP/1.1" 200 OK
+INFO:     10.208.138.71:55680 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:50972 - "GET /api/exports/Slides_manuais_20260309_143511.html HTTP/1.1" 200 OK
+INFO:     10.208.138.66:41054 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.71:46192 - "POST /api/course/82d2d9d4-3067-47de-bf5a-0e14e9051e67/export-html HTTP/1.1" 200 OK
+INFO:     10.208.138.71:46192 - "GET /api/exports/Universidades_Corporativas_O_Futuro_da_Educa%C3%A7%C3%A3o_Estrat%C3%A9gica_20260309_143627.html HTTP/1.1" 200 OK
+INFO:     10.208.138.66:48216 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.66:48216 - "GET /api/exports/Universidades_Corporativas_O_Futuro_da_Educa%C3%A7%C3%A3o_Estrat%C3%A9gica_20260309_143627.html HTTP/1.1" 200 OK
+INFO:     10.208.138.66:40610 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     10.208.138.71:58854 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     10.208.138.66:49400 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57626 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58594 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     10.208.138.66:33632 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     10.208.138.71:59926 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:49574 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34514 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     10.208.138.71:32864 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.71:32864 - "POST /api/tutor/chat HTTP/1.1" 200 OK
+INFO:     10.208.138.71:59534 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.66:45174 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.66:45174 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:45174 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.71:59534 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:58456 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.71:58456 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.66:34762 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:58456 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.66:34762 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:51352 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:51352 - "POST /api/course/5be8cb80-828b-4b7b-84f0-2b1edd92565f/export-html HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51352 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:39704 - "GET /api/exports/Slides_manuais_20260309_144138.html HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51224 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:40452 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:51230 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:40452 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/dashboard/metrics HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/7a570bc7-e271-47df-9159-2bc35c762d14/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/a972eb75-eb3a-486c-91cf-f73c7551aebd/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:40440 - "GET /api/projects/57d237b2-3636-4ea8-a306-bede62e4fe23/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/076ced94-d2cd-4ba1-9a02-c3384a946adc/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:40440 - "GET /api/projects/edd87206-484c-45d8-ba4b-5ae9bc24b2fb/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/1cd62d0b-a49d-4fd1-9a70-3433f5931d7c/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:40440 - "GET /api/projects/2aed424b-2453-4d0c-9850-6bc5d3b27d97/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40126 - "GET /api/projects/9ba5a584-6477-44b4-8406-bb46d9981e64/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/88fce669-fff9-49d2-b009-e6c91b3965db/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/b99cdac3-eaa3-4a5e-b017-8dee93db62d6/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40126 - "GET /api/projects/5445df19-d851-4247-a89e-9129cc4e4345/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/92944f21-52de-4f4a-a3dd-c8a51db9bc05/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:40440 - "GET /api/projects/44783eda-b92f-4be9-97bc-ba5030c248d6/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/fec652a1-31e3-46d6-bda4-cc0b1040284a/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/3451a6c2-eddf-4845-b3a0-6bed8bb8bdd5/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/a87fd1a0-1338-4043-9c2f-b0cc8572a12e/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/5f32db23-0072-45e9-80c1-091b13f5750b/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:40440 - "GET /api/projects/3fded379-d3ec-4eda-a48c-b97ab0ea314b/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/49c430b9-1c62-49a0-821c-08ca6f572741/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/6df2dcef-702c-46cc-b449-a4dba71c674b/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40126 - "GET /api/projects/82f4d13b-a6c6-4c13-9903-2aa3a90f4d96/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/a155773e-516b-401c-8467-6b6505b05004/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40126 - "GET /api/projects/a643925a-04f7-4a37-a0c3-3458fafc036f/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40452 - "GET /api/projects/a216f89f-3e56-4d5b-b2a5-7fda05c05600/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.71:40140 - "GET /api/projects/5a2f0807-e248-4ec4-9426-e827de6d3940/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:51230 - "GET /api/projects/cb4e0112-3e45-44fe-ab29-304b0ef8f0a0/assets/slide_001.png HTTP/1.1" 200 OK
+INFO:     10.208.138.66:57624 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:44058 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.71:44058 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:44058 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.71:44058 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:57624 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:44234 - "PUT /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.71:44234 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f HTTP/1.1" 200 OK
+INFO:     10.208.138.71:44234 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:57624 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.66:57624 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:44234 - "POST /api/course/5be8cb80-828b-4b7b-84f0-2b1edd92565f/export-scorm HTTP/1.1" 200 OK
+INFO:     10.208.138.66:57624 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.66:57624 - "GET /api/projects/5be8cb80-828b-4b7b-84f0-2b1edd92565f/assets/a74e7595-e1ad-4e30-a1b8-ffa94c5397b5.jpg HTTP/1.1" 200 OK
+INFO:     10.208.138.66:57624 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found
+INFO:     10.208.138.71:44234 - "GET /api/exports/Slides_manuais_20260309_144358.zip HTTP/1.1" 200 OK
+INFO:     10.208.138.71:39526 - "GET /api/assets/139437f3-4366-4ddd-9d04-e4476be9fb02.jpg HTTP/1.1" 404 Not Found) during the test will be crucial.
+-   User Testing Done: Y (and it failed)
 
 **All Pending/In progress Issue list**:
--   **Issue 1: HeyGen Video Generation Fails Due to Insufficient Credit (P2)**
-    -   **Description**: The HeyGen API returns an Insufficient credit error during video generation. This is an external account limitation, as the user's account has 0 credits for API usage.
-    -   **Next debug checklist**: The issue is blocked on the user adding API credits to their HeyGen account. The next agent should only re-verify this if the user claims to have added credits. The check involves calling the  endpoint and inspecting the  value.
-    -   **Why fix this issue and what will be achieved with the fix?**: This will unblock the HeyGen-based PPT-to-Video feature.
+-   **Issue 1: AI Tutor Fails in Local SCORM Export Test (P0)**
+    -   **Description**: The user is reporting an error with the AI Tutor when testing a SCORM package locally. This occurred immediately after the agent fixed a similar issue for HTML exports. The error message in the user's screenshot is generic (Ocorreu um erro), suggesting a communication failure between the SCORM package and the backend.
+    -   **Next debug checklist**:
+        1.  Verify the SCORM export process for a sample project.
+        2.  Unzip the SCORM package and inspect the , , and the main HTML file to see how the  and  are configured.
+        3.  Run the exported SCORM package in a local environment (or a test cloud like SCORM Cloud) and monitor the browser's developer console (Network and Console tabs) for errors when the AI Tutor is used.
+        4.  Simultaneously monitor the backend logs for any incoming requests from the SCORM package and check for errors. The issue could still be related to CORS, or how the SCORM player environment handles API requests.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a core feature for the user. Fixing it will ensure the AI Tutor works reliably across all export formats.
+    -   **Status**: **NOT STARTED**
+    -   **Is recurring issue?**: Y (This is a variant of the just-fixed HTML export issue).
+    -   **Should Test frontend/backend/both after fix?**: Both.
+    -   **Blocked on other issue**: No.
+
+-   **Issue 2: HeyGen Video Generation Fails Due to Insufficient Credit (P2)**
+    -   **Description**: The HeyGen API returns an Insufficient credit error. This is blocked on the user adding API credits to their HeyGen account.
     -   **Status**: **BLOCKED** (on user action)
     -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Backend (by triggering a video generation).
+    -   **Should Test frontend/backend/both after fix?**: Backend.
     -   **Blocked on other issue**: No.
 
 **In progress Task List**:
--   **Task 1: Implement Synthesia Integration (P0)**
-    -   **Description**: Integrate Synthesia as a second provider for avatar video generation. This involves adding backend routes to interact with the Synthesia API (create/check video) and updating the frontend UI () to allow the user to choose between HeyGen and Synthesia.
-    -   **Where to resume**: The  has been called and has returned the playbook (see previous tool call response). The next step is to begin implementing the backend endpoints as described in the playbook. This will involve creating a new  route file or adding to , creating new service functions, and asking the user for their Synthesia API key.
-    -   **What will be achieved with this?**: Users will have a choice of video generation providers, adding flexibility and a fallback option.
-    -   **Status**: **NOT STARTED**
-    -   **Should Test frontend/backend/both after fix?**: Both.
-    -   **Blocked on something**: No.
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P1) **Implement SCORM 2004 & xAPI Export**: After the Synthesia integration is complete, this is the next priority feature.
+    -   (P1) **Implement SCORM 2004 & xAPI Export**: This is a standing high-priority feature request.
 -   **Future Tasks:**
     -   (P2) **Advanced Interactivity**: Further enhancements to the Tutor IA feature.
+    -   (REJECTED FOR NOW) **Synthesia Integration**: User rejected the initial plan due to cost (O plano é muito caro). The next agent should confirm if this feature is still desired before proceeding.
 
 **Completed work in this session**
--   **CRITICAL Frontend Refactoring**:
-    -   Decomposed monolithic  (from ~5700 to ~3600 lines) into 10+ custom hooks and components.
-    -   Decomposed monolithic  (from ~3600 to ~1000 lines) into separate panel components.
-    -   Verified with  that no regressions were introduced.
--   **Feature: Dashboard Metrics**:
-    -   Created backend endpoint  to aggregate counts of courses, slides, and exports.
-    -   Added a new Métricas section to the  page to display these stats.
--   **Feature: AI Tutor in HTML Export**:
-    -   Modified  to embed the AI Tutor widget and configuration into standalone HTML exports.
--   **Deployment & Build Fixes**:
-    -   **Build Failures**: Resolved  build errors by deleting 190MB of test files from  and adding  and  to . Fixed all React warnings causing the CI build to fail.
-    -   **Deployment Failures**: Corrected  to stop blocking  files from being included in the deployment package.
--   **Bug Fixes**:
-    -   Fixed  runtime error in  by adding the missing constant to .
-    -   Fixed  runtime error in  by adding the missing constant to .
+-   **Bug Fix: Editor Timeline Instability**: Fixed by using local state and  in .
+-   **Bug Fix: Image Overlap on Media Edit**: Corrected state comparison logic in .
+-   **Bug Fix: Deployment Failures**: Patched  to generate the correct Nginx configuration for production deployments, and added static health endpoints (, ) to satisfy health checks.
+-   **Bug Fix: Broken Gallery Images in Exports**: Updated  and  to correctly parse project IDs from gallery image URLs and copy assets from other projects.
+-   **Bug Fix: Local Login Failure**: Repaired the MongoDB database and cleared over 23,000 old export chunks from GridFS to resolve a crash.
+-   **Feature: Slide-Aware AI Tutor**: Implemented logic in , , , and  to pass slide-specific context to the AI Tutor in exports.
+-   **Bug Fix: CORS Error in Local HTML Export**: Updated the backend CORS configuration in  to allow , and removed  from the FastAPI middleware.
 
 **Earlier issues found/mentioned but not fixed**
 -   None.
@@ -81,78 +290,80 @@ The application is now stable, and the agent has just received the integration p
 
 
 **Key Technical Concepts**
--   **Monolithic Component Decomposition**: Systematically breaking down massive React components (, ) into smaller, single-responsibility presentational components and stateful custom hooks.
--   **Build Process Debugging**: Identifying and fixing CI/CD pipeline failures by analyzing build logs, fixing  errors by cleaning the  directory, and resolving build-blocking warnings.
--   **Deployment Environment Configuration**: Debugging deployment-specific issues by ensuring necessary files (like ) are not excluded by source control rules ().
--   **State Lifting and Hook Composition**: Using custom hooks to encapsulate complex, related state and logic (e.g., , ) and providing a clean interface to the main component.
+-   **Frontend Performance**: Using local state with  (equivalent to debouncing) to prevent performance degradation from high-frequency UI events.
+-   **State Management**: Differentiating between changed and unchanged values in a complex form state to prevent unintended side effects.
+-   **Deployment Debugging**: Analyzing deployment logs to identify and fix environment-specific configuration issues (e.g., Nginx proxying in production vs. preview).
+-   **CORS for Local Files**: Configuring a backend to accept requests from , which is sent by browsers for local files ( protocol).
+-   **Database Maintenance**: Repairing a crashed MongoDB instance and clearing stale data from GridFS to restore functionality and free up space.
+-   **Dynamic Content in Exports**: Injecting dynamic data (like API URLs and slide-specific context) into static JS files (, ) during the server-side export process.
 
 **key DB schema**
--   :  - New collection to track export events for dashboard metrics.
+-   No changes in this session.
 
 **All files of reference**
--   : **Heavily refactored**.
--   : **Heavily refactored**.
--   , : **New directories** with all extracted components/hooks.
--   : **New directory** with all extracted panel components.
--   : Modified to add the metrics UI.
--   : Modified to add the  endpoint.
--   : Modified to add AI Tutor to HTML exports.
--   : Modified to log exports to the new  collection.
--   : Modified to remove  exclusion.
--   : Modified to exclude build artifacts.
--   : **New file** to exclude zipped test courses.
+-   : Fixed timeline instability.
+-   : Fixed image overlap bug.
+-   : Fixed Nginx config for deployment.
+-   : Fixed CORS and added a health check endpoint.
+-   : Fixed broken gallery images and added slide-aware AI Tutor.
+-   : Fixed broken gallery images and added slide-aware AI Tutor.
+-   : Modified to notify the tutor on slide changes.
+-   : Modified to be slide-aware.
+-   , : New files for deployment health checks.
 
 **Areas that need refactoring**:
--   The most critical refactoring targets (, ) have been completed. No other urgent refactoring is needed.
+-   None. The major refactoring was completed in the previous session.
 
 **key api endpoints**
--   : **(NEW)** Fetches statistics for the dashboard.
--   : **(MODIFIED)** Now logs an event to the  collection.
--   : **(MODIFIED)** Now logs an event to the  collection and can embed the AI Tutor.
+-   : **(MODIFIED)** Logic was updated for image and AI Tutor fixes.
+-   : **(MODIFIED)** Logic was updated for image and AI Tutor fixes.
+-   : **(DEBUGGED)** CORS policy was adjusted to allow requests from local files.
 
 **Critical Info for New Agent**
--   Your immediate priority is to start the **(P0) Synthesia Integration**. You have the playbook; begin with the backend implementation and remember to ask the user for their API key.
--   The HeyGen video generation feature remains **BLOCKED** due to the user's account having  API credits. Do not spend time debugging it unless the user confirms they've added credits.
--   The next feature after Synthesia is **(P1) SCORM 2004 and xAPI export**.
--   All communication with the user must be in **Português**.
--   The major frontend refactoring is complete and has been tested. The codebase is now much more modular and easier to work with.
+-   **Your immediate P0 priority is the new bug**: The AI Tutor is failing in SCORM exports when tested locally. This is the user's current blocker. Investigate this before touching anything else.
+-   **Synthesia is on hold**: The user rejected the plan due to cost. Do not work on it. Confirm with the user if they wish to reconsider it later.
+-   **Communicate in Português.**
+-   The previous local login issue was due to a crashed MongoDB. If login fails again, check the service status with  before debugging the code.
 
 **documents and test reports created in this job**
--    (Refactoring regression test)
--    (New features test)
+-   
+-   
 -    (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Confirms starting the implementation of Dashboard Metrics and AI Tutor. (Status: Completed)
-2.  **User**: Reports a runtime error () with a screenshot after the agent refactored . (Status: Fixed)
-3.  **User**: Provides deployment logs showing the backend is not becoming healthy. (Status: Investigated and Fixed)
-4.  **User**: Reports another runtime error () with a screenshot. (Status: Fixed)
-5.  **User**: Provides new deployment logs showing the backend is still not healthy. (Status: Investigated and Fixed - found build issue).
-6.  **User**: Requests to integrate Synthesia as a second video generation provider. (Status: In Progress)
-7.  **User**: Provides specifications for the Synthesia integration UI/UX. (Status: Acknowledged)
-8.  **User**: [Pending] Waiting for agent to start implementation of Synthesia.
+1.  **User**: Reports that the timeline slider in the Editor is unstable. (Status: **Completed**)
+2.  **User**: Reports that editing media on one slide overwrites images on other slides. (Status: **Completed**)
+3.  **User**: Reports deployment is failing with logs. (Status: **Completed**)
+4.  **User**: Reports that images from the gallery are broken in exports. (Status: **Completed**)
+5.  **User**: Confirms the broken image issue happens in SCORM and HTML exports. (Status: **Completed**)
+6.  **User**: Reports being unable to log in locally. (Status: **Completed**)
+7.  **User**: Reports another deployment failure with new logs. (Status: **Completed**)
+8.  **User**: Requests that the AI Tutor be slide-aware in exports. (Status: **Completed**)
+9.  **User**: Reports an error in the local HTML test of the AI Tutor. (Status: **Completed**)
+10. **User**: [PENDING] Reports a new error in the local **SCORM** test of the AI Tutor. This is the current P0 issue.
 
 **Project Health Check:**
--   **Broken**: The PPT-to-Video feature using **HeyGen** is non-functional due to an external dependency (user's HeyGen API credits are 0).
+-   **Broken**:
+    -   AI Tutor in SCORM exports (based on the latest user report).
+    -   HeyGen video generation (external dependency: user's account has 0 credits).
 -   **Mocked**: No.
 
 **3rd Party Integrations**
--   **HeyGen**: For avatar video. **Currently blocked for video generation due to 0 API credits on the user's account**.
--   **Synthesia**: For avatar video. **Pending Implementation (P0)**. Requires User API Key.
--   **Google Gemini 3 Flash & Nano Banana**: Text/image generation. Uses **Emergent LLM Key**.
--   **OpenAI gpt-4o**: Text generation. Uses **Emergent LLM Key**.
--   **ElevenLabs**: Audio narration. Requires User API Key.
--   **ConvertAPI**: PPT conversion. Requires User API Key.
+-   **HeyGen**: Avatar video. **Blocked (0 API credits)**.
+-   **Synthesia**: Avatar video. **Rejected by user due to cost**.
+-   **Google Gemini & OpenAI GPT-4o**: Text/image generation. (Emergent LLM Key).
+-   **ElevenLabs**: Audio narration. (User API Key).
+-   **ConvertAPI**: PPT conversion. (User API Key).
 -   **VLibras**: Brazilian Sign Language integration.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Two successful runs were completed for the major refactoring and the new features, with all tests passing.
--   Troubleshoot agent used after agent stuck in loop: YES, the deployment agent was used to debug deployment failures.
+-   Testing agent used after significant changes: YES. Agent used it to verify the timeline/image overlap fixes and the AI Tutor enhancements.
+-   Troubleshoot agent used after agent stuck in loop: NO.
 -   Test files created: None.
--   Known regressions: None.
+-   Known regressions: The AI Tutor functionality in SCORM exports has either regressed or was not fully fixed.
 
 **Credentials to test flow:**
 -   Super Admin:  / 
 
 **What agent forgot to execute**
--   Nothing. The agent successfully executed a complex refactoring, implemented new features, and fixed several critical bugs and deployment blockers, all while adhering to user priorities.</analysis>
+-   The agent correctly followed user pivots and did not forget any requested tasks. The Synthesia plan was appropriately paused based on user feedback.</analysis>
