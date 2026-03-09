@@ -84,7 +84,7 @@ async def generate_questions_with_ai(request: QuizGenerateRequest):
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         if request.questionType == "true_false":
-            type_instruction = """Gere APENAS questoes de Verdadeiro ou Falso. Cada questao deve ter exatamente 2 alternativas: "Verdadeiro" e "Falso"."""
+            type_instruction = """Gere APENAS questoes de Verdadeiro ou Falso. Cada questao DEVE ter type "true_false" e exatamente 2 alternativas: "Verdadeiro" e "Falso"."""
         elif request.questionType == "multiple_choice":
             type_instruction = """Gere APENAS questoes de Multipla Escolha. Cada questao deve ter exatamente 4 alternativas, sendo apenas 1 correta."""
         else:
@@ -93,7 +93,11 @@ async def generate_questions_with_ai(request: QuizGenerateRequest):
 {type_instruction}
 REGRAS: 1. SEMPRE responda em portugues brasileiro 2. Crie questoes claras e objetivas 3. Inclua explicacao para cada resposta correta
 FORMATO DE RESPOSTA (JSON valido):
-{{"questions": [{{"type": "multiple_choice", "text": "Pergunta?", "alternatives": [{{"text": "A", "isCorrect": false}}, {{"text": "B", "isCorrect": true}}], "explanation": "..."}}]}}
+{{"questions": [
+  {{"type": "multiple_choice", "text": "Qual e a capital?", "alternatives": [{{"text": "A", "isCorrect": false}}, {{"text": "B", "isCorrect": true}}, {{"text": "C", "isCorrect": false}}, {{"text": "D", "isCorrect": false}}], "explanation": "..."}},
+  {{"type": "true_false", "text": "O sol e uma estrela.", "alternatives": [{{"text": "Verdadeiro", "isCorrect": true}}, {{"text": "Falso", "isCorrect": false}}], "explanation": "..."}}
+]}}
+IMPORTANTE: Questoes true_false DEVEM SEMPRE ter o campo "alternatives" com "Verdadeiro" e "Falso".
 RESPONDA APENAS COM O JSON, SEM TEXTO ADICIONAL."""
         chat = LlmChat(api_key=emergent_key, session_id=f"quiz-gen-{uuid.uuid4()}", system_message=system_message).with_model("openai", "gpt-4o")
         if request.source == "document" and request.documentContent:
@@ -115,9 +119,22 @@ RESPONDA APENAS COM O JSON, SEM TEXTO ADICIONAL."""
         saved_questions = []
         for q_data in questions_data:
             alternatives = []
+            q_type = q_data.get("type", "multiple_choice")
+            # Force correct type when user explicitly requested true_false
+            if request.questionType == "true_false":
+                q_type = "true_false"
             for alt in q_data.get("alternatives", []):
                 alternatives.append(QuizAlternative(text=alt.get("text", ""), isCorrect=alt.get("isCorrect", False)).model_dump())
-            question = QuizQuestion(projectId=request.projectId, type=q_data.get("type", "multiple_choice"), text=q_data.get("text", ""), alternatives=alternatives, explanation=q_data.get("explanation"), tags=["ai-generated"])
+            # Fallback: ensure true_false always has Verdadeiro/Falso alternatives
+            if q_type == "true_false" and len(alternatives) < 2:
+                # Try to detect correct answer from the question context
+                correct_answer = q_data.get("answer", q_data.get("correct", ""))
+                is_true = str(correct_answer).lower() in ("true", "verdadeiro", "v")
+                alternatives = [
+                    QuizAlternative(text="Verdadeiro", isCorrect=is_true).model_dump(),
+                    QuizAlternative(text="Falso", isCorrect=not is_true).model_dump(),
+                ]
+            question = QuizQuestion(projectId=request.projectId, type=q_type, text=q_data.get("text", ""), alternatives=alternatives, explanation=q_data.get("explanation"), tags=["ai-generated"])
             question_dict = question.model_dump()
             question_dict['createdAt'] = question.createdAt.isoformat()
             question_dict['updatedAt'] = question.updatedAt.isoformat()
