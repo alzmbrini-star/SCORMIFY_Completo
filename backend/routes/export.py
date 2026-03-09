@@ -133,6 +133,10 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                         host = request.headers.get('host', '')
                         backend_url = f"{scheme}://{host}" if host else ''
                 
+                # Fallback to BASE_URL from env if header detection fails
+                if not backend_url or backend_url in ('https://', 'http://'):
+                    backend_url = os.environ.get('BASE_URL', '')
+                
                 tutor_settings = {
                     'enabled': True,
                     'apiUrl': backend_url,
@@ -311,6 +315,52 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                     'courseTopic': course_data.get('metadata', {}).get('title', '') or project_doc.get('name', ''),
                     'courseContext': "\n---\n".join(course_context_parts)[:8000]
                 }
+                
+                # Build per-slide contexts for slide-aware tutoring
+                per_slide_contexts = []
+                for slide in course_data.get('slides', []):
+                    elements_text = []
+                    for el in slide.get('elements', []):
+                        raw = el.get('content') or el.get('htmlContent') or el.get('text') or ''
+                        if raw:
+                            clean = re.sub(r'<[^>]+>', ' ', raw).strip()
+                            clean = re.sub(r'\s+', ' ', clean)
+                            if clean:
+                                elements_text.append(clean[:500])
+                        btn_text = el.get('buttonText')
+                        if btn_text:
+                            elements_text.append(btn_text)
+                    notes = slide.get('notes', '')
+                    libras = slide.get('librasScript', '')
+                    if notes:
+                        elements_text.append(f"Notas: {notes}")
+                    if libras:
+                        elements_text.append(f"Narracao: {libras}")
+                    per_slide_contexts.append(" | ".join(elements_text) if elements_text else '')
+                tutor_settings['slideContexts'] = per_slide_contexts
+                
+                # Build per-slide contexts for slide-aware tutoring
+                per_slide_contexts = []
+                for slide in course_data.get('slides', []):
+                    elements_text = []
+                    for el in slide.get('elements', []):
+                        raw = el.get('content') or el.get('htmlContent') or el.get('text') or ''
+                        if raw:
+                            clean = re.sub(r'<[^>]+>', ' ', raw).strip()
+                            clean = re.sub(r'\s+', ' ', clean)
+                            if clean:
+                                elements_text.append(clean[:500])
+                        btn_text = el.get('buttonText')
+                        if btn_text:
+                            elements_text.append(btn_text)
+                    notes = slide.get('notes', '')
+                    libras = slide.get('librasScript', '')
+                    if notes:
+                        elements_text.append(f"Notas: {notes}")
+                    if libras:
+                        elements_text.append(f"Narracao: {libras}")
+                    per_slide_contexts.append(" | ".join(elements_text) if elements_text else '')
+                tutor_settings['slideContexts'] = per_slide_contexts
         except Exception as e:
             logger.warning(f"Tutor settings load for HTML export failed (non-fatal): {e}")
         
@@ -475,33 +525,7 @@ async def serve_export(filename: str, preview: str = None):
         media_type = 'application/zip'
     elif filename.endswith('.mp4'):
         media_type = 'video/mp4'
-    elif filename.endswith('.webm'):
-        media_type = 'video/webm'
     else:
         media_type = 'application/octet-stream'
     
-    # If preview mode, serve inline (for HTML files)
-    if preview and filename.endswith('.html'):
-        return FileResponse(
-            file_path,
-            media_type=media_type,
-        )
-    
-    # Always force download for export files by setting filename
-    # This adds Content-Disposition: attachment header
-    return FileResponse(
-        file_path,
-        media_type=media_type,
-        filename=filename,
-        headers={
-            "Content-Disposition": f"attachment; filename=\"{filename}\""
-        }
-    )
-
-@router.get("/assets/{filename}")
-async def serve_global_asset(filename: str):
-    """Serve global assets (AI generated images, etc.)"""
-    file_path = STORAGE_DIR / "assets" / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+    return FileResponse(file_path, filename=filename, media_type=media_type)

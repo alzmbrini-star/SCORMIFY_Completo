@@ -580,11 +580,37 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         
         course_context = "\n".join(slide_summaries[:50])  # Limit to 50 slides
         
+        # Build per-slide contexts for slide-aware tutoring
+        per_slide_contexts = []
+        for i, slide in enumerate(course_data.get('slides') or []):
+            if not isinstance(slide, dict):
+                per_slide_contexts.append('')
+                continue
+            elements_text = []
+            for elem in (slide.get('elements') or []):
+                if isinstance(elem, dict):
+                    raw = elem.get('content') or elem.get('htmlContent') or elem.get('text') or ''
+                    if raw:
+                        plain = re.sub(r'<[^>]+>', ' ', raw).strip()
+                        plain = re.sub(r'\s+', ' ', plain)
+                        if plain:
+                            elements_text.append(plain[:500])
+                    btn_text = elem.get('buttonText')
+                    if btn_text:
+                        elements_text.append(btn_text)
+                    quiz_cfg = elem.get('quizConfig')
+                    if quiz_cfg and isinstance(quiz_cfg, dict):
+                        q_title = quiz_cfg.get('title')
+                        if q_title:
+                            elements_text.append(f"Quiz: {q_title}")
+            per_slide_contexts.append(" | ".join(elements_text) if elements_text else '')
+        
         course_data['tutorConfig'] = {
             'enabled': True,
             'apiUrl': tutor_config.get('apiUrl', ''),
             'courseTopic': tutor_config.get('courseTopic', course.metadata.title or project.name),
             'courseContext': course_context,
+            'slideContexts': per_slide_contexts,
             'tutorName': tutor_config.get('tutorName', 'Tutor IA'),
             'messageLimit': tutor_config.get('messageLimit', 50),
             'suggestedQuestions': tutor_config.get('suggestedQuestions', [])

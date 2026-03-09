@@ -1718,6 +1718,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var slide = course.slides[index];
                 var container = document.getElementById('slide-container');
                 
+                // Notify AI Tutor of slide change
+                if (typeof AiTutor !== 'undefined') {{ AiTutor.onSlideChange(index); }}
+                
                 // Clear any existing timeline timers
                 timelineTimers.forEach(function(timer) {{
                     clearTimeout(timer);

@@ -1,6 +1,7 @@
 /**
- * AI Tutor Chat Widget for SCORM Courses
- * Communicates with the backend Gemini API to provide course-specific tutoring
+ * AI Tutor Chat Widget for SCORM/HTML Courses
+ * Slide-aware: reads the current slide content and provides contextual explanations
+ * Communicates with the backend Gemini API for course-specific tutoring
  */
 var AiTutor = (function() {
     var config = {};
@@ -9,10 +10,13 @@ var AiTutor = (function() {
     var messagesUsed = 0;
     var isOpen = false;
     var isLoading = false;
+    var currentSlideIndex = 0;
+    var slideContexts = [];
 
     function init(tutorConfig) {
         config = tutorConfig || {};
         if (!config.enabled) return;
+        slideContexts = config.slideContexts || [];
         buildUI();
         addWelcomeMessage();
     }
@@ -47,13 +51,13 @@ var AiTutor = (function() {
         // Build suggestions HTML
         var suggestionsHtml = '';
         var suggestions = config.suggestedQuestions || [];
-        if (suggestions.length > 0) {
-            suggestionsHtml = '<div class="tutor-suggestions" id="tutor-suggestions" data-testid="tutor-suggestions">';
-            for (var i = 0; i < suggestions.length; i++) {
-                suggestionsHtml += '<button class="tutor-suggestion-btn" data-testid="tutor-suggestion-' + i + '" onclick="AiTutor.sendSuggestion(this)">' + escapeHtml(suggestions[i]) + '</button>';
-            }
-            suggestionsHtml += '</div>';
+        // Add default slide-aware suggestion
+        var allSuggestions = ['Explique o conteudo deste slide'].concat(suggestions);
+        suggestionsHtml = '<div class="tutor-suggestions" id="tutor-suggestions" data-testid="tutor-suggestions">';
+        for (var i = 0; i < allSuggestions.length && i < 4; i++) {
+            suggestionsHtml += '<button class="tutor-suggestion-btn" data-testid="tutor-suggestion-' + i + '" onclick="AiTutor.sendSuggestion(this)">' + escapeHtml(allSuggestions[i]) + '</button>';
         }
+        suggestionsHtml += '</div>';
 
         panel.innerHTML =
             '<div class="tutor-header">' +
@@ -64,13 +68,14 @@ var AiTutor = (function() {
                 '</div>' +
                 '<button class="tutor-close" data-testid="tutor-close-button" onclick="AiTutor.toggle()">&#x2715;</button>' +
             '</div>' +
+            '<div class="tutor-slide-indicator" id="tutor-slide-indicator" data-testid="tutor-slide-indicator"></div>' +
             suggestionsHtml +
             '<div class="tutor-messages" id="tutor-messages" data-testid="tutor-messages">' +
                 '<div class="tutor-typing" id="tutor-typing"><span></span><span></span><span></span></div>' +
             '</div>' +
             '<div class="tutor-counter" id="tutor-counter" data-testid="tutor-counter"></div>' +
             '<div class="tutor-input-area">' +
-                '<input class="tutor-input" id="tutor-input" data-testid="tutor-input" placeholder="Digite sua pergunta..." />' +
+                '<input class="tutor-input" id="tutor-input" data-testid="tutor-input" placeholder="Pergunte sobre este slide..." />' +
                 '<button class="tutor-send" id="tutor-send" data-testid="tutor-send-button" onclick="AiTutor.send()">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
                 '</button>' +
@@ -91,13 +96,40 @@ var AiTutor = (function() {
         tutorInput.addEventListener('keypress', function(e) { e.stopPropagation(); });
 
         updateCounter();
+        updateSlideIndicator();
     }
 
     function addWelcomeMessage() {
         var tutorName = config.tutorName || 'Tutor IA';
         var topic = config.courseTopic || 'este curso';
-        var welcome = 'Ola! Sou o ' + tutorName + ', seu assistente para o curso sobre <strong>' + escapeHtml(topic) + '</strong>. Pode me fazer perguntas sobre o conteudo!';
+        var welcome = 'Ola! Sou o <strong>' + escapeHtml(tutorName) + '</strong>, seu assistente para o curso sobre <strong>' + escapeHtml(topic) + '</strong>. Posso explicar o conteudo de cada slide - basta perguntar!';
         appendMessage('assistant', welcome);
+    }
+
+    function onSlideChange(slideIndex) {
+        currentSlideIndex = slideIndex;
+        updateSlideIndicator();
+    }
+
+    function updateSlideIndicator() {
+        var indicator = document.getElementById('tutor-slide-indicator');
+        if (indicator) {
+            var slideNum = currentSlideIndex + 1;
+            var ctx = slideContexts[currentSlideIndex];
+            if (ctx) {
+                var preview = ctx.length > 60 ? ctx.substring(0, 60) + '...' : ctx;
+                indicator.innerHTML = '<strong>Slide ' + slideNum + '</strong>: ' + escapeHtml(preview);
+            } else {
+                indicator.innerHTML = '<strong>Slide ' + slideNum + '</strong>';
+            }
+            indicator.style.display = 'block';
+        }
+    }
+
+    function getCurrentSlideContext() {
+        var ctx = slideContexts[currentSlideIndex] || '';
+        var slideNum = currentSlideIndex + 1;
+        return 'O aluno esta no Slide ' + slideNum + '. Conteudo do slide atual:\n' + ctx;
     }
 
     function togglePanel() {
@@ -108,6 +140,7 @@ var AiTutor = (function() {
                 panel.classList.add('open');
                 var input = document.getElementById('tutor-input');
                 if (input) input.focus();
+                updateSlideIndicator();
             } else {
                 panel.classList.remove('open');
             }
@@ -165,10 +198,14 @@ var AiTutor = (function() {
 
         setLoading(true);
 
+        // Build context: current slide + general course context
+        var slideContext = getCurrentSlideContext();
+        var fullContext = slideContext + '\n\n--- Contexto geral do curso ---\n' + (config.courseContext || '');
+
         var payload = {
             message: text,
             courseTopic: config.courseTopic || '',
-            courseContext: config.courseContext || '',
+            courseContext: fullContext,
             history: history,
             sessionId: sessionId
         };
@@ -196,7 +233,7 @@ var AiTutor = (function() {
         })
         .catch(function(err) {
             setLoading(false);
-            appendMessage('assistant', 'Desculpe, ocorreu um erro. Tente novamente.');
+            appendMessage('assistant', 'Desculpe, ocorreu um erro ao conectar com o tutor. Verifique se o servidor esta acessivel.');
             console.error('Tutor error:', err);
         });
     }
@@ -233,6 +270,7 @@ var AiTutor = (function() {
         init: init,
         toggle: togglePanel,
         send: send,
-        sendSuggestion: sendSuggestion
+        sendSuggestion: sendSuggestion,
+        onSlideChange: onSlideChange
     };
 })();

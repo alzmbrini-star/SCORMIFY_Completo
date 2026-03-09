@@ -1690,6 +1690,7 @@ var CoursePlayer = (function() {
             currentSlide++;
             renderSlide(currentSlide);
             updateProgress();
+            if (typeof AiTutor !== 'undefined') AiTutor.onSlideChange(currentSlide);
         }
     }
     
@@ -1698,6 +1699,7 @@ var CoursePlayer = (function() {
             currentSlide--;
             renderSlide(currentSlide);
             updateProgress();
+            if (typeof AiTutor !== 'undefined') AiTutor.onSlideChange(currentSlide);
         }
     }
     
@@ -1712,6 +1714,7 @@ var CoursePlayer = (function() {
             currentSlide = index;
             renderSlide(currentSlide);
             updateProgress();
+            if (typeof AiTutor !== 'undefined') AiTutor.onSlideChange(currentSlide);
         }
     }
     
