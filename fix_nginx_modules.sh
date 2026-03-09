@@ -119,6 +119,8 @@ server {
     listen [::]:80 default_server;
     server_name _;
 
+    client_max_body_size 100M;
+
     root /usr/share/nginx/html;
     index index.html index.htm;
 
@@ -187,6 +189,8 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name _;
+
+    client_max_body_size 100M;
 
     # Health check endpoint (for deployment probe)
     location = /health {
