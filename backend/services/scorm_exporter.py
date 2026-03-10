@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 # Directory containing export asset files (JS, CSS, HTML template)
 EXPORT_ASSETS_DIR = Path(__file__).parent / "export_assets"
+# Global storage directory (parent of services/ → backend/, then storage/)
+STORAGE_DIR = Path(__file__).parent.parent / "storage"
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -32,7 +34,7 @@ class DateTimeEncoder(json.JSONEncoder):
 
 def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: Path) -> Optional[str]:
     """Read an image file and return it as a base64 data URI.
-    Tries: 1) package assets dir, 2) MongoDB.
+    Tries: 1) package assets dir, 2) global storage/assets, 3) MongoDB.
     Returns None if the image cannot be found."""
     
     # Determine content type
@@ -53,7 +55,26 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
         except Exception as e:
             logger.warning(f"Failed to read local file {filename}: {e}")
     
-    # Try 2: Read from MongoDB
+    # Try 2: Read from global assets directory (AI-generated images)
+    global_assets_path = STORAGE_DIR / "assets" / filename
+    if global_assets_path.exists():
+        try:
+            with open(global_assets_path, 'rb') as f:
+                data = f.read()
+            # Also copy to package assets for file-based references
+            try:
+                package_assets_dir.mkdir(parents=True, exist_ok=True)
+                with open(package_assets_dir / filename, 'wb') as out:
+                    out.write(data)
+            except Exception:
+                pass
+            b64 = base64.b64encode(data).decode('ascii')
+            logger.info(f"Embedded image as data URI from global assets: {filename} ({len(data)} bytes)")
+            return f"data:{content_type};base64,{b64}"
+        except Exception as e:
+            logger.warning(f"Failed to read global asset {filename}: {e}")
+    
+    # Try 3: Read from MongoDB
     try:
         from services.asset_store import retrieve_asset_sync
         mongo_url = os.environ.get('MONGO_URL')
