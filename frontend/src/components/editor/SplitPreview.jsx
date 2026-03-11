@@ -21,6 +21,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import QuizPlayer from '../quiz/QuizPlayer';
+import ScenarioPlayer from '../scenario/ScenarioPlayer';
 import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
@@ -418,6 +419,11 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                   {element.type === 'quiz' && element.quizConfig && (
                     <div className="w-full h-full">
                       <QuizPreviewPlayer quizConfig={element.quizConfig} projectId={projectId} />
+                    </div>
+                  )}
+                  {element.type === 'scenario' && element.scenarioData && (
+                    <div className="w-full h-full">
+                      <ScenarioPlayer scenarioData={element.scenarioData} />
                     </div>
                   )}
                 </div>

@@ -110,6 +110,7 @@ import {
   Palette,
   Presentation,
   AlertTriangle,
+  GitBranch,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -118,6 +119,7 @@ import CoursePreview from '../components/editor/CoursePreview';
 import SplitPreview from '../components/editor/SplitPreview';
 import RichTextEditor from '../components/RichTextEditor';
 import QuizGenerator from '../components/quiz/QuizGenerator';
+import ScenarioCreator from '../components/scenario/ScenarioCreator';
 
 // Extracted components and hooks
 import { getThumbAssetUrl, formatDuration, formatDateTime, formatTime, getStatusBadge } from './Editor/utils';
@@ -277,6 +279,7 @@ export default function Editor() {
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [showScenarioDialog, setShowScenarioDialog] = useState(false);
   const [showDesignTemplateDialog, setShowDesignTemplateDialog] = useState(false);
   const [designTemplates, setDesignTemplates] = useState([]);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
@@ -799,6 +802,28 @@ export default function Editor() {
     } catch (err) {
       console.error('Failed to add quiz:', err);
       toast.error('Falha ao adicionar quiz');
+    }
+  };
+
+  // Add Scenario element
+  const handleScenarioCreated = async (scenario) => {
+    if (!currentSlide) return;
+    try {
+      const slideWidth = currentSlide?.width || 1920;
+      const slideHeight = currentSlide?.height || 820;
+      await addElement(currentSlide.id, {
+        type: 'scenario',
+        x: 0,
+        y: 0,
+        width: slideWidth,
+        height: slideHeight,
+        content: scenario.id,
+        scenarioData: scenario,
+      });
+      toast.success('Cenário adicionado ao slide!');
+    } catch (err) {
+      console.error('Failed to add scenario:', err);
+      toast.error('Falha ao adicionar cenário');
     }
   };
 
@@ -1367,6 +1392,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>📝 Adicionar Quiz</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20"
+                    onClick={() => setShowScenarioDialog(true)}
+                    data-testid="add-scenario-btn"
+                  >
+                    <GitBranch className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Cenário Interativo (IA)</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -3583,6 +3623,14 @@ export default function Editor() {
           onOpenChange={setShowQuizDialog}
           projectId={currentProject?.id}
           onQuizCreated={handleQuizCreated}
+        />
+
+        {/* Scenario Creator Dialog */}
+        <ScenarioCreator
+          open={showScenarioDialog}
+          onOpenChange={setShowScenarioDialog}
+          projectId={currentProject?.id}
+          onScenarioCreated={handleScenarioCreated}
         />
 
         {/* Timeline Expandida - Sheet from bottom */}

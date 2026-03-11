@@ -1388,6 +1388,32 @@ var CoursePlayer = (function() {
                 
                 el.appendChild(quizContainer);
                 break;
+
+            case 'scenario':
+                el = document.createElement('div');
+                el.className = 'slide-element scenario-element';
+                el.style.background = 'linear-gradient(135deg, #0f172a, #164e63)';
+                el.style.borderRadius = '12px';
+                el.style.border = '2px solid rgba(34, 211, 238, 0.3)';
+                el.style.overflow = 'hidden';
+
+                var scenarioData = element.scenarioData || {};
+                var scenarioContainer = document.createElement('div');
+                scenarioContainer.className = 'scenario-player-container';
+                scenarioContainer.dataset.elementId = element.id;
+                scenarioContainer.dataset.scenario = JSON.stringify(scenarioData);
+                scenarioContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;';
+
+                scenarioContainer.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">' +
+                    '<svg style="width:48px;height:48px;color:#22d3ee;margin-bottom:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>' +
+                    '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + (scenarioData.title || 'Cenário Interativo') + '</h3>' +
+                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + (scenarioData.nodes ? scenarioData.nodes.length : 0) + ' cenas</p>' +
+                    '<button class="scenario-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ' +
+                    'onclick="ScenarioController.startScenario(\'' + element.id + '\')">Iniciar Cenário</button>' +
+                    '</div>';
+
+                el.appendChild(scenarioContainer);
+                break;
                 
             default:
                 el = document.createElement('div');

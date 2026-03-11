@@ -23,6 +23,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import QuizPlayer from '../quiz/QuizPlayer';
+import ScenarioPlayer from '../scenario/ScenarioPlayer';
 import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
@@ -936,6 +937,16 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       key={`quiz-player-${element.id}`}
                       quizConfig={element.quizConfig}
                       projectId={projectId}
+                    />
+                  </div>
+                )}
+
+                {/* Scenario - Interactive in preview */}
+                {element.type === 'scenario' && element.scenarioData && (
+                  <div className="w-full h-full" key={`scenario-wrapper-${element.id}`}>
+                    <ScenarioPlayer
+                      key={`scenario-player-${element.id}`}
+                      scenarioData={element.scenarioData}
                     />
                   </div>
                 )}

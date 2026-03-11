@@ -55,7 +55,7 @@ class SlideElement(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     id: str = Field(default_factory=generate_id)
-    type: Optional[str] = "text"  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook, quiz
+    type: Optional[str] = "text"  # text, image, shape, video, audio, smartart, wordart, table, chart, button, html, flipbook, quiz, scenario
     x: float = 0
     y: float = 0
     width: float = 100
@@ -99,6 +99,9 @@ class SlideElement(BaseModel):
     
     # Quiz specific
     quizConfig: Optional[Dict[str, Any]] = None  # Quiz configuration
+    
+    # Scenario specific
+    scenarioData: Optional[Dict[str, Any]] = None  # Scenario decision tree data
     
     # Timeline properties
     startTime: float = 0.0  # When element appears (seconds)

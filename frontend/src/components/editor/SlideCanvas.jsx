@@ -960,6 +960,46 @@ const SlideCanvas = ({
                   )}
                 </div>
               )}
+
+              {/* Scenario Element */}
+              {element.type === 'scenario' && (
+                <div className={`w-full h-full bg-gradient-to-br from-slate-900 via-cyan-950/30 to-slate-900 overflow-hidden relative ${element.objectFit === 'cover' ? '' : 'rounded-lg border-2 border-cyan-500/30'}`}>
+                  <div className={`w-full h-full flex flex-col items-center justify-center ${element.objectFit === 'cover' ? 'p-0' : 'p-6'}`}>
+                    <svg className="w-16 h-16 text-cyan-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M6 3v12" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" />
+                    </svg>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {element.scenarioData?.title || 'Cenário Interativo'}
+                    </h3>
+                    <p className="text-slate-400 text-sm text-center mb-4 max-w-md">
+                      {element.scenarioData?.description || 'Simulação de tomada de decisão'}
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <span className="px-2 py-1 text-xs bg-cyan-500/20 text-cyan-400 rounded-full">
+                        {element.scenarioData?.nodes?.length || 0} cenas
+                      </span>
+                      <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded-full">
+                        {element.scenarioData?.characters?.length || 0} personagens
+                      </span>
+                      {element.scenarioData?.config?.complexity && (
+                        <span className="px-2 py-1 text-xs bg-amber-500/20 text-amber-400 rounded-full">
+                          {element.scenarioData.config.complexity === 'beginner' ? 'Iniciante' :
+                           element.scenarioData.config.complexity === 'advanced' ? 'Avançado' : 'Intermediário'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div 
+                    className="absolute inset-0 bg-transparent"
+                    style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
+                  />
+                  {isSelected && element.objectFit !== 'cover' && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-cyan-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none z-10">
+                      Cenário Interativo
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Selection Controls - Only show when selected */}

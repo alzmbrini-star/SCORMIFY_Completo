@@ -111,6 +111,7 @@ from routes.elevenlabs import router as elevenlabs_router
 from routes.admin import router as admin_router
 from routes.agent import router as agent_router
 from routes.gallery import router as gallery_router
+from routes.scenarios import router as scenarios_router
 
 api_router.include_router(vlibras_router)
 api_router.include_router(projects_router)
@@ -122,6 +123,7 @@ api_router.include_router(elevenlabs_router)
 api_router.include_router(admin_router)
 api_router.include_router(agent_router)
 api_router.include_router(gallery_router)
+api_router.include_router(scenarios_router)
 
 # Include router
 app.include_router(api_router)

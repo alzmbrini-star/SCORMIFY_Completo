@@ -231,6 +231,7 @@ IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
             <file href="course.json"/>
             <file href="scripts/scorm-api.js"/>
             <file href="scripts/quiz-controller.js"/>
+            <file href="scripts/scenario-controller.js"/>
             <file href="scripts/player.js"/>
             <file href="scripts/tutor.js"/>
             <file href="styles/tutor.css"/>
@@ -418,6 +419,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     # Write quiz controller script
     with open(package_dir / "scripts" / "quiz-controller.js", 'w') as f:
         f.write(_read_asset("quiz-controller.js"))
+    
+    # Write scenario controller script
+    with open(package_dir / "scripts" / "scenario-controller.js", 'w') as f:
+        f.write(_read_asset("scenario-controller.js"))
     
     # Write AI tutor files if tutor is enabled
     if tutor_config and tutor_config.get('enabled'):
@@ -624,6 +629,12 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         q_title = quiz_cfg.get('title')
                         if q_title:
                             elements_text.append(f"Quiz: {q_title}")
+                    # Extract scenario context
+                    scenario_data = elem.get('scenarioData')
+                    if scenario_data and isinstance(scenario_data, dict):
+                        s_title = scenario_data.get('title')
+                        if s_title:
+                            elements_text.append(f"Cenário: {s_title}")
             if elements_text:
                 slide_summaries.append(f"Slide {i+1}: " + " | ".join(elements_text))
         
@@ -652,6 +663,11 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         q_title = quiz_cfg.get('title')
                         if q_title:
                             elements_text.append(f"Quiz: {q_title}")
+                    scenario_data = elem.get('scenarioData')
+                    if scenario_data and isinstance(scenario_data, dict):
+                        s_title = scenario_data.get('title')
+                        if s_title:
+                            elements_text.append(f"Cenário: {s_title}")
             per_slide_contexts.append(" | ".join(elements_text) if elements_text else '')
         
         course_data['tutorConfig'] = {
