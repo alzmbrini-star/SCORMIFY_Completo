@@ -7,7 +7,7 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - **Frontend**: React 18 + Tailwind CSS + Shadcn/UI
 - **Backend**: FastAPI + Motor (async MongoDB)
 - **Database**: MongoDB
-- **Integrations**: OpenAI GPT-4o, Google Gemini 3 Flash & Nano Banana, ElevenLabs TTS, HeyGen Avatar Video, ConvertAPI, VLibras
+- **Integrations**: OpenAI GPT-4o, Google Gemini 2.5 Flash & Nano Banana, ElevenLabs TTS, HeyGen Avatar Video, ConvertAPI, VLibras
 
 ## Core Features (Implemented)
 ### Auth & Dashboard
@@ -42,107 +42,64 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - HTML standalone export (with AI Tutor)
 - Video export (MP4)
 
-### AI Tutor (NEW)
+### AI Tutor
 - Embedded chat widget in exported SCORM and HTML courses
 - Uses Gemini 3 Flash for contextual Q&A
 - Answers ONLY based on course content
-- Message limit per session
-- Suggested questions support
-- Admin configurable (name, prompt, limits)
+- Slide-aware context
+
+### Interactive Scenario Creator (NEW - Mar 11, 2026)
+- AI-powered generation of decision-tree learning scenarios using Gemini 2.5 Flash
+- Complete CRUD API for scenarios (create, read, update, delete, regenerate)
+- ScenarioCreator dialog with configurable inputs: theme, objectives, audience, complexity, industry, duration
+- Interactive ScenarioPlayer component with:
+  - Decision tree navigation with choices (A, B, C...)
+  - Character-driven narratives
+  - Adaptive feedback after each choice (optimal/non-optimal)
+  - Points accumulation
+  - Multiple endings (good, neutral, bad) with score
+  - Restart capability
+- Integrated as a slide element type ('scenario') in the editor
+- Renders in SlideCanvas (editor), CoursePreview, and SplitPreview
+- Full export support in SCORM and HTML packages (scenario-controller.js)
 
 ### Accessibility
 - VLibras Brazilian Sign Language integration
 
-## Recent Changes
-
-### Mar 10, 2026 - Fix: Imagens AI Nao Persistem em Exports
-- **Causa raiz**: Imagens AI eram salvas apenas no disco (`storage/assets/`), nao no MongoDB. Em producao (disco efemero), apos restart do container as imagens desapareciam.
-- **Correcao**: 
-  1. `ai_gen.py`: Imagens AI agora persistidas no MongoDB (`project_assets` com `project_id="global"`) ao serem geradas
-  2. `ai_gen.py`: Rota `GET /assets/{filename}` restaura imagens do MongoDB se nao estiver no disco
-  3. `scorm_exporter.py`: `_read_image_as_data_uri` agora verifica global storage/assets, e MongoDB global como fallback
-  4. `html_exporter.py`: Mesma logica MongoDB global adicionada
-  5. 49 imagens AI existentes migradas para MongoDB
-
-### Mar 9, 2026 - Fix: PPT Upload 400 em Producao + Chunked Upload
-- **Problema**: Upload PPT falhava com 400 em producao (nginx sem `client_max_body_size`) e arquivos grandes falhavam por limites de proxy.
-- **Correcao nginx**: Adicionado `client_max_body_size 100M` em `fix_nginx_modules.sh` (DEPLOYMENT + PREVIEW)
-- **Chunked Upload**: Novos endpoints `POST /api/ppt/upload/init`, `/chunk/{id}`, `/complete/{id}` para envio em pedacos de 5MB
-- Frontend usa upload direto para <5MB e chunked para >=5MB
-- Mensagem de erro detalhada no Dashboard ao falhar upload
-
-### Mar 9, 2026 - YouTube/Vimeo Autoplay com Audio
-- URLs de embed agora incluem `autoplay=1` (YouTube e Vimeo) e `muted=0` (Vimeo)
-- Corrigido no Editor, CoursePreview, SlideCanvas, SplitPreview, html_exporter.py e player.js (SCORM)
-- Helper `ensureEmbedAutoplay()` garante parametros corretos para videos existentes
-
-### Mar 9, 2026 - Bug Fix: 404 em Imagens AI / Video Library 422
-- Adicionada rota `GET /api/assets/{filename}` (ai_gen.py) para servir imagens AI globais
-- Corrigido `handleAddLibraryVideoToSlide` que passava objeto video inteiro em vez de URL
-
-### Mar 9, 2026 - Bug Fix: AI Tutor Fails in SCORM Export
-- **Root Cause**: The `apiUrl` embedded in SCORM (and HTML) exports was derived from HTTP request headers (`Origin`, `x-forwarded-host`, `host`). In production, these headers contained internal Kubernetes cluster URLs (e.g., `scorm-tutor-qa.cluster-0.preview.emergentcf.cloud`) which are NOT accessible from outside the cluster. When users tested the SCORM package locally or in SCORM Cloud, the AI Tutor's `fetch()` call to this internal URL failed.
-- **Fix (export.py)**: Changed URL detection to use `BASE_URL` env var (or `REACT_APP_BACKEND_URL` from frontend `.env`) as the **primary** source instead of request headers. This always resolves to the correct external-facing URL.
-- **Fix (tutor.js)**: Improved error handling in the `fetch` catch block to show descriptive error messages including HTTP status codes, and log the `apiUrl` being used for easier debugging.
-- **Also fixed**: Removed duplicated per-slide contexts code in HTML export section.
-- **Verified**: SCORM export now embeds `https://decision-tree-player.preview.emergentagent.com` (external URL) and tutor API calls succeed with `Origin: null`.
-
-### Mar 9, 2026 - Bug Fixes: Timeline & Media Overlap
-- **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
-- **Media Editing Image Overlap**: Fixed by tracking original global settings (`originalGlobalTextColor`, `originalGlobalFontSize`, `originalGlobalAnimation`, `originalDesignTemplate`) in Agent.jsx and comparing current vs original values in `hasGlobalChanges` instead of just checking existence. Also sends empty array `[]` instead of `null` when no slides changed.
-
-### Mar 9, 2026 - Feature: Tutor IA Slide-Aware em Exportações
-- **tutor.js**: Reescrito para ser slide-aware. Rastreia `currentSlideIndex`, mostra indicador do slide atual, envia contexto específico do slide com cada mensagem.
-- **player.js**: Adicionadas chamadas `AiTutor.onSlideChange(currentSlide)` em `nextSlide`, `prevSlide`, e `goToSlide`.
-- **scorm_exporter.py**: Gera array `slideContexts` com conteúdo de cada slide (texto, HTML, quiz, botões).
-- **export.py**: Gera `slideContexts` para exportação HTML, fallback para `BASE_URL` na detecção de `apiUrl`.
-- **html_exporter.py**: Chama `AiTutor.onSlideChange()` quando slides são renderizados.
-- **tutor.css**: Adicionado estilo para indicador de slide no chat.
-
-### Mar 9, 2026 - Bug Fix: Gallery Images Broken in Export
-- **Root Cause**: SCORM and HTML exporters used current project ID to look up gallery images, but gallery images reference assets from OTHER projects (`/api/projects/OTHER_ID/assets/...`). The asset wasn't found because it doesn't belong to the current project.
-- **Fix (scorm_exporter.py)**: Added a pre-scan of all slide elements to collect referenced project IDs, then copies their assets into the package. Also modified the embed logic to extract source project ID from URLs and search in the correct project's directory.
-- **Fix (html_exporter.py)**: Modified image element processing and HTML content image processing to extract source project ID from gallery URLs and search in the correct directories + MongoDB.
-- **Verified**: Export now shows `Embedded image as data URI from local file: ai_img_xxx.png` instead of `Could not find image anywhere`.
-- **Root Cause**: `pre-start.sh` ran `fix_nginx_modules.sh` which replaced the deployment's nginx config with a preview proxy config that forwards `location /` to `localhost:3000` (React dev server). In deployment, there is NO dev server - frontend is pre-built static files. This caused all health checks to timeout.
-- **Fix**: Modified `fix_nginx_modules.sh` to detect deployment mode (checks for `asset-manifest.json` and `static/` directory in `/usr/share/nginx/html/`). In deployment mode, serves static files with `try_files`. In preview mode, proxies to dev server on port 3000.
-- **Also fixed**: Cleaned up `.gitignore` - removed broken `-e ` entries and duplicate/redundant patterns.
-
-### Mar 7, 2026 - Dashboard Metrics & AI Tutor
-- Added `GET /api/dashboard/metrics` endpoint (totalCourses, totalSlides, totalExports)
-- Added export logging to `export_logs` collection
-- Added metrics cards to Dashboard UI (3 cards with icons)
-- Integrated AI Tutor into HTML export (was SCORM-only before)
-- Added `_generate_tutor_block()` to html_exporter.py
-- Fixed tutor.js to support CSS inlining for HTML exports
-
-### Mar 7, 2026 - Frontend Refactoring
-- Editor.jsx: 5709 -> 3639 lines (36% reduction)
-- Agent.jsx: 3593 -> 1024 lines (71% reduction)
-
 ## File Structure
 ```
-frontend/src/pages/
-├── Dashboard.jsx           (metrics + project list)
-├── Editor.jsx              (3639 lines - orchestrator)
-├── Editor/
-│   ├── utils.js
-│   ├── hooks/              (5 hooks)
-│   └── components/         (5 components)
-├── Agent.jsx               (1024 lines - orchestrator)
-└── Agent/
-    └── components/         (5 panels)
+frontend/src/
+├── components/
+│   ├── scenario/
+│   │   ├── ScenarioCreator.jsx    (AI generation dialog)
+│   │   └── ScenarioPlayer.jsx     (interactive decision tree player)
+│   ├── quiz/
+│   │   ├── QuizGenerator.jsx
+│   │   └── QuizPlayer.jsx
+│   └── editor/
+│       ├── SlideCanvas.jsx         (scenario element rendering)
+│       ├── CoursePreview.jsx        (scenario player in preview)
+│       └── SplitPreview.jsx         (scenario player in split)
+├── pages/
+│   ├── Dashboard.jsx
+│   ├── Editor.jsx                  (scenario button + handler)
+│   └── Agent.jsx
 
 backend/
 ├── routes/
-│   ├── admin.py            (tutor settings + chat + metrics)
-│   └── export.py           (SCORM/HTML/Video + export logging)
+│   ├── scenarios.py               (CRUD + AI generation endpoints)
+│   ├── admin.py
+│   └── export.py
 ├── services/
-│   ├── scorm_exporter.py   (tutor integration)
-│   ├── html_exporter.py    (tutor integration added)
+│   ├── scenario_service.py        (Gemini AI generation logic)
+│   ├── scorm_exporter.py          (scenario support added)
+│   ├── html_exporter.py           (ScenarioController JS added)
 │   └── export_assets/
-│       ├── tutor.js        (chat widget)
-│       └── tutor.css       (chat styles)
+│       ├── scenario-controller.js (decision tree player for exports)
+│       ├── player.js              (scenario case added)
+│       └── player_template.html   (scenario script tag added)
+├── models.py                      (type='scenario', scenarioData field)
+└── server.py                      (scenarios router registered)
 ```
 
 ## Known Issues
@@ -150,11 +107,14 @@ backend/
 
 ## Backlog
 ### P0
+- Scenario Creator Phase 4 enhancements: advanced analytics, scoring dashboard
 - SCORM 2004 & xAPI Export implementation
 ### P1
 - Further Editor.jsx dialog extraction (~1200 lines)
+- Scenario collaborative mode (multiple learners)
 ### P2
 - Advanced AI Tutor interactivity features
+- Gamification elements (badges, leaderboard)
 ### Cancelled
 - Synthesia Integration (user decided cost was too high)
 
