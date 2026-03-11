@@ -244,6 +244,45 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
         </div>
       )}
 
+      {element.type === 'scenario' && (
+        <div className="panel-section">
+          <h4 className="text-sm font-medium mb-3">Configuracoes do Cenario</h4>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Titulo</label>
+              <Input
+                value={element.scenarioData?.title || 'Cenario Interativo'}
+                onChange={(e) => onUpdate({ scenarioData: { ...element.scenarioData, title: e.target.value } })}
+                className="h-8"
+                data-testid="scenario-title-input"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Tamanho da Fonte</label>
+              <select
+                value={element.scenarioData?.fontSize || 16}
+                onChange={(e) => onUpdate({ scenarioData: { ...element.scenarioData, fontSize: parseInt(e.target.value) } })}
+                className="w-full h-8 rounded-md border border-input bg-background px-3 text-sm"
+                data-testid="scenario-font-size-select"
+              >
+                <option value="12">12px - Pequeno</option>
+                <option value="14">14px - Medio</option>
+                <option value="16">16px - Normal</option>
+                <option value="18">18px - Grande</option>
+                <option value="20">20px - Muito Grande</option>
+                <option value="24">24px - Extra Grande</option>
+                <option value="28">28px - Gigante</option>
+              </select>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1 mt-2">
+              <p>{element.scenarioData?.nodes?.length || 0} cenas</p>
+              <p>{element.scenarioData?.characters?.length || 0} personagens</p>
+              <p>{(element.scenarioData?.nodes || []).filter(n => n.is_ending).length} finais possiveis</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Animation */}
       <div className="panel-section">
         <h4 className="text-sm font-medium mb-3 flex items-center gap-2">

@@ -52,7 +52,8 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - AI-powered generation of decision-tree learning scenarios using Gemini 2.5 Flash
 - Complete CRUD API for scenarios (create, read, update, delete, regenerate)
 - ScenarioCreator dialog with configurable inputs: theme, objectives, audience, complexity, industry, duration
-- Interactive ScenarioPlayer component with:
+- **Font size control** in ElementProperties panel (same pattern as Quiz: 12px-28px selector)
+- Interactive ScenarioPlayer component with font-size-aware rendering:
   - Decision tree navigation with choices (A, B, C...)
   - Character-driven narratives
   - Adaptive feedback after each choice (optimal/non-optimal)
@@ -61,7 +62,7 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
   - Restart capability
 - Integrated as a slide element type ('scenario') in the editor
 - Renders in SlideCanvas (editor), CoursePreview, and SplitPreview
-- Full export support in SCORM and HTML packages (scenario-controller.js)
+- Full export support in SCORM and HTML packages (scenario-controller.js with fontSize support)
 
 ### Accessibility
 - VLibras Brazilian Sign Language integration
