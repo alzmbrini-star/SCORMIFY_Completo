@@ -29,12 +29,29 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     return map;
   }, [scenarioData]);
 
+  // Calculate max possible points from all non-ending nodes (best choice in each)
+  const maxPossiblePoints = useMemo(() => {
+    let max = 0;
+    (scenarioData?.nodes || []).forEach(node => {
+      if (!node.is_ending && node.choices?.length > 0) {
+        const bestPoints = Math.max(...node.choices.map(c => c.points || 0));
+        max += bestPoints;
+      }
+    });
+    return max || 1; // avoid division by zero
+  }, [scenarioData]);
+
+  const [optimalCount, setOptimalCount] = useState(0);
+  const [totalDecisions, setTotalDecisions] = useState(0);
+
   const currentNode = nodesMap[currentNodeId];
 
   const handleChoiceSelect = useCallback((choice) => {
     setSelectedChoice(choice);
     setShowFeedback(true);
     setTotalPoints(prev => prev + (choice.points || 0));
+    setTotalDecisions(prev => prev + 1);
+    if (choice.is_optimal) setOptimalCount(prev => prev + 1);
   }, []);
 
   const handleProceed = useCallback(() => {
@@ -69,6 +86,8 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     setSelectedChoice(null);
     setShowFeedback(false);
     setTotalPoints(0);
+    setOptimalCount(0);
+    setTotalDecisions(0);
     setCompleted(false);
     setFinalNode(null);
   }, [scenarioData]);
@@ -83,10 +102,11 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
 
   // Ending screen
   if (completed && finalNode) {
-    const endingColor = finalNode.ending_type === 'good' ? 'text-emerald-400' :
-      finalNode.ending_type === 'bad' ? 'text-red-400' : 'text-amber-400';
-    const EndingIcon = finalNode.ending_type === 'good' ? Trophy :
-      finalNode.ending_type === 'bad' ? XCircle : AlertTriangle;
+    const calculatedScore = Math.round((totalPoints / maxPossiblePoints) * 100);
+    const endingColor = calculatedScore >= 80 ? 'text-emerald-400' :
+      calculatedScore >= 50 ? 'text-amber-400' : 'text-red-400';
+    const EndingIcon = calculatedScore >= 80 ? Trophy :
+      calculatedScore >= 50 ? AlertTriangle : XCircle;
 
     return (
       <div className="w-full h-full flex flex-col bg-gradient-to-b from-slate-900 to-slate-800 rounded-lg overflow-hidden">
@@ -96,15 +116,20 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
             <h2 className={`font-bold ${endingColor}`} style={{ fontSize: `${fontSize * 1.25}px` }}>{finalNode.title}</h2>
             <p className="text-slate-300 max-w-md leading-relaxed" style={{ fontSize: `${fontSize * 0.875}px` }}>{finalNode.narrative}</p>
 
-            {finalNode.score != null && (
-              <div className="flex items-center gap-2 bg-slate-700/50 px-4 py-2 rounded-full">
-                <Star className="w-4 h-4 text-amber-400" />
-                <span className="text-white font-semibold" style={{ fontSize: `${fontSize}px` }}>Pontuação: {finalNode.score}/100</span>
-              </div>
-            )}
+            {/* Dynamic score based on actual performance */}
+            <div className="flex items-center gap-2 bg-slate-700/50 px-4 py-2 rounded-full">
+              <Star className="w-4 h-4 text-amber-400" />
+              <span className="text-white font-semibold" style={{ fontSize: `${fontSize}px` }}>Pontuação: {calculatedScore}%</span>
+            </div>
 
-            <div className="text-slate-500 mt-2" style={{ fontSize: `${fontSize * 0.75}px` }}>
-              Pontos acumulados nas decisões: {totalPoints}
+            {/* Clear breakdown */}
+            <div className="flex flex-col items-center gap-1" style={{ fontSize: `${fontSize * 0.75}px` }}>
+              <span className="text-slate-400">
+                Decisões ideais: {optimalCount} de {totalDecisions}
+              </span>
+              <span className="text-slate-500">
+                Pontos: {totalPoints} / {maxPossiblePoints}
+              </span>
             </div>
 
             <Button

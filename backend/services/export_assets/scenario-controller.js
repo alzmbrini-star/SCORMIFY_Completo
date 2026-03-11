@@ -11,13 +11,24 @@ var ScenarioController = (function() {
         var data;
         try { data = JSON.parse(container.dataset.scenario || '{}'); } catch(e) { console.error('[ScenarioController] JSON parse error:', e); return; }
         var nodesMap = {};
-        (data.nodes || []).forEach(function(n) { nodesMap[n.id] = n; });
+        var maxPoints = 0;
+        (data.nodes || []).forEach(function(n) {
+            nodesMap[n.id] = n;
+            if (!n.is_ending && n.choices && n.choices.length > 0) {
+                var best = 0;
+                n.choices.forEach(function(c) { if ((c.points || 0) > best) best = c.points || 0; });
+                maxPoints += best;
+            }
+        });
         scenarios[elementId] = {
             data: data,
             nodesMap: nodesMap,
             currentNodeId: data.start_node_id || (data.nodes && data.nodes[0] ? data.nodes[0].id : null),
             history: [],
             totalPoints: 0,
+            optimalCount: 0,
+            totalDecisions: 0,
+            maxPoints: maxPoints || 1,
             container: container
         };
         renderNode(elementId);
@@ -74,6 +85,8 @@ var ScenarioController = (function() {
         var choice = node.choices.find(function(c) { return c.id === choiceId; });
         if (!choice) return;
         sc.totalPoints += (choice.points || 0);
+        sc.totalDecisions += 1;
+        if (choice.is_optimal) sc.optimalCount += 1;
         renderFeedback(elementId, choice);
     }
 
@@ -119,19 +132,19 @@ var ScenarioController = (function() {
         var sc = scenarios[elementId];
         if (!sc) return;
         var fs = sc.data.fontSize || 16;
-        var endType = node.ending_type || 'neutral';
-        var endColor = endType === 'good' ? '#10b981' : endType === 'bad' ? '#ef4444' : '#f59e0b';
-        var endIcon = endType === 'good' ? '🏆' : endType === 'bad' ? '✗' : '⚠';
+        var calcScore = Math.round((sc.totalPoints / sc.maxPoints) * 100);
+        var endColor = calcScore >= 80 ? '#10b981' : calcScore >= 50 ? '#f59e0b' : '#ef4444';
+        var endIcon = calcScore >= 80 ? '🏆' : calcScore >= 50 ? '⚠' : '✗';
 
         var html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:linear-gradient(180deg,#0f172a,#1e293b);border-radius:12px;padding:24px;text-align:center;">';
         html += '<div style="font-size:' + (fs*3) + 'px;margin-bottom:12px;">' + endIcon + '</div>';
         html += '<h2 style="font-size:' + (fs*1.25) + 'px;font-weight:bold;color:' + endColor + ';margin-bottom:8px;">' + (node.title || 'Fim') + '</h2>';
         html += '<p style="font-size:' + (fs*0.875) + 'px;color:#cbd5e1;max-width:400px;line-height:1.6;margin-bottom:16px;">' + (node.narrative || '') + '</p>';
-        if (node.score != null) {
-            html += '<div style="display:flex;align-items:center;gap:8px;background:rgba(51,65,85,0.5);padding:8px 16px;border-radius:999px;margin-bottom:8px;">';
-            html += '<span style="color:#fbbf24;">★</span><span style="color:#fff;font-weight:600;font-size:' + fs + 'px;">Pontuação: ' + node.score + '/100</span></div>';
-        }
-        html += '<p style="font-size:' + (fs*0.75) + 'px;color:#64748b;margin-bottom:16px;">Pontos acumulados: ' + sc.totalPoints + '</p>';
+        html += '<div style="display:flex;align-items:center;gap:8px;background:rgba(51,65,85,0.5);padding:8px 16px;border-radius:999px;margin-bottom:8px;">';
+        html += '<span style="color:#fbbf24;">★</span><span style="color:#fff;font-weight:600;font-size:' + fs + 'px;">Pontuação: ' + calcScore + '%</span></div>';
+        html += '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:16px;">';
+        html += '<span style="font-size:' + (fs*0.75) + 'px;color:#94a3b8;">Decisões ideais: ' + sc.optimalCount + ' de ' + sc.totalDecisions + '</span>';
+        html += '<span style="font-size:' + (fs*0.75) + 'px;color:#64748b;">Pontos: ' + sc.totalPoints + ' / ' + sc.maxPoints + '</span></div>';
         html += '<button onclick="ScenarioController.startScenario(\'' + elementId + '\')" style="padding:10px 20px;background:transparent;border:1px solid rgba(34,211,238,0.5);color:#22d3ee;border-radius:8px;font-size:' + fs + 'px;cursor:pointer;">↻ Tentar Novamente</button>';
         html += '</div>';
         sc.container.innerHTML = html;
