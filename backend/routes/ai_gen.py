@@ -21,9 +21,26 @@ router = APIRouter(tags=["AI Generation"])
 async def serve_global_asset(filename: str):
     """Serve AI-generated images and other global assets from storage/assets/"""
     asset_path = STORAGE_DIR / "assets" / filename
-    if not asset_path.exists():
-        raise HTTPException(status_code=404, detail="Asset not found")
-    return FileResponse(str(asset_path))
+    if asset_path.exists():
+        return FileResponse(str(asset_path))
+    
+    # Fallback: restore from MongoDB (production - disk is ephemeral)
+    try:
+        doc = await db.project_assets.find_one(
+            {"project_id": "global", "filename": filename},
+            {"_id": 0, "data": 1, "content_type": 1}
+        )
+        if doc and doc.get("data"):
+            # Restore to disk for future requests
+            asset_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(asset_path, "wb") as f:
+                f.write(doc["data"])
+            logger.info(f"Restored global asset from MongoDB: {filename}")
+            return FileResponse(str(asset_path))
+    except Exception as e:
+        logger.warning(f"MongoDB fallback failed for global asset {filename}: {e}")
+    
+    raise HTTPException(status_code=404, detail="Asset not found")
 
 
 class AITextGenerateRequest(BaseModel):
@@ -103,9 +120,7 @@ class AIImageGenerateRequest(BaseModel):
 @router.post("/ai/generate-image")
 async def generate_image_with_ai(request: AIImageGenerateRequest):
     """Generate image using AI (GPT Image 1) with optimization"""
-    import base64
     from PIL import Image
-    import io
     
     emergent_key = os.environ.get('EMERGENT_LLM_KEY')
     if not emergent_key:
@@ -177,6 +192,22 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
         
         with open(image_path, "wb") as f:
             f.write(optimized_data)
+        
+        # Also persist to MongoDB for production (disk is ephemeral in containers)
+        try:
+            await db.project_assets.update_one(
+                {"project_id": "global", "filename": image_filename},
+                {"$set": {
+                    "project_id": "global",
+                    "filename": image_filename,
+                    "content_type": "image/jpeg",
+                    "data": optimized_data,
+                }},
+                upsert=True
+            )
+            logger.info(f"AI image persisted to MongoDB: {image_filename}")
+        except Exception as e:
+            logger.warning(f"Failed to persist AI image to MongoDB (non-fatal): {e}")
         
         logger.info(f"Image generated successfully: {image_filename}")
         

@@ -114,12 +114,36 @@ async def process_html_content_images(
                 base64_src = file_to_base64(storage_assets_path)
                 logger.info(f"Embedded AI image from local storage: {asset_filename}")
             else:
-                # Try with current base_url as fallback
-                if src.startswith('/api/assets/'):
-                    full_url = f"{base_url}{src}"
-                    base64_src = await url_to_base64(full_url)
-                    if base64_src:
-                        logger.info(f"Downloaded AI image from current server: {asset_filename}")
+                # Try MongoDB global assets (production - disk is ephemeral)
+                try:
+                    from pymongo import MongoClient as SyncMongoClient
+                    mongo_url = os.environ.get('MONGO_URL', '')
+                    db_name = os.environ.get('DB_NAME', '')
+                    if mongo_url and db_name:
+                        _client = SyncMongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+                        _db = _client[db_name]
+                        doc = _db.project_assets.find_one(
+                            {"project_id": "global", "filename": asset_filename},
+                            {"_id": 0, "data": 1}
+                        )
+                        _client.close()
+                        if doc and doc.get("data"):
+                            # Restore to disk
+                            os.makedirs(os.path.dirname(storage_assets_path), exist_ok=True)
+                            with open(storage_assets_path, 'wb') as f:
+                                f.write(doc["data"])
+                            base64_src = file_to_base64(storage_assets_path)
+                            logger.info(f"Restored AI image from MongoDB global: {asset_filename}")
+                except Exception as e:
+                    logger.warning(f"MongoDB global lookup failed for {asset_filename}: {e}")
+                
+                if not base64_src:
+                    # Try with current base_url as last fallback
+                    if src.startswith('/api/assets/'):
+                        full_url = f"{base_url}{src}"
+                        base64_src = await url_to_base64(full_url)
+                        if base64_src:
+                            logger.info(f"Downloaded AI image from current server: {asset_filename}")
         
         # Handle project assets (local paths)
         elif src.startswith('/api/projects/'):

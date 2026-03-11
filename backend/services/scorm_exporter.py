@@ -74,7 +74,7 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
         except Exception as e:
             logger.warning(f"Failed to read global asset {filename}: {e}")
     
-    # Try 3: Read from MongoDB
+    # Try 3: Read from MongoDB (project-specific assets)
     try:
         from services.asset_store import retrieve_asset_sync
         mongo_url = os.environ.get('MONGO_URL')
@@ -90,6 +90,34 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
                 return f"data:{content_type};base64,{b64}"
     except Exception as e:
         logger.warning(f"MongoDB fallback failed for {filename}: {e}")
+    
+    # Try 4: Read from MongoDB global assets (AI-generated images)
+    try:
+        from pymongo import MongoClient as SyncMongoClient
+        mongo_url = os.environ.get('MONGO_URL')
+        db_name = os.environ.get('DB_NAME')
+        if mongo_url and db_name:
+            _client = SyncMongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+            _db = _client[db_name]
+            doc = _db.project_assets.find_one(
+                {"project_id": "global", "filename": filename},
+                {"_id": 0, "data": 1}
+            )
+            _client.close()
+            if doc and doc.get("data"):
+                img_data = doc["data"]
+                # Also save to disk for future use
+                try:
+                    global_assets_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(global_assets_path, 'wb') as f:
+                        f.write(img_data)
+                except Exception:
+                    pass
+                b64 = base64.b64encode(img_data).decode('ascii')
+                logger.info(f"Embedded image as data URI from MongoDB global: {filename} ({len(img_data)} bytes)")
+                return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.warning(f"MongoDB global fallback failed for {filename}: {e}")
     
     logger.error(f"Could not find image anywhere: {filename} for project {project_id}")
     return None

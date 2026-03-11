@@ -55,6 +55,15 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 
 ## Recent Changes
 
+### Mar 10, 2026 - Fix: Imagens AI Nao Persistem em Exports
+- **Causa raiz**: Imagens AI eram salvas apenas no disco (`storage/assets/`), nao no MongoDB. Em producao (disco efemero), apos restart do container as imagens desapareciam.
+- **Correcao**: 
+  1. `ai_gen.py`: Imagens AI agora persistidas no MongoDB (`project_assets` com `project_id="global"`) ao serem geradas
+  2. `ai_gen.py`: Rota `GET /assets/{filename}` restaura imagens do MongoDB se nao estiver no disco
+  3. `scorm_exporter.py`: `_read_image_as_data_uri` agora verifica global storage/assets, e MongoDB global como fallback
+  4. `html_exporter.py`: Mesma logica MongoDB global adicionada
+  5. 49 imagens AI existentes migradas para MongoDB
+
 ### Mar 9, 2026 - Fix: PPT Upload 400 em Producao + Chunked Upload
 - **Problema**: Upload PPT falhava com 400 em producao (nginx sem `client_max_body_size`) e arquivos grandes falhavam por limites de proxy.
 - **Correcao nginx**: Adicionado `client_max_body_size 100M` em `fix_nginx_modules.sh` (DEPLOYMENT + PREVIEW)
