@@ -85,7 +85,7 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - **Fix (export.py)**: Changed URL detection to use `BASE_URL` env var (or `REACT_APP_BACKEND_URL` from frontend `.env`) as the **primary** source instead of request headers. This always resolves to the correct external-facing URL.
 - **Fix (tutor.js)**: Improved error handling in the `fetch` catch block to show descriptive error messages including HTTP status codes, and log the `apiUrl` being used for easier debugging.
 - **Also fixed**: Removed duplicated per-slide contexts code in HTML export section.
-- **Verified**: SCORM export now embeds `https://scorm-tutor-qa.preview.emergentagent.com` (external URL) and tutor API calls succeed with `Origin: null`.
+- **Verified**: SCORM export now embeds `https://decision-tree-player.preview.emergentagent.com` (external URL) and tutor API calls succeed with `Origin: null`.
 
 ### Mar 9, 2026 - Bug Fixes: Timeline & Media Overlap
 - **Timeline Slider Instability**: Fixed by adding local scrubbing state (`isScrubbing`/`scrubTime`) during drag with `onValueCommit` for parent state updates. Added `requestAnimationFrame` throttling to clip dragging to prevent excessive API calls.
