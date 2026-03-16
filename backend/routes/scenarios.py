@@ -1,16 +1,20 @@
 """
 Scenario routes - CRUD and AI generation for interactive learning scenarios
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
+import asyncio
 import logging
 
 from routes.deps import db, now_utc, serialize_doc
 
 logger = logging.getLogger("server")
 router = APIRouter(prefix="/scenarios", tags=["Scenarios"])
+
+# In-memory store for generation tasks (lightweight, no extra dependencies)
+_generation_tasks: Dict[str, Dict[str, Any]] = {}
 
 
 # ── Request Models ──
@@ -56,7 +60,23 @@ class ScenarioUpdateRequest(BaseModel):
 
 @router.post("/generate")
 async def generate_scenario(req: ScenarioGenerateRequest):
-    """Generate a scenario using AI (Gemini)"""
+    """Start async scenario generation. Returns task_id for polling."""
+    task_id = str(uuid.uuid4())
+
+    _generation_tasks[task_id] = {
+        "status": "processing",
+        "scenario": None,
+        "error": None,
+    }
+
+    # Run generation in background
+    asyncio.ensure_future(_run_generation(task_id, req))
+
+    return {"success": True, "task_id": task_id, "status": "processing"}
+
+
+async def _run_generation(task_id: str, req: ScenarioGenerateRequest):
+    """Background task to generate scenario"""
     from services.scenario_service import generate_scenario_with_ai
 
     try:
@@ -100,13 +120,42 @@ async def generate_scenario(req: ScenarioGenerateRequest):
         await db.scenarios.insert_one(doc)
         doc.pop("_id", None)
 
-        return {"success": True, "scenario": doc}
+        _generation_tasks[task_id] = {
+            "status": "completed",
+            "scenario": doc,
+            "error": None,
+        }
+        logger.info(f"Scenario generation task {task_id} completed: {doc['title']}")
 
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Scenario generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Falha na geração: {str(e)}")
+        logger.error(f"Scenario generation task {task_id} failed: {e}")
+        _generation_tasks[task_id] = {
+            "status": "failed",
+            "scenario": None,
+            "error": str(e),
+        }
+
+
+@router.get("/task/{task_id}")
+async def get_generation_status(task_id: str):
+    """Poll for scenario generation status"""
+    task = _generation_tasks.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task não encontrada")
+
+    result = {"task_id": task_id, "status": task["status"]}
+
+    if task["status"] == "completed":
+        result["success"] = True
+        result["scenario"] = task["scenario"]
+        # Clean up after delivery
+        del _generation_tasks[task_id]
+    elif task["status"] == "failed":
+        result["success"] = False
+        result["error"] = task["error"]
+        del _generation_tasks[task_id]
+
+    return result
 
 
 @router.post("")
@@ -188,9 +237,7 @@ async def delete_scenario(scenario_id: str):
 
 @router.post("/{scenario_id}/regenerate")
 async def regenerate_scenario(scenario_id: str):
-    """Regenerate scenario using its stored config"""
-    from services.scenario_service import generate_scenario_with_ai
-
+    """Regenerate scenario using its stored config (async with polling)"""
     existing = await db.scenarios.find_one({"id": scenario_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Cenário não encontrado")
@@ -199,11 +246,23 @@ async def regenerate_scenario(scenario_id: str):
     if not config.get("theme"):
         raise HTTPException(status_code=400, detail="Cenário sem configuração de geração")
 
+    task_id = str(uuid.uuid4())
+    _generation_tasks[task_id] = {"status": "processing", "scenario": None, "error": None}
+
+    asyncio.ensure_future(_run_regeneration(task_id, scenario_id, config))
+
+    return {"success": True, "task_id": task_id, "status": "processing"}
+
+
+async def _run_regeneration(task_id: str, scenario_id: str, config: dict):
+    """Background task to regenerate scenario"""
+    from services.scenario_service import generate_scenario_with_ai
+
     try:
         scenario_data = await generate_scenario_with_ai(config)
 
         update = {
-            "title": scenario_data.get("title", existing["title"]),
+            "title": scenario_data.get("title", ""),
             "description": scenario_data.get("description", ""),
             "context": scenario_data.get("context", ""),
             "characters": scenario_data.get("characters", []),
@@ -217,8 +276,9 @@ async def regenerate_scenario(scenario_id: str):
         await db.scenarios.update_one({"id": scenario_id}, {"$set": update})
         updated = await db.scenarios.find_one({"id": scenario_id}, {"_id": 0})
 
-        return {"success": True, "scenario": updated}
+        _generation_tasks[task_id] = {"status": "completed", "scenario": updated, "error": None}
+        logger.info(f"Scenario regeneration task {task_id} completed")
 
     except Exception as e:
-        logger.error(f"Scenario regeneration failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Falha na regeneração: {str(e)}")
+        logger.error(f"Scenario regeneration task {task_id} failed: {e}")
+        _generation_tasks[task_id] = {"status": "failed", "scenario": None, "error": str(e)}
