@@ -84,10 +84,11 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
           }
           // status === 'processing' -> continue polling
         } catch (pollErr) {
-          if (pollErr.response?.status === 404) {
+          // 404 can happen briefly while MongoDB propagates - tolerate a few
+          if (pollErr.response?.status === 404 && attempts > 5) {
             throw new Error('Tarefa de geração não encontrada');
           }
-          // Network error during poll -> retry
+          // Network error or early 404 during poll -> retry
         }
       }
 

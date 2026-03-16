@@ -1,20 +1,18 @@
 """
 Scenario routes - CRUD and AI generation for interactive learning scenarios
+Uses MongoDB for task persistence (works across multiple workers in production).
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 import asyncio
 import logging
 
-from routes.deps import db, now_utc, serialize_doc
+from routes.deps import db, now_utc
 
 logger = logging.getLogger("server")
 router = APIRouter(prefix="/scenarios", tags=["Scenarios"])
-
-# In-memory store for generation tasks (lightweight, no extra dependencies)
-_generation_tasks: Dict[str, Dict[str, Any]] = {}
 
 
 # ── Request Models ──
@@ -25,7 +23,7 @@ class ScenarioGenerateRequest(BaseModel):
     theme: str
     objectives: str
     audience: str = ""
-    complexity: str = "intermediate"  # beginner, intermediate, advanced
+    complexity: str = "intermediate"
     industry: str = ""
     duration_minutes: int = 15
     language: str = "pt-BR"
@@ -56,18 +54,22 @@ class ScenarioUpdateRequest(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
-# ── Routes ──
+# ── Generation Routes (async with MongoDB-persisted tasks) ──
 
 @router.post("/generate")
 async def generate_scenario(req: ScenarioGenerateRequest):
     """Start async scenario generation. Returns task_id for polling."""
     task_id = str(uuid.uuid4())
+    now = now_utc().isoformat()
 
-    _generation_tasks[task_id] = {
+    # Persist task status in MongoDB (survives multi-worker deployments)
+    await db.generation_tasks.insert_one({
+        "task_id": task_id,
         "status": "processing",
-        "scenario": None,
+        "scenario_id": None,
         "error": None,
-    }
+        "created_at": now,
+    })
 
     # Run generation in background
     asyncio.ensure_future(_run_generation(task_id, req))
@@ -90,7 +92,7 @@ async def _run_generation(task_id: str, req: ScenarioGenerateRequest):
             "language": req.language,
         })
 
-        # Save to database
+        # Save scenario to database
         scenario_id = str(uuid.uuid4())
         now = now_utc().isoformat()
 
@@ -118,45 +120,49 @@ async def _run_generation(task_id: str, req: ScenarioGenerateRequest):
         }
 
         await db.scenarios.insert_one(doc)
-        doc.pop("_id", None)
 
-        _generation_tasks[task_id] = {
-            "status": "completed",
-            "scenario": doc,
-            "error": None,
-        }
+        # Update task status in MongoDB
+        await db.generation_tasks.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "completed", "scenario_id": scenario_id}}
+        )
         logger.info(f"Scenario generation task {task_id} completed: {doc['title']}")
 
     except Exception as e:
         logger.error(f"Scenario generation task {task_id} failed: {e}")
-        _generation_tasks[task_id] = {
-            "status": "failed",
-            "scenario": None,
-            "error": str(e),
-        }
+        await db.generation_tasks.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
 
 
 @router.get("/task/{task_id}")
 async def get_generation_status(task_id: str):
     """Poll for scenario generation status"""
-    task = _generation_tasks.get(task_id)
+    task = await db.generation_tasks.find_one({"task_id": task_id}, {"_id": 0})
     if not task:
         raise HTTPException(status_code=404, detail="Task não encontrada")
 
     result = {"task_id": task_id, "status": task["status"]}
 
     if task["status"] == "completed":
+        # Fetch the full scenario
+        scenario = await db.scenarios.find_one(
+            {"id": task["scenario_id"]}, {"_id": 0}
+        )
         result["success"] = True
-        result["scenario"] = task["scenario"]
-        # Clean up after delivery
-        del _generation_tasks[task_id]
+        result["scenario"] = scenario
+        # Clean up task record
+        await db.generation_tasks.delete_one({"task_id": task_id})
     elif task["status"] == "failed":
         result["success"] = False
-        result["error"] = task["error"]
-        del _generation_tasks[task_id]
+        result["error"] = task.get("error", "Erro desconhecido")
+        await db.generation_tasks.delete_one({"task_id": task_id})
 
     return result
 
+
+# ── CRUD Routes ──
 
 @router.post("")
 async def create_scenario(req: ScenarioCreateRequest):
@@ -247,7 +253,15 @@ async def regenerate_scenario(scenario_id: str):
         raise HTTPException(status_code=400, detail="Cenário sem configuração de geração")
 
     task_id = str(uuid.uuid4())
-    _generation_tasks[task_id] = {"status": "processing", "scenario": None, "error": None}
+    now = now_utc().isoformat()
+
+    await db.generation_tasks.insert_one({
+        "task_id": task_id,
+        "status": "processing",
+        "scenario_id": scenario_id,
+        "error": None,
+        "created_at": now,
+    })
 
     asyncio.ensure_future(_run_regeneration(task_id, scenario_id, config))
 
@@ -274,11 +288,16 @@ async def _run_regeneration(task_id: str, scenario_id: str, config: dict):
         }
 
         await db.scenarios.update_one({"id": scenario_id}, {"$set": update})
-        updated = await db.scenarios.find_one({"id": scenario_id}, {"_id": 0})
 
-        _generation_tasks[task_id] = {"status": "completed", "scenario": updated, "error": None}
+        await db.generation_tasks.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "completed", "scenario_id": scenario_id}}
+        )
         logger.info(f"Scenario regeneration task {task_id} completed")
 
     except Exception as e:
         logger.error(f"Scenario regeneration task {task_id} failed: {e}")
-        _generation_tasks[task_id] = {"status": "failed", "scenario": None, "error": str(e)}
+        await db.generation_tasks.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
