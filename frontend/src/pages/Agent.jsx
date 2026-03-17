@@ -602,7 +602,36 @@ export default function Agent() {
         body: JSON.stringify({ message: msg }),
       });
       const data = await res.json();
-      addChatMsg('agent', data.response);
+      const response = data.response || '';
+
+      // Check if agent wants to add a scenario
+      if (response.includes('[AÇÃO:CENÁRIO]')) {
+        const cleanResponse = response.replace('[AÇÃO:CENÁRIO]', '').trim();
+        addChatMsg('agent', cleanResponse || 'Gerando cenário interativo para o curso...');
+        // Trigger async scenario generation - get projectId from generatedProject or editMediaProjectId
+        const currentProjectId = generatedProject?.projectId || editMediaProjectId;
+        if (currentProjectId) {
+          addChatMsg('agent', '⏳ Gerando cenário interativo com IA... isso pode levar alguns segundos.');
+          try {
+            const scenarioRes = await fetch(`${API}/api/agent/sessions/${sessionId}/add-scenario`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ projectId: currentProjectId }),
+            });
+            const scenarioData = await scenarioRes.json();
+            if (scenarioData.success) {
+              addChatMsg('agent', `✅ Cenário "${scenarioData.scenario?.title}" adicionado ao curso com ${scenarioData.scenario?.nodes?.length || 0} cenas! Você pode visualizá-lo no editor.`);
+            } else {
+              addChatMsg('agent', `Não foi possível gerar o cenário: ${scenarioData.detail || 'erro desconhecido'}`);
+            }
+          } catch (e) {
+            addChatMsg('agent', 'Erro ao gerar cenário. Tente novamente.');
+          }
+        } else {
+          addChatMsg('agent', 'Para adicionar um cenário, primeiro gere o curso.');
+        }
+      } else {
+        addChatMsg('agent', response);
+      }
     } catch { addChatMsg('agent', 'Erro ao processar mensagem.'); }
     finally { setLoading(false); }
   };

@@ -2045,3 +2045,110 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         "totalSlides": len(slides),
     }
 
+
+
+@router.post("/agent/sessions/{session_id}/add-scenario")
+async def add_scenario_to_project(session_id: str, data: dict):
+    """Add a scenario slide to an existing project via agent chat request."""
+    session = await db.agent_sessions.find_one({"id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    project_id = data.get("projectId") or session.get("projectId")
+    if not project_id:
+        raise HTTPException(status_code=400, detail="No project associated")
+
+    theme = data.get("theme", "")
+    objectives = data.get("objectives", "")
+    audience = data.get("audience", "")
+
+    # Use course config as defaults
+    config = session.get("config", {})
+    if not theme:
+        theme = config.get("title", "Cenário interativo")
+    if not objectives:
+        objectives = config.get("objectives", "Praticar tomada de decisão")
+    if not audience:
+        audience = config.get("audience", "")
+
+    # Generate scenario via AI
+    from services.scenario_service import generate_scenario_with_ai
+    try:
+        scenario_data = await generate_scenario_with_ai({
+            "theme": theme,
+            "objectives": objectives,
+            "audience": audience,
+            "complexity": "intermediate",
+            "industry": "",
+            "duration_minutes": 10,
+            "language": "pt-BR",
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Falha na geração do cenário: {str(e)}")
+
+    # Save scenario to DB
+    from models import generate_id
+    from datetime import datetime, timezone
+    scenario_id = generate_id()
+    now_str = datetime.now(timezone.utc).isoformat()
+
+    scenario_doc = {
+        "id": scenario_id,
+        "project_id": project_id,
+        "title": scenario_data.get("title", "Cenário"),
+        "description": scenario_data.get("description", ""),
+        "context": scenario_data.get("context", ""),
+        "characters": scenario_data.get("characters", []),
+        "learning_objectives": scenario_data.get("learning_objectives", []),
+        "competencies_evaluated": scenario_data.get("competencies_evaluated", []),
+        "nodes": scenario_data.get("nodes", []),
+        "start_node_id": scenario_data["nodes"][0]["id"] if scenario_data.get("nodes") else None,
+        "config": {"theme": theme, "objectives": objectives, "audience": audience},
+        "created_at": now_str,
+        "updated_at": now_str,
+    }
+    await db.scenarios.insert_one(scenario_doc)
+    scenario_doc.pop("_id", None)
+
+    # Create a new slide with the scenario
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    slides = project.get("course", {}).get("slides", [])
+    new_slide_id = generate_id()
+
+    # Get background from last slide or use default
+    last_bg = "#0f172a"
+    if slides:
+        last_bg = slides[-1].get("background", "#0f172a")
+
+    new_slide = {
+        "id": new_slide_id,
+        "background": last_bg,
+        "elements": [
+            {
+                "id": generate_id(), "type": "scenario",
+                "x": 0, "y": 0, "width": 1920, "height": 820,
+                "content": scenario_id,
+                "scenarioData": scenario_doc,
+                "style": {}, "startTime": 0, "animations": [],
+            }
+        ],
+        "notes": f"Cenário interativo: {scenario_doc['title']}",
+        "duration": 5.0,
+    }
+
+    slides.append(new_slide)
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"course.slides": slides, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    return {
+        "success": True,
+        "message": f"Cenário '{scenario_doc['title']}' adicionado ao curso!",
+        "scenario": scenario_doc,
+        "slideId": new_slide_id,
+        "slideIndex": len(slides) - 1,
+    }

@@ -64,6 +64,13 @@ Build an advanced Instructional Design AI Agent that generates SCORM-compliant c
 - Renders in SlideCanvas (editor), CoursePreview, and SplitPreview
 - Full export support in SCORM and HTML packages (scenario-controller.js with fontSize support)
 
+### AI Agent + Scenario Integration (NEW - Mar 17, 2026)
+- Users can ask the AI Agent chatbot to add interactive scenarios to existing courses
+- Agent detects intent via `[AÇÃO:CENÁRIO]` marker in response
+- Endpoint `POST /api/agent/sessions/{session_id}/add-scenario` generates scenario and adds slide
+- Works with both newly generated courses (`generatedProject.projectId`) and edited courses (`editMediaProjectId`)
+- Scenarios are generated with 10+ decision nodes, characters, and branching paths
+
 ### Accessibility
 - VLibras Brazilian Sign Language integration
 
@@ -108,11 +115,11 @@ backend/
 
 ## Backlog
 ### P0
-- Scenario Creator Phase 4 enhancements: advanced analytics, scoring dashboard
 - SCORM 2004 & xAPI Export implementation
 ### P1
 - Further Editor.jsx dialog extraction (~1200 lines)
 - Scenario collaborative mode (multiple learners)
+- Advanced analytics & scoring dashboard for scenarios
 ### P2
 - Advanced AI Tutor interactivity features
 - Gamification elements (badges, leaderboard)

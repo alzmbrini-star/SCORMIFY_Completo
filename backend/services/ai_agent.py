@@ -144,7 +144,7 @@ Retorne um JSON com a estrutura:
         {{
           "id": "slide1",
           "title": "Título do Slide",
-          "type": "content|title|quiz|summary",
+          "type": "content|title|quiz|summary|scenario",
           "purpose": "Breve descrição do objetivo deste slide",
           "estimatedDuration": 30
         }}
@@ -160,6 +160,7 @@ REGRAS:
 - Primeiro slide deve ser uma capa/título do curso
 - Cada módulo deve ter 2-5 slides de conteúdo
 - Inclua slides de quiz ao final de cada módulo
+- Quando o tema envolver tomada de decisão, resolução de problemas, liderança, atendimento ao cliente, ética ou situações práticas, inclua 1 slide de tipo "scenario" (cenário interativo de aprendizagem ativa) no módulo mais relevante
 - Último slide deve ser um resumo/conclusão
 - Aplique progressão de complexidade
 - Use microlearning: máximo 3 conceitos por slide"""
@@ -255,6 +256,11 @@ SLIDES DE RESUMO (type="summary"):
 - Resuma TODOS os pontos-chave do módulo com <ul><li>
 - Cada item deve ser uma frase completa, não apenas uma palavra
 - Adicione um parágrafo final de conclusão
+
+SLIDES DE CENÁRIO (type="scenario"):
+- NÃO gere conteúdo de texto, o cenário será gerado automaticamente pela IA
+- Apenas forneça: "scenarioTheme" (tema do cenário relacionado ao módulo), "scenarioObjectives" (objetivos de aprendizagem que o cenário testará), "scenarioAudience" (público-alvo)
+- Formato no elements: [{{"type":"scenario","scenarioTheme":"tema","scenarioObjectives":"objetivos","scenarioAudience":"público"}}]
 
 PARA TODOS OS SLIDES:
 - imageKeywords: 2-3 palavras em INGLÊS descrevendo uma foto profissional relevante
@@ -806,6 +812,50 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     return elements
 
 
+
+def _build_scenario_slide(sb_slide: dict, palette: dict, module_name: str, scenario_data: dict) -> list:
+    """Build a scenario slide with the interactive scenario element."""
+    from models import generate_id
+    accent = palette["accent"]
+    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
+    font_body = palette.get("fontBody", "'Inter', sans-serif")
+    elements = []
+
+    # Header bar
+    header_html = _build_header_bar(palette, f"CENÁRIO - {module_name}")
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "htmlContent": header_html,
+        "style": {}, "startTime": 0, "animations": [],
+    })
+
+    # Scenario intro text
+    scenario_html = f'''<div style="text-align:center;padding:20px;">
+<div style="display:inline-block;padding:8px 24px;border-radius:24px;background:{accent}22;border:1px solid {accent}44;">
+<span style="color:{accent};font-size:14px;font-weight:600;font-family:{font_heading};">Simulação Interativa</span>
+</div>
+<h2 style="font-family:{font_heading};font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">{scenario_data.get('title', 'Cenário de Aprendizagem')}</h2>
+<p style="font-family:{font_body};font-size:16px;color:rgba(255,255,255,0.6);">{scenario_data.get('description', 'Tome decisões e veja as consequências em uma simulação realista')}</p>
+</div>'''
+    elements.append({
+        "id": generate_id(), "type": "html", "x": 160, "y": 60, "width": 1600, "height": 200,
+        "htmlContent": scenario_html,
+        "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
+    })
+
+    # Scenario interactive element
+    elements.append({
+        "id": generate_id(), "type": "scenario", "x": 160, "y": 270, "width": 1600, "height": 520,
+        "content": scenario_data.get("id", ""),
+        "scenarioData": scenario_data,
+        "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+    })
+
+    return elements
+
+
 def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
     """Build a visually rich summary slide."""
     from models import generate_id
@@ -1235,6 +1285,64 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         elif stype == "quiz":
             bg = palette["primary"]
             slide_elements = _build_quiz_slide(sb_slide, palette, module_name, slide_question_ids)
+        elif stype == "scenario":
+            bg = palette["primary"]
+            # Generate scenario via AI - extract config from storyboard
+            scenario_config = {}
+            for el in sb_slide.get("elements", []):
+                if el.get("type") == "scenario" or el.get("scenarioTheme"):
+                    scenario_config = {
+                        "theme": el.get("scenarioTheme", sb_slide.get("title", module_name)),
+                        "objectives": el.get("scenarioObjectives", config.get("objectives", "")),
+                        "audience": el.get("scenarioAudience", config.get("audience", "")),
+                    }
+                    break
+            if not scenario_config:
+                scenario_config = {
+                    "theme": sb_slide.get("title", module_name),
+                    "objectives": config.get("objectives", ""),
+                    "audience": config.get("audience", ""),
+                }
+            # Generate the scenario
+            try:
+                from services.scenario_service import generate_scenario_with_ai
+                scenario_ai_data = await generate_scenario_with_ai({
+                    "theme": scenario_config["theme"],
+                    "objectives": scenario_config["objectives"],
+                    "audience": scenario_config.get("audience", ""),
+                    "complexity": "intermediate",
+                    "industry": "",
+                    "duration_minutes": 10,
+                    "language": "pt-BR",
+                })
+                # Save scenario to DB
+                scenario_id = generate_id()
+                from datetime import datetime, timezone
+                now_str = datetime.now(timezone.utc).isoformat()
+                scenario_doc = {
+                    "id": scenario_id,
+                    "project_id": project_id,
+                    "title": scenario_ai_data.get("title", "Cenário"),
+                    "description": scenario_ai_data.get("description", ""),
+                    "context": scenario_ai_data.get("context", ""),
+                    "characters": scenario_ai_data.get("characters", []),
+                    "learning_objectives": scenario_ai_data.get("learning_objectives", []),
+                    "competencies_evaluated": scenario_ai_data.get("competencies_evaluated", []),
+                    "nodes": scenario_ai_data.get("nodes", []),
+                    "start_node_id": scenario_ai_data["nodes"][0]["id"] if scenario_ai_data.get("nodes") else None,
+                    "config": scenario_config,
+                    "created_at": now_str,
+                    "updated_at": now_str,
+                }
+                from routes.deps import db as _scenarios_db
+                await _scenarios_db.scenarios.insert_one(scenario_doc)
+                scenario_doc.pop("_id", None)
+                slide_elements = _build_scenario_slide(sb_slide, palette, module_name, scenario_doc)
+                logger.info(f"Scenario generated for course slide {i}: {scenario_doc['title']}")
+            except Exception as e:
+                logger.error(f"Failed to generate scenario for slide {i}: {e}")
+                # Fallback to content slide
+                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
         elif stype == "summary":
             bg = palette["primary"]
             slide_elements = _build_summary_slide(sb_slide, palette, module_name)
@@ -1432,7 +1540,12 @@ async def agent_chat(session_id: str, message: str, context: dict) -> str:
 
 Mensagem do usuário: {message}
 
-Responda de forma útil e concisa. Se o usuário pedir mudanças na estrutura ou conteúdo, sugira as alterações específicas."""
+Você é um assistente de design instrucional. Responda de forma útil e concisa.
+
+Se o usuário pedir para adicionar um cenário interativo/simulação, responda com:
+[AÇÃO:CENÁRIO] seguido de uma breve confirmação. O sistema processará automaticamente.
+
+Se o usuário pedir mudanças na estrutura ou conteúdo, sugira as alterações específicas."""
     
     response = await chat.send_message(UserMessage(text=prompt))
     return response
