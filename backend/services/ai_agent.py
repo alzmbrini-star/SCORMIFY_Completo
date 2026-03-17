@@ -1563,7 +1563,8 @@ async def analyze_existing_course(session_id: str, project: dict) -> dict:
         texts = []
         for el in s.get("elements", []):
             c = el.get("htmlContent") or el.get("content") or ""
-            if c:
+            # Ensure c is a string before slicing
+            if c and isinstance(c, str):
                 texts.append(c[:200])
         slides_summary.append({
             "index": i,
@@ -1628,7 +1629,8 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
         texts = []
         for el in s.get("elements", []):
             c = el.get("htmlContent") or el.get("content") or ""
-            if c:
+            # Ensure c is a string before slicing
+            if c and isinstance(c, str):
                 texts.append(c[:300])
         slides_content.append({
             "index": i,
