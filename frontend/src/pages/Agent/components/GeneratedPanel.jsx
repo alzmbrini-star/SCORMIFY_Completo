@@ -26,6 +26,49 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui
 
 const API = getApiUrl();
 
+// Priority styles for suggestions
+const PRIORITY_STYLES = {
+  alta: 'bg-red-600/15 text-red-300 border-red-500/40',
+  media: 'bg-amber-600/15 text-amber-300 border-amber-500/40',
+  baixa: 'bg-slate-700/30 text-slate-300 border-slate-600/40',
+};
+
+// SuggestionsCategory component for displaying improvement suggestions
+function SuggestionsCategory({ icon: Icon, title, color, items }) {
+  if (!items || items.length === 0) return null;
+  const colorMap = {
+    blue: 'text-blue-400 border-blue-800/40',
+    purple: 'text-purple-400 border-purple-800/40',
+    amber: 'text-amber-400 border-amber-800/40',
+    emerald: 'text-emerald-400 border-emerald-800/40',
+    pink: 'text-pink-400 border-pink-800/40',
+    orange: 'text-orange-400 border-orange-800/40',
+  };
+  const colors = colorMap[color] || colorMap.blue;
+
+  return (
+    <div className={`border rounded-lg p-3 space-y-2 ${colors.split(' ').slice(1).join(' ')}`} data-testid={`suggestions-category-${color}`}>
+      <div className="flex items-center gap-2">
+        <Icon className={`w-3.5 h-3.5 ${colors.split(' ')[0]}`} />
+        <span className={`text-xs font-semibold ${colors.split(' ')[0]}`}>{title}</span>
+        <Badge variant="outline" className="text-[9px] ml-auto border-slate-700 text-slate-400">{items.length}</Badge>
+      </div>
+      {items.map((item, idx) => (
+        <div key={idx} className="pl-5 space-y-0.5" data-testid={`suggestion-item-${color}-${idx}`}>
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-medium text-slate-200">{item.title}</span>
+            <Badge variant="outline" className={`text-[8px] shrink-0 ${PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.media}`}>
+              {item.priority}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">{item.description}</p>
+          {item.impact && <p className="text-[10px] text-cyan-400/60 italic">{item.impact}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function GeneratedPanel({ project, navigate, sessionId }) {
   const [heygenStatus, setHeygenStatus] = useState(null);
   const [narrationStatus, setNarrationStatus] = useState(null);
