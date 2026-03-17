@@ -13,7 +13,7 @@ const API_URL = getApiUrl();
  * @returns {string} - Cleaned HTML string
  */
 export const sanitizeHtmlForDisplay = (htmlContent) => {
-  if (!htmlContent) return htmlContent;
+  if (!htmlContent || typeof htmlContent !== 'string') return htmlContent || '';
   
   // Remove --tw-* CSS custom properties from inline styles
   let cleaned = htmlContent.replace(/--tw-[^;:]+:[^;]*;?\s*/g, '');
@@ -46,7 +46,7 @@ export const sanitizeHtmlContent = sanitizeHtmlForDisplay;
  * @returns {string} - HTML string with relative asset URLs
  */
 export const stripDomainFromAssetUrls = (htmlContent) => {
-  if (!htmlContent) return htmlContent;
+  if (!htmlContent || typeof htmlContent !== 'string') return htmlContent || '';
   
   // Strip domain from /api/assets/ URLs (global AI-generated images)
   let result = htmlContent.replace(
@@ -74,7 +74,7 @@ export const stripDomainFromAssetUrls = (htmlContent) => {
  * @returns {string} - HTML string with absolute asset URLs
  */
 export const resolveAssetUrls = (htmlContent) => {
-  if (!htmlContent || !API_URL) return htmlContent;
+  if (!htmlContent || typeof htmlContent !== 'string' || !API_URL) return htmlContent || '';
   
   // First strip any old absolute domains to normalize
   let result = stripDomainFromAssetUrls(htmlContent);

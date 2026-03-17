@@ -33,7 +33,7 @@ const getAssetUrl = (src) => {
 
 // Helper to resolve all asset URLs in HTML content
 const resolveHtmlContentUrls = (htmlContent) => {
-  if (!htmlContent) return htmlContent;
+  if (!htmlContent || typeof htmlContent !== 'string') return htmlContent || '';
   
   // First strip any old absolute domains to normalize
   let resolved = htmlContent.replace(
