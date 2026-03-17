@@ -1286,6 +1286,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         # Apply custom background from bgConfig (overrides palette defaults)
         custom_bg = bg_config.get(str(i), {})
         bg_image = None
+        mongo_url = os.environ.get('MONGO_URL', '')
+        db_name = os.environ.get('DB_NAME', '')
         if custom_bg.get("type") == "solid" and custom_bg.get("color"):
             bg = custom_bg["color"]
         elif custom_bg.get("type") == "gradient":
@@ -1310,8 +1312,36 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                         with open(fpath, "wb") as f:
                             f.write(b64mod.b64decode(data_part))
                         bg_image = f"/api/projects/{project_id}/assets/{fname}"
+                        # Persist to MongoDB for production (survives ephemeral storage)
+                        try:
+                            from services.asset_store import store_asset_sync
+                            import threading
+                            threading.Thread(
+                                target=store_asset_sync,
+                                args=(mongo_url, db_name, project_id, fname, fpath),
+                                daemon=True
+                            ).start()
+                        except Exception as pe:
+                            logger.warning(f"Failed to persist bg to MongoDB: {pe}")
                     except Exception as e:
                         logger.warning(f"Failed to save bg image for slide {i}: {e}")
+                elif img_src.startswith("/api/") and project_dir and project_id:
+                    # Already a URL path - persist the file to MongoDB if it exists on disk
+                    try:
+                        parts = img_src.replace("/api/projects/", "").split("/assets/")
+                        if len(parts) == 2:
+                            src_pid, src_fname = parts
+                            src_path = os.path.join(project_dir, src_pid, "assets", src_fname)
+                            if os.path.exists(src_path):
+                                from services.asset_store import store_asset_sync
+                                import threading
+                                threading.Thread(
+                                    target=store_asset_sync,
+                                    args=(mongo_url, db_name, src_pid, src_fname, src_path),
+                                    daemon=True
+                                ).start()
+                    except Exception:
+                        pass
 
         slide = {
             "id": actual_slide_id,

@@ -631,14 +631,43 @@ async def apply_media_changes(session_id: str, data: dict):
                 slide["background"] = f"linear-gradient({direction}, {c1}, {c2})"
                 slide.pop("backgroundImage", None)
                 changed = True
-            elif bg_type == "image" and bg.get("imageUrl"):
-                slide["backgroundImage"] = bg["imageUrl"]
-                slide["backgroundOpacity"] = bg.get("opacity", 0.3)
-                changed = True
-            elif bg_type == "ai_image" and bg.get("imageUrl"):
-                slide["backgroundImage"] = bg["imageUrl"]
-                slide["backgroundOpacity"] = bg.get("opacity", 0.3)
-                changed = True
+            elif bg_type in ("image", "ai_image"):
+                bg_url = bg.get("imageUrl", "")
+                bg_data = bg.get("imageData", "")
+                # If we have base64 imageData but no imageUrl, persist it first
+                if bg_data and bg_data.startswith("data:image") and not bg_url:
+                    try:
+                        import hashlib
+                        header, b64 = bg_data.split(",", 1)
+                        ext = "png"
+                        if "jpeg" in header or "jpg" in header:
+                            ext = "jpg"
+                        seed = hashlib.md5(b64[:200].encode()).hexdigest()[:12]
+                        fname = f"bg_upload_{seed}.{ext}"
+                        fpath = os.path.join(str(PROJECTS_DIR), "bg_temp", fname)
+                        os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                        img_bytes = base64.b64decode(b64)
+                        with open(fpath, "wb") as f:
+                            f.write(img_bytes)
+                        bg_url = f"/api/projects/bg_temp/assets/{fname}"
+                        # Persist to MongoDB for production
+                        try:
+                            from services.asset_store import store_asset_sync
+                            import threading
+                            threading.Thread(
+                                target=store_asset_sync,
+                                args=(mongo_url, os.environ['DB_NAME'], "bg_temp", fname, fpath),
+                                daemon=True
+                            ).start()
+                        except Exception as pe:
+                            logger.warning(f"Failed to persist uploaded BG to MongoDB: {pe}")
+                        logger.info(f"Persisted uploaded BG image: {fname}")
+                    except Exception as e:
+                        logger.error(f"Failed to save uploaded BG image: {e}")
+                if bg_url:
+                    slide["backgroundImage"] = bg_url
+                    slide["backgroundOpacity"] = bg.get("opacity", 0.3)
+                    changed = True
 
         # Apply global text color
         if global_text_color:
