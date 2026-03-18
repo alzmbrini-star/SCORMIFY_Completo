@@ -1317,9 +1317,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "duration_minutes": 10,
                     "language": "pt-BR",
                 })
-                # Save scenario to DB
+                # Save scenario to DB using pymongo (sync) to avoid event loop issues
                 scenario_id = generate_id()
-                from datetime import datetime, timezone
                 now_str = datetime.now(timezone.utc).isoformat()
                 scenario_doc = {
                     "id": scenario_id,
@@ -1336,8 +1335,13 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "created_at": now_str,
                     "updated_at": now_str,
                 }
-                from routes.deps import db as _scenarios_db
-                await _scenarios_db.scenarios.insert_one(scenario_doc)
+                # Use sync pymongo to avoid event loop conflicts
+                from pymongo import MongoClient
+                from routes.deps import mongo_url, db_name
+                sync_client = MongoClient(mongo_url)
+                sync_db = sync_client[db_name]
+                sync_db.scenarios.insert_one(scenario_doc)
+                sync_client.close()
                 scenario_doc.pop("_id", None)
                 slide_elements = _build_scenario_slide(sb_slide, palette, module_name, scenario_doc)
                 logger.info(f"Scenario generated for course slide {i}: {scenario_doc['title']}")
