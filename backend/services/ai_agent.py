@@ -160,7 +160,7 @@ REGRAS:
 - Primeiro slide deve ser uma capa/título do curso
 - Cada módulo deve ter 2-5 slides de conteúdo
 - Inclua slides de quiz ao final de cada módulo
-- Quando o tema envolver tomada de decisão, resolução de problemas, liderança, atendimento ao cliente, ética ou situações práticas, inclua 1 slide de tipo "scenario" (cenário interativo de aprendizagem ativa) no módulo mais relevante
+- IMPORTANTE: Quando o tema envolver tomada de decisão, resolução de problemas, liderança, atendimento ao cliente, ética ou situações práticas, OBRIGATORIAMENTE inclua pelo menos 1 slide com "type": "scenario" (NÃO use type content com título "cenário" - use type scenario para gerar simulação interativa real)
 - Último slide deve ser um resumo/conclusão
 - Aplique progressão de complexidade
 - Use microlearning: máximo 3 conceitos por slide"""
@@ -258,7 +258,9 @@ SLIDES DE RESUMO (type="summary"):
 - Adicione um parágrafo final de conclusão
 
 SLIDES DE CENÁRIO (type="scenario"):
-- NÃO gere conteúdo de texto, o cenário será gerado automaticamente pela IA
+- USE ESTE TIPO quando o tema envolver tomada de decisão, liderança, atendimento, ética ou situações práticas
+- NÃO CONFUNDA com slide de conteúdo: type="scenario" gera simulação INTERATIVA com árvore de decisões
+- NÃO gere conteúdo de texto para cenários, a IA gerará automaticamente
 - Apenas forneça: "scenarioTheme" (tema do cenário relacionado ao módulo), "scenarioObjectives" (objetivos de aprendizagem que o cenário testará), "scenarioAudience" (público-alvo)
 - Formato no elements: [{{"type":"scenario","scenarioTheme":"tema","scenarioObjectives":"objetivos","scenarioAudience":"público"}}]
 
