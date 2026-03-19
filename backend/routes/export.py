@@ -24,27 +24,31 @@ router = APIRouter(tags=["Export"])
 
 def _get_external_url() -> str:
     """Get the external-facing URL for the app.
-    Reads directly from .env files to avoid issues with hot-reload not re-running load_dotenv."""
+    Reads directly from .env files to avoid issues with hot-reload not re-running load_dotenv.
+    Priority: BASE_URL > REACT_APP_BACKEND_URL > environment variables"""
+    
     # Try 1: backend .env BASE_URL
     try:
         backend_env = Path(__file__).parent.parent / '.env'
         for line in backend_env.read_text().splitlines():
             if line.startswith('BASE_URL='):
-                val = line.split('=', 1)[1].strip()
+                val = line.split('=', 1)[1].strip().strip('"').strip("'")
                 if val:
                     return val
     except Exception:
         pass
+    
     # Try 2: frontend .env REACT_APP_BACKEND_URL
     try:
         frontend_env = Path(__file__).parent.parent.parent / 'frontend' / '.env'
         for line in frontend_env.read_text().splitlines():
             if line.startswith('REACT_APP_BACKEND_URL='):
-                val = line.split('=', 1)[1].strip()
+                val = line.split('=', 1)[1].strip().strip('"').strip("'")
                 if val:
                     return val
     except Exception:
         pass
+    
     # Try 3: os.environ fallback
     return os.environ.get('BASE_URL', '') or os.environ.get('REACT_APP_BACKEND_URL', '')
 
