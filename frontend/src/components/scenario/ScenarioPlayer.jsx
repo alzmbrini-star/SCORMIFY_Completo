@@ -29,17 +29,8 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     return map;
   }, [scenarioData]);
 
-  // Calculate max possible points from all non-ending nodes (best choice in each)
-  const maxPossiblePoints = useMemo(() => {
-    let max = 0;
-    (scenarioData?.nodes || []).forEach(node => {
-      if (!node.is_ending && node.choices?.length > 0) {
-        const bestPoints = Math.max(...node.choices.map(c => c.points || 0));
-        max += bestPoints;
-      }
-    });
-    return max || 1; // avoid division by zero
-  }, [scenarioData]);
+  // Track max points for visited nodes only
+  const [maxPointsVisited, setMaxPointsVisited] = useState(0);
 
   const [optimalCount, setOptimalCount] = useState(0);
   const [totalDecisions, setTotalDecisions] = useState(0);
@@ -52,7 +43,11 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     setTotalPoints(prev => prev + (choice.points || 0));
     setTotalDecisions(prev => prev + 1);
     if (choice.is_optimal) setOptimalCount(prev => prev + 1);
-  }, []);
+    
+    // Calculate max points for this node (best choice available)
+    const bestPointsForNode = Math.max(...(currentNode?.choices || []).map(c => c.points || 0));
+    setMaxPointsVisited(prev => prev + bestPointsForNode);
+  }, [currentNode]);
 
   const handleProceed = useCallback(() => {
     if (!selectedChoice) return;
@@ -86,6 +81,7 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     setSelectedChoice(null);
     setShowFeedback(false);
     setTotalPoints(0);
+    setMaxPointsVisited(0);
     setOptimalCount(0);
     setTotalDecisions(0);
     setCompleted(false);
@@ -102,7 +98,8 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
 
   // Ending screen
   if (completed && finalNode) {
-    const calculatedScore = Math.round((totalPoints / maxPossiblePoints) * 100);
+    // Calculate score based on visited nodes only
+    const calculatedScore = Math.round((totalPoints / (maxPointsVisited || 1)) * 100);
     const endingColor = calculatedScore >= 80 ? 'text-emerald-400' :
       calculatedScore >= 50 ? 'text-amber-400' : 'text-red-400';
     const EndingIcon = calculatedScore >= 80 ? Trophy :
@@ -128,7 +125,7 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
                 Decisões ideais: {optimalCount} de {totalDecisions}
               </span>
               <span className="text-slate-500">
-                Pontos: {totalPoints} / {maxPossiblePoints}
+                Pontos: {totalPoints} / {maxPointsVisited || 1}
               </span>
             </div>
 
