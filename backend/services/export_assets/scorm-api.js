@@ -111,14 +111,25 @@ var ScormAPI = (function() {
         },
         
         setComplete: function() {
-            if (!initialized) return false;
+            if (!initialized) {
+                console.warn('[ScormAPI] setComplete called but not initialized');
+                return false;
+            }
             
             var api = getAPI();
             if (api) {
+                // Set status to "completed" first, then "passed" for maximum LMS compatibility
                 api.LMSSetValue("cmi.core.lesson_status", "completed");
                 api.LMSCommit("");
+                console.log('[ScormAPI] lesson_status set to completed');
+                
+                // Also try "passed" - some LMS systems require this for full completion
+                api.LMSSetValue("cmi.core.lesson_status", "passed");
+                api.LMSCommit("");
+                console.log('[ScormAPI] lesson_status set to passed');
                 return true;
             }
+            console.warn('[ScormAPI] setComplete failed - no API');
             return false;
         },
         
@@ -149,6 +160,22 @@ var ScormAPI = (function() {
         
         getAPI: function() {
             return getAPI();
+        },
+        
+        isInitialized: function() {
+            return initialized;
+        },
+        
+        // Direct low-level call to force status - use as last resort
+        forceStatus: function(status) {
+            var api = getAPI();
+            if (api) {
+                api.LMSSetValue("cmi.core.lesson_status", status);
+                api.LMSCommit("");
+                console.log('[ScormAPI] forceStatus:', status);
+                return true;
+            }
+            return false;
         }
     };
 })();
@@ -158,7 +185,11 @@ window.addEventListener('load', function() {
     ScormAPI.initialize();
 });
 
-// Finish on unload
+// Before unload: let CoursePlayer do final completion check, then finish SCORM
 window.addEventListener('beforeunload', function() {
+    // Give CoursePlayer a chance to set completion before finishing
+    if (typeof CoursePlayer !== 'undefined' && CoursePlayer.finalCompletionCheck) {
+        CoursePlayer.finalCompletionCheck();
+    }
     ScormAPI.finish();
 });

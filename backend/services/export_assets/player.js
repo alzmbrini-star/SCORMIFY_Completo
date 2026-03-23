@@ -1063,15 +1063,15 @@ var CoursePlayer = (function() {
                 ScormAPI.setComplete();
                 console.log('[Player] No interactive elements - marked complete on last slide');
             }
-        } else if (quizzesComplete && scenariosComplete && visitedLastSlide) {
-            // All interactive elements done AND visited last slide
+        } else if (quizzesComplete && scenariosComplete) {
+            // All interactive elements done - mark complete immediately
+            // No need to wait for last slide visit
             ScormAPI.setComplete();
-            console.log('[Player] All quizzes and scenarios complete - course marked complete');
+            console.log('[Player] All quizzes and scenarios complete - course marked complete!');
         } else {
             console.log('[Player] Completion deferred - waiting for:', {
                 needQuizzes: !quizzesComplete && totalQuizzes > 0,
-                needScenarios: !scenariosComplete && totalScenarios > 0,
-                needLastSlide: !visitedLastSlide
+                needScenarios: !scenariosComplete && totalScenarios > 0
             });
         }
     }
@@ -2130,6 +2130,26 @@ var CoursePlayer = (function() {
         updateScale: updateSlideScale,
         onQuizComplete: onQuizComplete,
         onScenarioComplete: onScenarioComplete,
+        // Final check before page unload - ensures completion is set if all activities are done
+        finalCompletionCheck: function() {
+            var quizzesComplete = Object.keys(completedQuizzes).length >= totalQuizzes;
+            var scenariosComplete = Object.keys(completedScenarios).length >= totalScenarios;
+            var hasInteractiveElements = courseHasQuiz || courseHasScenario;
+            
+            console.log('[Player] Final completion check before unload:', {
+                quizzesComplete: quizzesComplete,
+                scenariosComplete: scenariosComplete,
+                hasInteractiveElements: hasInteractiveElements
+            });
+            
+            if (hasInteractiveElements && quizzesComplete && scenariosComplete) {
+                ScormAPI.setComplete();
+                console.log('[Player] Final check: All activities complete - forced completion');
+            } else if (!hasInteractiveElements) {
+                ScormAPI.setComplete();
+                console.log('[Player] Final check: No interactive elements - forced completion');
+            }
+        },
         refresh: function() {
             // Re-render current slide completely (used after orientation change)
             if (course && course.slides) {

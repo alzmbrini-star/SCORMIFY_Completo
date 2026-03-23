@@ -150,6 +150,7 @@ var ScenarioController = (function() {
         // Report scenario score to SCORM
         if (typeof ScormAPI !== 'undefined') {
             ScormAPI.setScore(calcScore);
+            console.log('[ScenarioController] Score sent to SCORM:', calcScore);
         }
         
         // Notify gamification engine
@@ -162,8 +163,12 @@ var ScenarioController = (function() {
         
         // Notify CoursePlayer that this scenario is complete
         // CoursePlayer will check if all quizzes/scenarios are done before setting SCORM complete
+        console.log('[ScenarioController] Scenario ended. ElementId:', elementId, 'Score:', calcScore + '%');
         if (typeof CoursePlayer !== 'undefined' && CoursePlayer.onScenarioComplete) {
             CoursePlayer.onScenarioComplete(elementId);
+            console.log('[ScenarioController] CoursePlayer.onScenarioComplete called successfully');
+        } else {
+            console.error('[ScenarioController] CoursePlayer NOT available!', typeof CoursePlayer);
         }
     }
 
