@@ -235,6 +235,8 @@ def _generate_tutor_block(tutor_config: dict = None) -> str:
     <script>{tutor_js}</script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {{
+            // Skip Tutor on file:// protocol (needs API backend)
+            if (window.location.protocol === 'file:') return;
             if (typeof AiTutor !== 'undefined') {{
                 var tutorConfig = {tutor_config_json};
                 AiTutor.init(tutorConfig);
@@ -279,6 +281,8 @@ async def generate_standalone_html(
         vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
     <script>
         (function() {{
+            // Skip VLibras on file:// protocol (local HTML exports)
+            if (window.location.protocol === 'file:') return;
             var PROXY_BASE = "{proxy_base}";
             if (!PROXY_BASE) return;
             var _domainMap = {{
@@ -301,6 +305,15 @@ async def generate_standalone_html(
                 }}
                 return _origOpen.apply(this, arguments);
             }};
+            // Dynamically load VLibras script
+            var s = document.createElement('script');
+            s.src = 'https://vlibras.gov.br/app/vlibras-plugin.js';
+            s.onload = function() {{
+                try {{
+                    new window.VLibras.Widget({{ position: "R", avatar: "random" }});
+                }} catch(e) {{ console.warn('[VLibras] Init failed:', e); }}
+            }};
+            document.body.appendChild(s);
         }})();
     </script>
     <div vw class="enabled">
@@ -308,17 +321,7 @@ async def generate_standalone_html(
         <div vw-plugin-wrapper>
             <div class="vw-plugin-top-wrapper"></div>
         </div>
-    </div>
-    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
-    <script>
-        new window.VLibras.Widget({{ position: "R", avatar: "random" }});
-        window.addEventListener("load", function() {{
-            setTimeout(function() {{
-                var accessBtn = document.querySelector("[vw-access-button]");
-                if (accessBtn && !window.plugin) {{ accessBtn.click(); }}
-            }}, 2000);
-        }});
-    </script>'''
+    </div>'''
     else:
         vlibras_block = ''
     
@@ -534,6 +537,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         vlibras_block = f'''<!-- VLibras - Acessibilidade em LIBRAS -->
     <script>
         (function() {{
+            // Skip VLibras on file:// protocol (local HTML exports)
+            if (window.location.protocol === 'file:') return;
             var PROXY_BASE = "{proxy_base}";
             if (!PROXY_BASE) return;
             var _domainMap = {{
@@ -556,6 +561,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 }}
                 return _origOpen.apply(this, arguments);
             }};
+            // Dynamically load VLibras script
+            var s = document.createElement('script');
+            s.src = 'https://vlibras.gov.br/app/vlibras-plugin.js';
+            s.onload = function() {{
+                try {{
+                    new window.VLibras.Widget({{ position: "R", avatar: "random" }});
+                }} catch(e) {{ console.warn('[VLibras] Init failed:', e); }}
+            }};
+            document.body.appendChild(s);
         }})();
     </script>
     <div vw class="enabled">
@@ -563,17 +577,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         <div vw-plugin-wrapper>
             <div class="vw-plugin-top-wrapper"></div>
         </div>
-    </div>
-    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
-    <script>
-        new window.VLibras.Widget({{ position: "R", avatar: "random" }});
-        window.addEventListener("load", function() {{
-            setTimeout(function() {{
-                var accessBtn = document.querySelector("[vw-access-button]");
-                if (accessBtn && !window.plugin) {{ accessBtn.click(); }}
-            }}, 2000);
-        }});
-    </script>'''
+    </div>'''
     else:
         vlibras_block = ''
     
@@ -2059,9 +2063,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             html += quizContainer;
                         }}
                         else if (elem.type === 'scenario' && elem.scenarioData) {{
-                            // Scenario element - render interactive scenario player
-                            var scenarioJson = JSON.stringify(elem.scenarioData).replace(/'/g, "\\\\'").replace(/</g, '\\\\u003c');
-                            var sc = '<div class="scenario-player-container" data-element-id="' + elem.id + '" data-scenario=\\'' + scenarioJson + '\\' style="width:100%;height:100%;display:flex;flex-direction:column;">';
+                            // Scenario element - store data in JS map (avoids HTML attribute escaping issues)
+                            if (!window.__scenarioDataMap) window.__scenarioDataMap = {{}};
+                            window.__scenarioDataMap[elem.id] = elem.scenarioData;
+                            var sc = '<div class="scenario-player-container" data-element-id="' + elem.id + '" style="width:100%;height:100%;display:flex;flex-direction:column;">';
                             sc += '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#0f172a,#164e63);border-radius:12px;border:2px solid rgba(34,211,238,0.3);">';
                             sc += '<svg style="width:48px;height:48px;color:#22d3ee;margin-bottom:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>';
                             sc += '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + (elem.scenarioData.title || 'Cenário Interativo') + '</h3>';
@@ -3044,7 +3049,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 QuizController.init(courseData);
                 console.log('QuizController initialized with ' + courseData.questions.length + ' questions');
             }} else {{
-                console.log('No questions found in courseData');
+                console.log('QuizController: no quiz questions in this course');
             }}
         }});
 
@@ -3056,8 +3061,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 startScenario: function(elementId) {{
                     var container = document.querySelector('.scenario-player-container[data-element-id="' + elementId + '"]');
                     if (!container) return;
-                    var data;
-                    try {{ data = JSON.parse(container.dataset.scenario || '{{}}'); }} catch(e) {{ return; }}
+                    var data = (window.__scenarioDataMap && window.__scenarioDataMap[elementId]) || null;
+                    if (!data) {{ console.error('[ScenarioController] No scenario data for:', elementId); return; }}
                     var nodesMap = {{}};
                     var maxPoints = 0;
                     (data.nodes || []).forEach(function(n) {{
@@ -3101,7 +3106,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     html += '<span style="font-size:12px;color:#cbd5e1;font-weight:500;">' + (sc.data.title || 'Cenário') + '</span></div>';
                     html += '<div style="display:flex;align-items:center;gap:12px;">';
                     html += '<span style="font-size:11px;color:#64748b;">Cena ' + (sc.history.length + 1) + '</span>';
-                    html += '<span style="font-size:11px;color:#fbbf24;">★ ' + sc.totalPoints + ' pts</span>';
+                    html += '<span style="font-size:11px;color:#fbbf24;">★ ' + sc.optimalCount + '/' + sc.totalDecisions + '</span>';
                     html += '</div></div>';
                     // Content
                     html += '<div style="flex:1;overflow-y:auto;padding:16px;">';
@@ -3182,7 +3187,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 renderEnding: function(elementId, node) {{
                     var sc = scenarios[elementId];
                     if (!sc) return;
-                    var calcScore = Math.round((sc.totalPoints / sc.maxPoints) * 100);
+                    var calcScore = sc.totalDecisions > 0 
+                        ? Math.round((sc.optimalCount / sc.totalDecisions) * 100) 
+                        : 0;
                     var endColor = calcScore >= 80 ? '#10b981' : calcScore >= 50 ? '#f59e0b' : '#ef4444';
                     var endIcon = calcScore >= 80 ? '🏆' : calcScore >= 50 ? '⚠' : '✗';
 
@@ -3194,7 +3201,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     html += '<span style="color:#fbbf24;">★</span><span style="color:#fff;font-weight:600;">Pontuação: ' + calcScore + '%</span></div>';
                     html += '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:16px;">';
                     html += '<span style="font-size:12px;color:#94a3b8;">Decisões ideais: ' + sc.optimalCount + ' de ' + sc.totalDecisions + '</span>';
-                    html += '<span style="font-size:11px;color:#64748b;">Pontos: ' + sc.totalPoints + ' / ' + sc.maxPoints + '</span></div>';
+                    html += '</div>';
                     html += '<button onclick="ScenarioController.startScenario(\\'' + elementId + '\\')" style="padding:10px 20px;background:transparent;border:1px solid rgba(34,211,238,0.5);color:#22d3ee;border-radius:8px;font-size:14px;cursor:pointer;">↻ Tentar Novamente</button>';
                     html += '</div>';
                     sc.container.innerHTML = html;
