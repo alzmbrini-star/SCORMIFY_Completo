@@ -5,6 +5,7 @@
 - [x] HTML export scenario fix (data-scenario → __scenarioDataMap)
 - [x] Production deployment fix (Atlas timeouts)
 - [x] Image generation timeout fix (parallel generation)
+- [x] AI improvements layout fix (element Y positioning + preserve non-text elements)
 - [ ] **User verification**: SCORM completion in real LMS
 - [ ] **User verification**: Image generation with 23+ slides
 

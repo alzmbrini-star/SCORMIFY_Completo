@@ -35,6 +35,12 @@
 - **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
 - **Status**: Backend starts cleanly ✅
 
+### Bug Fix: AI Improvements Breaking Slide Layout (2026-03-23)
+- **Root Cause**: `agent_apply_improvements` in `backend/routes/agent.py` placed ALL elements at `y: 40`, causing overlap. Also wiped non-text elements (images, scenarios, quizzes).
+- **Fix**: Incremental Y positioning (`current_y = 80`, `current_y += elem_height + 20`). Preserves header bars (y=0, height<=60), non-text elements, and existing images/scenarios/quizzes.
+- **Additional**: Improved AI prompt in `ai_agent.py` to request single combined HTML element per slide.
+- **Status**: Tested with 22 tests (unit + integration) - ALL PASSED ✅
+
 ## Previous Session (Completed)
 - Gamification system (badges, feedback)
 - AI Agent scenario creation fix (type: "scenario" instead of text)
