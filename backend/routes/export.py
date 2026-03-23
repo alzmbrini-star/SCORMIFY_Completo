@@ -150,7 +150,8 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                backend_url = _get_external_url()
+                # Use custom apiUrl from settings if available, otherwise use default
+                backend_url = settings_doc.get('apiUrl', '').strip() or _get_external_url()
                 
                 tutor_settings = {
                     'enabled': True,

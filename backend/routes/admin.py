@@ -52,7 +52,8 @@ async def get_tutor_settings():
     if not settings:
         settings = {
             "key": "tutor", "enabled": True, "messageLimit": 50,
-            "suggestedQuestions": [], "systemPrompt": "", "tutorName": "Tutor IA"
+            "suggestedQuestions": [], "systemPrompt": "", "tutorName": "Tutor IA",
+            "apiUrl": ""  # Empty means use default BASE_URL
         }
     return settings
 

@@ -57,7 +57,8 @@ export default function Admin() {
     tutorName: 'Tutor IA',
     messageLimit: 50,
     suggestedQuestions: [],
-    systemPrompt: ''
+    systemPrompt: '',
+    apiUrl: ''
   });
   const [newSuggestion, setNewSuggestion] = useState('');
   const [tutorLoading, setTutorLoading] = useState(false);
@@ -610,6 +611,18 @@ export default function Admin() {
                 max={500}
                 data-testid="tutor-message-limit"
               />
+            </div>
+
+            {/* API URL for Export */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">URL do Backend (para exportacao SCORM/HTML)</label>
+              <Input
+                value={tutorSettings.apiUrl || ''}
+                onChange={(e) => setTutorSettings(prev => ({ ...prev, apiUrl: e.target.value }))}
+                placeholder="Ex: https://seu-dominio.com (deixe vazio para usar padrao)"
+                data-testid="tutor-api-url"
+              />
+              <p className="text-xs text-slate-500 mt-1">URL usada pelo Tutor IA nos cursos exportados. Deixe vazio para usar a URL padrao do sistema.</p>
             </div>
 
             {/* System Prompt */}
