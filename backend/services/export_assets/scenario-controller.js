@@ -160,6 +160,12 @@ var ScenarioController = (function() {
                 Gamification.onScenarioComplete(calcScore, scenarioTitle);
             }, 500);
         }
+        
+        // Notify Player that this scenario is complete
+        // Player will check if all quizzes/scenarios are done before setting SCORM complete
+        if (typeof Player !== 'undefined' && Player.onScenarioComplete) {
+            Player.onScenarioComplete(elementId);
+        }
     }
 
     return {

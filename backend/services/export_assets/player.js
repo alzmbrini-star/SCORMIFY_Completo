@@ -241,6 +241,15 @@ var CoursePlayer = (function() {
     // When true, SCORM completion must come from QuizController, NOT from navigation.
     var courseHasQuiz = false;
     
+    // True if ANY slide in the course has a scenario element.
+    var courseHasScenario = false;
+    
+    // Track completion of interactive elements
+    var completedQuizzes = {};
+    var completedScenarios = {};
+    var totalQuizzes = 0;
+    var totalScenarios = 0;
+    
     // Slide timeline progress
     var slideProgressTimer = null;
     var slideStartTimestamp = 0;
@@ -447,7 +456,32 @@ var CoursePlayer = (function() {
                 return (el.type || '').toLowerCase() === 'quiz';
             });
         });
-        console.log('[Player] courseHasQuiz:', courseHasQuiz);
+        
+        // Detect if ANY slide contains a scenario element.
+        courseHasScenario = course.slides.some(function(s) {
+            return s.elements && s.elements.some(function(el) {
+                return (el.type || '').toLowerCase() === 'scenario';
+            });
+        });
+        
+        // Count total quizzes and scenarios for completion tracking
+        totalQuizzes = 0;
+        totalScenarios = 0;
+        course.slides.forEach(function(s, slideIndex) {
+            if (s.elements) {
+                s.elements.forEach(function(el) {
+                    if ((el.type || '').toLowerCase() === 'quiz') {
+                        totalQuizzes++;
+                    }
+                    if ((el.type || '').toLowerCase() === 'scenario') {
+                        totalScenarios++;
+                    }
+                });
+            }
+        });
+        
+        console.log('[Player] courseHasQuiz:', courseHasQuiz, 'totalQuizzes:', totalQuizzes);
+        console.log('[Player] courseHasScenario:', courseHasScenario, 'totalScenarios:', totalScenarios);
         
         // Check orientation on load
         checkMobileOrientation();
@@ -995,17 +1029,59 @@ var CoursePlayer = (function() {
             translateWithVLibras(slide.librasScript.trim(), index);
         }
         
-        // Check completion - defer to QuizController if course has any quiz element
-        // QuizController.showResults() calls ScormAPI.setComplete() after quiz is done
+        // Check completion - defer to interactive elements if present
+        // Only mark complete when:
+        // 1. User reaches last slide AND
+        // 2. All quizzes are completed (if any) AND  
+        // 3. All scenarios are completed (if any)
         if (index === totalSlides - 1) {
-            if (!courseHasQuiz) {
-                // No quiz anywhere in course: mark complete when last slide is reached
-                ScormAPI.setComplete();
-                console.log('[Player] No quiz in course - marked complete on last slide');
-            } else {
-                console.log('[Player] Course has quiz - completion deferred to QuizController');
-            }
+            checkAndSetCompletion();
         }
+    }
+    
+    // Central function to check if all interactive elements are done and set completion
+    function checkAndSetCompletion() {
+        var quizzesComplete = Object.keys(completedQuizzes).length >= totalQuizzes;
+        var scenariosComplete = Object.keys(completedScenarios).length >= totalScenarios;
+        var hasInteractiveElements = courseHasQuiz || courseHasScenario;
+        
+        console.log('[Player] Checking completion:', {
+            quizzesComplete: quizzesComplete,
+            completedQuizzes: Object.keys(completedQuizzes).length,
+            totalQuizzes: totalQuizzes,
+            scenariosComplete: scenariosComplete,
+            completedScenarios: Object.keys(completedScenarios).length,
+            totalScenarios: totalScenarios,
+            onLastSlide: currentSlide === totalSlides - 1
+        });
+        
+        if (!hasInteractiveElements) {
+            // No interactive elements: mark complete when last slide is reached
+            if (currentSlide === totalSlides - 1) {
+                ScormAPI.setComplete();
+                console.log('[Player] No interactive elements - marked complete on last slide');
+            }
+        } else if (quizzesComplete && scenariosComplete && currentSlide === totalSlides - 1) {
+            // All interactive elements done AND on last slide
+            ScormAPI.setComplete();
+            console.log('[Player] All quizzes and scenarios complete - course marked complete');
+        } else {
+            console.log('[Player] Completion deferred - waiting for interactive elements');
+        }
+    }
+    
+    // Called by QuizController when a quiz is completed
+    function onQuizComplete(elementId) {
+        completedQuizzes[elementId] = true;
+        console.log('[Player] Quiz completed:', elementId, '- Total:', Object.keys(completedQuizzes).length, '/', totalQuizzes);
+        checkAndSetCompletion();
+    }
+    
+    // Called by ScenarioController when a scenario is completed
+    function onScenarioComplete(elementId) {
+        completedScenarios[elementId] = true;
+        console.log('[Player] Scenario completed:', elementId, '- Total:', Object.keys(completedScenarios).length, '/', totalScenarios);
+        checkAndSetCompletion();
     }
     
     function createElementNode(element) {
@@ -2046,6 +2122,8 @@ var CoursePlayer = (function() {
         toggleVolumeSlider: toggleVolumeSlider,
         toggleSidebar: toggleSidebar,
         updateScale: updateSlideScale,
+        onQuizComplete: onQuizComplete,
+        onScenarioComplete: onScenarioComplete,
         refresh: function() {
             // Re-render current slide completely (used after orientation change)
             if (course && course.slides) {
