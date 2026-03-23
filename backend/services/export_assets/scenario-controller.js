@@ -42,7 +42,7 @@ var ScenarioController = (function() {
         html += '<span style="font-size:' + (fs*0.75) + 'px;color:#cbd5e1;font-weight:500;">' + (sc.data.title || 'Cenário') + '</span></div>';
         html += '<div style="display:flex;align-items:center;gap:12px;">';
         html += '<span style="font-size:' + (fs*0.75) + 'px;color:#64748b;">Cena ' + (sc.history.length + 1) + '</span>';
-        html += '<span style="font-size:' + (fs*0.75) + 'px;color:#fbbf24;">★ ' + sc.totalPoints + ' pts</span>';
+        html += '<span style="font-size:' + (fs*0.75) + 'px;color:#fbbf24;">★ ' + sc.optimalCount + '/' + sc.totalDecisions + '</span>';
         html += '</div></div>';
         // Content
         html += '<div style="flex:1;overflow-y:auto;padding:16px;">';
@@ -147,6 +147,11 @@ var ScenarioController = (function() {
         html += '</div>';
         sc.container.innerHTML = html;
         
+        // Report scenario score to SCORM
+        if (typeof ScormAPI !== 'undefined') {
+            ScormAPI.setScore(calcScore);
+        }
+        
         // Notify gamification engine
         if (typeof Gamification !== 'undefined') {
             var scenarioTitle = sc.data.title || 'Cenário';
@@ -155,10 +160,10 @@ var ScenarioController = (function() {
             }, 500);
         }
         
-        // Notify Player that this scenario is complete
-        // Player will check if all quizzes/scenarios are done before setting SCORM complete
-        if (typeof Player !== 'undefined' && Player.onScenarioComplete) {
-            Player.onScenarioComplete(elementId);
+        // Notify CoursePlayer that this scenario is complete
+        // CoursePlayer will check if all quizzes/scenarios are done before setting SCORM complete
+        if (typeof CoursePlayer !== 'undefined' && CoursePlayer.onScenarioComplete) {
+            CoursePlayer.onScenarioComplete(elementId);
         }
     }
 

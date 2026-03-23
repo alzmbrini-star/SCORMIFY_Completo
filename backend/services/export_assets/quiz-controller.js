@@ -288,19 +288,12 @@ var QuizController = (function() {
             // Report score to SCORM
             if (typeof ScormAPI !== 'undefined') {
                 ScormAPI.setScore(Math.round(percentage));
-                
-                // Also set lesson_status based on pass/fail
-                var api = ScormAPI.getAPI ? ScormAPI.getAPI() : null;
-                if (api) {
-                    api.LMSSetValue("cmi.core.lesson_status", passed ? "passed" : "failed");
-                    api.LMSCommit("");
-                }
             }
             
-            // Notify Player that this quiz is complete
-            // Player will check if all quizzes/scenarios are done before setting SCORM complete
-            if (typeof Player !== 'undefined' && Player.onQuizComplete) {
-                Player.onQuizComplete(elementId);
+            // Notify CoursePlayer that this quiz is complete
+            // CoursePlayer will check if all quizzes/scenarios are done before setting SCORM complete
+            if (typeof CoursePlayer !== 'undefined' && CoursePlayer.onQuizComplete) {
+                CoursePlayer.onQuizComplete(elementId);
             }
             
             var html = '<style>.quiz-scroll::-webkit-scrollbar{width:4px;height:4px;}.quiz-scroll::-webkit-scrollbar-track{background:transparent;}.quiz-scroll::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.4);border-radius:4px;}.quiz-scroll::-webkit-scrollbar-thumb:hover{background:rgba(100,116,139,0.6);}.quiz-scroll{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.4) transparent;}</style>' +
