@@ -6,6 +6,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ## Core Features (Implemented)
 - **AI Scenario Creator**: Interactive branching scenarios with choices, feedback, and scoring
 - **AI Agent**: Course creation from storyboard with media generation
+- **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions, with rollback capability
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
 - **Gamification System**: Configurable badges and feedback per-project

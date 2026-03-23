@@ -35,6 +35,15 @@
 - **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
 - **Status**: Backend starts cleanly ✅
 
+### Feature: Before/After Preview + Undo for AI Improvements (2026-03-23)
+- **Preview**: New `/preview-improvements` endpoint calls AI and returns before/after comparison WITHOUT saving changes
+- **Cached AI Result**: Preview caches AI response; apply uses cache via `previewId` (no duplicate AI call)
+- **Undo**: Snapshot saved to `course_snapshots` collection before applying; `/undo-improvements` restores it
+- **Frontend**: New `PreviewPanel` component with side-by-side before/after comparison (ANTES/DEPOIS)
+- **Edit Flow**: 4 steps now: Selecionar → Análise → Preview → Resultado (was 3)
+- **Cancel**: User can cancel preview and return to analysis to adjust selections
+- **Status**: Tested with 13 tests (backend + frontend) - ALL PASSED ✅
+
 ### Bug Fix: AI Improvements Breaking Slide Layout (2026-03-23)
 - **Root Cause**: `agent_apply_improvements` in `backend/routes/agent.py` placed ALL elements at `y: 40`, causing overlap. Also wiped non-text elements (images, scenarios, quizzes).
 - **Fix**: Incremental Y positioning (`current_y = 80`, `current_y += elem_height + 20`). Preserves header bars (y=0, height<=60), non-text elements, and existing images/scenarios/quizzes.
