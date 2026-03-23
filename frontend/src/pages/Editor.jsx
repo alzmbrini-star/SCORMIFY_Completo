@@ -111,6 +111,7 @@ import {
   Presentation,
   AlertTriangle,
   GitBranch,
+  Trophy,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -120,6 +121,7 @@ import SplitPreview from '../components/editor/SplitPreview';
 import RichTextEditor from '../components/RichTextEditor';
 import QuizGenerator from '../components/quiz/QuizGenerator';
 import ScenarioCreator from '../components/scenario/ScenarioCreator';
+import GamificationPanel from '../components/editor/GamificationPanel';
 
 // Extracted components and hooks
 import { getThumbAssetUrl, formatDuration, formatDateTime, formatTime, getStatusBadge } from './Editor/utils';
@@ -280,6 +282,7 @@ export default function Editor() {
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   const [showQuizDialog, setShowQuizDialog] = useState(false);
   const [showScenarioDialog, setShowScenarioDialog] = useState(false);
+  const [showGamificationPanel, setShowGamificationPanel] = useState(false);
   const [showDesignTemplateDialog, setShowDesignTemplateDialog] = useState(false);
   const [designTemplates, setDesignTemplates] = useState([]);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
@@ -1407,6 +1410,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Cenário Interativo (IA)</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 hover:from-yellow-500/20 hover:to-orange-500/20"
+                    onClick={() => setShowGamificationPanel(true)}
+                    data-testid="gamification-btn"
+                  >
+                    <Trophy className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Gamificação (Badges e Feedback)</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -3632,6 +3650,16 @@ export default function Editor() {
           projectId={currentProject?.id}
           onScenarioCreated={handleScenarioCreated}
         />
+
+        {/* Gamification Panel Dialog */}
+        <Dialog open={showGamificationPanel} onOpenChange={setShowGamificationPanel}>
+          <DialogContent className="max-w-3xl bg-slate-900 border-slate-700">
+            <GamificationPanel 
+              projectId={currentProject?.id}
+              onClose={() => setShowGamificationPanel(false)}
+            />
+          </DialogContent>
+        </Dialog>
 
         {/* Timeline Expandida - Sheet from bottom */}
         <Sheet open={showTimelineExpanded} onOpenChange={setShowTimelineExpanded}>

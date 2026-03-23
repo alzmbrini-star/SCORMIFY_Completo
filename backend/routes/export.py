@@ -163,6 +163,35 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 }
         except Exception as e:
             logger.warning(f"Tutor settings load failed (non-fatal): {e}")
+        
+        # Load gamification config
+        gamification_settings = None
+        try:
+            gamification_doc = await db.projects.find_one({"id": project_id}, {"_id": 0, "gamification": 1})
+            if gamification_doc and gamification_doc.get("gamification"):
+                gamification_settings = gamification_doc["gamification"]
+            else:
+                # Use defaults if not configured
+                from models import DEFAULT_BADGES, DEFAULT_QUIZ_FEEDBACK, DEFAULT_SCENARIO_FEEDBACK
+                gamification_settings = {
+                    "enabled": True,
+                    "showBadgesAfterQuiz": True,
+                    "showBadgesAfterScenario": True,
+                    "showFinalSummary": True,
+                    "badges": [b.model_dump() for b in DEFAULT_BADGES],
+                    "quizFeedbackRanges": [f.model_dump() for f in DEFAULT_QUIZ_FEEDBACK],
+                    "scenarioFeedbackRanges": [f.model_dump() for f in DEFAULT_SCENARIO_FEEDBACK],
+                    "completionFeedback": {
+                        "id": "completion_default",
+                        "minScore": 0,
+                        "maxScore": 100,
+                        "title": "Curso Concluído!",
+                        "message": "Parabéns por completar o curso!",
+                        "emoji": "🎓"
+                    }
+                }
+        except Exception as e:
+            logger.warning(f"Gamification settings load failed (non-fatal): {e}")
 
         # Generate package with questions
         # Run in thread pool to avoid blocking the async event loop
@@ -180,7 +209,8 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             str(EXPORTS_DIR),
             questions=questions,
             tutor_config=tutor_settings,
-            backend_url=scorm_backend_url
+            backend_url=scorm_backend_url,
+            gamification_config=gamification_settings
         )
         
         # Clean up old exports to prevent disk space exhaustion (keep last 24h)

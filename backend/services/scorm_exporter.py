@@ -128,7 +128,7 @@ def _read_asset(filename: str) -> str:
     return (EXPORT_ASSETS_DIR / filename).read_text(encoding='utf-8')
 
 
-def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "") -> str:
+def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "", gamification_config: dict = None) -> str:
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
     css = _read_asset("player.css")
@@ -201,6 +201,19 @@ def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: 
         html = html.replace("__VLIBRAS_BLOCK__", vlibras_block)
     else:
         html = html.replace("__VLIBRAS_BLOCK__", "")
+    
+    # Add gamification script and config
+    if gamification_config and gamification_config.get('enabled'):
+        import json
+        gamification_block = f'''<!-- Gamification Engine -->
+    <script src="scripts/gamification.js"></script>
+    <script>
+        var GAMIFICATION_CONFIG = {json.dumps(gamification_config, ensure_ascii=False)};
+        document.addEventListener('DOMContentLoaded', function() {{
+            Gamification.init(GAMIFICATION_CONFIG);
+        }});
+    </script>'''
+        html = html.replace("</body>", gamification_block + "\n</body>")
 
     return html
 
@@ -294,7 +307,7 @@ IMSMD_XSD = '''<?xml version="1.0" encoding="UTF-8"?>
     <xsd:element name="langstring" type="xsd:string"/>
 </xsd:schema>'''
 
-def export_scorm_package(project: Project, storage_dir: str, output_dir: str, questions: list = None, tutor_config: dict = None, backend_url: str = "") -> str:
+def export_scorm_package(project: Project, storage_dir: str, output_dir: str, questions: list = None, tutor_config: dict = None, backend_url: str = "", gamification_config: dict = None) -> str:
     """
     Export a project as a SCORM 1.2 package
     Returns the path to the generated ZIP file
@@ -305,6 +318,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         output_dir: Path to output directory
         questions: Optional list of quiz questions to include
         tutor_config: Optional AI tutor configuration dict
+        gamification_config: Optional gamification configuration dict
     """
     logger.info(f"Exporting SCORM package for project: {project.id}")
     
@@ -431,6 +445,11 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             f.write(_read_asset("tutor.js"))
         with open(package_dir / "styles" / "tutor.css", 'w') as f:
             f.write(_read_asset("tutor.css"))
+    
+    # Write gamification files if enabled
+    if gamification_config and gamification_config.get('enabled'):
+        with open(package_dir / "scripts" / "gamification.js", 'w') as f:
+            f.write(_read_asset("gamification.js"))
     
     # Prepare course.json - Fix asset URLs for SCORM package
     course_data = course.model_dump()
@@ -741,7 +760,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         width=slide_width,
         height=slide_height,
         enable_vlibras=enable_vlibras,
-        backend_url=backend_url
+        backend_url=backend_url,
+        gamification_config=gamification_config
     )
     
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:

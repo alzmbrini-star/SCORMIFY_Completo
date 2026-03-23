@@ -148,6 +148,14 @@ var ScenarioController = (function() {
         html += '<button onclick="ScenarioController.startScenario(\'' + elementId + '\')" style="padding:10px 20px;background:transparent;border:1px solid rgba(34,211,238,0.5);color:#22d3ee;border-radius:8px;font-size:' + fs + 'px;cursor:pointer;">↻ Tentar Novamente</button>';
         html += '</div>';
         sc.container.innerHTML = html;
+        
+        // Notify gamification engine
+        if (typeof Gamification !== 'undefined') {
+            var scenarioTitle = sc.data.title || 'Cenário';
+            setTimeout(function() {
+                Gamification.onScenarioComplete(calcScore, scenarioTitle);
+            }, 500);
+        }
     }
 
     return {

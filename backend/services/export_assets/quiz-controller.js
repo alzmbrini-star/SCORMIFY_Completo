@@ -337,6 +337,13 @@ var QuizController = (function() {
                 '</div></div>';
             
             container.innerHTML = html;
+            
+            // Notify gamification engine
+            if (typeof Gamification !== 'undefined') {
+                setTimeout(function() {
+                    Gamification.onQuizComplete(percentage, totalCount, correctCount);
+                }, 500);
+            }
         },
         
         // Restart quiz

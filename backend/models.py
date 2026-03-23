@@ -533,3 +533,116 @@ class ChangePasswordRequest(BaseModel):
     """Change password request"""
     currentPassword: str
     newPassword: str
+
+
+
+# ==================== GAMIFICATION MODELS ====================
+
+class BadgeCriteria(BaseModel):
+    """Criteria for earning a badge"""
+    model_config = ConfigDict(extra="allow")
+    
+    type: str  # "quiz_score", "scenario_score", "course_completion", "custom"
+    threshold: float = 80.0  # Percentage threshold (e.g., 80 = 80%)
+    operator: str = "gte"  # "gte" (>=), "gt" (>), "eq" (=), "lte" (<=), "lt" (<)
+
+class Badge(BaseModel):
+    """Badge definition for gamification"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=generate_id)
+    name: str  # e.g., "Mestre dos Quizzes"
+    description: str = ""  # e.g., "Acertou mais de 80% das questões"
+    icon: str = "trophy"  # Icon name or "custom" for uploaded image
+    iconColor: str = "#fbbf24"  # Color for predefined icons
+    customImage: Optional[str] = None  # Base64 or URL for custom badge image
+    criteria: BadgeCriteria
+    isDefault: bool = False  # True for predefined badges
+    createdAt: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class FeedbackRange(BaseModel):
+    """Feedback message for a score range"""
+    model_config = ConfigDict(extra="allow")
+    
+    id: str = Field(default_factory=generate_id)
+    minScore: float = 0  # Minimum score percentage
+    maxScore: float = 100  # Maximum score percentage
+    title: str  # e.g., "Excelente!"
+    message: str  # e.g., "Você demonstrou domínio completo do conteúdo!"
+    emoji: str = "🎉"  # Optional emoji
+
+class GamificationConfig(BaseModel):
+    """Full gamification configuration for a project"""
+    model_config = ConfigDict(extra="allow")
+    
+    enabled: bool = True
+    showBadgesAfterQuiz: bool = True
+    showBadgesAfterScenario: bool = True
+    showFinalSummary: bool = True
+    badges: List[Badge] = []
+    quizFeedbackRanges: List[FeedbackRange] = []
+    scenarioFeedbackRanges: List[FeedbackRange] = []
+    completionFeedback: Optional[FeedbackRange] = None
+
+# Default badges that come pre-configured
+DEFAULT_BADGES = [
+    Badge(
+        id="badge_quiz_master",
+        name="Mestre dos Quizzes",
+        description="Acertou mais de 80% das questões",
+        icon="award",
+        iconColor="#fbbf24",
+        criteria=BadgeCriteria(type="quiz_score", threshold=80, operator="gte"),
+        isDefault=True
+    ),
+    Badge(
+        id="badge_quiz_perfect",
+        name="Perfeição Total",
+        description="Acertou 100% das questões",
+        icon="star",
+        iconColor="#f59e0b",
+        criteria=BadgeCriteria(type="quiz_score", threshold=100, operator="eq"),
+        isDefault=True
+    ),
+    Badge(
+        id="badge_decision_maker",
+        name="Tomador de Decisões",
+        description="Obteve mais de 70% nos cenários",
+        icon="target",
+        iconColor="#10b981",
+        criteria=BadgeCriteria(type="scenario_score", threshold=70, operator="gte"),
+        isDefault=True
+    ),
+    Badge(
+        id="badge_strategic_thinker",
+        name="Pensador Estratégico",
+        description="Obteve mais de 90% nos cenários",
+        icon="brain",
+        iconColor="#8b5cf6",
+        criteria=BadgeCriteria(type="scenario_score", threshold=90, operator="gte"),
+        isDefault=True
+    ),
+    Badge(
+        id="badge_course_complete",
+        name="Curso Concluído",
+        description="Completou todo o curso",
+        icon="check-circle",
+        iconColor="#06b6d4",
+        criteria=BadgeCriteria(type="course_completion", threshold=100, operator="eq"),
+        isDefault=True
+    ),
+]
+
+DEFAULT_QUIZ_FEEDBACK = [
+    FeedbackRange(id="quiz_fb_low", minScore=0, maxScore=50, title="Precisa Revisar", message="Recomendamos revisar o conteúdo e tentar novamente.", emoji="📚"),
+    FeedbackRange(id="quiz_fb_medium", minScore=51, maxScore=70, title="Bom Progresso", message="Você está no caminho certo! Continue estudando.", emoji="👍"),
+    FeedbackRange(id="quiz_fb_good", minScore=71, maxScore=89, title="Muito Bem!", message="Ótimo desempenho! Você domina a maior parte do conteúdo.", emoji="🌟"),
+    FeedbackRange(id="quiz_fb_excellent", minScore=90, maxScore=100, title="Excelente!", message="Parabéns! Você demonstrou domínio completo do conteúdo!", emoji="🎉"),
+]
+
+DEFAULT_SCENARIO_FEEDBACK = [
+    FeedbackRange(id="scenario_fb_low", minScore=0, maxScore=50, title="Oportunidade de Melhoria", message="Suas escolhas podem ser aprimoradas. Que tal tentar novamente?", emoji="🔄"),
+    FeedbackRange(id="scenario_fb_medium", minScore=51, maxScore=70, title="Boas Decisões", message="Você tomou decisões razoáveis. Há espaço para melhorar!", emoji="💪"),
+    FeedbackRange(id="scenario_fb_good", minScore=71, maxScore=89, title="Decisões Estratégicas", message="Suas escolhas demonstram boa capacidade de análise!", emoji="🎯"),
+    FeedbackRange(id="scenario_fb_excellent", minScore=90, maxScore=100, title="Liderança Exemplar!", message="Suas decisões foram excepcionais! Você é um líder nato!", emoji="🏆"),
+]
