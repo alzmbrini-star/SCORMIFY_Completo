@@ -40,7 +40,7 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         course = parse_pptx_high_fidelity(file_path, project_id, str(PROJECTS_DIR))
         jobs[job_id]["progress"] = 80
         jobs[job_id]["message"] = "Saving course data..."
-        sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
         sync_db = sync_client[db_name]
         course_dict = course.model_dump()
         course_dict["createdAt"] = course.createdAt.isoformat()

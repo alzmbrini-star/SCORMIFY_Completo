@@ -1,130 +1,46 @@
-# PRD - Course Authoring Agent (Scormfy)
+# PRD - Scormify: AI Course Authoring Platform
 
-## Problem Statement
-Build an advanced Instructional Design AI Agent that generates SCORM-compliant courses from content (PDF, PPT, DOC, or text). The application includes an AI agent pipeline, a full slide editor, and export capabilities.
-
-## Architecture
-- **Frontend**: React 18 + Tailwind CSS + Shadcn/UI
-- **Backend**: FastAPI + Motor (async MongoDB)
-- **Database**: MongoDB
-- **Integrations**: OpenAI GPT-4o, Google Gemini 2.5 Flash & Nano Banana, ElevenLabs TTS, HeyGen Avatar Video, ConvertAPI, VLibras
+## Original Problem Statement
+Build a full-featured AI course authoring platform with an "Intelligent Active Learning Scenario Creator" and AI Agent for course generation/modification.
 
 ## Core Features (Implemented)
-### Auth & Dashboard
-- JWT auth with login/register
-- Admin panel for user/key management
-- Project dashboard with CRUD
-- **Dashboard metrics panel** (total courses, slides, exports)
+- **AI Scenario Creator**: Interactive branching scenarios with choices, feedback, and scoring
+- **AI Agent**: Course creation from storyboard with media generation
+- **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
+- **HTML Standalone Export**: Self-contained HTML courses
+- **Gamification System**: Configurable badges and feedback per-project
+- **PPT Import**: Convert PowerPoint to course (requires ConvertAPI)
+- **VLibras**: Brazilian Sign Language accessibility widget
+- **AI Tutor**: AI-powered tutor with configurable backend URL
 
-### AI Agent Pipeline
-- Multi-step course creation wizard
-- Course editing mode with AI-powered improvement suggestions
-- Chat interface for real-time agent interaction
-
-### Slide Editor
-- Full WYSIWYG editor with drag & drop elements
-- Rich text editor with AI generation
-- Slide thumbnails with live preview
-- Animation system, background images, layer management
-
-### Media & Audio
-- ElevenLabs TTS narration with voice selection
-- Audio recording and upload
-- Volume controls per audio track
-
-### HeyGen Integration
-- Single-slide avatar video generation
-- PPT-to-Video multi-scene generation
-- Video library management
-
-### Export
-- SCORM 1.2 package export (with AI Tutor)
-- HTML standalone export (with AI Tutor)
-- Video export (MP4)
-
-### AI Tutor
-- Embedded chat widget in exported SCORM and HTML courses
-- Uses Gemini 3 Flash for contextual Q&A
-- Answers ONLY based on course content
-- Slide-aware context
-
-### Interactive Scenario Creator (NEW - Mar 11, 2026)
-- AI-powered generation of decision-tree learning scenarios using Gemini 2.5 Flash
-- Complete CRUD API for scenarios (create, read, update, delete, regenerate)
-- ScenarioCreator dialog with configurable inputs: theme, objectives, audience, complexity, industry, duration
-- **Font size control** in ElementProperties panel (same pattern as Quiz: 12px-28px selector)
-- Interactive ScenarioPlayer component with font-size-aware rendering:
-  - Decision tree navigation with choices (A, B, C...)
-  - Character-driven narratives
-  - Adaptive feedback after each choice (optimal/non-optimal)
-  - Points accumulation
-  - Multiple endings (good, neutral, bad) with score
-  - Restart capability
-- Integrated as a slide element type ('scenario') in the editor
-- Renders in SlideCanvas (editor), CoursePreview, and SplitPreview
-- Full export support in SCORM and HTML packages (scenario-controller.js with fontSize support)
-
-### AI Agent + Scenario Integration (NEW - Mar 17, 2026)
-- Users can ask the AI Agent chatbot to add interactive scenarios to existing courses
-- Agent detects intent via `[AÇÃO:CENÁRIO]` marker in response
-- Endpoint `POST /api/agent/sessions/{session_id}/add-scenario` generates scenario and adds slide
-- Works with both newly generated courses (`generatedProject.projectId`) and edited courses (`editMediaProjectId`)
-- Scenarios are generated with 10+ decision nodes, characters, and branching paths
-
-### Accessibility
-- VLibras Brazilian Sign Language integration
-
-## File Structure
+## Architecture
 ```
-frontend/src/
-├── components/
-│   ├── scenario/
-│   │   ├── ScenarioCreator.jsx    (AI generation dialog)
-│   │   └── ScenarioPlayer.jsx     (interactive decision tree player)
-│   ├── quiz/
-│   │   ├── QuizGenerator.jsx
-│   │   └── QuizPlayer.jsx
-│   └── editor/
-│       ├── SlideCanvas.jsx         (scenario element rendering)
-│       ├── CoursePreview.jsx        (scenario player in preview)
-│       └── SplitPreview.jsx         (scenario player in split)
-├── pages/
-│   ├── Dashboard.jsx
-│   ├── Editor.jsx                  (scenario button + handler)
-│   └── Agent.jsx
-
-backend/
-├── routes/
-│   ├── scenarios.py               (CRUD + AI generation endpoints)
-│   ├── admin.py
-│   └── export.py
-├── services/
-│   ├── scenario_service.py        (Gemini AI generation logic)
-│   ├── scorm_exporter.py          (scenario support added)
-│   ├── html_exporter.py           (ScenarioController JS added)
-│   └── export_assets/
-│       ├── scenario-controller.js (decision tree player for exports)
-│       ├── player.js              (scenario case added)
-│       └── player_template.html   (scenario script tag added)
-├── models.py                      (type='scenario', scenarioData field)
-└── server.py                      (scenarios router registered)
+/app
+├── backend (FastAPI + MongoDB)
+│   ├── server.py (main app, startup tasks)
+│   ├── routes/ (agent, export, auth, projects, gamification, admin)
+│   ├── services/ (ai_agent, scorm_exporter, html_exporter, asset_store)
+│   └── services/export_assets/ (player.js, scenario-controller.js, quiz-controller.js, scorm-api.js)
+└── frontend (React)
+    ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
+    ├── src/components/ (editor/, scenario/, ui/)
+    └── src/contexts/ (AuthContext, ProjectContext)
 ```
 
-## Known Issues
-- HeyGen Video Generation: Blocked by user's API credits being 0 (external)
-
-## Backlog
-### P0
-- SCORM 2004 & xAPI Export implementation
-### P1
-- Further Editor.jsx dialog extraction (~1200 lines)
-- Scenario collaborative mode (multiple learners)
-- Advanced analytics & scoring dashboard for scenarios
-### P2
-- Advanced AI Tutor interactivity features
-- Gamification elements (badges, leaderboard)
-### Cancelled
-- Synthesia Integration (user decided cost was too high)
+## Key Technical Decisions
+- **Scenario Scoring**: Based on % of "ideal decisions" (not points)
+- **SCORM Completion**: Event-driven via CoursePlayer.onScenarioComplete/onQuizComplete
+- **Image Generation**: Parallel (5 concurrent) using asyncio.gather with semaphore
+- **MongoDB Atlas Support**: Increased timeouts (30s server/connect, 60s socket), retryWrites/retryReads
+- **Asset Persistence**: Batch queries on startup instead of individual find_one per asset
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
+
+## 3rd Party Integrations
+- Google Gemini (via Emergent LLM Key) - AI generation
+- OpenAI GPT-4o (via Emergent LLM Key)
+- HeyGen - Avatar videos (BLOCKED - user credits insufficient)
+- ElevenLabs - Audio narration (requires user API key)
+- ConvertAPI - PPT import (EXPIRED trial - user needs new key)
+- VLibras - Brazilian Sign Language accessibility

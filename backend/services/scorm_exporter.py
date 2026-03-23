@@ -97,7 +97,7 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
         mongo_url = os.environ.get('MONGO_URL')
         db_name = os.environ.get('DB_NAME')
         if mongo_url and db_name:
-            _client = SyncMongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+            _client = SyncMongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
             _db = _client[db_name]
             doc = _db.project_assets.find_one(
                 {"project_id": "global", "filename": filename},

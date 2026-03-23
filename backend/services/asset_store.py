@@ -31,7 +31,9 @@ def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: st
         elif ext == '.wav':
             content_type = 'audio/wav'
 
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+        timeout = 30000 if is_atlas else 10000
+        client = MongoClient(mongo_url, serverSelectionTimeoutMS=timeout, connectTimeoutMS=timeout, retryWrites=True)
         db = client[db_name]
         db.project_assets.update_one(
             {"project_id": project_id, "filename": filename},
@@ -53,7 +55,9 @@ def retrieve_asset_sync(mongo_url: str, db_name: str, project_id: str, filename:
     """Retrieve a file from MongoDB to local filesystem (synchronous).
     Returns True if the file was restored."""
     try:
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+        timeout = 30000 if is_atlas else 10000
+        client = MongoClient(mongo_url, serverSelectionTimeoutMS=timeout, connectTimeoutMS=timeout, retryReads=True)
         db = client[db_name]
         doc = db.project_assets.find_one(
             {"project_id": project_id, "filename": filename},
@@ -98,7 +102,9 @@ def restore_project_assets_sync(mongo_url: str, db_name: str, project_id: str, a
     """Restore all assets for a project from MongoDB to the local filesystem.
     Returns the number of files restored."""
     try:
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+        timeout = 30000 if is_atlas else 10000
+        client = MongoClient(mongo_url, serverSelectionTimeoutMS=timeout, connectTimeoutMS=timeout, retryReads=True)
         db = client[db_name]
         docs = list(db.project_assets.find(
             {"project_id": project_id},

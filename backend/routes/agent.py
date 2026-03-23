@@ -432,7 +432,7 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
         try:
             from services.ai_agent import generate_storyboard
             from motor.motor_asyncio import AsyncIOMotorClient
-            _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"))
+            _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
             _db = _client[os.environ.get("DB_NAME")]
 
             async def _progress(batch_num, total, message):
@@ -464,7 +464,7 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
                 error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
             try:
                 from motor.motor_asyncio import AsyncIOMotorClient
-                _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"))
+                _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
                 _db = _client[os.environ.get("DB_NAME")]
                 loop.run_until_complete(
                     _db.agent_sessions.update_one(
@@ -1119,7 +1119,7 @@ async def agent_generate_course(session_id: str):
             from services.ai_agent import generate_course_from_storyboard
             from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
 
-            _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+            _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
             _db = _client[os.environ.get("DB_NAME")]
 
             _s = loop.run_until_complete(_db.agent_sessions.find_one({"id": session_id}, {"_id": 0}))
@@ -1386,7 +1386,7 @@ async def _generate_improvement_suggestions(session_id: str, project_id: str):
     """Background task: analyze the course creation process and generate improvement suggestions."""
     try:
         from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
-        _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
         _db = _client[os.environ.get("DB_NAME")]
 
         session = await _db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
@@ -1763,7 +1763,7 @@ async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
         from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
 
         # Create own DB connection for this thread's event loop
-        _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+        _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
         _db = _client[os.environ.get("DB_NAME")]
 
         el_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)

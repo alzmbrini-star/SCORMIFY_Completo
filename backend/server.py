@@ -31,14 +31,19 @@ db_name = os.environ.get('DB_NAME', 'scormify')
 if not mongo_url:
     mongo_url = "mongodb://localhost:27017"
 
+# Use longer timeouts for Atlas (remote) connections
+is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
 client = AsyncIOMotorClient(
     mongo_url,
-    serverSelectionTimeoutMS=10000,
-    connectTimeoutMS=10000,
-    socketTimeoutMS=30000,
+    serverSelectionTimeoutMS=30000 if is_atlas else 10000,
+    connectTimeoutMS=30000 if is_atlas else 10000,
+    socketTimeoutMS=60000 if is_atlas else 30000,
+    maxPoolSize=20,
+    retryWrites=True,
+    retryReads=True,
 )
 db = client[db_name]
-logger.info(f"MongoDB client initialized for database: {db_name}")
+logger.info(f"MongoDB client initialized for database: {db_name} (atlas={is_atlas})")
 
 # GridFS bucket for persistent export storage
 exports_bucket = None
@@ -166,6 +171,8 @@ async def _run_migrate_urls():
                 for element in slide.get('elements', []):
                     if element.get('type') == 'html' and element.get('htmlContent'):
                         html = element['htmlContent']
+                        if not isinstance(html, str):
+                            continue
                         new_html = re.sub(r'https?://[^/\s"\']+/api/assets/', '/api/assets/', html)
                         new_html = re.sub(r'https?://[^/\s"\']+/api/projects/', '/api/projects/', new_html)
                         if new_html != html:
@@ -246,19 +253,34 @@ async def startup_persist_local_assets():
             from services.asset_store import store_asset_sync
             from pymongo import MongoClient
 
-            _client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000, connectTimeoutMS=10000)
+            _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+            _timeout = 30000 if _is_atlas else 10000
+            _client = MongoClient(
+                mongo_url,
+                serverSelectionTimeoutMS=_timeout,
+                connectTimeoutMS=_timeout,
+                socketTimeoutMS=60000 if _is_atlas else 30000,
+                retryWrites=True,
+                retryReads=True,
+            )
             _db = _client[db_name]
 
             total = 0
+
+            # Get all existing asset keys in one batch query (much faster on Atlas)
+            existing_assets = set()
+            try:
+                for doc in _db.project_assets.find({}, {"_id": 0, "project_id": 1, "filename": 1}):
+                    existing_assets.add(f"{doc['project_id']}/{doc['filename']}")
+            except Exception as e:
+                logger.warning(f"Failed to load existing asset index (non-fatal): {e}")
 
             bg_temp_dir = PROJECTS_DIR / "bg_temp"
             if bg_temp_dir.exists() and bg_temp_dir.is_dir():
                 for asset in bg_temp_dir.iterdir():
                     if asset.is_file() and asset.suffix.lower() in ('.png', '.jpg', '.jpeg', '.gif', '.webp'):
-                        existing = _db.project_assets.find_one(
-                            {"project_id": "bg_temp", "filename": asset.name}, {"_id": 1}
-                        )
-                        if not existing:
+                        key = f"bg_temp/{asset.name}"
+                        if key not in existing_assets:
                             store_asset_sync(mongo_url, db_name, "bg_temp", asset.name, str(asset))
                             total += 1
 
@@ -274,22 +296,28 @@ async def startup_persist_local_assets():
                         '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg',
                         '.webm', '.mp4', '.gif', '.webp', '.svg'
                     ):
-                        existing = _db.project_assets.find_one(
-                            {"project_id": project_id, "filename": asset.name}, {"_id": 1}
-                        )
-                        if not existing:
+                        key = f"{project_id}/{asset.name}"
+                        if key not in existing_assets:
                             store_asset_sync(mongo_url, db_name, project_id, asset.name, str(asset))
                             total += 1
 
+            # Audio migration - batch check
             audio_dir = STORAGE_DIR / "audio"
             audio_migrated = 0
             if audio_dir.exists():
+                existing_audio = set()
+                try:
+                    for doc in _db.tts_generations.find(
+                        {"audio_data": {"$exists": True}},
+                        {"_id": 0, "filename": 1}
+                    ):
+                        existing_audio.add(doc.get('filename', ''))
+                except Exception:
+                    pass
+                
                 for audio_file in audio_dir.iterdir():
                     if audio_file.is_file() and audio_file.suffix.lower() in ('.mp3', '.wav', '.ogg'):
-                        existing = _db.tts_generations.find_one(
-                            {"filename": audio_file.name, "audio_data": {"$exists": True}}, {"_id": 1}
-                        )
-                        if not existing:
+                        if audio_file.name not in existing_audio:
                             with open(audio_file, 'rb') as f:
                                 audio_data = f.read()
                             _db.tts_generations.update_one(

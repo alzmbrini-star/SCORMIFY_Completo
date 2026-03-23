@@ -506,7 +506,7 @@ async def _auto_save_gallery(image_url: str, keywords: str, project_id: str):
         _db_name = os.environ.get('DB_NAME', '')
         if not _mongo_url or not _db_name:
             return
-        _client = AsyncIOMotorClient(_mongo_url)
+        _client = AsyncIOMotorClient(_mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
         _db = _client[_db_name]
         existing = await _db.image_gallery.find_one({"imageUrl": image_url})
         if not existing:
@@ -1268,7 +1268,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         # Update progress via MongoDB
         try:
             from motor.motor_asyncio import AsyncIOMotorClient as _ProgressClient
-            _pclient = _ProgressClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=5000)
+            _pclient = _ProgressClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
             _pdb = _pclient[os.environ.get("DB_NAME")]
         except Exception:
             _pdb = None
@@ -1382,7 +1382,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 # Use sync pymongo to avoid event loop conflicts
                 from pymongo import MongoClient
                 from routes.deps import mongo_url, db_name
-                sync_client = MongoClient(mongo_url)
+                sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
                 sync_db = sync_client[db_name]
                 sync_db.scenarios.insert_one(scenario_doc)
                 sync_client.close()

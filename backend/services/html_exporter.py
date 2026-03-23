@@ -120,7 +120,7 @@ async def process_html_content_images(
                     mongo_url = os.environ.get('MONGO_URL', '')
                     db_name = os.environ.get('DB_NAME', '')
                     if mongo_url and db_name:
-                        _client = SyncMongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+                        _client = SyncMongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
                         _db = _client[db_name]
                         doc = _db.project_assets.find_one(
                             {"project_id": "global", "filename": asset_filename},

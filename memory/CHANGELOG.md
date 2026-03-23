@@ -1,26 +1,43 @@
-# Scormfy - Changelog
+# Changelog
 
-## 2026-03-05
+## 2026-03-23 (Current Session)
 
-### Backend Refactoring (Major)
-- `server.py` reduced from 5740 → 318 lines (95% reduction)
-- Created 14 modular route files in `routes/` directory
-- Testing agent validated 23/23 endpoints + all frontend pages
+### Bug Fix: SCORM Completion Not Triggering
+- **Root Cause**: `scenario-controller.js` and `quiz-controller.js` called `Player.onScenarioComplete()` but the object is named `CoursePlayer`
+- **Fix**: Changed all references from `Player` to `CoursePlayer`
+- **Additional**: Removed `visitedLastSlide` requirement - course marks complete as soon as all interactive elements are done
+- **Additional**: SCORM API now sends both "completed" AND "passed" for max LMS compatibility
+- **Additional**: Added `finalCompletionCheck` on `beforeunload` as safety net
+- **Additional**: Scenario score now sent to SCORM via `ScormAPI.setScore()`
+- **Status**: Tested with LMS simulator - WORKING ✅
 
-### Smart Edit Mode
-- Detects which slides were modified when editing media of existing project
-- Cost estimate reflects only changed slides (not entire course)
-- Backend `apply-media-changes` endpoint accepts `changedSlides` parameter
-- Only applies changes to specified slide indices
+### Bug Fix: HTML Export Scenarios Not Opening
+- **Root Cause**: Scenario data stored in `data-scenario` HTML attribute. Portuguese text with single quotes broke the attribute parsing, silently failing `JSON.parse`
+- **Fix**: Replaced with `window.__scenarioDataMap` JavaScript object - no HTML attribute escaping needed
+- **Additional**: HTML ScenarioController scoring updated from points to ideal decisions
+- **Additional**: VLibras now gracefully skipped on `file://` protocol
+- **Additional**: AI Tutor skipped on `file://` protocol  
+- **Status**: Tested - WORKING ✅
 
-### Global Background Control
-- New "Fundo Global" section with "Todos os Slides" badge
-- Applies same background (solid, gradient, image, AI image) to all slides at once
-- Placed above per-slide list for easy access
+### Fix: Course Generation Timeout (23 slides with images)
+- **Root Cause**: AI images generated sequentially (one by one). 23 images × ~10s = ~4 minutes just for images
+- **Fix**: Parallel generation with `asyncio.gather` + `asyncio.Semaphore(5)` - max 5 concurrent
+- **Additional**: Frontend polling timeout increased from 10 min to 30 min
+- **Additional**: Progress messages show "Gerando imagens IA: 3/23..." 
+- **Additional**: Early project save (status "generating") preserves images on failure
+- **Status**: Code fix deployed, needs user testing
 
-### Bug Fixes
-- MongoDB supervisor config restored (was removed in previous session)
-- "Aplicar Alterações" button: Fixed narrationVoiceId restoration from session  
-- Editor slide thumbnails: Fixed background image rendering + HTML font-size
-- Added `useMemo` import for changed slide calculation
-- Added `StreamingResponse`, `Request`, `BackgroundTasks` imports to route modules
+### Fix: Production Deployment Failures (MongoDB Atlas Timeouts)
+- **Root Cause**: All MongoDB client instances used 10s timeout, insufficient for Atlas latency
+- **Fix**: Dynamic timeout detection (`is_atlas` flag), increased to 30s server/connect, 60s socket
+- **Additional**: Asset persistence uses batch query instead of individual `find_one` per asset
+- **Additional**: Added `retryWrites=True, retryReads=True` for Atlas resilience
+- **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
+- **Status**: Backend starts cleanly ✅
+
+## Previous Session (Completed)
+- Gamification system (badges, feedback)
+- AI Agent scenario creation fix (type: "scenario" instead of text)
+- Asyncio event loop fix for scenario data saving
+- Configurable Backend URL for exported packages
+- Multiple frontend bug fixes
