@@ -111,6 +111,33 @@ async def get_project(project_id: str):
     project = await get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Sanitize any non-string htmlContent (from previous AI bugs)
+    needs_fix = False
+    for slide in project.get("course", {}).get("slides", []):
+        for el in slide.get("elements", []):
+            hc = el.get("htmlContent")
+            if hc is not None and not isinstance(hc, str):
+                import json as _json
+                if isinstance(hc, dict):
+                    parts = []
+                    for k, v in hc.items():
+                        if isinstance(v, str):
+                            parts.append(f"<p><strong>{k}</strong>: {v}</p>")
+                        elif isinstance(v, list):
+                            for item in v:
+                                if isinstance(item, dict):
+                                    label = item.get("label", item.get("title", ""))
+                                    desc = item.get("description", item.get("text", ""))
+                                    parts.append(f"<p><strong>{label}</strong>: {desc}</p>")
+                    el["htmlContent"] = "\n".join(parts) if parts else ""
+                else:
+                    el["htmlContent"] = str(hc) if hc else ""
+                needs_fix = True
+
+    if needs_fix:
+        await update_project(project_id, {"course": project["course"]})
+
     return project
 
 @router.put("/projects/{project_id}", response_model=dict)

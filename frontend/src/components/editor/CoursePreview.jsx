@@ -72,7 +72,7 @@ const ensureEmbedAutoplay = (url) => {
 
 // Helper to process HTML content and fix image URLs
 const processHtmlContent = (htmlContent, projectId) => {
-  if (!htmlContent) return '<p>HTML</p>';
+  if (!htmlContent || typeof htmlContent !== 'string') return '<p>HTML</p>';
   
   // Fix image src URLs
   let processed = htmlContent;

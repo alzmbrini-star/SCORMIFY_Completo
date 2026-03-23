@@ -40,7 +40,7 @@ const getAssetUrl = (src, projectId) => {
 };
 
 const processHtmlContent = (htmlContent, projectId) => {
-  if (!htmlContent) return '<p>HTML</p>';
+  if (!htmlContent || typeof htmlContent !== 'string') return '<p>HTML</p>';
   let processed = htmlContent;
   processed = processed.replace(/src="(https?:\/\/[^"]+\/api\/assets\/[^"]+)"/g, (match, url) => {
     const m = url.match(/https?:\/\/[^/]+\/api\/assets\/(.+)/);

@@ -1954,7 +1954,19 @@ def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
     new_html_elements = []
     current_y = 80
     for elem in ai_elements:
+        if not isinstance(elem, dict):
+            continue
         elem_height = elem.get("height", 400)
+        # Ensure content is always a string - AI may return objects
+        raw_content = elem.get("content", "")
+        if isinstance(raw_content, dict):
+            # If AI returned structured content, try to extract text or stringify
+            raw_content = raw_content.get("html", "") or raw_content.get("text", "") or json.dumps(raw_content, ensure_ascii=False)
+        elif isinstance(raw_content, list):
+            raw_content = " ".join(str(c) for c in raw_content)
+        elif not isinstance(raw_content, str):
+            raw_content = str(raw_content) if raw_content else ""
+
         el = {
             "id": generate_id_fn(),
             "type": "html",
@@ -1963,7 +1975,7 @@ def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
             "width": elem.get("width", 1760),
             "height": elem_height,
             "content": "",
-            "htmlContent": elem.get("content", ""),
+            "htmlContent": raw_content,
             "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
             "startTime": 0,
             "animations": [],
@@ -1977,17 +1989,23 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
     """Apply AI improvement result to slides in-place. Returns count of new slides added."""
     import copy
     for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
         idx = upd.get("slideIndex")
         if idx is not None and 0 <= idx < len(slides):
-            if upd.get("title"):
-                slides[idx]["title"] = upd["title"]
-            if upd.get("notes"):
-                slides[idx]["notes"] = upd["notes"]
-            if upd.get("narrationScript"):
-                slides[idx]["librasScript"] = upd["narrationScript"]
-            if upd.get("librasScript"):
-                slides[idx]["librasScript"] = upd["librasScript"]
-            if upd.get("elements"):
+            title = upd.get("title")
+            if title and isinstance(title, str):
+                slides[idx]["title"] = title
+            notes = upd.get("notes")
+            if notes and isinstance(notes, str):
+                slides[idx]["notes"] = notes
+            narration = upd.get("narrationScript")
+            if narration and isinstance(narration, str):
+                slides[idx]["librasScript"] = narration
+            libras = upd.get("librasScript")
+            if libras and isinstance(libras, str):
+                slides[idx]["librasScript"] = libras
+            if upd.get("elements") and isinstance(upd["elements"], list):
                 existing_elements = slides[idx].get("elements", [])
                 preserved = [e for e in existing_elements if e.get("type") not in ("html", "text")]
                 header = [e for e in existing_elements if e.get("type") == "html" and e.get("y", 0) == 0 and e.get("height", 0) <= 60]
@@ -1996,12 +2014,17 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
 
     new_slides_added = 0
     for ns in sorted(result.get("newSlides", []), key=lambda x: x.get("afterIndex", 999), reverse=True):
+        if not isinstance(ns, dict):
+            continue
         after_idx = ns.get("afterIndex", len(slides) - 1)
         insert_at = min(after_idx + 1, len(slides))
-        new_elements = _build_improved_elements(ns.get("elements", []), generate_id_fn)
+        new_elements = _build_improved_elements(ns.get("elements", []) if isinstance(ns.get("elements"), list) else [], generate_id_fn)
+        ns_title = ns.get("title", "Novo Slide")
+        if not isinstance(ns_title, str):
+            ns_title = str(ns_title)
         new_slide = {
             "id": generate_id_fn(),
-            "title": ns.get("title", "Novo Slide"),
+            "title": ns_title,
             "order": insert_at,
             "width": 1920,
             "height": 820,
