@@ -35,6 +35,12 @@
 - **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
 - **Status**: Backend starts cleanly ✅
 
+### Bug Fix: [object Object] in Slides After AI Improvements (2026-03-23)
+- **Root Cause**: AI sometimes returns `content` as dict/object instead of HTML string. Saved directly to `htmlContent`, rendered as `[object Object]` in frontend.
+- **Fix (Backend)**: `_build_improved_elements` now type-checks and converts dict/list/None content to string. `_apply_ai_result_to_slides` validates all fields. `GET /api/projects/{id}` auto-sanitizes corrupt data.
+- **Fix (Frontend)**: `resolveHtmlContentUrls`, `processHtmlContent` in SlideCanvas, CoursePreview, SplitPreview return empty string for non-string content.
+- **Status**: Tested with 22 tests - ALL PASSED ✅
+
 ### Feature: Before/After Preview + Undo for AI Improvements (2026-03-23)
 - **Preview**: New `/preview-improvements` endpoint calls AI and returns before/after comparison WITHOUT saving changes
 - **Cached AI Result**: Preview caches AI response; apply uses cache via `previewId` (no duplicate AI call)
