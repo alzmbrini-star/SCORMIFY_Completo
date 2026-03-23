@@ -485,13 +485,15 @@ export default function Agent() {
 
       // Poll for completion
       const pollStatus = async () => {
-        for (let i = 0; i < 120; i++) { // max 10 min (120 * 5s)
+        let lastProgressMsg = '';
+        for (let i = 0; i < 360; i++) { // max 30 min (360 * 5s)
           await new Promise(r => setTimeout(r, 5000));
           try {
             const statusRes = await fetch(`${API}/api/agent/sessions/${sessionId}/course-status`);
             const statusData = await statusRes.json();
-            if (statusData.message) {
-              addChatMsg('agent', `Progresso: ${statusData.message}`);
+            if (statusData.message && statusData.message !== lastProgressMsg) {
+              lastProgressMsg = statusData.message;
+              addChatMsg('agent', `${statusData.message}`);
             }
             if (statusData.status === 'done') {
               setGeneratedProject(statusData);

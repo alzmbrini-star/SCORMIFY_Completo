@@ -1228,6 +1228,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
 
     # Pre-generate media for content slides based on media_config
     slide_media = {}  # i -> {"type": "image"/"video"/"none", "url": "...", "video_info": {...}}
+    
+    # Collect AI image tasks for parallel generation
+    ai_image_tasks = []
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
         if stype != "content":
@@ -1238,9 +1241,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         if media_type == "ai_image":
             kw = sb_slide.get("imageKeywords", sb_slide.get("title", "education"))
             if project_dir and project_id:
-                img_url = await _fetch_stock_image(kw, project_dir, project_id)
-                if img_url:
-                    slide_media[i] = {"type": "image", "url": img_url}
+                ai_image_tasks.append((i, kw))
         elif media_type == "gallery_image":
             gallery_url = mc.get("galleryImageUrl", "")
             if gallery_url:
@@ -1251,7 +1252,6 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             if video_info:
                 slide_media[i] = {"type": "video", "video_info": video_info}
         elif media_type == "heygen":
-            # HeyGen with avatar/voice config - will trigger video generation
             slide_media[i] = {
                 "type": "heygen",
                 "avatar_id": mc.get("avatar_id", ""),
@@ -1259,6 +1259,50 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             }
         elif media_type == "none":
             slide_media[i] = {"type": "none"}
+
+    # Generate AI images in parallel batches (max 5 concurrent)
+    if ai_image_tasks:
+        total_images = len(ai_image_tasks)
+        logger.info(f"Generating {total_images} AI images in parallel batches...")
+        
+        # Update progress via MongoDB
+        try:
+            from motor.motor_asyncio import AsyncIOMotorClient as _ProgressClient
+            _pclient = _ProgressClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=5000)
+            _pdb = _pclient[os.environ.get("DB_NAME")]
+        except Exception:
+            _pdb = None
+        
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent image generations
+        completed_count = 0
+        
+        async def _generate_one_image(slide_idx, keyword):
+            nonlocal completed_count
+            async with semaphore:
+                try:
+                    img_url = await _fetch_stock_image(keyword, project_dir, project_id)
+                    completed_count += 1
+                    if img_url:
+                        slide_media[slide_idx] = {"type": "image", "url": img_url}
+                        logger.info(f"Image {completed_count}/{total_images} generated for slide {slide_idx}")
+                    # Update progress
+                    if _pdb:
+                        try:
+                            await _pdb.agent_sessions.update_one(
+                                {"id": session_id},
+                                {"$set": {
+                                    "courseProgress": {"message": f"Gerando imagens IA: {completed_count}/{total_images}..."},
+                                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                                }}
+                            )
+                        except Exception:
+                            pass
+                except Exception as e:
+                    completed_count += 1
+                    logger.warning(f"Image generation failed for slide {slide_idx}: {str(e)[:80]}")
+        
+        # Run all image tasks concurrently (semaphore limits concurrency to 5)
+        await asyncio.gather(*[_generate_one_image(idx, kw) for idx, kw in ai_image_tasks])
 
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")

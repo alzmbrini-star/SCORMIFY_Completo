@@ -1114,6 +1114,7 @@ async def agent_generate_course(session_id: str):
         import asyncio as _asyncio
         loop = _asyncio.new_event_loop()
         _asyncio.set_event_loop(loop)
+        project = None
         try:
             from services.ai_agent import generate_course_from_storyboard
             from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
@@ -1136,10 +1137,27 @@ async def agent_generate_course(session_id: str):
             project_dir = PROJECTS_DIR / project.id
             (project_dir / "assets").mkdir(parents=True, exist_ok=True)
 
+            # Save project early with "generating" status so images aren't lost on failure
+            project.course.metadata.title = title
+            project.course.metadata.description = desc
+            project_dict = project.model_dump()
+            project_dict["createdAt"] = project.createdAt.isoformat()
+            project_dict["updatedAt"] = project.updatedAt.isoformat()
+            project_dict["course"]["createdAt"] = project.course.createdAt.isoformat()
+            project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
+            project_dict["course"]["slides"] = []
+            project_dict["createdByAgent"] = True
+            project_dict["agentSessionId"] = session_id
+            project_dict["status"] = "generating"
+            project_dict["userId"] = _s.get("userId")
+            project_dict["companyId"] = _s.get("companyId")
+            loop.run_until_complete(_db.projects.insert_one(project_dict))
+            logger.info(f"Early project save: {project.id} (status=generating)")
+
             # Update progress
             loop.run_until_complete(_db.agent_sessions.update_one(
                 {"id": session_id},
-                {"$set": {"courseProgress": {"message": "Gerando slides com IA..."}, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                {"$set": {"courseProgress": {"message": "Gerando slides com IA..."}, "projectId": project.id, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             ))
 
             course_data = loop.run_until_complete(generate_course_from_storyboard(
@@ -1155,27 +1173,19 @@ async def agent_generate_course(session_id: str):
                 {"$set": {"courseProgress": {"message": "Salvando projeto..."}, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             ))
 
-            project.course.metadata.title = title
-            project.course.metadata.description = desc
-            project.course.slides = []
-            project_dict = project.model_dump()
-            project_dict["createdAt"] = project.createdAt.isoformat()
-            project_dict["updatedAt"] = project.updatedAt.isoformat()
-            project_dict["course"]["createdAt"] = project.course.createdAt.isoformat()
-            project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
-            project_dict["course"]["slides"] = course_data["slides"]
-            project_dict["createdByAgent"] = True
-            project_dict["agentSessionId"] = session_id
-            
-            # Add userId and companyId from session (for reporting)
-            project_dict["userId"] = _s.get("userId")
-            project_dict["companyId"] = _s.get("companyId")
-
             heygen_pending = course_data.get("heygenPending", [])
-            if heygen_pending:
-                project_dict["heygenPending"] = heygen_pending
-
-            loop.run_until_complete(_db.projects.insert_one(project_dict))
+            
+            # Update project with final course data (project was already created early)
+            loop.run_until_complete(_db.projects.update_one(
+                {"id": project.id},
+                {"$set": {
+                    "course.slides": course_data["slides"],
+                    "course.updatedAt": datetime.now(timezone.utc).isoformat(),
+                    "status": "draft",
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                    "heygenPending": heygen_pending if heygen_pending else []
+                }}
+            ))
 
             # Save quiz questions
             for q in course_data.get("quizQuestions", []):
@@ -1330,6 +1340,13 @@ async def agent_generate_course(session_id: str):
                     {"id": session_id},
                     {"$set": {"step": "media_configured", "error": error_detail, "courseProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
                 ))
+                # Mark early-saved project as failed (but keep images)
+                if project:
+                    loop.run_until_complete(_d2.projects.update_one(
+                        {"id": project.id},
+                        {"$set": {"status": "error", "error": error_detail, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                    ))
+                    logger.info(f"Project {project.id} marked as error - images preserved")
                 _c2.close()
             except Exception:
                 pass
