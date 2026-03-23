@@ -2063,17 +2063,33 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         if idx is not None and 0 <= idx < len(original_slides):
             affected_indices.add(idx)
 
+    def _strip_html(html_str: str) -> str:
+        """Strip HTML tags and return plain text."""
+        if not html_str:
+            return ""
+        clean = re.sub(r'<[^>]+>', ' ', html_str)
+        clean = re.sub(r'&nbsp;', ' ', clean)
+        clean = re.sub(r'&amp;', '&', clean)
+        clean = re.sub(r'&lt;', '<', clean)
+        clean = re.sub(r'&gt;', '>', clean)
+        clean = re.sub(r'&#\d+;', '', clean)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        return clean
+
+    def _extract_text(slide):
+        texts = []
+        for el in slide.get("elements", []):
+            if el.get("type") not in ("html", "text"):
+                continue
+            c = el.get("htmlContent") or el.get("content") or ""
+            if c and isinstance(c, str):
+                plain = _strip_html(c)
+                if plain:
+                    texts.append(plain)
+        return texts
+
     comparisons = []
     for idx in sorted(affected_indices):
-        # Extract text content for comparison
-        def _extract_text(slide):
-            texts = []
-            for el in slide.get("elements", []):
-                c = el.get("htmlContent") or el.get("content") or ""
-                if c and isinstance(c, str):
-                    texts.append(c)
-            return texts
-
         comparisons.append({
             "slideIndex": idx,
             "title": {
@@ -2090,7 +2106,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         new_slide_previews.append({
             "afterIndex": ns.get("afterIndex", 0),
             "title": ns.get("title", "Novo Slide"),
-            "content": [e.get("content", "") for e in ns.get("elements", [])],
+            "content": [_strip_html(e.get("content", "")) for e in ns.get("elements", [])],
         })
 
     # Cache the AI result for later apply

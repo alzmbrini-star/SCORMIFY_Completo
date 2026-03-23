@@ -217,6 +217,14 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
 
   if (!preview) return null;
 
+  // Strip HTML tags and decode entities for readable text
+  const stripHtml = (html) => {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  };
+
   return (
     <div className="space-y-4" data-testid="preview-panel">
       <div className="flex items-center justify-between">
@@ -244,49 +252,57 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
         </TabsList>
 
         <TabsContent value="changes" className="space-y-4 mt-4">
-          {preview.comparisons?.map((comp, i) => (
-            <Card key={i} className="bg-slate-900/50 border-slate-800 overflow-hidden" data-testid={`preview-comparison-${i}`}>
-              <CardHeader className="py-2 px-4 bg-slate-800/50">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-blue-400" />
-                  Slide {comp.slideIndex + 1}
-                  {comp.title.before !== comp.title.after && (
-                    <Badge className="bg-amber-600/20 text-amber-300 text-[10px]">Título alterado</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="grid grid-cols-2 divide-x divide-slate-700">
-                  {/* Before */}
-                  <div className="p-3">
-                    <div className="flex items-center gap-1 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-red-500" />
-                      <span className="text-[10px] font-medium text-red-400 uppercase tracking-wider">Antes</span>
+          {preview.comparisons?.map((comp, i) => {
+            const beforeText = (comp.contentBefore || []).map(c => stripHtml(c)).join('\n\n');
+            const afterText = (comp.contentAfter || []).map(c => stripHtml(c)).join('\n\n');
+            const titleChanged = comp.title.before !== comp.title.after;
+
+            return (
+              <Card key={i} className="bg-slate-900/50 border-slate-800 overflow-hidden" data-testid={`preview-comparison-${i}`}>
+                <CardHeader className="py-2 px-4 bg-slate-800/50">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-blue-400" />
+                    Slide {comp.slideIndex + 1}
+                    {titleChanged && (
+                      <Badge className="bg-amber-600/20 text-amber-300 text-[10px]">Título alterado</Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="grid grid-cols-2 divide-x divide-slate-700">
+                    {/* Before */}
+                    <div className="p-3">
+                      <div className="flex items-center gap-1 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                        <span className="text-[10px] font-medium text-red-400 uppercase tracking-wider">Antes</span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-200 mb-2">{comp.title.before}</p>
+                      <div className="bg-slate-800 rounded-lg p-3 max-h-52 overflow-y-auto">
+                        <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                          {beforeText.substring(0, 500) || <span className="text-slate-500 italic">Sem conteúdo de texto</span>}
+                          {beforeText.length > 500 && '...'}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs font-medium text-slate-300 mb-1">{comp.title.before}</p>
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
-                      {comp.contentBefore?.map((c, j) => (
-                        <div key={j} className="text-[11px] text-slate-400 bg-slate-800/50 rounded p-2 break-words" dangerouslySetInnerHTML={{ __html: c.substring(0, 300) + (c.length > 300 ? '...' : '') }} />
-                      ))}
+                    {/* After */}
+                    <div className="p-3">
+                      <div className="flex items-center gap-1 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider">Depois</span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-200 mb-2">{comp.title.after}</p>
+                      <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-52 overflow-y-auto">
+                        <p className="text-xs text-emerald-200 whitespace-pre-line leading-relaxed">
+                          {afterText.substring(0, 500) || <span className="text-slate-500 italic">Sem conteúdo de texto</span>}
+                          {afterText.length > 500 && '...'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  {/* After */}
-                  <div className="p-3">
-                    <div className="flex items-center gap-1 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider">Depois</span>
-                    </div>
-                    <p className="text-xs font-medium text-slate-300 mb-1">{comp.title.after}</p>
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
-                      {comp.contentAfter?.map((c, j) => (
-                        <div key={j} className="text-[11px] text-slate-400 bg-emerald-900/20 rounded p-2 break-words" dangerouslySetInnerHTML={{ __html: c.substring(0, 300) + (c.length > 300 ? '...' : '') }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
           {preview.comparisons?.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-4">Nenhum slide existente será alterado.</p>
           )}
@@ -294,24 +310,28 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
 
         {preview.newCount > 0 && (
           <TabsContent value="new" className="space-y-3 mt-4">
-            {preview.newSlides?.map((ns, i) => (
-              <Card key={i} className="bg-slate-900/50 border-slate-800" data-testid={`preview-new-slide-${i}`}>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge className="bg-emerald-600/20 text-emerald-300 text-[10px]">
-                      <Plus className="w-2 h-2 mr-1" /> Novo
-                    </Badge>
-                    <span className="text-xs text-slate-500">Após slide {ns.afterIndex + 1}</span>
-                  </div>
-                  <p className="text-sm font-medium text-slate-200">{ns.title}</p>
-                  <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                    {ns.content?.map((c, j) => (
-                      <div key={j} className="text-[11px] text-slate-400 bg-emerald-900/20 rounded p-2 break-words" dangerouslySetInnerHTML={{ __html: c.substring(0, 200) + (c.length > 200 ? '...' : '') }} />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {preview.newSlides?.map((ns, i) => {
+              const newText = (ns.content || []).map(c => stripHtml(c)).join('\n\n');
+              return (
+                <Card key={i} className="bg-slate-900/50 border-slate-800" data-testid={`preview-new-slide-${i}`}>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-emerald-600/20 text-emerald-300 text-[10px]">
+                        <Plus className="w-2 h-2 mr-1" /> Novo
+                      </Badge>
+                      <span className="text-xs text-slate-500">Após slide {ns.afterIndex + 1}</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-200 mb-2">{ns.title}</p>
+                    <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                      <p className="text-xs text-emerald-200 whitespace-pre-line leading-relaxed">
+                        {newText.substring(0, 300) || <span className="text-slate-500 italic">Sem conteúdo de texto</span>}
+                        {newText.length > 300 && '...'}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </TabsContent>
         )}
       </Tabs>
