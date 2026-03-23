@@ -33,7 +33,7 @@ import ConfigPanel from './Agent/components/ConfigPanel';
 import StoryboardPanel from './Agent/components/StoryboardPanel';
 import MediaConfigPanel from './Agent/components/MediaConfigPanel';
 import GeneratedPanel from './Agent/components/GeneratedPanel';
-import { CourseReviewPanel, EditResultPanel } from './Agent/components/CoursePanels';
+import { CourseReviewPanel, EditResultPanel, PreviewPanel } from './Agent/components/CoursePanels';
 
 
 // ===== CREATE MODE STEPS =====
@@ -51,7 +51,8 @@ const CREATE_STEPS = [
 const EDIT_STEPS = [
   { id: 'select', label: 'Selecionar', icon: BookOpen },
   { id: 'review', label: 'Análise', icon: Brain },
-  { id: 'apply', label: 'Aplicar', icon: Check },
+  { id: 'preview', label: 'Preview', icon: Eye },
+  { id: 'apply', label: 'Resultado', icon: Check },
 ];
 
 const TEMPLATE_ICONS = {
@@ -115,6 +116,7 @@ export default function Agent() {
   const [courseAnalysis, setCourseAnalysis] = useState(null);
   const [selectedImprovements, setSelectedImprovements] = useState([]);
   const [editResult, setEditResult] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
 
   // Chat
   const [chatMessages, setChatMessages] = useState([
@@ -575,20 +577,66 @@ export default function Agent() {
   const handleApplyImprovements = async () => {
     if (selectedImprovements.length === 0) { toast.error('Selecione pelo menos uma melhoria'); return; }
     setLoading(true);
-    addChatMsg('agent', `Aplicando ${selectedImprovements.length} melhorias ao curso...`);
+    addChatMsg('agent', `Gerando preview de ${selectedImprovements.length} melhorias...`);
     try {
-      const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/apply-improvements`, {
+      const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/preview-improvements`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ improvements: selectedImprovements }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setEditResult(data);
+      setPreviewData(data);
       setCurrentStep(2);
+      addChatMsg('agent', `Preview pronto! ${data.updatedCount} slides alterados, ${data.newCount} novos slides. Revise as mudanças antes de confirmar.`);
+    } catch { toast.error('Erro ao gerar preview'); addChatMsg('agent', 'Erro ao gerar preview das melhorias.'); }
+    finally { setLoading(false); }
+  };
+
+  const handleConfirmImprovements = async () => {
+    if (!previewData?.previewId) return;
+    setLoading(true);
+    addChatMsg('agent', 'Aplicando melhorias ao curso...');
+    try {
+      const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/apply-improvements`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ improvements: selectedImprovements, previewId: previewData.previewId }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setEditResult(data);
+      setCurrentStep(3);
       addChatMsg('agent', `Melhorias aplicadas! ${data.updatedSlides} slides atualizados, ${data.newSlides} novos slides. Total: ${data.totalSlides} slides.`);
       toast.success('Melhorias aplicadas com sucesso!');
     } catch { toast.error('Erro ao aplicar melhorias'); addChatMsg('agent', 'Erro ao aplicar as melhorias.'); }
     finally { setLoading(false); }
+  };
+
+  const handleUndoImprovements = async () => {
+    if (!selectedCourse?.id) return;
+    setLoading(true);
+    addChatMsg('agent', 'Desfazendo melhorias...');
+    try {
+      const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/undo-improvements`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setEditResult(null);
+      setPreviewData(null);
+      setCourseAnalysis(null);
+      setSelectedImprovements([]);
+      setCurrentStep(0);
+      addChatMsg('agent', `Melhorias desfeitas! O curso voltou ao estado original com ${data.totalSlides} slides.`);
+      toast.success('Melhorias desfeitas com sucesso!');
+      loadAgentCourses();
+    } catch { toast.error('Erro ao desfazer melhorias'); addChatMsg('agent', 'Erro ao desfazer as melhorias.'); }
+    finally { setLoading(false); }
+  };
+
+  const handleCancelPreview = () => {
+    setPreviewData(null);
+    setCurrentStep(1);
+    addChatMsg('agent', 'Preview cancelado. Você pode ajustar as melhorias selecionadas e tentar novamente.');
   };
 
   // Chat with agent
@@ -709,7 +757,8 @@ export default function Agent() {
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
               {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} onApply={handleApplyImprovements} />}
-              {mode === 'edit' && currentStep === 2 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} />}
+              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} />}
+              {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>
           </ScrollArea>
         </div>

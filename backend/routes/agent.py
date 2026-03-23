@@ -1946,36 +1946,36 @@ async def agent_list_courses():
 
 class AgentImprovementsApply(BaseModel):
     improvements: list
+    previewId: Optional[str] = None
 
 
-@router.post("/agent/courses/{project_id}/analyze")
-async def agent_analyze_course(project_id: str):
-    """Analyze an existing agent-created course and suggest improvements."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
+def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
+    """Build properly positioned HTML elements from AI response."""
+    new_html_elements = []
+    current_y = 80
+    for elem in ai_elements:
+        elem_height = elem.get("height", 400)
+        el = {
+            "id": generate_id_fn(),
+            "type": "html",
+            "x": 80,
+            "y": current_y,
+            "width": elem.get("width", 1760),
+            "height": elem_height,
+            "content": "",
+            "htmlContent": elem.get("content", ""),
+            "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
+            "startTime": 0,
+            "animations": [],
+        }
+        new_html_elements.append(el)
+        current_y += elem_height + 20
+    return new_html_elements
 
-    session_id = project.get("agentSessionId") or str(uuid.uuid4())
-    from services.ai_agent import analyze_existing_course
-    analysis = await analyze_existing_course(session_id, project)
-    return analysis
 
-
-@router.post("/agent/courses/{project_id}/apply-improvements")
-async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply):
-    """Apply selected improvements to an existing course."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    session_id = project.get("agentSessionId") or str(uuid.uuid4())
-    from services.ai_agent import apply_course_improvements
-    from models import generate_id
-    result = await apply_course_improvements(session_id, project, data.improvements)
-
-    slides = project.get("course", {}).get("slides", [])
-
-    # Apply updated slides
+def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> int:
+    """Apply AI improvement result to slides in-place. Returns count of new slides added."""
+    import copy
     for upd in result.get("updatedSlides", []):
         idx = upd.get("slideIndex")
         if idx is not None and 0 <= idx < len(slides):
@@ -1987,62 +1987,20 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
                 slides[idx]["librasScript"] = upd["narrationScript"]
             if upd.get("librasScript"):
                 slides[idx]["librasScript"] = upd["librasScript"]
-            # Rebuild only html/text elements, preserve non-text elements (images, scenarios, quizzes)
             if upd.get("elements"):
                 existing_elements = slides[idx].get("elements", [])
-                # Keep non-html elements (images, scenarios, quizzes, videos, etc.)
                 preserved = [e for e in existing_elements if e.get("type") not in ("html", "text")]
-                # Find the header element (y=0 bar) to preserve it
                 header = [e for e in existing_elements if e.get("type") == "html" and e.get("y", 0) == 0 and e.get("height", 0) <= 60]
+                new_html = _build_improved_elements(upd["elements"], generate_id_fn)
+                slides[idx]["elements"] = header + new_html + preserved
 
-                new_html_elements = []
-                current_y = 80  # Start below header bar
-                for elem in upd["elements"]:
-                    elem_height = elem.get("height", 400)
-                    el = {
-                        "id": generate_id(),
-                        "type": "html",
-                        "x": 80,
-                        "y": current_y,
-                        "width": elem.get("width", 1760),
-                        "height": elem_height,
-                        "content": "",
-                        "htmlContent": elem.get("content", ""),
-                        "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
-                        "startTime": 0,
-                        "animations": [],
-                    }
-                    new_html_elements.append(el)
-                    current_y += elem_height + 20  # 20px gap between elements
-
-                slides[idx]["elements"] = header + new_html_elements + preserved
-
-    # Insert new slides
     new_slides_added = 0
     for ns in sorted(result.get("newSlides", []), key=lambda x: x.get("afterIndex", 999), reverse=True):
         after_idx = ns.get("afterIndex", len(slides) - 1)
         insert_at = min(after_idx + 1, len(slides))
-        new_elements = []
-        current_y = 80
-        for elem in ns.get("elements", []):
-            elem_height = elem.get("height", 400)
-            el = {
-                "id": generate_id(),
-                "type": "html",
-                "x": 80,
-                "y": current_y,
-                "width": elem.get("width", 1760),
-                "height": elem_height,
-                "content": "",
-                "htmlContent": elem.get("content", ""),
-                "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
-                "startTime": 0,
-                "animations": [],
-            }
-            new_elements.append(el)
-            current_y += elem_height + 20
+        new_elements = _build_improved_elements(ns.get("elements", []), generate_id_fn)
         new_slide = {
-            "id": generate_id(),
+            "id": generate_id_fn(),
             "title": ns.get("title", "Novo Slide"),
             "order": insert_at,
             "width": 1920,
@@ -2059,9 +2017,137 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         slides.insert(insert_at, new_slide)
         new_slides_added += 1
 
-    # Re-order
     for i, s in enumerate(slides):
         s["order"] = i
+
+    return new_slides_added
+
+
+@router.post("/agent/courses/{project_id}/analyze")
+async def agent_analyze_course(project_id: str):
+    """Analyze an existing agent-created course and suggest improvements."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    session_id = project.get("agentSessionId") or str(uuid.uuid4())
+    from services.ai_agent import analyze_existing_course
+    analysis = await analyze_existing_course(session_id, project)
+    return analysis
+
+
+@router.post("/agent/courses/{project_id}/preview-improvements")
+async def agent_preview_improvements(project_id: str, data: AgentImprovementsApply):
+    """Preview improvements without saving. Returns before/after slide data."""
+    import copy
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    session_id = project.get("agentSessionId") or str(uuid.uuid4())
+    from services.ai_agent import apply_course_improvements
+    from models import generate_id
+
+    result = await apply_course_improvements(session_id, project, data.improvements)
+
+    original_slides = project.get("course", {}).get("slides", [])
+
+    # Build preview of "after" slides without modifying originals
+    after_slides = copy.deepcopy(original_slides)
+    _apply_ai_result_to_slides(after_slides, result, generate_id)
+
+    # Build before/after comparison for affected slides only
+    affected_indices = set()
+    for upd in result.get("updatedSlides", []):
+        idx = upd.get("slideIndex")
+        if idx is not None and 0 <= idx < len(original_slides):
+            affected_indices.add(idx)
+
+    comparisons = []
+    for idx in sorted(affected_indices):
+        # Extract text content for comparison
+        def _extract_text(slide):
+            texts = []
+            for el in slide.get("elements", []):
+                c = el.get("htmlContent") or el.get("content") or ""
+                if c and isinstance(c, str):
+                    texts.append(c)
+            return texts
+
+        comparisons.append({
+            "slideIndex": idx,
+            "title": {
+                "before": original_slides[idx].get("title", ""),
+                "after": after_slides[idx].get("title", ""),
+            },
+            "contentBefore": _extract_text(original_slides[idx]),
+            "contentAfter": _extract_text(after_slides[idx]),
+        })
+
+    # New slides preview
+    new_slide_previews = []
+    for ns in result.get("newSlides", []):
+        new_slide_previews.append({
+            "afterIndex": ns.get("afterIndex", 0),
+            "title": ns.get("title", "Novo Slide"),
+            "content": [e.get("content", "") for e in ns.get("elements", [])],
+        })
+
+    # Cache the AI result for later apply
+    preview_id = str(uuid.uuid4())
+    await db.improvement_previews.insert_one({
+        "id": preview_id,
+        "projectId": project_id,
+        "aiResult": result,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        "previewId": preview_id,
+        "comparisons": comparisons,
+        "newSlides": new_slide_previews,
+        "updatedCount": len(comparisons),
+        "newCount": len(new_slide_previews),
+    }
+
+
+@router.post("/agent/courses/{project_id}/apply-improvements")
+async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply):
+    """Apply selected improvements to an existing course. Uses cached preview if previewId provided."""
+    import copy
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    from models import generate_id
+
+    # Save snapshot for undo
+    original_course = copy.deepcopy(project.get("course", {}))
+    await db.course_snapshots.update_one(
+        {"projectId": project_id},
+        {"$set": {
+            "projectId": project_id,
+            "course": original_course,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    # Use cached AI result if preview was done, otherwise call AI fresh
+    if data.previewId:
+        preview = await db.improvement_previews.find_one({"id": data.previewId, "projectId": project_id}, {"_id": 0})
+        if preview:
+            result = preview["aiResult"]
+            await db.improvement_previews.delete_one({"id": data.previewId})
+        else:
+            raise HTTPException(400, "Preview expired or not found. Please preview again.")
+    else:
+        session_id = project.get("agentSessionId") or str(uuid.uuid4())
+        from services.ai_agent import apply_course_improvements
+        result = await apply_course_improvements(session_id, project, data.improvements)
+
+    slides = project.get("course", {}).get("slides", [])
+    new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
 
     # Save
     course = project.get("course", {})
@@ -2072,6 +2158,25 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         "status": "ok",
         "updatedSlides": len(result.get("updatedSlides", [])),
         "newSlides": new_slides_added,
+        "totalSlides": len(slides),
+        "canUndo": True,
+    }
+
+
+@router.post("/agent/courses/{project_id}/undo-improvements")
+async def agent_undo_improvements(project_id: str):
+    """Undo the last applied improvements by restoring the saved snapshot."""
+    snapshot = await db.course_snapshots.find_one({"projectId": project_id}, {"_id": 0})
+    if not snapshot:
+        raise HTTPException(404, "Nenhum snapshot encontrado para desfazer.")
+
+    await update_project(project_id, {"course": snapshot["course"]})
+    await db.course_snapshots.delete_one({"projectId": project_id})
+
+    slides = snapshot["course"].get("slides", [])
+    return {
+        "status": "ok",
+        "message": "Melhorias desfeitas com sucesso.",
         "totalSlides": len(slides),
     }
 

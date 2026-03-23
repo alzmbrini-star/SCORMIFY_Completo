@@ -1,0 +1,92 @@
+{
+  "summary": "Tested Before/After Preview and Undo for AI-suggested improvements feature. All 13 backend tests passed. Frontend UI verified: 4 steps in edit mode header (Selecionar, Análise, Preview, Resultado), PreviewPanel with before/after comparison, EditResultPanel with Undo button, cancel preview returns to analysis step, undo restores course and returns to course selection.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_preview_undo_improvements.xml",
+    "/app/backend/tests/test_preview_undo_improvements.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: preview-improvements endpoint correctly generates before/after comparison data with previewId",
+    "GOOD: apply-improvements accepts previewId to use cached AI result, avoiding duplicate AI calls",
+    "GOOD: Course snapshot saved before applying improvements for undo functionality",
+    "GOOD: undo-improvements correctly restores course from snapshot and deletes snapshot after use",
+    "GOOD: PreviewPanel component shows clear before/after comparison with ANTES/DEPOIS labels",
+    "GOOD: EditResultPanel shows canUndo=true and displays Undo button when snapshot exists",
+    "GOOD: Cancel preview returns to analysis step (step 1) as expected",
+    "GOOD: EDIT_STEPS updated to 4 steps: Selecionar, Análise, Preview, Resultado"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_preview_undo_improvements.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (All UI flows verified)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "Used existing agent-created courses for testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The Before/After Preview and Undo feature is fully implemented and working. Key endpoints: POST /api/agent/courses/{id}/preview-improvements (returns previewId, comparisons, updatedCount, newCount), POST /api/agent/courses/{id}/apply-improvements (accepts previewId, creates snapshot for undo), POST /api/agent/courses/{id}/undo-improvements (restores from snapshot). Frontend: EDIT_STEPS has 4 steps, PreviewPanel shows before/after, EditResultPanel has Undo button. MongoDB collections: improvement_previews (caches AI results), course_snapshots (stores original course for undo).",
+  "features_tested": {
+    "backend_preview_improvements": {
+      "POST /api/agent/courses/{id}/preview-improvements": "PASS - Returns previewId, comparisons, updatedCount, newCount",
+      "response_structure": "PASS - Contains slideIndex, title.before, title.after, contentBefore, contentAfter",
+      "ai_result_caching": "PASS - Stores AI result in improvement_previews collection"
+    },
+    "backend_apply_improvements": {
+      "POST /api/agent/courses/{id}/apply-improvements": "PASS - Accepts previewId parameter",
+      "snapshot_creation": "PASS - Creates course snapshot in course_snapshots collection",
+      "cached_result_usage": "PASS - Uses cached AI result when previewId provided",
+      "canUndo_response": "PASS - Returns canUndo=true after applying"
+    },
+    "backend_undo_improvements": {
+      "POST /api/agent/courses/{id}/undo-improvements": "PASS - Restores course from snapshot",
+      "snapshot_deletion": "PASS - Deletes snapshot after undo",
+      "no_snapshot_error": "PASS - Returns 404 when no snapshot exists"
+    },
+    "frontend_edit_mode_steps": {
+      "4_steps_in_header": "PASS - Selecionar, Análise, Preview, Resultado visible",
+      "step_navigation": "PASS - Steps highlight correctly as user progresses"
+    },
+    "frontend_preview_panel": {
+      "before_after_comparison": "PASS - Shows ANTES/DEPOIS labels with content",
+      "confirm_button": "PASS - data-testid='confirm-improvements-btn' present",
+      "cancel_button": "PASS - data-testid='cancel-preview-btn' present",
+      "cancel_returns_to_analysis": "PASS - Returns to step 1 (Análise)"
+    },
+    "frontend_result_panel": {
+      "undo_button": "PASS - data-testid='undo-improvements-btn' present",
+      "undo_restores_course": "PASS - Returns to course selection with success message"
+    },
+    "full_flow": {
+      "select_course": "PASS",
+      "analyze_course": "PASS",
+      "select_improvements": "PASS",
+      "preview_improvements": "PASS",
+      "confirm_apply": "PASS",
+      "undo_improvements": "PASS"
+    }
+  },
+  "api_endpoints_verified": [
+    "GET /api/agent/courses - Lists agent-created courses",
+    "POST /api/agent/courses/{id}/analyze - Analyzes course and returns improvements",
+    "POST /api/agent/courses/{id}/preview-improvements - NEW: Generates before/after preview",
+    "POST /api/agent/courses/{id}/apply-improvements - MODIFIED: Accepts previewId, creates snapshot",
+    "POST /api/agent/courses/{id}/undo-improvements - NEW: Restores course from snapshot",
+    "GET /api/agent/check-access - Returns agent access status",
+    "GET /api/agent/templates - Returns course templates",
+    "GET /api/agent/design-templates - Returns design templates"
+  ]
+}
