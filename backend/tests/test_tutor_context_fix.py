@@ -20,7 +20,7 @@ import zipfile
 import tempfile
 import re
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scenario-authoring.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gamification-hub-9.preview.emergentagent.com')
 TEST_PROJECT_ID = 'cb4e0112-3e45-44fe-ab29-304b0ef8f0a0'  # Universidade-Corporativa-Didaxis
 
 

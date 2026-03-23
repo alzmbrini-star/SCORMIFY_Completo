@@ -1,59 +1,73 @@
 <analysis>**original_problem_statement:**
-The user's primary goal is to build a full-featured AI course authoring platform. The initial major feature was the Intelligent Active Learning Scenario Creator, a tool for generating decision-based simulation scenarios.
+The user's primary goal is to build a full-featured AI course authoring platform. The initial major feature was the Intelligent Active Learning Scenario Creator.
 
-Following the implementation of this feature, the user has made several requests for bug fixes and enhancements, including:
-- Fixing dynamic scoring calculation in scenarios.
-- Resolving server timeouts during AI generation.
-- Fixing state loss issues in production environments.
-- Correcting a critical bug where uploaded background images would disappear.
-- The most recent request is to empower the AI Agent (a chatbot assistant within the app) to be able to add these interactive scenarios to a course structure.
+Following this, the user has requested numerous features and bug fixes:
+- Empowering the AI Agent to add interactive scenarios to a course structure.
+- Fixing a bug where the AI Agent created static text slides instead of interactive scenarios.
+- Fixing a critical bug where scenarios would appear as blank slides due to an  event loop conflict during course generation.
+- Resolving course generation timeouts (which was determined to be a long-running process, not a bug).
+- Fixing multiple frontend bugs, including , , and .
+- Investigating and resolving production errors (520 Gateway Error, login failures), which were found to be temporary or cache-related.
+- Implementing a robust fix for incorrect API URLs in exported SCORM/HTML packages by adding a configurable URL in the Admin panel.
+- Implementing a comprehensive, user-configurable gamification system for individual learners, including badges and feedback for quizzes and scenarios.
+- Fixing a complex scenario scoring bug where users did not receive a 100% score for making all optimal choices. The logic was refactored to be based on the percentage of ideal decisions made.
+- The most recent request was to fix an issue where exported SCORM courses were marked as incomplete in an LMS, even after the user had viewed all slides and completed all interactive elements.
 
 **User's preferred language**: Português
 
 **what currently exists?**
-The Intelligent Active Learning Scenario Creator feature is largely complete and integrated.
--   **Backend**: A robust, asynchronous, polling-based API for AI scenario generation using Gemini is live. The system was refactored to use a MongoDB collection () for the task queue, making it scalable and stable in multi-worker production environments. All necessary Pydantic models, database services, and CRUD endpoints for scenarios, nodes, and choices are implemented.
--   **Frontend**: A  modal allows users to specify parameters, and an interactive  component renders the simulation inside slides. This is fully integrated into the course editor and preview panes.
--   **Enhancements & Fixes**:
-    -   **Dynamic Scoring**: The scoring mechanism was fixed to dynamically calculate a user's score based on their choices versus the maximum possible points, providing clear and accurate feedback.
-    -   **Font Size Control**: Users can now adjust the font size for scenario text via the properties panel.
-    -   **Background Image Persistence**: A critical bug was fixed where uploaded background images were not being saved. The backend logic was patched in both the AI course generation and media editing flows to correctly handle base64 image data and persist it to MongoDB, ensuring images don't break after deployment.
+The application is a full-stack AI course authoring platform with a React frontend, FastAPI backend, and MongoDB database.
+- **Core Features**: Intelligent Active Learning Scenario Creator and an AI Agent for course creation and modification are fully implemented.
+- **Gamification System**: A complete, user-configurable gamification system is live. Users can create custom badges and feedback messages from the Editor, which are then awarded to learners within the exported SCORM/HTML packages.
+- **Bug Fixes**: Numerous critical bugs have been resolved in this session:
+    - The AI Agent now correctly creates  slides instead of text-based case studies.
+    - A critical  event loop conflict was fixed, ensuring scenarios are correctly saved and rendered.
+    - Scenario scoring is now based on the percentage of ideal decisions taken, providing fair and intuitive results.
+    - The Tutor API URL in exported packages is now configurable, resolving 404 errors in production environments.
+- **SCORM Completion**: The logic for SCORM completion has been significantly refactored. It now correctly tracks the completion of all individual quizzes and scenarios and waits for all of them to be finished before sending a complete status to the LMS.
 
 **Last working item**:
--   Last item agent was working: The agent was implementing the user's request to integrate the Scenario Creator with the AI Agent. The goal is to allow the AI Agent to add scenario slides to a course when prompted by the user in the chat interface. The agent has already implemented most of the backend logic, including updating AI prompts and adding a new API endpoint (), and has started updating the frontend  component.
--   Status: **IN PROGRESS**
--   Agent Testing Done: N (The agent attempted to test the new endpoint via , but the test failed due to an invalid/expired session ID, not a code error.)
--   Which testing method agent to use? **both**
-    -   First, use  to test the  endpoint with a valid project ID and session token to confirm the backend logic.
-    -   Then, perform an end-to-end test from the UI by chatting with the AI agent and asking it to add a scenario, verifying the slide is created correctly.
+-   Last item agent was working: Fixing a bug where an exported SCORM course remained incomplete even after the user finished all activities and viewed all slides. The agent found that the completion check was too strict, requiring the user to be on the very last slide *at the moment* all activities were completed.
+-   Status: **USER VERIFICATION PENDING**
+-   Agent Testing Done: N
+-   Which testing method agent to use? The agent cannot test this directly. The user needs to be instructed to **export a course to SCORM, upload it to their LMS, and verify that the completion status is correctly reported as complete** after finishing all activities and viewing all slides.
 -   User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   There are no pending bugs. The current focus is on completing the in-progress task.
+-   There are no other pending issues. The sole focus is on verifying the latest SCORM completion fix.
 
 **In progress Task List**:
--   **Task 1: Complete AI Agent + Scenario Creator Integration (P0)**
-    -   **Where to resume**: The  test for the new  endpoint failed due to an invalid session. The immediate next step is to obtain a valid  and  token and re-run the  test to validate the backend endpoint. Once the backend is confirmed, proceed to test the full end-to-end flow from the frontend agent chat.
-    -   **What will be achieved with this?**: The AI Agent will be capable of creating and adding interactive scenario slides to a course, fulfilling the user's latest feature request.
-    -   **Status**: **IN PROGRESS**
-    -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on something**: No
+-   None.
 
 **Upcoming and Future Tasks**
--   **Upcoming Tasks:**
-    -   **(P1) Clarify Next Priority**: The user inquired about the Collaborative Scenarios task and the agent explained its high complexity. The user seemed open to replacing it. The next agent must ask the user what they would like to prioritize instead.
-    -   **(P1) Implement SCORM 2004 & xAPI Export**: This is a standing high-priority request to improve export compatibility.
--   **Future Tasks:**
-    -   **(P2) Advanced Scenario Analytics & Gamification**: Implement the analytics dashboard and gamification features (scoring, badges) as originally specified in the PRD.
-    -   **(P2) Collaborative Scenarios**: This is on hold pending user feedback on whether to keep or replace it.
+- **Upcoming Tasks:**
+  - **(P0) Implement SCORM 2004 & xAPI Export**: This is the next highest-priority feature requested by the user, needed to send detailed performance data (like scenario scores) to the LMS.
+- **Future Tasks:**
+  - **(P1)** Advanced scenario analytics & scoring dashboard.
+  - **(P2)** Allow users to upload custom images for gamification badges.
+  - **(On Hold)** Collaborative Scenarios.
 
 **Completed work in this session**
--   **Feature: Intelligent Active Learning Scenario Creator (Phases 1-4)**: Implemented the full backend (async API, Gemini integration, DB models) and frontend (Creator/Player components) for the scenario feature. Also added basic support to HTML/SCORM exporters.
--   **Enhancement: Scenario Font Size Control**: Added UI controls and updated components to allow users to adjust scenario text size.
--   **Bug Fix: Incorrect Scenario Scoring**: Replaced a static, AI-generated score with a dynamic score calculated based on the user's actual performance, including detailed feedback on optimal choices and points.
--   **Bug Fix: AI Generation Timeout (502 Gateway Error)**: Re-architected the synchronous AI generation endpoint to use an asynchronous polling pattern, preventing proxy timeouts.
--   **Bug Fix: Async Generation State Loss in Production (404 Error)**: Migrated the async task queue from an in-memory dictionary to a persistent MongoDB collection, ensuring state is shared across all server workers.
--   **Bug Fix: Uploaded Background Images Not Persisting**: Fixed a critical bug by updating  and  to handle base64 , save it to persistent storage (MongoDB), and update the slide's  with the permanent URL.
+- **Feature: Gamification System**:
+    - Implemented backend models (, ), API routes (), and a frontend configuration panel () in the Editor.
+    - Integrated gamification logic into SCORM/HTML exports, including a new  asset.
+- **Bug Fix: SCORM Completion Logic (Multiple Iterations)**:
+    - Refactored  to track all interactive elements (quizzes, scenarios) and only send  after all are finished.
+    - Introduced a  flag to ensure completion is registered correctly even if the user isn't on the last slide when they finish the final activity.
+- **Bug Fix: Scenario Scoring Logic (Multiple Iterations)**:
+    - Reworked the scoring algorithm in  and  to be based on the percentage of **ideal decisions** made, not on an arbitrary point system.
+- **Bug Fix: AI Agent Not Creating Interactive Scenarios**:
+    - Corrected the AI prompt in  to enforce the use of  for interactive simulations.
+- **Bug Fix: Blank Scenarios (Asyncio different loop error)**:
+    - Fixed a critical bug in  by using a synchronous  client to save scenario data, resolving an event loop conflict.
+- **Enhancement/Fix: Incorrect Exported API URL**:
+    - Added a configurable Backend URL field in the Admin UI () and updated the export logic (, ) to use this URL, fixing 404 errors for the AI Tutor in production.
+- **Bug Fix: **:
+    - Fixed a component import error in .
+- **Bug Fix: **:
+    - Added type checking to  in  and .
+- **Bug Fix: **:
+    - Added a type check in  to handle non-string content during course analysis.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: HeyGen Video Generation Fails**
@@ -67,46 +81,42 @@ The Intelligent Active Learning Scenario Creator feature is largely complete and
 
 
 **Key Technical Concepts**
--   **Async API with Polling**: Used to manage long-running AI generation tasks, preventing HTTP timeouts by returning a task ID immediately and allowing the client to poll for the result.
--   **Persistent State Management**: Shifted the async task queue from an in-memory Python dictionary to a MongoDB collection to ensure state is shared and durable across a multi-worker production environment.
--   **Base64 Image Persistence**: Implemented a flow to decode base64 image strings from the frontend, save them as files in persistent storage (MongoDB), and replace the temporary data URL with a permanent asset URL.
--   **AI-Driven Content Architecture**: Engineered prompts for Gemini to generate complex, structured JSON representing a decision tree, which is then parsed and stored in the database.
+-   **Robust SCORM Completion**: The completion logic was refactored to be event-driven. A central tracking system in  listens for completion events from quizzes and scenarios, and only marks the course 'complete' when all required activities and the final slide visit are registered.
+-   **User-Configurable Gamification**: A full CRUD system was implemented to allow users to define badges and feedback rules per-project. This configuration is saved in MongoDB and injected into the exported  as a JSON object for the  controller to use.
+-   **Intuitive Scenario Scoring**: The scoring was decoupled from an arbitrary point system. It now tracks the number of ideal decisions made versus the total number of decisions taken, resulting in a more understandable percentage score.
+-   **Defensive Async Programming**: A critical  error was solved by switching from an async  call to a synchronous  call for a specific database write within a long-running async function, isolating the problematic operation.
 
 **key DB schema**
--   **generation_tasks**:  - Stores the state of asynchronous AI generation jobs.
--   **scenarios**:  - The main document for a learning scenario.
--   **(embedded) nodes**:  - Represents a step or narrative point in the scenario.
--   **(embedded) choices**:  - Represents a decision a user can make.
+-   **gamification_configs**: 
 
 **All files of reference**
--   : Defines the asynchronous API for scenario generation.
--   : Contains the core logic for prompting Gemini and parsing the resulting decision tree.
--   : The frontend form for creating a new scenario.
--   : The React component that renders the interactive simulation.
--   : Contains the fix for persisting uploaded background images ().
--   : Contains the new endpoint being worked on ().
--   : The chat interface where the new scenario integration is being added.
+-   : Contains the core logic for SCORM completion tracking.
+-   : Contains the corrected scenario scoring logic based on ideal decisions.
+-   : The frontend component with the corrected scoring logic.
+-   : The new API for managing gamification configurations.
+-   : The new UI for configuring gamification.
+-   : Contains fixes for AI prompts and the critical asyncio bug.
 
 **Critical Info for New Agent**
--   Your immediate priority is to **complete the AI Agent + Scenario integration**. Start by getting a valid session and testing the  endpoint with . Then, validate the full flow from the frontend chat UI.
--   After completing the current task, you **must ask the user for their next priority**. They seemed open to replacing the complex Collaborative Scenarios task with something more immediately useful.
--   The architectural patterns for handling long-running tasks (async polling with a MongoDB queue) and asset persistence (saving all user-uploaded/AI-generated files to MongoDB) are now standard for this project. Adhere to them for all future development.
+-   **Your immediate priority is to guide the user to verify the latest SCORM completion fix.** They must export a course with quizzes/scenarios, upload it to their LMS, and confirm it's marked complete after they finish everything.
+-   The **next major task** after verification is **implementing SCORM 2004 & xAPI export**.
+-   The gamification system is a major new feature. Be aware of its components (, , ) if any related bugs or enhancements are requested.
+-   The scenario scoring logic is now based on **ideal decisions**, not points. This is a fundamental change to how scenarios are evaluated.
 
 **documents and test reports created in this job**
--    (Updated with scenario feature details)
--    (Successful test report for the main scenario feature)
+-    (Updated with gamification feature details)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Asks what the Collaborative Scenarios backlog item is. (Status: **Answered**)
-2.  **User**: Reports a bug where uploaded background images are not being saved and appear broken. (Status: **Resolved**)
-3.  **Agent**: Acknowledges the background image bug and begins investigation. (Status: **Completed**)
-4.  **Agent**: Implements the fix for background image persistence in both the media editor and initial AI generation flows. (Status: **Completed**)
-5.  **Agent**: Confirms the fix is ready. (Status: **Completed**)
-6.  **User**: Requests a new feature: enable the AI Agent to create and add scenario slides. (Status: **In Progress**)
-7.  **Agent**: Asks clarifying questions to confirm the implementation details for the new request. (Status: **Completed**)
-8.  **User**: Provides answers (c, c, b) to the agent's questions. (Status: **Clarification Provided**)
-9.  **Agent**: Acknowledges and begins implementing the AI Agent + Scenario integration. (Status: **In Progress**)
-10. **Agent**: Implements backend/frontend changes, fixes resulting lint errors, and attempts to test the new endpoint, which fails due to an invalid session. (Status: **In Progress**)
+1.  **User**: Reports that the SCORM course is  even after finishing everything. (Status: **In Progress**)
+2.  **Agent**: Acknowledges and begins investigating the SCORM completion logic in . (Status: **Completed**)
+3.  **Agent**: Identifies the bug and implements a fix using a  flag. (Status: **Completed**)
+4.  **Agent**: Confirms the fix is ready for user verification. (Status: **USER VERIFICATION PENDING**)
+5.  **User**: Reports that even with 5/5 ideal decisions, the scenario score is not 100%. (Status: **Resolved**)
+6.  **Agent**: Identifies that scoring is based on points, not ideal choice count, and fixes the logic to be based on ideal decisions. (Status: **Completed**)
+7.  **User**: Asks for clarification on the proposed gamification feature, especially the leaderboard. (Status: **Answered**)
+8.  **Agent**: Clarifies that a leaderboard is not feasible for exported courses and confirms the scope of individual gamification. (Status: **Completed**)
+9.  **User**: Approves the plan for individual gamification (badges, custom feedback). (Status: **Clarification Provided**)
+10. **Agent**: Implements the entire gamification feature. (Status: **Completed**)
 
 **Project Health Check:**
 -   **Broken**:
@@ -114,21 +124,21 @@ The Intelligent Active Learning Scenario Creator feature is largely complete and
 -   **Mocked**: None.
 
 **3rd Party Integrations**
--   **Google Gemini**: Actively used via Emergent LLM Key for the Scenario Creator feature.
--   **OpenAI GPT-4o**: Available via Emergent LLM Key.
+-   **Google Gemini**: Used for AI scenario and course generation (via Emergent LLM Key).
+-   **OpenAI GPT-4o**: Available (via Emergent LLM Key).
 -   **HeyGen**: Avatar video generation. **Currently blocked due to insufficient user API credits.**
 -   **ElevenLabs**: Audio narration (Requires User API Key).
 -   **ConvertAPI**: PPT to image conversion (Requires User API Key).
 -   **VLibras**: Brazilian Sign Language accessibility widget.
 
 **Testing status**
--   Testing agent used after significant changes: YES (Used successfully to validate the main scenario creator feature).
+-   Testing agent used after significant changes: NO
 -   Troubleshoot agent used after agent stuck in loop: NO
--   Test files created: None in this session.
+-   Test files created: None.
 -   Known regressions: None.
 
 **Credentials to test flow:**
 -   Super Admin:  / 
 
 **What agent forgot to execute**
--   The agent did not forget any tasks. The current task is in progress and was paused by a test that failed due to an environmental issue (invalid session), which needs to be re-run correctly.</analysis>
+-   The agent did not forget to execute any requested tasks. The last task was completed, and it is now pending user verification, which is the correct next step.</analysis>

@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://scenario-authoring.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://gamification-hub-9.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 

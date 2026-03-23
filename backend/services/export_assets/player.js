@@ -249,6 +249,7 @@ var CoursePlayer = (function() {
     var completedScenarios = {};
     var totalQuizzes = 0;
     var totalScenarios = 0;
+    var visitedLastSlide = false; // Track if user has reached the last slide
     
     // Slide timeline progress
     var slideProgressTimer = null;
@@ -1035,6 +1036,7 @@ var CoursePlayer = (function() {
         // 2. All quizzes are completed (if any) AND  
         // 3. All scenarios are completed (if any)
         if (index === totalSlides - 1) {
+            visitedLastSlide = true;
             checkAndSetCompletion();
         }
     }
@@ -1052,21 +1054,25 @@ var CoursePlayer = (function() {
             scenariosComplete: scenariosComplete,
             completedScenarios: Object.keys(completedScenarios).length,
             totalScenarios: totalScenarios,
-            onLastSlide: currentSlide === totalSlides - 1
+            visitedLastSlide: visitedLastSlide
         });
         
         if (!hasInteractiveElements) {
             // No interactive elements: mark complete when last slide is reached
-            if (currentSlide === totalSlides - 1) {
+            if (visitedLastSlide) {
                 ScormAPI.setComplete();
                 console.log('[Player] No interactive elements - marked complete on last slide');
             }
-        } else if (quizzesComplete && scenariosComplete && currentSlide === totalSlides - 1) {
-            // All interactive elements done AND on last slide
+        } else if (quizzesComplete && scenariosComplete && visitedLastSlide) {
+            // All interactive elements done AND visited last slide
             ScormAPI.setComplete();
             console.log('[Player] All quizzes and scenarios complete - course marked complete');
         } else {
-            console.log('[Player] Completion deferred - waiting for interactive elements');
+            console.log('[Player] Completion deferred - waiting for:', {
+                needQuizzes: !quizzesComplete && totalQuizzes > 0,
+                needScenarios: !scenariosComplete && totalScenarios > 0,
+                needLastSlide: !visitedLastSlide
+            });
         }
     }
     
