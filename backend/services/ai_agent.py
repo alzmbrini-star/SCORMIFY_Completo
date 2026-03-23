@@ -1696,6 +1696,9 @@ SLIDES ATUAIS: {json.dumps(slides_content, ensure_ascii=False)[:4000]}
 MELHORIAS SELECIONADAS:
 {improvements_desc}
 
+IMPORTANTE: Cada slide deve ter UM ÚNICO elemento com todo o conteúdo HTML combinado. NÃO divida o conteúdo em múltiplos elementos.
+O slide tem dimensões 1920x820. O elemento principal deve usar width 1760 e height 700 para ocupar bem o espaço.
+
 Retorne JSON com os slides a atualizar:
 ```json
 {{
@@ -1703,7 +1706,7 @@ Retorne JSON com os slides a atualizar:
     {{
       "slideIndex": 0,
       "title": "Novo título se mudou",
-      "elements": [{{"type":"text","content":"<h2>Novo conteúdo</h2><p>Texto melhorado</p>","position":"center","width":800,"height":400}}],
+      "elements": [{{"type":"text","content":"<h2>Título</h2><p>Todo o conteúdo melhorado em um único bloco HTML</p>","width":1760,"height":700}}],
       "narrationScript": "Nova narração",
       "librasScript": "Novo script LIBRAS",
       "notes": "Notas atualizadas"
@@ -1715,7 +1718,7 @@ Retorne JSON com os slides a atualizar:
       "title": "Novo slide",
       "type": "content",
       "background": "#FFFFFF",
-      "elements": [{{"type":"text","content":"<h2>T</h2><p>conteúdo</p>","position":"center","width":800,"height":400}}],
+      "elements": [{{"type":"text","content":"<h2>Título</h2><p>Conteúdo completo em um bloco</p>","width":1760,"height":700}}],
       "narrationScript": "",
       "librasScript": "",
       "quizQuestions": []

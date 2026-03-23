@@ -1987,25 +1987,35 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
                 slides[idx]["librasScript"] = upd["narrationScript"]
             if upd.get("librasScript"):
                 slides[idx]["librasScript"] = upd["librasScript"]
-            # Rebuild elements
+            # Rebuild only html/text elements, preserve non-text elements (images, scenarios, quizzes)
             if upd.get("elements"):
-                new_elements = []
+                existing_elements = slides[idx].get("elements", [])
+                # Keep non-html elements (images, scenarios, quizzes, videos, etc.)
+                preserved = [e for e in existing_elements if e.get("type") not in ("html", "text")]
+                # Find the header element (y=0 bar) to preserve it
+                header = [e for e in existing_elements if e.get("type") == "html" and e.get("y", 0) == 0 and e.get("height", 0) <= 60]
+
+                new_html_elements = []
+                current_y = 80  # Start below header bar
                 for elem in upd["elements"]:
+                    elem_height = elem.get("height", 400)
                     el = {
                         "id": generate_id(),
                         "type": "html",
-                        "x": 560 if elem.get("position") == "center" else 100,
-                        "y": 40,
-                        "width": elem.get("width", 800),
-                        "height": elem.get("height", 400),
+                        "x": 80,
+                        "y": current_y,
+                        "width": elem.get("width", 1760),
+                        "height": elem_height,
                         "content": "",
                         "htmlContent": elem.get("content", ""),
                         "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
                         "startTime": 0,
                         "animations": [],
                     }
-                    new_elements.append(el)
-                slides[idx]["elements"] = new_elements
+                    new_html_elements.append(el)
+                    current_y += elem_height + 20  # 20px gap between elements
+
+                slides[idx]["elements"] = header + new_html_elements + preserved
 
     # Insert new slides
     new_slides_added = 0
@@ -2013,14 +2023,16 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         after_idx = ns.get("afterIndex", len(slides) - 1)
         insert_at = min(after_idx + 1, len(slides))
         new_elements = []
+        current_y = 80
         for elem in ns.get("elements", []):
+            elem_height = elem.get("height", 400)
             el = {
                 "id": generate_id(),
                 "type": "html",
-                "x": 560 if elem.get("position") == "center" else 100,
-                "y": 40,
-                "width": elem.get("width", 800),
-                "height": elem.get("height", 400),
+                "x": 80,
+                "y": current_y,
+                "width": elem.get("width", 1760),
+                "height": elem_height,
                 "content": "",
                 "htmlContent": elem.get("content", ""),
                 "style": {"fontSize": 18, "fontFamily": "Inter, sans-serif", "fontColor": "#333333"},
@@ -2028,6 +2040,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
                 "animations": [],
             }
             new_elements.append(el)
+            current_y += elem_height + 20
         new_slide = {
             "id": generate_id(),
             "title": ns.get("title", "Novo Slide"),
