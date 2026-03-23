@@ -19,7 +19,6 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
   const [history, setHistory] = useState([]);
   const [selectedChoice, setSelectedChoice] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [totalPoints, setTotalPoints] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [finalNode, setFinalNode] = useState(null);
 
@@ -29,9 +28,6 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     return map;
   }, [scenarioData]);
 
-  // Track max points for visited nodes only
-  const [maxPointsVisited, setMaxPointsVisited] = useState(0);
-
   const [optimalCount, setOptimalCount] = useState(0);
   const [totalDecisions, setTotalDecisions] = useState(0);
 
@@ -40,14 +36,9 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
   const handleChoiceSelect = useCallback((choice) => {
     setSelectedChoice(choice);
     setShowFeedback(true);
-    setTotalPoints(prev => prev + (choice.points || 0));
     setTotalDecisions(prev => prev + 1);
     if (choice.is_optimal) setOptimalCount(prev => prev + 1);
-    
-    // Calculate max points for this node (best choice available)
-    const bestPointsForNode = Math.max(...(currentNode?.choices || []).map(c => c.points || 0));
-    setMaxPointsVisited(prev => prev + bestPointsForNode);
-  }, [currentNode]);
+  }, []);
 
   const handleProceed = useCallback(() => {
     if (!selectedChoice) return;
@@ -80,8 +71,6 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
     setHistory([]);
     setSelectedChoice(null);
     setShowFeedback(false);
-    setTotalPoints(0);
-    setMaxPointsVisited(0);
     setOptimalCount(0);
     setTotalDecisions(0);
     setCompleted(false);
@@ -98,8 +87,10 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
 
   // Ending screen
   if (completed && finalNode) {
-    // Calculate score based on visited nodes only
-    const calculatedScore = Math.round((totalPoints / (maxPointsVisited || 1)) * 100);
+    // Calculate score based on optimal decisions (5/5 ideal = 100%)
+    const calculatedScore = totalDecisions > 0 
+      ? Math.round((optimalCount / totalDecisions) * 100)
+      : 0;
     const endingColor = calculatedScore >= 80 ? 'text-emerald-400' :
       calculatedScore >= 50 ? 'text-amber-400' : 'text-red-400';
     const EndingIcon = calculatedScore >= 80 ? Trophy :
@@ -113,7 +104,7 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
             <h2 className={`font-bold ${endingColor}`} style={{ fontSize: `${fontSize * 1.25}px` }}>{finalNode.title}</h2>
             <p className="text-slate-300 max-w-md leading-relaxed" style={{ fontSize: `${fontSize * 0.875}px` }}>{finalNode.narrative}</p>
 
-            {/* Dynamic score based on actual performance */}
+            {/* Dynamic score based on optimal decisions */}
             <div className="flex items-center gap-2 bg-slate-700/50 px-4 py-2 rounded-full">
               <Star className="w-4 h-4 text-amber-400" />
               <span className="text-white font-semibold" style={{ fontSize: `${fontSize}px` }}>Pontuação: {calculatedScore}%</span>
@@ -123,9 +114,6 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
             <div className="flex flex-col items-center gap-1" style={{ fontSize: `${fontSize * 0.75}px` }}>
               <span className="text-slate-400">
                 Decisões ideais: {optimalCount} de {totalDecisions}
-              </span>
-              <span className="text-slate-500">
-                Pontos: {totalPoints} / {maxPointsVisited || 1}
               </span>
             </div>
 

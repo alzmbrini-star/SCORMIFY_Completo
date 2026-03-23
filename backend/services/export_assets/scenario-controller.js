@@ -19,8 +19,6 @@ var ScenarioController = (function() {
             nodesMap: nodesMap,
             currentNodeId: data.start_node_id || (data.nodes && data.nodes[0] ? data.nodes[0].id : null),
             history: [],
-            totalPoints: 0,
-            maxPointsVisited: 0, // Track max points only for visited nodes
             optimalCount: 0,
             totalDecisions: 0,
             container: container
@@ -79,14 +77,6 @@ var ScenarioController = (function() {
         var choice = node.choices.find(function(c) { return c.id === choiceId; });
         if (!choice) return;
         
-        // Calculate max points for this node (best choice available)
-        var bestPointsForNode = 0;
-        node.choices.forEach(function(c) {
-            if ((c.points || 0) > bestPointsForNode) bestPointsForNode = c.points || 0;
-        });
-        
-        sc.totalPoints += (choice.points || 0);
-        sc.maxPointsVisited += bestPointsForNode; // Add max possible for visited nodes
         sc.totalDecisions += 1;
         if (choice.is_optimal) sc.optimalCount += 1;
         renderFeedback(elementId, choice);
@@ -134,9 +124,13 @@ var ScenarioController = (function() {
         var sc = scenarios[elementId];
         if (!sc) return;
         var fs = sc.data.fontSize || 16;
-        // Use maxPointsVisited (only nodes the user actually visited)
-        var maxPts = sc.maxPointsVisited || 1;
-        var calcScore = Math.round((sc.totalPoints / maxPts) * 100);
+        
+        // Calculate score based on optimal decisions, not points
+        // If user made all optimal decisions, score should be 100%
+        var calcScore = sc.totalDecisions > 0 
+            ? Math.round((sc.optimalCount / sc.totalDecisions) * 100) 
+            : 0;
+        
         var endColor = calcScore >= 80 ? '#10b981' : calcScore >= 50 ? '#f59e0b' : '#ef4444';
         var endIcon = calcScore >= 80 ? '🏆' : calcScore >= 50 ? '⚠' : '✗';
 
@@ -148,7 +142,7 @@ var ScenarioController = (function() {
         html += '<span style="color:#fbbf24;">★</span><span style="color:#fff;font-weight:600;font-size:' + fs + 'px;">Pontuação: ' + calcScore + '%</span></div>';
         html += '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:16px;">';
         html += '<span style="font-size:' + (fs*0.75) + 'px;color:#94a3b8;">Decisões ideais: ' + sc.optimalCount + ' de ' + sc.totalDecisions + '</span>';
-        html += '<span style="font-size:' + (fs*0.75) + 'px;color:#64748b;">Pontos: ' + sc.totalPoints + ' / ' + maxPts + '</span></div>';
+        html += '</div>';
         html += '<button onclick="ScenarioController.startScenario(\'' + elementId + '\')" style="padding:10px 20px;background:transparent;border:1px solid rgba(34,211,238,0.5);color:#22d3ee;border-radius:8px;font-size:' + fs + 'px;cursor:pointer;">↻ Tentar Novamente</button>';
         html += '</div>';
         sc.container.innerHTML = html;
