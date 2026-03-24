@@ -12,7 +12,8 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **Gamification System**: Configurable badges and feedback per-project
 - **PPT Import**: Convert PowerPoint to course (requires ConvertAPI)
 - **VLibras**: Brazilian Sign Language accessibility widget
-- **AI Tutor**: AI-powered tutor with configurable backend URL
+- **AI Tutor**: AI-powered tutor with dynamic backend URL from environment
+- **Fix Simulators**: Tool to detect and fix static simulators by adding JavaScript interactivity
 
 ## Architecture
 ```
@@ -21,7 +22,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 │   ├── server.py (main app, startup tasks)
 │   ├── routes/ (agent, export, auth, projects, gamification, admin)
 │   ├── services/ (ai_agent, scorm_exporter, html_exporter, asset_store)
-│   └── services/export_assets/ (player.js, scenario-controller.js, quiz-controller.js, scorm-api.js)
+│   └── services/export_assets/ (player.js, scenario-controller.js, quiz-controller.js, scorm-api.js, tutor.js)
 └── frontend (React)
     ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
     ├── src/components/ (editor/, scenario/, ui/)
@@ -34,6 +35,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **Image Generation**: Parallel (5 concurrent) using asyncio.gather with semaphore
 - **MongoDB Atlas Support**: Increased timeouts (30s server/connect, 60s socket), retryWrites/retryReads
 - **Asset Persistence**: Batch queries on startup instead of individual find_one per asset
+- **AI Tutor URL**: Always uses _get_external_url() (reads BASE_URL from .env) to avoid stale URLs from DB
 
 ## Credentials
 - Admin: admin@scormify.com / admin123

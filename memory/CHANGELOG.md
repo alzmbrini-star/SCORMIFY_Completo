@@ -1,87 +1,74 @@
 # Changelog
 
-## 2026-03-23 (Current Session)
+## 2026-03-24 (Current Session)
+
+### Bug Fix: AI Tutor URL Stale After Fork
+- **Root Cause**: In `export.py` line 154, SCORM export prioritized `settings_doc.get('apiUrl')` from MongoDB over `_get_external_url()`. If DB had an old URL from a previous fork, it would be used in exported courses.
+- **Fix**: Changed priority to `_get_external_url() or settings_doc.get('apiUrl', '').strip()` — current environment URL always takes priority.
+- **Applied in**: `backend/routes/export.py` (SCORM export). HTML export already used `_get_external_url()` correctly.
+- **Status**: Tested with both SCORM and HTML exports — correct URL verified in course.json and HTML output ✅
+
+### Feature: Fix Simulators UI Button
+- **What**: Added "Ferramentas" dropdown menu to Editor header with "Corrigir Simuladores" option
+- **How it works**: Calls `POST /api/projects/{project_id}/fix-simulators`, shows toast with result, reloads page if fixes were applied
+- **Applied in**: `frontend/src/pages/Editor.jsx` — Added Wrench icon import, `fixingSimulators` state, `handleFixSimulators` handler, DropdownMenu component
+- **Data test IDs**: `tools-menu-btn`, `fix-simulators-btn`
+- **Status**: Tested — dropdown opens correctly, API called successfully ✅
+
+## 2026-03-24 (Previous Session)
 
 ### Bug Fix: SCORM Completion Not Triggering
 - **Root Cause**: `scenario-controller.js` and `quiz-controller.js` called `Player.onScenarioComplete()` but the object is named `CoursePlayer`
 - **Fix**: Changed all references from `Player` to `CoursePlayer`
-- **Additional**: Removed `visitedLastSlide` requirement - course marks complete as soon as all interactive elements are done
-- **Additional**: SCORM API now sends both "completed" AND "passed" for max LMS compatibility
-- **Additional**: Added `finalCompletionCheck` on `beforeunload` as safety net
-- **Additional**: Scenario score now sent to SCORM via `ScormAPI.setScore()`
 - **Status**: Tested with LMS simulator - WORKING ✅
 
 ### Bug Fix: HTML Export Scenarios Not Opening
-- **Root Cause**: Scenario data stored in `data-scenario` HTML attribute. Portuguese text with single quotes broke the attribute parsing, silently failing `JSON.parse`
-- **Fix**: Replaced with `window.__scenarioDataMap` JavaScript object - no HTML attribute escaping needed
-- **Additional**: HTML ScenarioController scoring updated from points to ideal decisions
-- **Additional**: VLibras now gracefully skipped on `file://` protocol
-- **Additional**: AI Tutor skipped on `file://` protocol  
+- **Root Cause**: Scenario data stored in `data-scenario` HTML attribute. Portuguese text with single quotes broke the attribute parsing
+- **Fix**: Replaced with `window.__scenarioDataMap` JavaScript object
 - **Status**: Tested - WORKING ✅
 
 ### Fix: Course Generation Timeout (23 slides with images)
-- **Root Cause**: AI images generated sequentially (one by one). 23 images × ~10s = ~4 minutes just for images
-- **Fix**: Parallel generation with `asyncio.gather` + `asyncio.Semaphore(5)` - max 5 concurrent
-- **Additional**: Frontend polling timeout increased from 10 min to 30 min
-- **Additional**: Progress messages show "Gerando imagens IA: 3/23..." 
-- **Additional**: Early project save (status "generating") preserves images on failure
+- **Fix**: Parallel generation with `asyncio.gather` + `asyncio.Semaphore(5)`
 - **Status**: Code fix deployed, needs user testing
 
 ### Fix: Production Deployment Failures (MongoDB Atlas Timeouts)
-- **Root Cause**: All MongoDB client instances used 10s timeout, insufficient for Atlas latency
-- **Fix**: Dynamic timeout detection (`is_atlas` flag), increased to 30s server/connect, 60s socket
-- **Additional**: Asset persistence uses batch query instead of individual `find_one` per asset
-- **Additional**: Added `retryWrites=True, retryReads=True` for Atlas resilience
-- **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
+- **Fix**: Dynamic timeout detection, increased to 30s server/connect, 60s socket
 - **Status**: Backend starts cleanly ✅
 
-### Deployment Fix: Backend Health Check Timeout (2026-03-24)
-- **Root Cause**: Health endpoints only registered at `/health` — deployment system may check `/api/health`. Also added startup tracing to identify future hangs.
-- **Fix**: Added `/api/health` and `/api/healthz` endpoints. Added `[STARTUP]` logs with `flush=True`. Added `SKIP_SYSTEM_DEPS` env var to skip heavy LibreOffice install. All startup tasks confirmed non-blocking (daemon threads/async tasks).
+### Deployment Fix: Backend Health Check Timeout
+- **Fix**: Added `/api/health` and `/api/healthz` endpoints. Deferred heavy startup tasks.
 - **Status**: Deployment agent verified PASS ✅
 
-### Bug Fix: Background Images Lost in SCORM/HTML Export (2026-03-24)
-- **Root Cause**: CSS `*{background:transparent!important}` in player.js (SCORM) and html_exporter.py (HTML) overrode ALL inline backgrounds, including images embedded as CSS `url()` in htmlContent
-- **Fix**: Changed wildcard to `*{box-sizing:border-box!important;max-width:100%!important}` — only `body` keeps `background:transparent!important`
-- **Applied in**: player.js (line 1325), html_exporter.py (line 2017)
-- **Status**: Tested with 8 tests including SCORM ZIP content verification - ALL PASSED ✅
+### Bug Fix: Background Images Lost in SCORM/HTML Export
+- **Fix**: Changed CSS wildcard to specific selectors
+- **Status**: Tested - ALL PASSED ✅
 
-### Bug Fix: Button/Badge Colors Not Showing in Editor Canvas (2026-03-24)
-- **Root Cause**: CSS rule `* { background: transparent !important; }` in iframe forced ALL elements transparent, overriding inline background-color on buttons/badges
-- **Fix**: Changed to `html, body, .content-wrapper { background: transparent !important; }` — only container backgrounds are transparent, content elements keep their styling
-- **Applied in**: SlideCanvas.jsx, CoursePreview.jsx, SplitPreview.jsx
-- **Status**: Verified via screenshot - badges and buttons now show colored backgrounds ✅
+### Bug Fix: Button/Badge Colors Not Showing in Editor Canvas
+- **Fix**: Changed CSS to `html, body, .content-wrapper { background: transparent !important; }`
+- **Status**: Verified ✅
 
-### Bug Fix: Login "body stream already read" Error + Token Fallback (2026-03-24)
-- **Root Cause**: Fetch response body read twice when network fails. Also, auth relied ONLY on cookies.
-- **Fix**: Added try/catch around response.text(), clear error messages. Added localStorage token fallback: login saves token, global fetch interceptor auto-includes `Authorization: Bearer` header for all `/api/` calls.
-- **Applied in**: AuthContext.jsx (rewritten), index.js (fetch interceptor), ProjectContext.jsx (axios interceptor)
+### Bug Fix: Login "body stream already read" Error + Token Fallback
+- **Fix**: localStorage token fallback with global fetch interceptor
 - **Status**: Login works even when cookies are blocked ✅
 
-### Bug Fix: [object Object] in Slides After AI Improvements (2026-03-23)
-- **Root Cause**: AI sometimes returns `content` as dict/object instead of HTML string. Saved directly to `htmlContent`, rendered as `[object Object]` in frontend.
-- **Fix (Backend)**: `_build_improved_elements` now type-checks and converts dict/list/None content to string. `_apply_ai_result_to_slides` validates all fields. `GET /api/projects/{id}` auto-sanitizes corrupt data.
-- **Fix (Frontend)**: `resolveHtmlContentUrls`, `processHtmlContent` in SlideCanvas, CoursePreview, SplitPreview return empty string for non-string content.
-- **Status**: Tested with 22 tests - ALL PASSED ✅
+### Bug Fix: [object Object] in Slides After AI Improvements
+- **Fix**: Multi-layer type-checking on backend and frontend
+- **Status**: Tested - ALL PASSED ✅
 
-### Feature: Before/After Preview + Undo for AI Improvements (2026-03-23)
-- **Preview**: New `/preview-improvements` endpoint calls AI and returns before/after comparison WITHOUT saving changes
-- **Cached AI Result**: Preview caches AI response; apply uses cache via `previewId` (no duplicate AI call)
-- **Undo**: Snapshot saved to `course_snapshots` collection before applying; `/undo-improvements` restores it
-- **Frontend**: New `PreviewPanel` component with side-by-side before/after comparison (ANTES/DEPOIS)
-- **Edit Flow**: 4 steps now: Selecionar → Análise → Preview → Resultado (was 3)
-- **Cancel**: User can cancel preview and return to analysis to adjust selections
-- **Status**: Tested with 13 tests (backend + frontend) - ALL PASSED ✅
+### Feature: Before/After Preview + Undo for AI Improvements
+- **Status**: Tested - ALL PASSED ✅
 
-### Bug Fix: AI Improvements Breaking Slide Layout (2026-03-23)
-- **Root Cause**: `agent_apply_improvements` in `backend/routes/agent.py` placed ALL elements at `y: 40`, causing overlap. Also wiped non-text elements (images, scenarios, quizzes).
-- **Fix**: Incremental Y positioning (`current_y = 80`, `current_y += elem_height + 20`). Preserves header bars (y=0, height<=60), non-text elements, and existing images/scenarios/quizzes.
-- **Additional**: Improved AI prompt in `ai_agent.py` to request single combined HTML element per slide.
-- **Status**: Tested with 22 tests (unit + integration) - ALL PASSED ✅
+### Bug Fix: AI Improvements Breaking Slide Layout
+- **Fix**: Incremental Y positioning, preserves non-text elements
+- **Status**: Tested - ALL PASSED ✅
+
+### Feature: Static Simulator Fix Endpoint
+- **Endpoint**: POST /api/projects/{project_id}/fix-simulators
+- **Status**: Backend tested, frontend button now implemented ✅
 
 ## Previous Session (Completed)
 - Gamification system (badges, feedback)
-- AI Agent scenario creation fix (type: "scenario" instead of text)
+- AI Agent scenario creation fix
 - Asyncio event loop fix for scenario data saving
 - Configurable Backend URL for exported packages
 - Multiple frontend bug fixes
