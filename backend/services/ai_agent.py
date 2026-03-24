@@ -1699,6 +1699,14 @@ MELHORIAS SELECIONADAS:
 IMPORTANTE: Cada slide deve ter UM ÚNICO elemento com todo o conteúdo HTML combinado. NÃO divida o conteúdo em múltiplos elementos.
 O slide tem dimensões 1920x820. O elemento principal deve usar width 1760 e height 700 para ocupar bem o espaço.
 
+REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculadora ou elemento interativo:
+- OBRIGATÓRIO incluir JavaScript inline com <script> tags dentro do HTML
+- Cada botão DEVE ter onclick com uma função JavaScript que atualiza os resultados
+- O conteúdo é renderizado em um iframe que suporta JavaScript
+- Use getElementById para manipular elementos
+- NÃO gere botões estáticos sem funcionalidade
+- Inclua feedback visual (cores, animações CSS, barras de progresso)
+
 Retorne JSON com os slides a atualizar:
 ```json
 {{

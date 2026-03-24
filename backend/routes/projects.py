@@ -140,6 +140,162 @@ async def get_project(project_id: str):
 
     return project
 
+
+@router.post("/projects/{project_id}/fix-simulators")
+async def fix_simulators(project_id: str):
+    """Detect and fix static simulators in a course by adding JavaScript interactivity."""
+    import re as _re
+
+    project = await get_project_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    slides = project.get("course", {}).get("slides", [])
+    fixed_count = 0
+
+    for slide in slides:
+        for el in slide.get("elements", []):
+            if el.get("type") not in ("html", "text"):
+                continue
+            hc = el.get("htmlContent", "")
+            if not isinstance(hc, str):
+                continue
+
+            hc_lower = hc.lower()
+
+            # Detect C-Rate simulator (buttons with C values but no onclick)
+            is_crate_sim = ("c-rate" in hc_lower or "simulador" in hc_lower) and ("descarga" in hc_lower or "capacidade" in hc_lower)
+            has_js = "onclick" in hc_lower or "<script" in hc_lower or "addEventListener" in hc_lower
+
+            if is_crate_sim and not has_js:
+                # Extract capacity if mentioned
+                cap_match = _re.search(r'(\d+)\s*Ah', hc)
+                capacity = int(cap_match.group(1)) if cap_match else 100
+
+                # Extract C-Rate values from buttons
+                crate_matches = _re.findall(r'([\d.]+)C\s*\((\d+)A\)', hc)
+                if not crate_matches:
+                    crate_matches = [("0.5", "50"), ("1", "100"), ("2", "200")]
+
+                el["htmlContent"] = _build_crate_simulator(capacity, crate_matches)
+                fixed_count += 1
+                continue
+
+            # Generic simulator detection (buttons without onclick)
+            has_buttons = "<button" in hc_lower and "onclick" not in hc_lower
+            has_display = "resultado" in hc_lower or "display" in hc_lower or "output" in hc_lower
+            if has_buttons and has_display and not has_js:
+                # Add basic onclick to buttons
+                def _add_onclick(match):
+                    btn_html = match.group(0)
+                    if "onclick" not in btn_html.lower():
+                        btn_html = btn_html.replace("<button", '<button onclick="this.style.opacity=0.7;setTimeout(()=>this.style.opacity=1,200)"', 1)
+                    return btn_html
+
+                new_hc = _re.sub(r'<button[^>]*>.*?</button>', _add_onclick, hc, flags=_re.DOTALL | _re.IGNORECASE)
+                if new_hc != hc:
+                    el["htmlContent"] = new_hc
+                    fixed_count += 1
+
+    if fixed_count > 0:
+        course = project.get("course", {})
+        course["slides"] = slides
+        await update_project(project_id, {"course": course})
+
+    return {
+        "status": "ok",
+        "fixed": fixed_count,
+        "message": f"{fixed_count} simulador(es) corrigido(s)" if fixed_count > 0 else "Nenhum simulador estático encontrado"
+    }
+
+
+def _build_crate_simulator(capacity: int, crate_values: list) -> str:
+    """Build a fully interactive C-Rate simulator with JavaScript."""
+    buttons_html = ""
+    for c_val, amps in crate_values:
+        buttons_html += f'<button onclick="simulate({c_val}, {amps})" style="padding:12px 24px;border:none;border-radius:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:700;font-size:15px;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 15px rgba(99,102,241,0.4);" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 6px 20px rgba(99,102,241,0.6)\'" onmouseout="this.style.transform=\'translateY(0)\';this.style.boxShadow=\'0 4px 15px rgba(99,102,241,0.4)\'">{c_val}C ({amps}A)</button>\n'
+
+    return f'''<div style="font-family:'Segoe UI',system-ui,sans-serif;max-width:800px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <h2 style="color:#e2e8f0;font-size:26px;margin:0 0 8px 0;">Simulador de C-Rate</h2>
+    <span style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:600;">Capacidade: {capacity}Ah</span>
+  </div>
+
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:24px;">
+    {buttons_html}
+  </div>
+
+  <div id="result-panel" style="background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #334155;border-radius:16px;padding:24px;text-align:center;min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.5s;">
+    <div id="result-label" style="color:#94a3b8;font-size:14px;margin-bottom:8px;">Selecione uma taxa C acima</div>
+    <div id="result-value" style="color:#22d3ee;font-size:42px;font-weight:800;line-height:1;"></div>
+    <div id="result-details" style="color:#94a3b8;font-size:13px;margin-top:12px;"></div>
+  </div>
+
+  <div id="bar-container" style="margin-top:20px;display:none;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+      <span style="color:#94a3b8;font-size:12px;">0%</span>
+      <span id="bar-label" style="color:#22d3ee;font-size:12px;font-weight:600;">100%</span>
+    </div>
+    <div style="background:#1e293b;border-radius:10px;height:20px;overflow:hidden;border:1px solid #334155;">
+      <div id="bar-fill" style="height:100%;border-radius:10px;transition:width 1.5s ease-out,background 1s;width:100%;background:linear-gradient(90deg,#22d3ee,#6366f1);"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;">
+      <span style="color:#64748b;font-size:11px;">Descarga Lenta</span>
+      <span style="color:#64748b;font-size:11px;">Descarga Rapida</span>
+    </div>
+  </div>
+
+  <div id="info-box" style="margin-top:20px;background:#1e293b;border-left:4px solid #6366f1;border-radius:0 8px 8px 0;padding:16px;display:none;">
+    <p id="info-text" style="color:#cbd5e1;font-size:13px;line-height:1.6;margin:0;"></p>
+  </div>
+
+  <script>
+    function simulate(cRate, amps) {{
+      var capacity = {capacity};
+      var hours = capacity / amps;
+      var minutes = Math.round(hours * 60);
+      var timeStr = hours >= 1 ? hours.toFixed(1) + ' horas' : minutes + ' minutos';
+
+      document.getElementById('result-label').textContent = 'Tempo Estimado de Descarga';
+      document.getElementById('result-value').textContent = timeStr;
+      document.getElementById('result-details').textContent = 
+        'Taxa: ' + cRate + 'C | Corrente: ' + amps + 'A | Capacidade: ' + capacity + 'Ah';
+
+      var panel = document.getElementById('result-panel');
+      panel.style.borderColor = '#6366f1';
+      panel.style.boxShadow = '0 0 30px rgba(99,102,241,0.2)';
+
+      var barContainer = document.getElementById('bar-container');
+      barContainer.style.display = 'block';
+      var barFill = document.getElementById('bar-fill');
+      var pct = Math.max(10, Math.min(100, (1 / cRate) * 50));
+      barFill.style.width = pct + '%';
+      document.getElementById('bar-label').textContent = Math.round(pct) + '% eficiencia relativa';
+
+      if (cRate >= 2) {{
+        barFill.style.background = 'linear-gradient(90deg,#ef4444,#f97316)';
+      }} else if (cRate >= 1) {{
+        barFill.style.background = 'linear-gradient(90deg,#f59e0b,#22d3ee)';
+      }} else {{
+        barFill.style.background = 'linear-gradient(90deg,#22d3ee,#10b981)';
+      }}
+
+      var infoBox = document.getElementById('info-box');
+      infoBox.style.display = 'block';
+      var infoText = document.getElementById('info-text');
+      if (cRate <= 0.5) {{
+        infoText.innerHTML = '<strong>Taxa Baixa (' + cRate + 'C):</strong> Descarga lenta e controlada. Ideal para maximizar a vida util da bateria. Menor stress termico e quimico nas celulas.';
+      }} else if (cRate <= 1) {{
+        infoText.innerHTML = '<strong>Taxa Moderada (' + cRate + 'C):</strong> Equilibrio entre desempenho e longevidade. Uso tipico em aplicacoes padrao como veiculos eletricos em condicoes normais.';
+      }} else {{
+        infoText.innerHTML = '<strong>Taxa Alta (' + cRate + 'C):</strong> Descarga rapida com maior geracao de calor. Reduz a vida util da bateria. Usada em situacoes de alta demanda como aceleracao.';
+      }}
+    }}
+  </script>
+</div>'''
+
+
+
 @router.put("/projects/{project_id}", response_model=dict)
 async def update_project_endpoint(project_id: str, data: ProjectUpdate):
     """Update project"""
