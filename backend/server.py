@@ -2,6 +2,8 @@
 Scormfy API Server - Main entry point
 Thin orchestrator that configures FastAPI, CORS, database and includes route modules.
 """
+import sys
+print("[STARTUP] server.py: Loading imports...", flush=True)
 from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -24,6 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.info("Starting Scormify API server...")
+print("[STARTUP] server.py: Configuring MongoDB...", flush=True)
 
 # MongoDB connection
 mongo_url = os.environ.get('MONGO_URL', '')
@@ -43,110 +46,83 @@ client = AsyncIOMotorClient(
     retryReads=True,
 )
 db = client[db_name]
-logger.info(f"MongoDB client initialized for database: {db_name} (atlas={is_atlas})")
+exports_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="exports")
 
-# GridFS bucket for persistent export storage
-exports_bucket = None
-if db is not None:
-    try:
-        exports_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="exports")
-    except Exception as e:
-        logger.warning(f"GridFS bucket creation failed: {e}")
+print("[STARTUP] server.py: Creating FastAPI app...", flush=True)
+
+# Create FastAPI app
+app = FastAPI(title="Scormify API")
+
+# CORS configuration
+cors_origins_str = os.environ.get("CORS_ORIGINS", "*")
+origins = [o.strip() for o in cors_origins_str.split(",") if o.strip()] if cors_origins_str != "*" else ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Health endpoints - defined FIRST to ensure immediate availability
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.get("/healthz")
+async def health_check_k8s():
+    return {"status": "healthy"}
+
+@app.get("/ready")
+async def readiness_check():
+    return {"status": "ready"}
+
+# Also register health at /api/health for deployment systems that use the /api prefix
+@app.get("/api/health")
+async def health_check_api():
+    return {"status": "healthy"}
+
+@app.get("/api/healthz")
+async def health_check_api_k8s():
+    return {"status": "healthy"}
+
+print("[STARTUP] server.py: Loading route modules...", flush=True)
+
+# Root route
+@app.get("/")
+async def root():
+    return {"name": "Scormify API", "status": "running"}
 
 # Initialize shared dependencies
 from routes import deps as deps_module
 deps_module.init(db, exports_bucket, mongo_url, db_name)
 
-# Create the main app
-app = FastAPI(title="Scormify API", version="2.0.0")
-
-# Register health endpoints FIRST - critical for deployment probes
-@app.get("/health")
-async def root_health():
-    return {"status": "healthy"}
-
-@app.get("/healthz")
-async def healthz():
-    return {"status": "healthy"}
-
-@app.get("/ready")
-async def readyz():
-    return {"status": "ready"}
-
-@app.get("/api/health")
-async def api_health_direct():
-    return {"status": "healthy"}
-
-@app.get("/api/healthz")
-async def api_healthz():
-    return {"status": "healthy"}
-
-@app.get("/")
-async def root():
-    return {"status": "running", "app": "Scormify API"}
-
-# Create main API router
-api_router = APIRouter(prefix="/api")
-
-@api_router.get("/")
-async def api_root():
-    return {"message": "Scormify API v2.0"}
-
-# Import and setup auth routes (use set_db pattern for backward compat)
+# Import and mount route modules
 from routes import auth as auth_routes
-from routes import companies as companies_routes
-from routes import users as users_routes
-
 auth_routes.set_db(db)
-companies_routes.set_db(db)
-users_routes.set_db(db)
+app.include_router(auth_routes.router, prefix="/api")
 
-api_router.include_router(auth_routes.router)
-api_router.include_router(companies_routes.router)
-api_router.include_router(users_routes.router)
+from routes import projects as projects_routes
+app.include_router(projects_routes.router, prefix="/api")
 
-# Import and include new route modules (use deps for db access)
-from routes.vlibras import router as vlibras_router
-from routes.projects import router as projects_router
-from routes.export import router as export_router
-from routes.heygen import router as heygen_router
-from routes.ai_gen import router as ai_gen_router
-from routes.questions import router as questions_router
-from routes.elevenlabs import router as elevenlabs_router
-from routes.admin import router as admin_router
-from routes.agent import router as agent_router
-from routes.gallery import router as gallery_router
-from routes.scenarios import router as scenarios_router
-from routes.gamification import router as gamification_router
+from routes import export as export_routes
+app.include_router(export_routes.router, prefix="/api")
 
-api_router.include_router(vlibras_router)
-api_router.include_router(projects_router)
-api_router.include_router(export_router)
-api_router.include_router(heygen_router)
-api_router.include_router(ai_gen_router)
-api_router.include_router(questions_router)
-api_router.include_router(elevenlabs_router)
-api_router.include_router(admin_router)
-api_router.include_router(agent_router)
-api_router.include_router(gallery_router)
-api_router.include_router(scenarios_router)
-api_router.include_router(gamification_router)
+from routes import gamification as gamification_routes
+app.include_router(gamification_routes.router, prefix="/api")
 
-# Include router
-app.include_router(api_router)
+from routes import agent as agent_routes
+app.include_router(agent_routes.router, prefix="/api")
 
-# CORS - Allow all origins for cross-domain production deployments
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    max_age=3600,
-)
+from routes import ai_gen as ai_gen_routes
+app.include_router(ai_gen_routes.router, prefix="/api")
 
+from routes import admin as admin_routes
+app.include_router(admin_routes.router, prefix="/api")
 
-# ============ STARTUP EVENTS ============
+print("[STARTUP] server.py: Routes loaded. Setting up startup events...", flush=True)
+
+# ---- STARTUP EVENTS (all non-blocking background tasks) ----
 
 @app.on_event("startup")
 async def startup_migrate_urls():
@@ -347,7 +323,11 @@ async def startup_persist_local_assets():
 
 @app.on_event("startup")
 async def startup_check_system_deps():
-    """Check system dependencies in background"""
+    """Check system dependencies in background - SKIP in production to avoid slow startup"""
+    # Skip heavy system installs in production containers
+    if os.environ.get("SKIP_SYSTEM_DEPS", "").lower() in ("1", "true", "yes"):
+        logger.info("System dependency check: SKIPPED (SKIP_SYSTEM_DEPS=1)")
+        return
     import threading
     def _check():
         try:
@@ -359,6 +339,9 @@ async def startup_check_system_deps():
 
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
+    """Clean up resources on shutdown"""
     if client is not None:
         client.close()
+
+print("[STARTUP] server.py: Ready to accept connections.", flush=True)
