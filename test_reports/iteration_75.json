@@ -1,0 +1,82 @@
+{
+  "summary": "Verified two bug fixes: 1) AI Tutor URL bug - SCORM/HTML exports now correctly use the current environment URL (https://ai-course-author.preview.emergentagent.com) instead of stale DB values. 2) Fix Simulators button - 'Ferramentas' dropdown with 'Corrigir Simuladores' option is working correctly in the Editor header.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_tutor_url_fix_simulators.xml",
+    "/app/backend/tests/test_tutor_url_and_fix_simulators.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: export.py line 154 correctly prioritizes _get_external_url() over DB settings for tutor apiUrl",
+    "GOOD: projects.py line 144 fix_simulators endpoint returns proper {status, fixed, message} response",
+    "GOOD: Editor.jsx has Wrench import, fixingSimulators state, handleFixSimulators handler",
+    "GOOD: DropdownMenu with 'Ferramentas' trigger (data-testid='tools-menu-btn') and 'Corrigir Simuladores' item (data-testid='fix-simulators-btn')",
+    "GOOD: SCORM export includes correct tutor apiUrl from current environment",
+    "GOOD: HTML export includes correct tutor apiUrl from current environment"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_tutor_url_and_fix_simulators.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (UI loads correctly, Ferramentas dropdown works, fix-simulators API called successfully)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "Used existing TestSim project (ID: d3387a1f-6c52-4740-a127-a2e733adf663) for testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Two bug fixes verified: 1) AI Tutor URL now uses _get_external_url() first in export.py to avoid stale URLs from MongoDB settings. 2) Fix Simulators button added to Editor header via Ferramentas dropdown menu. TestSim project has no static simulators so fix-simulators returns fixed=0.",
+  "features_tested": {
+    "fix_simulators_endpoint": {
+      "endpoint_exists": "PASS - POST /api/projects/{project_id}/fix-simulators returns 200",
+      "response_structure": "PASS - Returns {status: 'ok', fixed: int, message: string}",
+      "returns_zero_for_no_simulators": "PASS - TestSim project returns fixed=0",
+      "returns_404_for_nonexistent_project": "PASS - Returns 404 for invalid project ID"
+    },
+    "scorm_export_tutor_url": {
+      "export_returns_download_url": "PASS - POST /api/course/{id}/export-scorm returns downloadUrl and jobId",
+      "tutor_url_is_correct": "PASS - course.json contains correct apiUrl from environment",
+      "player_js_exists": "PASS - scripts/player.js present in SCORM package"
+    },
+    "html_export_tutor_url": {
+      "export_returns_download_url": "PASS - POST /api/course/{id}/export-html returns downloadUrl",
+      "tutor_url_is_correct": "PASS - HTML contains correct apiUrl from environment"
+    },
+    "ui_verification": {
+      "login_works": "PASS - Login with admin credentials successful",
+      "dashboard_loads": "PASS - Dashboard shows 47 courses, 477 slides, 86 exports",
+      "editor_loads": "PASS - TestSim project editor loads correctly",
+      "ferramentas_button_exists": "PASS - Found button with data-testid='tools-menu-btn'",
+      "corrigir_simuladores_option_exists": "PASS - Found menu item with data-testid='fix-simulators-btn'",
+      "fix_simulators_api_called": "PASS - Clicking 'Corrigir Simuladores' shows toast 'Nenhum simulador estático encontrado'"
+    }
+  },
+  "bug_fix_verification": {
+    "ai_tutor_url_bug": {
+      "description": "The tutor API URL in exported SCORM/HTML courses was using a stale URL from MongoDB settings instead of the current environment URL",
+      "fix_applied": "export.py line 154 now prioritizes _get_external_url() over DB settings",
+      "fix_verified": true,
+      "expected_url": "https://ai-course-author.preview.emergentagent.com"
+    },
+    "fix_simulators_button": {
+      "description": "Added a 'Ferramentas' dropdown menu in the Editor header with a 'Corrigir Simuladores' option that calls POST /api/projects/{project_id}/fix-simulators",
+      "fix_applied": "Editor.jsx has Wrench import, fixingSimulators state, handleFixSimulators handler, and DropdownMenu component",
+      "fix_verified": true,
+      "data_testids": {
+        "tools_menu_btn": "data-testid='tools-menu-btn'",
+        "fix_simulators_btn": "data-testid='fix-simulators-btn'"
+      }
+    }
+  }
+}

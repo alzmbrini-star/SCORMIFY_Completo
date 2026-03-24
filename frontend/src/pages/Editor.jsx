@@ -112,6 +112,7 @@ import {
   AlertTriangle,
   GitBranch,
   Trophy,
+  Wrench,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -291,6 +292,7 @@ export default function Editor() {
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [gallerySearch, setGallerySearch] = useState('');
   const [copiedElement, setCopiedElement] = useState(null);
+  const [fixingSimulators, setFixingSimulators] = useState(false);
 
   const fileInputRef = useRef(null);
   const API_URL = getApiUrl();
@@ -504,6 +506,30 @@ export default function Editor() {
       toast.error('Failed to save project');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleFixSimulators = async () => {
+    if (!currentProject?.id) return;
+    setFixingSimulators(true);
+    try {
+      const res = await fetch(`${API_URL}/api/projects/${currentProject.id}/fix-simulators`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || `Simuladores corrigidos: ${data.fixed || 0}`);
+        if (data.fixed > 0) {
+          window.location.reload();
+        }
+      } else {
+        toast.error(data.detail || 'Erro ao corrigir simuladores');
+      }
+    } catch (err) {
+      toast.error('Erro ao conectar com o servidor');
+    } finally {
+      setFixingSimulators(false);
     }
   };
 
@@ -920,6 +946,32 @@ export default function Editor() {
               <Type className="w-4 h-4" />
               Cor do Texto
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-slate-600/50 text-slate-300 hover:bg-slate-800/40"
+                  data-testid="tools-menu-btn"
+                >
+                  <Wrench className="w-4 h-4" />
+                  Ferramentas
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={handleFixSimulators}
+                  disabled={fixingSimulators}
+                  data-testid="fix-simulators-btn"
+                >
+                  {fixingSimulators ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  {fixingSimulators ? 'Corrigindo...' : 'Corrigir Simuladores'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Dialog open={showExportDialog} onOpenChange={(open) => {
               setShowExportDialog(open);
               if (!open) {
