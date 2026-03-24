@@ -18,13 +18,18 @@ export function AuthProvider({ children }) {
       });
       
       if (response.ok) {
-        const userData = await response.json();
+        let userData;
+        try {
+          userData = await response.json();
+        } catch {
+          setUser(null);
+          return;
+        }
         setUser(userData);
       } else {
         setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -39,20 +44,30 @@ export function AuthProvider({ children }) {
 
   // Login with email/password
   const login = async (email, password) => {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, password })
-    });
+    let response;
+    try {
+      response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
+    } catch (networkError) {
+      throw new Error('Erro de conexão com o servidor. Verifique se o backend está rodando e acessível.');
+    }
 
-    // Read response body once as text, then parse
-    const text = await response.text();
+    let text;
+    try {
+      text = await response.text();
+    } catch {
+      throw new Error('Erro ao ler resposta do servidor. Verifique a URL do backend.');
+    }
+
     let data;
     try {
       data = JSON.parse(text);
     } catch {
-      throw new Error(text || 'Login failed');
+      throw new Error(text || 'Resposta inválida do servidor');
     }
     
     if (!response.ok) {
@@ -65,15 +80,25 @@ export function AuthProvider({ children }) {
 
   // Process Google OAuth callback
   const processGoogleAuth = async (sessionId) => {
-    const response = await fetch(`${API_URL}/api/auth/google`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ session_id: sessionId })
-    });
+    let response;
+    try {
+      response = await fetch(`${API_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ session_id: sessionId })
+      });
+    } catch {
+      throw new Error('Erro de conexão com o servidor.');
+    }
 
-    // Read response body once as text, then parse
-    const text = await response.text();
+    let text;
+    try {
+      text = await response.text();
+    } catch {
+      throw new Error('Erro ao ler resposta do servidor.');
+    }
+
     let data;
     try {
       data = JSON.parse(text);
