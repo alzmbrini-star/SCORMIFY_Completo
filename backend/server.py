@@ -120,6 +120,32 @@ app.include_router(ai_gen_routes.router, prefix="/api")
 from routes import admin as admin_routes
 app.include_router(admin_routes.router, prefix="/api")
 
+from routes import companies as companies_routes
+companies_routes.set_db(db)
+app.include_router(companies_routes.router, prefix="/api")
+
+from routes import users as users_routes
+users_routes.set_db(db)
+app.include_router(users_routes.router, prefix="/api")
+
+from routes import elevenlabs as elevenlabs_routes
+app.include_router(elevenlabs_routes.router, prefix="/api")
+
+from routes import gallery as gallery_routes
+app.include_router(gallery_routes.router, prefix="/api")
+
+from routes import heygen as heygen_routes
+app.include_router(heygen_routes.router, prefix="/api")
+
+from routes import questions as questions_routes
+app.include_router(questions_routes.router, prefix="/api")
+
+from routes import scenarios as scenarios_routes
+app.include_router(scenarios_routes.router, prefix="/api")
+
+from routes import vlibras as vlibras_routes
+app.include_router(vlibras_routes.router, prefix="/api")
+
 print("[STARTUP] server.py: Routes loaded. Setting up startup events...", flush=True)
 
 # ---- STARTUP EVENTS (all non-blocking background tasks) ----

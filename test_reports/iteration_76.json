@@ -1,0 +1,66 @@
+{
+  "summary": "Verified critical bug fix: 8 route modules (companies, users, elevenlabs, gallery, heygen, questions, scenarios, vlibras) were successfully registered in server.py. All previously 404 endpoints now return proper responses. Admin panel Empresas and Usuarios tabs display data correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_route_registration.xml",
+    "/app/backend/tests/test_route_registration.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: server.py lines 123-147 now include all 8 missing route registrations",
+    "GOOD: companies_routes.set_db(db) and users_routes.set_db(db) called before include_router",
+    "GOOD: All routes use prefix='/api' for proper Kubernetes ingress routing",
+    "GOOD: Admin panel correctly fetches and displays companies and users data"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_route_registration.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (Admin panel loads, Empresas shows 3 companies, Usuarios shows 6 users)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Route registration bug is fixed. All 8 previously missing routes (companies, users, elevenlabs, gallery, heygen, questions, scenarios, vlibras) are now registered in server.py. Admin panel works correctly showing companies and users.",
+  "features_tested": {
+    "route_registration_fix": {
+      "companies_route": "PASS - GET /api/companies returns 200 with 3 companies (Didaxis, Empresa Teste RBAC, TEST_Company)",
+      "users_route": "PASS - GET /api/users returns 200 with 6 users",
+      "questions_route": "PASS - GET /api/questions returns 200 (route exists)",
+      "elevenlabs_route": "PASS - GET /api/elevenlabs/voices returns 200 (route exists)",
+      "gallery_route": "PASS - GET /api/gallery/images returns 200 (route exists)",
+      "heygen_route": "PASS - GET /api/heygen/avatars returns 200 (route exists)",
+      "scenarios_route": "PASS - GET /api/scenarios returns 200 (route exists)",
+      "vlibras_route": "PASS - GET /api/vlibras-proxy-test returns 200 (route exists)"
+    },
+    "admin_panel_ui": {
+      "empresas_tab": "PASS - Shows Didaxis (1/50 users, 0/500 projects), Empresa Teste RBAC (2/10 users, 0/50 projects)",
+      "usuarios_tab": "PASS - Shows 6 users with correct roles and company assignments",
+      "login": "PASS - admin@scormify.com / admin123 works correctly"
+    },
+    "company_crud": {
+      "create_company": "PASS - POST /api/companies creates new company",
+      "delete_company": "PASS - DELETE /api/companies/{id} deactivates company"
+    }
+  },
+  "bug_fix_verification": {
+    "root_cause": "8 route files existed in /app/backend/routes/ but were NEVER registered in server.py via include_router()",
+    "missing_routes": ["companies", "users", "elevenlabs", "gallery", "heygen", "questions", "scenarios", "vlibras"],
+    "fix_applied": "Added imports and include_router() calls for all 8 routes in server.py lines 123-147",
+    "fix_verified": true,
+    "all_endpoints_working": true
+  }
+}
