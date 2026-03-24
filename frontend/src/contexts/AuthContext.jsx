@@ -2,8 +2,29 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { getApiUrl } from '../utils/apiUrl';
 
 const API_URL = getApiUrl();
+const TOKEN_KEY = 'scormify_auth_token';
 
 const AuthContext = createContext(null);
+
+// Helper: build headers with token fallback
+function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+// Helper: fetch with auth (cookies + token fallback)
+async function authFetch(url, opts = {}) {
+  const options = {
+    ...opts,
+    credentials: 'include',
+    headers: authHeaders(opts.headers || {}),
+  };
+  return fetch(url, options);
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -13,23 +34,25 @@ export function AuthProvider({ children }) {
   // Check authentication status
   const checkAuth = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
-        credentials: 'include'
-      });
-      
+      const response = await authFetch(`${API_URL}/api/auth/me`);
+
       if (response.ok) {
         let userData;
         try {
           userData = await response.json();
         } catch {
           setUser(null);
+          localStorage.removeItem(TOKEN_KEY);
           return;
         }
         setUser(userData);
       } else {
         setUser(null);
+        if (response.status === 401) {
+          localStorage.removeItem(TOKEN_KEY);
+        }
       }
-    } catch (error) {
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);
@@ -52,26 +75,31 @@ export function AuthProvider({ children }) {
         credentials: 'include',
         body: JSON.stringify({ email, password })
       });
-    } catch (networkError) {
-      throw new Error('Erro de conexão com o servidor. Verifique se o backend está rodando e acessível.');
+    } catch {
+      throw new Error('Erro de conexao com o servidor. Verifique se o backend esta rodando e acessivel.');
     }
 
     let text;
     try {
       text = await response.text();
     } catch {
-      throw new Error('Erro ao ler resposta do servidor. Verifique a URL do backend.');
+      throw new Error('Erro ao ler resposta do servidor.');
     }
 
     let data;
     try {
       data = JSON.parse(text);
     } catch {
-      throw new Error(text || 'Resposta inválida do servidor');
+      throw new Error(text || 'Resposta invalida do servidor');
     }
-    
+
     if (!response.ok) {
       throw new Error(data.detail || 'Login failed');
+    }
+
+    // Save token to localStorage as fallback for blocked cookies
+    if (data.token) {
+      localStorage.setItem(TOKEN_KEY, data.token);
     }
 
     setUser(data.user);
@@ -89,7 +117,7 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ session_id: sessionId })
       });
     } catch {
-      throw new Error('Erro de conexão com o servidor.');
+      throw new Error('Erro de conexao com o servidor.');
     }
 
     let text;
@@ -110,6 +138,10 @@ export function AuthProvider({ children }) {
       throw new Error(data.detail || 'Google authentication failed');
     }
 
+    if (data.token) {
+      localStorage.setItem(TOKEN_KEY, data.token);
+    }
+
     setUser(data.user);
     return data;
   };
@@ -124,13 +156,9 @@ export function AuthProvider({ children }) {
   // Logout
   const logout = async () => {
     try {
-      await fetch(`${API_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+      await authFetch(`${API_URL}/api/auth/logout`, { method: 'POST' });
+    } catch { /* ignore */ }
+    localStorage.removeItem(TOKEN_KEY);
     setUser(null);
   };
 
@@ -143,11 +171,8 @@ export function AuthProvider({ children }) {
   const hasPermission = (permission) => {
     if (!user) return false;
     if (user.role === 'super_admin') return true;
-    
-    // Check company permissions
     const company = user.company;
     if (!company) return false;
-    
     return company.permissions?.[permission] === true;
   };
 
@@ -181,6 +206,8 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+
+export { authFetch, authHeaders };
 
 export function useAuth() {
   const context = useContext(AuthContext);

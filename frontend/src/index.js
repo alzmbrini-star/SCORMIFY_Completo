@@ -3,6 +3,21 @@ import ReactDOM from "react-dom/client";
 import "@/index.css";
 import App from "@/App";
 
+// Global fetch interceptor: auto-include auth token for API calls
+const TOKEN_KEY = 'scormify_auth_token';
+const _originalFetch = window.fetch;
+window.fetch = function(url, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token && typeof url === 'string' && url.includes('/api/')) {
+    opts = { ...opts };
+    opts.headers = { ...(opts.headers || {}) };
+    if (!opts.headers['Authorization']) {
+      opts.headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return _originalFetch.call(this, url, opts);
+};
+
 // Suppress ResizeObserver loop errors (common in React, non-critical)
 // This error occurs when the ResizeObserver cannot deliver all notifications in a single animation frame
 const resizeObserverErr = /ResizeObserver loop/;

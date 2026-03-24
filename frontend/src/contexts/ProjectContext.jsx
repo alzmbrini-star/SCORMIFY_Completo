@@ -3,8 +3,19 @@ import axios from 'axios';
 
 import { getApiUrl } from '../utils/apiUrl';
 const API_URL = `${getApiUrl()}/api`;
+const TOKEN_KEY = 'scormify_auth_token';
 
-// Configure axios to handle 404 errors gracefully
+// Configure axios to include auth token and handle errors
+axios.interceptors.request.use(config => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  config.withCredentials = true;
+  return config;
+});
+
 axios.interceptors.response.use(
   response => response,
   error => {
