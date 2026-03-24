@@ -1,0 +1,79 @@
+{
+  "summary": "Verified SCORM/HTML export background image fix. The bug was caused by '*{background:transparent!important}' CSS rule in player.js (line 1325) and html_exporter.py (line 2017) which overrode ALL inline CSS backgrounds including background images embedded in htmlContent via url(). The fix changed the wildcard rule to '*{box-sizing:border-box!important;max-width:100%!important}' - removing background:transparent from the wildcard selector while keeping it only for body element.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_scorm_background_fix.xml",
+    "/app/backend/tests/test_scorm_background_fix.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: player.js line 1325 changed from '*{background:transparent!important}' to '*{box-sizing:border-box!important;max-width:100%!important}'",
+    "GOOD: html_exporter.py line 2017 has the same fix applied",
+    "GOOD: body element still has 'background:transparent!important' for proper iframe transparency",
+    "GOOD: Table styles (th, td, table) are preserved in the exported player",
+    "GOOD: SCORM export endpoint /api/course/{project_id}/export-scorm works correctly and returns ZIP",
+    "GOOD: HTML export endpoint /api/course/{project_id}/export-html works correctly",
+    "GOOD: Background images in htmlContent (CSS url()) are now preserved in exports"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scorm_background_fix.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (UI loads correctly, editor shows background images)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "Used existing course 'Liderança de Impacto' (ID: 860e245f-0ad1-4909-a30e-b220a421b75d) for testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The SCORM/HTML export background image bug is fixed. The root cause was '*{background:transparent!important}' CSS rule in player.js and html_exporter.py that overrode ALL inline CSS backgrounds. The fix changes the wildcard to only have box-sizing and max-width, keeping background:transparent only for body element. Test course 'Liderança de Impacto' has background images embedded as CSS url() in htmlContent elements.",
+  "features_tested": {
+    "css_fix_verification": {
+      "player_js_no_wildcard_background": "PASS - No '*{background:transparent!important}' in player.js",
+      "player_js_has_fixed_rule": "PASS - '*{box-sizing:border-box!important;max-width:100%!important}' present",
+      "html_exporter_no_wildcard_background": "PASS - No '*{background:transparent!important}' in html_exporter.py",
+      "html_exporter_has_fixed_rule": "PASS - Fixed rule present",
+      "body_still_has_transparent": "PASS - body element still has background:transparent",
+      "table_styles_preserved": "PASS - th, td, table styles present"
+    },
+    "export_endpoints": {
+      "scorm_export_returns_zip": "PASS - POST /api/course/{id}/export-scorm returns downloadUrl, ZIP is valid",
+      "scorm_zip_contains_required_files": "PASS - imsmanifest.xml, index.html, course.json, scripts/player.js present",
+      "scorm_player_js_has_fix": "PASS - Exported player.js has the CSS fix",
+      "html_export_works": "PASS - POST /api/course/{id}/export-html returns downloadUrl"
+    },
+    "ui_verification": {
+      "login_works": "PASS - Login with admin credentials successful",
+      "dashboard_loads": "PASS - Dashboard shows 45 courses, 475 slides, 74 exports",
+      "editor_loads": "PASS - Course editor loads with background images visible",
+      "preview_button_exists": "PASS - Visualizar button present in editor"
+    }
+  },
+  "bug_fix_verification": {
+    "bug_description": "When exporting to SCORM, the background image of slides is lost. The slide shows 'Liderança de Impacto' with a chandelier photo as background in the editor, but in the SCORM export only a dark solid background appears.",
+    "root_cause": "The CSS rule '*{background:transparent!important}' in player.js (line 1325) and html_exporter.py (line 2017) was overriding ALL inline CSS backgrounds, including background images embedded in htmlContent via url().",
+    "fix_applied": "Changed '*{background:transparent!important}' to '*{box-sizing:border-box!important;max-width:100%!important}' - removing background:transparent from the wildcard selector while keeping it only for body element.",
+    "fix_locations": [
+      "backend/services/export_assets/player.js - line 1325",
+      "backend/services/html_exporter.py - line 2017"
+    ],
+    "fix_verified": true,
+    "test_course": {
+      "id": "860e245f-0ad1-4909-a30e-b220a421b75d",
+      "name": "Liderança de Impacto",
+      "slides": 18,
+      "background_type": "CSS url() in htmlContent elements"
+    }
+  }
+}
