@@ -1,74 +1,60 @@
 # Changelog
 
-## 2026-03-24 (Current Session)
+## 2026-03-24 (Current Session - Fork 2)
+
+### CRITICAL Bug Fix: Missing Route Registrations (Companies, Users, etc.)
+- **Root Cause**: 8 route modules existed as files in `/app/backend/routes/` but were NEVER registered in `server.py` via `include_router()`. Missing: `companies`, `users`, `elevenlabs`, `gallery`, `heygen`, `questions`, `scenarios`, `vlibras`.
+- **Impact**: All endpoints for these routes returned HTTP 404. Admin panel showed "Nenhuma empresa cadastrada" and no users because `/api/companies` and `/api/users` were unreachable.
+- **Fix**: Added all 8 missing route imports and `include_router()` calls in `server.py`. Also called `set_db(db)` for `companies` and `users` routes (which use the `set_db` pattern).
+- **Applied in**: `backend/server.py` (lines 123-147)
+- **Status**: Tested with 13 backend tests + frontend UI verification — ALL PASSED ✅
 
 ### Bug Fix: AI Tutor URL Stale After Fork
-- **Root Cause**: In `export.py` line 154, SCORM export prioritized `settings_doc.get('apiUrl')` from MongoDB over `_get_external_url()`. If DB had an old URL from a previous fork, it would be used in exported courses.
-- **Fix**: Changed priority to `_get_external_url() or settings_doc.get('apiUrl', '').strip()` — current environment URL always takes priority.
-- **Applied in**: `backend/routes/export.py` (SCORM export). HTML export already used `_get_external_url()` correctly.
-- **Status**: Tested with both SCORM and HTML exports — correct URL verified in course.json and HTML output ✅
+- **Root Cause**: In `export.py`, SCORM export prioritized DB `apiUrl` over `_get_external_url()`.
+- **Fix**: Changed priority to `_get_external_url() or settings_doc.get('apiUrl', '').strip()`.
+- **Applied in**: `backend/routes/export.py`
+- **Status**: Tested — correct URL in SCORM and HTML exports ✅
 
 ### Feature: Fix Simulators UI Button
-- **What**: Added "Ferramentas" dropdown menu to Editor header with "Corrigir Simuladores" option
-- **How it works**: Calls `POST /api/projects/{project_id}/fix-simulators`, shows toast with result, reloads page if fixes were applied
-- **Applied in**: `frontend/src/pages/Editor.jsx` — Added Wrench icon import, `fixingSimulators` state, `handleFixSimulators` handler, DropdownMenu component
-- **Data test IDs**: `tools-menu-btn`, `fix-simulators-btn`
-- **Status**: Tested — dropdown opens correctly, API called successfully ✅
+- **What**: Added "Ferramentas" dropdown menu to Editor header with "Corrigir Simuladores" option.
+- **Applied in**: `frontend/src/pages/Editor.jsx`
+- **Status**: Tested ✅
 
 ## 2026-03-24 (Previous Session)
 
 ### Bug Fix: SCORM Completion Not Triggering
-- **Root Cause**: `scenario-controller.js` and `quiz-controller.js` called `Player.onScenarioComplete()` but the object is named `CoursePlayer`
-- **Fix**: Changed all references from `Player` to `CoursePlayer`
-- **Status**: Tested with LMS simulator - WORKING ✅
+- **Fix**: Changed `Player` to `CoursePlayer` in scenario/quiz controllers
+- **Status**: Tested ✅
 
 ### Bug Fix: HTML Export Scenarios Not Opening
-- **Root Cause**: Scenario data stored in `data-scenario` HTML attribute. Portuguese text with single quotes broke the attribute parsing
-- **Fix**: Replaced with `window.__scenarioDataMap` JavaScript object
-- **Status**: Tested - WORKING ✅
+- **Fix**: Replaced `data-scenario` attribute with `window.__scenarioDataMap`
+- **Status**: Tested ✅
 
-### Fix: Course Generation Timeout (23 slides with images)
-- **Fix**: Parallel generation with `asyncio.gather` + `asyncio.Semaphore(5)`
-- **Status**: Code fix deployed, needs user testing
+### Fix: Course Generation Timeout
+- **Fix**: Parallel image generation with asyncio.Semaphore(5)
+- **Status**: Deployed, needs user testing
 
-### Fix: Production Deployment Failures (MongoDB Atlas Timeouts)
-- **Fix**: Dynamic timeout detection, increased to 30s server/connect, 60s socket
-- **Status**: Backend starts cleanly ✅
+### Fix: Production Deployment Failures
+- **Fix**: Dynamic timeout detection for MongoDB Atlas
+- **Status**: ✅
 
-### Deployment Fix: Backend Health Check Timeout
-- **Fix**: Added `/api/health` and `/api/healthz` endpoints. Deferred heavy startup tasks.
-- **Status**: Deployment agent verified PASS ✅
-
-### Bug Fix: Background Images Lost in SCORM/HTML Export
+### Bug Fix: Background Images Lost in Export
 - **Fix**: Changed CSS wildcard to specific selectors
-- **Status**: Tested - ALL PASSED ✅
+- **Status**: ✅
 
-### Bug Fix: Button/Badge Colors Not Showing in Editor Canvas
-- **Fix**: Changed CSS to `html, body, .content-wrapper { background: transparent !important; }`
-- **Status**: Verified ✅
-
-### Bug Fix: Login "body stream already read" Error + Token Fallback
+### Bug Fix: Login "body stream already read" Error
 - **Fix**: localStorage token fallback with global fetch interceptor
-- **Status**: Login works even when cookies are blocked ✅
+- **Status**: ✅
 
-### Bug Fix: [object Object] in Slides After AI Improvements
+### Bug Fix: [object Object] in Slides
 - **Fix**: Multi-layer type-checking on backend and frontend
-- **Status**: Tested - ALL PASSED ✅
+- **Status**: ✅
 
 ### Feature: Before/After Preview + Undo for AI Improvements
-- **Status**: Tested - ALL PASSED ✅
+- **Status**: ✅
 
-### Bug Fix: AI Improvements Breaking Slide Layout
-- **Fix**: Incremental Y positioning, preserves non-text elements
-- **Status**: Tested - ALL PASSED ✅
+### Feature: Static Simulator Fix Endpoint + UI Button
+- **Status**: Backend + Frontend ✅
 
-### Feature: Static Simulator Fix Endpoint
-- **Endpoint**: POST /api/projects/{project_id}/fix-simulators
-- **Status**: Backend tested, frontend button now implemented ✅
-
-## Previous Session (Completed)
-- Gamification system (badges, feedback)
-- AI Agent scenario creation fix
-- Asyncio event loop fix for scenario data saving
-- Configurable Backend URL for exported packages
-- Multiple frontend bug fixes
+## Previous Session
+- Gamification system, AI Agent scenario fix, asyncio fix, configurable backend URL

@@ -14,13 +14,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **VLibras**: Brazilian Sign Language accessibility widget
 - **AI Tutor**: AI-powered tutor with dynamic backend URL from environment
 - **Fix Simulators**: Tool to detect and fix static simulators by adding JavaScript interactivity
+- **Admin Panel**: Companies, Users, Tutor IA, Reports management
+- **RBAC**: Role-based access (super_admin, company_admin, editor)
 
 ## Architecture
 ```
 /app
 ├── backend (FastAPI + MongoDB)
-│   ├── server.py (main app, startup tasks)
-│   ├── routes/ (agent, export, auth, projects, gamification, admin)
+│   ├── server.py (main app, ALL 15 routes registered)
+│   ├── routes/ (admin, agent, ai_gen, auth, companies, deps, elevenlabs, export, gallery, gamification, heygen, projects, questions, scenarios, users, vlibras)
 │   ├── services/ (ai_agent, scorm_exporter, html_exporter, asset_store)
 │   └── services/export_assets/ (player.js, scenario-controller.js, quiz-controller.js, scorm-api.js, tutor.js)
 └── frontend (React)
@@ -36,6 +38,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **MongoDB Atlas Support**: Increased timeouts (30s server/connect, 60s socket), retryWrites/retryReads
 - **Asset Persistence**: Batch queries on startup instead of individual find_one per asset
 - **AI Tutor URL**: Always uses _get_external_url() (reads BASE_URL from .env) to avoid stale URLs from DB
+- **Route Registration**: ALL 15 route modules must be registered in server.py
 
 ## Credentials
 - Admin: admin@scormify.com / admin123

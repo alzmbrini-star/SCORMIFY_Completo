@@ -1,14 +1,15 @@
 # Roadmap
 
 ## P0 - Critical
-- [x] SCORM completion fix (Player -> CoursePlayer)
-- [x] HTML export scenario fix (data-scenario -> __scenarioDataMap)
-- [x] Production deployment fix (Atlas timeouts)
-- [x] Image generation timeout fix (parallel generation)
-- [x] AI improvements layout fix (element Y positioning + preserve non-text elements)
-- [x] Before/After Preview + Undo for AI improvements
-- [x] AI Tutor URL fix (always use current environment URL in exports)
-- [x] Fix Simulators UI button (Ferramentas dropdown in Editor)
+- [x] SCORM completion fix
+- [x] HTML export scenario fix
+- [x] Production deployment fix
+- [x] Image generation timeout fix
+- [x] AI improvements layout fix
+- [x] Before/After Preview + Undo
+- [x] AI Tutor URL fix
+- [x] Fix Simulators UI button
+- [x] **Missing route registrations fix** (companies, users, elevenlabs, gallery, heygen, questions, scenarios, vlibras)
 - [ ] **User verification**: SCORM completion in real LMS
 - [ ] **User verification**: Image generation with 23+ slides
 
