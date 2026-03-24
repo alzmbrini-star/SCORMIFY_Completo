@@ -35,6 +35,11 @@
 - **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
 - **Status**: Backend starts cleanly ✅
 
+### Deployment Fix: Backend Health Check Timeout (2026-03-24)
+- **Root Cause**: Health endpoints only registered at `/health` — deployment system may check `/api/health`. Also added startup tracing to identify future hangs.
+- **Fix**: Added `/api/health` and `/api/healthz` endpoints. Added `[STARTUP]` logs with `flush=True`. Added `SKIP_SYSTEM_DEPS` env var to skip heavy LibreOffice install. All startup tasks confirmed non-blocking (daemon threads/async tasks).
+- **Status**: Deployment agent verified PASS ✅
+
 ### Bug Fix: Background Images Lost in SCORM/HTML Export (2026-03-24)
 - **Root Cause**: CSS `*{background:transparent!important}` in player.js (SCORM) and html_exporter.py (HTML) overrode ALL inline backgrounds, including images embedded as CSS `url()` in htmlContent
 - **Fix**: Changed wildcard to `*{box-sizing:border-box!important;max-width:100%!important}` — only `body` keeps `background:transparent!important`
