@@ -35,6 +35,12 @@
 - **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
 - **Status**: Backend starts cleanly ✅
 
+### Bug Fix: Background Images Lost in SCORM/HTML Export (2026-03-24)
+- **Root Cause**: CSS `*{background:transparent!important}` in player.js (SCORM) and html_exporter.py (HTML) overrode ALL inline backgrounds, including images embedded as CSS `url()` in htmlContent
+- **Fix**: Changed wildcard to `*{box-sizing:border-box!important;max-width:100%!important}` — only `body` keeps `background:transparent!important`
+- **Applied in**: player.js (line 1325), html_exporter.py (line 2017)
+- **Status**: Tested with 8 tests including SCORM ZIP content verification - ALL PASSED ✅
+
 ### Bug Fix: Button/Badge Colors Not Showing in Editor Canvas (2026-03-24)
 - **Root Cause**: CSS rule `* { background: transparent !important; }` in iframe forced ALL elements transparent, overriding inline background-color on buttons/badges
 - **Fix**: Changed to `html, body, .content-wrapper { background: transparent !important; }` — only container backgrounds are transparent, content elements keep their styling
