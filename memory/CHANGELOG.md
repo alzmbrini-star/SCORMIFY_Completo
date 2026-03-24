@@ -35,6 +35,18 @@
 - **Additional**: Fixed URL migration `TypeError: expected string, got dict` for htmlContent
 - **Status**: Backend starts cleanly ✅
 
+### Bug Fix: Button/Badge Colors Not Showing in Editor Canvas (2026-03-24)
+- **Root Cause**: CSS rule `* { background: transparent !important; }` in iframe forced ALL elements transparent, overriding inline background-color on buttons/badges
+- **Fix**: Changed to `html, body, .content-wrapper { background: transparent !important; }` — only container backgrounds are transparent, content elements keep their styling
+- **Applied in**: SlideCanvas.jsx, CoursePreview.jsx, SplitPreview.jsx
+- **Status**: Verified via screenshot - badges and buttons now show colored backgrounds ✅
+
+### Bug Fix: Login "body stream already read" Error + Token Fallback (2026-03-24)
+- **Root Cause**: Fetch response body read twice when network fails. Also, auth relied ONLY on cookies.
+- **Fix**: Added try/catch around response.text(), clear error messages. Added localStorage token fallback: login saves token, global fetch interceptor auto-includes `Authorization: Bearer` header for all `/api/` calls.
+- **Applied in**: AuthContext.jsx (rewritten), index.js (fetch interceptor), ProjectContext.jsx (axios interceptor)
+- **Status**: Login works even when cookies are blocked ✅
+
 ### Bug Fix: [object Object] in Slides After AI Improvements (2026-03-23)
 - **Root Cause**: AI sometimes returns `content` as dict/object instead of HTML string. Saved directly to `htmlContent`, rendered as `[object Object]` in frontend.
 - **Fix (Backend)**: `_build_improved_elements` now type-checks and converts dict/list/None content to string. `_apply_ai_result_to_slides` validates all fields. `GET /api/projects/{id}` auto-sanitizes corrupt data.

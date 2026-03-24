@@ -817,12 +817,13 @@ const SlideCanvas = ({
                             /* SlideCanvas-specific overrides */
                             html, body { 
                               overflow: hidden;
+                              background: transparent !important;
                               ${element.objectFit === 'cover' ? 'display: flex; align-items: center; justify-content: center;' : ''}
                             }
                             .content-wrapper {
                               padding: ${element.objectFit === 'cover' ? '0' : '12px'};
+                              background: transparent !important;
                             }
-                            * { background: transparent !important; }
                             img {
                               ${element.objectFit === 'cover' ? 'width: 100% !important; height: 100% !important; object-fit: cover !important; max-width: none !important;' : ''}
                             }

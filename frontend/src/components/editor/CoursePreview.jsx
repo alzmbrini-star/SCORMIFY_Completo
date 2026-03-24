@@ -845,7 +845,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             html {
                               ${element.objectFit === 'cover' ? 'width: 100%; height: 100%;' : ''}
                             }
-                            * { background: transparent !important; }
+                            html, body, .content-wrapper { background: transparent !important; }
                             /* Hide scrollbar but allow scrolling */
                             html, body {
                               scrollbar-width: none; /* Firefox */

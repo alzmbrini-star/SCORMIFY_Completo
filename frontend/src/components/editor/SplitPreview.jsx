@@ -398,7 +398,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                       srcDoc={`<html><head><style>
                         ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
                         body { padding: ${isFullscreen ? '0' : '8px'}; overflow: ${isFullscreen ? 'hidden' : 'auto'}; }
-                        * { background: transparent !important; }
+                        html, body { background: transparent !important; }
                         html, body { scrollbar-width: none; -ms-overflow-style: none; }
                         ::-webkit-scrollbar { display: none; }
                         table { border-collapse: separate; border-spacing: 0; border-radius: 8px; overflow: hidden; }
