@@ -6,7 +6,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ## Core Features (Implemented)
 - **AI Scenario Creator**: Interactive branching scenarios with choices, feedback, and scoring
 - **AI Agent**: Course creation from storyboard with media generation
-- **AI HTML Generator**: Generate interactive HTML+JS content via prompt in the Editor
+- **AI HTML Generator**: Generate interactive HTML+JS content via prompt in the Editor (Gemini)
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions, with rollback capability
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
@@ -45,7 +45,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ## 3rd Party Integrations
 - Google Gemini (via Emergent LLM Key)
 - OpenAI GPT-4o (via Emergent LLM Key)
-- HeyGen - Avatar videos (BLOCKED)
+- HeyGen - Avatar videos (BLOCKED - no credits)
 - ElevenLabs - Audio narration
 - ConvertAPI - PPT import (EXPIRED)
 - VLibras - Brazilian Sign Language
+
+## Known Issues
+- PPT Import: Blocked (ConvertAPI trial expired, needs user key)
+- HeyGen Video: Blocked (insufficient credits)
+
+## Status: All P0 bugs resolved ✅
