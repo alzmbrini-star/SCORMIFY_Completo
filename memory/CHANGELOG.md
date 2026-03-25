@@ -1,60 +1,30 @@
 # Changelog
 
-## 2026-03-24 (Current Session - Fork 2)
+## 2026-03-25 (Current Session - Fork 2, continued)
+
+### Bug Fix: AI Tutor 404 in Production SCORM Exports
+- **Root Cause**: `_get_external_url()` in `export.py` read `BASE_URL` from `.env` which had the PREVIEW URL. In production, the Kubernetes ingress proxy changes the URL. The function wasn't aware of the actual external-facing URL.
+- **Fix**: Modified `_get_external_url()` to accept an optional `Request` parameter. New priority order: `X-Forwarded-Host` + `X-Forwarded-Proto` (from K8s ingress) > `Referer` > `BASE_URL` from .env > `REACT_APP_BACKEND_URL` from .env. All 4 callers in export.py now pass the request object.
+- **Key insight**: The K8s proxy replaces `Origin` header with internal cluster URL, but preserves `X-Forwarded-Host` with the external URL.
+- **Applied in**: `backend/routes/export.py` (function + 4 call sites)
+- **Status**: Tested — SCORM/HTML exports use correct external URL ✅ (iteration_77)
 
 ### CRITICAL Bug Fix: Missing Route Registrations (Companies, Users, etc.)
-- **Root Cause**: 8 route modules existed as files in `/app/backend/routes/` but were NEVER registered in `server.py` via `include_router()`. Missing: `companies`, `users`, `elevenlabs`, `gallery`, `heygen`, `questions`, `scenarios`, `vlibras`.
-- **Impact**: All endpoints for these routes returned HTTP 404. Admin panel showed "Nenhuma empresa cadastrada" and no users because `/api/companies` and `/api/users` were unreachable.
-- **Fix**: Added all 8 missing route imports and `include_router()` calls in `server.py`. Also called `set_db(db)` for `companies` and `users` routes (which use the `set_db` pattern).
-- **Applied in**: `backend/server.py` (lines 123-147)
-- **Status**: Tested with 13 backend tests + frontend UI verification — ALL PASSED ✅
+- **Root Cause**: 8 route modules never registered in server.py
+- **Fix**: Added all 8 missing route imports and include_router() calls
+- **Applied in**: `backend/server.py`
+- **Status**: Tested ✅ (iteration_76)
 
-### Bug Fix: AI Tutor URL Stale After Fork
-- **Root Cause**: In `export.py`, SCORM export prioritized DB `apiUrl` over `_get_external_url()`.
-- **Fix**: Changed priority to `_get_external_url() or settings_doc.get('apiUrl', '').strip()`.
-- **Applied in**: `backend/routes/export.py`
-- **Status**: Tested — correct URL in SCORM and HTML exports ✅
+### Bug Fix: AI Tutor URL priority in SCORM export
+- **Fix**: Changed priority from DB settings > env to env > DB settings
+- **Status**: ✅ (iteration_75)
 
 ### Feature: Fix Simulators UI Button
-- **What**: Added "Ferramentas" dropdown menu to Editor header with "Corrigir Simuladores" option.
-- **Applied in**: `frontend/src/pages/Editor.jsx`
-- **Status**: Tested ✅
+- Added "Ferramentas" dropdown menu to Editor header
+- **Status**: ✅ (iteration_75)
 
-## 2026-03-24 (Previous Session)
-
-### Bug Fix: SCORM Completion Not Triggering
-- **Fix**: Changed `Player` to `CoursePlayer` in scenario/quiz controllers
-- **Status**: Tested ✅
-
-### Bug Fix: HTML Export Scenarios Not Opening
-- **Fix**: Replaced `data-scenario` attribute with `window.__scenarioDataMap`
-- **Status**: Tested ✅
-
-### Fix: Course Generation Timeout
-- **Fix**: Parallel image generation with asyncio.Semaphore(5)
-- **Status**: Deployed, needs user testing
-
-### Fix: Production Deployment Failures
-- **Fix**: Dynamic timeout detection for MongoDB Atlas
-- **Status**: ✅
-
-### Bug Fix: Background Images Lost in Export
-- **Fix**: Changed CSS wildcard to specific selectors
-- **Status**: ✅
-
-### Bug Fix: Login "body stream already read" Error
-- **Fix**: localStorage token fallback with global fetch interceptor
-- **Status**: ✅
-
-### Bug Fix: [object Object] in Slides
-- **Fix**: Multi-layer type-checking on backend and frontend
-- **Status**: ✅
-
-### Feature: Before/After Preview + Undo for AI Improvements
-- **Status**: ✅
-
-### Feature: Static Simulator Fix Endpoint + UI Button
-- **Status**: Backend + Frontend ✅
-
-## Previous Session
-- Gamification system, AI Agent scenario fix, asyncio fix, configurable backend URL
+## 2026-03-24 (Previous Sessions - see previous changelog entries)
+- SCORM completion fix, HTML scenario fix, deployment fix
+- Background images export fix, login fix, [object Object] fix
+- Before/After Preview + Undo, AI improvements layout fix
+- Gamification system, AI Agent scenario fix
