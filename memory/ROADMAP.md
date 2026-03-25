@@ -20,7 +20,7 @@
 
 ## P2 - Medium Priority
 - [ ] Custom images for gamification badges
-- [ ] ConvertAPI key renewal (PPT import blocked - trial expired)
+- [x] ConvertAPI key renewal (PPT import restored - credits renewed)
 
 ## P3 - Backlog
 - [ ] Collaborative scenarios (multiple learners)

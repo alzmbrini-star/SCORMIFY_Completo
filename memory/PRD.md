@@ -47,7 +47,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - OpenAI GPT-4o (via Emergent LLM Key)
 - HeyGen - Avatar videos (BLOCKED - no credits)
 - ElevenLabs - Audio narration
-- ConvertAPI - PPT import (EXPIRED)
+- ConvertAPI - PPT import (Active)
 - VLibras - Brazilian Sign Language
 
 ## Known Issues
