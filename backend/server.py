@@ -53,16 +53,46 @@ print("[STARTUP] server.py: Creating FastAPI app...", flush=True)
 # Create FastAPI app
 app = FastAPI(title="Scormify API")
 
-# CORS configuration
+# CORS configuration - always allow all origins (SCORM tutor needs cross-origin access)
 cors_origins_str = os.environ.get("CORS_ORIGINS", "*")
-origins = [o.strip() for o in cors_origins_str.split(",") if o.strip()] if cors_origins_str != "*" else ["*"]
+origins = [o.strip() for o in cors_origins_str.split(",") if o.strip()] if cors_origins_str and cors_origins_str != "*" else ["*"]
+if not origins:
+    origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
+
+# Extra CORS middleware for /tutor/chat — ensures headers survive even if proxy strips them
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
+
+class TutorCorsMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if "/tutor/chat" in request.url.path:
+            if request.method == "OPTIONS":
+                return StarletteResponse(
+                    status_code=204,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "POST, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                        "Access-Control-Max-Age": "86400",
+                    },
+                )
+            response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            return response
+        return await call_next(request)
+
+app.add_middleware(TutorCorsMiddleware)
 
 # Health endpoints - defined FIRST to ensure immediate availability
 @app.get("/health")

@@ -1,5 +1,6 @@
 """Admin settings, reports and AI tutor routes"""
 from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi.responses import JSONResponse
 from typing import Optional
 from datetime import datetime, timezone
 import uuid
@@ -12,6 +13,14 @@ from routes.auth import require_auth
 logger = logging.getLogger("server")
 
 router = APIRouter(tags=["Admin"])
+
+# CORS headers for tutor endpoint (called cross-origin from SCORM/LMS)
+TUTOR_CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+}
 
 
 @router.get("/dashboard/metrics")
@@ -170,6 +179,12 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
     return {"reports": reports, "generatedAt": datetime.now(timezone.utc).isoformat(), "currency": {"USD_TO_BRL": USD_TO_BRL}}
 
 
+@router.options("/tutor/chat")
+async def tutor_chat_options():
+    """Explicit OPTIONS handler for CORS preflight from SCORM/LMS domains"""
+    return JSONResponse(content="", headers=TUTOR_CORS_HEADERS)
+
+
 @router.post("/tutor/chat")
 async def tutor_chat(request: Request):
     data = await request.json()
@@ -188,7 +203,10 @@ async def tutor_chat(request: Request):
     custom_prompt = settings.get("systemPrompt", "")
     msg_count = len([m for m in history if m.get("role") == "user"])
     if msg_count >= message_limit:
-        return {"response": f"Voce atingiu o limite de {message_limit} mensagens para esta sessao.", "limitReached": True}
+        return JSONResponse(
+            content={"response": f"Voce atingiu o limite de {message_limit} mensagens para esta sessao.", "limitReached": True},
+            headers=TUTOR_CORS_HEADERS
+        )
     emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
@@ -217,7 +235,10 @@ CONTEUDO DO CURSO:
             if msg.get("role") == "user":
                 await chat.send_message(UserMessage(text=msg["content"]))
         response = await chat.send_message(UserMessage(text=user_message))
-        return {"response": response, "limitReached": False, "messagesUsed": msg_count + 1, "messageLimit": message_limit}
+        return JSONResponse(
+            content={"response": response, "limitReached": False, "messagesUsed": msg_count + 1, "messageLimit": message_limit},
+            headers=TUTOR_CORS_HEADERS
+        )
     except Exception as e:
         logger.error(f"Tutor chat error: {e}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")

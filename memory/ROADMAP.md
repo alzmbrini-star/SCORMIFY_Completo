@@ -10,7 +10,7 @@
 - [x] AI Tutor URL fix
 - [x] Fix Simulators UI button
 - [x] **Missing route registrations fix** (companies, users, elevenlabs, gallery, heygen, questions, scenarios, vlibras)
-- [ ] **User verification**: SCORM completion in real LMS
+- [x] **AI Tutor CORS fix** (triple-layer CORS for production cross-origin access)
 - [ ] **User verification**: Image generation with 23+ slides
 
 ## P1 - High Priority

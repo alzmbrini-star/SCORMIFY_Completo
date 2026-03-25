@@ -2,6 +2,15 @@
 
 ## 2026-03-25 (Current Session)
 
+### CRITICAL Bug Fix: AI Tutor CORS in Production (Recurring Issue #4)
+- **Root Cause**: SCORM packages served from LMS domains (e.g., `didaxis.didaxis.com.br`) make cross-origin requests to the backend. Production proxy/infrastructure may strip CORS headers or not forward OPTIONS preflight to the app.
+- **Fix**: Triple-layer CORS protection for `/api/tutor/chat`:
+  1. Global `CORSMiddleware` with `allow_origins=["*"]` and fallback for empty env vars
+  2. Custom `TutorCorsMiddleware` that explicitly handles OPTIONS and adds CORS headers for `/tutor/chat`
+  3. Explicit CORS headers in `JSONResponse` at the route handler level
+- **Applied in**: `server.py` (middleware), `routes/admin.py` (endpoint handlers)
+- **Status**: Tested ✅ (preview) — User must **re-deploy and re-export SCORM** to test in production
+
 ### Bug Fix: Washed-Out Slide Thumbnails
 - **Root Cause**: HTML element placeholders in thumbnails were empty transparent divs, hiding the actual slide content. AI-generated slides use HTML elements as main visual content covering the full area.
 - **Fix**: Replaced empty placeholder with sandboxed `<iframe>` (`sandbox="allow-scripts"`, no `allow-same-origin`) that renders the actual HTML content safely without CSS leaking
