@@ -32,6 +32,10 @@ class AgentSessionCreate(BaseModel):
     contentText: Optional[str] = None
     fileName: Optional[str] = None
 
+class GenerateHtmlRequest(BaseModel):
+    prompt: str
+    courseContext: Optional[str] = None
+
 class AgentConfigUpdate(BaseModel):
     model_config = PydanticConfigDict(extra="allow")
     title: Optional[str] = None
@@ -160,6 +164,71 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
                 hc = _re.sub(r'background:#[0-9a-fA-F]{3,8}', f'background:{accent}', hc)
                 el["htmlContent"] = hc
 
+
+
+@router.post("/generate-html")
+async def generate_html_with_ai(body: GenerateHtmlRequest, request: Request):
+    """Generate interactive HTML+JS content from a text prompt using Gemini."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    
+    emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not emergent_key:
+        raise HTTPException(status_code=500, detail="Chave de IA não configurada")
+    
+    system_msg = """Você é um especialista em desenvolvimento web front-end.
+Sua tarefa é gerar código HTML completo, autocontido, com CSS e JavaScript embutidos.
+
+REGRAS OBRIGATÓRIAS:
+- Retorne APENAS o código HTML, sem explicações, sem markdown, sem blocos ```html
+- O HTML deve ser COMPLETO e autocontido (todo CSS e JS inline/embutido)
+- Use design moderno, bonito e responsivo
+- Use cores vibrantes e profissionais
+- O JavaScript DEVE ser funcional e interativo
+- Inclua animações CSS quando apropriado
+- Use fontes do Google Fonts quando necessário (via link CDN)
+- Todo texto deve ser em português brasileiro
+- O conteúdo deve caber em um container de ~800x500px
+- NÃO use bibliotecas externas pesadas, apenas vanilla JS, CSS e CDNs leves
+- Inclua tratamento de erros no JavaScript
+- Use flexbox/grid para layouts modernos"""
+
+    context_hint = ""
+    if body.courseContext:
+        context_hint = f"\n\nContexto do curso: {body.courseContext}"
+    
+    prompt = f"""Crie o seguinte conteúdo HTML interativo:{context_hint}
+
+Solicitação do usuário: {body.prompt}
+
+Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>. Sem explicações."""
+
+    try:
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"html-gen-{uuid.uuid4().hex[:8]}",
+            system_message=system_msg,
+        ).with_model("gemini", "gemini-3-flash-preview")
+        
+        resp = await chat.send_message(UserMessage(text=prompt))
+        html_code = resp.strip() if isinstance(resp, str) else str(resp).strip()
+        
+        # Clean up markdown wrappers if the model wraps in ```html blocks
+        if html_code.startswith("```"):
+            lines = html_code.split("\n")
+            if lines[0].strip().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            html_code = "\n".join(lines)
+        
+        return {"html": html_code}
+    except Exception as e:
+        logger.error(f"HTML generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar HTML: {str(e)}")
 
 
 @router.get("/agent/check-access")

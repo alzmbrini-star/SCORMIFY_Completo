@@ -278,6 +278,10 @@ export default function Editor() {
     text: 'Clique aqui', url: '', icon: '', style: 'primary', openInNewTab: true,
   });
   const [htmlConfig, setHtmlConfig] = useState({ content: '' });
+  const [aiHtmlPrompt, setAiHtmlPrompt] = useState('');
+  const [aiHtmlResult, setAiHtmlResult] = useState('');
+  const [aiHtmlLoading, setAiHtmlLoading] = useState(false);
+  const [htmlDialogTab, setHtmlDialogTab] = useState('paste');
   const [flipbookConfig, setFlipbookConfig] = useState({ type: 'external', url: '', pages: [] });
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
@@ -752,6 +756,67 @@ export default function Editor() {
       });
       setShowHtmlDialog(false);
       setHtmlConfig({ content: '' });
+      setAiHtmlPrompt('');
+      setAiHtmlResult('');
+      setHtmlDialogTab('paste');
+      toast.success('Elemento HTML adicionado');
+    } catch (err) {
+      toast.error('Falha ao adicionar HTML');
+    }
+  };
+
+  // Generate HTML with AI
+  const handleGenerateHtmlAI = async () => {
+    if (!aiHtmlPrompt.trim()) {
+      toast.error('Digite uma descrição do que deseja gerar');
+      return;
+    }
+    setAiHtmlLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/generate-html`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          prompt: aiHtmlPrompt,
+          courseContext: currentProject?.title || '',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro ao gerar HTML');
+      }
+      const data = await res.json();
+      setAiHtmlResult(data.html || '');
+      toast.success('HTML gerado com sucesso!');
+    } catch (err) {
+      toast.error(err.message || 'Erro ao gerar HTML');
+    } finally {
+      setAiHtmlLoading(false);
+    }
+  };
+
+  // Insert AI-generated HTML
+  const handleInsertAiHtml = async () => {
+    if (!aiHtmlResult) {
+      toast.error('Nenhum HTML gerado para inserir');
+      return;
+    }
+    setHtmlConfig({ content: aiHtmlResult });
+    try {
+      await addElement(currentSlide.id, {
+        type: 'html',
+        x: 50,
+        y: 50,
+        width: 400,
+        height: 300,
+        htmlContent: aiHtmlResult,
+      });
+      setShowHtmlDialog(false);
+      setHtmlConfig({ content: '' });
+      setAiHtmlPrompt('');
+      setAiHtmlResult('');
+      setHtmlDialogTab('paste');
       toast.success('Elemento HTML adicionado');
     } catch (err) {
       toast.error('Falha ao adicionar HTML');
@@ -2149,34 +2214,116 @@ export default function Editor() {
         </Dialog>
 
         {/* HTML Dialog */}
-        <Dialog open={showHtmlDialog} onOpenChange={setShowHtmlDialog}>
-          <DialogContent className="sm:max-w-2xl">
+        <Dialog open={showHtmlDialog} onOpenChange={(open) => {
+          setShowHtmlDialog(open);
+          if (!open) { setAiHtmlResult(''); setAiHtmlPrompt(''); setHtmlDialogTab('paste'); }
+        }}>
+          <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Adicionar HTML Personalizado</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium">Código HTML</label>
-                <textarea
-                  className="w-full h-64 p-3 rounded-md border bg-background font-mono text-sm"
-                  placeholder="<div>Seu código HTML aqui...</div>"
-                  value={htmlConfig.content}
-                  onChange={(e) => setHtmlConfig({ ...htmlConfig, content: e.target.value })}
-                  data-testid="html-content-input"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Suporta HTML, CSS inline e JavaScript básico. O código será renderizado dentro de um iframe isolado.
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowHtmlDialog(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleAddHtml} data-testid="confirm-add-html">
-                Adicionar HTML
-              </Button>
-            </DialogFooter>
+            <Tabs value={htmlDialogTab} onValueChange={setHtmlDialogTab} className="flex-1 flex flex-col min-h-0">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="paste" data-testid="html-tab-paste">
+                  <Code className="w-4 h-4 mr-2" />
+                  Colar HTML
+                </TabsTrigger>
+                <TabsTrigger value="ai" data-testid="html-tab-ai">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Gerar com IA
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Tab: Paste HTML */}
+              <TabsContent value="paste" className="flex-1 flex flex-col min-h-0 mt-4">
+                <div className="flex-1 flex flex-col min-h-0">
+                  <label className="text-sm font-medium mb-1">Código HTML</label>
+                  <textarea
+                    className="flex-1 min-h-[240px] p-3 rounded-md border bg-background font-mono text-sm resize-none"
+                    placeholder="<div>Seu código HTML aqui...</div>"
+                    value={htmlConfig.content}
+                    onChange={(e) => setHtmlConfig({ ...htmlConfig, content: e.target.value })}
+                    data-testid="html-content-input"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Suporta HTML, CSS inline e JavaScript básico. O código será renderizado dentro de um iframe isolado.
+                  </p>
+                </div>
+                <DialogFooter className="mt-4">
+                  <Button variant="outline" onClick={() => setShowHtmlDialog(false)}>Cancelar</Button>
+                  <Button onClick={handleAddHtml} data-testid="confirm-add-html">Adicionar HTML</Button>
+                </DialogFooter>
+              </TabsContent>
+
+              {/* Tab: Generate with AI */}
+              <TabsContent value="ai" className="flex-1 flex flex-col min-h-0 mt-4">
+                <div className="flex-1 flex flex-col gap-3 min-h-0">
+                  {/* Prompt input */}
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Descreva o que deseja criar</label>
+                    <textarea
+                      className="w-full h-24 p-3 rounded-md border bg-background text-sm resize-none"
+                      placeholder="Ex: Um quiz interativo sobre segurança do trabalho com 5 perguntas e feedback visual..."
+                      value={aiHtmlPrompt}
+                      onChange={(e) => setAiHtmlPrompt(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && !aiHtmlLoading) handleGenerateHtmlAI(); }}
+                      data-testid="ai-html-prompt"
+                    />
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        Ctrl+Enter para gerar. Seja específico para melhores resultados.
+                      </p>
+                      <Button
+                        size="sm"
+                        onClick={handleGenerateHtmlAI}
+                        disabled={aiHtmlLoading || !aiHtmlPrompt.trim()}
+                        data-testid="ai-html-generate-btn"
+                      >
+                        {aiHtmlLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                        {aiHtmlLoading ? 'Gerando...' : 'Gerar HTML'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Result: Preview + Edit */}
+                  {aiHtmlResult && (
+                    <div className="flex-1 flex flex-col min-h-0 border rounded-lg overflow-hidden">
+                      <Tabs defaultValue="preview" className="flex-1 flex flex-col min-h-0">
+                        <TabsList className="w-fit mx-2 mt-2">
+                          <TabsTrigger value="preview" data-testid="ai-html-preview-tab">Preview</TabsTrigger>
+                          <TabsTrigger value="code" data-testid="ai-html-code-tab">Editar Código</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="preview" className="flex-1 min-h-0 p-2">
+                          <iframe
+                            srcDoc={aiHtmlResult}
+                            className="w-full h-full min-h-[200px] rounded border bg-white"
+                            sandbox="allow-scripts allow-same-origin"
+                            title="AI HTML Preview"
+                            data-testid="ai-html-preview-iframe"
+                          />
+                        </TabsContent>
+                        <TabsContent value="code" className="flex-1 min-h-0 p-2">
+                          <textarea
+                            className="w-full h-full min-h-[200px] p-3 rounded border bg-background font-mono text-xs resize-none"
+                            value={aiHtmlResult}
+                            onChange={(e) => setAiHtmlResult(e.target.value)}
+                            data-testid="ai-html-code-editor"
+                          />
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter className="mt-4">
+                  <Button variant="outline" onClick={() => setShowHtmlDialog(false)}>Cancelar</Button>
+                  {aiHtmlResult && (
+                    <Button onClick={handleInsertAiHtml} data-testid="ai-html-insert-btn">
+                      Inserir no Slide
+                    </Button>
+                  )}
+                </DialogFooter>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
 
