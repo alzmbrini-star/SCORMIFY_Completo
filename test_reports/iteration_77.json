@@ -1,0 +1,67 @@
+{
+  "summary": "Verified bug fix for SCORM/HTML export URL issue (iteration 77). The _get_external_url() function now correctly uses X-Forwarded-Host headers from Kubernetes ingress to determine the external URL. All 11 tests passed. Tutor chat endpoint returns 200. Export URLs use correct external domain (ai-course-author.preview.emergentagent.com) and do NOT contain internal cluster URLs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_export_url_fix.xml",
+    "/app/backend/tests/test_export_url_fix.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: _get_external_url() in export.py now accepts Request parameter and uses X-Forwarded-Host/Proto headers as primary source",
+    "GOOD: Fallback chain is correct: X-Forwarded headers > Referer > BASE_URL > REACT_APP_BACKEND_URL",
+    "GOOD: SCORM export passes request to _get_external_url() at lines 169, 219",
+    "GOOD: HTML export passes request to _get_external_url() at lines 288, 316",
+    "VERIFIED: tutorConfig.apiUrl in SCORM ZIP = 'https://ai-course-author.preview.emergentagent.com' (correct external URL)",
+    "VERIFIED: HTML export tutorConfig.apiUrl = 'https://ai-course-author.preview.emergentagent.com' (correct external URL)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_export_url_fix.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing test project d3387a1f-6c52-4740-a127-a2e733adf663",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Export URL fix verified. The _get_external_url() function now uses X-Forwarded-Host headers (set by Kubernetes ingress) to determine the external URL. SCORM and HTML exports correctly embed the external URL (ai-course-author.preview.emergentagent.com) in tutorConfig.apiUrl. Tutor chat endpoint POST /api/tutor/chat returns 200 with valid response.",
+  "features_tested": {
+    "scorm_export_url_fix": {
+      "export_endpoint": "PASS - POST /api/course/{id}/export-scorm returns 200",
+      "download_url_no_cluster": "PASS - downloadUrl does not contain 'cluster'",
+      "tutor_config_api_url": "PASS - tutorConfig.apiUrl = 'https://ai-course-author.preview.emergentagent.com'"
+    },
+    "html_export_url_fix": {
+      "export_endpoint": "PASS - POST /api/course/{id}/export-html returns 200",
+      "download_url_no_cluster": "PASS - downloadUrl does not contain 'cluster'",
+      "tutor_config_api_url": "PASS - tutorConfig.apiUrl = 'https://ai-course-author.preview.emergentagent.com'"
+    },
+    "tutor_chat_endpoint": {
+      "status": "PASS - POST /api/tutor/chat returns 200 with response",
+      "response_sample": "Tutor responds with contextual help message"
+    },
+    "regression_tests": {
+      "health_endpoint": "PASS - GET /api/health returns 200",
+      "admin_login": "PASS - admin@scormify.com / admin123 works",
+      "companies_endpoint": "PASS - GET /api/companies returns 200",
+      "users_endpoint": "PASS - GET /api/users returns 200"
+    }
+  },
+  "bug_fix_verification": {
+    "root_cause": "_get_external_url() was reading BASE_URL from .env (preview URL) instead of using X-Forwarded-Host headers set by Kubernetes ingress",
+    "fix_applied": "_get_external_url() now accepts optional Request parameter and uses X-Forwarded-Host + X-Forwarded-Proto headers as primary source",
+    "fix_verified": true,
+    "verification_method": "Downloaded SCORM ZIP, extracted course.json, verified tutorConfig.apiUrl uses external domain"
+  }
+}

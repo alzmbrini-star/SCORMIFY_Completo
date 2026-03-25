@@ -4,7 +4,7 @@ Thin orchestrator that configures FastAPI, CORS, database and includes route mod
 """
 import sys
 print("[STARTUP] server.py: Loading imports...", flush=True)
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket

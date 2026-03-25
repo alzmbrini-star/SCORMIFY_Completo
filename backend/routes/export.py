@@ -22,12 +22,27 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Export"])
 
 
-def _get_external_url() -> str:
+def _get_external_url(request: Request = None) -> str:
     """Get the external-facing URL for the app.
-    Reads directly from .env files to avoid issues with hot-reload not re-running load_dotenv.
-    Priority: BASE_URL > REACT_APP_BACKEND_URL > environment variables"""
+    Priority: X-Forwarded headers > Referer > BASE_URL > REACT_APP_BACKEND_URL.
+    Using request headers ensures production exports use the production URL."""
+    from urllib.parse import urlparse
     
-    # Try 1: backend .env BASE_URL
+    if request:
+        # Try 1: X-Forwarded-Host + X-Forwarded-Proto (set by Kubernetes ingress/proxy)
+        fwd_host = (request.headers.get('x-forwarded-host') or '').strip()
+        fwd_proto = (request.headers.get('x-forwarded-proto') or 'https').strip()
+        if fwd_host:
+            return f"{fwd_proto}://{fwd_host}"
+        
+        # Try 2: Referer header (preserved through proxy)
+        referer = (request.headers.get('referer') or '').strip()
+        if referer and referer.startswith('http'):
+            parsed = urlparse(referer)
+            if parsed.scheme and parsed.netloc:
+                return f"{parsed.scheme}://{parsed.netloc}"
+    
+    # Try 3: backend .env BASE_URL
     try:
         backend_env = Path(__file__).parent.parent / '.env'
         for line in backend_env.read_text().splitlines():
@@ -38,7 +53,7 @@ def _get_external_url() -> str:
     except Exception:
         pass
     
-    # Try 2: frontend .env REACT_APP_BACKEND_URL
+    # Try 4: frontend .env REACT_APP_BACKEND_URL
     try:
         frontend_env = Path(__file__).parent.parent.parent / 'frontend' / '.env'
         for line in frontend_env.read_text().splitlines():
@@ -49,7 +64,7 @@ def _get_external_url() -> str:
     except Exception:
         pass
     
-    # Try 3: os.environ fallback
+    # Try 5: os.environ fallback
     return os.environ.get('BASE_URL', '') or os.environ.get('REACT_APP_BACKEND_URL', '')
 
 
@@ -151,7 +166,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
                 # Always use current environment URL to avoid stale URLs from previous forks
-                backend_url = _get_external_url() or settings_doc.get('apiUrl', '').strip()
+                backend_url = _get_external_url(request) or settings_doc.get('apiUrl', '').strip()
                 
                 tutor_settings = {
                     'enabled': True,
@@ -200,7 +215,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         import asyncio
         
         # Use reliable external URL for VLibras proxy
-        scorm_backend_url = _get_external_url()
+        scorm_backend_url = _get_external_url(request)
         
         zip_path = await asyncio.to_thread(
             export_scorm_package,
@@ -270,7 +285,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         assets_dir = str(PROJECTS_DIR / project_id / "assets")
         
         # Get base URL for external assets
-        base_url = _get_external_url()
+        base_url = _get_external_url(request)
         
         # Collect question IDs from quiz elements
         question_ids = set()
@@ -298,7 +313,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
                 # Use reliable external URL (reads directly from .env files)
-                html_backend_url = _get_external_url()
+                html_backend_url = _get_external_url(request)
                 
                 # Build course context from slide content
                 course_context_parts = []
