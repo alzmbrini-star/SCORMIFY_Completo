@@ -3,9 +3,10 @@
 ## 2026-03-25 (Current Session)
 
 ### Bug Fix: Washed-Out Slide Thumbnails
-- **Root Cause**: HTML placeholder in thumbnails had semi-transparent background (`rgba(6,182,212,0.08)`) covering slide content
-- **Fix**: Set `background: 'transparent'` on HTML element placeholders in `SlideThumbnailContent.jsx`
-- **Status**: Verified ✅ — thumbnails display clearly without overlay
+- **Root Cause**: HTML element placeholders in thumbnails were empty transparent divs, hiding the actual slide content. AI-generated slides use HTML elements as main visual content covering the full area.
+- **Fix**: Replaced empty placeholder with sandboxed `<iframe>` (`sandbox="allow-scripts"`, no `allow-same-origin`) that renders the actual HTML content safely without CSS leaking
+- **Applied in**: `SlideThumbnailContent.jsx`
+- **Status**: Verified ✅ — thumbnails now show full slide content (text, images, tables, buttons)
 
 ### CRITICAL Bug Fix: AI HTML CSS Leaking to Editor UI
 - **Root Cause**: `SlideThumbnailContent.jsx` rendered HTML elements using `dangerouslySetInnerHTML` directly in the editor DOM (no iframe isolation). AI-generated HTML contains `<style>` tags with global CSS rules (e.g., `button { background: gradient(...) }`, `body { background: white }`) that cascade to ALL elements on the page, breaking toolbar icons, button visibility, and the dark theme.

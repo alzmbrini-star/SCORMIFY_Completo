@@ -1,5 +1,22 @@
 import React from 'react';
 import { getThumbAssetUrl } from '../utils';
+import { sanitizeHtmlForDisplay } from '../../../utils/htmlUtils';
+import { getApiUrl } from '../../../utils/apiUrl';
+
+const resolveThumbHtmlUrls = (htmlContent) => {
+  if (!htmlContent || typeof htmlContent !== 'string') return '';
+  const API_URL = getApiUrl();
+  let resolved = htmlContent.replace(
+    /https?:\/\/[^/\s"']+\/api\/assets\//g, '/api/assets/'
+  );
+  resolved = resolved.replace(
+    /https?:\/\/[^/\s"']+\/api\/projects\//g, '/api/projects/'
+  );
+  resolved = resolved.replace(
+    /(src=["'])\/api\//g, `$1${API_URL}/api/`
+  );
+  return resolved;
+};
 
 const SlideThumbnailContent = ({ slide }) => {
   const slideW = slide.width || 960;
@@ -113,8 +130,27 @@ const SlideThumbnailContent = ({ slide }) => {
         }
 
         if (el.type === 'html') {
+          const raw = sanitizeHtmlForDisplay(resolveThumbHtmlUrls(el.htmlContent)) || '';
+          if (!raw) {
+            return <div key={el.id} style={{ ...baseStyle, pointerEvents: 'none' }} />;
+          }
+          const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
+          const srcDoc = isFullDoc ? raw : `<html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style></head><body>${raw}</body></html>`;
           return (
-            <div key={el.id} style={{ ...baseStyle, overflow: 'hidden', pointerEvents: 'none', background: 'transparent' }}>
+            <div key={el.id} style={{ ...baseStyle, pointerEvents: 'none', background: 'transparent', contain: 'strict', isolation: 'isolate' }}>
+              <iframe
+                srcDoc={srcDoc}
+                sandbox="allow-scripts"
+                title="HTML Thumb"
+                style={{
+                  width: elW,
+                  height: elH,
+                  border: 'none',
+                  pointerEvents: 'none',
+                  display: 'block',
+                  background: 'transparent',
+                }}
+              />
             </div>
           );
         }
