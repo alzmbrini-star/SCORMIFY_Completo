@@ -414,7 +414,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                       })()}
                       className="w-full h-full border-0 rounded"
                       style={{ background: 'transparent', scrollbarWidth: 'none' }}
-                      sandbox="allow-scripts allow-same-origin"
+                      sandbox="allow-scripts"
                       title="HTML Content"
                     />
                   )}

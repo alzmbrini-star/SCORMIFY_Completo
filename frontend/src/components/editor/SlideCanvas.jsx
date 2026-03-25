@@ -859,7 +859,7 @@ const SlideCanvas = ({
                       </html>`;
                     })()}
                     className="border-0"
-                    sandbox="allow-scripts allow-same-origin"
+                    sandbox="allow-scripts"
                     title="HTML Content"
                     style={{
                       width: `${element.width || 100}px`,

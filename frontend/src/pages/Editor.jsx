@@ -2297,7 +2297,7 @@ export default function Editor() {
                           <iframe
                             srcDoc={aiHtmlResult}
                             className="w-full h-full min-h-[200px] rounded border bg-white"
-                            sandbox="allow-scripts allow-same-origin"
+                            sandbox="allow-scripts"
                             title="AI HTML Preview"
                             data-testid="ai-html-preview-iframe"
                           />

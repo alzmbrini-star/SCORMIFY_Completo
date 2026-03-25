@@ -919,7 +919,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       scrollbarWidth: 'none',
                       msOverflowStyle: 'none'
                     }}
-                    sandbox="allow-scripts allow-same-origin"
+                    sandbox="allow-scripts"
                     title="HTML Content"
                   />
                 )}
