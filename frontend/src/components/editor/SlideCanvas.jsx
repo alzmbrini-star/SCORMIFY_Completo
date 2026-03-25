@@ -807,7 +807,7 @@ const SlideCanvas = ({
 
               {/* HTML Element */}
               {element.type === 'html' && (
-                <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: 'hidden' }}>
+                <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: 'hidden', contain: 'strict', isolation: 'isolate' }}>
                   <iframe
                     srcDoc={(() => {
                       const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';

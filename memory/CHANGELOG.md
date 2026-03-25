@@ -2,21 +2,21 @@
 
 ## 2026-03-25 (Current Session)
 
-### Bug Fix: AI-Generated HTML Breaking Editor CSS
-- **Root Cause**: AI-generated HTML contains full `<!DOCTYPE html>` documents with global CSS styles. When embedded inside another `<html>` wrapper in the iframe's `srcDoc`, the nested HTML structures conflicted, causing CSS to leak/override the dark theme.
-- **Fix**: Added detection in all iframe renderers (SlideCanvas, CoursePreview, SplitPreview, player.js, html_exporter.py) to check if content is a full HTML document (`<!DOCTYPE html>` or `<html>`). Full documents are rendered directly as srcDoc without wrapping.
-- **Applied in**: 
-  - `frontend/src/components/editor/SlideCanvas.jsx`
-  - `frontend/src/components/editor/CoursePreview.jsx`
-  - `frontend/src/components/editor/SplitPreview.jsx`
-  - `backend/services/export_assets/player.js`
-  - `backend/services/html_exporter.py`
-- **Status**: Tested ✅ — dark theme restored, HTML elements render correctly
+### CRITICAL Bug Fix: AI HTML CSS Leaking to Editor UI
+- **Root Cause**: `SlideThumbnailContent.jsx` rendered HTML elements using `dangerouslySetInnerHTML` directly in the editor DOM (no iframe isolation). AI-generated HTML contains `<style>` tags with global CSS rules (e.g., `button { background: gradient(...) }`, `body { background: white }`) that cascade to ALL elements on the page, breaking toolbar icons, button visibility, and the dark theme.
+- **Fix**: Replaced `dangerouslySetInnerHTML` with a safe placeholder (`</> HTML`) for HTML elements in thumbnails. Also removed `allow-same-origin` from all iframe sandboxes and added `contain: strict; isolation: isolate` on iframe containers.
+- **Applied in**: `frontend/src/pages/Editor/components/SlideThumbnailContent.jsx`, `frontend/src/components/editor/SlideCanvas.jsx`, `CoursePreview.jsx`, `SplitPreview.jsx`, `Editor.jsx`
+- **Status**: Tested ✅ — toolbar clean, dark theme restored, HTML renders correctly in iframe
 
 ### Feature: AI-Powered HTML Generation in Editor
-- **What**: Added "Gerar com IA" tab in HTML dialog with prompt, preview, and code editor
-- **Backend**: `POST /api/generate-html` using Gemini (gemini-3-flash-preview)
+- **What**: "Gerar com IA" tab in HTML dialog with prompt → preview → edit → insert
+- **Backend**: `POST /api/generate-html` using Gemini
 - **Status**: Tested ✅ (iteration_78)
+
+### Bug Fix: Full HTML Documents Breaking iframe CSS
+- **Fix**: Auto-detect `<!DOCTYPE html>` and render directly as srcDoc without wrapper
+- **Applied in**: SlideCanvas, CoursePreview, SplitPreview, player.js, html_exporter.py
+- **Status**: Tested ✅
 
 ### Bug Fix: AI Tutor 404 in Production SCORM Exports
 - **Fix**: `_get_external_url()` now uses X-Forwarded headers from K8s proxy
