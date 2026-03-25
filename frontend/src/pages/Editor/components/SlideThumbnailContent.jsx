@@ -114,8 +114,7 @@ const SlideThumbnailContent = ({ slide }) => {
 
         if (el.type === 'html') {
           return (
-            <div key={el.id} style={{ ...baseStyle, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.25)', borderRadius: 8 }}>
-              <span style={{ fontSize: 14, color: '#06b6d4', opacity: 0.6 }}>{'</>'} HTML</span>
+            <div key={el.id} style={{ ...baseStyle, overflow: 'hidden', pointerEvents: 'none', background: 'transparent' }}>
             </div>
           );
         }

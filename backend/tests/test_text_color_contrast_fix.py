@@ -16,7 +16,7 @@ import requests
 import os
 import re
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-course-author.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://editor-sandbox-8.preview.emergentagent.com')
 TEST_PROJECT_ID = "c7de35a7-0f1a-4270-86d4-703151b377e5"
 
 
