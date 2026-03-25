@@ -2,29 +2,31 @@
 
 ## 2026-03-25 (Current Session)
 
+### Bug Fix: AI-Generated HTML Breaking Editor CSS
+- **Root Cause**: AI-generated HTML contains full `<!DOCTYPE html>` documents with global CSS styles. When embedded inside another `<html>` wrapper in the iframe's `srcDoc`, the nested HTML structures conflicted, causing CSS to leak/override the dark theme.
+- **Fix**: Added detection in all iframe renderers (SlideCanvas, CoursePreview, SplitPreview, player.js, html_exporter.py) to check if content is a full HTML document (`<!DOCTYPE html>` or `<html>`). Full documents are rendered directly as srcDoc without wrapping.
+- **Applied in**: 
+  - `frontend/src/components/editor/SlideCanvas.jsx`
+  - `frontend/src/components/editor/CoursePreview.jsx`
+  - `frontend/src/components/editor/SplitPreview.jsx`
+  - `backend/services/export_assets/player.js`
+  - `backend/services/html_exporter.py`
+- **Status**: Tested ✅ — dark theme restored, HTML elements render correctly
+
 ### Feature: AI-Powered HTML Generation in Editor
-- **What**: Added "Gerar com IA" tab in the HTML insert dialog (<> icon). Users can type a prompt describing what they want (quiz, timer, simulator, etc.) and the AI generates complete interactive HTML+CSS+JS.
-- **Flow**: Prompt → Gerar HTML → Preview (iframe) + Editar Código → Inserir no Slide
-- **Backend**: New `POST /api/generate-html` endpoint using Gemini (gemini-3-flash-preview) with specialized system prompt for web content generation
-- **Frontend**: Dialog now has two tabs: "Colar HTML" (existing) + "Gerar com IA" (new). After generation, sub-tabs for Preview and Code Editor.
-- **Applied in**: `backend/routes/agent.py` (GenerateHtmlRequest model + endpoint), `frontend/src/pages/Editor.jsx` (dialog rewrite with Tabs)
-- **Status**: Tested ✅ (iteration_78, 100% backend + frontend)
+- **What**: Added "Gerar com IA" tab in HTML dialog with prompt, preview, and code editor
+- **Backend**: `POST /api/generate-html` using Gemini (gemini-3-flash-preview)
+- **Status**: Tested ✅ (iteration_78)
 
 ### Bug Fix: AI Tutor 404 in Production SCORM Exports
-- **Root Cause**: `_get_external_url()` wasn't using `X-Forwarded-Host` headers from K8s proxy
-- **Fix**: Uses `X-Forwarded-Host` + `X-Forwarded-Proto` as primary URL source
+- **Fix**: `_get_external_url()` now uses X-Forwarded headers from K8s proxy
 - **Status**: Tested ✅ (iteration_77)
 
 ### CRITICAL Bug Fix: Missing Route Registrations
-- **Root Cause**: 8 route modules never registered in server.py (companies, users, etc.)
-- **Fix**: Added all missing imports and include_router() calls
+- **Fix**: Added 8 missing route modules to server.py
 - **Status**: Tested ✅ (iteration_76)
 
-### Bug Fix: AI Tutor URL priority + Fix Simulators UI Button
-- **Status**: Tested ✅ (iteration_75)
-
 ## Previous Sessions
-- SCORM completion fix, HTML scenario fix, deployment fix
-- Background images export fix, login fix, [object Object] fix
+- SCORM completion, HTML scenario, deployment, background images, login fixes
 - Before/After Preview + Undo, AI improvements layout fix
-- Gamification system, AI Agent scenario fix
+- Gamification, AI Agent scenario fix, Fix Simulators button

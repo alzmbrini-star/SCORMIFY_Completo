@@ -1312,7 +1312,13 @@ var CoursePlayer = (function() {
                     'div[style*="float"]{float:none!important;width:100%!important;}' +
                     'span[style*="font-size"]{font-size:inherit!important;}'
                     : '';
-                var wrappedHtml = '<html><head><style>' +
+                // Detect if content is a full HTML document (AI-generated)
+                var isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(htmlContent);
+                var wrappedHtml;
+                if (isFullDoc) {
+                    wrappedHtml = htmlContent;
+                } else {
+                wrappedHtml = '<html><head><style>' +
                     (isHtmlFullscreen ? 
                         // FULLSCREEN MODE - image fills entire container
                         'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent!important;}' +
@@ -1353,6 +1359,7 @@ var CoursePlayer = (function() {
                     'td{border-bottom:1px solid #334155;padding:0.75rem 1rem;background:#1e293b;color:#e2e8f0;}' +
                     'tr:nth-child(even) td{background:#1a2433;}' +
                     '</style></head><body>' + htmlContent + '</body></html>';
+                }
                 htmlIframe.srcdoc = wrappedHtml;
                 htmlIframe.style.cssText = 'width:100%!important;height:100%!important;border:none!important;background:transparent!important;overflow:' + (isHtmlFullscreen ? 'hidden' : 'auto') + '!important;display:block!important;';
                 htmlIframe.sandbox = 'allow-scripts allow-same-origin';

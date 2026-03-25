@@ -809,7 +809,13 @@ const SlideCanvas = ({
               {element.type === 'html' && (
                 <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: 'hidden' }}>
                   <iframe
-                    srcDoc={`
+                    srcDoc={(() => {
+                      const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';
+                      const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
+                      if (isFullDoc) {
+                        return raw;
+                      }
+                      return `
                       <html>
                         <head>
                           <style>
@@ -849,9 +855,9 @@ const SlideCanvas = ({
                             a { color: #22d3ee; }
                           </style>
                         </head>
-                        <body><div class="content-wrapper">${sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>'}</div></body>
-                      </html>
-                    `}
+                        <body><div class="content-wrapper">${raw}</div></body>
+                      </html>`;
+                    })()}
                     className="border-0"
                     sandbox="allow-scripts allow-same-origin"
                     title="HTML Content"

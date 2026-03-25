@@ -395,7 +395,11 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                   )}
                   {element.type === 'html' && (
                     <iframe
-                      srcDoc={`<html><head><style>
+                      srcDoc={(() => {
+                        const raw = processHtmlContent(element.htmlContent, projectId);
+                        const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
+                        if (isFullDoc) return raw;
+                        return `<html><head><style>
                         ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
                         body { padding: ${isFullscreen ? '0' : '8px'}; overflow: ${isFullscreen ? 'hidden' : 'auto'}; }
                         html, body { background: transparent !important; }
@@ -406,7 +410,8 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                         td { border-bottom: 1px solid #334155; padding: 0.5rem; background: #1e293b; color: #e2e8f0; }
                         tr:nth-child(even) td { background: #1a2433; }
                         a { color: #22d3ee; }
-                      </style></head><body>${processHtmlContent(element.htmlContent, projectId)}</body></html>`}
+                      </style></head><body>${raw}</body></html>`;
+                      })()}
                       className="w-full h-full border-0 rounded"
                       style={{ background: 'transparent', scrollbarWidth: 'none' }}
                       sandbox="allow-scripts allow-same-origin"

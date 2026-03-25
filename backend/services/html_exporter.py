@@ -2003,8 +2003,13 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 elem.height >= slideHeight * 0.95 &&
                                 elem.x <= slideWidth * 0.05 &&
                                 elem.y <= slideHeight * 0.05;
-                            // Wrap htmlContent with proper CSS for text wrapping around images
-                            var wrappedHtml = '<html><head><style>' +
+                            // Detect if content is a full HTML document (AI-generated)
+                            var isFullDoc = /<!doctype\\s+html|<html[\\s>]/i.test(htmlContent);
+                            var wrappedHtml;
+                            if (isFullDoc) {{
+                                wrappedHtml = htmlContent;
+                            }} else {{
+                            wrappedHtml = '<html><head><style>' +
                                 (isFullscreen ? 
                                     // FULLSCREEN MODE - image fills entire container
                                     'html,body{{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent!important;}}' +
@@ -2045,6 +2050,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 'td{{border-bottom:1px solid #334155;padding:0.75rem 1rem;background:#1e293b;color:#e2e8f0;}}' +
                                 'tr:nth-child(even) td{{background:#1a2433;}}' +
                                 '</style></head><body>' + htmlContent + '</body></html>';
+                            }}
                             html += '<iframe srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{

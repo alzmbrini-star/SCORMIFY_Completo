@@ -831,7 +831,11 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 {/* HTML */}
                 {element.type === 'html' && (
                   <iframe
-                    srcDoc={`
+                    srcDoc={(() => {
+                      const raw = processHtmlContent(element.htmlContent, projectId);
+                      const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
+                      if (isFullDoc) return raw;
+                      return `
                       <html>
                         <head>
                           <style>
@@ -904,9 +908,9 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             a { color: #22d3ee; }
                           </style>
                         </head>
-                        <body>${processHtmlContent(element.htmlContent, projectId)}</body>
-                      </html>
-                    `}
+                        <body>${raw}</body>
+                      </html>`;
+                    })()}
                     className="w-full h-full border-0 rounded"
                     style={{ 
                       background: 'transparent', 
