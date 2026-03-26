@@ -2,6 +2,12 @@
 
 ## 2026-03-25 (Current Session)
 
+### Bug Fix: SCORM Completion Not Triggering
+- **Root Cause**: Completion logic required ALL scenarios to be completed in addition to quizzes. Scenarios are interactive branching exercises that users might skip or not complete fully, blocking SCORM "completed" status indefinitely.
+- **Fix**: Changed completion rules in `player.js` to: Navigate to last slide + Complete all quizzes (if any). Scenarios are now optional (enrich learning but don't block completion).
+- **Applied in**: `services/export_assets/player.js` (checkAndSetCompletion + finalCompletionCheck)
+- **Status**: Tested ✅ — re-exported SCORM package contains updated logic
+
 ### Feature: AI Simulator/Game Generation in Course Creation
 - **Modified**: `ai_agent.py` - Added `simulator` slide type to `generate_structure`, `generate_storyboard`, `generate_course_from_storyboard`, `generate_structure_from_template`
 - **Modified**: `routes/agent.py` - Enhanced `_build_improved_elements` to handle HTML simulator elements, added `course_interactivity` category to improvement suggestions, enhanced `apply_course_improvements` prompt

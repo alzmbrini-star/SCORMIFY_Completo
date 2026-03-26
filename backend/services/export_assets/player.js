@@ -1045,35 +1045,34 @@ var CoursePlayer = (function() {
     function checkAndSetCompletion() {
         var quizzesComplete = Object.keys(completedQuizzes).length >= totalQuizzes;
         var scenariosComplete = Object.keys(completedScenarios).length >= totalScenarios;
-        var hasInteractiveElements = courseHasQuiz || courseHasScenario;
         
         console.log('[Player] Checking completion:', {
+            visitedLastSlide: visitedLastSlide,
             quizzesComplete: quizzesComplete,
             completedQuizzes: Object.keys(completedQuizzes).length,
             totalQuizzes: totalQuizzes,
             scenariosComplete: scenariosComplete,
             completedScenarios: Object.keys(completedScenarios).length,
-            totalScenarios: totalScenarios,
-            visitedLastSlide: visitedLastSlide
+            totalScenarios: totalScenarios
         });
         
-        if (!hasInteractiveElements) {
-            // No interactive elements: mark complete when last slide is reached
-            if (visitedLastSlide) {
-                ScormAPI.setComplete();
-                console.log('[Player] No interactive elements - marked complete on last slide');
-            }
-        } else if (quizzesComplete && scenariosComplete) {
-            // All interactive elements done - mark complete immediately
-            // No need to wait for last slide visit
-            ScormAPI.setComplete();
-            console.log('[Player] All quizzes and scenarios complete - course marked complete!');
-        } else {
-            console.log('[Player] Completion deferred - waiting for:', {
-                needQuizzes: !quizzesComplete && totalQuizzes > 0,
-                needScenarios: !scenariosComplete && totalScenarios > 0
-            });
+        // Completion rules:
+        // 1. Must visit the last slide (navigation complete)
+        // 2. If course has quizzes, all quizzes must be completed
+        // 3. Scenarios are optional (enrich learning but don't block completion)
+        if (!visitedLastSlide) {
+            console.log('[Player] Completion deferred - user has not reached last slide');
+            return;
         }
+        
+        if (courseHasQuiz && !quizzesComplete) {
+            console.log('[Player] Completion deferred - quizzes pending:', totalQuizzes - Object.keys(completedQuizzes).length);
+            return;
+        }
+        
+        // All conditions met: visited last slide + all quizzes done (if any)
+        ScormAPI.setComplete();
+        console.log('[Player] Course marked COMPLETE! (lastSlide=' + visitedLastSlide + ', quizzes=' + Object.keys(completedQuizzes).length + '/' + totalQuizzes + ', scenarios=' + Object.keys(completedScenarios).length + '/' + totalScenarios + ')');
     }
     
     // Called by QuizController when a quiz is completed
@@ -2140,21 +2139,18 @@ var CoursePlayer = (function() {
         // Final check before page unload - ensures completion is set if all activities are done
         finalCompletionCheck: function() {
             var quizzesComplete = Object.keys(completedQuizzes).length >= totalQuizzes;
-            var scenariosComplete = Object.keys(completedScenarios).length >= totalScenarios;
-            var hasInteractiveElements = courseHasQuiz || courseHasScenario;
             
             console.log('[Player] Final completion check before unload:', {
+                visitedLastSlide: visitedLastSlide,
                 quizzesComplete: quizzesComplete,
-                scenariosComplete: scenariosComplete,
-                hasInteractiveElements: hasInteractiveElements
+                completedQuizzes: Object.keys(completedQuizzes).length,
+                totalQuizzes: totalQuizzes
             });
             
-            if (hasInteractiveElements && quizzesComplete && scenariosComplete) {
+            // Mark complete if user visited last slide and all quizzes are done
+            if (visitedLastSlide && (!courseHasQuiz || quizzesComplete)) {
                 ScormAPI.setComplete();
-                console.log('[Player] Final check: All activities complete - forced completion');
-            } else if (!hasInteractiveElements) {
-                ScormAPI.setComplete();
-                console.log('[Player] Final check: No interactive elements - forced completion');
+                console.log('[Player] Final check: Marked complete on unload');
             }
         },
         refresh: function() {
