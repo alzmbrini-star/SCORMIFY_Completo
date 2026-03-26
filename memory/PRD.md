@@ -7,22 +7,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI Scenario Creator**: Interactive branching scenarios with choices, feedback, and scoring
 - **AI Agent**: Course creation from storyboard with media generation
 - **AI HTML Generator**: Generate interactive HTML+JS content via prompt in the Editor (Gemini)
+- **AI Simulator/Game Generation**: Agent creates interactive HTML+JS simulators per module (calculators, flashcards, memory games, drag-and-drop, quizzes, timelines, etc.)
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions, with rollback capability
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
+- **Video Export (MP4/WebM)**: Course slides rendered to video with FFmpeg (auto-installed on startup)
 - **Gamification System**: Configurable badges and feedback per-project
-- **PPT Import**: Convert PowerPoint to course (requires ConvertAPI)
+- **PPT Import**: Convert PowerPoint to course (ConvertAPI - Active)
 - **VLibras**: Brazilian Sign Language accessibility widget
-- **AI Tutor**: AI-powered tutor embedded in exported courses
+- **AI Tutor**: AI-powered tutor embedded in exported courses (triple-layer CORS for cross-origin LMS access)
 - **Fix Simulators**: Tool to detect and fix static simulators
 
 ## Architecture
 ```
 /app
 ├── backend (FastAPI + MongoDB)
-│   ├── server.py (ALL 15 routes registered)
+│   ├── server.py (ALL routes registered, TutorCorsMiddleware, FFmpeg startup)
+│   ├── start.sh (Startup script - installs FFmpeg before uvicorn)
 │   ├── routes/ (admin, agent, ai_gen, auth, companies, deps, elevenlabs, export, gallery, gamification, heygen, projects, questions, scenarios, users, vlibras)
-│   ├── services/ (ai_agent, scorm_exporter, html_exporter, asset_store)
+│   ├── services/ (ai_agent, scorm_exporter, html_exporter, video_exporter, asset_store)
 │   └── services/export_assets/
 └── frontend (React)
     ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
@@ -35,9 +38,10 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - `POST /api/agent/courses/{id}/preview-improvements` - Preview AI suggestions
 - `POST /api/agent/courses/{id}/undo-improvements` - Undo last improvement
 - `POST /api/projects/{id}/fix-simulators` - Fix static simulators
-- `POST /api/tutor/chat` - AI Tutor chat
+- `POST /api/tutor/chat` - AI Tutor chat (CORS-enabled for LMS)
 - `POST /api/course/{id}/export-scorm` - SCORM export
 - `POST /api/course/{id}/export-html` - HTML export
+- `POST /api/course/{id}/export-video` - Video export (MP4/WebM)
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -51,7 +55,6 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - VLibras - Brazilian Sign Language
 
 ## Known Issues
-- PPT Import: Blocked (ConvertAPI trial expired, needs user key)
 - HeyGen Video: Blocked (insufficient credits)
 
 ## Status: All P0 bugs resolved ✅

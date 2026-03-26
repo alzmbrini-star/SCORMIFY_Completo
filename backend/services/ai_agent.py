@@ -144,7 +144,7 @@ Retorne um JSON com a estrutura:
         {{
           "id": "slide1",
           "title": "Título do Slide",
-          "type": "content|title|quiz|summary|scenario",
+          "type": "content|title|quiz|summary|scenario|simulator",
           "purpose": "Breve descrição do objetivo deste slide",
           "estimatedDuration": 30
         }}
@@ -161,6 +161,7 @@ REGRAS:
 - Cada módulo deve ter 2-5 slides de conteúdo
 - Inclua slides de quiz ao final de cada módulo
 - IMPORTANTE: Quando o tema envolver tomada de decisão, resolução de problemas, liderança, atendimento ao cliente, ética ou situações práticas, OBRIGATORIAMENTE inclua pelo menos 1 slide com "type": "scenario" (NÃO use type content com título "cenário" - use type scenario para gerar simulação interativa real)
+- IMPORTANTE: OBRIGATORIAMENTE inclua pelo menos 1-2 slides com "type": "simulator" por módulo. Simuladores são elementos HTML+JS interativos como: calculadoras temáticas, jogos de arrastar e soltar, flashcards interativos, quizzes gamificados com pontuação, simuladores de processos, jogos de memória, linha do tempo interativa, painel de tomada de decisão, etc. O simulador DEVE estar diretamente relacionado ao conteúdo do módulo.
 - Último slide deve ser um resumo/conclusão
 - Aplique progressão de complexidade
 - Use microlearning: máximo 3 conceitos por slide"""
@@ -263,6 +264,36 @@ SLIDES DE CENÁRIO (type="scenario"):
 - NÃO gere conteúdo de texto para cenários, a IA gerará automaticamente
 - Apenas forneça: "scenarioTheme" (tema do cenário relacionado ao módulo), "scenarioObjectives" (objetivos de aprendizagem que o cenário testará), "scenarioAudience" (público-alvo)
 - Formato no elements: [{{"type":"scenario","scenarioTheme":"tema","scenarioObjectives":"objetivos","scenarioAudience":"público"}}]
+
+SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
+- OBRIGATÓRIO em cada módulo: pelo menos 1 slide simulador/jogo educativo interativo
+- Gere um documento HTML COMPLETO e FUNCIONAL com CSS e JavaScript embutidos
+- O HTML será renderizado dentro de um iframe isolado de 960x540px
+- O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
+- TIPOS DE SIMULADORES que você DEVE criar (escolha o mais adequado ao conteúdo):
+  * Calculadora temática (ex: ROI, risco, custo-benefício)
+  * Jogo de arrastar e soltar (drag-and-drop para classificação)
+  * Flashcards interativos (virar carta com conceito/definição)
+  * Quiz gamificado com pontuação, timer e feedback visual
+  * Jogo de memória (matching pairs com conceitos do módulo)
+  * Linha do tempo interativa (eventos/etapas clicáveis)
+  * Simulador de processo (passo-a-passo com decisões)
+  * Painel de diagnóstico/avaliação com gráficos
+  * Jogo de ordenação (colocar etapas na ordem correta)
+  * Completar lacunas interativo (fill-in-the-blanks)
+- REGRAS DO HTML:
+  1. Deve ser um documento HTML completo: <!DOCTYPE html><html><head><style>...</style></head><body>...<script>...</script></body></html>
+  2. CSS: Design moderno e atraente com gradientes, sombras, border-radius, transições, animações
+  3. JavaScript: TODA interatividade deve funcionar - botões, drag-and-drop, cliques, feedback visual
+  4. Use cores vibrantes e profissionais, fonte legível
+  5. Dimensões do conteúdo: 960x540 pixels (não use scroll, tudo deve caber na tela)
+  6. Inclua título do jogo/simulador, instruções breves, e feedback ao usuário
+  7. NUNCA gere HTML vazio ou estático - todo simulador DEVE ter interação via JavaScript
+  8. Use emojis nos textos para tornar mais visual e engajante
+  9. Inclua pontuação, progresso ou feedback visual para o aluno
+  10. O conteúdo do simulador DEVE estar 100% relacionado ao tema do módulo/curso
+- NÃO inclua "narrationScript" detalhado para simuladores (o aluno interage diretamente)
+- Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
 
 PARA TODOS OS SLIDES:
 - imageKeywords: 2-3 palavras em INGLÊS descrevendo uma foto profissional relevante
@@ -1396,6 +1427,35 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         elif stype == "summary":
             bg = palette["primary"]
             slide_elements = _build_summary_slide(sb_slide, palette, module_name)
+        elif stype == "simulator":
+            bg = palette.get("contentBg", "#ffffff")
+            # Simulator slides contain full HTML+JS interactive content
+            html_content = ""
+            for el in sb_slide.get("elements", []):
+                if el.get("type") == "html" and el.get("htmlContent"):
+                    html_content = el["htmlContent"]
+                    break
+            if not html_content:
+                # Fallback: look for text content that might be HTML
+                for el in sb_slide.get("elements", []):
+                    content = el.get("content", "")
+                    if content and ("<!DOCTYPE" in content or "<html" in content or "<script" in content):
+                        html_content = content
+                        break
+            if html_content:
+                slide_elements = [{
+                    "id": generate_id(),
+                    "type": "html",
+                    "htmlContent": html_content,
+                    "x": 0,
+                    "y": 0,
+                    "width": 960,
+                    "height": 540,
+                    "zIndex": 1,
+                }]
+            else:
+                # No HTML content generated, fallback to content slide
+                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
         else:
             bg = palette["contentBg"]
             media = slide_media.get(i, {"type": "image"})
@@ -1699,13 +1759,26 @@ MELHORIAS SELECIONADAS:
 IMPORTANTE: Cada slide deve ter UM ÚNICO elemento com todo o conteúdo HTML combinado. NÃO divida o conteúdo em múltiplos elementos.
 O slide tem dimensões 1920x820. O elemento principal deve usar width 1760 e height 700 para ocupar bem o espaço.
 
-REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculadora ou elemento interativo:
-- OBRIGATÓRIO incluir JavaScript inline com <script> tags dentro do HTML
-- Cada botão DEVE ter onclick com uma função JavaScript que atualiza os resultados
-- O conteúdo é renderizado em um iframe que suporta JavaScript
-- Use getElementById para manipular elementos
+REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculadora, jogo educativo ou elemento interativo:
+- OBRIGATÓRIO: gere um documento HTML COMPLETO dentro de um elemento com type "html" e campo "htmlContent"
+- O HTML será renderizado dentro de um iframe isolado de 960x540px
+- Formato do elemento: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'><head><style>CSS</style></head><body>CONTEUDO<script>JS</script></body></html>","width":960,"height":540}}
+- TIPOS DE SIMULADORES (escolha o mais adequado):
+  * Calculadora temática (ROI, risco, custo-benefício, etc.)
+  * Jogo de arrastar e soltar (drag-and-drop para classificação)
+  * Flashcards interativos (virar carta com conceito/definição)
+  * Quiz gamificado com pontuação, timer e feedback visual
+  * Jogo de memória (matching pairs com conceitos do módulo)
+  * Linha do tempo interativa (eventos/etapas clicáveis)
+  * Simulador de processo passo-a-passo
+  * Painel de diagnóstico/avaliação com gráficos
+  * Jogo de ordenação (colocar etapas na ordem correta)
+- CSS: Design moderno com gradientes, sombras, border-radius, transições, animações
+- JavaScript: TODA interatividade DEVE funcionar - botões onclick, drag-and-drop, feedback visual dinâmico
+- Use getElementById para manipular elementos, inclua pontuação e feedback
 - NÃO gere botões estáticos sem funcionalidade
-- Inclua feedback visual (cores, animações CSS, barras de progresso)
+- Inclua título, instruções breves e feedback visual para o aluno
+- Conteúdo 100% relacionado ao tema do curso
 
 Retorne JSON com os slides a atualizar:
 ```json
@@ -1727,6 +1800,16 @@ Retorne JSON com os slides a atualizar:
       "type": "content",
       "background": "#FFFFFF",
       "elements": [{{"type":"text","content":"<h2>Título</h2><p>Conteúdo completo em um bloco</p>","width":1760,"height":700}}],
+      "narrationScript": "",
+      "librasScript": "",
+      "quizQuestions": []
+    }},
+    {{
+      "afterIndex": 3,
+      "title": "Simulador Interativo",
+      "type": "simulator",
+      "background": "#FFFFFF",
+      "elements": [{{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'><head><style>body{{margin:0;font-family:sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;justify-content:center;align-items:center;min-height:100vh;color:#fff}}</style></head><body><div id='app'><h2>Simulador</h2><button onclick='start()'>Iniciar</button></div><script>function start(){{document.getElementById('app').innerHTML='<h2>Resultado</h2><p>Parabéns!</p>'}}</script></body></html>","width":960,"height":540}}],
       "narrationScript": "",
       "librasScript": "",
       "quizQuestions": []
@@ -1877,7 +1960,7 @@ Retorne JSON com a estrutura completa:
       "title": "Módulo",
       "description": "Desc",
       "slides": [
-        {{"id": "s1", "title": "Slide", "type": "content|title|quiz|summary", "purpose": "Objetivo", "estimatedDuration": 30}}
+        {{"id": "s1", "title": "Slide", "type": "content|title|quiz|summary|simulator", "purpose": "Objetivo", "estimatedDuration": 30}}
       ]
     }}
   ],
@@ -1886,7 +1969,8 @@ Retorne JSON com a estrutura completa:
 }}
 ```
 
-Siga a estrutura do template mas adapte ao conteúdo fornecido. Primeiro slide=capa, último=resumo, quizzes ao final de cada módulo."""
+Siga a estrutura do template mas adapte ao conteúdo fornecido. Primeiro slide=capa, último=resumo, quizzes ao final de cada módulo.
+OBRIGATÓRIO: Inclua pelo menos 1-2 slides tipo "simulator" por módulo. Simuladores são jogos/ferramentas HTML+JS interativos (calculadoras, quizzes gamificados, flashcards, jogos de memória, drag-and-drop, etc.) relacionados ao conteúdo do módulo."""
     
     response = await chat.send_message(UserMessage(text=prompt))
     return _extract_json(response) or {}

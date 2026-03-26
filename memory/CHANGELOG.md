@@ -2,6 +2,12 @@
 
 ## 2026-03-25 (Current Session)
 
+### Feature: AI Simulator/Game Generation in Course Creation
+- **Modified**: `ai_agent.py` - Added `simulator` slide type to `generate_structure`, `generate_storyboard`, `generate_course_from_storyboard`, `generate_structure_from_template`
+- **Modified**: `routes/agent.py` - Enhanced `_build_improved_elements` to handle HTML simulator elements, added `course_interactivity` category to improvement suggestions, enhanced `apply_course_improvements` prompt
+- **What it does**: AI Agent now MANDATORY creates 1-2 interactive HTML+JS simulators per module (calculators, drag-and-drop, flashcards, memory games, quizzes, timelines, etc.)
+- **Status**: Code deployed ✅ — needs user testing via course creation flow
+
 ### Video Export Fix: FFmpeg Persistence
 - **Root Cause**: FFmpeg not available after fork/deploy because system packages are reset
 - **Fix**: Triple-layer persistence:

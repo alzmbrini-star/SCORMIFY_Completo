@@ -1527,10 +1527,11 @@ Responda APENAS em JSON válido com esta estrutura exata:
   "platform_performance": [sugestões para melhorar performance e confiabilidade],
   "course_content": [sugestões para melhorar a qualidade do conteúdo do curso gerado],
   "course_design": [sugestões para melhorar o design visual do curso],
-  "course_pedagogy": [sugestões para melhorar a metodologia pedagógica do curso]
+  "course_pedagogy": [sugestões para melhorar a metodologia pedagógica do curso],
+  "course_interactivity": [sugestões de simuladores, jogos educativos e elementos interativos HTML+JS para adicionar ao curso - ex: calculadoras temáticas, jogos de memória, flashcards, quizzes gamificados, drag-and-drop, linha do tempo interativa. Cada sugestão deve descrever o tipo de jogo/simulador e como se relaciona ao conteúdo]
 }}
 
-Gere 2-3 sugestões por categoria, totalizando 12-18 sugestões. Seja específico e actionable."""
+Gere 2-3 sugestões por categoria, totalizando 14-21 sugestões. Seja específico e actionable."""
 
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
@@ -2025,11 +2026,33 @@ def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
     for elem in ai_elements:
         if not isinstance(elem, dict):
             continue
+        
+        elem_type = elem.get("type", "text")
         elem_height = elem.get("height", 400)
-        # Ensure content is always a string - AI may return objects
-        raw_content = elem.get("content", "")
+        
+        # Handle HTML/simulator elements (full HTML documents)
+        if elem_type == "html" and elem.get("htmlContent"):
+            html_content = elem["htmlContent"]
+            if isinstance(html_content, str) and ("<!DOCTYPE" in html_content or "<html" in html_content or "<script" in html_content):
+                el = {
+                    "id": generate_id_fn(),
+                    "type": "html",
+                    "x": 0,
+                    "y": 0,
+                    "width": elem.get("width", 960),
+                    "height": elem.get("height", 540),
+                    "content": "",
+                    "htmlContent": html_content,
+                    "style": {},
+                    "startTime": 0,
+                    "animations": [],
+                }
+                new_html_elements.append(el)
+                continue
+        
+        # Standard text/content elements
+        raw_content = elem.get("htmlContent") or elem.get("content", "")
         if isinstance(raw_content, dict):
-            # If AI returned structured content, try to extract text or stringify
             raw_content = raw_content.get("html", "") or raw_content.get("text", "") or json.dumps(raw_content, ensure_ascii=False)
         elif isinstance(raw_content, list):
             raw_content = " ".join(str(c) for c in raw_content)
