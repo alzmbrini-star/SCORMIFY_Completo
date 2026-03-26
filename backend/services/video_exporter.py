@@ -43,8 +43,10 @@ def _ensure_ffmpeg():
 
 def is_ffmpeg_available():
     """Check if ffmpeg is available for video export"""
-    ffmpeg, ffprobe = _ensure_ffmpeg()
-    return ffmpeg is not None and ffprobe is not None
+    global FFMPEG_BIN, FFPROBE_BIN
+    if not FFMPEG_BIN or not FFPROBE_BIN:
+        FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
+    return FFMPEG_BIN is not None and FFPROBE_BIN is not None
 
 
 FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
@@ -266,6 +268,11 @@ async def download_youtube_video(url: str, output_path: str) -> bool:
 
 def get_media_duration(file_path: str) -> float:
     """Get duration of audio/video file using ffprobe"""
+    global FFPROBE_BIN
+    if not FFPROBE_BIN:
+        _, FFPROBE_BIN = _ensure_ffmpeg()
+    if not FFPROBE_BIN:
+        return 0
     try:
         result = subprocess.run(
             [FFPROBE_BIN, '-v', 'quiet', '-show_entries', 'format=duration',
@@ -281,6 +288,12 @@ def get_media_duration(file_path: str) -> float:
 
 def run_ffmpeg(args: list, timeout: int = 300) -> bool:
     """Run FFmpeg command"""
+    global FFMPEG_BIN
+    if not FFMPEG_BIN:
+        FFMPEG_BIN, _ = _ensure_ffmpeg()
+    if not FFMPEG_BIN:
+        logger.error("FFmpeg not available")
+        return False
     cmd = [FFMPEG_BIN, '-y'] + args
     logger.info(f"FFmpeg: {' '.join(cmd[:10])}...")
     try:

@@ -536,6 +536,8 @@ async def serve_export(filename: str, preview: str = None):
         media_type = 'application/zip'
     elif filename.endswith('.mp4'):
         media_type = 'video/mp4'
+    elif filename.endswith('.webm'):
+        media_type = 'video/webm'
     else:
         media_type = 'application/octet-stream'
     

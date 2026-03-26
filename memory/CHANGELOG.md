@@ -2,6 +2,16 @@
 
 ## 2026-03-25 (Current Session)
 
+### Video Export Fix: FFmpeg Persistence
+- **Root Cause**: FFmpeg not available after fork/deploy because system packages are reset
+- **Fix**: Triple-layer persistence:
+  1. `start.sh` script installs FFmpeg before starting uvicorn (supervisor)
+  2. FastAPI `startup_ensure_ffmpeg()` event auto-installs if missing
+  3. `video_exporter.py` lazy-loads FFmpeg paths at runtime
+- Added WebM media type to `serve_export` endpoint
+- **Applied in**: `server.py`, `backend/start.sh`, `services/video_exporter.py`, `routes/export.py`
+- **Status**: Tested ✅ (MP4: 54s/374KB, WebM: 54s/1.1MB)
+
 ### CRITICAL Bug Fix: AI Tutor CORS in Production (Recurring Issue #4)
 - **Root Cause**: SCORM packages served from LMS domains (e.g., `didaxis.didaxis.com.br`) make cross-origin requests to the backend. Production proxy/infrastructure may strip CORS headers or not forward OPTIONS preflight to the app.
 - **Fix**: Triple-layer CORS protection for `/api/tutor/chat`:

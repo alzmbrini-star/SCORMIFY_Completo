@@ -235,6 +235,34 @@ async def _run_migrate_urls():
         logger.warning(f"Startup URL migration failed (non-fatal): {e}")
 
 
+
+@app.on_event("startup")
+async def startup_ensure_ffmpeg():
+    """Ensure FFmpeg is available for video export"""
+    import shutil
+    if not shutil.which('ffmpeg'):
+        logger.info("FFmpeg not found, attempting to install...")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                'apt-get', 'update', '-qq',
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            )
+            await proc.wait()
+            proc = await asyncio.create_subprocess_exec(
+                'apt-get', 'install', '-y', '-qq', 'ffmpeg',
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            )
+            await proc.wait()
+            if shutil.which('ffmpeg'):
+                logger.info(f"FFmpeg installed successfully: {shutil.which('ffmpeg')}")
+            else:
+                logger.warning("FFmpeg installation failed - video export will be unavailable")
+        except Exception as e:
+            logger.warning(f"FFmpeg auto-install failed (non-fatal): {e}")
+    else:
+        logger.info(f"FFmpeg available: {shutil.which('ffmpeg')}")
+
+
 @app.on_event("startup")
 async def startup_ensure_admin():
     """Ensure super admin user exists in database"""
