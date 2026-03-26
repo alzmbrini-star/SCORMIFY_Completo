@@ -270,28 +270,38 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
 - Gere um documento HTML COMPLETO e FUNCIONAL com CSS e JavaScript embutidos
 - O HTML será renderizado dentro de um iframe isolado de 960x540px
 - O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
-- TIPOS DE SIMULADORES que você DEVE criar (escolha o mais adequado ao conteúdo):
-  * Calculadora temática (ex: ROI, risco, custo-benefício)
-  * Jogo de arrastar e soltar (drag-and-drop para classificação)
-  * Flashcards interativos (virar carta com conceito/definição)
-  * Quiz gamificado com pontuação, timer e feedback visual
-  * Jogo de memória (matching pairs com conceitos do módulo)
-  * Linha do tempo interativa (eventos/etapas clicáveis)
-  * Simulador de processo (passo-a-passo com decisões)
-  * Painel de diagnóstico/avaliação com gráficos
-  * Jogo de ordenação (colocar etapas na ordem correta)
-  * Completar lacunas interativo (fill-in-the-blanks)
+- TIPOS DE JOGOS/SIMULADORES que você DEVE criar (escolha o mais adequado ao conteúdo):
+
+  JOGOS EDUCATIVOS (foco em fixação e engajamento):
+  * Forca Educacional: Jogo de adivinhação de palavras/termos do curso com dicas pedagógicas. Ideal para memorizar termos, conceitos, siglas e vocabulários. Mostre um boneco sendo desenhado, letras clicáveis e dicas contextuais.
+  * Bate-pênalti com perguntas: Quiz onde o aluno responde perguntas para determinar a força/direção do chute. Mostre um campo de futebol, goleiro e bola animada. Respostas corretas = gol, erradas = defesa. Placar e rodadas.
+  * Jogo de acerto ao alvo: Conceitos corretos/incorretos aparecem na tela como alvos móveis. O aluno deve clicar apenas nas opções CORRETAS. Excelente para diferenciar certo x errado em compliance e operacional. Timer e pontuação.
+  * Jogo da memória educativa: Cartas que combinam perguntas com respostas relacionadas ao conteúdo. Trabalha associação mental e retenção. Grade de cartas com animação de virar, contador de tentativas e pares encontrados.
+  * Quiz gamificado com barra de energia: Sistema de perguntas com "vida" ou barra de energia que sobe com acertos e desce com erros. Feedback visual colorido, progresso, animações de sucesso/erro. Gera senso de desafio e progressão.
+
+  SIMULADORES INTERATIVOS (foco em aplicação prática):
+  * Calculadora temática (ex: ROI, risco, custo-benefício, dosagem)
+  * Jogo de arrastar e soltar (drag-and-drop para classificação/ordenação)
+  * Flashcards interativos (virar carta com conceito/definição, deck navegável)
+  * Linha do tempo interativa (eventos/etapas clicáveis com detalhes)
+  * Simulador de processo passo-a-passo com decisões
+  * Painel de diagnóstico/avaliação com indicadores visuais
+  * Jogo de ordenação (colocar etapas na ordem correta, drag ou clique)
+  * Completar lacunas interativo (fill-in-the-blanks com validação)
+
 - REGRAS DO HTML:
   1. Deve ser um documento HTML completo: <!DOCTYPE html><html><head><style>...</style></head><body>...<script>...</script></body></html>
-  2. CSS: Design moderno e atraente com gradientes, sombras, border-radius, transições, animações
-  3. JavaScript: TODA interatividade deve funcionar - botões, drag-and-drop, cliques, feedback visual
-  4. Use cores vibrantes e profissionais, fonte legível
+  2. CSS: Design moderno e atraente com gradientes, sombras, border-radius, transições, animações CSS (keyframes para celebração, shake para erro, etc.)
+  3. JavaScript: TODA interatividade deve funcionar - botões onclick, drag-and-drop, cliques, feedback visual dinâmico, sons visuais (animações que simulam feedback)
+  4. Use cores vibrantes e profissionais, fonte legível (sans-serif)
   5. Dimensões do conteúdo: 960x540 pixels (não use scroll, tudo deve caber na tela)
-  6. Inclua título do jogo/simulador, instruções breves, e feedback ao usuário
-  7. NUNCA gere HTML vazio ou estático - todo simulador DEVE ter interação via JavaScript
+  6. Inclua: título do jogo, instruções breves, pontuação/progresso e feedback ao aluno
+  7. NUNCA gere HTML vazio ou estático - todo jogo DEVE ter interação real via JavaScript
   8. Use emojis nos textos para tornar mais visual e engajante
-  9. Inclua pontuação, progresso ou feedback visual para o aluno
-  10. O conteúdo do simulador DEVE estar 100% relacionado ao tema do módulo/curso
+  9. Inclua efeitos de celebração para acertos (confetti CSS, animação de estrelas) e feedback para erros (shake, cor vermelha)
+  10. O conteúdo do jogo DEVE estar 100% relacionado ao tema do módulo/curso
+  11. Ao final do jogo, mostre resultado/pontuação com mensagem motivacional
+  12. Os jogos devem focar em: fixação de conteúdo, engajamento emocional, repetição ativa, aprendizagem baseada em desafio e feedback imediato
 - NÃO inclua "narrationScript" detalhado para simuladores (o aluno interage diretamente)
 - Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
 
@@ -1763,22 +1773,19 @@ REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculador
 - OBRIGATÓRIO: gere um documento HTML COMPLETO dentro de um elemento com type "html" e campo "htmlContent"
 - O HTML será renderizado dentro de um iframe isolado de 960x540px
 - Formato do elemento: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'><head><style>CSS</style></head><body>CONTEUDO<script>JS</script></body></html>","width":960,"height":540}}
-- TIPOS DE SIMULADORES (escolha o mais adequado):
-  * Calculadora temática (ROI, risco, custo-benefício, etc.)
-  * Jogo de arrastar e soltar (drag-and-drop para classificação)
-  * Flashcards interativos (virar carta com conceito/definição)
-  * Quiz gamificado com pontuação, timer e feedback visual
-  * Jogo de memória (matching pairs com conceitos do módulo)
-  * Linha do tempo interativa (eventos/etapas clicáveis)
-  * Simulador de processo passo-a-passo
-  * Painel de diagnóstico/avaliação com gráficos
-  * Jogo de ordenação (colocar etapas na ordem correta)
-- CSS: Design moderno com gradientes, sombras, border-radius, transições, animações
-- JavaScript: TODA interatividade DEVE funcionar - botões onclick, drag-and-drop, feedback visual dinâmico
-- Use getElementById para manipular elementos, inclua pontuação e feedback
+- JOGOS EDUCATIVOS disponíveis (escolha o mais adequado):
+  * Forca Educacional: adivinhação de termos com dicas pedagógicas, boneco desenhado, letras clicáveis
+  * Bate-pênalti com perguntas: quiz para determinar chute, campo de futebol animado, placar
+  * Jogo de acerto ao alvo: conceitos corretos/incorretos como alvos móveis, timer, pontuação
+  * Jogo da memória educativa: cartas que combinam perguntas+respostas, animação de virar
+  * Quiz gamificado com barra de energia: vida/energia que varia com acertos/erros, progressão
+  * Calculadora temática, flashcards, drag-and-drop, linha do tempo, jogo de ordenação
+- CSS: Design moderno com gradientes, sombras, transições, animações (confetti para acertos, shake para erros)
+- JavaScript: TODA interatividade DEVE funcionar - onclick, drag-and-drop, feedback visual dinâmico
+- Use getElementById para manipular elementos, inclua pontuação, progresso e feedback motivacional
 - NÃO gere botões estáticos sem funcionalidade
-- Inclua título, instruções breves e feedback visual para o aluno
 - Conteúdo 100% relacionado ao tema do curso
+- Foco pedagógico: fixação de conteúdo, engajamento emocional, repetição ativa, feedback imediato
 
 Retorne JSON com os slides a atualizar:
 ```json

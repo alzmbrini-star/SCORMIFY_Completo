@@ -1528,7 +1528,7 @@ Responda APENAS em JSON válido com esta estrutura exata:
   "course_content": [sugestões para melhorar a qualidade do conteúdo do curso gerado],
   "course_design": [sugestões para melhorar o design visual do curso],
   "course_pedagogy": [sugestões para melhorar a metodologia pedagógica do curso],
-  "course_interactivity": [sugestões de simuladores, jogos educativos e elementos interativos HTML+JS para adicionar ao curso - ex: calculadoras temáticas, jogos de memória, flashcards, quizzes gamificados, drag-and-drop, linha do tempo interativa. Cada sugestão deve descrever o tipo de jogo/simulador e como se relaciona ao conteúdo]
+  "course_interactivity": [sugestões de simuladores, jogos educativos e elementos interativos HTML+JS para adicionar ao curso. Tipos de jogos: Forca Educacional (adivinhação de termos), Bate-pênalti com perguntas (quiz esportivo), Jogo de acerto ao alvo (certo x errado), Jogo da memória educativa (cartas pergunta+resposta), Quiz gamificado com barra de energia, Calculadoras temáticas, Flashcards, Drag-and-drop, Linha do tempo interativa. Foco: fixação de conteúdo, engajamento emocional, repetição ativa, feedback imediato]
 }}
 
 Gere 2-3 sugestões por categoria, totalizando 14-21 sugestões. Seja específico e actionable."""
