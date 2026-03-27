@@ -12,7 +12,8 @@ axios.interceptors.request.use(config => {
     config.headers = config.headers || {};
     config.headers['Authorization'] = `Bearer ${token}`;
   }
-  config.withCredentials = true;
+  // Note: withCredentials removed — auth uses Bearer token, not cookies.
+  // withCredentials + Cloudflare bot detection causes 403 on polling requests.
   return config;
 });
 

@@ -2,6 +2,12 @@
 
 ## 2026-03-27 (Fork: Video Export Production Fix)
 
+### CRITICAL Bug Fix: Video Export 403 in Production (withCredentials conflict)
+- **Root Cause**: The axios interceptor in `ProjectContext.jsx` set `withCredentials: true` on ALL requests. This sent Cloudflare cookies (`__cf_bm` bot management cookie) with every polling request. Cloudflare detected the automated polling pattern (every 3s with credentials) as bot activity and blocked with 403 Forbidden.
+- **Fix**: Removed `withCredentials: true` from the global axios interceptor. Auth works via `Authorization: Bearer <token>` header from localStorage, cookies are unnecessary. Also changed `asyncio.ensure_future(create_job())` to `await create_job()` in the backend to guarantee job exists in MongoDB before the response is sent (prevents 404 in multi-worker deployments).
+- **Applied in**: `frontend/src/contexts/ProjectContext.jsx` (axios interceptor), `backend/routes/export.py` (create_job await)
+- **Status**: Tested ✅ — Login, dashboard, and video export all work without withCredentials
+
 ### CRITICAL Bug Fix: Video Export 502/504/Timeout in Production (P0 - RESOLVED)
 - **Root Cause**: `POST /export-video` did heavy synchronous work BEFORE returning the jobId — importing `video_exporter` module (which downloads static-ffmpeg binaries ~50-100MB on first call), checking `is_ffmpeg_available()`, and fetching the project from MongoDB. In production, Cloudflare/Nginx proxy killed the connection after 30-60s timeout → 502/504.
 - **Fix (Backend)**: Endpoint now returns jobId in **< 300ms** with ZERO heavy work. All validation (FFmpeg check, project fetch) moved to `asyncio.create_task(run_export())`. Job creation uses fire-and-forget `asyncio.ensure_future(create_job())`. Errors surface as job status "failed" instead of HTTP errors.

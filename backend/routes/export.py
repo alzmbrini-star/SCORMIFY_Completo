@@ -448,8 +448,8 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
         'result': None
     }
     jobs[job_id] = job_data
-    # Fire-and-forget MongoDB persistence (don't await to keep response instant)
-    asyncio.ensure_future(create_job(job_id, job_data))
+    # Await MongoDB persistence to ensure job exists before polling starts
+    await create_job(job_id, job_data)
 
     async def run_export():
         """All heavy work happens here — after the HTTP response is already sent."""
