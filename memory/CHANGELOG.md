@@ -2,6 +2,13 @@
 
 ## 2026-03-25 (Current Session)
 
+### CRITICAL Bug Fix: Video Export 502 in Production
+- **Root Cause**: `run_ffmpeg()` used blocking `subprocess.run()` inside an async task. While FFmpeg processed 18 slides (30-60s), the entire asyncio event loop was blocked — the backend couldn't respond to ANY request, causing Cloudflare proxy to return 502.
+- **Fix**: Created `run_ffmpeg_async()` using `asyncio.create_subprocess_exec()`. All FFmpeg/FFprobe calls in `export_video()` are now non-blocking. Backend responds to polling requests during video processing.
+- **Also fixed**: Import of `video_exporter` wrapped in try/except (prevents backend crash if module fails), `_ensure_ffmpeg()` initialization wrapped in try/except, `static-ffmpeg` pip package as fallback (no root needed), startup event tries `static-ffmpeg` before `apt-get`
+- **Applied in**: `services/video_exporter.py`, `routes/export.py`, `server.py`
+- **Status**: Tested ✅ — backend responds HTTP 200 during all 18 slide processing
+
 ### Bug Fix: Video Export Job 404 in Production
 - **Root Cause**: Job status was stored in-memory (`jobs` dict). In production, process restarts or multiple workers caused the job data to be lost, returning 404 on GET `/api/job/{jobId}`.
 - **Fix**: Job data now persisted in **MongoDB** (`jobs` collection) with local cache for fast access. Jobs survive restarts, deploys, and multi-worker environments.

@@ -45,9 +45,13 @@ def _ensure_ffmpeg():
         try:
             import static_ffmpeg
             paths = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
-            ffmpeg = ffmpeg or paths[0]
-            ffprobe = ffprobe or paths[1]
-            logger.info(f"Using static-ffmpeg: {ffmpeg}")
+            if not ffmpeg and paths[0]:
+                ffmpeg = paths[0]
+            if not ffprobe and paths[1]:
+                ffprobe = paths[1]
+            logger.info(f"Using static-ffmpeg: ffmpeg={ffmpeg}, ffprobe={ffprobe}")
+        except ImportError:
+            logger.warning("static-ffmpeg package not installed")
         except Exception as e:
             logger.warning(f"static-ffmpeg fallback failed: {e}")
     
@@ -67,7 +71,12 @@ def is_ffmpeg_available():
     return FFMPEG_BIN is not None and FFPROBE_BIN is not None
 
 
-FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
+# Initialize at module level - safe even if FFmpeg is missing
+try:
+    FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
+except Exception as e:
+    logger.warning(f"FFmpeg initialization failed (non-fatal): {e}")
+    FFMPEG_BIN, FFPROBE_BIN = None, None
 from PIL import Image, ImageDraw, ImageFont
 import httpx
 
@@ -326,6 +335,39 @@ def run_ffmpeg(args: list, timeout: int = 300) -> bool:
         return False
 
 
+async def run_ffmpeg_async(args: list, timeout: int = 300) -> bool:
+    """Run FFmpeg command asynchronously (non-blocking)"""
+    global FFMPEG_BIN
+    if not FFMPEG_BIN:
+        FFMPEG_BIN, _ = _ensure_ffmpeg()
+    if not FFMPEG_BIN:
+        logger.error("FFmpeg not available")
+        return False
+    cmd = [FFMPEG_BIN, '-y'] + args
+    logger.info(f"FFmpeg async: {' '.join(cmd[:10])}...")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        if proc.returncode != 0:
+            logger.error(f"FFmpeg error: {stderr.decode()[:500]}")
+            return False
+        return True
+    except asyncio.TimeoutError:
+        logger.error("FFmpeg async timeout")
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return False
+    except Exception as e:
+        logger.error(f"FFmpeg async exception: {e}")
+        return False
+
+
 async def export_video(
     project_doc: dict,
     projects_dir: str,
@@ -512,7 +554,7 @@ async def export_video(
             if video_overlays:
                 # Create base video from image
                 base_video = str(segments_dir / f"base_{idx:03d}.mp4")
-                run_ffmpeg([
+                await run_ffmpeg_async([
                     '-loop', '1', '-i', slide_img_path,
                     '-t', str(duration),
                     '-c:v', 'libx264', '-preset', 'fast',
@@ -542,7 +584,7 @@ async def export_video(
                             f"[1:v]format=yuva420p,{scale_filter},{pad_filter}[ov];"
                             f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1:format=auto"
                         )
-                        success = run_ffmpeg([
+                        success = await run_ffmpeg_async([
                             '-i', current_input,
                             '-c:v', 'libvpx-vp9', '-i', vo['path'],
                             '-filter_complex', filter_complex,
@@ -557,7 +599,7 @@ async def export_video(
                             f"[1:v]{scale_filter},pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2[ov];"
                             f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1"
                         )
-                        success = run_ffmpeg([
+                        success = await run_ffmpeg_async([
                             '-i', current_input,
                             '-i', vo['path'],
                             '-filter_complex', filter_complex,
@@ -576,7 +618,7 @@ async def export_video(
                 if Path(current_input).exists():
                     # Re-encode to normalize audio track from overlay
                     normalized = str(segments_dir / f"norm_{idx:03d}.mp4")
-                    norm_success = run_ffmpeg([
+                    norm_success = await run_ffmpeg_async([
                         '-i', current_input,
                         '-c:v', 'copy',
                         '-c:a', 'aac', '-b:a', '128k',
@@ -589,7 +631,7 @@ async def export_video(
                         shutil.copy2(current_input, segment_path)
                 else:
                     # Fallback to image-only
-                    run_ffmpeg([
+                    await run_ffmpeg_async([
                         '-loop', '1', '-i', slide_img_path,
                         '-t', str(duration),
                         '-c:v', 'libx264', '-preset', 'fast',
@@ -600,7 +642,7 @@ async def export_video(
                     ])
             else:
                 # No video overlays - just create video from image
-                run_ffmpeg([
+                await run_ffmpeg_async([
                     '-loop', '1', '-i', slide_img_path,
                     '-t', str(duration),
                     '-c:v', 'libx264', '-preset', 'fast',
@@ -616,7 +658,7 @@ async def export_video(
 
                 if len(audio_files) == 1:
                     # Normalize audio to 44100Hz stereo AAC for consistent concatenation
-                    success = run_ffmpeg([
+                    success = await run_ffmpeg_async([
                         '-i', segment_path,
                         '-i', audio_files[0],
                         '-c:v', 'copy',
@@ -629,7 +671,7 @@ async def export_video(
                 else:
                     # Multiple audio files - amerge then normalize
                     filter_parts = ''.join(f'[{i+1}:a]' for i in range(len(audio_files)))
-                    success = run_ffmpeg([
+                    success = await run_ffmpeg_async([
                         '-i', segment_path,
                         *[arg for af in audio_files for arg in ['-i', af]],
                         '-filter_complex', f'{filter_parts}amerge=inputs={len(audio_files)}[a]',
@@ -645,19 +687,24 @@ async def export_video(
 
             # Ensure segment has audio track (silent if needed) for concatenation
             if Path(segment_path).exists():
-                # Check if segment has audio
-                probe = subprocess.run(
-                    [FFPROBE_BIN, '-v', 'quiet', '-select_streams', 'a',
-                     '-show_entries', 'stream=codec_type', '-of', 'json', segment_path],
-                    capture_output=True, text=True, timeout=10
-                )
-                probe_data = json.loads(probe.stdout) if probe.stdout else {}
+                # Check if segment has audio (async to not block event loop)
+                try:
+                    probe_proc = await asyncio.create_subprocess_exec(
+                        FFPROBE_BIN, '-v', 'quiet', '-select_streams', 'a',
+                        '-show_entries', 'stream=codec_type', '-of', 'json', segment_path,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    probe_stdout, _ = await asyncio.wait_for(probe_proc.communicate(), timeout=10)
+                    probe_data = json.loads(probe_stdout.decode()) if probe_stdout else {}
+                except Exception:
+                    probe_data = {}
                 has_audio = bool(probe_data.get('streams', []))
 
                 if not has_audio:
                     # Add silent audio track with normalized settings (44100Hz stereo)
                     silent_segment = str(segments_dir / f"silent_{idx:03d}.mp4")
-                    run_ffmpeg([
+                    await run_ffmpeg_async([
                         '-i', segment_path,
                         '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
                         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
@@ -685,7 +732,7 @@ async def export_video(
 
         # Intermediate concatenated file - re-encode to ensure consistent timestamps
         concat_output = str(work_dir / "concat_output.mp4")
-        run_ffmpeg([
+        await run_ffmpeg_async([
             '-f', 'concat', '-safe', '0',
             '-i', concat_list,
             '-c:v', 'libx264', '-preset', 'fast',
@@ -712,7 +759,7 @@ async def export_video(
         if video_format == 'webm':
             output_filename = f"{safe_name}_{timestamp}.webm"
             output_path = str(Path(exports_dir) / output_filename)
-            run_ffmpeg([
+            await run_ffmpeg_async([
                 '-i', concat_output,
                 '-c:v', 'libvpx-vp9', '-b:v', '2M',
                 '-cpu-used', '4', '-deadline', 'realtime', '-row-mt', '1',

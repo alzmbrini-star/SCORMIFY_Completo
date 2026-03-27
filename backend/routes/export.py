@@ -429,7 +429,15 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
 @router.post("/course/{project_id}/export-video")
 async def export_video_endpoint(project_id: str, request: Request, background_tasks: BackgroundTasks):
     """Export project as video (MP4 or WebM)"""
-    from services.video_exporter import export_video as export_video_func, is_ffmpeg_available
+    try:
+        from services.video_exporter import export_video as export_video_func, is_ffmpeg_available
+    except Exception as e:
+        logger.error(f"Failed to import video_exporter: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Módulo de exportação de vídeo indisponível: {str(e)}"
+        )
+    
     # Check if video export is available
     if not is_ffmpeg_available():
         raise HTTPException(

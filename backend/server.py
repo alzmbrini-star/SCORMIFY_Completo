@@ -241,7 +241,16 @@ async def startup_ensure_ffmpeg():
     """Ensure FFmpeg is available for video export"""
     import shutil
     if not shutil.which('ffmpeg'):
-        logger.info("FFmpeg not found, attempting to install...")
+        logger.info("FFmpeg not found via system, checking static-ffmpeg...")
+        # Try static-ffmpeg first (pip package, no root needed)
+        try:
+            import static_ffmpeg
+            paths = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+            logger.info(f"static-ffmpeg ready: {paths[0]}")
+            return
+        except Exception as e:
+            logger.warning(f"static-ffmpeg failed: {e}")
+        # Fallback: try apt-get
         try:
             proc = await asyncio.create_subprocess_exec(
                 'apt-get', 'update', '-qq',
@@ -254,11 +263,11 @@ async def startup_ensure_ffmpeg():
             )
             await proc.wait()
             if shutil.which('ffmpeg'):
-                logger.info(f"FFmpeg installed successfully: {shutil.which('ffmpeg')}")
+                logger.info(f"FFmpeg installed via apt: {shutil.which('ffmpeg')}")
             else:
-                logger.warning("FFmpeg installation failed - video export will be unavailable")
+                logger.warning("FFmpeg unavailable - video export disabled")
         except Exception as e:
-            logger.warning(f"FFmpeg auto-install failed (non-fatal): {e}")
+            logger.warning(f"FFmpeg apt-get failed (non-fatal): {e}")
     else:
         logger.info(f"FFmpeg available: {shutil.which('ffmpeg')}")
 
