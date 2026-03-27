@@ -13,7 +13,8 @@ import logging
 
 from routes.deps import (
     db, now_utc, get_project_by_id, update_project,
-    PROJECTS_DIR, STORAGE_DIR, EXPORTS_DIR, exports_bucket, jobs
+    PROJECTS_DIR, STORAGE_DIR, EXPORTS_DIR, exports_bucket, jobs,
+    create_job, update_job, get_job
 )
 from models import Project
 
@@ -129,13 +130,15 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
     
     # Create job
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {
+    job_data = {
         'id': job_id,
         'status': 'processing',
         'progress': 0,
         'message': 'Generating SCORM package...',
         'result': None
     }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
     
     try:
         # Convert dict to Project model
@@ -244,6 +247,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         jobs[job_id]['result'] = {
             'downloadUrl': f"/api/exports/{export_filename}"
         }
+        await update_job(job_id, jobs[job_id])
         
         # Log export for metrics
         try:
@@ -268,6 +272,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         logger.error(f"SCORM export traceback: {error_details}")
         jobs[job_id]['status'] = 'failed'
         jobs[job_id]['message'] = str(e)
+        await update_job(job_id, {'status': 'failed', 'message': str(e)})
         raise HTTPException(status_code=500, detail=f"SCORM export failed: {str(e)}")
 
 # HTML Standalone Export
@@ -444,19 +449,23 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
 
     # Create job for tracking
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {
+    job_data = {
         'id': job_id,
         'status': 'processing',
         'progress': 0,
         'message': 'Iniciando exportação de vídeo...',
         'result': None
     }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
 
     async def run_export():
         try:
             def on_progress(progress, message):
                 jobs[job_id]['progress'] = progress
                 jobs[job_id]['message'] = message
+                # Fire-and-forget DB sync
+                asyncio.ensure_future(update_job(job_id, {'progress': progress, 'message': message}))
 
             output_path = await export_video_func(
                 project_doc,
@@ -478,10 +487,19 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
                 'downloadUrl': f"/api/exports/{filename}",
                 'filename': filename
             }
+            logger.info(f"Video export done, updating job {job_id} in MongoDB...")
+            await update_job(job_id, {
+                'status': 'completed',
+                'progress': 100,
+                'message': 'Vídeo exportado com sucesso!',
+                'result': {'downloadUrl': f"/api/exports/{filename}", 'filename': filename}
+            })
+            logger.info(f"Video job {job_id} updated in MongoDB")
         except Exception as e:
             logger.error(f"Video export error: {e}")
             jobs[job_id]['status'] = 'failed'
             jobs[job_id]['message'] = f"Erro na exportação: {str(e)}"
+            await update_job(job_id, {'status': 'failed', 'message': f"Erro na exportação: {str(e)}"})
 
     # Run in background
     asyncio.create_task(run_export())

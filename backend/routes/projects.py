@@ -14,7 +14,8 @@ import threading
 
 from routes.deps import (
     db, now_utc, serialize_doc, get_project_by_id, update_project,
-    PROJECTS_DIR, STORAGE_DIR, UPLOADS_DIR, jobs, mongo_url
+    PROJECTS_DIR, STORAGE_DIR, UPLOADS_DIR, jobs, mongo_url,
+    create_job, update_job, get_job, update_job_sync
 )
 from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
@@ -33,15 +34,19 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
     from pymongo import MongoClient
     from services.ppt_image_parser import parse_pptx_high_fidelity
     db_name = os.environ.get("DB_NAME", "scormify")
+    sync_client = None
     try:
         jobs[job_id]["status"] = "processing"
         jobs[job_id]["message"] = "Converting PowerPoint slides to images..."
         jobs[job_id]["progress"] = 10
+        sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+        sync_db = sync_client[db_name]
+        # Sync job status to MongoDB
+        sync_db.jobs.update_one({"id": job_id}, {"$set": {"status": "processing", "progress": 10, "message": "Converting PowerPoint slides to images..."}}, upsert=True)
         course = parse_pptx_high_fidelity(file_path, project_id, str(PROJECTS_DIR))
         jobs[job_id]["progress"] = 80
         jobs[job_id]["message"] = "Saving course data..."
-        sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
-        sync_db = sync_client[db_name]
+        sync_db.jobs.update_one({"id": job_id}, {"$set": {"progress": 80, "message": "Saving course data..."}})
         course_dict = course.model_dump()
         course_dict["createdAt"] = course.createdAt.isoformat()
         course_dict["updatedAt"] = course.updatedAt.isoformat()
@@ -49,15 +54,21 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
             {"id": project_id},
             {"$set": {"course": course_dict, "status": "ready", "updatedAt": now_utc().isoformat()}}
         )
-        sync_client.close()
         jobs[job_id]["status"] = "completed"
         jobs[job_id]["progress"] = 100
         jobs[job_id]["message"] = "Processing complete - slides rendered with high fidelity"
         jobs[job_id]["result"] = {"projectId": project_id}
+        sync_db.jobs.update_one({"id": job_id}, {"$set": jobs[job_id]})
     except Exception as e:
         logger.error(f"Error processing PPT: {e}")
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["message"] = str(e)
+        try:
+            if sync_client:
+                sync_db = sync_client[db_name]
+                sync_db.jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "message": str(e)}})
+        except Exception:
+            pass
     finally:
         try:
             os.remove(file_path)
@@ -438,13 +449,15 @@ async def complete_chunked_upload(
     
     # Create job
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {
+    job_data = {
         'id': job_id,
         'status': 'pending',
         'progress': 0,
         'message': 'Upload completo, iniciando processamento...',
         'result': None
     }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
     
     # Start background processing
     background_tasks.add_task(process_ppt_upload, job_id, str(final_path), project.id)
@@ -521,10 +534,11 @@ async def upload_ppt(
 
 @router.get("/job/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str):
-    """Get job status"""
-    if job_id not in jobs:
+    """Get job status - checks local cache and MongoDB"""
+    job = await get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return JobStatus(**jobs[job_id])
+    return JobStatus(**job)
 
 # Course Routes
 

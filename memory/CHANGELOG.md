@@ -2,6 +2,12 @@
 
 ## 2026-03-25 (Current Session)
 
+### Bug Fix: Video Export Job 404 in Production
+- **Root Cause**: Job status was stored in-memory (`jobs` dict). In production, process restarts or multiple workers caused the job data to be lost, returning 404 on GET `/api/job/{jobId}`.
+- **Fix**: Job data now persisted in **MongoDB** (`jobs` collection) with local cache for fast access. Jobs survive restarts, deploys, and multi-worker environments.
+- **Applied in**: `routes/deps.py` (create_job, update_job, get_job), `routes/export.py`, `routes/projects.py`
+- **Status**: Tested ✅ — job survives backend restart and is recoverable from MongoDB
+
 ### Bug Fix: SCORM Completion Not Triggering
 - **Root Cause**: Completion logic required ALL scenarios to be completed in addition to quizzes. Scenarios are interactive branching exercises that users might skip or not complete fully, blocking SCORM "completed" status indefinitely.
 - **Fix**: Changed completion rules in `player.js` to: Navigate to last slide + Complete all quizzes (if any). Scenarios are now optional (enrich learning but don't block completion).

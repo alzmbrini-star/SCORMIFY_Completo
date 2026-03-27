@@ -31,8 +31,65 @@ exports_bucket = None
 mongo_url = ""
 db_name = ""
 
-# Job tracking (in-memory)
-jobs: Dict[str, Any] = {}
+# Job tracking - MongoDB backed (persists across restarts/workers)
+jobs: Dict[str, Any] = {}  # Keep as local cache for quick access
+
+
+async def create_job(job_id: str, data: dict):
+    """Create a job in MongoDB and local cache"""
+    job_data = {**data, "id": job_id}
+    jobs[job_id] = job_data
+    if db is not None:
+        try:
+            await db.jobs.replace_one({"id": job_id}, job_data, upsert=True)
+            logger.info(f"Job {job_id} created in MongoDB")
+        except Exception as e:
+            logger.error(f"Failed to create job {job_id} in MongoDB: {e}")
+
+
+async def update_job(job_id: str, updates: dict):
+    """Update a job in MongoDB and local cache"""
+    if job_id in jobs:
+        jobs[job_id].update(updates)
+    if db is not None:
+        try:
+            await db.jobs.update_one({"id": job_id}, {"$set": updates}, upsert=True)
+        except Exception as e:
+            logger.error(f"Failed to update job {job_id} in MongoDB: {e}")
+
+
+async def get_job(job_id: str) -> Optional[dict]:
+    """Get a job from local cache or MongoDB"""
+    if job_id in jobs:
+        return jobs[job_id]
+    if db is not None:
+        doc = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+        if doc:
+            jobs[job_id] = doc  # Cache locally
+            return doc
+    return None
+
+
+def update_job_sync(job_id: str, updates: dict):
+    """Sync update for use in non-async callbacks (updates cache, DB syncs on next read)"""
+    if job_id in jobs:
+        jobs[job_id].update(updates)
+    # Schedule async DB update
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_sync_job_to_db(job_id, updates))
+    except RuntimeError:
+        pass
+
+
+async def _sync_job_to_db(job_id: str, updates: dict):
+    """Background sync job updates to MongoDB"""
+    if db is not None:
+        try:
+            await db.jobs.update_one({"id": job_id}, {"$set": updates}, upsert=True)
+        except Exception as e:
+            logger.warning(f"Failed to sync job {job_id} to DB: {e}")
 
 # HeyGen config
 HEYGEN_API_KEY = os.environ.get('HEYGEN_API_KEY', '')
