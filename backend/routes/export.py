@@ -452,7 +452,8 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
     await create_job(job_id, job_data)
 
     async def run_export():
-        """All heavy work happens here — after the HTTP response is already sent."""
+        """All heavy work happens here — after the HTTP response is already sent.
+        Includes global timeout and heartbeat for production resilience."""
         try:
             # Step 1: Import video exporter (may trigger static-ffmpeg download)
             await update_job(job_id, {'message': 'Carregando módulo de vídeo...'})
@@ -481,21 +482,31 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
                 await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
                 return
 
-            # Step 4: Run the actual export
+            # Step 4: Run the actual export with global timeout
             def on_progress(progress, message):
                 jobs[job_id]['progress'] = progress
                 jobs[job_id]['message'] = message
                 asyncio.ensure_future(update_job(job_id, {'progress': progress, 'message': message}))
 
-            output_path = await export_video_func(
-                project_doc,
-                str(PROJECTS_DIR),
-                str(STORAGE_DIR),
-                str(EXPORTS_DIR),
-                video_format=video_format,
-                default_duration=default_duration,
-                on_progress=on_progress
-            )
+            try:
+                output_path = await asyncio.wait_for(
+                    export_video_func(
+                        project_doc,
+                        str(PROJECTS_DIR),
+                        str(STORAGE_DIR),
+                        str(EXPORTS_DIR),
+                        video_format=video_format,
+                        default_duration=default_duration,
+                        on_progress=on_progress
+                    ),
+                    timeout=600  # 10 minute max for entire export
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"Video export timed out after 10 minutes for job {job_id}")
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['message'] = 'Exportação excedeu o limite de 10 minutos. Tente com menos slides.'
+                await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
+                return
 
             filename = Path(output_path).name
             await save_export_to_gridfs(output_path, filename)
@@ -513,11 +524,15 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
                 'result': {'downloadUrl': f"/api/exports/{filename}", 'filename': filename}
             })
             logger.info(f"Video job {job_id} completed successfully")
-        except Exception as e:
-            logger.error(f"Video export error: {e}")
-            jobs[job_id]['status'] = 'failed'
-            jobs[job_id]['message'] = f"Erro na exportação: {str(e)}"
-            await update_job(job_id, {'status': 'failed', 'message': f"Erro na exportação: {str(e)}"})
+        except BaseException as e:
+            # Catch EVERYTHING including CancelledError, SystemExit, KeyboardInterrupt
+            logger.error(f"Video export error (BaseException): {type(e).__name__}: {e}")
+            try:
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['message'] = f"Erro na exportação: {type(e).__name__}: {str(e)}"
+                await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
+            except Exception:
+                pass  # Last resort - can't even update the job
 
     # Spawn background task and return IMMEDIATELY
     asyncio.create_task(run_export())

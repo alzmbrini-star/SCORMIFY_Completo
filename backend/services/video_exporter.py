@@ -413,10 +413,10 @@ async def export_video(
 
         for idx, slide in enumerate(slides):
             slide_id = slide.get('id', str(idx))
-            logger.info(f"Processing slide {idx+1}/{total_slides}: {slide.get('title', 'Untitled')}")
+            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} START: {slide.get('title', 'Untitled')}")
 
             if on_progress:
-                on_progress(int((idx / total_slides) * 80), f"Processando slide {idx+1}/{total_slides}...")
+                on_progress(int((idx / total_slides) * 80), f"Slide {idx+1}/{total_slides}: criando imagem...")
 
             # 1. Create base image
             slide_img_path = str(slides_dir / f"slide_{idx:03d}.png")
@@ -441,6 +441,7 @@ async def export_video(
                 slide, project_id, projects_dir, storage_dir,
                 slide_img_path, target_w, target_h
             )
+            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} image created")
 
             # If target is smaller than canvas, pad with black and center
             if target_w < canvas_w or target_h < canvas_h:
@@ -557,13 +558,18 @@ async def export_video(
             # 5. Create video segment for this slide
             segment_path = str(segments_dir / f"segment_{idx:03d}.mp4")
 
+            if on_progress:
+                on_progress(int((idx / total_slides) * 80), f"Slide {idx+1}/{total_slides}: encodando vídeo...")
+
+            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} FFmpeg start (duration={duration:.1f}s, overlays={len(video_overlays)}, audio={len(audio_files)})")
+
             if video_overlays:
                 # Create base video from image
                 base_video = str(segments_dir / f"base_{idx:03d}.mp4")
                 await run_ffmpeg_async([
                     '-loop', '1', '-i', slide_img_path,
                     '-t', str(duration),
-                    '-c:v', 'libx264', '-preset', 'fast',
+                    '-c:v', 'libx264', '-preset', 'ultrafast',
                     '-pix_fmt', 'yuv420p',
                     '-vf', f'scale={canvas_w}:{canvas_h}',
                     '-r', '24',
@@ -594,7 +600,7 @@ async def export_video(
                             '-i', current_input,
                             '-c:v', 'libvpx-vp9', '-i', vo['path'],
                             '-filter_complex', filter_complex,
-                            '-c:v', 'libx264', '-preset', 'fast',
+                            '-c:v', 'libx264', '-preset', 'ultrafast',
                             '-pix_fmt', 'yuv420p',
                             '-t', str(duration),
                             '-r', '24',
@@ -609,7 +615,7 @@ async def export_video(
                             '-i', current_input,
                             '-i', vo['path'],
                             '-filter_complex', filter_complex,
-                            '-c:v', 'libx264', '-preset', 'fast',
+                            '-c:v', 'libx264', '-preset', 'ultrafast',
                             '-pix_fmt', 'yuv420p',
                             '-t', str(duration),
                             '-r', '24',
@@ -640,7 +646,7 @@ async def export_video(
                     await run_ffmpeg_async([
                         '-loop', '1', '-i', slide_img_path,
                         '-t', str(duration),
-                        '-c:v', 'libx264', '-preset', 'fast',
+                        '-c:v', 'libx264', '-preset', 'ultrafast',
                         '-pix_fmt', 'yuv420p',
                         '-vf', f'scale={canvas_w}:{canvas_h}',
                         '-r', '24',
@@ -651,7 +657,7 @@ async def export_video(
                 await run_ffmpeg_async([
                     '-loop', '1', '-i', slide_img_path,
                     '-t', str(duration),
-                    '-c:v', 'libx264', '-preset', 'fast',
+                    '-c:v', 'libx264', '-preset', 'ultrafast',
                     '-pix_fmt', 'yuv420p',
                     '-vf', f'scale={canvas_w}:{canvas_h}',
                     '-r', '24',
@@ -723,6 +729,7 @@ async def export_video(
                         shutil.move(silent_segment, segment_path)
 
                 segment_files.append(segment_path)
+                logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} DONE")
 
         if not segment_files:
             raise ValueError("No video segments were created")
@@ -741,7 +748,7 @@ async def export_video(
         await run_ffmpeg_async([
             '-f', 'concat', '-safe', '0',
             '-i', concat_list,
-            '-c:v', 'libx264', '-preset', 'fast',
+            '-c:v', 'libx264', '-preset', 'ultrafast',
             '-c:a', 'aac', '-b:a', '128k',
             '-ar', '44100', '-ac', '2',
             '-pix_fmt', 'yuv420p',
