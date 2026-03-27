@@ -8,6 +8,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(null);
+  const [downloadFilename, setDownloadFilename] = useState('export');
   const [videoExportJobId, setVideoExportJobId] = useState(null);
   const [videoExportProgress, setVideoExportProgress] = useState(0);
   const [videoExportMessage, setVideoExportMessage] = useState('');
@@ -49,14 +50,13 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
     }
   };
 
-  const handleExportVideo = async (format = 'mp4') => {
+  const handleExportVideo = async () => {
     try {
       setExportLoading(true);
       setVideoExportProgress(0);
       setVideoExportMessage('Preparando exportacao de video...');
-      setVideoExportJobId('client-side'); // Signal that export is in progress
+      setVideoExportJobId('client-side');
 
-      // Client-side video generation — no FFmpeg on server, no 502 issues
       const { blob, filename } = await generateVideoClientSide({
         apiUrl: API_URL,
         projectId: currentProject.id,
@@ -67,12 +67,12 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
         },
       });
 
-      // Create download URL from blob
       const blobUrl = URL.createObjectURL(blob);
       setDownloadUrl(blobUrl);
+      setDownloadFilename(filename);
       setVideoExportJobId(null);
       setExportLoading(false);
-      toast.success('Video WebM exportado!');
+      toast.success('Video WebM exportado com sucesso!');
 
       // Auto-trigger download
       const a = document.createElement('a');
@@ -96,6 +96,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       URL.revokeObjectURL(downloadUrl);
     }
     setDownloadUrl(null);
+    setDownloadFilename('export');
     setVideoExportJobId(null);
     setVideoExportProgress(0);
     setVideoExportMessage('');
@@ -103,7 +104,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
 
   return {
     showExportDialog, setShowExportDialog,
-    exportLoading, downloadUrl,
+    exportLoading, downloadUrl, downloadFilename,
     videoExportJobId, videoExportProgress, videoExportMessage,
     handleExport, handleExportHTML, handleExportVideo,
     resetExportDialog,

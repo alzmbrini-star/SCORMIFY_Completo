@@ -1,0 +1,76 @@
+{
+  "summary": "Verified client-side video export feature. Backend POST /api/course/{project_id}/export-video-frames returns valid base64 frames (10 frames for test project). Frontend shows single 'Gerar Video (WebM)' button, progress bar updates correctly, and video download works. All 12 backend tests passed. SCORM and HTML exports still work (regression verified).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_client_video_export.xml",
+    "/app/backend/tests/test_client_video_export.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Backend export-video-frames endpoint returns correct structure (projectName, width, height, frames, totalSlides)",
+    "GOOD: Canvas dimensions are 1280x720 (standard HD video)",
+    "GOOD: Each frame has index, dataUrl (base64 PNG), and duration fields",
+    "GOOD: Base64 images decode to valid PNG files",
+    "GOOD: Frontend clientVideoExport.js uses Canvas + MediaRecorder for browser-based video generation",
+    "GOOD: Single 'Gerar Video (WebM)' button replaces old separate MP4/WebM buttons",
+    "GOOD: Progress bar shows slide-by-slide progress (Gravando slide X/10)",
+    "GOOD: Auto-download triggers after video generation completes",
+    "GOOD: Download button works for blob URLs in 'arquivo pronto' state",
+    "GOOD: Note 'Gerado no navegador — sem limite de servidor' explains client-side approach"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_client_video_export.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all UI elements and flows working)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing test project cb4e0112-3e45-44fe-ab29-304b0ef8f0a0 (Universidade-Corporativa-Didaxis, 10 slides)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Client-side video export feature verified. The backend endpoint POST /api/course/{project_id}/export-video-frames returns base64 PNG frames for all slides. Frontend uses Canvas.captureStream(6) + MediaRecorder to create WebM video in the browser. Test project: cb4e0112-3e45-44fe-ab29-304b0ef8f0a0 (10 slides). Video generation takes ~51 seconds for 10 slides in Playwright's Chromium.",
+  "features_tested": {
+    "backend_endpoint": {
+      "export_video_frames_structure": "PASS - Returns projectName, width, height, frames, totalSlides",
+      "export_video_frames_dimensions": "PASS - Canvas 1280x720",
+      "export_video_frames_all_slides": "PASS - Returns 10 frames for 10-slide project",
+      "export_video_frames_frame_structure": "PASS - Each frame has index, dataUrl, duration",
+      "export_video_frames_base64_valid": "PASS - Base64 decodes to valid PNG",
+      "export_video_frames_custom_duration": "PASS - Accepts default_duration parameter",
+      "export_video_frames_nonexistent_project": "PASS - Returns 404",
+      "export_video_frames_response_time": "PASS - < 60s for 10 slides"
+    },
+    "frontend_ui": {
+      "export_dialog_opens": "PASS - Opens with all export options",
+      "single_video_button": "PASS - 'Gerar Video (WebM)' button present",
+      "no_separate_mp4_webm_buttons": "PASS - Old implementation removed",
+      "progress_bar_appears": "PASS - Shows during video generation",
+      "progress_updates": "PASS - Shows 'Gravando slide X/10...'",
+      "video_ready_state": "PASS - Shows 'Seu arquivo está pronto!'",
+      "download_button_works": "PASS - 'Baixar Arquivo' button visible",
+      "auto_download_triggers": "PASS - Video downloads automatically"
+    },
+    "regression_tests": {
+      "scorm_export": "PASS - Returns downloadUrl",
+      "html_export": "PASS - Returns downloadUrl",
+      "health_endpoint": "PASS - Returns 200",
+      "project_exists": "PASS - Test project accessible"
+    }
+  },
+  "performance_metrics": {
+    "export_video_frames_response_time": "~19 seconds for 10 slides (backend)",
+    "video_generation_time": "~51 seconds for 10 slides (frontend MediaRecorder)"
+  }
+}

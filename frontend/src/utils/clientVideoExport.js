@@ -50,11 +50,17 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     ? 'video/webm;codecs=vp8'
     : 'video/webm';
 
-  const stream = canvas.captureStream(6); // 6fps — matches server approach
-  const recorder = new MediaRecorder(stream, {
-    mimeType,
-    videoBitsPerSecond: 2000000, // 2Mbps
-  });
+  const stream = canvas.captureStream(6); // 6fps — static slides, no need for higher
+  
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: 2000000, // 2Mbps
+    });
+  } catch (e) {
+    throw new Error('Seu navegador nao suporta gravacao de video. Tente o Chrome ou Edge.');
+  }
 
   const chunks = [];
   recorder.ondataavailable = (e) => {

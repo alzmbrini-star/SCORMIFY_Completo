@@ -175,7 +175,7 @@ export default function Editor() {
   // ── Extracted Hooks ──
   const exportHook = useEditorExport({ currentProject, exportScorm, fetchProject });
   const {
-    showExportDialog, setShowExportDialog, exportLoading, downloadUrl,
+    showExportDialog, setShowExportDialog, exportLoading, downloadUrl, downloadFilename,
     videoExportJobId, videoExportProgress, videoExportMessage,
     handleExport, handleExportHTML, handleExportVideo, resetExportDialog,
   } = exportHook;
@@ -1062,25 +1062,30 @@ export default function Editor() {
                         data-testid="download-export-btn"
                         onClick={async () => {
                           try {
-                            // Fetch the file as blob to bypass iframe sandbox restrictions
-                            const response = await fetch(downloadUrl);
-                            const blob = await response.blob();
-                            
-                            // Get filename from URL
-                            const filename = downloadUrl.split('/').pop() || 'export';
-                            
-                            // Create object URL and trigger download
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = filename;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
+                            if (downloadUrl.startsWith('blob:')) {
+                              // Blob URL from client-side generation — direct download
+                              const link = document.createElement('a');
+                              link.href = downloadUrl;
+                              link.download = downloadFilename || 'video.webm';
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            } else {
+                              // Server URL — fetch as blob to bypass iframe sandbox restrictions
+                              const response = await fetch(downloadUrl);
+                              const blob = await response.blob();
+                              const filename = downloadUrl.split('/').pop() || 'export';
+                              const url = window.URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = filename;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              window.URL.revokeObjectURL(url);
+                            }
                           } catch (error) {
                             console.error('Download error:', error);
-                            // Fallback: open in new tab
                             window.open(downloadUrl, '_blank');
                           }
                         }}
@@ -1205,29 +1210,28 @@ export default function Editor() {
                                 <p className="text-xs text-muted-foreground">{videoExportMessage}</p>
                               </div>
                             ) : (
-                              <div className="flex gap-2">
+                              <div>
                                 <Button
-                                  onClick={() => handleExportVideo('mp4')}
+                                  onClick={() => handleExportVideo()}
                                   disabled={exportLoading}
                                   variant="outline"
-                                  className="flex-1 gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                  className="w-full gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
                                   size="sm"
-                                  data-testid="generate-mp4-btn"
+                                  data-testid="generate-video-btn"
                                 >
-                                  <Film className="w-4 h-4" />
-                                  MP4
+                                  {exportLoading ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Gerando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Film className="w-4 h-4" />
+                                      Gerar Video (WebM)
+                                    </>
+                                  )}
                                 </Button>
-                                <Button
-                                  onClick={() => handleExportVideo('webm')}
-                                  disabled={exportLoading}
-                                  variant="outline"
-                                  className="flex-1 gap-2 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
-                                  size="sm"
-                                  data-testid="generate-webm-btn"
-                                >
-                                  <Film className="w-4 h-4" />
-                                  WebM
-                                </Button>
+                                <p className="text-[10px] text-muted-foreground mt-1.5 text-center">Gerado no navegador — sem limite de servidor</p>
                               </div>
                             )}
                           </div>
