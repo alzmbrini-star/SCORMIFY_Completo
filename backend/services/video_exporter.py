@@ -71,12 +71,8 @@ def is_ffmpeg_available():
     return FFMPEG_BIN is not None and FFPROBE_BIN is not None
 
 
-# Initialize at module level - safe even if FFmpeg is missing
-try:
-    FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
-except Exception as e:
-    logger.warning(f"FFmpeg initialization failed (non-fatal): {e}")
-    FFMPEG_BIN, FFPROBE_BIN = None, None
+# Initialize at module level - skip FFmpeg download (video export is now client-side)
+FFMPEG_BIN, FFPROBE_BIN = None, None
 from PIL import Image, ImageDraw, ImageFont
 import httpx
 
