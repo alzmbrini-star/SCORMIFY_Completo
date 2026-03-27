@@ -15,7 +15,7 @@ import os
 import time
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://video-export-fix-2.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-build.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_ADMIN_EMAIL = "admin@scormify.com"

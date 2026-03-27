@@ -13,7 +13,7 @@ import requests
 import os
 import re
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://video-export-fix-2.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-build.preview.emergentagent.com').rstrip('/')
 TEST_PROJECT_ID = "cebb110f-ced1-4e62-8478-7fb6bd99943d"
 
 

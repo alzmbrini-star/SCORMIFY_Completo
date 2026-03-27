@@ -171,7 +171,7 @@ The Video Export feature works perfectly in the preview environment but fails sp
 
 **Credentials to test flow:**
 - Super Admin:  / 
-- Preview URL: https://video-export-fix-2.preview.emergentagent.com (Check logs for updated URL in new fork).
+- Preview URL: https://browser-video-build.preview.emergentagent.com (Check logs for updated URL in new fork).
 
 **What agent forgot to execute**
 The agent successfully analyzed the final screenshot showing the timeout/502/504 errors on the Video Export polling, but the session ended before a plan or code change could be implemented to address the proxy timeout issue.</analysis>

@@ -16,9 +16,9 @@ import io
 import json
 import re
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://video-export-fix-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-build.preview.emergentagent.com')
 TEST_PROJECT_ID = "d3387a1f-6c52-4740-a127-a2e733adf663"  # TestSim project
-EXPECTED_TUTOR_URL = "https://video-export-fix-2.preview.emergentagent.com"
+EXPECTED_TUTOR_URL = "https://browser-video-build.preview.emergentagent.com"
 
 
 class TestFixSimulatorsEndpoint:

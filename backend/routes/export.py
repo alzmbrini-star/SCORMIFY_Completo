@@ -424,7 +424,91 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         logger.error(f"HTML export error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Video Export
+# Video Export - Client-Side Approach (generates slide images, frontend creates video)
+
+@router.post("/course/{project_id}/export-video-frames")
+async def export_video_frames(project_id: str, request: Request):
+    """Return all slide images as base64 for client-side video generation.
+    This avoids FFmpeg on the server — the browser creates the video using Canvas + MediaRecorder."""
+    import base64
+
+    project_doc = await get_project_by_id(project_id)
+    if not project_doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    body = await request.json()
+    default_duration = float(body.get('default_duration', 5.0))
+
+    course = project_doc.get('course', {})
+    slides = course.get('slides', [])
+    if not slides:
+        raise HTTPException(status_code=400, detail="No slides to export")
+
+    try:
+        from services.video_exporter import create_slide_base_image
+        from PIL import Image
+        import tempfile
+
+        canvas_w, canvas_h = 1280, 720
+        frames = []
+
+        for idx, slide in enumerate(slides):
+            slide_w = slide.get('width', 1920)
+            slide_h = slide.get('height', 1080)
+            ratio = min(canvas_w / slide_w, canvas_h / slide_h)
+            target_w = int(slide_w * ratio)
+            target_h = int(slide_h * ratio)
+            target_w = target_w if target_w % 2 == 0 else target_w + 1
+            target_h = target_h if target_h % 2 == 0 else target_h + 1
+
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                tmp_path = tmp.name
+
+            await asyncio.to_thread(
+                create_slide_base_image,
+                slide, project_doc.get('id', ''), str(PROJECTS_DIR), str(STORAGE_DIR),
+                tmp_path, target_w, target_h
+            )
+
+            # Pad if needed
+            if target_w < canvas_w or target_h < canvas_h:
+                img = Image.open(tmp_path)
+                canvas = Image.new('RGB', (canvas_w, canvas_h), (0, 0, 0))
+                canvas.paste(img, ((canvas_w - target_w) // 2, (canvas_h - target_h) // 2))
+                canvas.save(tmp_path)
+                img.close()
+                canvas.close()
+
+            # Read and encode as base64
+            with open(tmp_path, 'rb') as f:
+                img_data = base64.b64encode(f.read()).decode('utf-8')
+
+            duration = slide.get('duration', default_duration) or default_duration
+            frames.append({
+                'index': idx,
+                'dataUrl': f"data:image/png;base64,{img_data}",
+                'duration': max(2.0, float(duration)),
+            })
+
+            # Cleanup temp file
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+        return {
+            'projectName': project_doc.get('name', 'course'),
+            'width': canvas_w,
+            'height': canvas_h,
+            'frames': frames,
+            'totalSlides': len(slides),
+        }
+    except Exception as e:
+        logger.error(f"Error generating video frames: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Legacy Video Export (FFmpeg-based, kept for environments where FFmpeg works)
 
 @router.post("/course/{project_id}/export-video")
 async def export_video_endpoint(project_id: str, request: Request, background_tasks: BackgroundTasks):

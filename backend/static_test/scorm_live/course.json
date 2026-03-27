@@ -172,7 +172,7 @@
   "updatedAt": "2026-02-28T22:30:22.965319+00:00",
   "tutorConfig": {
     "enabled": true,
-    "apiUrl": "https://video-export-fix-2.preview.emergentagent.com",
+    "apiUrl": "https://browser-video-build.preview.emergentagent.com",
     "courseTopic": "Teste de Libras",
     "courseContext": "Slide 1: Língua Brasileira de Sinais (Libras) A Língua Brasileira de Sinais, conhecida como Libras, é a língua visuo-espacial utilizada pelas comunidades surdas no Brasil. Reconhecida como uma língua oficial do Brasil em 2002, ela possui sua própria estrutura gramatical e lexical distinta do português falado e escrito. Características da Libras Visuo-espacial: Utiliza expressões faciais e movimentos corporais em vez de sons. Estrutura Gramatical: Possui gramática própria, incluindo ordem das palavras e c",
     "tutorName": "Tutor IA",
