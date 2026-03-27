@@ -1,0 +1,75 @@
+{
+  "summary": "Verified HeyGen video overlay support in client-side video export. Backend POST /api/course/{project_id}/export-video-frames returns videoElements array for slides with HeyGen videos. Backend GET /api/proxy-video proxies HeyGen videos with correct content-type and CORS headers. Frontend video export generates WebM with HeyGen overlay using requestAnimationFrame continuous redraw. All 15 backend tests passed. SCORM and HTML exports still work (regression verified).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/proxy-video",
+        "issue": "Whitelist uses endswith() check which allows domains like 'not-heygen.ai' to pass because it ends with 'heygen.ai'. Consider using exact match or subdomain validation.",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_heygen_video_export.xml",
+    "/app/backend/tests/test_heygen_video_export.py"
+  ],
+  "action_items": [
+    "OPTIONAL: Improve proxy-video whitelist to use exact match or proper subdomain validation instead of endswith()"
+  ],
+  "critical_code_review_comments": [
+    "GOOD: Backend export-video-frames endpoint returns videoElements array with src, x, y, width, height for HeyGen videos",
+    "GOOD: Video element coordinates are scaled to canvas size (1280x720) with proper offset calculation",
+    "GOOD: Proxy endpoint returns correct content-type (video/webm) and CORS headers (Access-Control-Allow-Origin: *)",
+    "GOOD: Frontend clientVideoExport.js uses requestAnimationFrame loop for continuous canvas redraw at ~60fps",
+    "GOOD: AudioContext mixes HeyGen video audio into the recording stream",
+    "GOOD: Video export with HeyGen overlay completed in ~60s for 13 slides",
+    "GOOD: Video export without HeyGen completed in ~40s for 10 slides",
+    "GOOD: Progress bar shows slide-by-slide progress during video generation"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_heygen_video_export.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (all UI elements and flows working)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing test projects",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "HeyGen video overlay support verified. Two test projects: 1) 2e180a28-cde8-4a43-be51-1a845effe787 (13 slides, HeyGen video on slide 0) 2) cb4e0112-3e45-44fe-ab29-304b0ef8f0a0 (10 slides, no video elements). Backend returns videoElements array with position/size for HeyGen videos. Frontend uses requestAnimationFrame + Canvas.captureStream(30) + MediaRecorder for WebM generation. HeyGen videos are proxied through /api/proxy-video to bypass CORS.",
+  "features_tested": {
+    "backend_endpoint": {
+      "export_video_frames_returns_video_elements": "PASS - Returns videoElements array for slides with HeyGen videos",
+      "export_video_frames_video_element_structure": "PASS - Each video element has src, x, y, width, height",
+      "export_video_frames_coordinates_scaled": "PASS - Coordinates scaled to canvas size (1280x720)",
+      "export_video_frames_no_video_elements_when_none": "PASS - Project without videos returns no videoElements",
+      "proxy_video_returns_video_content": "PASS - Returns video/webm with CORS headers",
+      "proxy_video_rejects_non_whitelisted_hosts": "PASS - Returns 403/500 for non-whitelisted hosts",
+      "proxy_video_rejects_invalid_url": "PASS - Returns 400 for invalid URLs",
+      "scorm_export_regression": "PASS - SCORM export still works",
+      "html_export_regression": "PASS - HTML export still works"
+    },
+    "frontend_ui": {
+      "video_export_with_heygen": "PASS - Completed in ~60s for 13 slides with HeyGen video",
+      "video_export_without_heygen": "PASS - Completed in ~40s for 10 slides without video",
+      "progress_bar_visible": "PASS - Shows 'Gravando slide X/13...' during generation",
+      "download_button_visible": "PASS - 'Baixar Arquivo' button appears after completion",
+      "success_toast": "PASS - 'Video WebM exportado com sucesso!' toast shown"
+    }
+  },
+  "performance_metrics": {
+    "video_export_with_heygen": "~60 seconds for 13 slides",
+    "video_export_without_heygen": "~40 seconds for 10 slides",
+    "proxy_video_response": "~1.8MB video downloaded successfully"
+  }
+}

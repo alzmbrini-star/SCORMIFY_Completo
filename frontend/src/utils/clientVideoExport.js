@@ -1,15 +1,48 @@
 /**
  * Client-side video generation using Canvas + MediaRecorder.
- * Creates WebM video from slide images directly in the browser.
+ * Creates WebM video from slide images + HeyGen video overlays directly in the browser.
+ * Includes audio from HeyGen videos via AudioContext.
  * No server-side FFmpeg needed — works in any environment.
- *
- * Uses requestAnimationFrame for continuous redraw so that
- * captureStream always has fresh pixel data to encode.
  */
 
+/**
+ * Load a video element from a proxied URL. Returns the <video> element ready to play.
+ */
+function loadVideo(proxyUrl) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.preload = 'auto';
+    video.muted = false; // we need audio
+    video.playsInline = true;
+
+    video.oncanplaythrough = () => resolve(video);
+    video.onerror = () => reject(new Error('Failed to load video'));
+
+    // Set a timeout for slow loads
+    const timeout = setTimeout(() => {
+      video.oncanplaythrough = null;
+      // Resolve anyway if we have some data
+      if (video.readyState >= 2) {
+        resolve(video);
+      } else {
+        reject(new Error('Video load timeout'));
+      }
+    }, 60000);
+
+    video.oncanplaythrough = () => {
+      clearTimeout(timeout);
+      resolve(video);
+    };
+
+    video.src = proxyUrl;
+    video.load();
+  });
+}
+
 export async function generateVideoClientSide({ apiUrl, projectId, defaultDuration, onProgress }) {
-  // Step 1: Fetch slide images from backend
-  onProgress(5, 'Buscando imagens dos slides...');
+  // Step 1: Fetch slide images + video metadata from backend
+  onProgress(5, 'Buscando dados dos slides...');
 
   const response = await fetch(`${apiUrl}/api/course/${projectId}/export-video-frames`, {
     method: 'POST',
@@ -29,33 +62,61 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     throw new Error('Nenhum slide encontrado para exportar.');
   }
 
-  onProgress(20, `Carregando ${frames.length} imagens...`);
+  onProgress(10, `Carregando ${frames.length} imagens...`);
 
-  // Step 2: Load all images
+  // Step 2: Load all slide background images
   const images = await Promise.all(
     frames.map(
       (frame, i) =>
         new Promise((resolve, reject) => {
           const img = new Image();
-          img.onload = () => {
-            onProgress(20 + Math.round(((i + 1) / frames.length) * 10), `Imagem ${i + 1}/${frames.length} carregada`);
-            resolve(img);
-          };
+          img.onload = () => resolve(img);
           img.onerror = () => reject(new Error(`Falha ao carregar slide ${frame.index + 1}`));
           img.src = frame.dataUrl;
         })
     )
   );
 
-  onProgress(30, 'Iniciando gravacao do video...');
+  // Step 3: Load HeyGen/overlay videos (proxied through our backend for CORS)
+  const slideVideos = []; // Array of { video, x, y, width, height } per slide index
+  let hasAnyVideo = false;
 
-  // Step 3: Create canvas and MediaRecorder
+  for (let i = 0; i < frames.length; i++) {
+    const videoEls = frames[i].videoElements || [];
+    if (videoEls.length > 0) {
+      onProgress(15 + Math.round((i / frames.length) * 10), `Carregando video do slide ${i + 1}...`);
+      const loadedVideos = [];
+      for (const vel of videoEls) {
+        try {
+          const proxyUrl = `${apiUrl}/api/proxy-video?url=${encodeURIComponent(vel.src)}`;
+          const video = await loadVideo(proxyUrl);
+          loadedVideos.push({
+            video,
+            x: vel.x,
+            y: vel.y,
+            width: vel.width,
+            height: vel.height,
+          });
+          hasAnyVideo = true;
+        } catch (e) {
+          console.warn(`Failed to load video for slide ${i + 1}:`, e.message);
+        }
+      }
+      slideVideos[i] = loadedVideos;
+    } else {
+      slideVideos[i] = [];
+    }
+  }
+
+  onProgress(28, 'Preparando gravacao...');
+
+  // Step 4: Create canvas and setup recording
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
 
-  // Draw the first frame immediately so the stream starts with content
+  // Draw first frame immediately
   ctx.drawImage(images[0], 0, 0, width, height);
 
   // Check MediaRecorder support
@@ -65,13 +126,29 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     ? 'video/webm;codecs=vp8'
     : 'video/webm';
 
-  const stream = canvas.captureStream(30); // 30fps for smooth capture
+  // Setup audio context for mixing video audio into the recording
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const destination = audioCtx.createMediaStreamDestination();
+
+  // Get canvas video stream at 30fps
+  const canvasStream = canvas.captureStream(30);
+
+  // Combine canvas video track + audio destination track
+  const combinedStream = new MediaStream();
+  // Add video track from canvas
+  for (const track of canvasStream.getVideoTracks()) {
+    combinedStream.addTrack(track);
+  }
+  // Add audio track from AudioContext destination
+  for (const track of destination.stream.getAudioTracks()) {
+    combinedStream.addTrack(track);
+  }
 
   let recorder;
   try {
-    recorder = new MediaRecorder(stream, {
+    recorder = new MediaRecorder(combinedStream, {
       mimeType,
-      videoBitsPerSecond: 2500000, // 2.5Mbps for better quality
+      videoBitsPerSecond: 2500000,
     });
   } catch (e) {
     throw new Error('Seu navegador nao suporta gravacao de video. Tente o Chrome ou Edge.');
@@ -82,9 +159,12 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     if (e.data.size > 0) chunks.push(e.data);
   };
 
-  // Step 4: Record using requestAnimationFrame for continuous redraw
+  // Step 5: Record slides with video overlay + audio
   return new Promise((resolve, reject) => {
     recorder.onstop = () => {
+      // Cleanup audio context
+      try { audioCtx.close(); } catch (e) { /* ignore */ }
+
       const blob = new Blob(chunks, { type: mimeType });
       const safeName = projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
       const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
@@ -96,26 +176,76 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
     recorder.onerror = (e) => reject(new Error('Erro no MediaRecorder: ' + (e.error?.message || e.error || 'desconhecido')));
 
-    // Collect data every second for resilience
+    // Collect data every second
     recorder.start(1000);
 
     let currentSlide = 0;
     let slideStartTime = performance.now();
+    let currentAudioSources = []; // Track active audio sources for cleanup
     let animFrameId = null;
+
+    function startSlideVideos(slideIdx) {
+      // Stop previous audio sources
+      for (const src of currentAudioSources) {
+        try { src.disconnect(); } catch (e) { /* ignore */ }
+      }
+      currentAudioSources = [];
+
+      const videos = slideVideos[slideIdx] || [];
+      for (const { video } of videos) {
+        // Connect video audio to the recording destination
+        try {
+          const source = audioCtx.createMediaElementSource(video);
+          source.connect(destination);
+          source.connect(audioCtx.destination); // Also play locally (optional)
+          currentAudioSources.push(source);
+        } catch (e) {
+          // createMediaElementSource can only be called once per element
+          // If already connected, just play
+          console.warn('Audio source already connected:', e.message);
+        }
+
+        video.currentTime = 0;
+        video.play().catch(() => {});
+      }
+    }
+
+    function stopSlideVideos(slideIdx) {
+      const videos = slideVideos[slideIdx] || [];
+      for (const { video } of videos) {
+        video.pause();
+      }
+    }
+
+    function getEffectiveDuration(slideIdx) {
+      const baseDuration = frames[slideIdx]?.duration || defaultDuration;
+      const videos = slideVideos[slideIdx] || [];
+      if (videos.length > 0) {
+        // Use the longest video duration, but at least the base duration
+        const maxVideoDur = Math.max(...videos.map(v => v.video.duration || 0));
+        if (maxVideoDur > 0 && isFinite(maxVideoDur)) {
+          return Math.max(baseDuration, maxVideoDur);
+        }
+      }
+      return baseDuration;
+    }
+
+    // Start first slide's videos
+    startSlideVideos(0);
 
     function renderLoop() {
       const now = performance.now();
       const elapsedSec = (now - slideStartTime) / 1000;
-      const slideDuration = frames[currentSlide]?.duration || defaultDuration;
+      const slideDuration = getEffectiveDuration(currentSlide);
 
-      // Check if it's time to advance to next slide
+      // Check if it's time to advance
       if (elapsedSec >= slideDuration) {
+        stopSlideVideos(currentSlide);
         currentSlide++;
         slideStartTime = now;
 
         if (currentSlide >= images.length) {
-          // All slides done — give a small buffer then stop
-          // Draw the last slide one more time to ensure it's captured
+          // All slides done — stop recording
           ctx.drawImage(images[images.length - 1], 0, 0, width, height);
           setTimeout(() => {
             if (animFrameId) cancelAnimationFrame(animFrameId);
@@ -124,20 +254,34 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
           return;
         }
 
+        // Start next slide's videos
+        startSlideVideos(currentSlide);
+
         const progress = 30 + Math.round(((currentSlide + 1) / images.length) * 65);
         onProgress(progress, `Gravando slide ${currentSlide + 1}/${images.length}...`);
       }
 
-      // Continuously redraw the current slide — this ensures captureStream
-      // always has fresh pixel data to encode into the video
+      // Draw background image
       if (currentSlide < images.length) {
         ctx.drawImage(images[currentSlide], 0, 0, width, height);
+
+        // Overlay video frames on top
+        const videos = slideVideos[currentSlide] || [];
+        for (const { video, x, y, width: vw, height: vh } of videos) {
+          if (video.readyState >= 2 && !video.paused) {
+            try {
+              ctx.drawImage(video, x, y, vw, vh);
+            } catch (e) {
+              // Canvas tainted or video not ready — skip frame
+            }
+          }
+        }
       }
 
       animFrameId = requestAnimationFrame(renderLoop);
     }
 
-    onProgress(32, `Gravando slide 1/${images.length}...`);
+    onProgress(30, `Gravando slide 1/${images.length}...`);
     renderLoop();
   });
 }

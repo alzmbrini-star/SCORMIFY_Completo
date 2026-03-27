@@ -429,6 +429,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
 @router.post("/course/{project_id}/export-video-frames")
 async def export_video_frames(project_id: str, request: Request):
     """Return all slide images as base64 for client-side video generation.
+    Also includes video element metadata (HeyGen, YouTube) for overlay.
     This avoids FFmpeg on the server — the browser creates the video using Canvas + MediaRecorder."""
     import base64
 
@@ -484,11 +485,37 @@ async def export_video_frames(project_id: str, request: Request):
                 img_data = base64.b64encode(f.read()).decode('utf-8')
 
             duration = slide.get('duration', default_duration) or default_duration
-            frames.append({
+
+            # Collect video elements (HeyGen, YouTube, etc.) for overlay
+            video_elements = []
+            for el in slide.get('elements', []):
+                if el.get('type') == 'video' and el.get('src'):
+                    # Scale element coordinates to canvas size
+                    ex = el.get('x', 0) * ratio
+                    ey = el.get('y', 0) * ratio
+                    ew = el.get('width', 200) * ratio
+                    eh = el.get('height', 200) * ratio
+                    # Center offset (same as image padding)
+                    offset_x = (canvas_w - target_w) / 2
+                    offset_y = (canvas_h - target_h) / 2
+                    video_elements.append({
+                        'src': el.get('src', ''),
+                        'x': round(ex + offset_x),
+                        'y': round(ey + offset_y),
+                        'width': round(ew),
+                        'height': round(eh),
+                        'autoplay': el.get('autoplay', True),
+                    })
+
+            frame_data = {
                 'index': idx,
                 'dataUrl': f"data:image/png;base64,{img_data}",
                 'duration': max(2.0, float(duration)),
-            })
+            }
+            if video_elements:
+                frame_data['videoElements'] = video_elements
+
+            frames.append(frame_data)
 
             # Cleanup temp file
             try:
@@ -506,6 +533,50 @@ async def export_video_frames(project_id: str, request: Request):
     except Exception as e:
         logger.error(f"Error generating video frames: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/proxy-video")
+async def proxy_video(url: str):
+    """Proxy external video URLs (HeyGen, etc.) to bypass CORS restrictions.
+    The browser can't draw cross-origin videos to canvas without tainting it."""
+    import httpx
+    from starlette.responses import StreamingResponse
+
+    if not url or not url.startswith('http'):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    # Only allow known video hosts
+    allowed_hosts = ['heygen.ai', 'resource2.heygen.ai', 'files2.heygen.ai', 'youtube.com', 'vimeo.com']
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    host = parsed.hostname or ''
+    if not any(host.endswith(h) for h in allowed_hosts):
+        raise HTTPException(status_code=403, detail="Host not allowed")
+
+    try:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Upstream error")
+
+            content_type = resp.headers.get('content-type', 'video/mp4')
+
+            return StreamingResponse(
+                iter([resp.content]),
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=3600",
+                }
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Video download timeout")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Video proxy error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # Legacy Video Export (FFmpeg-based, kept for environments where FFmpeg works)
