@@ -1,16 +1,10 @@
 /**
  * Client-side video generation using Canvas + MediaRecorder.
  * Creates MP4 (H.264) or WebM video from slide images + HeyGen video overlays.
- * Includes audio from HeyGen videos via AudioContext.
- * No server-side FFmpeg needed — works in any environment.
- *
- * MP4 is preferred (plays on Windows/Mac/mobile natively).
- * WebM fallback for older browsers.
+ * Includes audio from HeyGen videos via captureStream().
+ * No server-side FFmpeg needed.
  */
 
-/**
- * Pick the best MIME type for recording. Prefer MP4 (H.264) for universal playback.
- */
 function pickMimeType() {
   const candidates = [
     { mime: 'video/mp4;codecs=avc1,opus', ext: 'mp4' },
@@ -22,34 +16,25 @@ function pickMimeType() {
     { mime: 'video/webm;codecs=vp8', ext: 'webm' },
     { mime: 'video/webm', ext: 'webm' },
   ];
-
   for (const c of candidates) {
-    if (MediaRecorder.isTypeSupported(c.mime)) {
-      return c;
-    }
+    if (MediaRecorder.isTypeSupported(c.mime)) return c;
   }
-  // Last resort
   return { mime: 'video/webm', ext: 'webm' };
 }
 
-/**
- * Load a video element from a proxied URL. Returns the <video> element ready to play.
- */
 function loadVideo(proxyUrl) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     video.crossOrigin = 'anonymous';
     video.preload = 'auto';
-    video.muted = false;
     video.playsInline = true;
+    // Start muted to allow autoplay, we capture audio via captureStream
+    video.muted = true;
 
     const timeout = setTimeout(() => {
       video.oncanplaythrough = null;
-      if (video.readyState >= 2) {
-        resolve(video);
-      } else {
-        reject(new Error('Video load timeout'));
-      }
+      if (video.readyState >= 2) resolve(video);
+      else reject(new Error('Video load timeout'));
     }, 60000);
 
     video.oncanplaythrough = () => {
@@ -66,8 +51,22 @@ function loadVideo(proxyUrl) {
   });
 }
 
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        reject(new Error('Image loaded with zero dimensions'));
+        return;
+      }
+      resolve(img);
+    };
+    img.onerror = () => reject(new Error('Image failed to load'));
+    img.src = dataUrl;
+  });
+}
+
 export async function generateVideoClientSide({ apiUrl, projectId, defaultDuration, onProgress }) {
-  // Step 1: Fetch slide images + video metadata from backend
   onProgress(5, 'Buscando dados dos slides...');
 
   const response = await fetch(`${apiUrl}/api/course/${projectId}/export-video-frames`, {
@@ -90,39 +89,44 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   onProgress(10, `Carregando ${frames.length} imagens...`);
 
-  // Step 2: Load all slide background images
-  const images = await Promise.all(
-    frames.map(
-      (frame, i) =>
-        new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error(`Falha ao carregar slide ${frame.index + 1}`));
-          img.src = frame.dataUrl;
-        })
-    )
-  );
+  // Load all slide background images
+  const images = [];
+  for (let i = 0; i < frames.length; i++) {
+    try {
+      const img = await loadImage(frames[i].dataUrl);
+      images.push(img);
+      onProgress(10 + Math.round(((i + 1) / frames.length) * 10), `Imagem ${i + 1}/${frames.length}`);
+    } catch (e) {
+      console.error(`Slide ${i + 1} image load failed:`, e);
+      // Create a fallback colored image
+      const fallback = document.createElement('canvas');
+      fallback.width = width;
+      fallback.height = height;
+      const fCtx = fallback.getContext('2d');
+      fCtx.fillStyle = '#1a1a2e';
+      fCtx.fillRect(0, 0, width, height);
+      fCtx.fillStyle = '#ffffff';
+      fCtx.font = '32px sans-serif';
+      fCtx.textAlign = 'center';
+      fCtx.fillText(`Slide ${i + 1}`, width / 2, height / 2);
+      images.push(fallback);
+    }
+  }
 
-  // Step 3: Load HeyGen/overlay videos (proxied through our backend for CORS)
+  // Load HeyGen/overlay videos
   const slideVideos = [];
   for (let i = 0; i < frames.length; i++) {
     const videoEls = frames[i].videoElements || [];
     if (videoEls.length > 0) {
-      onProgress(15 + Math.round((i / frames.length) * 10), `Carregando video do slide ${i + 1}...`);
+      onProgress(22 + Math.round((i / frames.length) * 5), `Carregando video do slide ${i + 1}...`);
       const loadedVideos = [];
       for (const vel of videoEls) {
         try {
           const proxyUrl = `${apiUrl}/api/proxy-video?url=${encodeURIComponent(vel.src)}`;
           const video = await loadVideo(proxyUrl);
-          loadedVideos.push({
-            video,
-            x: vel.x,
-            y: vel.y,
-            width: vel.width,
-            height: vel.height,
-          });
+          loadedVideos.push({ video, x: vel.x, y: vel.y, width: vel.width, height: vel.height });
         } catch (e) {
-          console.warn(`Failed to load video for slide ${i + 1}:`, e.message);
+          console.warn(`Video load failed for slide ${i + 1}:`, e.message);
         }
       }
       slideVideos[i] = loadedVideos;
@@ -133,41 +137,66 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   onProgress(28, 'Preparando gravacao...');
 
-  // Step 4: Create canvas and setup recording
+  // Create canvas
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
 
-  // Draw first frame immediately
+  // Draw first frame
   ctx.drawImage(images[0], 0, 0, width, height);
 
-  // Pick best available format (MP4 preferred for universal playback)
   const { mime: mimeType, ext: fileExt } = pickMimeType();
-  console.log(`[VideoExport] Using format: ${mimeType} (.${fileExt})`);
+  console.log(`[VideoExport] Format: ${mimeType} (.${fileExt})`);
 
-  // Setup audio context for mixing video audio into the recording
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const destination = audioCtx.createMediaStreamDestination();
-
-  // Get canvas video stream at 30fps
+  // Build combined stream: canvas video + all video audios
   const canvasStream = canvas.captureStream(30);
-
-  // Combine canvas video track + audio destination track
   const combinedStream = new MediaStream();
+
+  // Add canvas video track
   for (const track of canvasStream.getVideoTracks()) {
     combinedStream.addTrack(track);
   }
-  for (const track of destination.stream.getAudioTracks()) {
+
+  // Use AudioContext to mix audio from multiple videos
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Resume AudioContext (browsers suspend it until user gesture)
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+  const mixDestination = audioCtx.createMediaStreamDestination();
+
+  // Add the mixed audio track to our recording stream
+  for (const track of mixDestination.stream.getAudioTracks()) {
     combinedStream.addTrack(track);
+  }
+
+  // Pre-connect all video audio sources to the mixer
+  // createMediaElementSource can only be called once per video, so do it upfront
+  const videoAudioSources = new Map();
+  const videoGainNodes = new Map();
+
+  for (let i = 0; i < slideVideos.length; i++) {
+    for (const { video } of slideVideos[i]) {
+      try {
+        // Unmute the video (audio will flow through Web Audio API, not speakers)
+        video.muted = false;
+        const source = audioCtx.createMediaElementSource(video);
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0; // Start silent, will enable per-slide
+        source.connect(gain);
+        gain.connect(mixDestination);
+        videoAudioSources.set(video, source);
+        videoGainNodes.set(video, gain);
+      } catch (e) {
+        console.warn('Audio source setup failed:', e.message);
+      }
+    }
   }
 
   let recorder;
   try {
-    recorder = new MediaRecorder(combinedStream, {
-      mimeType,
-      videoBitsPerSecond: 2500000,
-    });
+    recorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 2500000 });
   } catch (e) {
     throw new Error('Seu navegador nao suporta gravacao de video. Tente o Chrome ou Edge.');
   }
@@ -177,47 +206,36 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     if (e.data.size > 0) chunks.push(e.data);
   };
 
-  // Step 5: Record slides with video overlay + audio
   return new Promise((resolve, reject) => {
     recorder.onstop = () => {
       try { audioCtx.close(); } catch (e) { /* ignore */ }
-
       const blob = new Blob(chunks, { type: mimeType });
       const safeName = projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
       const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
       const filename = `${safeName}_${timestamp}.${fileExt}`;
-
       onProgress(100, 'Video pronto!');
       resolve({ blob, filename });
     };
 
-    recorder.onerror = (e) => reject(new Error('Erro no MediaRecorder: ' + (e.error?.message || e.error || 'desconhecido')));
-
+    recorder.onerror = (e) => reject(new Error('MediaRecorder error: ' + (e.error?.message || 'unknown')));
     recorder.start(1000);
 
     let currentSlide = 0;
     let slideStartTime = performance.now();
-    let currentAudioSources = [];
     let animFrameId = null;
 
-    function startSlideVideos(slideIdx) {
-      for (const src of currentAudioSources) {
-        try { src.disconnect(); } catch (e) { /* ignore */ }
+    function activateSlideAudio(slideIdx) {
+      // Mute all video audio
+      for (const [, gain] of videoGainNodes) {
+        gain.gain.value = 0;
       }
-      currentAudioSources = [];
-
+      // Unmute and play videos for this slide
       const videos = slideVideos[slideIdx] || [];
       for (const { video } of videos) {
-        try {
-          const source = audioCtx.createMediaElementSource(video);
-          source.connect(destination);
-          currentAudioSources.push(source);
-        } catch (e) {
-          console.warn('Audio source already connected:', e.message);
-        }
-
+        const gain = videoGainNodes.get(video);
+        if (gain) gain.gain.value = 1.0;
         video.currentTime = 0;
-        video.play().catch(() => {});
+        video.play().catch(err => console.warn('Video play failed:', err));
       }
     }
 
@@ -225,6 +243,8 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
       const videos = slideVideos[slideIdx] || [];
       for (const { video } of videos) {
         video.pause();
+        const gain = videoGainNodes.get(video);
+        if (gain) gain.gain.value = 0;
       }
     }
 
@@ -232,15 +252,14 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
       const baseDuration = frames[slideIdx]?.duration || defaultDuration;
       const videos = slideVideos[slideIdx] || [];
       if (videos.length > 0) {
-        const maxVideoDur = Math.max(...videos.map(v => v.video.duration || 0));
-        if (maxVideoDur > 0 && isFinite(maxVideoDur)) {
-          return Math.max(baseDuration, maxVideoDur);
-        }
+        const maxDur = Math.max(...videos.map(v => v.video.duration || 0));
+        if (maxDur > 0 && isFinite(maxDur)) return Math.max(baseDuration, maxDur);
       }
       return baseDuration;
     }
 
-    startSlideVideos(0);
+    // Start first slide
+    activateSlideAudio(0);
 
     function renderLoop() {
       const now = performance.now();
@@ -253,6 +272,7 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         slideStartTime = now;
 
         if (currentSlide >= images.length) {
+          // Draw last frame once more then stop
           ctx.drawImage(images[images.length - 1], 0, 0, width, height);
           setTimeout(() => {
             if (animFrameId) cancelAnimationFrame(animFrameId);
@@ -261,24 +281,28 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
           return;
         }
 
-        startSlideVideos(currentSlide);
-
+        activateSlideAudio(currentSlide);
         const progress = 30 + Math.round(((currentSlide + 1) / images.length) * 65);
         onProgress(progress, `Gravando slide ${currentSlide + 1}/${images.length}...`);
       }
 
-      // Draw background image
+      // Draw: background image first, then video overlay
       if (currentSlide < images.length) {
+        // Clear canvas to prevent ghosting
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw slide background
         ctx.drawImage(images[currentSlide], 0, 0, width, height);
 
-        // Overlay video frames on top
+        // Overlay HeyGen video frames
         const videos = slideVideos[currentSlide] || [];
         for (const { video, x, y, width: vw, height: vh } of videos) {
-          if (video.readyState >= 2 && !video.paused) {
+          if (video.readyState >= 2 && !video.paused && !video.ended) {
             try {
               ctx.drawImage(video, x, y, vw, vh);
             } catch (e) {
-              // Canvas tainted or video not ready
+              // Video CORS or tainted canvas — skip frame
             }
           }
         }
