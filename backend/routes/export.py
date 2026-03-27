@@ -535,12 +535,18 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
                 pass  # Last resort - can't even update the job
 
     # Spawn background task and return IMMEDIATELY
-    asyncio.create_task(run_export())
+    # Store reference in set to prevent garbage collection of the task
+    task = asyncio.create_task(run_export())
+    _active_export_tasks.add(task)
+    task.add_done_callback(_active_export_tasks.discard)
 
     return {
         "jobId": job_id,
         "message": f"Exportação de vídeo {video_format.upper()} iniciada"
     }
+
+# Prevent asyncio task garbage collection in production
+_active_export_tasks = set()
 
 # Static file serving
 

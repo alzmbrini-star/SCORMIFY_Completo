@@ -654,7 +654,7 @@ async def export_video(
                     ])
             else:
                 # No video overlays - just create video from image
-                await run_ffmpeg_async([
+                ffmpeg_ok = await run_ffmpeg_async([
                     '-loop', '1', '-i', slide_img_path,
                     '-t', str(duration),
                     '-c:v', 'libx264', '-preset', 'ultrafast',
@@ -663,6 +663,10 @@ async def export_video(
                     '-r', '24',
                     segment_path
                 ])
+                if not ffmpeg_ok:
+                    logger.error(f"[VIDEO] Slide {idx+1}/{total_slides} FFmpeg FAILED")
+                    if on_progress:
+                        on_progress(int((idx / total_slides) * 80), f"Slide {idx+1}/{total_slides}: erro FFmpeg, pulando...")
 
             # 6. Add narration audio if available
             if audio_files and Path(segment_path).exists():
