@@ -1227,11 +1227,11 @@ export default function Editor() {
                                   ) : (
                                     <>
                                       <Film className="w-4 h-4" />
-                                      Gerar Video (WebM)
+                                      Gerar Video
                                     </>
                                   )}
                                 </Button>
-                                <p className="text-[10px] text-muted-foreground mt-1.5 text-center">Gerado no navegador — sem limite de servidor</p>
+                                <p className="text-[10px] text-muted-foreground mt-1.5 text-center">MP4 ou WebM — gerado no navegador</p>
                               </div>
                             )}
                           </div>

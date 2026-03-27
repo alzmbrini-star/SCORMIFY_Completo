@@ -72,7 +72,8 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       setDownloadFilename(filename);
       setVideoExportJobId(null);
       setExportLoading(false);
-      toast.success('Video WebM exportado com sucesso!');
+      const ext = filename.split('.').pop()?.toUpperCase() || 'Video';
+      toast.success(`Video ${ext} exportado com sucesso!`);
 
       // Auto-trigger download
       const a = document.createElement('a');
