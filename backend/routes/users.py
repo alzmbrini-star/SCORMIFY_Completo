@@ -2,23 +2,13 @@
 User management routes
 """
 from fastapi import APIRouter, HTTPException, Request, Depends
-from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 import uuid
 import bcrypt
 
+from routes.deps import db, now_utc
+
 router = APIRouter(prefix="/users", tags=["Users"])
-
-# MongoDB connection (will be set from main server)
-db = None
-
-def set_db(database):
-    """Set the database connection from main server"""
-    global db
-    db = database
-
-def now_utc():
-    return datetime.now(timezone.utc)
 
 def hash_password(password: str) -> str:
     """Hash password using bcrypt"""

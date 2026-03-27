@@ -2,23 +2,13 @@
 Company management routes (Super Admin only)
 """
 from fastapi import APIRouter, HTTPException, Request, Depends
-from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 import uuid
 import re
 
+from routes.deps import db, now_utc
+
 router = APIRouter(prefix="/companies", tags=["Companies"])
-
-# MongoDB connection (will be set from main server)
-db = None
-
-def set_db(database):
-    """Set the database connection from main server"""
-    global db
-    db = database
-
-def now_utc():
-    return datetime.now(timezone.utc)
 
 def slugify(text: str) -> str:
     """Convert text to URL-friendly slug"""

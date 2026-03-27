@@ -151,11 +151,9 @@ from routes import admin as admin_routes
 app.include_router(admin_routes.router, prefix="/api")
 
 from routes import companies as companies_routes
-companies_routes.set_db(db)
 app.include_router(companies_routes.router, prefix="/api")
 
 from routes import users as users_routes
-users_routes.set_db(db)
 app.include_router(users_routes.router, prefix="/api")
 
 from routes import elevenlabs as elevenlabs_routes

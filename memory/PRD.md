@@ -11,7 +11,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions, with rollback capability
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
-- **Video Export (MP4/WebM)**: Course slides rendered to video with FFmpeg (auto-installed on startup)
+- **Video Export (WebM)**: Client-side video generation using Canvas API + MediaRecorder (browser-based, no server limits)
 - **Gamification System**: Configurable badges and feedback per-project
 - **PPT Import**: Convert PowerPoint to course (ConvertAPI - Active)
 - **VLibras**: Brazilian Sign Language accessibility widget
@@ -22,18 +22,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 /app
 ├── backend (FastAPI + MongoDB)
-│   ├── server.py (ALL routes registered, TutorCorsMiddleware, FFmpeg startup)
-│   ├── start.sh (Startup script - installs FFmpeg before uvicorn)
+│   ├── server.py (ALL routes registered, TutorCorsMiddleware)
+│   ├── start.sh (Startup script)
 │   ├── routes/ (admin, agent, ai_gen, auth, companies, deps, elevenlabs, export, gallery, gamification, heygen, projects, questions, scenarios, users, vlibras)
 │   ├── services/ (ai_agent, scorm_exporter, html_exporter, video_exporter, asset_store)
 │   └── services/export_assets/
 └── frontend (React)
     ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
     ├── src/components/ (editor/, scenario/, ui/)
+    ├── src/utils/ (clientVideoExport.js - Canvas+MediaRecorder video gen)
     └── src/contexts/ (AuthContext, ProjectContext)
 ```
 
 ## Key API Endpoints
+- `POST /api/course/{id}/export-video-frames` - Returns slide images as base64 for client-side video generation
 - `POST /api/generate-html` - AI HTML generation from prompt (Gemini)
 - `POST /api/agent/courses/{id}/preview-improvements` - Preview AI suggestions
 - `POST /api/agent/courses/{id}/undo-improvements` - Undo last improvement
@@ -41,7 +43,6 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - `POST /api/tutor/chat` - AI Tutor chat (CORS-enabled for LMS)
 - `POST /api/course/{id}/export-scorm` - SCORM export
 - `POST /api/course/{id}/export-html` - HTML export
-- `POST /api/course/{id}/export-video` - Video export (MP4/WebM)
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -54,7 +55,22 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ConvertAPI - PPT import (Active)
 - VLibras - Brazilian Sign Language
 
+## Completed (2026-03-27)
+- Client-side Video Export (Canvas + MediaRecorder) - fully tested, 100% pass rate
+- Refactored companies.py and users.py DB connections to use routes.deps pattern
+- Simplified video export UI: single "Gerar Video (WebM)" button with progress bar
+- Fixed blob URL download handling in export dialog
+
 ## Known Issues
 - HeyGen Video: Blocked (insufficient credits)
+- Backend FFmpeg video export deprecated (K8s CPU limits)
 
-## Status: All P0 bugs resolved ✅ (Video Export proxy timeout fix applied 2026-03-27)
+## Upcoming Tasks (Prioritized)
+- P1: SCORM 2004 & xAPI Export
+- P1: Dashboard for analytics & scoring
+- P1: Course version history
+- P2: Custom badge image uploads for gamification
+- P2: Cleanup legacy video_exporter.py backend code
+- P2: Refactor Editor.jsx (~3700 lines) - extract dialogs to components
+
+## Status: All P0 issues resolved. Client-side video export working.
