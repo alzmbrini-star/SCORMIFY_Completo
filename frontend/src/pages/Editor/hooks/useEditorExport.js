@@ -5,7 +5,7 @@ import { getApiUrl } from '../../../utils/apiUrl';
 
 const MAX_POLL_DURATION_MS = 10 * 60 * 1000; // 10 minutes max polling
 const POLL_INTERVAL_MS = 3000; // 3s between polls
-const MAX_CONSECUTIVE_ERRORS = 10; // Stop after 10 consecutive poll failures
+const MAX_CONSECUTIVE_ERRORS = 60; // Allow up to 3 min of 502s (60 * 3s = 180s)
 const INITIAL_POST_RETRIES = 3;
 
 export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
@@ -106,6 +106,9 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
 
         try {
           const statusRes = await axios.get(`${API_URL}/api/job/${jobId}`, { timeout: 10000 });
+          if (consecutiveErrors > 0) {
+            console.log(`Poll recovered after ${consecutiveErrors} errors`);
+          }
           consecutiveErrors = 0; // Reset on success
           const job = statusRes.data;
           setVideoExportProgress(job.progress || 0);
@@ -127,15 +130,20 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
           consecutiveErrors++;
           const status = pollErr.response?.status;
           console.warn(`Poll error #${consecutiveErrors} (${status || 'network'}):`, pollErr.message);
-          // Show message but keep polling — proxy errors are transient
-          if (consecutiveErrors >= 3) {
-            setVideoExportMessage(`Reconectando ao servidor... (tentativa ${consecutiveErrors})`);
+          // 502/520 during video processing is EXPECTED in production (K8s Ingress timeout)
+          // The backend is still processing - keep polling until it comes back
+          if (consecutiveErrors >= 2) {
+            setVideoExportMessage(
+              consecutiveErrors < 10
+                ? `Processando video no servidor... aguarde (${consecutiveErrors})`
+                : `Servidor ocupado encodando video... aguarde, a exportacao continua em segundo plano (${consecutiveErrors})`
+            );
           }
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             stopPolling();
             setVideoExportJobId(null);
             setExportLoading(false);
-            toast.error('Conexao perdida com o servidor. Tente novamente.');
+            toast.error('Timeout de conexao. O video pode ter sido gerado - recarregue a pagina e verifique.');
           }
         }
       }, POLL_INTERVAL_MS);
