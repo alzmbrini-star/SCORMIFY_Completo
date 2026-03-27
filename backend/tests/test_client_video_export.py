@@ -8,7 +8,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-build.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-gen.preview.emergentagent.com').rstrip('/')
 
 # Test project ID with 10 slides
 TEST_PROJECT_ID = "cb4e0112-3e45-44fe-ab29-304b0ef8f0a0"

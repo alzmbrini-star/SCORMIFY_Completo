@@ -12,7 +12,7 @@ import os
 import time
 import base64
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-build.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-gen.preview.emergentagent.com').rstrip('/')
 
 # Test project with HeyGen video on slide 1 (13 slides)
 PROJECT_WITH_HEYGEN = "2e180a28-cde8-4a43-be51-1a845effe787"

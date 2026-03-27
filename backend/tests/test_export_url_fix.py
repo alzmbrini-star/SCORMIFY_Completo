@@ -15,7 +15,7 @@ import zipfile
 import io
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-build.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://browser-video-gen.preview.emergentagent.com').rstrip('/')
 
 # Test project ID provided in context
 TEST_PROJECT_ID = "d3387a1f-6c52-4740-a127-a2e733adf663"

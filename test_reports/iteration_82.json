@@ -1,0 +1,83 @@
+{
+  "summary": "Verified client-side video export with audio support. Backend GET /api/course/{project_id}/slides-data correctly returns audioElements with 'src' field (legacy 'url' field fix verified). Backend GET /api/proxy-video proxies HeyGen videos correctly. Backend GET /api/audio/{filename} serves legacy audio narration files. Frontend 'Gerar Video' button works, progress bar shows slide rendering and audio loading. All 17 backend tests passed. Frontend video export flow verified with audio capture.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/pytest_video_export_audio_fix.xml",
+    "/app/backend/tests/test_video_export_audio_fix.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Backend export.py line 489 correctly handles both 'src' and 'url' fields: src = aud.get('src', '') or aud.get('url', '')",
+    "GOOD: Legacy audio project (82d2d9d4-3067-47de-bf5a-0e14e9051e67) returns audioElements with correct /api/audio/narration_*.mp3 paths",
+    "GOOD: Mixed HeyGen+Audio project (edd87206-484c-45d8-ba4b-5ae9bc24b2fb) returns both videoElements and audioElements correctly",
+    "GOOD: Audio file serving endpoint returns 200 with audio/mpeg content-type (530KB for test file)",
+    "GOOD: Proxy-video endpoint returns 200 with video/webm content-type and CORS headers (1.8MB for HeyGen video)",
+    "GOOD: Frontend clientVideoExport.js correctly loads audio buffers and mixes them via AudioContext",
+    "GOOD: Console logs show audio loading: '[VideoExport] Slide 1: audio 33.1s', etc.",
+    "GOOD: Video format selection works: 'Format: video/mp4 (.mp4)' in console",
+    "GOOD: Progress bar shows both rendering ('Slide 3/10 renderizado') and recording ('Gravando slide 1/10...')"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_video_export_audio_fix.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% (all UI elements and flows working)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing test projects",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Client-side video export with audio support verified. Key test projects: 1) Legacy audio: 82d2d9d4-3067-47de-bf5a-0e14e9051e67 (Universidades Corporativas, 10 slides with ElevenLabs narration) 2) Mixed HeyGen+Audio: edd87206-484c-45d8-ba4b-5ae9bc24b2fb (SCORMIFY - V2, 11 slides with HeyGen videos and audio). The 'url' vs 'src' bug fix in export.py line 489 is working correctly. Audio files are served via /api/audio/{filename} endpoint. HeyGen videos are proxied via /api/proxy-video endpoint.",
+  "features_tested": {
+    "backend_slides_data_endpoint": {
+      "returns_200": "PASS",
+      "returns_audio_elements_with_src": "PASS - audioElements have 'src' field",
+      "legacy_audio_paths_correct": "PASS - /api/audio/narration_{project_id}_{slide}.mp3",
+      "audio_element_structure": "PASS - src, startTime, volume fields present",
+      "mixed_project_video_elements": "PASS - videoElements with HeyGen URLs",
+      "mixed_project_audio_elements": "PASS - audioElements with project asset paths",
+      "default_duration_parameter": "PASS"
+    },
+    "backend_proxy_video_endpoint": {
+      "returns_video_content": "PASS - video/webm, 1.8MB",
+      "cors_headers": "PASS - Access-Control-Allow-Origin: *",
+      "rejects_invalid_url": "PASS - 400",
+      "rejects_non_whitelisted_host": "PASS - 403/500"
+    },
+    "backend_audio_file_serving": {
+      "returns_200": "PASS - audio/mpeg, 530KB",
+      "returns_404_for_nonexistent": "PASS",
+      "multiple_files_accessible": "PASS"
+    },
+    "frontend_video_export": {
+      "export_dialog_opens": "PASS",
+      "gerar_video_button_present": "PASS - 'Gerar Video' button visible",
+      "progress_bar_appears": "PASS - Shows slide rendering progress",
+      "audio_loading_logged": "PASS - Console shows audio duration per slide",
+      "video_format_mp4": "PASS - 'Format: video/mp4 (.mp4)' in console"
+    },
+    "regression_tests": {
+      "scorm_export": "PASS",
+      "html_export": "PASS",
+      "health_endpoint": "PASS"
+    }
+  },
+  "verified_bug_fix": {
+    "issue": "Legacy audio data uses 'url' field instead of 'src'",
+    "fix_location": "/app/backend/routes/export.py line 489",
+    "fix_code": "src = aud.get('src', '') or aud.get('url', '')",
+    "verification": "PASS - Legacy project 82d2d9d4-3067-47de-bf5a-0e14e9051e67 returns audioElements with correct 'src' paths"
+  }
+}
