@@ -19,6 +19,8 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+logger = logging.getLogger(__name__)
+
 
 def _ensure_ffmpeg():
     """Check if ffmpeg is available. Returns paths or None if not available."""
@@ -38,6 +40,22 @@ def _ensure_ffmpeg():
                 ffprobe = path
                 break
     
+    # Fallback: use static-ffmpeg Python package (works without root/apt-get)
+    if not ffmpeg or not ffprobe:
+        try:
+            import static_ffmpeg
+            paths = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+            ffmpeg = ffmpeg or paths[0]
+            ffprobe = ffprobe or paths[1]
+            logger.info(f"Using static-ffmpeg: {ffmpeg}")
+        except Exception as e:
+            logger.warning(f"static-ffmpeg fallback failed: {e}")
+    
+    if ffmpeg:
+        logger.info(f"FFmpeg: {ffmpeg}")
+    else:
+        logger.warning("FFmpeg not found - video export unavailable")
+    
     return ffmpeg, ffprobe
 
 
@@ -52,8 +70,6 @@ def is_ffmpeg_available():
 FFMPEG_BIN, FFPROBE_BIN = _ensure_ffmpeg()
 from PIL import Image, ImageDraw, ImageFont
 import httpx
-
-logger = logging.getLogger(__name__)
 
 
 def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
