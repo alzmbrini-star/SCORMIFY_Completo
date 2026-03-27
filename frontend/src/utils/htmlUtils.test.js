@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://editor-sandbox-8.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://video-export-fix-2.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 

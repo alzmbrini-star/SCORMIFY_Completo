@@ -1,5 +1,5 @@
 {
-  "summary": "Verified two bug fixes: 1) AI Tutor URL bug - SCORM/HTML exports now correctly use the current environment URL (https://editor-sandbox-8.preview.emergentagent.com) instead of stale DB values. 2) Fix Simulators button - 'Ferramentas' dropdown with 'Corrigir Simuladores' option is working correctly in the Editor header.",
+  "summary": "Verified two bug fixes: 1) AI Tutor URL bug - SCORM/HTML exports now correctly use the current environment URL (https://video-export-fix-2.preview.emergentagent.com) instead of stale DB values. 2) Fix Simulators button - 'Ferramentas' dropdown with 'Corrigir Simuladores' option is working correctly in the Editor header.",
   "backend_issues": {
     "critical": [],
     "minor": []
@@ -67,7 +67,7 @@
       "description": "The tutor API URL in exported SCORM/HTML courses was using a stale URL from MongoDB settings instead of the current environment URL",
       "fix_applied": "export.py line 154 now prioritizes _get_external_url() over DB settings",
       "fix_verified": true,
-      "expected_url": "https://editor-sandbox-8.preview.emergentagent.com"
+      "expected_url": "https://video-export-fix-2.preview.emergentagent.com"
     },
     "fix_simulators_button": {
       "description": "Added a 'Ferramentas' dropdown menu in the Editor header with a 'Corrigir Simuladores' option that calls POST /api/projects/{project_id}/fix-simulators",
