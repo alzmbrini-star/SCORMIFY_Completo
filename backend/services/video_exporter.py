@@ -336,15 +336,19 @@ def run_ffmpeg(args: list, timeout: int = 300) -> bool:
 
 
 async def run_ffmpeg_async(args: list, timeout: int = 300) -> bool:
-    """Run FFmpeg command asynchronously (non-blocking)"""
+    """Run FFmpeg command asynchronously (non-blocking).
+    Uses nice + threads 1 to prevent CPU starvation of the web server in production."""
     global FFMPEG_BIN
     if not FFMPEG_BIN:
         FFMPEG_BIN, _ = _ensure_ffmpeg()
     if not FFMPEG_BIN:
         logger.error("FFmpeg not available")
         return False
-    cmd = [FFMPEG_BIN, '-y'] + args
-    logger.info(f"FFmpeg async: {' '.join(cmd[:10])}...")
+    # Limit FFmpeg to 1 thread and add -threads 1 to prevent CPU starvation
+    # 'nice -n 15' gives FFmpeg lower scheduling priority so uvicorn can still serve requests
+    ffmpeg_args = [FFMPEG_BIN, '-y', '-threads', '1'] + args
+    cmd = ['nice', '-n', '15'] + ffmpeg_args
+    logger.info(f"FFmpeg async: {' '.join(cmd[:12])}...")
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -421,8 +425,9 @@ async def export_video(
             # 1. Create base image
             slide_img_path = str(slides_dir / f"slide_{idx:03d}.png")
 
-            # Determine canvas size (use 1920x1080 for video, scale from slide dimensions)
-            canvas_w, canvas_h = 1920, 1080
+            # Determine canvas size - use 1280x720 (720p) for faster encoding in production
+            # This reduces CPU usage by ~60% compared to 1920x1080
+            canvas_w, canvas_h = 1280, 720
             slide_w = slide.get('width', 1920)
             slide_h = slide.get('height', 1080)
             # Maintain aspect ratio
@@ -734,6 +739,9 @@ async def export_video(
 
                 segment_files.append(segment_path)
                 logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} DONE")
+
+            # Yield control to event loop between slides so HTTP requests can be served
+            await asyncio.sleep(0.1)
 
         if not segment_files:
             raise ValueError("No video segments were created")
