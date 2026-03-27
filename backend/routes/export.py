@@ -545,12 +545,12 @@ async def proxy_video(url: str):
     if not url or not url.startswith('http'):
         raise HTTPException(status_code=400, detail="Invalid URL")
 
-    # Only allow known video hosts
-    allowed_hosts = ['heygen.ai', 'resource2.heygen.ai', 'files2.heygen.ai', 'youtube.com', 'vimeo.com']
+    # Only allow known video hosts (exact match or subdomain)
+    allowed_hosts = {'heygen.ai', 'resource2.heygen.ai', 'files2.heygen.ai', 'youtube.com', 'vimeo.com'}
     from urllib.parse import urlparse
     parsed = urlparse(url)
     host = parsed.hostname or ''
-    if not any(host.endswith(h) for h in allowed_hosts):
+    if not any(host == h or host.endswith('.' + h) for h in allowed_hosts):
         raise HTTPException(status_code=403, detail="Host not allowed")
 
     try:
