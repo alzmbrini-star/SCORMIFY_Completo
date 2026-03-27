@@ -485,7 +485,8 @@ async def get_slides_data(project_id: str, default_duration: float = 5.0):
         # Collect audio elements
         audio_items = []
         for aud in slide.get('audio', []):
-            src = aud.get('src', '')
+            # Audio source can be in 'src' or 'url' field (legacy format)
+            src = aud.get('src', '') or aud.get('url', '')
             if not src:
                 continue
             if not src.startswith('http') and not src.startswith('/api/'):
