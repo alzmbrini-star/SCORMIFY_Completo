@@ -1,13 +1,11 @@
 #!/bin/bash
-# Backend startup script - ensures FFmpeg is available before starting uvicorn
+# Backend startup script
 
-# Install FFmpeg if not present
-if ! command -v ffmpeg &> /dev/null; then
-    echo "[STARTUP] FFmpeg not found, installing..."
-    apt-get update -qq && apt-get install -y -qq ffmpeg 2>&1 | tail -2
-    echo "[STARTUP] FFmpeg installed: $(which ffmpeg)"
+# Check FFmpeg availability (don't try apt-get - use static-ffmpeg pip package instead)
+if command -v ffmpeg &> /dev/null; then
+    echo "[STARTUP] FFmpeg available: $(which ffmpeg)"
 else
-    echo "[STARTUP] FFmpeg already available: $(which ffmpeg)"
+    echo "[STARTUP] System FFmpeg not found - will use static-ffmpeg pip package"
 fi
 
 # Start uvicorn
