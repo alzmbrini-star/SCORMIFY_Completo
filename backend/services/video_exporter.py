@@ -337,17 +337,15 @@ def run_ffmpeg(args: list, timeout: int = 300) -> bool:
 
 async def run_ffmpeg_async(args: list, timeout: int = 300) -> bool:
     """Run FFmpeg command asynchronously (non-blocking).
-    Uses nice + threads 1 to prevent CPU starvation of the web server in production."""
+    Uses -threads 1 to prevent CPU starvation of the web server in production."""
     global FFMPEG_BIN
     if not FFMPEG_BIN:
         FFMPEG_BIN, _ = _ensure_ffmpeg()
     if not FFMPEG_BIN:
         logger.error("FFmpeg not available")
         return False
-    # Limit FFmpeg to 1 thread and add -threads 1 to prevent CPU starvation
-    # 'nice -n 15' gives FFmpeg lower scheduling priority so uvicorn can still serve requests
-    ffmpeg_args = [FFMPEG_BIN, '-y', '-threads', '1'] + args
-    cmd = ['nice', '-n', '15'] + ffmpeg_args
+    # -threads 1 limits FFmpeg to 1 encoding thread to leave CPU for the web server
+    cmd = [FFMPEG_BIN, '-y', '-threads', '1'] + args
     logger.info(f"FFmpeg async: {' '.join(cmd[:12])}...")
     try:
         proc = await asyncio.create_subprocess_exec(
