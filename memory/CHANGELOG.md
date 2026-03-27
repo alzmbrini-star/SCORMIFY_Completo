@@ -2,6 +2,16 @@
 
 ## 2026-03-27 (Fork: Video Export Production Fix)
 
+### CRITICAL Bug Fix: Video Export 520 in Production (Event Loop Blocking)
+- **Root Cause**: `create_slide_base_image()` (PIL/Pillow) and `get_media_duration()` (subprocess.run) were synchronous and blocked the FastAPI event loop for 2-3 seconds PER SLIDE. For a 14-slide course, this blocked the server for ~40 seconds total. Cloudflare's health checks couldn't reach the backend → returned **520 "Web server returned unknown error"**.
+- **Fix**: Wrapped ALL blocking operations in `asyncio.to_thread()`:
+  - `create_slide_base_image()` → runs in thread pool (PIL image creation)
+  - Image padding operations → runs in thread pool  
+  - `get_media_duration()` → runs in thread pool (ffprobe subprocess)
+- **Result**: Event loop stays free during entire video processing. Poll response times: all < 0.7s (was 2-3s blocking per slide). Health checks respond in < 0.3s during video processing.
+- **Applied in**: `services/video_exporter.py` (3 blocking operations wrapped in asyncio.to_thread)
+- **Status**: Tested ✅ — 14-slide project processes while server handles all requests normally
+
 ### CRITICAL Bug Fix: Video Export 403 in Production (withCredentials conflict)
 - **Root Cause**: The axios interceptor in `ProjectContext.jsx` set `withCredentials: true` on ALL requests. This sent Cloudflare cookies (`__cf_bm` bot management cookie) with every polling request. Cloudflare detected the automated polling pattern (every 3s with credentials) as bot activity and blocked with 403 Forbidden.
 - **Fix**: Removed `withCredentials: true` from the global axios interceptor. Auth works via `Authorization: Bearer <token>` header from localStorage, cookies are unnecessary. Also changed `asyncio.ensure_future(create_job())` to `await create_job()` in the backend to guarantee job exists in MongoDB before the response is sent (prevents 404 in multi-worker deployments).

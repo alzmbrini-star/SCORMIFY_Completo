@@ -433,19 +433,25 @@ async def export_video(
             target_w = target_w if target_w % 2 == 0 else target_w + 1
             target_h = target_h if target_h % 2 == 0 else target_h + 1
 
-            create_slide_base_image(
+            # Run blocking PIL operations in thread pool to avoid blocking the event loop
+            # This is CRITICAL for production — without this, Cloudflare returns 520
+            # because the FastAPI server can't respond to polling while PIL processes images
+            await asyncio.to_thread(
+                create_slide_base_image,
                 slide, project_id, projects_dir, storage_dir,
                 slide_img_path, target_w, target_h
             )
 
             # If target is smaller than canvas, pad with black and center
             if target_w < canvas_w or target_h < canvas_h:
-                canvas = Image.new('RGB', (canvas_w, canvas_h), (0, 0, 0))
-                slide_img = Image.open(slide_img_path)
-                offset_x = (canvas_w - target_w) // 2
-                offset_y = (canvas_h - target_h) // 2
-                canvas.paste(slide_img, (offset_x, offset_y))
-                canvas.save(slide_img_path)
+                def _pad_image():
+                    canvas = Image.new('RGB', (canvas_w, canvas_h), (0, 0, 0))
+                    slide_img = Image.open(slide_img_path)
+                    ox = (canvas_w - target_w) // 2
+                    oy = (canvas_h - target_h) // 2
+                    canvas.paste(slide_img, (ox, oy))
+                    canvas.save(slide_img_path)
+                await asyncio.to_thread(_pad_image)
 
             # 2. Collect video overlays (HeyGen, YouTube, Vimeo)
             video_overlays = []
@@ -528,14 +534,14 @@ async def export_video(
             # Check video overlays duration
             max_video_duration = 0
             for vo in video_overlays:
-                vd = get_media_duration(vo['path'])
+                vd = await asyncio.to_thread(get_media_duration, vo['path'])
                 if vd > max_video_duration:
                     max_video_duration = vd
 
             # Check audio duration
             max_audio_duration = 0
             for af in audio_files:
-                ad = get_media_duration(af)
+                ad = await asyncio.to_thread(get_media_duration, af)
                 if ad > max_audio_duration:
                     max_audio_duration = ad
 
