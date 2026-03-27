@@ -515,6 +515,48 @@ async def export_video_frames(project_id: str, request: Request):
             if video_elements:
                 frame_data['videoElements'] = video_elements
 
+            # Include slide audio (ElevenLabs TTS, recordings, etc.)
+            slide_audio = slide.get('audio', [])
+            if slide_audio:
+                audio_items = []
+                for aud in slide_audio:
+                    src = aud.get('src', '')
+                    if not src:
+                        continue
+                    # Build full URL for the audio
+                    if src.startswith('/api/'):
+                        audio_url = src  # Frontend will prepend apiUrl
+                    elif src.startswith('assets/'):
+                        audio_url = f"/api/projects/{project_doc.get('id', '')}/assets/{src.replace('assets/', '')}"
+                    elif src.startswith('http'):
+                        audio_url = src
+                    else:
+                        audio_url = src
+                    audio_items.append({
+                        'src': audio_url,
+                        'startTime': float(aud.get('startTime', 0)),
+                        'volume': float(aud.get('volume', 1.0)),
+                    })
+                if audio_items:
+                    frame_data['audioElements'] = audio_items
+
+            # Include global audio if exists (background music)
+            if idx == 0:
+                global_audio = course.get('globalAudio', {})
+                if global_audio and global_audio.get('src'):
+                    ga_src = global_audio['src']
+                    if ga_src.startswith('/api/'):
+                        ga_url = ga_src
+                    elif ga_src.startswith('assets/'):
+                        ga_url = f"/api/projects/{project_doc.get('id', '')}/assets/{ga_src.replace('assets/', '')}"
+                    else:
+                        ga_url = ga_src
+                    frame_data['globalAudio'] = {
+                        'src': ga_url,
+                        'volume': float(global_audio.get('volume', 0.5)),
+                        'loop': global_audio.get('loop', True),
+                    }
+
             frames.append(frame_data)
 
             # Cleanup temp file
