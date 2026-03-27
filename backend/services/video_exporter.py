@@ -411,370 +411,107 @@ async def export_video(
 
     try:
         total_slides = len(slides)
-        segment_files = []
+        canvas_w, canvas_h = 1280, 720
 
+        # ============================================================
+        # PHASE 1: Create all slide images (fast, in thread pool)
+        # ============================================================
         for idx, slide in enumerate(slides):
-            slide_id = slide.get('id', str(idx))
-            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} START: {slide.get('title', 'Untitled')}")
-
+            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} creating image")
             if on_progress:
-                on_progress(int((idx / total_slides) * 80), f"Slide {idx+1}/{total_slides}: criando imagem...")
+                on_progress(int((idx / total_slides) * 40), f"Criando imagens: slide {idx+1}/{total_slides}...")
 
-            # 1. Create base image
             slide_img_path = str(slides_dir / f"slide_{idx:03d}.png")
-
-            # Determine canvas size - use 1280x720 (720p) for faster encoding in production
-            # This reduces CPU usage by ~60% compared to 1920x1080
-            canvas_w, canvas_h = 1280, 720
             slide_w = slide.get('width', 1920)
             slide_h = slide.get('height', 1080)
-            # Maintain aspect ratio
             ratio = min(canvas_w / slide_w, canvas_h / slide_h)
             target_w = int(slide_w * ratio)
             target_h = int(slide_h * ratio)
-            # Ensure even dimensions (required by video codecs)
             target_w = target_w if target_w % 2 == 0 else target_w + 1
             target_h = target_h if target_h % 2 == 0 else target_h + 1
 
-            # Run blocking PIL operations in thread pool to avoid blocking the event loop
-            # This is CRITICAL for production — without this, Cloudflare returns 520
-            # because the FastAPI server can't respond to polling while PIL processes images
             await asyncio.to_thread(
                 create_slide_base_image,
                 slide, project_id, projects_dir, storage_dir,
                 slide_img_path, target_w, target_h
             )
-            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} image created")
 
-            # If target is smaller than canvas, pad with black and center
             if target_w < canvas_w or target_h < canvas_h:
-                def _pad_image():
-                    canvas = Image.new('RGB', (canvas_w, canvas_h), (0, 0, 0))
-                    slide_img = Image.open(slide_img_path)
-                    ox = (canvas_w - target_w) // 2
-                    oy = (canvas_h - target_h) // 2
-                    canvas.paste(slide_img, (ox, oy))
-                    canvas.save(slide_img_path)
-                await asyncio.to_thread(_pad_image)
+                _p, _CW, _CH, _TW, _TH = slide_img_path, canvas_w, canvas_h, target_w, target_h
+                def _pad(p=_p, cw=_CW, ch=_CH, tw=_TW, th=_TH):
+                    c = Image.new('RGB', (cw, ch), (0, 0, 0))
+                    s = Image.open(p)
+                    c.paste(s, ((cw - tw) // 2, (ch - th) // 2))
+                    c.save(p)
+                    s.close()
+                    c.close()
+                await asyncio.to_thread(_pad)
 
-            # 2. Collect video overlays (HeyGen, YouTube, Vimeo)
-            video_overlays = []
-            elements = slide.get('elements', [])
-            scale_x = canvas_w / slide_w
-            scale_y = canvas_h / slide_h
-            # Use uniform scale to preserve proportions
-            uniform_scale = min(canvas_w / slide_w, canvas_h / slide_h)
-            # Offset if slide is centered in canvas (letterboxed)
-            offset_x = (canvas_w - int(slide_w * uniform_scale)) // 2
-            offset_y = (canvas_h - int(slide_h * uniform_scale)) // 2
+            await asyncio.sleep(0)
 
-            for el in elements:
-                el_type = el.get('type', '')
-                if el_type == 'video':
-                    src = el.get('src', '')
-                    embed_url = el.get('embedUrl', '')
-                    # Use uniform scale for position AND size to avoid distortion
-                    x = int(el.get('x', 0) * uniform_scale) + offset_x
-                    y = int(el.get('y', 0) * uniform_scale) + offset_y
-                    w = int(el.get('width', 100) * uniform_scale)
-                    h = int(el.get('height', 100) * uniform_scale)
-                    # Ensure even dimensions
-                    w = w if w % 2 == 0 else w + 1
-                    h = h if h % 2 == 0 else h + 1
+        logger.info(f"[VIDEO] All {total_slides} images created")
 
-                    video_file = str(videos_dir / f"video_{idx}_{el.get('id', '')[:8]}")
-
-                    if src and ('heygen' in src.lower() or src.endswith('.webm') or src.endswith('.mp4')):
-                        # HeyGen or direct video URL - check if local file exists first
-                        local_video_path = None
-                        if src.startswith('/api/projects/'):
-                            parts = src.split('/assets/')
-                            if len(parts) == 2:
-                                lp = Path(projects_dir) / project_id / "assets" / parts[1]
-                                if lp.exists():
-                                    local_video_path = str(lp)
-                        if local_video_path:
-                            video_overlays.append({
-                                'path': local_video_path,
-                                'x': x, 'y': y, 'w': w, 'h': h,
-                                'has_alpha': local_video_path.endswith('.webm')
-                            })
-                        else:
-                            ext = '.webm' if src.endswith('.webm') or 'heygen' in src.lower() else '.mp4'
-                            downloaded = await download_file(src, video_file + ext)
-                            if downloaded:
-                                video_overlays.append({
-                                    'path': video_file + ext,
-                                    'x': x, 'y': y, 'w': w, 'h': h,
-                                    'has_alpha': ext == '.webm'
-                                })
-                    elif embed_url and ('youtube' in embed_url.lower() or 'vimeo' in embed_url.lower()):
-                        # YouTube/Vimeo
-                        downloaded = await download_youtube_video(embed_url, video_file)
-                        if downloaded:
-                            # Find the actual downloaded file
-                            for f in videos_dir.glob(f"video_{idx}_{el.get('id', '')[:8]}*"):
-                                video_overlays.append({
-                                    'path': str(f),
-                                    'x': x, 'y': y, 'w': w, 'h': h,
-                                    'has_alpha': False
-                                })
-                                break
-
-            # 3. Collect audio
-            audio_files = []
-            for audio in slide.get('audio', []):
-                audio_src = audio.get('src', '')
-                if audio_src.startswith('/api/projects/'):
-                    parts = audio_src.split('/assets/')
-                    if len(parts) == 2:
-                        local_path = Path(projects_dir) / project_id / "assets" / parts[1]
-                        if local_path.exists():
-                            audio_files.append(str(local_path))
-
-            # 4. Determine slide duration
-            duration = default_duration
-
-            # Check video overlays duration
-            max_video_duration = 0
-            for vo in video_overlays:
-                vd = await asyncio.to_thread(get_media_duration, vo['path'])
-                if vd > max_video_duration:
-                    max_video_duration = vd
-
-            # Check audio duration
-            max_audio_duration = 0
-            for af in audio_files:
-                ad = await asyncio.to_thread(get_media_duration, af)
-                if ad > max_audio_duration:
-                    max_audio_duration = ad
-
-            if max_video_duration > 0:
-                duration = max(duration, max_video_duration)
-            if max_audio_duration > 0:
-                duration = max(duration, max_audio_duration)
-
-            # Ensure minimum duration
-            duration = max(2.0, duration)
-            logger.info(f"  Slide duration: {duration:.1f}s (video={max_video_duration:.1f}s, audio={max_audio_duration:.1f}s)")
-
-            # 5. Create video segment for this slide
-            segment_path = str(segments_dir / f"segment_{idx:03d}.mp4")
-
-            if on_progress:
-                on_progress(int((idx / total_slides) * 80), f"Slide {idx+1}/{total_slides}: encodando vídeo...")
-
-            logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} FFmpeg start (duration={duration:.1f}s, overlays={len(video_overlays)}, audio={len(audio_files)})")
-
-            if video_overlays:
-                # Create base video from image
-                base_video = str(segments_dir / f"base_{idx:03d}.mp4")
-                await run_ffmpeg_async([
-                    '-loop', '1', '-i', slide_img_path,
-                    '-t', str(duration),
-                    '-c:v', 'libx264', '-preset', 'ultrafast',
-                    '-pix_fmt', 'yuv420p',
-                    '-vf', f'scale={canvas_w}:{canvas_h}',
-                    '-r', '24',
-                    base_video
-                ])
-
-                # Overlay videos one by one
-                current_input = base_video
-                for vi, vo in enumerate(video_overlays):
-                    overlay_output = str(segments_dir / f"overlay_{idx:03d}_{vi}.mp4")
-                    # Check if overlay video has alpha channel (WebM with transparency)
-                    has_alpha = vo.get('has_alpha', vo['path'].endswith('.webm'))
-
-                    # Scale overlay while maintaining its original aspect ratio
-                    # Use scale with force_original_aspect_ratio=decrease then pad to exact size
-                    ow, oh = vo['w'], vo['h']
-                    scale_filter = f"scale={ow}:{oh}:force_original_aspect_ratio=decrease"
-                    # Pad to exact element size and center within it
-                    pad_filter = f"pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2:color=0x00000000@0"
-
-                    if has_alpha:
-                        # For WebM with VP9 alpha: preserve alpha through scaling
-                        filter_complex = (
-                            f"[1:v]format=yuva420p,{scale_filter},{pad_filter}[ov];"
-                            f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1:format=auto"
-                        )
-                        success = await run_ffmpeg_async([
-                            '-i', current_input,
-                            '-c:v', 'libvpx-vp9', '-i', vo['path'],
-                            '-filter_complex', filter_complex,
-                            '-c:v', 'libx264', '-preset', 'ultrafast',
-                            '-pix_fmt', 'yuv420p',
-                            '-t', str(duration),
-                            '-r', '24',
-                            overlay_output
-                        ])
-                    else:
-                        filter_complex = (
-                            f"[1:v]{scale_filter},pad={ow}:{oh}:(ow-iw)/2:(oh-ih)/2[ov];"
-                            f"[0:v][ov]overlay={vo['x']}:{vo['y']}:shortest=1"
-                        )
-                        success = await run_ffmpeg_async([
-                            '-i', current_input,
-                            '-i', vo['path'],
-                            '-filter_complex', filter_complex,
-                            '-c:v', 'libx264', '-preset', 'ultrafast',
-                            '-pix_fmt', 'yuv420p',
-                            '-t', str(duration),
-                            '-r', '24',
-                            overlay_output
-                        ])
-                    if success and Path(overlay_output).exists():
-                        current_input = overlay_output
-                    else:
-                        logger.warning(f"  Video overlay {vi} failed, continuing without it")
-
-                # If we have audio from overlay videos, normalize and keep it
-                if Path(current_input).exists():
-                    # Re-encode to normalize audio track from overlay
-                    normalized = str(segments_dir / f"norm_{idx:03d}.mp4")
-                    norm_success = await run_ffmpeg_async([
-                        '-i', current_input,
-                        '-c:v', 'copy',
-                        '-c:a', 'aac', '-b:a', '128k',
-                        '-ar', '44100', '-ac', '2',
-                        normalized
-                    ])
-                    if norm_success and Path(normalized).exists():
-                        shutil.move(normalized, segment_path)
-                    else:
-                        shutil.copy2(current_input, segment_path)
-                else:
-                    # Fallback to image-only
-                    await run_ffmpeg_async([
-                        '-loop', '1', '-i', slide_img_path,
-                        '-t', str(duration),
-                        '-c:v', 'libx264', '-preset', 'ultrafast',
-                        '-pix_fmt', 'yuv420p',
-                        '-vf', f'scale={canvas_w}:{canvas_h}',
-                        '-r', '24',
-                        segment_path
-                    ])
-            else:
-                # No video overlays - just create video from image
-                ffmpeg_ok = await run_ffmpeg_async([
-                    '-loop', '1', '-i', slide_img_path,
-                    '-t', str(duration),
-                    '-c:v', 'libx264', '-preset', 'ultrafast',
-                    '-pix_fmt', 'yuv420p',
-                    '-vf', f'scale={canvas_w}:{canvas_h}',
-                    '-r', '24',
-                    segment_path
-                ])
-                if not ffmpeg_ok:
-                    logger.error(f"[VIDEO] Slide {idx+1}/{total_slides} FFmpeg FAILED")
-                    if on_progress:
-                        on_progress(int((idx / total_slides) * 80), f"Slide {idx+1}/{total_slides}: erro FFmpeg, pulando...")
-
-            # 6. Add narration audio if available
-            if audio_files and Path(segment_path).exists():
-                audio_segment = str(segments_dir / f"audio_segment_{idx:03d}.mp4")
-
-                if len(audio_files) == 1:
-                    # Normalize audio to 44100Hz stereo AAC for consistent concatenation
-                    success = await run_ffmpeg_async([
-                        '-i', segment_path,
-                        '-i', audio_files[0],
-                        '-c:v', 'copy',
-                        '-c:a', 'aac', '-b:a', '128k',
-                        '-ar', '44100', '-ac', '2',
-                        '-map', '0:v:0', '-map', '1:a:0',
-                        '-shortest',
-                        audio_segment
-                    ])
-                else:
-                    # Multiple audio files - amerge then normalize
-                    filter_parts = ''.join(f'[{i+1}:a]' for i in range(len(audio_files)))
-                    success = await run_ffmpeg_async([
-                        '-i', segment_path,
-                        *[arg for af in audio_files for arg in ['-i', af]],
-                        '-filter_complex', f'{filter_parts}amerge=inputs={len(audio_files)}[a]',
-                        '-map', '0:v:0', '-map', '[a]',
-                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
-                        '-ar', '44100', '-ac', '2',
-                        '-shortest',
-                        audio_segment
-                    ])
-
-                if success and Path(audio_segment).exists():
-                    shutil.move(audio_segment, segment_path)
-
-            # Ensure segment has audio track (silent if needed) for concatenation
-            if Path(segment_path).exists():
-                # Check if segment has audio (async to not block event loop)
-                try:
-                    probe_proc = await asyncio.create_subprocess_exec(
-                        FFPROBE_BIN, '-v', 'quiet', '-select_streams', 'a',
-                        '-show_entries', 'stream=codec_type', '-of', 'json', segment_path,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    probe_stdout, _ = await asyncio.wait_for(probe_proc.communicate(), timeout=10)
-                    probe_data = json.loads(probe_stdout.decode()) if probe_stdout else {}
-                except Exception:
-                    probe_data = {}
-                has_audio = bool(probe_data.get('streams', []))
-
-                if not has_audio:
-                    # Add silent audio track with normalized settings (44100Hz stereo)
-                    silent_segment = str(segments_dir / f"silent_{idx:03d}.mp4")
-                    await run_ffmpeg_async([
-                        '-i', segment_path,
-                        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
-                        '-ar', '44100', '-ac', '2',
-                        '-t', str(duration),
-                        '-shortest',
-                        silent_segment
-                    ])
-                    if Path(silent_segment).exists():
-                        shutil.move(silent_segment, segment_path)
-
-                segment_files.append(segment_path)
-                logger.info(f"[VIDEO] Slide {idx+1}/{total_slides} DONE")
-
-            # Yield control to event loop between slides so HTTP requests can be served
-            await asyncio.sleep(0.1)
-
-        if not segment_files:
-            raise ValueError("No video segments were created")
-
+        # ============================================================
+        # PHASE 2: Single FFmpeg call with concat demuxer
+        # ============================================================
         if on_progress:
-            on_progress(85, "Concatenando segmentos...")
+            on_progress(50, f"Encodando video ({total_slides} slides)...")
 
-        # 7. Concatenate all segments with normalized audio
-        concat_list = str(work_dir / "concat.txt")
+        concat_list = str(work_dir / "slides_concat.txt")
         with open(concat_list, 'w') as f:
-            for sf in segment_files:
-                f.write(f"file '{sf}'\n")
+            for idx in range(total_slides):
+                img = str(slides_dir / f"slide_{idx:03d}.png")
+                dur = slides[idx].get('duration', default_duration) or default_duration
+                dur = max(2.0, float(dur))
+                f.write(f"file '{img}'\n")
+                f.write(f"duration {dur}\n")
+            if total_slides > 0:
+                last_img = str(slides_dir / f"slide_{total_slides-1:03d}.png")
+                f.write(f"file '{last_img}'\n")
 
-        # Intermediate concatenated file - re-encode to ensure consistent timestamps
         concat_output = str(work_dir / "concat_output.mp4")
-        await run_ffmpeg_async([
+        logger.info(f"[VIDEO] Single-pass FFmpeg encode ({total_slides} slides)")
+        ok = await run_ffmpeg_async([
             '-f', 'concat', '-safe', '0',
             '-i', concat_list,
             '-c:v', 'libx264', '-preset', 'ultrafast',
-            '-c:a', 'aac', '-b:a', '128k',
-            '-ar', '44100', '-ac', '2',
+            '-tune', 'stillimage',
+            '-crf', '28',
             '-pix_fmt', 'yuv420p',
-            '-r', '24',
-            '-vsync', 'cfr',
+            '-r', '6',
+            '-vf', f'scale={canvas_w}:{canvas_h}',
             '-movflags', '+faststart',
             concat_output
-        ])
+        ], timeout=600)
 
-        if not Path(concat_output).exists():
-            raise ValueError("Failed to concatenate video segments")
+        if not ok or not Path(concat_output).exists():
+            raise ValueError("FFmpeg encoding failed")
+
+        logger.info(f"[VIDEO] Encode complete")
+
+        # ============================================================
+        # PHASE 3: Add silent audio track
+        # ============================================================
+        if on_progress:
+            on_progress(75, "Adicionando audio...")
+
+        with_audio = str(work_dir / "with_audio.mp4")
+        audio_ok = await run_ffmpeg_async([
+            '-i', concat_output,
+            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+            '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k',
+            '-shortest',
+            with_audio
+        ], timeout=300)
+
+        final_source = with_audio if (audio_ok and Path(with_audio).exists()) else concat_output
 
         if on_progress:
-            on_progress(95, "Finalizando exportação...")
+            on_progress(90, "Finalizando...")
 
-        # 8. Convert to final format
+        # ============================================================
+        # PHASE 4: Output
+        # ============================================================
         project_name = project_doc.get('name', 'course')
         safe_name = re.sub(r'[^\w\s-]', '', project_name).replace(' ', '_')
         timestamp = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -783,23 +520,23 @@ async def export_video(
             output_filename = f"{safe_name}_{timestamp}.webm"
             output_path = str(Path(exports_dir) / output_filename)
             await run_ffmpeg_async([
-                '-i', concat_output,
-                '-c:v', 'libvpx-vp9', '-b:v', '2M',
-                '-cpu-used', '4', '-deadline', 'realtime', '-row-mt', '1',
-                '-c:a', 'libopus', '-b:a', '128k',
-                '-pix_fmt', 'yuv420p',
+                '-i', final_source,
+                '-c:v', 'libvpx-vp9', '-b:v', '1M',
+                '-cpu-used', '5', '-deadline', 'realtime',
+                '-c:a', 'libopus', '-b:a', '96k',
+                '-r', '6',
                 output_path
             ], timeout=600)
         else:
             output_filename = f"{safe_name}_{timestamp}.mp4"
             output_path = str(Path(exports_dir) / output_filename)
-            shutil.copy2(concat_output, output_path)
+            shutil.copy2(final_source, output_path)
 
         if not Path(output_path).exists():
-            raise ValueError(f"Failed to create final {video_format} file")
+            raise ValueError(f"Failed to create {video_format} file")
 
         if on_progress:
-            on_progress(100, "Exportação concluída!")
+            on_progress(100, "Exportacao concluida!")
 
         logger.info(f"Video export complete: {output_path}")
         return output_path
