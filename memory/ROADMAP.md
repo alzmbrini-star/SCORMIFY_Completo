@@ -11,6 +11,7 @@
 - [x] Fix Simulators UI button
 - [x] **Missing route registrations fix** (companies, users, elevenlabs, gallery, heygen, questions, scenarios, vlibras)
 - [x] **AI Tutor CORS fix** (triple-layer CORS for production cross-origin access)
+- [x] **Video Export Production Fix**: POST returns instantly, all heavy work in background (2026-03-27)
 - [ ] **User verification**: Image generation with 23+ slides
 
 ## P1 - High Priority

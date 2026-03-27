@@ -57,4 +57,4 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ## Known Issues
 - HeyGen Video: Blocked (insufficient credits)
 
-## Status: All P0 bugs resolved ✅
+## Status: All P0 bugs resolved ✅ (Video Export proxy timeout fix applied 2026-03-27)

@@ -1,6 +1,17 @@
 # Changelog
 
-## 2026-03-25 (Current Session)
+## 2026-03-27 (Fork: Video Export Production Fix)
+
+### CRITICAL Bug Fix: Video Export 502/504/Timeout in Production (P0 - RESOLVED)
+- **Root Cause**: `POST /export-video` did heavy synchronous work BEFORE returning the jobId — importing `video_exporter` module (which downloads static-ffmpeg binaries ~50-100MB on first call), checking `is_ffmpeg_available()`, and fetching the project from MongoDB. In production, Cloudflare/Nginx proxy killed the connection after 30-60s timeout → 502/504.
+- **Fix (Backend)**: Endpoint now returns jobId in **< 300ms** with ZERO heavy work. All validation (FFmpeg check, project fetch) moved to `asyncio.create_task(run_export())`. Job creation uses fire-and-forget `asyncio.ensure_future(create_job())`. Errors surface as job status "failed" instead of HTTP errors.
+- **Fix (Frontend)**: `useEditorExport.js` now has: retry with exponential backoff on initial POST (3 attempts), tolerance for intermittent 502/504 during polling (up to 10 consecutive errors), 10-minute max polling timeout, and proper cleanup via `useRef`.
+- **Applied in**: `routes/export.py` (export_video_endpoint), `frontend/src/pages/Editor/hooks/useEditorExport.js`
+- **Status**: Tested ✅ (iteration_79) — 100% backend/frontend pass rate. POST: 0.24s, 10-slide export: ~40s.
+
+---
+
+## 2026-03-25 (Previous Session)
 
 ### CRITICAL Bug Fix: Video Export 502 in Production
 - **Root Cause**: `run_ffmpeg()` used blocking `subprocess.run()` inside an async task. While FFmpeg processed 18 slides (30-60s), the entire asyncio event loop was blocked — the backend couldn't respond to ANY request, causing Cloudflare proxy to return 502.
