@@ -1,8 +1,10 @@
 /**
- * Client-side video generation using Canvas + MediaRecorder.
- * Creates MP4 (H.264 + AAC) from slide images + HeyGen video overlays + ElevenLabs audio.
- * No server-side FFmpeg needed.
+ * Client-side video generation using html2canvas + Canvas + MediaRecorder.
+ * Renders slides in the browser (WYSIWYG) instead of using PIL backend images.
+ * Includes HeyGen video overlay + ElevenLabs/slide audio.
+ * Output: MP4 (H.264 + AAC) or WebM.
  */
+import html2canvas from 'html2canvas';
 
 function pickMimeType() {
   const candidates = [
@@ -11,7 +13,6 @@ function pickMimeType() {
     { mime: 'video/mp4', ext: 'mp4' },
     { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
     { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
-    { mime: 'video/webm;codecs=vp9', ext: 'webm' },
     { mime: 'video/webm', ext: 'webm' },
   ];
   for (const c of candidates) {
@@ -20,53 +21,29 @@ function pickMimeType() {
   return { mime: 'video/webm', ext: 'webm' };
 }
 
-function loadVideo(proxyUrl) {
+function loadVideo(url) {
   return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
-    video.preload = 'auto';
-    video.playsInline = true;
-    video.muted = true;
-    const timeout = setTimeout(() => {
-      video.oncanplaythrough = null;
-      if (video.readyState >= 2) resolve(video);
-      else reject(new Error('Video load timeout'));
-    }, 60000);
-    video.oncanplaythrough = () => { clearTimeout(timeout); resolve(video); };
-    video.onerror = () => { clearTimeout(timeout); reject(new Error('Failed to load video')); };
-    video.src = proxyUrl;
-    video.load();
+    const v = document.createElement('video');
+    v.crossOrigin = 'anonymous';
+    v.preload = 'auto';
+    v.playsInline = true;
+    v.muted = true;
+    const t = setTimeout(() => { v.oncanplaythrough = null; v.readyState >= 2 ? resolve(v) : reject(new Error('timeout')); }, 60000);
+    v.oncanplaythrough = () => { clearTimeout(t); resolve(v); };
+    v.onerror = () => { clearTimeout(t); reject(new Error('load error')); };
+    v.src = url;
+    v.load();
   });
 }
 
-function loadImage(dataUrl, index) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      if (img.naturalWidth === 0) { reject(new Error(`Slide ${index + 1}: zero dim`)); return; }
-      resolve(img);
-    };
-    img.onerror = () => reject(new Error(`Slide ${index + 1}: load failed`));
-    img.src = dataUrl;
-  });
-}
-
-/**
- * Load an audio file and decode it into an AudioBuffer for Web Audio API playback.
- */
 async function loadAudioBuffer(audioCtx, url) {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Audio fetch failed: ${resp.status}`);
-  const arrayBuffer = await resp.arrayBuffer();
-  return audioCtx.decodeAudioData(arrayBuffer);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Audio ${r.status}`);
+  return audioCtx.decodeAudioData(await r.arrayBuffer());
 }
 
-/**
- * Draw video preserving aspect ratio within the target rectangle.
- */
 function drawVideoFit(ctx, video, tx, ty, tw, th) {
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
+  const vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) { ctx.drawImage(video, tx, ty, tw, th); return; }
   const va = vw / vh, ta = tw / th;
   let dw, dh, dx, dy;
@@ -75,63 +52,239 @@ function drawVideoFit(ctx, video, tx, ty, tw, th) {
   ctx.drawImage(video, dx, dy, dw, dh);
 }
 
+/**
+ * Build slide DOM and capture with html2canvas.
+ * Replicates the SlideCanvas rendering for WYSIWYG fidelity.
+ */
+async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
+  const slideW = slide.width || 1920;
+  const slideH = slide.height || 1080;
+
+  // Create hidden container at original slide dimensions
+  const container = document.createElement('div');
+  container.style.cssText = `
+    position: fixed; left: -9999px; top: -9999px;
+    width: ${slideW}px; height: ${slideH}px;
+    overflow: hidden; z-index: -1;
+  `;
+
+  // Slide background
+  const slideDiv = document.createElement('div');
+  slideDiv.style.cssText = `
+    width: ${slideW}px; height: ${slideH}px;
+    position: relative; overflow: hidden;
+  `;
+  const bg = slide.background || '#FFFFFF';
+  if (bg.includes('gradient')) {
+    slideDiv.style.background = bg;
+  } else {
+    slideDiv.style.backgroundColor = bg;
+  }
+
+  // Background image
+  if (slide.backgroundImage) {
+    const bgUrl = slide.backgroundImage.startsWith('http')
+      ? slide.backgroundImage
+      : `${apiUrl}${slide.backgroundImage}`;
+    const bgImg = document.createElement('img');
+    bgImg.crossOrigin = 'anonymous';
+    bgImg.src = bgUrl;
+    bgImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
+    slideDiv.appendChild(bgImg);
+    // Wait for it to load
+    await new Promise((res) => {
+      bgImg.onload = res;
+      bgImg.onerror = res;
+      setTimeout(res, 5000);
+    });
+  }
+
+  // Elements (skip video elements — they're overlaid live)
+  for (const el of (slide.elements || [])) {
+    if (el.visible === false) continue;
+    if (el.type === 'video') continue; // HeyGen overlaid live
+    if (el.type === 'audio') continue; // No visual
+
+    const wrapper = document.createElement('div');
+    const x = el.x || 0;
+    const y = el.y || 0;
+    const w = el.width || 100;
+    const h = el.height || 100;
+    wrapper.style.cssText = `
+      position: absolute;
+      left: ${x}px; top: ${y}px;
+      width: ${w}px; height: ${h}px;
+      overflow: hidden;
+      opacity: ${el.style?.opacity ?? 1};
+      z-index: ${(el.zIndex || 0) + 1};
+      ${el.rotation ? `transform: rotate(${el.rotation}deg);` : ''}
+    `;
+
+    if (el.type === 'text') {
+      const textDiv = document.createElement('div');
+      textDiv.style.cssText = `
+        width: 100%; height: 100%; padding: 8px;
+        white-space: pre-wrap; overflow: hidden;
+        font-size: ${el.style?.fontSize || 16}px;
+        font-family: ${el.style?.fontFamily || 'sans-serif'};
+        font-weight: ${el.style?.fontWeight || 'normal'};
+        color: ${el.style?.fontColor || '#000000'};
+        text-align: ${el.style?.textAlign || 'left'};
+        background-color: ${el.style?.transparentBackground ? 'transparent' : (el.style?.backgroundColor || 'rgba(255,255,255,0.8)')};
+      `;
+      textDiv.textContent = el.content || '';
+      wrapper.appendChild(textDiv);
+    } else if (el.type === 'image') {
+      const imgSrc = el.src?.startsWith('http') ? el.src : `${apiUrl}${el.src || ''}`;
+      const img = document.createElement('img');
+      img.crossOrigin = 'anonymous';
+      img.src = imgSrc;
+      img.style.cssText = `width:100%;height:100%;object-fit:${el.objectFit || 'contain'};`;
+      wrapper.appendChild(img);
+      await new Promise((res) => { img.onload = res; img.onerror = res; setTimeout(res, 5000); });
+    } else if (el.type === 'shape') {
+      const shapeDiv = document.createElement('div');
+      const br = el.shapeType === 'ellipse' || el.shapeType === 'oval' ? '50%'
+        : el.shapeType === 'rounded_rectangle' ? '8px' : '0';
+      shapeDiv.style.cssText = `
+        width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+        background-color:${el.style?.fill || '#7C3AED'};
+        border:${el.style?.stroke ? `2px solid ${el.style.stroke}` : 'none'};
+        border-radius:${br};
+      `;
+      if (el.content) {
+        const span = document.createElement('span');
+        span.style.cssText = `text-align:center;padding:8px;font-size:${el.style?.fontSize || 14}px;color:${el.style?.fontColor || '#FFFFFF'};`;
+        span.textContent = el.content;
+        shapeDiv.appendChild(span);
+      }
+      wrapper.appendChild(shapeDiv);
+    } else if (el.type === 'html') {
+      // Render HTML content directly (no iframe — html2canvas can't capture iframes)
+      const htmlDiv = document.createElement('div');
+      htmlDiv.style.cssText = `width:100%;height:100%;overflow:hidden;color:#f1f5f9;font-size:14px;padding:12px;`;
+      // Resolve URLs in HTML content
+      let content = el.htmlContent || '<p>HTML</p>';
+      content = content.replace(/(src=["'])\/api\//g, `$1${apiUrl}/api/`);
+      htmlDiv.innerHTML = content;
+      wrapper.appendChild(htmlDiv);
+    } else if (el.type === 'button') {
+      const btn = document.createElement('div');
+      btn.style.cssText = `
+        width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+      `;
+      const inner = document.createElement('div');
+      inner.style.cssText = `
+        padding:12px 24px;border-radius:${el.style?.borderRadius || 8}px;
+        font-weight:600;font-size:${el.style?.fontSize || 16}px;
+        ${el.buttonStyle === 'outline'
+          ? `border:2px solid #7C3AED;color:#7C3AED;background:transparent;`
+          : `background:linear-gradient(to right,#7C3AED,#06B6D4);color:white;`
+        }
+      `;
+      inner.textContent = el.buttonText || 'Clique aqui';
+      btn.appendChild(inner);
+      wrapper.appendChild(btn);
+    }
+
+    slideDiv.appendChild(wrapper);
+  }
+
+  container.appendChild(slideDiv);
+  document.body.appendChild(container);
+
+  // Capture with html2canvas
+  try {
+    const captured = await html2canvas(slideDiv, {
+      width: slideW,
+      height: slideH,
+      scale: 1,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      backgroundColor: null,
+    });
+
+    // Scale to target canvas size
+    const resultCanvas = document.createElement('canvas');
+    resultCanvas.width = canvasW;
+    resultCanvas.height = canvasH;
+    const rCtx = resultCanvas.getContext('2d');
+    rCtx.drawImage(captured, 0, 0, canvasW, canvasH);
+
+    return resultCanvas;
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 export async function generateVideoClientSide({ apiUrl, projectId, defaultDuration, onProgress }) {
   onProgress(5, 'Buscando dados dos slides...');
 
-  const response = await fetch(`${apiUrl}/api/course/${projectId}/export-video-frames`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ default_duration: defaultDuration }),
-  });
+  // Fetch lightweight slide data (no PIL images)
+  const response = await fetch(`${apiUrl}/api/course/${projectId}/slides-data?default_duration=${defaultDuration}`);
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: 'Erro ao gerar frames' }));
+    const err = await response.json().catch(() => ({ detail: 'Erro' }));
     throw new Error(err.detail || `HTTP ${response.status}`);
   }
 
   const data = await response.json();
-  const { frames, width, height, projectName } = data;
-  if (!frames || frames.length === 0) throw new Error('Nenhum slide encontrado.');
+  const { slides, projectName, globalAudio: globalAudioData } = data;
+  if (!slides || slides.length === 0) throw new Error('Nenhum slide encontrado.');
 
-  // ── Audio Context (needed early for decoding) ──
+  const canvasW = 1280, canvasH = 720;
+
+  // Audio context (needed early for buffer decoding)
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   const mixDest = audioCtx.createMediaStreamDestination();
 
-  onProgress(8, `Carregando ${frames.length} imagens...`);
+  onProgress(8, `Renderizando ${slides.length} slides...`);
 
-  // ── Load slide images ──
+  // Render each slide to canvas using html2canvas (WYSIWYG)
   const images = [];
-  for (let i = 0; i < frames.length; i++) {
+  for (let i = 0; i < slides.length; i++) {
     try {
-      images.push(await loadImage(frames[i].dataUrl, i));
-      console.log(`[VideoExport] Slide ${i + 1}: OK`);
+      const img = await renderSlideToImage(slides[i], apiUrl, canvasW, canvasH);
+      images.push(img);
+      console.log(`[VideoExport] Slide ${i + 1}: rendered OK`);
     } catch (e) {
-      console.error(`[VideoExport] ${e.message}`);
-      const c = document.createElement('canvas');
-      c.width = width; c.height = height;
-      const cx = c.getContext('2d');
-      cx.fillStyle = '#1a1a2e'; cx.fillRect(0, 0, width, height);
+      console.error(`[VideoExport] Slide ${i + 1} render failed:`, e);
+      const fb = document.createElement('canvas');
+      fb.width = canvasW; fb.height = canvasH;
+      const cx = fb.getContext('2d');
+      cx.fillStyle = '#1a1a2e'; cx.fillRect(0, 0, canvasW, canvasH);
       cx.fillStyle = '#fff'; cx.font = '32px sans-serif'; cx.textAlign = 'center';
-      cx.fillText(`Slide ${i + 1}`, width / 2, height / 2);
-      const fb = new Image(); fb.src = c.toDataURL();
-      await new Promise(r => { fb.onload = r; });
+      cx.fillText(`Slide ${i + 1}`, canvasW / 2, canvasH / 2);
       images.push(fb);
     }
-    onProgress(8 + Math.round(((i + 1) / frames.length) * 10), `Imagem ${i + 1}/${frames.length}`);
+    onProgress(8 + Math.round(((i + 1) / slides.length) * 15), `Slide ${i + 1}/${slides.length} renderizado`);
   }
 
-  // ── Load HeyGen videos ──
+  // Load HeyGen videos via proxy
+  const slideW = slides[0]?.width || 1920;
+  const slideH = slides[0]?.height || 1080;
+  const scaleRatio = Math.min(canvasW / slideW, canvasH / slideH);
+  const offsetX = (canvasW - slideW * scaleRatio) / 2;
+  const offsetY = (canvasH - slideH * scaleRatio) / 2;
+
   const slideVideos = [];
-  for (let i = 0; i < frames.length; i++) {
-    const vels = frames[i].videoElements || [];
+  for (let i = 0; i < slides.length; i++) {
+    const vels = slides[i].videoElements || [];
     if (vels.length > 0) {
-      onProgress(19 + Math.round((i / frames.length) * 4), `Video slide ${i + 1}...`);
+      onProgress(24 + Math.round((i / slides.length) * 4), `Video slide ${i + 1}...`);
       const loaded = [];
       for (const vel of vels) {
         try {
           const v = await loadVideo(`${apiUrl}/api/proxy-video?url=${encodeURIComponent(vel.src)}`);
-          loaded.push({ video: v, x: vel.x, y: vel.y, width: vel.width, height: vel.height });
-          console.log(`[VideoExport] Slide ${i + 1}: HeyGen ${v.videoWidth}x${v.videoHeight} ${v.duration.toFixed(1)}s`);
+          loaded.push({
+            video: v,
+            x: vel.x * scaleRatio + offsetX,
+            y: vel.y * scaleRatio + offsetY,
+            width: vel.width * scaleRatio,
+            height: vel.height * scaleRatio,
+          });
+          console.log(`[VideoExport] Slide ${i + 1}: HeyGen ${v.duration.toFixed(1)}s`);
         } catch (e) {
           console.warn(`[VideoExport] Slide ${i + 1}: HeyGen failed - ${e.message}`);
         }
@@ -142,18 +295,17 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     }
   }
 
-  // ── Load ElevenLabs / slide audio as AudioBuffers ──
-  const slideAudioBuffers = []; // array of { buffer, startTime, volume }[] per slide
-  for (let i = 0; i < frames.length; i++) {
-    const audioEls = frames[i].audioElements || [];
+  // Load slide audio
+  const slideAudioBuffers = [];
+  for (let i = 0; i < slides.length; i++) {
+    const auds = slides[i].audioElements || [];
     const loaded = [];
-    for (const aud of audioEls) {
+    for (const aud of auds) {
       try {
         const url = aud.src.startsWith('http') ? aud.src : `${apiUrl}${aud.src}`;
-        onProgress(24 + Math.round((i / frames.length) * 4), `Audio slide ${i + 1}...`);
-        const buffer = await loadAudioBuffer(audioCtx, url);
-        loaded.push({ buffer, startTime: aud.startTime || 0, volume: aud.volume || 1.0 });
-        console.log(`[VideoExport] Slide ${i + 1}: audio ${buffer.duration.toFixed(1)}s`);
+        const buf = await loadAudioBuffer(audioCtx, url);
+        loaded.push({ buffer: buf, startTime: aud.startTime || 0, volume: aud.volume || 1.0 });
+        console.log(`[VideoExport] Slide ${i + 1}: audio ${buf.duration.toFixed(1)}s`);
       } catch (e) {
         console.warn(`[VideoExport] Slide ${i + 1}: audio failed - ${e.message}`);
       }
@@ -161,15 +313,13 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     slideAudioBuffers[i] = loaded;
   }
 
-  // ── Load global audio (background music) ──
-  let globalAudioSource = null;
-  const globalAudioData = frames[0]?.globalAudio;
-  if (globalAudioData) {
+  // Load global audio
+  let globalAudioBuf = null;
+  if (globalAudioData?.src) {
     try {
       const url = globalAudioData.src.startsWith('http') ? globalAudioData.src : `${apiUrl}${globalAudioData.src}`;
-      const buffer = await loadAudioBuffer(audioCtx, url);
-      console.log(`[VideoExport] Global audio: ${buffer.duration.toFixed(1)}s`);
-      globalAudioSource = { buffer, volume: globalAudioData.volume || 0.5, loop: globalAudioData.loop };
+      globalAudioBuf = { buffer: await loadAudioBuffer(audioCtx, url), volume: globalAudioData.volume || 0.5, loop: !!globalAudioData.loop };
+      console.log(`[VideoExport] Global audio: ${globalAudioBuf.buffer.duration.toFixed(1)}s`);
     } catch (e) {
       console.warn('[VideoExport] Global audio failed:', e.message);
     }
@@ -177,16 +327,16 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   onProgress(28, 'Preparando gravacao...');
 
-  // ── Setup canvas ──
+  // Setup recording canvas
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  canvas.width = canvasW; canvas.height = canvasH;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(images[0], 0, 0, width, height);
+  ctx.drawImage(images[0], 0, 0, canvasW, canvasH);
 
   const { mime: mimeType, ext: fileExt } = pickMimeType();
   console.log(`[VideoExport] Format: ${mimeType} (.${fileExt})`);
 
-  // ── Connect HeyGen video audio to mixer ──
+  // Connect HeyGen video audio
   const videoGains = new Map();
   for (const vList of slideVideos) {
     for (const { video } of vList) {
@@ -195,41 +345,28 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         const src = audioCtx.createMediaElementSource(video);
         const gain = audioCtx.createGain();
         gain.gain.value = 0;
-        src.connect(gain);
-        gain.connect(mixDest);
+        src.connect(gain); gain.connect(mixDest);
         videoGains.set(video, gain);
-      } catch (e) {
-        console.warn('[VideoExport] HeyGen audio setup:', e.message);
-      }
+      } catch (e) { console.warn('[VideoExport] HeyGen audio:', e.message); }
     }
   }
 
-  // ── Build combined stream ──
+  // Build combined stream
   const canvasStream = canvas.captureStream(30);
   const combined = new MediaStream();
   for (const t of canvasStream.getVideoTracks()) combined.addTrack(t);
   for (const t of mixDest.stream.getAudioTracks()) combined.addTrack(t);
 
-  let recorder;
-  try {
-    recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2500000 });
-  } catch (e) {
-    throw new Error('Navegador nao suporta gravacao. Tente Chrome ou Edge.');
-  }
-
+  const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2500000 });
   const chunks = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-  // ── Recording loop ──
   return new Promise((resolve, reject) => {
-    // Track active AudioBufferSourceNodes for cleanup
-    const activeAudioSources = [];
+    const activeSources = [];
 
     recorder.onstop = () => {
-      // Stop all audio
-      for (const s of activeAudioSources) { try { s.stop(); } catch (e) { /* */ } }
+      for (const s of activeSources) { try { s.stop(); } catch (e) { /* */ } }
       try { audioCtx.close(); } catch (e) { /* */ }
-
       const blob = new Blob(chunks, { type: mimeType });
       const safeName = projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
       const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
@@ -239,42 +376,30 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     recorder.onerror = (e) => reject(new Error('MediaRecorder: ' + (e.error?.message || 'erro')));
     recorder.start(1000);
 
-    // Start global background audio
-    if (globalAudioSource) {
+    // Start global audio
+    if (globalAudioBuf) {
       const src = audioCtx.createBufferSource();
-      src.buffer = globalAudioSource.buffer;
-      src.loop = !!globalAudioSource.loop;
-      const gain = audioCtx.createGain();
-      gain.gain.value = globalAudioSource.volume;
-      src.connect(gain);
-      gain.connect(mixDest);
-      src.start(0);
-      activeAudioSources.push(src);
+      src.buffer = globalAudioBuf.buffer; src.loop = globalAudioBuf.loop;
+      const g = audioCtx.createGain(); g.gain.value = globalAudioBuf.volume;
+      src.connect(g); g.connect(mixDest); src.start(0);
+      activeSources.push(src);
     }
 
-    let currentSlide = 0;
-    let slideStart = performance.now();
-    let animId = null;
+    let cur = 0, slideStart = performance.now(), animId = null;
 
     function startSlide(idx) {
-      // HeyGen video audio
       for (const { video } of (slideVideos[idx] || [])) {
         const g = videoGains.get(video);
         if (g) g.gain.value = 1.0;
         video.currentTime = 0;
         video.play().catch(() => {});
       }
-      // ElevenLabs / slide audio (AudioBuffer sources)
       for (const { buffer, startTime, volume } of (slideAudioBuffers[idx] || [])) {
-        const src = audioCtx.createBufferSource();
-        src.buffer = buffer;
-        const gain = audioCtx.createGain();
-        gain.gain.value = volume;
-        src.connect(gain);
-        gain.connect(mixDest);
-        // Play after startTime offset (relative to slide start)
+        const src = audioCtx.createBufferSource(); src.buffer = buffer;
+        const g = audioCtx.createGain(); g.gain.value = volume;
+        src.connect(g); g.connect(mixDest);
         src.start(audioCtx.currentTime + startTime);
-        activeAudioSources.push(src);
+        activeSources.push(src);
       }
     }
 
@@ -284,56 +409,44 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         if (g) g.gain.value = 0;
         video.pause();
       }
-      // AudioBufferSource nodes stop automatically when buffer ends
-      // No need to stop them manually (they're one-shot)
     }
 
-    function slideDuration(idx) {
-      const base = frames[idx]?.duration || defaultDuration;
-      // Extend for HeyGen video
-      const vids = slideVideos[idx] || [];
-      let maxD = base;
-      if (vids.length > 0) {
-        const vMax = Math.max(...vids.map(v => v.video.duration || 0));
-        if (vMax > 0 && isFinite(vMax)) maxD = Math.max(maxD, vMax);
+    function durOf(idx) {
+      const base = slides[idx]?.duration || defaultDuration;
+      let max = base;
+      for (const { video } of (slideVideos[idx] || [])) {
+        if (video.duration > 0 && isFinite(video.duration)) max = Math.max(max, video.duration);
       }
-      // Extend for slide audio duration
       for (const { buffer, startTime } of (slideAudioBuffers[idx] || [])) {
-        const audioDur = startTime + buffer.duration;
-        if (audioDur > maxD) maxD = audioDur;
+        max = Math.max(max, startTime + buffer.duration);
       }
-      return maxD;
+      return max;
     }
 
-    // Init
     startSlide(0);
 
     function render() {
       const elapsed = (performance.now() - slideStart) / 1000;
-      const dur = slideDuration(currentSlide);
-
-      if (elapsed >= dur) {
-        stopSlide(currentSlide);
-        currentSlide++;
+      if (elapsed >= durOf(cur)) {
+        stopSlide(cur);
+        cur++;
         slideStart = performance.now();
-
-        if (currentSlide >= images.length) {
-          ctx.drawImage(images[images.length - 1], 0, 0, width, height);
+        if (cur >= images.length) {
+          ctx.drawImage(images[images.length - 1], 0, 0, canvasW, canvasH);
           setTimeout(() => { cancelAnimationFrame(animId); recorder.stop(); }, 500);
           return;
         }
-
-        startSlide(currentSlide);
-        const pct = 30 + Math.round(((currentSlide + 1) / images.length) * 65);
-        onProgress(pct, `Gravando slide ${currentSlide + 1}/${images.length}...`);
+        startSlide(cur);
+        onProgress(30 + Math.round(((cur + 1) / images.length) * 65), `Gravando slide ${cur + 1}/${images.length}...`);
       }
 
-      // DRAW: slide background, then video overlay
-      ctx.drawImage(images[currentSlide], 0, 0, width, height);
+      // Draw slide background
+      ctx.drawImage(images[cur], 0, 0, canvasW, canvasH);
 
-      for (const { video, x, y, width: vw, height: vh } of (slideVideos[currentSlide] || [])) {
+      // Overlay HeyGen video
+      for (const { video, x, y, width: vw, height: vh } of (slideVideos[cur] || [])) {
         if (video.readyState >= 2 && !video.paused && !video.ended) {
-          try { drawVideoFit(ctx, video, x, y, vw, vh); } catch (e) { /* CORS */ }
+          try { drawVideoFit(ctx, video, x, y, vw, vh); } catch (e) { /* */ }
         }
       }
 

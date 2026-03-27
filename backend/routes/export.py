@@ -426,6 +426,111 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
 
 # Video Export - Client-Side Approach (generates slide images, frontend creates video)
 
+
+@router.get("/course/{project_id}/slides-data")
+async def get_slides_data(project_id: str, default_duration: float = 5.0):
+    """Return raw slide data for client-side rendering with html2canvas.
+    Much lighter than export-video-frames (no PIL image generation).
+    The browser renders the slides itself, producing WYSIWYG output."""
+
+    project_doc = await get_project_by_id(project_id)
+    if not project_doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    course = project_doc.get('course', {})
+    slides = course.get('slides', [])
+    if not slides:
+        raise HTTPException(status_code=400, detail="No slides")
+
+    proj_id = project_doc.get('id', '')
+    result_slides = []
+
+    for idx, slide in enumerate(slides):
+        duration = slide.get('duration', default_duration) or default_duration
+
+        # Resolve asset URLs for background image
+        bg_image = slide.get('backgroundImage', '')
+        if bg_image and not bg_image.startswith('http'):
+            if bg_image.startswith('/api/'):
+                pass  # Frontend will prepend apiUrl
+            elif bg_image.startswith('assets/'):
+                bg_image = f"/api/projects/{proj_id}/assets/{bg_image.replace('assets/', '')}"
+
+        # Resolve element asset URLs
+        elements = []
+        for el in slide.get('elements', []):
+            el_copy = dict(el)
+            src = el_copy.get('src', '')
+            if src and not src.startswith('http'):
+                if src.startswith('/api/'):
+                    pass
+                elif src.startswith('assets/'):
+                    el_copy['src'] = f"/api/projects/{proj_id}/assets/{src.replace('assets/', '')}"
+            elements.append(el_copy)
+
+        # Collect video elements for overlay
+        video_elements = []
+        slide_w = slide.get('width', 1920)
+        slide_h = slide.get('height', 1080)
+        for el in elements:
+            if el.get('type') == 'video' and el.get('src'):
+                video_elements.append({
+                    'src': el['src'],
+                    'x': el.get('x', 0),
+                    'y': el.get('y', 0),
+                    'width': el.get('width', 200),
+                    'height': el.get('height', 200),
+                })
+
+        # Collect audio elements
+        audio_items = []
+        for aud in slide.get('audio', []):
+            src = aud.get('src', '')
+            if not src:
+                continue
+            if not src.startswith('http') and not src.startswith('/api/'):
+                if src.startswith('assets/'):
+                    src = f"/api/projects/{proj_id}/assets/{src.replace('assets/', '')}"
+            audio_items.append({
+                'src': src,
+                'startTime': float(aud.get('startTime', 0)),
+                'volume': float(aud.get('volume', 1.0)),
+            })
+
+        result_slides.append({
+            'index': idx,
+            'width': slide_w,
+            'height': slide_h,
+            'duration': max(2.0, float(duration)),
+            'background': slide.get('background', '#FFFFFF'),
+            'backgroundImage': bg_image,
+            'elements': elements,
+            'videoElements': video_elements,
+            'audioElements': audio_items,
+        })
+
+    # Global audio
+    global_audio = None
+    ga = course.get('globalAudio', {})
+    if ga and ga.get('src'):
+        ga_src = ga['src']
+        if not ga_src.startswith('http') and not ga_src.startswith('/api/'):
+            if ga_src.startswith('assets/'):
+                ga_src = f"/api/projects/{proj_id}/assets/{ga_src.replace('assets/', '')}"
+        global_audio = {
+            'src': ga_src,
+            'volume': float(ga.get('volume', 0.5)),
+            'loop': ga.get('loop', True),
+        }
+
+    return {
+        'projectName': project_doc.get('name', 'course'),
+        'slides': result_slides,
+        'globalAudio': global_audio,
+        'totalSlides': len(slides),
+    }
+
+
 @router.post("/course/{project_id}/export-video-frames")
 async def export_video_frames(project_id: str, request: Request):
     """Return all slide images as base64 for client-side video generation.
