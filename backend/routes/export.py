@@ -537,38 +537,56 @@ async def export_video_frames(project_id: str, request: Request):
 
 @router.get("/proxy-video")
 async def proxy_video(url: str):
-    """Proxy external video URLs (HeyGen, etc.) to bypass CORS restrictions.
-    The browser can't draw cross-origin videos to canvas without tainting it."""
+    """Stream-proxy external video URLs (HeyGen, etc.) to bypass CORS restrictions.
+    Uses true streaming — no buffering of full video in memory."""
     import httpx
     from starlette.responses import StreamingResponse
+    from urllib.parse import urlparse
 
     if not url or not url.startswith('http'):
         raise HTTPException(status_code=400, detail="Invalid URL")
 
-    # Only allow known video hosts (exact match or subdomain)
+    # Only allow known video hosts
     allowed_hosts = {'heygen.ai', 'resource2.heygen.ai', 'files2.heygen.ai', 'youtube.com', 'vimeo.com'}
-    from urllib.parse import urlparse
     parsed = urlparse(url)
     host = parsed.hostname or ''
     if not any(host == h or host.endswith('.' + h) for h in allowed_hosts):
         raise HTTPException(status_code=403, detail="Host not allowed")
 
     try:
-        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail="Upstream error")
+        # Use a streaming request — data flows directly to client without buffering
+        client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=120, write=10, pool=10), follow_redirects=True)
+        req = client.build_request("GET", url)
+        resp = await client.send(req, stream=True)
 
-            content_type = resp.headers.get('content-type', 'video/mp4')
+        if resp.status_code != 200:
+            await resp.aclose()
+            await client.aclose()
+            raise HTTPException(status_code=resp.status_code, detail="Upstream error")
 
-            return StreamingResponse(
-                iter([resp.content]),
-                media_type=content_type,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "public, max-age=3600",
-                }
-            )
+        content_type = resp.headers.get('content-type', 'video/mp4')
+        content_length = resp.headers.get('content-length')
+
+        response_headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600",
+        }
+        if content_length:
+            response_headers["Content-Length"] = content_length
+
+        async def stream_and_close():
+            try:
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    yield chunk
+            finally:
+                await resp.aclose()
+                await client.aclose()
+
+        return StreamingResponse(
+            stream_and_close(),
+            media_type=content_type,
+            headers=response_headers,
+        )
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Video download timeout")
     except HTTPException:
