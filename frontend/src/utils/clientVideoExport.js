@@ -6,8 +6,6 @@
  */
 
 function pickMimeType() {
-  // Prefer MP4 with H.264 + AAC (universal playback on Windows/Mac/mobile)
-  // Avoid Opus audio — Windows Media Player doesn't support it
   const candidates = [
     { mime: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
     { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
@@ -45,13 +43,57 @@ function loadVideo(proxyUrl) {
 }
 
 /**
- * Convert base64 data URL to ImageBitmap — more memory-efficient and reliable
- * for canvas drawing than Image elements with large data URLs.
+ * Load an image from a data URL. Uses standard Image element
+ * which is the most reliable approach for canvas drawing.
  */
-async function dataUrlToImageBitmap(dataUrl) {
-  const resp = await fetch(dataUrl);
-  const blob = await resp.blob();
-  return createImageBitmap(blob);
+function loadImage(dataUrl, index) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth === 0) {
+        reject(new Error(`Slide ${index + 1}: zero dimensions`));
+        return;
+      }
+      resolve(img);
+    };
+    img.onerror = () => reject(new Error(`Slide ${index + 1}: load failed`));
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Draw video preserving aspect ratio within the target rectangle.
+ * Prevents stretching/distortion ("estourado").
+ */
+function drawVideoPreserveAspect(ctx, video, targetX, targetY, targetW, targetH) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) {
+    // Fallback: draw stretched if we don't know native size
+    ctx.drawImage(video, targetX, targetY, targetW, targetH);
+    return;
+  }
+
+  const videoAspect = vw / vh;
+  const targetAspect = targetW / targetH;
+
+  let drawW, drawH, drawX, drawY;
+
+  if (videoAspect > targetAspect) {
+    // Video is wider — fit by width, center vertically
+    drawW = targetW;
+    drawH = targetW / videoAspect;
+    drawX = targetX;
+    drawY = targetY + (targetH - drawH) / 2;
+  } else {
+    // Video is taller — fit by height, center horizontally
+    drawH = targetH;
+    drawW = targetH * videoAspect;
+    drawX = targetX + (targetW - drawW) / 2;
+    drawY = targetY;
+  }
+
+  ctx.drawImage(video, drawX, drawY, drawW, drawH);
 }
 
 export async function generateVideoClientSide({ apiUrl, projectId, defaultDuration, onProgress }) {
@@ -77,33 +119,33 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   onProgress(10, `Carregando ${frames.length} imagens...`);
 
-  // Load slide images as ImageBitmap (reliable canvas drawing)
+  // Load all slide images
   const images = [];
   for (let i = 0; i < frames.length; i++) {
     try {
-      const bitmap = await dataUrlToImageBitmap(frames[i].dataUrl);
-      images.push(bitmap);
-      console.log(`[VideoExport] Slide ${i + 1}: loaded ${bitmap.width}x${bitmap.height}`);
+      const img = await loadImage(frames[i].dataUrl, i);
+      images.push(img);
+      console.log(`[VideoExport] Slide ${i + 1}: OK (${img.naturalWidth}x${img.naturalHeight})`);
     } catch (e) {
-      console.error(`[VideoExport] Slide ${i + 1} FAILED:`, e);
-      // Create fallback
-      const fallback = new OffscreenCanvas(width, height);
-      const fCtx = fallback.getContext('2d');
-      fCtx.fillStyle = '#1a1a2e';
-      fCtx.fillRect(0, 0, width, height);
-      fCtx.fillStyle = '#ffffff';
-      fCtx.font = '32px sans-serif';
-      fCtx.textAlign = 'center';
-      fCtx.fillText(`Slide ${i + 1}`, width / 2, height / 2);
-      const bitmap = fallback.transferToImageBitmap();
-      images.push(bitmap);
+      console.error(`[VideoExport] ${e.message}`);
+      // Fallback: colored placeholder
+      const c = document.createElement('canvas');
+      c.width = width;
+      c.height = height;
+      const cx = c.getContext('2d');
+      cx.fillStyle = '#1a1a2e';
+      cx.fillRect(0, 0, width, height);
+      cx.fillStyle = '#fff';
+      cx.font = '32px sans-serif';
+      cx.textAlign = 'center';
+      cx.fillText(`Slide ${i + 1}`, width / 2, height / 2);
+      // Convert canvas to Image for consistent handling
+      const fallbackImg = new Image();
+      fallbackImg.src = c.toDataURL();
+      await new Promise(r => { fallbackImg.onload = r; });
+      images.push(fallbackImg);
     }
     onProgress(10 + Math.round(((i + 1) / frames.length) * 12), `Imagem ${i + 1}/${frames.length}`);
-  }
-
-  // Free base64 data from memory
-  for (const frame of frames) {
-    frame.dataUrl = null;
   }
 
   // Load HeyGen overlay videos
@@ -112,18 +154,18 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     const videoEls = frames[i].videoElements || [];
     if (videoEls.length > 0) {
       onProgress(23 + Math.round((i / frames.length) * 5), `Carregando video do slide ${i + 1}...`);
-      const loadedVideos = [];
+      const loaded = [];
       for (const vel of videoEls) {
         try {
           const proxyUrl = `${apiUrl}/api/proxy-video?url=${encodeURIComponent(vel.src)}`;
           const video = await loadVideo(proxyUrl);
-          loadedVideos.push({ video, x: vel.x, y: vel.y, width: vel.width, height: vel.height });
-          console.log(`[VideoExport] Slide ${i + 1}: HeyGen video loaded (${video.duration}s)`);
+          loaded.push({ video, x: vel.x, y: vel.y, width: vel.width, height: vel.height });
+          console.log(`[VideoExport] Slide ${i + 1}: HeyGen ${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s`);
         } catch (e) {
-          console.warn(`[VideoExport] Slide ${i + 1}: video load failed:`, e.message);
+          console.warn(`[VideoExport] Slide ${i + 1}: video failed - ${e.message}`);
         }
       }
-      slideVideos[i] = loadedVideos;
+      slideVideos[i] = loaded;
     } else {
       slideVideos[i] = [];
     }
@@ -131,19 +173,17 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   onProgress(28, 'Preparando gravacao...');
 
-  // Create canvas
+  // Create recording canvas
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
 
-  // Verify canvas works
+  // Verify canvas
   ctx.fillStyle = '#ff0000';
-  ctx.fillRect(0, 0, 10, 10);
-  const testPixel = ctx.getImageData(5, 5, 1, 1).data;
-  if (testPixel[0] !== 255) {
-    console.error('[VideoExport] Canvas test FAILED - context may be lost');
-  }
+  ctx.fillRect(0, 0, 2, 2);
+  const px = ctx.getImageData(0, 0, 1, 1).data;
+  console.log(`[VideoExport] Canvas test: R=${px[0]} (should be 255)`);
 
   // Draw first slide
   ctx.drawImage(images[0], 0, 0, width, height);
@@ -151,14 +191,13 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   const { mime: mimeType, ext: fileExt } = pickMimeType();
   console.log(`[VideoExport] Format: ${mimeType} (.${fileExt})`);
 
-  // Setup audio mixing
+  // Audio setup
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
-
   const mixDest = audioCtx.createMediaStreamDestination();
 
-  // Pre-connect video audio sources with gain control
-  const videoGainNodes = new Map();
+  // Pre-connect all video audio with gain nodes
+  const videoGains = new Map();
   for (const vList of slideVideos) {
     for (const { video } of vList) {
       try {
@@ -168,14 +207,14 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         gain.gain.value = 0;
         src.connect(gain);
         gain.connect(mixDest);
-        videoGainNodes.set(video, gain);
+        videoGains.set(video, gain);
       } catch (e) {
-        console.warn('[VideoExport] Audio setup:', e.message);
+        console.warn('[VideoExport] Audio source error:', e.message);
       }
     }
   }
 
-  // Combine video + audio streams
+  // Build combined stream
   const canvasStream = canvas.captureStream(30);
   const combined = new MediaStream();
   for (const t of canvasStream.getVideoTracks()) combined.addTrack(t);
@@ -194,10 +233,6 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   return new Promise((resolve, reject) => {
     recorder.onstop = () => {
       try { audioCtx.close(); } catch (e) { /* */ }
-      // Close ImageBitmaps to free memory
-      for (const img of images) {
-        if (img.close) img.close();
-      }
       const blob = new Blob(chunks, { type: mimeType });
       const safeName = projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
       const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
@@ -214,10 +249,15 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
     function setSlideAudio(idx, active) {
       for (const { video } of (slideVideos[idx] || [])) {
-        const g = videoGainNodes.get(video);
-        if (g) g.gain.value = active ? 1.0 : 0;
-        if (active) { video.currentTime = 0; video.play().catch(() => {}); }
-        else video.pause();
+        const g = videoGains.get(video);
+        if (active) {
+          if (g) g.gain.value = 1.0;
+          video.currentTime = 0;
+          video.play().catch(() => {});
+        } else {
+          if (g) g.gain.value = 0;
+          video.pause();
+        }
       }
     }
 
@@ -231,19 +271,22 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
       return base;
     }
 
-    // Mute all, then activate slide 0
+    // Init: mute all, activate slide 0
     for (let i = 0; i < slideVideos.length; i++) setSlideAudio(i, false);
     setSlideAudio(0, true);
 
     function render() {
       const elapsed = (performance.now() - slideStart) / 1000;
+      const dur = slideDuration(currentSlide);
 
-      if (elapsed >= slideDuration(currentSlide)) {
+      // Advance slide?
+      if (elapsed >= dur) {
         setSlideAudio(currentSlide, false);
         currentSlide++;
         slideStart = performance.now();
 
         if (currentSlide >= images.length) {
+          // Final frame + stop
           ctx.drawImage(images[images.length - 1], 0, 0, width, height);
           setTimeout(() => { cancelAnimationFrame(animId); recorder.stop(); }, 500);
           return;
@@ -254,12 +297,19 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         onProgress(pct, `Gravando slide ${currentSlide + 1}/${images.length}...`);
       }
 
-      // DRAW: slide background then video overlay
+      // DRAW ORDER: background slide first, then video overlay
+      // 1. Draw slide background (always)
       ctx.drawImage(images[currentSlide], 0, 0, width, height);
 
+      // 2. Draw HeyGen video overlay (only while playing, preserve aspect ratio)
       for (const { video, x, y, width: vw, height: vh } of (slideVideos[currentSlide] || [])) {
+        // Only draw if video is actually playing and has frames
         if (video.readyState >= 2 && !video.paused && !video.ended) {
-          try { ctx.drawImage(video, x, y, vw, vh); } catch (e) { /* CORS */ }
+          try {
+            drawVideoPreserveAspect(ctx, video, x, y, vw, vh);
+          } catch (e) {
+            // CORS tainted canvas — skip
+          }
         }
       }
 
