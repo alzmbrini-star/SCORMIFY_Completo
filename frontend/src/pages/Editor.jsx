@@ -1137,17 +1137,8 @@ export default function Editor() {
                               size="sm"
                               data-testid="generate-scorm-btn"
                             >
-                              {exportLoading ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Gerando...
-                                </>
-                              ) : (
-                                <>
-                                  <Download className="w-4 h-4" />
-                                  Gerar SCORM
-                                </>
-                              )}
+                              <Download className="w-4 h-4" />
+                              Gerar SCORM
                             </Button>
                           </div>
                         </div>
@@ -1172,17 +1163,8 @@ export default function Editor() {
                               size="sm"
                               data-testid="generate-html-btn"
                             >
-                              {exportLoading ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Gerando...
-                                </>
-                              ) : (
-                                <>
-                                  <Download className="w-4 h-4" />
-                                  Gerar HTML
-                                </>
-                              )}
+                              <Download className="w-4 h-4" />
+                              Gerar HTML
                             </Button>
                           </div>
                         </div>
@@ -1219,17 +1201,8 @@ export default function Editor() {
                                   size="sm"
                                   data-testid="generate-video-btn"
                                 >
-                                  {exportLoading ? (
-                                    <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                      Gerando...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Film className="w-4 h-4" />
-                                      Gerar Video
-                                    </>
-                                  )}
+                                  <Film className="w-4 h-4" />
+                                  Gerar Video
                                 </Button>
                                 <p className="text-[10px] text-muted-foreground mt-1.5 text-center">MP4 ou WebM — gerado no navegador</p>
                               </div>
