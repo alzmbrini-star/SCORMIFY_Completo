@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
+
+const MAX_POLL_DURATION_MS = 10 * 60 * 1000; // 10 minutes max polling
+const POLL_INTERVAL_MS = 3000; // 3s between polls
+const MAX_CONSECUTIVE_ERRORS = 10; // Stop after 10 consecutive poll failures
+const INITIAL_POST_RETRIES = 3;
 
 export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -10,8 +15,16 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
   const [videoExportJobId, setVideoExportJobId] = useState(null);
   const [videoExportProgress, setVideoExportProgress] = useState(0);
   const [videoExportMessage, setVideoExportMessage] = useState('');
+  const pollTimerRef = useRef(null);
 
   const API_URL = getApiUrl();
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
 
   const handleExport = async () => {
     try {
@@ -45,34 +58,87 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       setExportLoading(true);
       setVideoExportProgress(0);
       setVideoExportMessage('Iniciando exportacao...');
-      const response = await axios.post(`${API_URL}/api/course/${currentProject.id}/export-video`, {
-        format,
-        default_duration: 5.0,
-      });
+
+      // Retry the initial POST with exponential backoff to handle proxy 502/504
+      let response = null;
+      let lastError = null;
+      for (let attempt = 1; attempt <= INITIAL_POST_RETRIES; attempt++) {
+        try {
+          response = await axios.post(
+            `${API_URL}/api/course/${currentProject.id}/export-video`,
+            { format, default_duration: 5.0 },
+            { timeout: 15000 } // 15s timeout per attempt
+          );
+          break; // Success
+        } catch (err) {
+          lastError = err;
+          const status = err.response?.status;
+          // Only retry on proxy/network errors (502, 503, 504, timeout)
+          if (attempt < INITIAL_POST_RETRIES && (!status || status >= 502)) {
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            console.warn(`Export POST attempt ${attempt} failed (${status || 'network'}), retrying in ${delay}ms...`);
+            setVideoExportMessage(`Tentativa ${attempt}/${INITIAL_POST_RETRIES}... reconectando`);
+            await new Promise(r => setTimeout(r, delay));
+          } else {
+            throw err;
+          }
+        }
+      }
+      if (!response) throw lastError;
+
       const jobId = response.data.jobId;
       setVideoExportJobId(jobId);
-      const pollInterval = setInterval(async () => {
+
+      // Poll with resilience to intermittent 502/504 errors
+      const pollStartTime = Date.now();
+      let consecutiveErrors = 0;
+
+      stopPolling(); // Clear any previous poll
+      pollTimerRef.current = setInterval(async () => {
+        // Safety: stop after max duration
+        if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
+          stopPolling();
+          setVideoExportJobId(null);
+          setExportLoading(false);
+          toast.error('Exportacao excedeu o tempo limite (10 min).');
+          return;
+        }
+
         try {
-          const statusRes = await axios.get(`${API_URL}/api/job/${jobId}`);
+          const statusRes = await axios.get(`${API_URL}/api/job/${jobId}`, { timeout: 10000 });
+          consecutiveErrors = 0; // Reset on success
           const job = statusRes.data;
           setVideoExportProgress(job.progress || 0);
           setVideoExportMessage(job.message || '');
+
           if (job.status === 'completed') {
-            clearInterval(pollInterval);
+            stopPolling();
             setDownloadUrl(`${API_URL}${job.result.downloadUrl}`);
             setVideoExportJobId(null);
             setExportLoading(false);
             toast.success(`Video ${format.toUpperCase()} exportado!`);
           } else if (job.status === 'failed') {
-            clearInterval(pollInterval);
+            stopPolling();
             setVideoExportJobId(null);
             setExportLoading(false);
             toast.error(job.message || 'Falha na exportacao');
           }
         } catch (pollErr) {
-          console.error('Poll error:', pollErr);
+          consecutiveErrors++;
+          const status = pollErr.response?.status;
+          console.warn(`Poll error #${consecutiveErrors} (${status || 'network'}):`, pollErr.message);
+          // Show message but keep polling — proxy errors are transient
+          if (consecutiveErrors >= 3) {
+            setVideoExportMessage(`Reconectando ao servidor... (tentativa ${consecutiveErrors})`);
+          }
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            stopPolling();
+            setVideoExportJobId(null);
+            setExportLoading(false);
+            toast.error('Conexao perdida com o servidor. Tente novamente.');
+          }
         }
-      }, 2000);
+      }, POLL_INTERVAL_MS);
     } catch (err) {
       console.error('Video export error:', err);
       toast.error('Falha ao iniciar exportacao: ' + (err.response?.data?.detail || err.message));
@@ -81,6 +147,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
   };
 
   const resetExportDialog = () => {
+    stopPolling();
     setDownloadUrl(null);
     setVideoExportJobId(null);
     setVideoExportProgress(0);

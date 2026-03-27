@@ -428,26 +428,9 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
 
 @router.post("/course/{project_id}/export-video")
 async def export_video_endpoint(project_id: str, request: Request, background_tasks: BackgroundTasks):
-    """Export project as video (MP4 or WebM)"""
-    try:
-        from services.video_exporter import export_video as export_video_func, is_ffmpeg_available
-    except Exception as e:
-        logger.error(f"Failed to import video_exporter: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"Módulo de exportação de vídeo indisponível: {str(e)}"
-        )
-    
-    # Check if video export is available
-    if not is_ffmpeg_available():
-        raise HTTPException(
-            status_code=503,
-            detail="A exportação de vídeo não está disponível neste ambiente. FFmpeg não está instalado. Use exportação SCORM ou HTML como alternativa."
-        )
-    
-    project_doc = await get_project_by_id(project_id)
-    if not project_doc:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Export project as video (MP4 or WebM).
+    Returns jobId INSTANTLY (<100ms) — all heavy work runs in background.
+    This prevents Cloudflare/Nginx proxy timeouts (502/504) in production."""
 
     body = await request.json()
     video_format = body.get('format', 'mp4')
@@ -455,24 +438,53 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
         video_format = 'mp4'
     default_duration = float(body.get('default_duration', 5.0))
 
-    # Create job for tracking
+    # Create job IMMEDIATELY and return — no DB fetch, no FFmpeg check, no imports
     job_id = str(uuid.uuid4())
     job_data = {
         'id': job_id,
         'status': 'processing',
         'progress': 0,
-        'message': 'Iniciando exportação de vídeo...',
+        'message': 'Exportação em fila, preparando...',
         'result': None
     }
     jobs[job_id] = job_data
-    await create_job(job_id, job_data)
+    # Fire-and-forget MongoDB persistence (don't await to keep response instant)
+    asyncio.ensure_future(create_job(job_id, job_data))
 
     async def run_export():
+        """All heavy work happens here — after the HTTP response is already sent."""
         try:
+            # Step 1: Import video exporter (may trigger static-ffmpeg download)
+            await update_job(job_id, {'message': 'Carregando módulo de vídeo...'})
+            try:
+                from services.video_exporter import export_video as export_video_func, is_ffmpeg_available
+            except Exception as e:
+                logger.error(f"Failed to import video_exporter: {e}")
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['message'] = f"Módulo de vídeo indisponível: {str(e)}"
+                await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
+                return
+
+            # Step 2: Check FFmpeg availability
+            if not is_ffmpeg_available():
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['message'] = 'FFmpeg não disponível. Use exportação SCORM ou HTML.'
+                await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
+                return
+
+            # Step 3: Fetch project from DB
+            await update_job(job_id, {'message': 'Carregando projeto...', 'progress': 5})
+            project_doc = await get_project_by_id(project_id)
+            if not project_doc:
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['message'] = 'Projeto não encontrado.'
+                await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
+                return
+
+            # Step 4: Run the actual export
             def on_progress(progress, message):
                 jobs[job_id]['progress'] = progress
                 jobs[job_id]['message'] = message
-                # Fire-and-forget DB sync
                 asyncio.ensure_future(update_job(job_id, {'progress': progress, 'message': message}))
 
             output_path = await export_video_func(
@@ -486,7 +498,6 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
             )
 
             filename = Path(output_path).name
-            # Persist to GridFS
             await save_export_to_gridfs(output_path, filename)
             jobs[job_id]['status'] = 'completed'
             jobs[job_id]['progress'] = 100
@@ -495,21 +506,20 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
                 'downloadUrl': f"/api/exports/{filename}",
                 'filename': filename
             }
-            logger.info(f"Video export done, updating job {job_id} in MongoDB...")
             await update_job(job_id, {
                 'status': 'completed',
                 'progress': 100,
                 'message': 'Vídeo exportado com sucesso!',
                 'result': {'downloadUrl': f"/api/exports/{filename}", 'filename': filename}
             })
-            logger.info(f"Video job {job_id} updated in MongoDB")
+            logger.info(f"Video job {job_id} completed successfully")
         except Exception as e:
             logger.error(f"Video export error: {e}")
             jobs[job_id]['status'] = 'failed'
             jobs[job_id]['message'] = f"Erro na exportação: {str(e)}"
             await update_job(job_id, {'status': 'failed', 'message': f"Erro na exportação: {str(e)}"})
 
-    # Run in background
+    # Spawn background task and return IMMEDIATELY
     asyncio.create_task(run_export())
 
     return {
