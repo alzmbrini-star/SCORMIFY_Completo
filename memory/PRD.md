@@ -9,16 +9,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI HTML Generator**: Generate interactive HTML+JS content via prompt in the Editor (Gemini)
 - **AI Simulator/Game Generation**: Agent creates interactive HTML+JS simulators per module
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions
-- **AI Avatar Scene Suggestions**: Agent suggests avatar scenes during course analysis with:
-  - Visual mockup preview (avatar position, narration script, background description)
-  - Inline editing: Edit narration script, background description, avatar position directly in preview
-  - Type switcher: Convert avatar_scene to content/simulator/game/quiz before applying
-  - Auto-generation of background image (Gemini), ElevenLabs narration, HeyGen avatar video on apply
-  - Per-course configurable avatar scene limit
+- **AI Avatar Scene Suggestions**: Full avatar scene workflow:
+  - AI suggests avatar scenes during analysis with mockup preview
+  - Inline editing: narration script, background description, avatar position
+  - Type switcher: Convert avatar_scene to content/simulator/game/quiz
+  - **Avatar & Voice Selectors**: HeyGen avatar + ElevenLabs voice dropdowns per-course with preview
+  - Auto-generation on apply: background image (Gemini), narration (ElevenLabs), avatar video (HeyGen)
+  - Per-course configurable limit + real-time generation progress polling
   - Works in both Edit Mode and Create Mode
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
-- **Video Export (MP4/WebM)**: 100% Client-side video generation using html2canvas + Canvas API + MediaRecorder
+- **Video Export (MP4/WebM)**: 100% Client-side video generation (html2canvas + MediaRecorder)
 - **Gamification System**: Configurable badges and feedback per-project
 - **PPT Import**: Convert PowerPoint to course (ConvertAPI)
 - **VLibras**: Brazilian Sign Language accessibility widget
@@ -36,7 +37,8 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ConvertAPI - PPT import (user API key)
 
 ## Completed
-- 2026-03-28: BUGFIX - avatar-settings 404 on projects without avatarSceneSettings (empty MongoDB projection dict)
+- 2026-03-28: Avatar & Voice Selectors - HeyGen avatar + ElevenLabs voice dropdowns in settings panel with preview
+- 2026-03-28: BUGFIX - avatar-settings 404 on projects without avatarSceneSettings
 - 2026-03-28: Inline script editor with char counter, background editor, position selector
 - 2026-03-28: Avatar Scene Type Switcher + visual mockup preview
 - 2026-03-28: Avatar Scene Suggestions feature + auto-generation on apply
