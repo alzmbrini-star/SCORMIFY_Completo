@@ -605,7 +605,11 @@ export default function Agent() {
       const data = await res.json();
       setEditResult(data);
       setCurrentStep(3);
-      addChatMsg('agent', `Melhorias aplicadas! ${data.updatedSlides} slides atualizados, ${data.newSlides} novos slides. Total: ${data.totalSlides} slides.`);
+      let msg = `Melhorias aplicadas! ${data.updatedSlides} slides atualizados, ${data.newSlides} novos slides. Total: ${data.totalSlides} slides.`;
+      if (data.avatarScenesTriggered > 0) {
+        msg += ` ${data.avatarScenesTriggered} cena(s) com avatar estão sendo geradas em segundo plano (imagem de fundo, narração e vídeo do avatar).`;
+      }
+      addChatMsg('agent', msg);
       toast.success('Melhorias aplicadas com sucesso!');
     } catch { toast.error('Erro ao aplicar melhorias'); addChatMsg('agent', 'Erro ao aplicar as melhorias.'); }
     finally { setLoading(false); }

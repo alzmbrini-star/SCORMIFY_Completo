@@ -9,12 +9,14 @@ import json
 import logging
 import base64
 import re
+import httpx
 from pathlib import Path
 from datetime import datetime, timezone
 
 from routes.deps import (
     db, now_utc, serialize_doc, get_project_by_id, update_project,
-    PROJECTS_DIR, STORAGE_DIR, mongo_url, ELEVENLABS_API_KEY, HEYGEN_API_KEY
+    PROJECTS_DIR, STORAGE_DIR, mongo_url, ELEVENLABS_API_KEY, HEYGEN_API_KEY,
+    HEYGEN_BASE_URL, HEYGEN_HEADERS
 )
 from routes.auth import require_agent_access, require_auth, get_current_user
 
@@ -2285,12 +2287,87 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     course["slides"] = slides
     await update_project(project_id, {"course": course})
 
+    # Detect avatar scenes and trigger background generation
+    avatar_scene_pending = []
+    for ns in result.get("newSlides", []):
+        avatar_scene = ns.get("avatarScene")
+        if avatar_scene and isinstance(avatar_scene, dict):
+            # Find the slide that was just added
+            ns_title = ns.get("title", "")
+            target_slide_id = None
+            for s in slides:
+                if s.get("title") == ns_title:
+                    target_slide_id = s.get("id")
+                    break
+            if not target_slide_id:
+                # Try to find by afterIndex
+                after_idx = ns.get("afterIndex", 0)
+                insert_at = min(after_idx + 1, len(slides) - 1)
+                if 0 <= insert_at < len(slides):
+                    target_slide_id = slides[insert_at].get("id")
+
+            if target_slide_id:
+                avatar_settings = project.get("avatarSceneSettings", {})
+                avatar_scene_pending.append({
+                    "slideId": target_slide_id,
+                    "slideTitle": ns.get("title", "Avatar Scene"),
+                    "narrationScript": avatar_scene.get("narrationScript", ""),
+                    "backgroundPrompt": avatar_scene.get("backgroundPrompt", ""),
+                    "avatarPosition": avatar_scene.get("avatarPosition", "left"),
+                    "avatarId": avatar_settings.get("defaultAvatarId", ""),
+                    "voiceId": avatar_settings.get("defaultVoiceId", ""),
+                    "bgStatus": "pending",
+                    "audioStatus": "pending",
+                    "heygenStatus": "pending",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                })
+
+    # Also check updatedSlides for avatar scenes
+    for upd in result.get("updatedSlides", []):
+        avatar_scene = upd.get("avatarScene")
+        if avatar_scene and isinstance(avatar_scene, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                target_slide_id = slides[idx].get("id")
+                if target_slide_id:
+                    avatar_settings = project.get("avatarSceneSettings", {})
+                    avatar_scene_pending.append({
+                        "slideId": target_slide_id,
+                        "slideTitle": upd.get("title", f"Slide {idx + 1}"),
+                        "narrationScript": avatar_scene.get("narrationScript", ""),
+                        "backgroundPrompt": avatar_scene.get("backgroundPrompt", ""),
+                        "avatarPosition": avatar_scene.get("avatarPosition", "left"),
+                        "avatarId": avatar_settings.get("defaultAvatarId", ""),
+                        "voiceId": avatar_settings.get("defaultVoiceId", ""),
+                        "bgStatus": "pending",
+                        "audioStatus": "pending",
+                        "heygenStatus": "pending",
+                        "createdAt": datetime.now(timezone.utc).isoformat(),
+                    })
+
+    avatar_generation_started = False
+    if avatar_scene_pending:
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {"avatarScenePending": avatar_scene_pending}}
+        )
+        # Trigger background generation
+        import threading
+        threading.Thread(
+            target=lambda: asyncio.run(_trigger_avatar_scene_generation(project_id, avatar_scene_pending)),
+            daemon=True,
+        ).start()
+        avatar_generation_started = True
+        logger.info(f"Avatar scene generation triggered for {len(avatar_scene_pending)} scenes in project {project_id}")
+
     return {
         "status": "ok",
         "updatedSlides": len(result.get("updatedSlides", [])),
         "newSlides": new_slides_added,
         "totalSlides": len(slides),
         "canUndo": True,
+        "avatarScenesTriggered": len(avatar_scene_pending),
+        "avatarGenerationStarted": avatar_generation_started,
     }
 
 
@@ -2310,6 +2387,356 @@ async def agent_undo_improvements(project_id: str):
         "message": "Melhorias desfeitas com sucesso.",
         "totalSlides": len(slides),
     }
+
+
+# =============================================================================
+# AVATAR SCENE SETTINGS & GENERATION
+# =============================================================================
+
+class AvatarSceneSettings(BaseModel):
+    maxScenes: int = 3
+    defaultAvatarId: Optional[str] = None
+    defaultVoiceId: Optional[str] = None
+
+
+@router.get("/agent/projects/{project_id}/avatar-settings")
+async def get_avatar_settings(project_id: str):
+    """Get avatar scene settings for a project."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1})
+    if not project:
+        raise HTTPException(404, "Project not found")
+    settings = project.get("avatarSceneSettings", {"maxScenes": 3, "defaultAvatarId": None, "defaultVoiceId": None})
+    return settings
+
+
+@router.put("/agent/projects/{project_id}/avatar-settings")
+async def update_avatar_settings(project_id: str, settings: AvatarSceneSettings):
+    """Update avatar scene settings for a project."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1})
+    if not project:
+        raise HTTPException(404, "Project not found")
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "avatarSceneSettings": settings.model_dump(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "settings": settings.model_dump()}
+
+
+@router.get("/agent/projects/{project_id}/avatar-generation-status")
+async def get_avatar_generation_status(project_id: str):
+    """Get status of avatar scene generation (background image, ElevenLabs audio, HeyGen video)."""
+    project = await db.projects.find_one(
+        {"id": project_id},
+        {"_id": 0, "avatarScenePending": 1, "id": 1}
+    )
+    if not project:
+        raise HTTPException(404, "Project not found")
+    pending = project.get("avatarScenePending", [])
+    if not pending:
+        return {"status": "no_pending", "scenes": []}
+
+    # Check HeyGen video status for any pending items
+    for scene in pending:
+        if scene.get("heygenVideoId") and scene.get("heygenStatus") == "processing":
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as http_client:
+                    resp = await http_client.get(
+                        f"{HEYGEN_BASE_URL}/v1/video_status.get?video_id={scene['heygenVideoId']}",
+                        headers=HEYGEN_HEADERS,
+                    )
+                    if resp.status_code == 200:
+                        vdata = resp.json().get("data", {})
+                        status = vdata.get("status", "")
+                        if status == "completed":
+                            video_url = vdata.get("video_url", "")
+                            scene["heygenStatus"] = "completed"
+                            scene["heygenVideoUrl"] = video_url
+                            # Update the slide with the video element
+                            await _apply_heygen_video_to_slide(
+                                project_id, scene["slideId"], video_url,
+                                scene.get("avatarPosition", "left")
+                            )
+                        elif status == "failed":
+                            scene["heygenStatus"] = "failed"
+                            scene["heygenError"] = vdata.get("error", {}).get("message", "Unknown error")
+            except Exception as e:
+                logger.warning(f"HeyGen status check failed: {e}")
+
+    # Persist updated status
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"avatarScenePending": pending}}
+    )
+
+    all_done = all(
+        scene.get("bgStatus") in ("completed", "failed", "skipped") and
+        scene.get("audioStatus") in ("completed", "failed", "skipped") and
+        scene.get("heygenStatus") in ("completed", "failed", "skipped", None, "")
+        for scene in pending
+    )
+
+    return {
+        "status": "completed" if all_done else "processing",
+        "scenes": [{k: v for k, v in s.items() if k != "_id"} for s in pending],
+    }
+
+
+async def _apply_heygen_video_to_slide(project_id: str, slide_id: str, video_url: str, position: str):
+    """Add HeyGen video element to a slide after generation completes."""
+    from models import generate_id
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "course.slides": 1})
+    if not project:
+        return
+    slides = project.get("course", {}).get("slides", [])
+    for slide in slides:
+        if slide.get("id") == slide_id:
+            # Position the video element based on avatarPosition
+            if position == "right":
+                vx, vy, vw, vh = 1320, 120, 520, 520
+            elif position == "center":
+                vx, vy, vw, vh = 700, 100, 520, 520
+            else:  # left
+                vx, vy, vw, vh = 80, 120, 520, 520
+
+            video_el = {
+                "id": generate_id(),
+                "type": "video",
+                "x": vx, "y": vy,
+                "width": vw, "height": vh,
+                "src": video_url,
+                "autoplay": True,
+                "loop": False,
+                "style": {},
+                "startTime": 0,
+                "animations": [],
+            }
+            slide.setdefault("elements", []).append(video_el)
+            break
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"course.slides": slides, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    logger.info(f"HeyGen video applied to slide {slide_id} in project {project_id}")
+
+
+async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
+    """Background task: generate background images, ElevenLabs audio, and HeyGen videos for avatar scenes."""
+    from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
+    _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000)
+    _db = _client[os.environ.get("DB_NAME")]
+
+    for scene in scenes:
+        slide_id = scene.get("slideId", "")
+        try:
+            # 1. Generate background image via Gemini Nano Banana
+            bg_prompt = scene.get("backgroundPrompt", "")
+            bg_url = None
+            if bg_prompt:
+                try:
+                    from emergentintegrations.llm.chat import LlmChat, UserMessage
+                    emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+                    chat = LlmChat(
+                        api_key=emergent_key,
+                        session_id=f"avatar_bg_{uuid.uuid4().hex[:8]}",
+                        system_message="You are an image generator.",
+                    ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+
+                    full_prompt = f"Professional photorealistic background for educational video scene: {bg_prompt}. No text, no watermarks, high quality, cinematic lighting, suitable as video call background. 16:9 aspect ratio."
+                    text_resp, images = await chat.send_message_multimodal_response(UserMessage(text=full_prompt))
+                    if images and len(images) > 0:
+                        img_bytes = base64.b64decode(images[0]['data'])
+                        import hashlib
+                        seed = hashlib.md5(bg_prompt.encode()).hexdigest()[:10]
+                        fname = f"avatar_bg_{seed}.png"
+                        fpath = os.path.join(str(PROJECTS_DIR), project_id, "assets", fname)
+                        os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                        with open(fpath, "wb") as f:
+                            f.write(img_bytes)
+                        bg_url = f"/api/projects/{project_id}/assets/{fname}"
+
+                        # Persist in MongoDB
+                        try:
+                            from services.asset_store import store_asset_sync
+                            import threading
+                            threading.Thread(
+                                target=store_asset_sync,
+                                args=(os.environ.get("MONGO_URL"), os.environ["DB_NAME"], project_id, fname, fpath),
+                                daemon=True,
+                            ).start()
+                        except Exception:
+                            pass
+
+                        # Apply background to slide
+                        await _db.projects.update_one(
+                            {"id": project_id, "course.slides.id": slide_id},
+                            {"$set": {"course.slides.$.backgroundImage": bg_url}}
+                        )
+                        scene["bgStatus"] = "completed"
+                        scene["bgUrl"] = bg_url
+                        logger.info(f"Avatar BG generated for slide {slide_id}: {bg_url}")
+                    else:
+                        scene["bgStatus"] = "failed"
+                        scene["bgError"] = "No image generated"
+                except Exception as e:
+                    logger.error(f"Avatar BG generation failed for slide {slide_id}: {e}")
+                    scene["bgStatus"] = "failed"
+                    scene["bgError"] = str(e)[:200]
+            else:
+                scene["bgStatus"] = "skipped"
+
+            # 2. Generate ElevenLabs narration audio
+            narration_script = scene.get("narrationScript", "")
+            if narration_script and ELEVENLABS_API_KEY:
+                try:
+                    voice_id = scene.get("voiceId", "")
+                    if not voice_id:
+                        # Get project default voice
+                        proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1, "narrationVoiceId": 1})
+                        voice_id = (proj or {}).get("avatarSceneSettings", {}).get("defaultVoiceId", "")
+                        if not voice_id:
+                            voice_id = (proj or {}).get("narrationVoiceId", "")
+                        if not voice_id:
+                            voice_id = "pFZP5JQG7iQjIQuC4Bku"  # Default ElevenLabs voice (Lily)
+
+                    from elevenlabs import ElevenLabs as ELClient
+                    from elevenlabs.types import VoiceSettings
+                    el_client = ELClient(api_key=ELEVENLABS_API_KEY)
+                    voice_settings = VoiceSettings(stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True)
+                    audio_generator = el_client.text_to_speech.convert(
+                        text=narration_script,
+                        voice_id=voice_id,
+                        model_id="eleven_multilingual_v2",
+                        voice_settings=voice_settings,
+                    )
+                    audio_data = b""
+                    for chunk in audio_generator:
+                        audio_data += chunk
+
+                    audio_id = str(uuid.uuid4())
+                    filename = f"audio_{audio_id}.mp3"
+                    audio_dir = PROJECTS_DIR / project_id / "assets"
+                    audio_dir.mkdir(parents=True, exist_ok=True)
+                    audio_path = audio_dir / filename
+                    with open(audio_path, "wb") as f:
+                        f.write(audio_data)
+
+                    audio_url = f"/api/projects/{project_id}/assets/{filename}"
+
+                    # Persist in MongoDB
+                    try:
+                        from services.asset_store import store_asset_sync
+                        import threading
+                        threading.Thread(
+                            target=store_asset_sync,
+                            args=(os.environ.get("MONGO_URL"), os.environ["DB_NAME"], project_id, filename, str(audio_path)),
+                            daemon=True,
+                        ).start()
+                    except Exception:
+                        pass
+
+                    # Add audio to slide
+                    await _db.projects.update_one(
+                        {"id": project_id, "course.slides.id": slide_id},
+                        {"$push": {"course.slides.$.audio": {
+                            "id": audio_id,
+                            "src": audio_url,
+                            "type": "narration",
+                            "startTime": 0,
+                            "volume": 1.0,
+                        }}}
+                    )
+                    scene["audioStatus"] = "completed"
+                    scene["audioUrl"] = audio_url
+                    logger.info(f"Avatar narration audio generated for slide {slide_id}: {audio_url}")
+                except Exception as e:
+                    logger.error(f"Avatar narration failed for slide {slide_id}: {e}")
+                    scene["audioStatus"] = "failed"
+                    scene["audioError"] = str(e)[:200]
+            else:
+                scene["audioStatus"] = "skipped"
+
+            # 3. Trigger HeyGen video generation
+            avatar_id = scene.get("avatarId", "")
+            if not avatar_id:
+                proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1})
+                avatar_id = (proj or {}).get("avatarSceneSettings", {}).get("defaultAvatarId", "")
+            voice_id_heygen = scene.get("heygenVoiceId", "") or scene.get("voiceId", "")
+
+            if narration_script and avatar_id and HEYGEN_API_KEY:
+                try:
+                    async with httpx.AsyncClient(timeout=60.0) as http_client:
+                        payload = {
+                            "video_inputs": [{
+                                "character": {
+                                    "type": "avatar",
+                                    "avatar_id": avatar_id,
+                                    "avatar_style": "normal"
+                                },
+                                "voice": {
+                                    "type": "text",
+                                    "input_text": narration_script[:5000],
+                                    "voice_id": voice_id_heygen or "pt_female_1"
+                                }
+                            }],
+                            "dimension": {"width": 1280, "height": 720},
+                            "title": f"AvatarScene-{project_id}-{slide_id}"
+                        }
+                        response = await http_client.post(
+                            f"{HEYGEN_BASE_URL}/v2/video/generate",
+                            headers=HEYGEN_HEADERS,
+                            json=payload,
+                        )
+                        if response.status_code == 200:
+                            data = response.json()
+                            video_id = data.get("data", {}).get("video_id")
+                            if video_id:
+                                await _db.heygen_videos.insert_one({
+                                    "video_id": video_id,
+                                    "avatar_id": avatar_id,
+                                    "voice_id": voice_id_heygen,
+                                    "script": narration_script[:500],
+                                    "title": f"AvatarScene-{slide_id}",
+                                    "status": "processing",
+                                    "transparent": False,
+                                    "project_id": project_id,
+                                    "slide_id": slide_id,
+                                    "created_at": datetime.now(timezone.utc),
+                                })
+                                scene["heygenVideoId"] = video_id
+                                scene["heygenStatus"] = "processing"
+                                logger.info(f"HeyGen avatar video triggered: {video_id} for slide {slide_id}")
+                        else:
+                            scene["heygenStatus"] = "failed"
+                            scene["heygenError"] = response.text[:200]
+                            logger.error(f"HeyGen avatar generation failed: {response.text[:200]}")
+                except Exception as e:
+                    scene["heygenStatus"] = "failed"
+                    scene["heygenError"] = str(e)[:200]
+                    logger.error(f"HeyGen avatar trigger error: {e}")
+            else:
+                scene["heygenStatus"] = "skipped" if not narration_script else "skipped_no_avatar"
+
+            # Update pending status
+            await _db.projects.update_one(
+                {"id": project_id, "avatarScenePending.slideId": slide_id},
+                {"$set": {
+                    "avatarScenePending.$.bgStatus": scene.get("bgStatus", "pending"),
+                    "avatarScenePending.$.bgUrl": scene.get("bgUrl"),
+                    "avatarScenePending.$.audioStatus": scene.get("audioStatus", "pending"),
+                    "avatarScenePending.$.audioUrl": scene.get("audioUrl"),
+                    "avatarScenePending.$.heygenVideoId": scene.get("heygenVideoId"),
+                    "avatarScenePending.$.heygenStatus": scene.get("heygenStatus", "pending"),
+                }}
+            )
+
+        except Exception as e:
+            logger.error(f"Avatar scene generation error for slide {slide_id}: {e}")
+
+    _client.close()
 
 
 

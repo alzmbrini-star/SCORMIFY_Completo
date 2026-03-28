@@ -1679,30 +1679,60 @@ async def analyze_existing_course(session_id: str, project: dict) -> dict:
     
     slides = project.get("course", {}).get("slides", [])
     slides_summary = []
+    has_avatar = False
+    has_narration_count = 0
     for i, s in enumerate(slides):
         texts = []
         for el in s.get("elements", []):
             c = el.get("htmlContent") or el.get("content") or ""
-            # Ensure c is a string before slicing
             if c and isinstance(c, str):
                 texts.append(c[:200])
+            if el.get("type") == "video":
+                has_avatar = True
+        if s.get("audio") or s.get("librasScript"):
+            has_narration_count += 1
         slides_summary.append({
             "index": i,
             "title": s.get("title", f"Slide {i+1}"),
             "hasAudio": bool(s.get("audio")),
             "hasNarration": bool(s.get("librasScript")),
+            "hasVideo": any(el.get("type") == "video" for el in s.get("elements", [])),
             "elementCount": len(s.get("elements", [])),
             "textPreview": " | ".join(texts)[:300],
         })
+    
+    # Avatar scene settings
+    avatar_settings = project.get("avatarSceneSettings", {})
+    avatar_limit = avatar_settings.get("maxScenes", 3)
     
     prompt = f"""Analise este curso existente e sugira melhorias.
 
 CURSO: {project.get('name', 'Sem nome')}
 DESCRIÇÃO: {project.get('description', '')}
 TOTAL DE SLIDES: {len(slides)}
+JÁ TEM AVATAR: {"Sim" if has_avatar else "Não"}
+SLIDES COM NARRAÇÃO: {has_narration_count}/{len(slides)}
 
 RESUMO DOS SLIDES:
 {json.dumps(slides_summary, ensure_ascii=False)[:6000]}
+
+TIPOS DE MELHORIA DISPONÍVEIS:
+- "content": Melhorar o conteúdo textual do slide
+- "structure": Melhorar a estrutura/organização
+- "quiz": Adicionar quiz/avaliação
+- "narration": Adicionar ou melhorar narração
+- "visual": Melhorar o design visual
+- "simulator": Adicionar simulador/jogo educativo interativo
+- "avatar_scene": Adicionar cena com avatar falante para explicar conceitos complexos
+
+REGRAS PARA SUGESTÃO DE AVATAR_SCENE:
+- Sugira cenas com avatar APENAS onde um apresentador/instrutor virtual agregaria valor pedagógico real
+- Exemplos: explicar conceitos abstratos, dar boas-vindas, resumir módulos, demonstrar procedimentos
+- Limite máximo de {avatar_limit} cenas com avatar para este curso
+- Para cada sugestão de avatar_scene, inclua campos extras:
+  - "narrationScript": O texto completo que o avatar vai falar (max 1500 chars)
+  - "backgroundDescription": Descrição do cenário de fundo ideal (ex: "Escritório moderno com tela mostrando gráficos")
+  - "avatarPosition": "left", "right" ou "center"
 
 Retorne JSON:
 ```json
@@ -1712,10 +1742,20 @@ Retorne JSON:
   "improvements": [
     {{
       "slideIndex": 0,
-      "type": "content|structure|quiz|narration|visual",
+      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene",
       "priority": "alta|media|baixa",
       "description": "descrição da melhoria",
       "suggestion": "sugestão concreta"
+    }},
+    {{
+      "slideIndex": 2,
+      "type": "avatar_scene",
+      "priority": "media",
+      "description": "Adicionar avatar para explicar o conceito X",
+      "suggestion": "Um avatar apresentador explicaria este conceito complexo de forma mais envolvente",
+      "narrationScript": "Olá! Vou explicar o conceito de X de forma simples...",
+      "backgroundDescription": "Sala de aula moderna com quadro digital",
+      "avatarPosition": "left"
     }}
   ],
   "missingElements": ["elemento faltante"],
@@ -1723,7 +1763,7 @@ Retorne JSON:
     {{
       "position": "after_slide_2",
       "title": "Título sugerido",
-      "type": "content|quiz|summary",
+      "type": "content|quiz|summary|avatar_scene",
       "reason": "motivo"
     }}
   ]
@@ -1743,13 +1783,15 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     # Group improvements by slide
     improvements_desc = json.dumps(selected_improvements, ensure_ascii=False)
     
+    # Check if any avatar_scene improvements are selected
+    has_avatar_scenes = any(imp.get("type") == "avatar_scene" for imp in selected_improvements)
+    
     # Get current slide content for context
     slides_content = []
     for i, s in enumerate(slides):
         texts = []
         for el in s.get("elements", []):
             c = el.get("htmlContent") or el.get("content") or ""
-            # Ensure c is a string before slicing
             if c and isinstance(c, str):
                 texts.append(c[:300])
         slides_content.append({
@@ -1757,6 +1799,27 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
             "title": s.get("title", ""),
             "text": " ".join(texts)[:500],
         })
+    
+    avatar_scene_instructions = ""
+    if has_avatar_scenes:
+        avatar_scene_instructions = """
+REGRA PARA CENAS COM AVATAR (type "avatar_scene"):
+- Slides de avatar_scene devem ter um layout que acomode o avatar de vídeo + conteúdo textual de apoio
+- O conteúdo textual deve ser um resumo visual (bullet points, título) do que o avatar está explicando
+- Inclua o campo "avatarScene" com os metadados da cena:
+  - "narrationScript": texto completo que o avatar vai falar (max 1500 chars, natural e didático)
+  - "backgroundPrompt": prompt em inglês para gerar imagem de fundo (ex: "Modern classroom with digital whiteboard showing charts")
+  - "avatarPosition": "left", "right" ou "center" (onde o avatar aparecerá no slide)
+- Layout sugerido:
+  - Avatar à esquerda (avatarPosition: "left"): conteúdo textual ocupa a metade direita
+  - Avatar à direita: conteúdo textual ocupa a metade esquerda
+  - Avatar centralizado: conteúdo textual acima ou abaixo
+- Exemplo de novo slide avatar_scene:
+  {{"afterIndex":2,"title":"Explicação: Conceito X","type":"avatar_scene","background":"#0f172a",
+    "elements":[{{"type":"text","content":"<h2>Conceito X</h2><ul><li>Ponto 1</li><li>Ponto 2</li></ul>","width":900,"height":600,"x":960,"y":110}}],
+    "avatarScene":{{"narrationScript":"Olá! Agora vou explicar...","backgroundPrompt":"Professional studio with blue lighting","avatarPosition":"left"}},
+    "narrationScript":"","librasScript":"","quizQuestions":[]}}
+"""
     
     prompt = f"""Aplique as seguintes melhorias ao curso. Gere o conteúdo atualizado para cada slide afetado.
 
@@ -1786,7 +1849,7 @@ REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculador
 - NÃO gere botões estáticos sem funcionalidade
 - Conteúdo 100% relacionado ao tema do curso
 - Foco pedagógico: fixação de conteúdo, engajamento emocional, repetição ativa, feedback imediato
-
+{avatar_scene_instructions}
 Retorne JSON com os slides a atualizar:
 ```json
 {{

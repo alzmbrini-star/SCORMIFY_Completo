@@ -27,9 +27,35 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui
 const API = getApiUrl();
 
 export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply }) {
+  const [avatarLimit, setAvatarLimit] = useState(3);
+  const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    if (!course?.id) return;
+    fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.maxScenes) setAvatarLimit(data.maxScenes); })
+      .catch(() => {});
+  }, [course?.id]);
+
+  const saveAvatarSettings = async (val) => {
+    setAvatarLimit(val);
+    setSavingSettings(true);
+    try {
+      await fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxScenes: val }),
+      });
+    } catch { /* ignore */ }
+    finally { setSavingSettings(false); }
+  };
+
   if (!course) return null;
   const priorityColors = { alta: 'text-red-400 border-red-800/40', media: 'text-amber-400 border-amber-800/40', baixa: 'text-blue-400 border-blue-800/40' };
-  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual' };
+  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar' };
+  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video };
 
   return (
     <div className="space-y-4" data-testid="course-review-panel">
@@ -72,6 +98,45 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
             </CardContent>
           </Card>
 
+          {/* Avatar scene settings */}
+          <Card className="bg-violet-950/20 border-violet-800/20">
+            <CardContent className="p-3">
+              <button
+                onClick={() => setAvatarSettingsOpen(!avatarSettingsOpen)}
+                className="w-full flex items-center justify-between text-left"
+                data-testid="avatar-settings-toggle"
+              >
+                <div className="flex items-center gap-2">
+                  <Video className="w-4 h-4 text-violet-400" />
+                  <span className="text-sm font-medium text-violet-200">Configurações de Avatar</span>
+                </div>
+                {avatarSettingsOpen ? <ChevronUp className="w-4 h-4 text-violet-400" /> : <ChevronDown className="w-4 h-4 text-violet-400" />}
+              </button>
+              {avatarSettingsOpen && (
+                <div className="mt-3 space-y-3 pt-3 border-t border-violet-800/20">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-violet-300">Máximo de cenas com avatar</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={avatarLimit}
+                        onChange={(e) => saveAvatarSettings(parseInt(e.target.value) || 0)}
+                        className="w-16 h-7 text-xs bg-violet-950/50 border-violet-800/40 text-center"
+                        data-testid="avatar-limit-input"
+                      />
+                      {savingSettings && <Loader2 className="w-3 h-3 animate-spin text-violet-400" />}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-violet-400/60">
+                    Define quantas cenas com avatar o agente pode sugerir. A geração do avatar e narração consome créditos HeyGen/ElevenLabs.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Missing elements */}
           {analysis.missingElements?.length > 0 && (
             <Card className="bg-amber-900/10 border-amber-800/30">
@@ -93,28 +158,45 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
           )}
 
           {/* Improvements */}
-          {analysis.improvements?.length > 0 && (
+          {analysis.improvements?.length > 0 && (() => {
+            const avatarCount = analysis.improvements.filter(imp => imp.type === 'avatar_scene').length;
+            return (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-slate-300">Melhorias Sugeridas ({analysis.improvements.length})</h3>
               <p className="text-xs text-slate-400">Selecione as melhorias que deseja aplicar:</p>
+              {avatarCount > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-md bg-violet-950/20 border border-violet-800/20">
+                  <Video className="w-4 h-4 text-violet-400" />
+                  <span className="text-xs text-violet-300">
+                    {avatarCount} sugestão(ões) de cena com avatar. Ao aplicar, a imagem de fundo, narração e vídeo do avatar serão gerados automaticamente.
+                  </span>
+                </div>
+              )}
               <div className="space-y-2">
                 {analysis.improvements.map((imp, i) => {
                   const isSelected = selectedImprovements.find(s => s.description === imp.description);
+                  const isAvatarScene = imp.type === 'avatar_scene';
+                  const TypeIcon = typeIcons[imp.type] || Lightbulb;
                   return (
                     <Card
                       key={i}
-                      className={`bg-slate-900/50 cursor-pointer transition-all ${isSelected ? 'border-emerald-500/50' : 'border-slate-800 hover:border-slate-700'}`}
+                      className={`bg-slate-900/50 cursor-pointer transition-all ${
+                        isAvatarScene
+                          ? (isSelected ? 'border-violet-500/50 ring-1 ring-violet-500/20' : 'border-violet-800/30 hover:border-violet-700/50')
+                          : (isSelected ? 'border-emerald-500/50' : 'border-slate-800 hover:border-slate-700')
+                      }`}
                       onClick={() => toggleImprovement(imp)}
                       data-testid={`improvement-${i}`}
                     >
                       <CardContent className="p-3 flex items-start gap-3">
                         <Checkbox checked={!!isSelected} className="mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <Badge variant="outline" className={`text-[10px] ${priorityColors[imp.priority] || 'text-slate-400 border-slate-600'}`}>
                               {imp.priority}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px] border-slate-600">
+                            <Badge variant="outline" className={`text-[10px] ${isAvatarScene ? 'border-violet-600/50 text-violet-300 bg-violet-500/10' : 'border-slate-600'}`}>
+                              <TypeIcon className="w-2.5 h-2.5 mr-1" />
                               {typeLabels[imp.type] || imp.type}
                             </Badge>
                             {imp.slideIndex !== undefined && (
@@ -123,6 +205,21 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                           </div>
                           <p className="text-sm text-slate-200">{imp.description}</p>
                           <p className="text-xs text-slate-400 mt-1">{imp.suggestion}</p>
+                          {isAvatarScene && imp.narrationScript && (
+                            <div className="mt-2 p-2 rounded-md bg-violet-950/30 border border-violet-800/20">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Volume2 className="w-3 h-3 text-violet-400" />
+                                <span className="text-[10px] font-medium text-violet-300 uppercase tracking-wider">Script de Narração</span>
+                              </div>
+                              <p className="text-xs text-violet-200/80 line-clamp-3">{imp.narrationScript}</p>
+                              {imp.backgroundDescription && (
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <Image className="w-3 h-3 text-violet-400" />
+                                  <span className="text-[10px] text-violet-300/60">{imp.backgroundDescription}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -130,7 +227,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Suggested new slides */}
           {analysis.suggestedNewSlides?.length > 0 && (
@@ -175,7 +273,34 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
 
 
 export function EditResultPanel({ result, course, navigate, onUndo, loading }) {
+  const [avatarStatus, setAvatarStatus] = useState(null);
+  const [pollingActive, setPollingActive] = useState(false);
+
+  useEffect(() => {
+    if (!result?.avatarScenesTriggered || result.avatarScenesTriggered === 0) return;
+    setPollingActive(true);
+
+    const poll = async () => {
+      try {
+        const resp = await fetch(`${API}/api/agent/projects/${course.id}/avatar-generation-status`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setAvatarStatus(data);
+          if (data.status === 'completed') {
+            setPollingActive(false);
+            toast.success('Cenas com avatar geradas com sucesso!');
+          }
+        }
+      } catch (e) { /* ignore */ }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [result?.avatarScenesTriggered, course?.id]);
+
   if (!result) return null;
+
   return (
     <div className="space-y-6 text-center" data-testid="edit-result-panel">
       <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-600/10">
@@ -183,7 +308,7 @@ export function EditResultPanel({ result, course, navigate, onUndo, loading }) {
       </div>
       <h2 className="text-2xl font-bold">Melhorias Aplicadas!</h2>
       <p className="text-slate-400">{course?.name}</p>
-      <div className="flex justify-center gap-4">
+      <div className="flex justify-center gap-4 flex-wrap">
         <Badge className="bg-blue-600/20 text-blue-300">
           <Pencil className="w-3 h-3 mr-1" />{result.updatedSlides} slides atualizados
         </Badge>
@@ -194,6 +319,40 @@ export function EditResultPanel({ result, course, navigate, onUndo, loading }) {
           <Layers className="w-3 h-3 mr-1" />{result.totalSlides} total
         </Badge>
       </div>
+
+      {/* Avatar scene generation progress */}
+      {result.avatarScenesTriggered > 0 && (
+        <Card className="bg-violet-950/30 border-violet-800/30 text-left">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Video className="w-4 h-4 text-violet-400" />
+              <span className="text-sm font-medium text-violet-200">
+                Geração de Cenas com Avatar ({result.avatarScenesTriggered})
+              </span>
+              {pollingActive && <Loader2 className="w-3 h-3 animate-spin text-violet-400" />}
+            </div>
+            {avatarStatus?.scenes?.map((scene, i) => (
+              <div key={i} className="flex items-center gap-3 py-1.5 border-t border-violet-800/20 first:border-0">
+                <span className="text-xs text-slate-300 flex-1 truncate">{scene.slideTitle || `Cena ${i + 1}`}</span>
+                <div className="flex items-center gap-2">
+                  <StatusBadge label="BG" status={scene.bgStatus} />
+                  <StatusBadge label="Audio" status={scene.audioStatus} />
+                  <StatusBadge label="Avatar" status={scene.heygenStatus} />
+                </div>
+              </div>
+            ))}
+            {!avatarStatus && pollingActive && (
+              <p className="text-xs text-violet-300/60">Iniciando geração...</p>
+            )}
+            {avatarStatus?.status === 'completed' && (
+              <p className="text-xs text-emerald-300 mt-2 flex items-center gap-1">
+                <Check className="w-3 h-3" /> Todas as cenas foram geradas!
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex gap-3 justify-center flex-wrap">
         <Button onClick={() => navigate(`/editor/${course.id}`)} className="bg-blue-600 hover:bg-blue-700" data-testid="open-edited-course-btn">
           <BookOpen className="w-4 h-4 mr-2" /> Abrir no Editor
@@ -208,6 +367,25 @@ export function EditResultPanel({ result, course, navigate, onUndo, loading }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ label, status }) {
+  const statusConfig = {
+    completed: { cls: 'bg-emerald-600/20 text-emerald-300', icon: Check },
+    failed: { cls: 'bg-red-600/20 text-red-300', icon: X },
+    processing: { cls: 'bg-blue-600/20 text-blue-300', icon: Loader2 },
+    pending: { cls: 'bg-slate-600/20 text-slate-300', icon: Clock },
+    skipped: { cls: 'bg-slate-600/20 text-slate-500', icon: null },
+    skipped_no_avatar: { cls: 'bg-amber-600/20 text-amber-300', icon: AlertTriangle },
+  };
+  const cfg = statusConfig[status] || statusConfig.pending;
+  const Icon = cfg.icon;
+  return (
+    <Badge className={`text-[9px] px-1.5 py-0 ${cfg.cls}`}>
+      {Icon && <Icon className={`w-2 h-2 mr-0.5 ${status === 'processing' ? 'animate-spin' : ''}`} />}
+      {label}
+    </Badge>
   );
 }
 
