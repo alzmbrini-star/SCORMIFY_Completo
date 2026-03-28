@@ -23,13 +23,22 @@ import {
   PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
+import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 
 const API = getApiUrl();
 
-export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply }) {
+export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply, onTypeOverride }) {
   const [avatarLimit, setAvatarLimit] = useState(3);
   const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [typeOverrides, setTypeOverrides] = useState({});
+
+  const handleTypeChange = (impIndex, newType) => {
+    setTypeOverrides(prev => ({ ...prev, [impIndex]: newType }));
+    if (onTypeOverride) onTypeOverride(impIndex, newType);
+  };
+
+  const getEffectiveType = (imp, index) => typeOverrides[index] ?? imp.type;
 
   useEffect(() => {
     if (!course?.id) return;
@@ -175,52 +184,69 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
               <div className="space-y-2">
                 {analysis.improvements.map((imp, i) => {
                   const isSelected = selectedImprovements.find(s => s.description === imp.description);
+                  const effectiveType = getEffectiveType(imp, i);
                   const isAvatarScene = imp.type === 'avatar_scene';
-                  const TypeIcon = typeIcons[imp.type] || Lightbulb;
+                  const wasConverted = effectiveType !== imp.type;
+                  const TypeIcon = typeIcons[effectiveType] || Lightbulb;
                   return (
                     <Card
                       key={i}
-                      className={`bg-slate-900/50 cursor-pointer transition-all ${
-                        isAvatarScene
+                      className={`bg-slate-900/50 transition-all ${
+                        isAvatarScene && !wasConverted
                           ? (isSelected ? 'border-violet-500/50 ring-1 ring-violet-500/20' : 'border-violet-800/30 hover:border-violet-700/50')
                           : (isSelected ? 'border-emerald-500/50' : 'border-slate-800 hover:border-slate-700')
                       }`}
-                      onClick={() => toggleImprovement(imp)}
                       data-testid={`improvement-${i}`}
                     >
-                      <CardContent className="p-3 flex items-start gap-3">
-                        <Checkbox checked={!!isSelected} className="mt-0.5 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <Badge variant="outline" className={`text-[10px] ${priorityColors[imp.priority] || 'text-slate-400 border-slate-600'}`}>
-                              {imp.priority}
-                            </Badge>
-                            <Badge variant="outline" className={`text-[10px] ${isAvatarScene ? 'border-violet-600/50 text-violet-300 bg-violet-500/10' : 'border-slate-600'}`}>
-                              <TypeIcon className="w-2.5 h-2.5 mr-1" />
-                              {typeLabels[imp.type] || imp.type}
-                            </Badge>
-                            {imp.slideIndex !== undefined && (
-                              <span className="text-[10px] text-slate-500">Slide {imp.slideIndex + 1}</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-200">{imp.description}</p>
-                          <p className="text-xs text-slate-400 mt-1">{imp.suggestion}</p>
-                          {isAvatarScene && imp.narrationScript && (
-                            <div className="mt-2 p-2 rounded-md bg-violet-950/30 border border-violet-800/20">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <Volume2 className="w-3 h-3 text-violet-400" />
-                                <span className="text-[10px] font-medium text-violet-300 uppercase tracking-wider">Script de Narração</span>
-                              </div>
-                              <p className="text-xs text-violet-200/80 line-clamp-3">{imp.narrationScript}</p>
-                              {imp.backgroundDescription && (
-                                <div className="flex items-center gap-1.5 mt-2">
-                                  <Image className="w-3 h-3 text-violet-400" />
-                                  <span className="text-[10px] text-violet-300/60">{imp.backgroundDescription}</span>
-                                </div>
+                      <CardContent className="p-3 space-y-2">
+                        <div className="flex items-start gap-3 cursor-pointer" onClick={() => toggleImprovement({...imp, type: effectiveType})}>
+                          <Checkbox checked={!!isSelected} className="mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant="outline" className={`text-[10px] ${priorityColors[imp.priority] || 'text-slate-400 border-slate-600'}`}>
+                                {imp.priority}
+                              </Badge>
+                              <Badge variant="outline" className={`text-[10px] ${
+                                effectiveType === 'avatar_scene' ? 'border-violet-600/50 text-violet-300 bg-violet-500/10' : 'border-slate-600'
+                              }`}>
+                                <TypeIcon className="w-2.5 h-2.5 mr-1" />
+                                {typeLabels[effectiveType] || effectiveType}
+                              </Badge>
+                              {wasConverted && (
+                                <Badge className="text-[9px] bg-amber-600/20 text-amber-300 px-1.5 py-0">
+                                  Alterado
+                                </Badge>
+                              )}
+                              {imp.slideIndex !== undefined && (
+                                <span className="text-[10px] text-slate-500">Slide {imp.slideIndex + 1}</span>
                               )}
                             </div>
-                          )}
+                            <p className="text-sm text-slate-200">{imp.description}</p>
+                            <p className="text-xs text-slate-400 mt-1">{imp.suggestion}</p>
+                          </div>
                         </div>
+
+                        {/* Avatar Scene Mockup + Type Switcher */}
+                        {isAvatarScene && (
+                          <div className="ml-8 space-y-2">
+                            {effectiveType === 'avatar_scene' && imp.narrationScript && (
+                              <AvatarSceneMockup
+                                narrationScript={imp.narrationScript}
+                                backgroundDescription={imp.backgroundDescription}
+                                avatarPosition={imp.avatarPosition || 'left'}
+                              />
+                            )}
+                            {wasConverted && (
+                              <div className="text-xs text-amber-300/80 bg-amber-950/20 rounded-md p-2 border border-amber-800/20">
+                                A IA vai gerar {effectiveType === 'content' ? 'conteúdo textual rico' : effectiveType === 'simulator' ? 'um simulador interativo' : effectiveType === 'game' ? 'um jogo educativo' : effectiveType === 'quiz' ? 'um quiz' : 'este conteúdo'} ao invés de uma cena com avatar.
+                              </div>
+                            )}
+                            <SlideTypeSwitcher
+                              currentType={effectiveType}
+                              onChange={(newType) => handleTypeChange(i, newType)}
+                            />
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );

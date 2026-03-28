@@ -1069,6 +1069,45 @@ async def agent_save_narration_config(session_id: str, data: dict):
     return {"status": "ok", "enabledSlides": enabled_count}
 
 
+@router.post("/agent/sessions/{session_id}/save-type-overrides")
+async def agent_save_type_overrides(session_id: str, data: dict):
+    """Save slide type overrides from the Storyboard screen (e.g., avatar_scene -> content)."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    type_overrides = data.get("typeOverrides", {})
+
+    # Apply type overrides to the storyboard slides
+    storyboard = s.get("storyboard") or {}
+    slides = storyboard.get("slides", [])
+    for idx_str, new_type in type_overrides.items():
+        idx = int(idx_str)
+        if 0 <= idx < len(slides):
+            slides[idx]["originalType"] = slides[idx].get("type", "content")
+            slides[idx]["type"] = new_type
+
+    # Build update dict - only set storyboard.slides if storyboard exists
+    update_dict = {
+        "config.slideTypeOverrides": type_overrides,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    
+    # Only update storyboard.slides if there's an existing storyboard
+    if s.get("storyboard") is not None:
+        update_dict["storyboard.slides"] = slides
+    else:
+        # Initialize storyboard with empty slides if it doesn't exist
+        update_dict["storyboard"] = {"slides": slides}
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": update_dict}
+    )
+
+    return {"status": "ok", "overrides": len(type_overrides)}
+
+
 @router.post("/agent/sessions/{session_id}/cost-estimate")
 async def agent_cost_estimate(session_id: str):
     """Estimate the cost of generating the course before committing."""

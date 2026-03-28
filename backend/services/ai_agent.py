@@ -305,6 +305,22 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
 - NÃO inclua "narrationScript" detalhado para simuladores (o aluno interage diretamente)
 - Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
 
+SLIDES DE CENA COM AVATAR (type="avatar_scene"):
+- Use este tipo quando um apresentador/instrutor virtual agregaria valor pedagógico real
+- Ideal para: explicar conceitos abstratos, dar boas-vindas, resumir módulos, demonstrar procedimentos
+- Sugira NO MÁXIMO 2-3 slides deste tipo por curso (avatar consome créditos de API)
+- O slide deve conter texto de apoio visual (bullet points, título) complementando o que o avatar fala
+- Inclua campo "avatarScene" com metadados da cena:
+  - "narrationScript": texto completo que o avatar falará (max 1500 chars, tom natural e didático)
+  - "backgroundPrompt": prompt em inglês para gerar imagem de fundo (ex: "Modern classroom with digital whiteboard")
+  - "avatarPosition": "left", "right" ou "center"
+- Layout sugerido:
+  - Avatar à esquerda: conteúdo textual ocupa a metade direita (x:960, width:900)
+  - Avatar à direita: conteúdo textual ocupa a metade esquerda (x:60, width:900)
+  - Avatar centralizado: conteúdo textual acima ou abaixo
+- Formato: {{"type":"text","content":"<h2>Título</h2><ul><li>Ponto 1</li></ul>","width":900,"height":600,"x":960,"y":110}}
+- avatarScene: {{"narrationScript":"Olá! Vou explicar...","backgroundPrompt":"Professional studio","avatarPosition":"left"}}
+
 PARA TODOS OS SLIDES:
 - imageKeywords: 2-3 palavras em INGLÊS descrevendo uma foto profissional relevante
 - moduleName: SEMPRE inclua o nome do módulo

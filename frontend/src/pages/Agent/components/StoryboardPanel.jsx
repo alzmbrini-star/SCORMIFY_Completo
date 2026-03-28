@@ -23,6 +23,7 @@ import {
   PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
+import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 
 const API = getApiUrl();
 
@@ -33,6 +34,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [showNarrationPanel, setShowNarrationPanel] = useState(false);
+  const [slideTypeOverrides, setSlideTypeOverrides] = useState({});
 
   // Initialize narration slides when storyboard loads
   useEffect(() => {
@@ -123,8 +125,26 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
       }
       setSavingConfig(false);
     }
+    // If there are type overrides, save them to the session
+    if (Object.keys(slideTypeOverrides).length > 0) {
+      try {
+        await fetch(`${API}/api/agent/sessions/${sessionId}/save-type-overrides`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ typeOverrides: slideTypeOverrides }),
+        });
+      } catch (e) {
+        console.error('Failed to save type overrides:', e);
+      }
+    }
     onApprove();
   };
+
+  const handleSlideTypeChange = (slideIndex, newType) => {
+    setSlideTypeOverrides(prev => ({ ...prev, [slideIndex]: newType }));
+  };
+
+  const getSlideEffectiveType = (slide, index) => slideTypeOverrides[index] ?? slide.type;
 
   if (!storyboard?.slides) return null;
   const slide = storyboard.slides[activeSlide];
@@ -138,10 +158,16 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
 
       {/* Slide selector pills */}
       <div className="flex gap-1 flex-wrap">
-        {storyboard.slides.map((s, i) => (
+        {storyboard.slides.map((s, i) => {
+          const effType = getSlideEffectiveType(s, i);
+          const isAvatar = s.type === 'avatar_scene' && effType === 'avatar_scene';
+          const wasConverted = s.type === 'avatar_scene' && effType !== 'avatar_scene';
+          return (
           <button key={i} onClick={() => setActiveSlide(i)}
             className={`px-2 py-1 rounded text-xs transition-colors relative ${
-              i === activeSlide ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              i === activeSlide
+                ? (isAvatar ? 'bg-violet-600 text-white' : 'bg-emerald-600 text-white')
+                : (isAvatar ? 'bg-violet-900/50 text-violet-300 hover:bg-violet-800/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700')
             }`}
             data-testid={`storyboard-slide-btn-${i}`}
           >
@@ -149,27 +175,82 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
             {narrationSlides[i] && config.narrationEnabled && (
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full" />
             )}
+            {wasConverted && (
+              <span className="absolute -top-1 -left-1 w-2 h-2 bg-amber-400 rounded-full" />
+            )}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Current slide preview */}
-      {slide && (
-        <Card className="bg-slate-900/50 border-slate-800">
+      {slide && (() => {
+        const effectiveType = getSlideEffectiveType(slide, activeSlide);
+        const isAvatarScene = slide.type === 'avatar_scene';
+        const wasConverted = effectiveType !== slide.type;
+        const typeBadgeClass = effectiveType === 'avatar_scene' ? 'bg-violet-600/20 text-violet-300'
+          : effectiveType === 'quiz' ? 'bg-amber-600/20 text-amber-300'
+          : effectiveType === 'title' ? 'bg-blue-600/20 text-blue-300'
+          : effectiveType === 'simulator' || effectiveType === 'game' ? 'bg-cyan-600/20 text-cyan-300'
+          : 'bg-slate-700 text-slate-300';
+
+        return (
+        <Card className={`bg-slate-900/50 ${isAvatarScene && !wasConverted ? 'border-violet-800/30' : 'border-slate-800'}`}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Badge className={`text-xs ${slide.type === 'quiz' ? 'bg-amber-600/20 text-amber-300' : slide.type === 'title' ? 'bg-blue-600/20 text-blue-300' : 'bg-slate-700 text-slate-300'}`}>{slide.type}</Badge>
+              <Badge className={`text-xs ${typeBadgeClass}`}>{effectiveType}</Badge>
               Slide {activeSlide + 1}: {slide.title}
+              {wasConverted && (
+                <Badge className="text-[9px] bg-amber-600/20 text-amber-300 px-1.5 py-0">Tipo alterado</Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-lg overflow-hidden border border-slate-700" style={{ background: slide.background || '#fff', aspectRatio: '1920/820' }}>
-              <div className="p-4 h-full overflow-auto">
-                {slide.elements?.map((el, i) => (
-                  <div key={i} className="text-sm" dangerouslySetInnerHTML={{ __html: el.content || '' }} style={{ color: slide.type === 'title' ? '#fff' : '#333' }} />
-                ))}
+            {/* Avatar scene mockup (when type is still avatar_scene) */}
+            {isAvatarScene && effectiveType === 'avatar_scene' && slide.avatarScene && (
+              <AvatarSceneMockup
+                narrationScript={slide.avatarScene.narrationScript || slide.narrationScript}
+                backgroundDescription={slide.avatarScene.backgroundPrompt || slide.avatarScene.backgroundDescription}
+                avatarPosition={slide.avatarScene.avatarPosition || 'left'}
+              />
+            )}
+
+            {/* Conversion notice */}
+            {wasConverted && (
+              <div className="text-xs text-amber-300/80 bg-amber-950/20 rounded-md p-2.5 border border-amber-800/20">
+                Este slide será gerado como <strong>{effectiveType === 'content' ? 'conteúdo textual rico' : effectiveType === 'simulator' ? 'simulador interativo' : effectiveType === 'game' ? 'jogo educativo' : effectiveType === 'quiz' ? 'quiz' : effectiveType}</strong> ao invés de cena com avatar.
               </div>
-            </div>
+            )}
+
+            {/* Regular slide content preview */}
+            {(!isAvatarScene || wasConverted) && (
+              <div className="rounded-lg overflow-hidden border border-slate-700" style={{ background: slide.background || '#fff', aspectRatio: '1920/820' }}>
+                <div className="p-4 h-full overflow-auto">
+                  {slide.elements?.map((el, elIdx) => (
+                    <div key={elIdx} className="text-sm" dangerouslySetInnerHTML={{ __html: el.content || '' }} style={{ color: slide.type === 'title' ? '#fff' : '#333' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Also show content preview for avatar scenes */}
+            {isAvatarScene && !wasConverted && slide.elements?.length > 0 && (
+              <div className="rounded-lg overflow-hidden border border-violet-800/20" style={{ background: slide.background || '#0f172a', aspectRatio: '1920/820' }}>
+                <div className="p-4 h-full overflow-auto">
+                  {slide.elements?.map((el, elIdx) => (
+                    <div key={elIdx} className="text-sm text-slate-200" dangerouslySetInnerHTML={{ __html: el.content || '' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Type switcher for avatar_scene slides */}
+            {isAvatarScene && (
+              <SlideTypeSwitcher
+                currentType={effectiveType}
+                onChange={(newType) => handleSlideTypeChange(activeSlide, newType)}
+              />
+            )}
 
             {/* Narration script for current slide */}
             {slide.narrationScript && (
@@ -214,7 +295,8 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
             )}
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       {/* Slide navigation */}
       <div className="flex justify-between items-center">

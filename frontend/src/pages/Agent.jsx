@@ -570,8 +570,22 @@ export default function Agent() {
   const toggleImprovement = (improvement) => {
     setSelectedImprovements(prev => {
       const exists = prev.find(p => p.description === improvement.description);
-      return exists ? prev.filter(p => p.description !== improvement.description) : [...prev, improvement];
+      if (exists) {
+        return prev.filter(p => p.description !== improvement.description);
+      }
+      return [...prev, improvement];
     });
+  };
+
+  const handleTypeOverride = (impIndex, newType) => {
+    // Update the type in selectedImprovements if it was selected
+    setSelectedImprovements(prev => prev.map(imp => {
+      const original = courseAnalysis?.improvements?.[impIndex];
+      if (original && imp.description === original.description) {
+        return { ...imp, type: newType };
+      }
+      return imp;
+    }));
   };
 
   const handleApplyImprovements = async () => {
@@ -760,7 +774,7 @@ export default function Agent() {
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
-              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} onApply={handleApplyImprovements} />}
+              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} />}
               {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>
