@@ -35,6 +35,12 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   const [scriptOverrides, setScriptOverrides] = useState({});
   const [bgOverrides, setBgOverrides] = useState({});
   const [positionOverrides, setPositionOverrides] = useState({});
+  const [defaultAvatarId, setDefaultAvatarId] = useState('');
+  const [defaultVoiceId, setDefaultVoiceId] = useState('');
+  const [heygenAvatars, setHeygenAvatars] = useState([]);
+  const [elevenVoices, setElevenVoices] = useState([]);
+  const [loadingAvatars, setLoadingAvatars] = useState(false);
+  const [loadingVoices, setLoadingVoices] = useState(false);
 
   const handleTypeChange = (impIndex, newType) => {
     setTypeOverrides(prev => ({ ...prev, [impIndex]: newType }));
@@ -58,25 +64,73 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
 
   const getEffectiveType = (imp, index) => typeOverrides[index] ?? imp.type;
 
+  // Load avatar settings
   useEffect(() => {
     if (!course?.id) return;
     fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.maxScenes) setAvatarLimit(data.maxScenes); })
+      .then(data => {
+        if (data) {
+          if (data.maxScenes) setAvatarLimit(data.maxScenes);
+          if (data.defaultAvatarId) setDefaultAvatarId(data.defaultAvatarId);
+          if (data.defaultVoiceId) setDefaultVoiceId(data.defaultVoiceId);
+        }
+      })
       .catch(() => {});
   }, [course?.id]);
 
-  const saveAvatarSettings = async (val) => {
-    setAvatarLimit(val);
+  // Load HeyGen avatars when settings open
+  useEffect(() => {
+    if (!avatarSettingsOpen || heygenAvatars.length > 0) return;
+    setLoadingAvatars(true);
+    fetch(`${API}/api/heygen/avatars?limit=200`)
+      .then(r => r.ok ? r.json() : { avatars: [] })
+      .then(data => setHeygenAvatars(data.avatars || []))
+      .catch(() => {})
+      .finally(() => setLoadingAvatars(false));
+  }, [avatarSettingsOpen, heygenAvatars.length]);
+
+  // Load ElevenLabs voices when settings open
+  useEffect(() => {
+    if (!avatarSettingsOpen || elevenVoices.length > 0) return;
+    setLoadingVoices(true);
+    fetch(`${API}/api/elevenlabs/voices`)
+      .then(r => r.ok ? r.json() : { voices: [] })
+      .then(data => setElevenVoices(data.voices || []))
+      .catch(() => {})
+      .finally(() => setLoadingVoices(false));
+  }, [avatarSettingsOpen, elevenVoices.length]);
+
+  const saveAllSettings = async (overrides = {}) => {
     setSavingSettings(true);
+    const payload = {
+      maxScenes: overrides.maxScenes ?? avatarLimit,
+      defaultAvatarId: (overrides.defaultAvatarId ?? defaultAvatarId) || null,
+      defaultVoiceId: (overrides.defaultVoiceId ?? defaultVoiceId) || null,
+    };
     try {
       await fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxScenes: val }),
+        body: JSON.stringify(payload),
       });
     } catch { /* ignore */ }
     finally { setSavingSettings(false); }
+  };
+
+  const handleAvatarSelect = (val) => {
+    setDefaultAvatarId(val);
+    saveAllSettings({ defaultAvatarId: val });
+  };
+
+  const handleVoiceSelect = (val) => {
+    setDefaultVoiceId(val);
+    saveAllSettings({ defaultVoiceId: val });
+  };
+
+  const handleLimitChange = (val) => {
+    setAvatarLimit(val);
+    saveAllSettings({ maxScenes: val });
   };
 
   if (!course) return null;
@@ -136,11 +190,96 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                 <div className="flex items-center gap-2">
                   <Video className="w-4 h-4 text-violet-400" />
                   <span className="text-sm font-medium text-violet-200">Configurações de Avatar</span>
+                  {defaultAvatarId && (
+                    <Badge className="text-[8px] bg-emerald-600/20 text-emerald-300 px-1.5 py-0">Configurado</Badge>
+                  )}
+                  {!defaultAvatarId && (
+                    <Badge className="text-[8px] bg-amber-600/20 text-amber-300 px-1.5 py-0">Sem avatar</Badge>
+                  )}
                 </div>
                 {avatarSettingsOpen ? <ChevronUp className="w-4 h-4 text-violet-400" /> : <ChevronDown className="w-4 h-4 text-violet-400" />}
               </button>
               {avatarSettingsOpen && (
-                <div className="mt-3 space-y-3 pt-3 border-t border-violet-800/20">
+                <div className="mt-3 space-y-4 pt-3 border-t border-violet-800/20">
+                  {/* Avatar HeyGen selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-violet-300 font-medium">Avatar HeyGen</label>
+                    {loadingAvatars ? (
+                      <div className="flex items-center gap-2 text-xs text-violet-400">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Carregando avatares...
+                      </div>
+                    ) : heygenAvatars.length > 0 ? (
+                      <div className="space-y-2">
+                        <Select value={defaultAvatarId} onValueChange={handleAvatarSelect}>
+                          <SelectTrigger className="h-8 text-xs bg-violet-950/50 border-violet-800/40" data-testid="avatar-select">
+                            <SelectValue placeholder="Selecione um avatar HeyGen..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {heygenAvatars.map(a => (
+                              <SelectItem key={a.avatar_id} value={a.avatar_id}>
+                                <span className="flex items-center gap-2">
+                                  <span>{a.avatar_name}</span>
+                                  <span className="text-[10px] text-slate-400">({a.gender})</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {/* Avatar preview */}
+                        {defaultAvatarId && (() => {
+                          const sel = heygenAvatars.find(a => a.avatar_id === defaultAvatarId);
+                          return sel ? (
+                            <div className="flex items-center gap-3 p-2 rounded-md bg-violet-950/30 border border-violet-800/10">
+                              <img
+                                src={sel.preview_image_url}
+                                alt={sel.avatar_name}
+                                className="w-14 h-14 rounded-lg object-cover border border-violet-700/30"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                              <div>
+                                <p className="text-xs text-violet-200 font-medium">{sel.avatar_name}</p>
+                                <p className="text-[10px] text-violet-400">{sel.gender} &bull; {sel.avatar_id.substring(0, 20)}...</p>
+                              </div>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-amber-300/70">Nenhum avatar disponível. Verifique sua chave API HeyGen.</p>
+                    )}
+                  </div>
+
+                  {/* ElevenLabs voice selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-violet-300 font-medium">Voz ElevenLabs</label>
+                    {loadingVoices ? (
+                      <div className="flex items-center gap-2 text-xs text-violet-400">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Carregando vozes...
+                      </div>
+                    ) : elevenVoices.length > 0 ? (
+                      <Select value={defaultVoiceId} onValueChange={handleVoiceSelect}>
+                        <SelectTrigger className="h-8 text-xs bg-violet-950/50 border-violet-800/40" data-testid="voice-select">
+                          <SelectValue placeholder="Selecione uma voz ElevenLabs..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {elevenVoices.map(v => (
+                            <SelectItem key={v.voice_id} value={v.voice_id}>
+                              <span className="flex items-center gap-2">
+                                <span>{v.name}</span>
+                                <span className="text-[10px] text-slate-400">
+                                  {v.labels?.gender} {v.labels?.accent ? `• ${v.labels.accent}` : ''}
+                                </span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-[10px] text-amber-300/70">Nenhuma voz disponível. Verifique sua chave API ElevenLabs.</p>
+                    )}
+                  </div>
+
+                  {/* Max scenes */}
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-violet-300">Máximo de cenas com avatar</label>
                     <div className="flex items-center gap-2">
@@ -149,15 +288,16 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                         min={0}
                         max={20}
                         value={avatarLimit}
-                        onChange={(e) => saveAvatarSettings(parseInt(e.target.value) || 0)}
+                        onChange={(e) => handleLimitChange(parseInt(e.target.value) || 0)}
                         className="w-16 h-7 text-xs bg-violet-950/50 border-violet-800/40 text-center"
                         data-testid="avatar-limit-input"
                       />
                       {savingSettings && <Loader2 className="w-3 h-3 animate-spin text-violet-400" />}
                     </div>
                   </div>
+
                   <p className="text-[10px] text-violet-400/60">
-                    Define quantas cenas com avatar o agente pode sugerir. A geração do avatar e narração consome créditos HeyGen/ElevenLabs.
+                    Configure o avatar e a voz padrão para que o HeyGen gere os vídeos automaticamente ao aplicar melhorias com cenas de avatar.
                   </p>
                 </div>
               )}

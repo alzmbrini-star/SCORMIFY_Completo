@@ -1,0 +1,65 @@
+{
+  "summary": "Completed testing of Avatar HeyGen and ElevenLabs voice selectors feature in 'Configurações de Avatar' panel. All backend APIs and frontend UI components working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_avatar_settings.py",
+    "/app/test_reports/pytest/pytest_avatar_settings.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: GET /api/agent/projects/{id}/avatar-settings returns defaults for projects without settings (no 404)",
+    "GOOD: PUT /api/agent/projects/{id}/avatar-settings saves defaultAvatarId and defaultVoiceId correctly",
+    "GOOD: GET /api/heygen/avatars returns 200 avatars with avatar_id, avatar_name, preview_image_url, gender",
+    "GOOD: GET /api/elevenlabs/voices returns voices with voice_id, name, labels (gender, accent)",
+    "GOOD: Avatar HeyGen dropdown (data-testid='avatar-select') loads 200 avatars after ~7-15 seconds",
+    "GOOD: Voice ElevenLabs dropdown (data-testid='voice-select') loads 21 voices immediately",
+    "GOOD: Avatar preview card shows image, name, gender, and partial avatar_id after selection",
+    "GOOD: Badge changes from 'Sem avatar' (amber) to 'Configurado' (green) after avatar selection",
+    "GOOD: Max scenes input (data-testid='avatar-limit-input') works correctly"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_avatar_settings.py"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing projects",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Avatar settings feature fully tested. Key components: CourseReviewPanel with avatar-settings-toggle, avatar-select, voice-select, avatar-limit-input. HeyGen avatars take ~7-15 seconds to load (200 avatars). ElevenLabs voices load immediately. Settings are auto-saved on selection via PUT /api/agent/projects/{id}/avatar-settings.",
+  "features_tested": {
+    "backend_apis": {
+      "GET /api/heygen/avatars": "PASS - Returns 200 avatars with avatar_id, avatar_name, preview_image_url, gender",
+      "GET /api/elevenlabs/voices": "PASS - Returns 21 voices with voice_id, name, labels",
+      "GET /api/agent/projects/{id}/avatar-settings": "PASS - Returns defaults for projects without settings (no 404)",
+      "PUT /api/agent/projects/{id}/avatar-settings": "PASS - Saves maxScenes, defaultAvatarId, defaultVoiceId correctly",
+      "GET avatar-settings for non-existent project": "PASS - Returns 404 correctly"
+    },
+    "frontend_ui": {
+      "avatar_settings_toggle": "PASS - data-testid='avatar-settings-toggle' expands/collapses panel",
+      "avatar_heygen_dropdown": "PASS - data-testid='avatar-select' loads 200 avatars after ~7-15 seconds",
+      "voice_elevenlabs_dropdown": "PASS - data-testid='voice-select' loads 21 voices immediately",
+      "avatar_preview_card": "PASS - Shows avatar image, name, gender, partial avatar_id after selection",
+      "max_scenes_input": "PASS - data-testid='avatar-limit-input' accepts numeric input",
+      "configurado_badge": "PASS - Badge changes from 'Sem avatar' (amber) to 'Configurado' (green) after avatar selection",
+      "auto_save": "PASS - Settings are saved automatically on selection"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real integrations (HeyGen, ElevenLabs)"
+  }
+}
