@@ -588,6 +588,17 @@ export default function Agent() {
     }));
   };
 
+  const handleScriptOverride = (impIndex, changes) => {
+    // Update narrationScript/backgroundDescription/avatarPosition in selectedImprovements
+    setSelectedImprovements(prev => prev.map(imp => {
+      const original = courseAnalysis?.improvements?.[impIndex];
+      if (original && imp.description === original.description) {
+        return { ...imp, ...changes };
+      }
+      return imp;
+    }));
+  };
+
   const handleApplyImprovements = async () => {
     if (selectedImprovements.length === 0) { toast.error('Selecione pelo menos uma melhoria'); return; }
     setLoading(true);
@@ -774,7 +785,7 @@ export default function Agent() {
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
-              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} />}
+              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
               {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>

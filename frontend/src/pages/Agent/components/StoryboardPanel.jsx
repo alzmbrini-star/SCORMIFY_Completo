@@ -144,6 +144,22 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
     setSlideTypeOverrides(prev => ({ ...prev, [slideIndex]: newType }));
   };
 
+  const [slideScriptOverrides, setSlideScriptOverrides] = useState({});
+  const [slideBgOverrides, setSlideBgOverrides] = useState({});
+  const [slidePositionOverrides, setSlidePositionOverrides] = useState({});
+
+  const handleSlideScriptChange = (slideIndex, newScript) => {
+    setSlideScriptOverrides(prev => ({ ...prev, [slideIndex]: newScript }));
+  };
+
+  const handleSlideBgChange = (slideIndex, newBg) => {
+    setSlideBgOverrides(prev => ({ ...prev, [slideIndex]: newBg }));
+  };
+
+  const handleSlidePositionChange = (slideIndex, newPos) => {
+    setSlidePositionOverrides(prev => ({ ...prev, [slideIndex]: newPos }));
+  };
+
   const getSlideEffectiveType = (slide, index) => slideTypeOverrides[index] ?? slide.type;
 
   if (!storyboard?.slides) return null;
@@ -209,9 +225,13 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
             {/* Avatar scene mockup (when type is still avatar_scene) */}
             {isAvatarScene && effectiveType === 'avatar_scene' && slide.avatarScene && (
               <AvatarSceneMockup
-                narrationScript={slide.avatarScene.narrationScript || slide.narrationScript}
-                backgroundDescription={slide.avatarScene.backgroundPrompt || slide.avatarScene.backgroundDescription}
-                avatarPosition={slide.avatarScene.avatarPosition || 'left'}
+                narrationScript={slideScriptOverrides[activeSlide] ?? slide.avatarScene.narrationScript ?? slide.narrationScript}
+                backgroundDescription={slideBgOverrides[activeSlide] ?? slide.avatarScene.backgroundPrompt ?? slide.avatarScene.backgroundDescription}
+                avatarPosition={slidePositionOverrides[activeSlide] ?? slide.avatarScene.avatarPosition ?? 'left'}
+                editable
+                onScriptChange={(newScript) => handleSlideScriptChange(activeSlide, newScript)}
+                onBackgroundChange={(newBg) => handleSlideBgChange(activeSlide, newBg)}
+                onPositionChange={(newPos) => handleSlidePositionChange(activeSlide, newPos)}
               />
             )}
 

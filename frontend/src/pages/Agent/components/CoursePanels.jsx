@@ -27,15 +27,33 @@ import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 
 const API = getApiUrl();
 
-export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply, onTypeOverride }) {
+export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply, onTypeOverride, onScriptOverride }) {
   const [avatarLimit, setAvatarLimit] = useState(3);
   const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [typeOverrides, setTypeOverrides] = useState({});
+  const [scriptOverrides, setScriptOverrides] = useState({});
+  const [bgOverrides, setBgOverrides] = useState({});
+  const [positionOverrides, setPositionOverrides] = useState({});
 
   const handleTypeChange = (impIndex, newType) => {
     setTypeOverrides(prev => ({ ...prev, [impIndex]: newType }));
     if (onTypeOverride) onTypeOverride(impIndex, newType);
+  };
+
+  const handleScriptChange = (impIndex, newScript) => {
+    setScriptOverrides(prev => ({ ...prev, [impIndex]: newScript }));
+    if (onScriptOverride) onScriptOverride(impIndex, { narrationScript: newScript });
+  };
+
+  const handleBgChange = (impIndex, newBg) => {
+    setBgOverrides(prev => ({ ...prev, [impIndex]: newBg }));
+    if (onScriptOverride) onScriptOverride(impIndex, { backgroundDescription: newBg });
+  };
+
+  const handlePositionChange = (impIndex, newPos) => {
+    setPositionOverrides(prev => ({ ...prev, [impIndex]: newPos }));
+    if (onScriptOverride) onScriptOverride(impIndex, { avatarPosition: newPos });
   };
 
   const getEffectiveType = (imp, index) => typeOverrides[index] ?? imp.type;
@@ -229,11 +247,15 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                         {/* Avatar Scene Mockup + Type Switcher */}
                         {isAvatarScene && (
                           <div className="ml-8 space-y-2">
-                            {effectiveType === 'avatar_scene' && imp.narrationScript && (
+                            {effectiveType === 'avatar_scene' && (imp.narrationScript || scriptOverrides[i]) && (
                               <AvatarSceneMockup
-                                narrationScript={imp.narrationScript}
-                                backgroundDescription={imp.backgroundDescription}
-                                avatarPosition={imp.avatarPosition || 'left'}
+                                narrationScript={scriptOverrides[i] ?? imp.narrationScript}
+                                backgroundDescription={bgOverrides[i] ?? imp.backgroundDescription}
+                                avatarPosition={positionOverrides[i] ?? imp.avatarPosition ?? 'left'}
+                                editable
+                                onScriptChange={(newScript) => handleScriptChange(i, newScript)}
+                                onBackgroundChange={(newBg) => handleBgChange(i, newBg)}
+                                onPositionChange={(newPos) => handlePositionChange(i, newPos)}
                               />
                             )}
                             {wasConverted && (
