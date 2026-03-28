@@ -6,7 +6,7 @@
  */
 
 // Mock process.env for testing
-process.env.REACT_APP_BACKEND_URL = 'https://browser-video-gen.preview.emergentagent.com';
+process.env.REACT_APP_BACKEND_URL = 'https://avatar-scenes.preview.emergentagent.com';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 

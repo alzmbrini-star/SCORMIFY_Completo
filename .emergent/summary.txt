@@ -1,82 +1,33 @@
-<analysis>**original_problem_statement:** 
-The user is building a full-featured AI course authoring platform (Scormify). Recent efforts focused on stabilizing production features: resolving CORS issues for the embedded AI Tutor, fixing SCORM completion tracking, updating AI prompts to generate interactive educational games, and crucially, making the Video (MP4/WebM) Export work in a Kubernetes/serverless production environment without crashing or timing out.
+<analysis>original_problem_statement: 
+The user is building a full-featured AI course authoring platform (Scormify). The current focus is integrating the AI Agent to automatically suggest and create Avatar Scenes (using HeyGen for video and ElevenLabs for audio) during course creation and improvement. The user expects to be able to preview, edit (inline narration script, background description, avatar position), and swap slide types before approving the generation.
 
-**User's preferred language:** **Português** (You MUST INSTRUCT the next agent to respond in Portuguese).
+PRODUCT REQUIREMENTS:
+A stable, production-ready AI course platform capable of SCORM/HTML/MP4 exports. The AI Agent must be able to generate interactive elements, including avatar-led video scenes. WYSIWYG editing, granular previewing of AI suggestions, and precise control over credits (HeyGen/ElevenLabs) usage are required. The default language for all generated content and voices must be Brazilian Portuguese (PT-BR).
+
+**User's preferred language**: **Português** (You MUST INSTRUCT the next agent to respond in Portuguese only).
 
 **what currently exists?** 
-A mature full-stack AI course platform (React/FastAPI/MongoDB). Features include course generation via AI, SCORM/HTML/Video exports, interactive HTML/JS simulators, embedded AI tutors, gamification, and PPT imports.
+A mature full-stack AI course platform (React/FastAPI/MongoDB). Client-side video generation is fully verified. The AI Agent now successfully suggests Avatar Scenes, complete with UI for previewing mockups, inline editing scripts, switching slide types, and selecting specific HeyGen avatars and ElevenLabs voices. The backend automatically lip-syncs HeyGen video with ElevenLabs audio.
 
 **Last working item**:
-- **Last item agent was working:** Debugging persistent 502/504/Timeout errors during Video (MP4) Export in production. The agent applied multiple architectural fixes (installing  via pip to bypass root requirements, migrating job tracking to MongoDB to survive worker restarts, and changing  to  to unblock the event loop). However, the user provided a final screenshot showing the browser still throwing  and 502 Bad Gateway errors.
-- **Status:** IN PROGRESS / BLOCKED
-- **Agent Testing Done:** Y (Tested successfully in preview environment via API/bash, but fails in actual production)
-- **Which testing method agent to use?** Backend testing agent / Manual curl testing. Focus heavily on simulating long-running request timeouts and proxy drops.
-- **User Testing Done:** Y (User tested in production and reported failure).
+    - Last item agent was working: Fixing the default language and voice selection for ElevenLabs and HeyGen to ensure Brazilian Portuguese (PT-BR) is used. The agent noticed that the default ElevenLabs voice was English (Lily) and HeyGen fallback wasn't strictly PT-BR, but the session ended before the fix was applied.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? backend testing by python -c or curl to verify the default voice lists and fallback generation logic.
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Video Export fails in Production (502/504/Timeout) - **P0**
-  Issue 2: Refactor  and  DB connections - **P2**
-
-  Issues Detail:
-  - **Issue 1:** 
-     - **Attempted fixes:** 
-       1. Added  via pip because the production container lacks root for apt 2.6.1 (arm64)
-Usage: apt-get [options] command
-       apt-get [options] install|remove pkg1 [pkg2 ...]
-       apt-get [options] source pkg1 [pkg2 ...]
-
-apt-get is a command line interface for retrieval of packages
-and information about them from authenticated sources and
-for installation, upgrade and removal of packages together
-with their dependencies.
-
-Most used commands:
-  update - Retrieve new lists of packages
-  upgrade - Perform an upgrade
-  install - Install new packages (pkg is libc6 not libc6.deb)
-  reinstall - Reinstall packages (pkg is libc6 not libc6.deb)
-  remove - Remove packages
-  purge - Remove packages and config files
-  autoremove - Remove automatically all unused packages
-  dist-upgrade - Distribution upgrade, see apt-get(8)
-  dselect-upgrade - Follow dselect selections
-  build-dep - Configure build-dependencies for source packages
-  satisfy - Satisfy dependency strings
-  clean - Erase downloaded archive files
-  autoclean - Erase old downloaded archive files
-  check - Verify that there are no broken dependencies
-  source - Download source archives
-  download - Download the binary package into the current directory
-  changelog - Download and display the changelog for the given package
-
-See apt-get(8) for more information about the available commands.
-Configuration options and syntax is detailed in apt.conf(5).
-Information about how to configure sources can be found in sources.list(5).
-Package and version choices can be expressed via apt_preferences(5).
-Security details are available in apt-secure(8).
-                                        This APT has Super Cow Powers..
-       2. Migrated the  dictionary from in-memory to MongoDB so jobs aren't lost if the pod restarts.
-       3. Changed FFmpeg execution from blocking  to non-blocking  so it doesn't freeze the FastAPI event loop.
-       *Why it didn't work:* Despite the backend successfully processing the video async in preview, the production infrastructure (Cloudflare/Nginx/Kubernetes ingress) is still dropping the connection. The initial  might be taking too long to return the initial , or the polling  is failing due to network constraints.
-     - **Next debug checklist:** 
-       - Review  -> . Ensure it immediately returns a 202 Accepted with the  *before* doing any heavy lifting or file system prep that might trigger a proxy timeout.
-       - Check frontend polling logic in  to handle temporary 502s gracefully without aborting the polling.
-     - **Why fix this issue and what will be achieved with the fix?** Video export is a core marketing/utility feature currently completely broken in prod.
-     - **Status:** IN PROGRESS
-     - **Is recurring issue?** Y (Failed 5+ times for different architectural reasons).
-     - **Should Test frontend/backend/both after fix?** Both.
-     - **Blocked on other issue:** None.
-
-  - **Issue 2:** 
-     - **Attempted fixes:** None yet.
-     - **Next debug checklist:** Change  implementation in  and  to use  to match the rest of the application and prevent potential DB connection drops.
-     - **Why fix this issue and what will be achieved with the fix?** Tech debt / stability.
-     - **Status:** NOT STARTED
-     - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** Backend.
+  Issue 1: Enforce Brazilian Portuguese (PT-BR) for Default AI Voices - P0
+     - Attempted fixes: Investigated  and ElevenLabs/HeyGen voice lists. Identified the problem (defaulting to English Lily) but didn't write the code yet.
+     - Next debug checklist: Check  (around line 2700 where audio is generated). Hardcode or properly filter a PT-BR voice ID for ElevenLabs if  is missing. Ensure any HeyGen fallback accurately selects a PT-BR profile.
+     - Why fix this issue and what will be achieved with the fix? If not fixed, the AI avatars will speak English or European Portuguese on a Brazilian platform, ruining the user experience and wasting API credits.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
 
 **In progress Task List**:
-  *None active. Current focus is entirely on bug fixing the P0 video export.*
+  None. (Avatar scene feature is mostly complete, pending the language bug).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -86,92 +37,98 @@ Security details are available in apt-secure(8).
     
     Future Tasks:
     - (P2) Allow users to upload custom images for gamification badges.
+    - (P2) Refactor and clean up  legacy code.
+    - (P2) Refactor  (~3700 lines) by extracting dialogs into separate components.
 
 **Completed work in this session**
-- Thumbnail visibility fix for AI HTML slides (wrapped in iframe sandbox to prevent CSS leakage while showing content) (DONE).
-- AI Tutor CORS resolution in production (Added 3 layers: Global middleware, specific , and explicit headers in JSONResponse) (DONE).
-- Added specific educational games (Forca, Bate-pênalti, etc.) to AI Agent prompts in  and  (DONE).
-- Fixed SCORM completion logic in  (Scenarios are now optional; completion only requires visiting the last slide and finishing all quizzes) (DONE).
-- Migrated background task tracking () from Python memory  to MongoDB to survive Kubernetes pod restarts (DONE).
-- Transitioned  FFmpeg calls to  to stop blocking the FastAPI event loop (DONE).
-- Switched to  pip package to bypass Kubernetes root permission restrictions (DONE).
+- Verified Client-Side Video Export (E2E testing passed) (DONE)
+- Implemented AI Avatar Scene suggestions via Gemini in existing course analysis and new course generation (DONE)
+- Added UI for Avatar Scene Preview and Slide Type Switching (e.g., Avatar to Content) (DONE)
+- Implemented inline editing for Narration Script, Background Description, and Avatar Position (DONE)
+- Added Avatar and Voice selectors (HeyGen & ElevenLabs) with previews in UI settings (DONE)
+- Fixed 404 bug on  endpoint for projects without previous settings by fixing MongoDB projection dict truthiness (DONE)
+- Fixed HeyGen video generation failure by switching from text-to-speech payload to passing the public URL of the already generated ElevenLabs audio for accurate lip-syncing (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-  - **Issue recurrence in previous fork:** Video Export failing in production.
-  - **Recurrence count:** 5
-  - **Status:** IN PROGRESS. 
-  - **Note:** Do NOT attempt to use  or blocking . These have been tried and they crash the production environment. Stick to async subprocesses and the  binary.
+  - Issue recurrence in previous fork: Video Export failing in production with 520/502/504 errors.
+  - Recurrence count: 0 (This session successfully verified the client-side fix is working perfectly).
+  - Status: RESOLVED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Async FFmpeg:** Due to FastAPI's single-threaded event loop, FFmpeg must be run via .
-- **Job Tracking:** Background tasks (like video generation and PPT import) store their state (, , ) in MongoDB's  collection via .
-- **CORS Handling:** Strict multi-layer CORS is required because the SCORM exported HTML runs on external LMS domains but calls back to the Scormify API for the AI Tutor.
+- **Avatar Scene Generation Flow**: 1. Gemini suggests a scene (script, bg description, position). 2. Backend generates a background image. 3. Backend calls ElevenLabs to generate audio. 4. Backend calls HeyGen with  and passes the public URL of the ElevenLabs audio for lip-syncing. 
+- **Type Overrides**: Users can override AI slide types (e.g., swap  for  or ) before confirming API generation, saving credits.
 
 **key DB schema**
-  - :  (Created this session to track background tasks).
+  - : Contains  (maxScenes, defaultAvatarId, defaultVoiceId) and / for asynchronous generation states.
 
 **changes in tech stack**
-  - Added  to  to provide localized FFmpeg binaries without OS-level package managers.
+  - None
 
 **All files of reference** 
--  (Heavily modified for async FFmpeg).
--  (Video export endpoints and job initialization).
--  (MongoDB job tracking helpers).
--  (SCORM completion logic).
--  (Frontend polling logic for exports).
+-  (Contains the bug related to PT-BR language selection for voices).
+- 
+- 
+- 
+- 
 
 **Areas that need refactoring**: 
--  (~3700 lines) requires dialog extraction.
--  and  need DB connection refactoring.
+-  is entirely obsolete. Needs removal.
+-  is massively bloated (~3700 lines).
 
 **key api endpoints**
 - 
 - 
+- 
 
 **Critical Info for New Agent**
-The Video Export feature works perfectly in the preview environment but fails specifically in production with 502/504 errors in the browser console. The previous agent fixed event-loop blocking and memory wipes, meaning the backend *can* process the video. 
-*Hypothesis for next step:* The Cloudflare/Nginx proxy in production has a strict timeout (e.g., 30s or 60s). If  does heavy synchronous prep work (like fetching assets, downloading fonts, or setting up temp dirs) *before* returning the  response, the proxy will kill the connection. Ensure the POST endpoint immediately spawns the  and returns the  in under 1 second. Also, ensure the frontend Axios polling handles intermittent 502s without crashing the UI.
+**LANGUAGE ENFORCEMENT**: The user strictly requested that the default language for ElevenLabs and HeyGen fallbacks must be **Brazilian Portuguese (PT-BR)**. Currently, the fallback voice is resolving to Lily (English). You must fix the voice filtering logic in  to pick a PT-BR voice if  is not set by the user.
+**HeyGen Flow Change**: HeyGen is no longer passed text + voice_id. It is now passed the  of the newly generated ElevenLabs file. Do not revert this, as it solves voice-id incompatibility between the two platforms.
 
 **documents and test reports created in this job**
   - 
   - 
   - 
+  - 
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User:** Asked for a summary of features for Marketing. (Completed)
-2. **User:** Reported Video Export failing with 404 in prod. (Completed - migrated jobs to MongoDB).
-3. **User:** Asked for credit balance. (Completed via support agent).
-4. **User:** Reported Video Export failing with 520 in prod. (Completed - added  to bypass missing OS packages).
-5. **User:** Reported Video Export failing with 502 in prod. (Completed - made  async).
-6. **User:** Reported Video Export *STILL* failing with console timeout errors (net::ERR_CONNECTION_TIMED_OUT, 502, 504). (Agent analyzed image, but session ended before fix could be applied).
+1. **User**: Asked if AI Agent can suggest avatar scenes. *(Resolved: Implemented basic avatar scene suggestion in backend).*
+2. **User**: Confirmed AI should suggest avatars alongside games/simulators. *(Resolved: Added to AI generation prompt).*
+3. **User**: Requested a visual mockup to preview/edit scripts or change slide types BEFORE spending credits. *(Resolved: Created AvatarSceneControls mockup).*
+4. **User**: Confirmed type switching should apply to new course creation too. *(Resolved: Added to StoryboardPanel).*
+5. **User**: Suggested inline editing for the narration script. *(Resolved: Made textareas editable with character counts).*
+6. **User**: Reported a 500/404 error in production when accepting an Avatar Scene. *(Resolved: Fixed MongoDB projection bug in ).*
+7. **User**: Asked when an Avatar would not have an ID. *(Answered).*
+8. **User**: Asked what the current deploy resolves. *(Answered).*
+9. **User**: Reported HeyGen is failing to recognize the selected voice ID. *(Resolved: Switched HeyGen payload to use public audio URL for lip-sync instead of voice ID).*
+10. **User**: Asked to ensure the language being passed to the APIs is Brazilian Portuguese. *(Pending: Agent was investigating default voice lists when context ended).*
 
 **Project Health Check:**
-- **Broken:** Video Export in Production.
-- **Mocked:** None.
-- **Blocked:** HeyGen Video generation (Blocked on user API credits).
+- Broken: Default Voice selection (using English instead of PT-BR).
+- Mocked: None.
 
-**3rd Party Integrations**
-- Google Gemini (via Emergent LLM Key)
-- OpenAI GPT-4o (via Emergent LLM Key)
-- HeyGen (Requires User API Key) - Currently blocked by credits.
-- ConvertAPI (Requires User API Key)
-- ElevenLabs (Requires User API Key)
+**3rd Party Integrations** 
+- OpenAI GPT-4o (Emergent LLM Key)
+- Gemini (Emergent LLM Key)
+- HeyGen (User API Key)
+- ElevenLabs (User API Key)
+- ConvertAPI (User API Key)
 
 **Testing status**
-  - Testing agent used after significant changes: NO (relied heavily on bash/curl/screenshot testing).
+  - Testing agent used after significant changes: YES (5 times in this session)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None, but Video Export remains highly unstable in prod infra.
+  - Known regressions: None
 
 **Credentials to test flow:**
 - Super Admin:  / 
-- Preview URL: https://browser-video-gen.preview.emergentagent.com (Check logs for updated URL in new fork).
 
 **What agent forgot to execute**
-The agent successfully analyzed the final screenshot showing the timeout/502/504 errors on the Video Export polling, but the session ended before a plan or code change could be implemented to address the proxy timeout issue.</analysis>
+The agent found the root cause of the language bug (ElevenLabs returning an English voice Lily by default, and HeyGen fallback not enforcing PT-BR) but the session ended before the agent could apply the code fix in . Implementing this fix is your top priority.</analysis>

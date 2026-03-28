@@ -2466,7 +2466,7 @@ async def update_avatar_settings(project_id: str, settings: AvatarSceneSettings)
 
 @router.get("/agent/projects/{project_id}/avatar-generation-status")
 async def get_avatar_generation_status(project_id: str):
-    """Get status of avatar scene generation (background image, ElevenLabs audio, HeyGen video)."""
+    """Get status of avatar scene generation (background image and HeyGen video)."""
     project = await db.projects.find_one(
         {"id": project_id},
         {"_id": 0, "avatarScenePending": 1, "id": 1}
@@ -2563,7 +2563,7 @@ async def _apply_heygen_video_to_slide(project_id: str, slide_id: str, video_url
 
 
 async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
-    """Background task: generate background images, ElevenLabs audio, and HeyGen videos for avatar scenes."""
+    """Background task: generate background images and HeyGen avatar videos (with native TTS) for avatar scenes."""
     from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
     _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000)
     _db = _client[os.environ.get("DB_NAME")]
@@ -2627,102 +2627,24 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
             else:
                 scene["bgStatus"] = "skipped"
 
-            # 2. Generate ElevenLabs narration audio
+            # 2. Trigger HeyGen video generation (using HeyGen's native TTS, not ElevenLabs)
             narration_script = scene.get("narrationScript", "")
-            if narration_script and ELEVENLABS_API_KEY:
-                try:
-                    voice_id = scene.get("voiceId", "")
-                    if not voice_id:
-                        # Get project default voice
-                        proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1, "narrationVoiceId": 1})
-                        voice_id = (proj or {}).get("avatarSceneSettings", {}).get("defaultVoiceId", "")
-                        if not voice_id:
-                            voice_id = (proj or {}).get("narrationVoiceId", "")
-                        if not voice_id:
-                            voice_id = "pFZP5JQG7iQjIQuC4Bku"  # Default ElevenLabs voice (Lily)
-
-                    from elevenlabs import ElevenLabs as ELClient
-                    from elevenlabs.types import VoiceSettings
-                    el_client = ELClient(api_key=ELEVENLABS_API_KEY)
-                    voice_settings = VoiceSettings(stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True)
-                    audio_generator = el_client.text_to_speech.convert(
-                        text=narration_script,
-                        voice_id=voice_id,
-                        model_id="eleven_multilingual_v2",
-                        voice_settings=voice_settings,
-                    )
-                    audio_data = b""
-                    for chunk in audio_generator:
-                        audio_data += chunk
-
-                    audio_id = str(uuid.uuid4())
-                    filename = f"audio_{audio_id}.mp3"
-                    audio_dir = PROJECTS_DIR / project_id / "assets"
-                    audio_dir.mkdir(parents=True, exist_ok=True)
-                    audio_path = audio_dir / filename
-                    with open(audio_path, "wb") as f:
-                        f.write(audio_data)
-
-                    audio_url = f"/api/projects/{project_id}/assets/{filename}"
-
-                    # Persist in MongoDB
-                    try:
-                        from services.asset_store import store_asset_sync
-                        import threading
-                        threading.Thread(
-                            target=store_asset_sync,
-                            args=(os.environ.get("MONGO_URL"), os.environ["DB_NAME"], project_id, filename, str(audio_path)),
-                            daemon=True,
-                        ).start()
-                    except Exception:
-                        pass
-
-                    # Add audio to slide
-                    await _db.projects.update_one(
-                        {"id": project_id, "course.slides.id": slide_id},
-                        {"$push": {"course.slides.$.audio": {
-                            "id": audio_id,
-                            "src": audio_url,
-                            "type": "narration",
-                            "startTime": 0,
-                            "volume": 1.0,
-                        }}}
-                    )
-                    scene["audioStatus"] = "completed"
-                    scene["audioUrl"] = audio_url
-                    logger.info(f"Avatar narration audio generated for slide {slide_id}: {audio_url}")
-                except Exception as e:
-                    logger.error(f"Avatar narration failed for slide {slide_id}: {e}")
-                    scene["audioStatus"] = "failed"
-                    scene["audioError"] = str(e)[:200]
-            else:
-                scene["audioStatus"] = "skipped"
-
-            # 3. Trigger HeyGen video generation
             avatar_id = scene.get("avatarId", "")
             if not avatar_id:
                 proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1, "id": 1})
                 avatar_id = (proj or {}).get("avatarSceneSettings", {}).get("defaultAvatarId", "")
 
             if narration_script and avatar_id and HEYGEN_API_KEY:
+                scene["audioStatus"] = "skipped"  # No separate audio step — HeyGen handles TTS
                 try:
-                    # Build the voice input - prefer using already-generated audio (lip-sync)
-                    audio_url = scene.get("audioUrl", "")
-                    base_url = os.environ.get("FRONTEND_URL", "") or os.environ.get("BASE_URL", "")
-                    base_url = base_url.rstrip("/")
+                    # Get the HeyGen voice_id from scene or project settings
+                    heygen_voice_id = scene.get("voiceId", "")
+                    if not heygen_voice_id:
+                        proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1})
+                        heygen_voice_id = (proj or {}).get("avatarSceneSettings", {}).get("defaultVoiceId", "")
 
-                    if audio_url and base_url:
-                        # Use the generated ElevenLabs audio for lip-sync (most accurate)
-                        full_audio_url = f"{base_url}{audio_url}"
-                        voice_input = {
-                            "type": "audio",
-                            "audio_url": full_audio_url,
-                        }
-                        logger.info(f"HeyGen using audio lip-sync: {full_audio_url}")
-                    else:
-                        # Fallback: use HeyGen's built-in TTS with a valid default voice
-                        # Fetch a valid HeyGen voice ID
-                        heygen_voice_id = ""
+                    # If still no voice, fetch a PT-BR voice from HeyGen API
+                    if not heygen_voice_id:
                         try:
                             async with httpx.AsyncClient(timeout=15.0) as vc:
                                 vresp = await vc.get(
@@ -2731,27 +2653,44 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 )
                                 if vresp.status_code == 200:
                                     all_voices = vresp.json().get("data", {}).get("voices", [])
-                                    for v in all_voices:
-                                        if "portuguese" in v.get("language", "").lower() or "pt" in v.get("language", "").lower():
-                                            heygen_voice_id = v.get("voice_id", "")
-                                            break
-                                    if not heygen_voice_id and all_voices:
+                                    # Priority: pt-BR > any Portuguese > first available
+                                    pt_br_voices = [v for v in all_voices if "brazil" in v.get("language", "").lower() or "brasil" in v.get("language", "").lower()]
+                                    pt_voices = [v for v in all_voices if "portuguese" in v.get("language", "").lower() or "português" in v.get("language", "").lower()]
+                                    if pt_br_voices:
+                                        heygen_voice_id = pt_br_voices[0].get("voice_id", "")
+                                        logger.info(f"Auto-selected PT-BR HeyGen voice: {pt_br_voices[0].get('name', '')} ({heygen_voice_id})")
+                                    elif pt_voices:
+                                        heygen_voice_id = pt_voices[0].get("voice_id", "")
+                                        logger.info(f"Auto-selected Portuguese HeyGen voice: {pt_voices[0].get('name', '')} ({heygen_voice_id})")
+                                    elif all_voices:
                                         heygen_voice_id = all_voices[0].get("voice_id", "")
+                                        logger.warning(f"No PT-BR voice found, using first available: {all_voices[0].get('name', '')} ({heygen_voice_id})")
                         except Exception as ve:
-                            logger.warning(f"Failed to fetch HeyGen voices: {ve}")
+                            logger.warning(f"Failed to fetch HeyGen voices for fallback: {ve}")
 
-                        if heygen_voice_id:
-                            voice_input = {
-                                "type": "text",
-                                "input_text": narration_script[:5000],
-                                "voice_id": heygen_voice_id,
-                            }
-                        else:
-                            # Last resort - skip HeyGen if no valid voice
-                            scene["heygenStatus"] = "failed"
-                            scene["heygenError"] = "No valid HeyGen voice found and no audio URL available"
-                            logger.error("No valid HeyGen voice found for avatar scene")
-                            continue
+                    if not heygen_voice_id:
+                        scene["heygenStatus"] = "failed"
+                        scene["heygenError"] = "Nenhuma voz HeyGen válida encontrada"
+                        logger.error("No valid HeyGen voice found for avatar scene")
+                        # Update pending status before continuing
+                        await _db.projects.update_one(
+                            {"id": project_id, "avatarScenePending.slideId": slide_id},
+                            {"$set": {
+                                "avatarScenePending.$.bgStatus": scene.get("bgStatus", "pending"),
+                                "avatarScenePending.$.bgUrl": scene.get("bgUrl"),
+                                "avatarScenePending.$.audioStatus": scene.get("audioStatus", "skipped"),
+                                "avatarScenePending.$.heygenStatus": "failed",
+                                "avatarScenePending.$.heygenError": scene.get("heygenError"),
+                            }}
+                        )
+                        continue
+
+                    voice_input = {
+                        "type": "text",
+                        "input_text": narration_script[:5000],
+                        "voice_id": heygen_voice_id,
+                    }
+                    logger.info(f"HeyGen using native TTS: voice_id={heygen_voice_id}")
 
                     async with httpx.AsyncClient(timeout=60.0) as http_client:
                         payload = {
@@ -2766,7 +2705,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                             "dimension": {"width": 1280, "height": 720},
                             "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
                         }
-                        logger.info(f"HeyGen payload: avatar={avatar_id}, voice_type={voice_input.get('type')}")
+                        logger.info(f"HeyGen payload: avatar={avatar_id}, voice_id={heygen_voice_id}")
                         response = await http_client.post(
                             f"{HEYGEN_BASE_URL}/v2/video/generate",
                             headers=HEYGEN_HEADERS,
@@ -2779,7 +2718,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 await _db.heygen_videos.insert_one({
                                     "video_id": video_id,
                                     "avatar_id": avatar_id,
-                                    "voice_type": voice_input.get("type"),
+                                    "voice_id": heygen_voice_id,
                                     "script": narration_script[:500],
                                     "title": f"AvatarScene-{slide_id[:8]}",
                                     "status": "processing",
@@ -2804,6 +2743,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                     scene["heygenError"] = str(e)[:200]
                     logger.error(f"HeyGen avatar trigger error: {e}")
             else:
+                scene["audioStatus"] = "skipped"
                 scene["heygenStatus"] = "skipped" if not narration_script else "skipped_no_avatar"
 
             # Update pending status

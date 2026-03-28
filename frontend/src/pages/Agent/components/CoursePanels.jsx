@@ -38,7 +38,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   const [defaultAvatarId, setDefaultAvatarId] = useState('');
   const [defaultVoiceId, setDefaultVoiceId] = useState('');
   const [heygenAvatars, setHeygenAvatars] = useState([]);
-  const [elevenVoices, setElevenVoices] = useState([]);
+  const [heygenVoices, setHeygenVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
   const [loadingVoices, setLoadingVoices] = useState(false);
 
@@ -90,16 +90,25 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
       .finally(() => setLoadingAvatars(false));
   }, [avatarSettingsOpen, heygenAvatars.length]);
 
-  // Load ElevenLabs voices when settings open
+  // Load HeyGen voices when settings open (prioritize PT-BR)
   useEffect(() => {
-    if (!avatarSettingsOpen || elevenVoices.length > 0) return;
+    if (!avatarSettingsOpen || heygenVoices.length > 0) return;
     setLoadingVoices(true);
-    fetch(`${API}/api/elevenlabs/voices`)
+    fetch(`${API}/api/heygen/voices?language=portuguese`)
       .then(r => r.ok ? r.json() : { voices: [] })
-      .then(data => setElevenVoices(data.voices || []))
+      .then(data => {
+        const voices = data.voices || [];
+        // Sort: PT-BR first, then other Portuguese, then rest
+        voices.sort((a, b) => {
+          const aIsBR = a.language_code === 'pt-BR' ? 0 : a.language_code?.startsWith('pt') ? 1 : 2;
+          const bIsBR = b.language_code === 'pt-BR' ? 0 : b.language_code?.startsWith('pt') ? 1 : 2;
+          return aIsBR - bIsBR;
+        });
+        setHeygenVoices(voices);
+      })
       .catch(() => {})
       .finally(() => setLoadingVoices(false));
-  }, [avatarSettingsOpen, elevenVoices.length]);
+  }, [avatarSettingsOpen, heygenVoices.length]);
 
   const saveAllSettings = async (overrides = {}) => {
     setSavingSettings(true);
@@ -249,25 +258,25 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                     )}
                   </div>
 
-                  {/* ElevenLabs voice selector */}
+                  {/* HeyGen voice selector */}
                   <div className="space-y-1.5">
-                    <label className="text-xs text-violet-300 font-medium">Voz ElevenLabs</label>
+                    <label className="text-xs text-violet-300 font-medium">Voz HeyGen</label>
                     {loadingVoices ? (
                       <div className="flex items-center gap-2 text-xs text-violet-400">
                         <Loader2 className="w-3 h-3 animate-spin" /> Carregando vozes...
                       </div>
-                    ) : elevenVoices.length > 0 ? (
+                    ) : heygenVoices.length > 0 ? (
                       <Select value={defaultVoiceId} onValueChange={handleVoiceSelect}>
                         <SelectTrigger className="h-8 text-xs bg-violet-950/50 border-violet-800/40" data-testid="voice-select">
-                          <SelectValue placeholder="Selecione uma voz ElevenLabs..." />
+                          <SelectValue placeholder="Selecione uma voz HeyGen..." />
                         </SelectTrigger>
                         <SelectContent className="max-h-60">
-                          {elevenVoices.map(v => (
+                          {heygenVoices.map(v => (
                             <SelectItem key={v.voice_id} value={v.voice_id}>
                               <span className="flex items-center gap-2">
-                                <span>{v.name}</span>
+                                <span>{v.country_flag || ''} {v.name}</span>
                                 <span className="text-[10px] text-slate-400">
-                                  {v.labels?.gender} {v.labels?.accent ? `• ${v.labels.accent}` : ''}
+                                  {v.gender} {v.language_code ? `• ${v.language_code}` : ''}
                                 </span>
                               </span>
                             </SelectItem>
@@ -275,7 +284,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-[10px] text-amber-300/70">Nenhuma voz disponível. Verifique sua chave API ElevenLabs.</p>
+                      <p className="text-[10px] text-amber-300/70">Nenhuma voz disponível. Verifique sua chave API HeyGen.</p>
                     )}
                   </div>
 
@@ -297,7 +306,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                   </div>
 
                   <p className="text-[10px] text-violet-400/60">
-                    Configure o avatar e a voz padrão para que o HeyGen gere os vídeos automaticamente ao aplicar melhorias com cenas de avatar.
+                    Configure o avatar e a voz HeyGen padrão para que os vídeos sejam gerados automaticamente ao aplicar melhorias com cenas de avatar.
                   </p>
                 </div>
               )}

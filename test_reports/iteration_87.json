@@ -1,0 +1,62 @@
+{
+  "summary": "Completed testing of HeyGen voices integration for Avatar Scenes feature. All backend APIs and frontend UI components working correctly. Voice dropdown now shows HeyGen voices (not ElevenLabs) with PT-BR voices appearing first.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_heygen_voices_avatar_settings.py",
+    "/app/test_reports/pytest/pytest_heygen_voices_avatar_settings.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: GET /api/heygen/voices returns voices with voice_id, name, language_code, country_flag, gender fields",
+    "GOOD: GET /api/heygen/voices?language=portuguese filters to Portuguese voices only",
+    "GOOD: PT-BR voices have language_code='pt-BR' and country_flag='🇧🇷'",
+    "GOOD: GET /api/agent/projects/{id}/avatar-settings returns defaultVoiceId (now HeyGen voice_id)",
+    "GOOD: PUT /api/agent/projects/{id}/avatar-settings saves HeyGen voice_id correctly",
+    "GOOD: Frontend label shows 'Voz HeyGen' (not 'Voz ElevenLabs')",
+    "GOOD: Voice dropdown loads HeyGen voices with Brazilian flag and language codes",
+    "GOOD: PT-BR voices appear first in dropdown (Sofia Brazil - Excited is first)",
+    "GOOD: Voice selection auto-saves via PUT /api/agent/projects/{id}/avatar-settings"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_heygen_voices_avatar_settings.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing projects",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "HeyGen voices feature fully tested. Key changes: Voice dropdown in avatar settings now fetches from /api/heygen/voices?language=portuguese instead of ElevenLabs. Label changed from 'Voz ElevenLabs' to 'Voz HeyGen'. PT-BR voices sorted first. Voice IDs saved are now HeyGen voice_ids.",
+  "features_tested": {
+    "backend_apis": {
+      "GET /api/heygen/voices": "PASS - Returns all HeyGen voices with voice_id, name, language_code, country_flag, gender",
+      "GET /api/heygen/voices?language=portuguese": "PASS - Returns Portuguese voices with PT-BR voices included",
+      "GET /api/agent/projects/{id}/avatar-settings": "PASS - Returns settings with defaultVoiceId (HeyGen voice_id)",
+      "PUT /api/agent/projects/{id}/avatar-settings": "PASS - Saves HeyGen voice_id correctly"
+    },
+    "frontend_ui": {
+      "voice_label": "PASS - Shows 'Voz HeyGen' (not 'Voz ElevenLabs')",
+      "voice_dropdown": "PASS - Loads HeyGen voices with 🇧🇷 flag and pt-BR/pt language codes",
+      "ptbr_sorting": "PASS - PT-BR voices appear first (Sofia Brazil - Excited is first option)",
+      "voice_selection": "PASS - Selecting voice updates dropdown and auto-saves",
+      "voice_format": "PASS - Shows name, emoji, gender, language_code in dropdown options"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real integrations (HeyGen API)"
+  }
+}
