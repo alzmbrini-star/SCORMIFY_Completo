@@ -11,6 +11,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions
 - **AI Avatar Scene Suggestions**: Agent suggests avatar scenes during course analysis with:
   - Visual mockup preview (avatar position, narration script, background description)
+  - **Inline editing**: Edit narration script (textarea + char counter), background description (input), avatar position (dropdown) directly in preview
   - Type switcher: Convert avatar_scene to content/simulator/game/quiz before applying
   - Auto-generation of background image (Gemini), ElevenLabs narration, HeyGen avatar video on apply
   - Per-course configurable avatar scene limit
@@ -36,9 +37,9 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
     ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
     ├── src/pages/Editor/hooks/useEditorExport.js
     ├── src/pages/Agent/components/
-    │   ├── AvatarSceneControls.jsx (SlideTypeSwitcher, AvatarSceneMockup)
+    │   ├── AvatarSceneControls.jsx (SlideTypeSwitcher, AvatarSceneMockup with inline editing)
     │   ├── CoursePanels.jsx (CourseReviewPanel, EditResultPanel, PreviewPanel, StatusBadge)
-    │   ├── StoryboardPanel.jsx (with type switching for avatar_scene slides)
+    │   ├── StoryboardPanel.jsx (with type switching + inline editing for avatar_scene slides)
     │   ├── ConfigPanel.jsx, GeneratedPanel.jsx, MediaConfigPanel.jsx
     ├── src/components/ (editor/, scenario/, ui/)
     ├── src/utils/ (clientVideoExport.js)
@@ -52,8 +53,6 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - `POST /api/agent/sessions/{id}/save-type-overrides` - Save slide type changes (avatar→content/simulator/etc)
 - `POST /api/agent/courses/{id}/analyze` - Analyze course (includes avatar_scene type improvements)
 - `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements (returns avatarScenesTriggered)
-- `GET /api/course/{id}/slides-data` - JSON slide data for client-side rendering
-- `GET /api/proxy-video?url=...` - StreamingResponse proxy for HeyGen/external videos
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -66,13 +65,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ConvertAPI - PPT import (user API key)
 
 ## Completed
+- 2026-03-28: Inline script editor - Edit narration, background, position directly in mockup card
 - 2026-03-28: Avatar Scene Type Switcher - Preview mockup + convert avatar_scene to content/simulator/game/quiz
-- 2026-03-28: Type switching works in both Edit Mode and Create Mode (StoryboardPanel)
-- 2026-03-28: Backend type overrides endpoint for storyboard
 - 2026-03-28: Avatar Scene Suggestions feature - AI Agent suggests avatar scenes during analysis
 - 2026-03-28: Avatar Settings per-course (maxScenes, defaultAvatarId, defaultVoiceId)
-- 2026-03-28: Avatar generation progress polling with StatusBadge component
-- 2026-03-27: E2E Video Export verified: 17/17 backend tests, all frontend flows working
+- 2026-03-27: E2E Video Export verified
 - 2026-03-27: Client-side video export (html2canvas + MediaRecorder + AudioContext)
 
 ## Upcoming Tasks (Prioritized)
