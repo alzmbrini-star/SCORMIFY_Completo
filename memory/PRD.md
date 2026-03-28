@@ -10,11 +10,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI Simulator/Game Generation**: Agent creates interactive HTML+JS simulators per module
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions
 - **AI Avatar Scene Suggestions**: Agent suggests avatar scenes during course analysis with:
-  - Narration script, background description, avatar position
+  - Visual mockup preview (avatar position, narration script, background description)
+  - Type switcher: Convert avatar_scene to content/simulator/game/quiz before applying
   - Auto-generation of background image (Gemini), ElevenLabs narration, HeyGen avatar video on apply
   - Per-course configurable avatar scene limit
-  - Violet-themed UI cards for avatar suggestions with script preview
-  - Real-time generation progress polling (background, audio, video status)
+  - Works in both Edit Mode (CourseReviewPanel) and Create Mode (StoryboardPanel)
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
 - **Video Export (MP4/WebM)**: 100% Client-side video generation using html2canvas + Canvas API + MediaRecorder
@@ -35,7 +35,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 └── frontend (React)
     ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
     ├── src/pages/Editor/hooks/useEditorExport.js
-    ├── src/pages/Agent/components/CoursePanels.jsx (CourseReviewPanel, EditResultPanel, PreviewPanel, StatusBadge)
+    ├── src/pages/Agent/components/
+    │   ├── AvatarSceneControls.jsx (SlideTypeSwitcher, AvatarSceneMockup)
+    │   ├── CoursePanels.jsx (CourseReviewPanel, EditResultPanel, PreviewPanel, StatusBadge)
+    │   ├── StoryboardPanel.jsx (with type switching for avatar_scene slides)
+    │   ├── ConfigPanel.jsx, GeneratedPanel.jsx, MediaConfigPanel.jsx
     ├── src/components/ (editor/, scenario/, ui/)
     ├── src/utils/ (clientVideoExport.js)
     └── src/contexts/ (AuthContext, ProjectContext)
@@ -43,13 +47,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 
 ## Key API Endpoints
 - `GET /api/agent/projects/{id}/avatar-settings` - Get avatar scene settings per project
-- `PUT /api/agent/projects/{id}/avatar-settings` - Update avatar scene settings (maxScenes, defaultAvatarId, defaultVoiceId)
-- `GET /api/agent/projects/{id}/avatar-generation-status` - Poll avatar scene generation progress
-- `POST /api/agent/courses/{id}/analyze` - Analyze course (now includes avatar_scene type improvements)
+- `PUT /api/agent/projects/{id}/avatar-settings` - Update settings (maxScenes, defaultAvatarId, defaultVoiceId)
+- `GET /api/agent/projects/{id}/avatar-generation-status` - Poll avatar generation progress
+- `POST /api/agent/sessions/{id}/save-type-overrides` - Save slide type changes (avatar→content/simulator/etc)
+- `POST /api/agent/courses/{id}/analyze` - Analyze course (includes avatar_scene type improvements)
 - `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements (returns avatarScenesTriggered)
 - `GET /api/course/{id}/slides-data` - JSON slide data for client-side rendering
 - `GET /api/proxy-video?url=...` - StreamingResponse proxy for HeyGen/external videos
-- `GET /api/audio/{filename}` - ElevenLabs TTS audio files
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -62,13 +66,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ConvertAPI - PPT import (user API key)
 
 ## Completed
-- 2026-03-28: Avatar Scene Suggestions feature - AI Agent suggests avatar scenes during analysis, auto-triggers generation on apply
+- 2026-03-28: Avatar Scene Type Switcher - Preview mockup + convert avatar_scene to content/simulator/game/quiz
+- 2026-03-28: Type switching works in both Edit Mode and Create Mode (StoryboardPanel)
+- 2026-03-28: Backend type overrides endpoint for storyboard
+- 2026-03-28: Avatar Scene Suggestions feature - AI Agent suggests avatar scenes during analysis
 - 2026-03-28: Avatar Settings per-course (maxScenes, defaultAvatarId, defaultVoiceId)
 - 2026-03-28: Avatar generation progress polling with StatusBadge component
-- 2026-03-28: Violet-themed UI for avatar scene improvements in CourseReviewPanel
 - 2026-03-27: E2E Video Export verified: 17/17 backend tests, all frontend flows working
 - 2026-03-27: Client-side video export (html2canvas + MediaRecorder + AudioContext)
-- 2026-03-27: Fixed legacy audio 'url' vs 'src' format handling
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
