@@ -9,16 +9,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI HTML Generator**: Generate interactive HTML+JS content via prompt in the Editor (Gemini)
 - **AI Simulator/Game Generation**: Agent creates interactive HTML+JS simulators per module
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions
+- **AI Avatar Scene Suggestions**: Agent suggests avatar scenes during course analysis with:
+  - Narration script, background description, avatar position
+  - Auto-generation of background image (Gemini), ElevenLabs narration, HeyGen avatar video on apply
+  - Per-course configurable avatar scene limit
+  - Violet-themed UI cards for avatar suggestions with script preview
+  - Real-time generation progress polling (background, audio, video status)
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
-- **Video Export (MP4/WebM)**: 100% Client-side video generation using html2canvas + Canvas API + MediaRecorder with:
-  - html2canvas for WYSIWYG slide rendering (replaced PIL backend images)
-  - requestAnimationFrame continuous redraw (fixes black video bug)
-  - HeyGen avatar video overlay with position/size mapping via streaming proxy
-  - ElevenLabs audio capture via AudioContext + MediaStreamAudioDestination
-  - MP4 (H.264+AAC) format for Windows compatibility
-  - Legacy audio format support (both `url` and `src` fields)
-  - Video proxy endpoint for CORS bypass (/api/proxy-video) with StreamingResponse
+- **Video Export (MP4/WebM)**: 100% Client-side video generation using html2canvas + Canvas API + MediaRecorder
 - **Gamification System**: Configurable badges and feedback per-project
 - **PPT Import**: Convert PowerPoint to course (ConvertAPI)
 - **VLibras**: Brazilian Sign Language accessibility widget
@@ -36,49 +35,40 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 └── frontend (React)
     ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
     ├── src/pages/Editor/hooks/useEditorExport.js
+    ├── src/pages/Agent/components/CoursePanels.jsx (CourseReviewPanel, EditResultPanel, PreviewPanel, StatusBadge)
     ├── src/components/ (editor/, scenario/, ui/)
-    ├── src/utils/ (clientVideoExport.js - html2canvas+Canvas+MediaRecorder+HeyGen+Audio)
+    ├── src/utils/ (clientVideoExport.js)
     └── src/contexts/ (AuthContext, ProjectContext)
 ```
 
 ## Key API Endpoints
-- `GET /api/course/{id}/slides-data` - Returns lightweight JSON slide data for client-side html2canvas rendering
-- `GET /api/proxy-video?url=...` - StreamingResponse proxy for HeyGen/external videos (CORS bypass)
-- `GET /api/audio/{filename}` - Serves ElevenLabs TTS audio files
-- `POST /api/generate-html` - AI HTML generation from prompt (Gemini)
-- `POST /api/agent/courses/{id}/preview-improvements` - Preview AI suggestions
-- `POST /api/agent/courses/{id}/undo-improvements` - Undo last improvement
-- `POST /api/projects/{id}/fix-simulators` - Fix static simulators
-- `POST /api/tutor/chat` - AI Tutor chat (CORS-enabled for LMS)
-- `POST /api/course/{id}/export-scorm` - SCORM 1.2 export
-- `POST /api/course/{id}/export-html` - HTML standalone export
+- `GET /api/agent/projects/{id}/avatar-settings` - Get avatar scene settings per project
+- `PUT /api/agent/projects/{id}/avatar-settings` - Update avatar scene settings (maxScenes, defaultAvatarId, defaultVoiceId)
+- `GET /api/agent/projects/{id}/avatar-generation-status` - Poll avatar scene generation progress
+- `POST /api/agent/courses/{id}/analyze` - Analyze course (now includes avatar_scene type improvements)
+- `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements (returns avatarScenesTriggered)
+- `GET /api/course/{id}/slides-data` - JSON slide data for client-side rendering
+- `GET /api/proxy-video?url=...` - StreamingResponse proxy for HeyGen/external videos
+- `GET /api/audio/{filename}` - ElevenLabs TTS audio files
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
 
 ## 3rd Party Integrations
-- Google Gemini (via Emergent LLM Key)
+- Google Gemini (via Emergent LLM Key) - Text + Image generation (Nano Banana)
 - OpenAI GPT-4o (via Emergent LLM Key)
-- HeyGen - Avatar videos (integrated in video export overlay)
-- ElevenLabs - Audio narration
-- ConvertAPI - PPT import
+- HeyGen - Avatar videos (user API key)
+- ElevenLabs - Audio narration (user API key)
+- ConvertAPI - PPT import (user API key)
 
 ## Completed
-- 2026-03-27: Fixed black video export: requestAnimationFrame continuous redraw + captureStream(30)
-- 2026-03-27: Added HeyGen video overlay in client-side export with position/size mapping
-- 2026-03-27: Added audio capture from HeyGen videos via AudioContext + MediaStreamDestination
-- 2026-03-27: Created /api/proxy-video endpoint for CORS-safe video loading (StreamingResponse)
-- 2026-03-27: Removed static_ffmpeg dependency (was causing 520 errors in production)
-- 2026-03-27: Refactored companies.py and users.py DB connections
-- 2026-03-27: Simplified video export UI: single "Gerar Video" button
-- 2026-03-27: Switched to html2canvas for WYSIWYG slide rendering
-- 2026-03-27: Switched from WebM/VP9 to MP4/H.264+AAC for Windows compatibility
-- 2026-03-27: Fixed legacy audio 'url' vs 'src' data format handling
-- 2026-03-27: E2E Video Export verified: 17/17 backend tests passed, all frontend flows working
-
-## Known Issues
-- HeyGen avatar generation: Blocked on API credits (video overlay in export works when URLs exist)
-- Backend FFmpeg video export deprecated (K8s CPU limits) - legacy code kept inactive
+- 2026-03-28: Avatar Scene Suggestions feature - AI Agent suggests avatar scenes during analysis, auto-triggers generation on apply
+- 2026-03-28: Avatar Settings per-course (maxScenes, defaultAvatarId, defaultVoiceId)
+- 2026-03-28: Avatar generation progress polling with StatusBadge component
+- 2026-03-28: Violet-themed UI for avatar scene improvements in CourseReviewPanel
+- 2026-03-27: E2E Video Export verified: 17/17 backend tests, all frontend flows working
+- 2026-03-27: Client-side video export (html2canvas + MediaRecorder + AudioContext)
+- 2026-03-27: Fixed legacy audio 'url' vs 'src' format handling
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
