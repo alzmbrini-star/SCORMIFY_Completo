@@ -2701,12 +2701,58 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
             # 3. Trigger HeyGen video generation
             avatar_id = scene.get("avatarId", "")
             if not avatar_id:
-                proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1})
+                proj = await _db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1, "id": 1})
                 avatar_id = (proj or {}).get("avatarSceneSettings", {}).get("defaultAvatarId", "")
-            voice_id_heygen = scene.get("heygenVoiceId", "") or scene.get("voiceId", "")
 
             if narration_script and avatar_id and HEYGEN_API_KEY:
                 try:
+                    # Build the voice input - prefer using already-generated audio (lip-sync)
+                    audio_url = scene.get("audioUrl", "")
+                    base_url = os.environ.get("FRONTEND_URL", "") or os.environ.get("BASE_URL", "")
+                    base_url = base_url.rstrip("/")
+
+                    if audio_url and base_url:
+                        # Use the generated ElevenLabs audio for lip-sync (most accurate)
+                        full_audio_url = f"{base_url}{audio_url}"
+                        voice_input = {
+                            "type": "audio",
+                            "audio_url": full_audio_url,
+                        }
+                        logger.info(f"HeyGen using audio lip-sync: {full_audio_url}")
+                    else:
+                        # Fallback: use HeyGen's built-in TTS with a valid default voice
+                        # Fetch a valid HeyGen voice ID
+                        heygen_voice_id = ""
+                        try:
+                            async with httpx.AsyncClient(timeout=15.0) as vc:
+                                vresp = await vc.get(
+                                    f"{HEYGEN_BASE_URL}/v2/voices",
+                                    headers=HEYGEN_HEADERS,
+                                )
+                                if vresp.status_code == 200:
+                                    all_voices = vresp.json().get("data", {}).get("voices", [])
+                                    for v in all_voices:
+                                        if "portuguese" in v.get("language", "").lower() or "pt" in v.get("language", "").lower():
+                                            heygen_voice_id = v.get("voice_id", "")
+                                            break
+                                    if not heygen_voice_id and all_voices:
+                                        heygen_voice_id = all_voices[0].get("voice_id", "")
+                        except Exception as ve:
+                            logger.warning(f"Failed to fetch HeyGen voices: {ve}")
+
+                        if heygen_voice_id:
+                            voice_input = {
+                                "type": "text",
+                                "input_text": narration_script[:5000],
+                                "voice_id": heygen_voice_id,
+                            }
+                        else:
+                            # Last resort - skip HeyGen if no valid voice
+                            scene["heygenStatus"] = "failed"
+                            scene["heygenError"] = "No valid HeyGen voice found and no audio URL available"
+                            logger.error("No valid HeyGen voice found for avatar scene")
+                            continue
+
                     async with httpx.AsyncClient(timeout=60.0) as http_client:
                         payload = {
                             "video_inputs": [{
@@ -2715,15 +2761,12 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                     "avatar_id": avatar_id,
                                     "avatar_style": "normal"
                                 },
-                                "voice": {
-                                    "type": "text",
-                                    "input_text": narration_script[:5000],
-                                    "voice_id": voice_id_heygen or "pt_female_1"
-                                }
+                                "voice": voice_input,
                             }],
                             "dimension": {"width": 1280, "height": 720},
-                            "title": f"AvatarScene-{project_id}-{slide_id}"
+                            "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
                         }
+                        logger.info(f"HeyGen payload: avatar={avatar_id}, voice_type={voice_input.get('type')}")
                         response = await http_client.post(
                             f"{HEYGEN_BASE_URL}/v2/video/generate",
                             headers=HEYGEN_HEADERS,
@@ -2736,9 +2779,9 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 await _db.heygen_videos.insert_one({
                                     "video_id": video_id,
                                     "avatar_id": avatar_id,
-                                    "voice_id": voice_id_heygen,
+                                    "voice_type": voice_input.get("type"),
                                     "script": narration_script[:500],
-                                    "title": f"AvatarScene-{slide_id}",
+                                    "title": f"AvatarScene-{slide_id[:8]}",
                                     "status": "processing",
                                     "transparent": False,
                                     "project_id": project_id,
@@ -2748,10 +2791,14 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 scene["heygenVideoId"] = video_id
                                 scene["heygenStatus"] = "processing"
                                 logger.info(f"HeyGen avatar video triggered: {video_id} for slide {slide_id}")
+                            else:
+                                scene["heygenStatus"] = "failed"
+                                scene["heygenError"] = "No video_id in response"
                         else:
+                            resp_text = response.text[:300]
                             scene["heygenStatus"] = "failed"
-                            scene["heygenError"] = response.text[:200]
-                            logger.error(f"HeyGen avatar generation failed: {response.text[:200]}")
+                            scene["heygenError"] = resp_text
+                            logger.error(f"HeyGen avatar generation failed ({response.status_code}): {resp_text}")
                 except Exception as e:
                     scene["heygenStatus"] = "failed"
                     scene["heygenError"] = str(e)[:200]
