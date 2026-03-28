@@ -13,8 +13,10 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - AI suggests avatar scenes during analysis with mockup preview
   - Inline editing: narration script, background description, avatar position
   - Type switcher: Convert avatar_scene to content/simulator/game/quiz
-  - Avatar & Voice Selectors: HeyGen avatar + ElevenLabs voice dropdowns per-course with preview
-  - Auto-generation on apply: background image (Gemini), narration (ElevenLabs), avatar video (HeyGen lip-sync)
+  - Avatar & Voice Selectors: HeyGen avatar + HeyGen voice dropdowns per-course with preview
+  - HeyGen native TTS: Video generation uses HeyGen's built-in text-to-speech (no ElevenLabs for avatar scenes)
+  - Default voice: PT-BR (Brazilian Portuguese) with smart fallback
+  - Auto-generation on apply: background image (Gemini) + avatar video (HeyGen native TTS)
   - Per-course configurable limit + real-time generation progress polling
   - Works in both Edit Mode and Create Mode
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
@@ -32,14 +34,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ## 3rd Party Integrations
 - Google Gemini (via Emergent LLM Key) - Text + Image generation (Nano Banana)
 - OpenAI GPT-4o (via Emergent LLM Key)
-- HeyGen - Avatar videos (user API key) - Uses audio lip-sync with ElevenLabs audio
-- ElevenLabs - Audio narration (user API key)
+- HeyGen - Avatar videos + voice TTS (user API key)
+- ElevenLabs - Audio narration for regular slides only (user API key)
 - ConvertAPI - PPT import (user API key)
 
 ## Completed
-- 2026-03-28: BUGFIX - HeyGen voice ID mismatch (ElevenLabs ID passed to HeyGen). Now uses audio lip-sync with generated ElevenLabs audio
+- 2026-03-28: CHANGE - Avatar scenes now use HeyGen voices (not ElevenLabs). Voice selector fetches from /api/heygen/voices. Default fallback is PT-BR.
+- 2026-03-28: BUGFIX - HeyGen voice ID mismatch (ElevenLabs ID passed to HeyGen). Now uses HeyGen native TTS
 - 2026-03-28: BUGFIX - avatar-settings 404 on projects without avatarSceneSettings
-- 2026-03-28: Avatar & Voice Selectors - HeyGen avatar + ElevenLabs voice dropdowns
+- 2026-03-28: Avatar & Voice Selectors - HeyGen avatar + HeyGen voice dropdowns
 - 2026-03-28: Inline script editor with char counter, background editor, position selector
 - 2026-03-28: Avatar Scene Type Switcher + visual mockup preview
 - 2026-03-28: Avatar Scene Suggestions feature + auto-generation on apply
