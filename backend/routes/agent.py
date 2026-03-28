@@ -2441,7 +2441,7 @@ class AvatarSceneSettings(BaseModel):
 @router.get("/agent/projects/{project_id}/avatar-settings")
 async def get_avatar_settings(project_id: str):
     """Get avatar scene settings for a project."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "avatarSceneSettings": 1})
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "avatarSceneSettings": 1})
     if not project:
         raise HTTPException(404, "Project not found")
     settings = project.get("avatarSceneSettings", {"maxScenes": 3, "defaultAvatarId": None, "defaultVoiceId": None})

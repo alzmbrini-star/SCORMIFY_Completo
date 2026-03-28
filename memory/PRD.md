@@ -11,11 +11,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **AI Improvements Preview & Undo**: Before/after comparison before applying AI suggestions
 - **AI Avatar Scene Suggestions**: Agent suggests avatar scenes during course analysis with:
   - Visual mockup preview (avatar position, narration script, background description)
-  - **Inline editing**: Edit narration script (textarea + char counter), background description (input), avatar position (dropdown) directly in preview
+  - Inline editing: Edit narration script, background description, avatar position directly in preview
   - Type switcher: Convert avatar_scene to content/simulator/game/quiz before applying
   - Auto-generation of background image (Gemini), ElevenLabs narration, HeyGen avatar video on apply
   - Per-course configurable avatar scene limit
-  - Works in both Edit Mode (CourseReviewPanel) and Create Mode (StoryboardPanel)
+  - Works in both Edit Mode and Create Mode
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
 - **Video Export (MP4/WebM)**: 100% Client-side video generation using html2canvas + Canvas API + MediaRecorder
@@ -24,35 +24,6 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **VLibras**: Brazilian Sign Language accessibility widget
 - **AI Tutor**: AI-powered tutor embedded in exported courses
 - **Fix Simulators**: Tool to detect and fix static simulators
-
-## Architecture
-```
-/app
-├── backend (FastAPI + MongoDB)
-│   ├── server.py
-│   ├── routes/ (admin, agent, ai_gen, auth, companies, deps, elevenlabs, export, gallery, gamification, heygen, projects, questions, scenarios, users, vlibras)
-│   ├── services/ (ai_agent, scorm_exporter, html_exporter, video_exporter[legacy], asset_store)
-│   └── services/export_assets/
-└── frontend (React)
-    ├── src/pages/ (Dashboard, Editor, Agent, Admin, Login)
-    ├── src/pages/Editor/hooks/useEditorExport.js
-    ├── src/pages/Agent/components/
-    │   ├── AvatarSceneControls.jsx (SlideTypeSwitcher, AvatarSceneMockup with inline editing)
-    │   ├── CoursePanels.jsx (CourseReviewPanel, EditResultPanel, PreviewPanel, StatusBadge)
-    │   ├── StoryboardPanel.jsx (with type switching + inline editing for avatar_scene slides)
-    │   ├── ConfigPanel.jsx, GeneratedPanel.jsx, MediaConfigPanel.jsx
-    ├── src/components/ (editor/, scenario/, ui/)
-    ├── src/utils/ (clientVideoExport.js)
-    └── src/contexts/ (AuthContext, ProjectContext)
-```
-
-## Key API Endpoints
-- `GET /api/agent/projects/{id}/avatar-settings` - Get avatar scene settings per project
-- `PUT /api/agent/projects/{id}/avatar-settings` - Update settings (maxScenes, defaultAvatarId, defaultVoiceId)
-- `GET /api/agent/projects/{id}/avatar-generation-status` - Poll avatar generation progress
-- `POST /api/agent/sessions/{id}/save-type-overrides` - Save slide type changes (avatar→content/simulator/etc)
-- `POST /api/agent/courses/{id}/analyze` - Analyze course (includes avatar_scene type improvements)
-- `POST /api/agent/courses/{id}/apply-improvements` - Apply improvements (returns avatarScenesTriggered)
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -65,12 +36,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ConvertAPI - PPT import (user API key)
 
 ## Completed
-- 2026-03-28: Inline script editor - Edit narration, background, position directly in mockup card
-- 2026-03-28: Avatar Scene Type Switcher - Preview mockup + convert avatar_scene to content/simulator/game/quiz
-- 2026-03-28: Avatar Scene Suggestions feature - AI Agent suggests avatar scenes during analysis
-- 2026-03-28: Avatar Settings per-course (maxScenes, defaultAvatarId, defaultVoiceId)
-- 2026-03-27: E2E Video Export verified
-- 2026-03-27: Client-side video export (html2canvas + MediaRecorder + AudioContext)
+- 2026-03-28: BUGFIX - avatar-settings 404 on projects without avatarSceneSettings (empty MongoDB projection dict)
+- 2026-03-28: Inline script editor with char counter, background editor, position selector
+- 2026-03-28: Avatar Scene Type Switcher + visual mockup preview
+- 2026-03-28: Avatar Scene Suggestions feature + auto-generation on apply
+- 2026-03-27: E2E Video Export verified (client-side html2canvas + MediaRecorder)
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export

@@ -397,6 +397,12 @@ export function EditResultPanel({ result, course, navigate, onUndo, loading }) {
                 <Check className="w-3 h-3" /> Todas as cenas foram geradas!
               </p>
             )}
+            {avatarStatus?.scenes?.some(s => s.heygenStatus === 'skipped_no_avatar') && (
+              <p className="text-xs text-amber-300/80 mt-2 flex items-start gap-1.5 bg-amber-950/20 rounded p-2 border border-amber-800/20">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>Vídeo do avatar não gerado: configure um Avatar ID padrão nas Configurações de Avatar do curso antes de analisar.</span>
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
