@@ -15,6 +15,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Type switcher: Convert avatar_scene to content/simulator/game/quiz
   - Avatar & Voice Selectors: HeyGen avatar + HeyGen voice dropdowns per-course with preview
   - HeyGen native TTS: Video generation uses HeyGen's built-in text-to-speech (no ElevenLabs for avatar scenes)
+  - Transparent background: Avatar videos request transparent WebM with fallback
   - Default voice: PT-BR (Brazilian Portuguese) with smart fallback
   - Auto-generation on apply: background image (Gemini) + avatar video (HeyGen native TTS)
   - Per-course configurable limit + real-time generation progress polling
@@ -22,7 +23,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **SCORM 1.2 Export**: Full SCORM package generation with completion tracking
 - **HTML Standalone Export**: Self-contained HTML courses
 - **Video Export (MP4/WebM)**: 100% Client-side video generation (html2canvas + MediaRecorder)
-- **Gamification System**: Configurable badges and feedback per-project
+- **Gamification System**: Configurable badges with custom image upload, feedback per-project
 - **PPT Import**: Convert PowerPoint to course (ConvertAPI)
 - **VLibras**: Brazilian Sign Language accessibility widget
 - **AI Tutor**: AI-powered tutor embedded in exported courses
@@ -38,9 +39,47 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ElevenLabs - Audio narration for regular slides only (user API key)
 - ConvertAPI - PPT import (user API key)
 
-## Completed
+## Code Architecture
+```
+/app
+├── backend
+│   ├── routes
+│   │   ├── agent.py            # AI agent endpoints, HeyGen/ElevenLabs orchestration
+│   │   ├── heygen.py           # Core HeyGen endpoints
+│   │   ├── gamification.py     # Gamification + badge image upload
+│   ├── services
+│   │   ├── ai_agent.py         # AI prompting logic for storyboards
+├── frontend
+│   ├── src
+│   │   ├── pages
+│   │   │   ├── Editor.jsx             # Main editor (~2064 lines, refactored from ~3892)
+│   │   │   ├── Editor/
+│   │   │   │   ├── dialogs/           # 14 extracted dialog components
+│   │   │   │   │   ├── ExportDialog.jsx
+│   │   │   │   │   ├── HeygenDialog.jsx
+│   │   │   │   │   ├── SlideVideoDialog.jsx
+│   │   │   │   │   ├── VideoLibraryDialog.jsx
+│   │   │   │   │   ├── TTSDialog.jsx
+│   │   │   │   │   ├── MediaDialogs.jsx  (9 smaller dialogs)
+│   │   │   │   │   └── index.js
+│   │   │   │   ├── components/
+│   │   │   │   ├── hooks/
+│   │   │   │   └── utils.js
+│   │   │   ├── Agent/
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── AvatarSceneControls.jsx
+│   │   │   │   │   ├── CoursePanels.jsx
+│   │   │   │   │   └── StoryboardPanel.jsx
+│   │   ├── components
+│   │   │   ├── editor
+│   │   │   │   ├── GamificationPanel.jsx  # Badge config + custom image upload
+```
+
+## Changelog
+- 2026-03-29: REFACTOR - Editor.jsx reduced from ~3892 to ~2064 lines (47% reduction). 14 dialogs extracted to /pages/Editor/dialogs/
+- 2026-03-29: FEATURE - Custom badge image upload for gamification (GamificationPanel + /api/gamification/upload-badge-image)
 - 2026-03-28: CHANGE - HeyGen avatar videos now request transparent background (WebM) with fallback to standard
-- 2026-03-28: CHANGE - Avatar scenes now use HeyGen voices (not ElevenLabs). Voice selector fetches from /api/heygen/voices. Default fallback is PT-BR.
+- 2026-03-28: CHANGE - Avatar scenes now use HeyGen voices (not ElevenLabs). Voice selector fetches from /api/heygen/voices. Default fallback is PT-BR
 - 2026-03-28: BUGFIX - HeyGen voice ID mismatch (ElevenLabs ID passed to HeyGen). Now uses HeyGen native TTS
 - 2026-03-28: BUGFIX - avatar-settings 404 on projects without avatarSceneSettings
 - 2026-03-28: Avatar & Voice Selectors - HeyGen avatar + HeyGen voice dropdowns
@@ -53,6 +92,4 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - P1: SCORM 2004 & xAPI Export
 - P1: Dashboard for analytics & scoring
 - P1: Course version history
-- P2: Custom badge image uploads for gamification
 - P2: Cleanup legacy video_exporter.py backend code
-- P2: Refactor Editor.jsx (~3700 lines) - extract dialogs to components
