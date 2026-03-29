@@ -76,7 +76,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-03-29: FIX - Avatar videos now use 3-strategy approach: (1) v2 with AI-generated background image, (2) v1/video.webm transparent, (3) v2 standard fallback
+- 2026-03-29: FIX - Avatar scene HeyGen generation simplified: WebM transparent first, v2 standard fallback (removed unreliable background-image-URL strategy that caused HeyGen processing failures in production)
 - 2026-03-29: FIX - Manual HeyGen creation WebM fallback no longer blocks on voice incompatibility — gracefully falls back to v2
 - 2026-03-29: REFACTOR - Editor.jsx reduced from ~3892 to ~2064 lines (47% reduction). 14 dialogs extracted to /pages/Editor/dialogs/
 - 2026-03-29: FEATURE - Custom badge image upload for gamification (GamificationPanel + /api/gamification/upload-badge-image)
