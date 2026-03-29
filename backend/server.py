@@ -32,7 +32,7 @@ print("[STARTUP] server.py: Configuring MongoDB...", flush=True)
 mongo_url = os.environ.get('MONGO_URL', '')
 db_name = os.environ.get('DB_NAME', 'scormify')
 if not mongo_url:
-    mongo_url = "mongodb://localhost:27017"
+    raise RuntimeError("MONGO_URL environment variable is required")
 
 # Use longer timeouts for Atlas (remote) connections
 is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
