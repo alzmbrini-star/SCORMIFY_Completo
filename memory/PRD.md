@@ -90,6 +90,9 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - 2026-03-28: Avatar Scene Suggestions feature + auto-generation on apply
 - 2026-03-27: E2E Video Export verified (client-side html2canvas + MediaRecorder)
 
+## Recent Fixes
+- 2026-03-29: FIX - Production 500 error on /api/auth/me resolved. Root cause: .gitignore was blocking .env files from deployment. Fixed .gitignore, .env files now tracked in git. Auth flow fully tested (11/11 backend tests pass, frontend login flow verified).
+
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
 - P1: Dashboard for analytics & scoring
