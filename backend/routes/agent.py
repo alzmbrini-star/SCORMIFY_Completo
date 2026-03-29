@@ -1655,31 +1655,51 @@ async def agent_regenerate_suggestions(session_id: str, background_tasks: Backgr
 
 
 async def _trigger_heygen_videos(project_id: str, pending_list: list):
-    """Background task: trigger HeyGen video generation for each pending slide."""
+    """Background task: trigger HeyGen video generation for each pending slide (transparent BG)."""
     for item in pending_list:
         try:
+            used_transparent = False
             async with httpx.AsyncClient(timeout=60.0) as http_client:
-                payload = {
-                    "video_inputs": [{
-                        "character": {
-                            "type": "avatar",
-                            "avatar_id": item["avatar_id"],
-                            "avatar_style": "normal"
-                        },
-                        "voice": {
-                            "type": "text",
-                            "input_text": item["script"],
-                            "voice_id": item["voice_id"]
-                        }
-                    }],
+                # Try transparent WebM first
+                webm_payload = {
+                    "avatar_pose_id": item["avatar_id"],
+                    "avatar_style": "normal",
+                    "input_text": item["script"],
+                    "voice_id": item["voice_id"],
                     "dimension": {"width": 1280, "height": 720},
-                    "title": f"Agent-{project_id}-{item['slideId']}"
                 }
                 response = await http_client.post(
-                    f"{HEYGEN_BASE_URL}/v2/video/generate",
+                    f"{HEYGEN_BASE_URL}/v1/video.webm",
                     headers=HEYGEN_HEADERS,
-                    json=payload
+                    json=webm_payload,
                 )
+                if response.status_code == 200:
+                    used_transparent = True
+                else:
+                    # Fallback to standard v2 endpoint
+                    logger.warning(f"WebM transparent failed for slide {item['slideId']}, using standard video")
+                    fallback_payload = {
+                        "video_inputs": [{
+                            "character": {
+                                "type": "avatar",
+                                "avatar_id": item["avatar_id"],
+                                "avatar_style": "normal"
+                            },
+                            "voice": {
+                                "type": "text",
+                                "input_text": item["script"],
+                                "voice_id": item["voice_id"]
+                            }
+                        }],
+                        "dimension": {"width": 1280, "height": 720},
+                        "title": f"Agent-{project_id}-{item['slideId']}"
+                    }
+                    response = await http_client.post(
+                        f"{HEYGEN_BASE_URL}/v2/video/generate",
+                        headers=HEYGEN_HEADERS,
+                        json=fallback_payload,
+                    )
+
                 if response.status_code == 200:
                     data = response.json()
                     video_id = data.get("data", {}).get("video_id")
@@ -1691,17 +1711,16 @@ async def _trigger_heygen_videos(project_id: str, pending_list: list):
                             "script": item["script"],
                             "title": item["title"],
                             "status": "processing",
-                            "transparent": False,
+                            "transparent": used_transparent,
                             "project_id": project_id,
                             "slide_id": item["slideId"],
                             "created_at": now_utc(),
                         })
-                        # Update project with video_id mapping
                         await db.projects.update_one(
                             {"id": project_id, "heygenPending.slideId": item["slideId"]},
                             {"$set": {"heygenPending.$.videoId": video_id, "heygenPending.$.status": "processing"}}
                         )
-                        logger.info(f"HeyGen video triggered: {video_id} for slide {item['slideId']}")
+                        logger.info(f"HeyGen video triggered: {video_id} (transparent={used_transparent}) for slide {item['slideId']}")
                 else:
                     logger.error(f"HeyGen video generation failed: {response.status_code} - {response.text}")
                     await db.projects.update_one(
@@ -2685,32 +2704,52 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                         )
                         continue
 
-                    voice_input = {
-                        "type": "text",
-                        "input_text": narration_script[:5000],
-                        "voice_id": heygen_voice_id,
-                    }
-                    logger.info(f"HeyGen using native TTS: voice_id={heygen_voice_id}")
+                    logger.info(f"HeyGen using native TTS with transparent BG: voice_id={heygen_voice_id}")
+                    used_transparent = False
 
                     async with httpx.AsyncClient(timeout=60.0) as http_client:
-                        payload = {
-                            "video_inputs": [{
-                                "character": {
-                                    "type": "avatar",
-                                    "avatar_id": avatar_id,
-                                    "avatar_style": "normal"
-                                },
-                                "voice": voice_input,
-                            }],
+                        # Try transparent WebM first (v1/video.webm)
+                        webm_payload = {
+                            "avatar_pose_id": avatar_id,
+                            "avatar_style": "normal",
+                            "input_text": narration_script[:5000],
+                            "voice_id": heygen_voice_id,
                             "dimension": {"width": 1280, "height": 720},
-                            "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
                         }
-                        logger.info(f"HeyGen payload: avatar={avatar_id}, voice_id={heygen_voice_id}")
+                        logger.info(f"HeyGen transparent WebM: avatar={avatar_id}, voice_id={heygen_voice_id}")
                         response = await http_client.post(
-                            f"{HEYGEN_BASE_URL}/v2/video/generate",
+                            f"{HEYGEN_BASE_URL}/v1/video.webm",
                             headers=HEYGEN_HEADERS,
-                            json=payload,
+                            json=webm_payload,
                         )
+
+                        if response.status_code == 200:
+                            used_transparent = True
+                        else:
+                            # Fallback to standard v2 endpoint (no transparency)
+                            logger.warning(f"WebM transparent failed ({response.status_code}), falling back to standard video")
+                            fallback_payload = {
+                                "video_inputs": [{
+                                    "character": {
+                                        "type": "avatar",
+                                        "avatar_id": avatar_id,
+                                        "avatar_style": "normal"
+                                    },
+                                    "voice": {
+                                        "type": "text",
+                                        "input_text": narration_script[:5000],
+                                        "voice_id": heygen_voice_id,
+                                    },
+                                }],
+                                "dimension": {"width": 1280, "height": 720},
+                                "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
+                            }
+                            response = await http_client.post(
+                                f"{HEYGEN_BASE_URL}/v2/video/generate",
+                                headers=HEYGEN_HEADERS,
+                                json=fallback_payload,
+                            )
+
                         if response.status_code == 200:
                             data = response.json()
                             video_id = data.get("data", {}).get("video_id")
@@ -2722,14 +2761,15 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                     "script": narration_script[:500],
                                     "title": f"AvatarScene-{slide_id[:8]}",
                                     "status": "processing",
-                                    "transparent": False,
+                                    "transparent": used_transparent,
                                     "project_id": project_id,
                                     "slide_id": slide_id,
                                     "created_at": datetime.now(timezone.utc),
                                 })
                                 scene["heygenVideoId"] = video_id
                                 scene["heygenStatus"] = "processing"
-                                logger.info(f"HeyGen avatar video triggered: {video_id} for slide {slide_id}")
+                                scene["transparent"] = used_transparent
+                                logger.info(f"HeyGen avatar video triggered: {video_id} (transparent={used_transparent}) for slide {slide_id}")
                             else:
                                 scene["heygenStatus"] = "failed"
                                 scene["heygenError"] = "No video_id in response"

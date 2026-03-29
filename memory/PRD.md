@@ -39,6 +39,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ConvertAPI - PPT import (user API key)
 
 ## Completed
+- 2026-03-28: CHANGE - HeyGen avatar videos now request transparent background (WebM) with fallback to standard
 - 2026-03-28: CHANGE - Avatar scenes now use HeyGen voices (not ElevenLabs). Voice selector fetches from /api/heygen/voices. Default fallback is PT-BR.
 - 2026-03-28: BUGFIX - HeyGen voice ID mismatch (ElevenLabs ID passed to HeyGen). Now uses HeyGen native TTS
 - 2026-03-28: BUGFIX - avatar-settings 404 on projects without avatarSceneSettings
