@@ -71,8 +71,10 @@ export default function GamificationPanel({ projectId, onClose }) {
     description: '',
     icon: 'award',
     iconColor: '#fbbf24',
+    customImage: null,
     criteria: { type: 'quiz_score', threshold: 80, operator: 'gte' }
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -132,6 +134,41 @@ export default function GamificationPanel({ projectId, onClose }) {
     }
   };
 
+  const handleBadgeImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Arquivo deve ser uma imagem');
+      return;
+    }
+    if (file.size > 500 * 1024) {
+      toast.error('Imagem muito grande (máximo 500KB)');
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/gamification/upload-badge-image`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNewBadge(prev => ({ ...prev, customImage: data.imageUrl }));
+        toast.success('Imagem carregada!');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Erro ao carregar imagem');
+      }
+    } catch (error) {
+      toast.error('Erro ao carregar imagem');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const addBadge = () => {
     if (!newBadge.name.trim()) {
       toast.error('Nome do badge é obrigatório');
@@ -152,6 +189,7 @@ export default function GamificationPanel({ projectId, onClose }) {
       description: '',
       icon: 'award',
       iconColor: '#fbbf24',
+      customImage: null,
       criteria: { type: 'quiz_score', threshold: 80, operator: 'gte' }
     });
     setShowAddBadge(false);
@@ -321,6 +359,47 @@ export default function GamificationPanel({ projectId, onClose }) {
                   <label className="block text-sm text-slate-400 mb-1">Preview</label>
                   <div className="flex items-center justify-center h-10 bg-slate-800 rounded-md">
                     <IconComponent icon={newBadge.icon} color={newBadge.iconColor} size={28} />
+                  </div>
+                </div>
+              </div>
+              {/* Custom Image Upload */}
+              <div className="space-y-2">
+                <label className="block text-sm text-slate-400">Imagem Personalizada (opcional)</label>
+                <div className="flex items-center gap-3">
+                  {newBadge.customImage ? (
+                    <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-600 bg-slate-800 shrink-0">
+                      <img src={newBadge.customImage} alt="Badge" className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => setNewBadge(prev => ({ ...prev, customImage: null }))}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs"
+                        data-testid="remove-badge-image-btn"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-600 flex items-center justify-center bg-slate-800/50 shrink-0">
+                      <IconComponent icon={newBadge.icon} color={newBadge.iconColor} size={28} />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBadgeImageUpload}
+                        className="hidden"
+                        data-testid="badge-image-upload-input"
+                      />
+                      <div className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-md text-sm text-white transition-colors">
+                        {uploadingImage ? (
+                          <><RefreshCw className="w-4 h-4 animate-spin" /> Carregando...</>
+                        ) : (
+                          <><Upload className="w-4 h-4" /> Enviar Imagem</>
+                        )}
+                      </div>
+                    </label>
+                    <p className="text-[10px] text-slate-500 mt-1">PNG, JPG ou SVG (máx 500KB). Substitui o ícone padrão.</p>
                   </div>
                 </div>
               </div>
