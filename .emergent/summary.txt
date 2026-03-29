@@ -1,33 +1,37 @@
-<analysis>original_problem_statement: 
-The user is building a full-featured AI course authoring platform (Scormify). The current focus is integrating the AI Agent to automatically suggest and create Avatar Scenes (using HeyGen for video and ElevenLabs for audio) during course creation and improvement. The user expects to be able to preview, edit (inline narration script, background description, avatar position), and swap slide types before approving the generation.
+<analysis>**original_problem_statement**: 
+The user is building a full-featured AI course authoring platform (Scormify). The AI Agent generates Avatar Scenes using HeyGen. The platform requires robust production deployment, granular AI scene generation, and a stable React/FastAPI/MongoDB stack.
 
 PRODUCT REQUIREMENTS:
-A stable, production-ready AI course platform capable of SCORM/HTML/MP4 exports. The AI Agent must be able to generate interactive elements, including avatar-led video scenes. WYSIWYG editing, granular previewing of AI suggestions, and precise control over credits (HeyGen/ElevenLabs) usage are required. The default language for all generated content and voices must be Brazilian Portuguese (PT-BR).
+A stable, production-ready AI course platform capable of exporting courses and integrating AI avatars with transparent backgrounds. WYSIWYG editing must be performant. The deployment pipeline to Kubernetes must work flawlessly. The default language for all generated content and voices must be Brazilian Portuguese (PT-BR).
 
 **User's preferred language**: **Português** (You MUST INSTRUCT the next agent to respond in Portuguese only).
 
 **what currently exists?** 
-A mature full-stack AI course platform (React/FastAPI/MongoDB). Client-side video generation is fully verified. The AI Agent now successfully suggests Avatar Scenes, complete with UI for previewing mockups, inline editing scripts, switching slide types, and selecting specific HeyGen avatars and ElevenLabs voices. The backend automatically lip-syncs HeyGen video with ElevenLabs audio.
+A mature full-stack AI course platform (React/FastAPI/MongoDB). In the current session, the massive  file was successfully refactored, custom gamification badge uploads were added, and the AI agent was updated to strictly use HeyGen native TTS with transparent WebM backgrounds. Deployment blockers (.gitignore ignoring .env files) were resolved, but the application is currently throwing a 500 Internal Server Error on the  endpoint in the production environment.
 
-**Last working item**:
-    - Last item agent was working: Fixing the default language and voice selection for ElevenLabs and HeyGen to ensure Brazilian Portuguese (PT-BR) is used. The agent noticed that the default ElevenLabs voice was English (Lily) and HeyGen fallback wasn't strictly PT-BR, but the session ended before the fix was applied.
+**Last working item**: 
+    - Last item agent was working: Debugging a 500 Internal Server Error on the  endpoint occurring in the production environment immediately after user login.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing by python -c or curl to verify the default voice lists and fallback generation logic.
+    - Which testing method agent to use? backend testing by python -c or curl, followed by manual UI testing to ensure login succeeds.
     - User Testing Done: N
 
-**All Pending/In progress Issue list**:
-  Issue 1: Enforce Brazilian Portuguese (PT-BR) for Default AI Voices - P0
-     - Attempted fixes: Investigated  and ElevenLabs/HeyGen voice lists. Identified the problem (defaulting to English Lily) but didn't write the code yet.
-     - Next debug checklist: Check  (around line 2700 where audio is generated). Hardcode or properly filter a PT-BR voice ID for ElevenLabs if  is missing. Ensure any HeyGen fallback accurately selects a PT-BR profile.
-     - Why fix this issue and what will be achieved with the fix? If not fixed, the AI avatars will speak English or European Portuguese on a Brazilian platform, ruining the user experience and wasting API credits.
+**All Pending/In progress Issue list**:  
+  Issue 1: Production 500 Error on  - P0
+     - Attempted fixes: Investigated  and . Confirmed the endpoint works locally but fails in production. Session ended before identifying the root cause.
+     - Next debug checklist: 
+        - Check  line 339 ().
+        - Verify if  or other critical env variables used in  are properly loaded in the production environment.
+        - Check  logic for issues with MongoDB connections () or cookie parsing.
+        - Inspect backend logs for the specific Python traceback causing the 500 error.
+     - Why fix this issue and what will be achieved with the fix? This is a critical blocker. Users cannot log in or use the platform in production.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-**In progress Task List**:
-  None. (Avatar scene feature is mostly complete, pending the language bug).
+**In progress Task List**: 
+None.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -36,82 +40,73 @@ A mature full-stack AI course platform (React/FastAPI/MongoDB). Client-side vide
     - (P1) Course version history.
     
     Future Tasks:
-    - (P2) Allow users to upload custom images for gamification badges.
     - (P2) Refactor and clean up  legacy code.
-    - (P2) Refactor  (~3700 lines) by extracting dialogs into separate components.
 
 **Completed work in this session**
-- Verified Client-Side Video Export (E2E testing passed) (DONE)
-- Implemented AI Avatar Scene suggestions via Gemini in existing course analysis and new course generation (DONE)
-- Added UI for Avatar Scene Preview and Slide Type Switching (e.g., Avatar to Content) (DONE)
-- Implemented inline editing for Narration Script, Background Description, and Avatar Position (DONE)
-- Added Avatar and Voice selectors (HeyGen & ElevenLabs) with previews in UI settings (DONE)
-- Fixed 404 bug on  endpoint for projects without previous settings by fixing MongoDB projection dict truthiness (DONE)
-- Fixed HeyGen video generation failure by switching from text-to-speech payload to passing the public URL of the already generated ElevenLabs audio for accurate lip-syncing (DONE)
+- Swapped ElevenLabs voices for HeyGen native voices for AI Avatar Scenes, defaulting to PT-BR (DONE)
+- Fixed HeyGen video generation to use transparent backgrounds via  endpoint with a secure fallback to  (DONE)
+- Refactored  from ~3900 lines down to ~2000 lines by extracting 14 dialog components into  (DONE)
+- Implemented backend/frontend support for custom image uploads in Gamification Badges (DONE)
+- Fixed K8s Deployment Blockers by modifying  (which was blocking  files), fixing  fallbacks, and moving hardcoded HeyGen URLs to env vars (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Video Export failing in production with 520/502/504 errors.
-  - Recurrence count: 0 (This session successfully verified the client-side fix is working perfectly).
+  - Issue recurrence in previous fork: None.
+  - Recurrence count: 0
   - Status: RESOLVED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Avatar Scene Generation Flow**: 1. Gemini suggests a scene (script, bg description, position). 2. Backend generates a background image. 3. Backend calls ElevenLabs to generate audio. 4. Backend calls HeyGen with  and passes the public URL of the ElevenLabs audio for lip-syncing. 
-- **Type Overrides**: Users can override AI slide types (e.g., swap  for  or ) before confirming API generation, saving credits.
+- **HeyGen Generation**: AI Agent uses a robust fallback mechanism. Tries  for transparent backgrounds; if the avatar/voice combo is incompatible or resolution limits hit, it falls back to standard .
+- **Auth Flow**: Uses JWT stored in a  cookie. The frontend  relies heavily on  to validate the session on load.
 
 **key DB schema**
-  - : Contains  (maxScenes, defaultAvatarId, defaultVoiceId) and / for asynchronous generation states.
+  -  / : Used heavily by .
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
--  (Contains the bug related to PT-BR language selection for voices).
+-  (Source of the current 500 error)
 - 
+-  (Updated in this session to allow  files for deployment)
 - 
 - 
 - 
 
 **Areas that need refactoring**: 
 -  is entirely obsolete. Needs removal.
--  is massively bloated (~3700 lines).
 
 **key api endpoints**
+-  (Failing in production)
 - 
-- 
-- 
+-  (External HeyGen API)
 
 **Critical Info for New Agent**
-**LANGUAGE ENFORCEMENT**: The user strictly requested that the default language for ElevenLabs and HeyGen fallbacks must be **Brazilian Portuguese (PT-BR)**. Currently, the fallback voice is resolving to Lily (English). You must fix the voice filtering logic in  to pick a PT-BR voice if  is not set by the user.
-**HeyGen Flow Change**: HeyGen is no longer passed text + voice_id. It is now passed the  of the newly generated ElevenLabs file. Do not revert this, as it solves voice-id incompatibility between the two platforms.
+**PRODUCTION BUG**: The platform works locally/in preview but fails in production with a 500 error on . Because the deployment environment configuration was recently tweaked (fixing  to allow  files), the issue is almost certainly related to missing environment variables (like JWT secrets) in the production container, database connection strings misfiring, or cookie domain misconfigurations. Start by reading the exact traceback for the 500 error in the backend logs.
 
 **documents and test reports created in this job**
   - 
   - 
   - 
-  - 
-  - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: Asked if AI Agent can suggest avatar scenes. *(Resolved: Implemented basic avatar scene suggestion in backend).*
-2. **User**: Confirmed AI should suggest avatars alongside games/simulators. *(Resolved: Added to AI generation prompt).*
-3. **User**: Requested a visual mockup to preview/edit scripts or change slide types BEFORE spending credits. *(Resolved: Created AvatarSceneControls mockup).*
-4. **User**: Confirmed type switching should apply to new course creation too. *(Resolved: Added to StoryboardPanel).*
-5. **User**: Suggested inline editing for the narration script. *(Resolved: Made textareas editable with character counts).*
-6. **User**: Reported a 500/404 error in production when accepting an Avatar Scene. *(Resolved: Fixed MongoDB projection bug in ).*
-7. **User**: Asked when an Avatar would not have an ID. *(Answered).*
-8. **User**: Asked what the current deploy resolves. *(Answered).*
-9. **User**: Reported HeyGen is failing to recognize the selected voice ID. *(Resolved: Switched HeyGen payload to use public audio URL for lip-sync instead of voice ID).*
-10. **User**: Asked to ensure the language being passed to the APIs is Brazilian Portuguese. *(Pending: Agent was investigating default voice lists when context ended).*
+1. **User**: Confirmed AI should use HeyGen voices instead of ElevenLabs for avatar combo boxes. *(Resolved)*.
+2. **User**: Requested the AI-generated HeyGen avatars to have transparent backgrounds. *(Resolved)*.
+3. **User**: Requested to execute Backlog items: gamification badge uploads and  refactoring. *(Resolved)*.
+4. **User**: Reported that AI-generated avatars still had white backgrounds. *(Resolved: Agent fixed endpoint compatibility between WebM and V2 voices).*
+5. **User**: Reported HeyGen generation was completely failing in production for the AI agent. *(Resolved: Removed a bad background image URL payload that HeyGen servers couldn't reach).*
+6. **User**: Asked if the transparency issue was solved. *(Answered).*
+7. **User**: Asked if deployment failure caused the issue. *(Answered).*
+8. **User**: Passed logs from the Deployment Agent showing the app was failing to deploy. *(Resolved: Fixed ,  MongoDB defaults, and hardcoded HeyGen URLs).*
+9. **User**: Logged into production and provided a screenshot showing a 500 error on . *(Pending: Agent was debugging  when context ended).*
 
 **Project Health Check:**
-- Broken: Default Voice selection (using English instead of PT-BR).
+- Broken:  (Production Auth).
 - Mocked: None.
 
 **3rd Party Integrations** 
@@ -122,13 +117,13 @@ None.
 - ConvertAPI (User API Key)
 
 **Testing status**
-  - Testing agent used after significant changes: YES (5 times in this session)
+  - Testing agent used after significant changes: YES (2 times in this session for Editor refactor and HeyGen voice UI)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions:  failing in production post-deployment tweaks.
 
 **Credentials to test flow:**
 - Super Admin:  / 
 
 **What agent forgot to execute**
-The agent found the root cause of the language bug (ElevenLabs returning an English voice Lily by default, and HeyGen fallback not enforcing PT-BR) but the session ended before the agent could apply the code fix in . Implementing this fix is your top priority.</analysis>
+The agent was in the middle of diagnosing the 500 Internal Server Error on  occurring in the production environment. You must immediately resume debugging this endpoint.</analysis>

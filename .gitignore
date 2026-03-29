@@ -71,3 +71,4 @@ chainlit.md
 .cache/
 frontend/node_modules/.cache/default-development/16.pack
 frontend/node_modules/.cache/default-development/9.pack
+frontend/node_modules/.cache/default-development/0.pack

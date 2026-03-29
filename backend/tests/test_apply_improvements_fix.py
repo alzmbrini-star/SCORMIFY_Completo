@@ -14,7 +14,7 @@ import os
 import json
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://avatar-scenes.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://auth-500.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@scormify.com"

@@ -16,9 +16,9 @@ import io
 import json
 import re
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://avatar-scenes.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://auth-500.preview.emergentagent.com')
 TEST_PROJECT_ID = "d3387a1f-6c52-4740-a127-a2e733adf663"  # TestSim project
-EXPECTED_TUTOR_URL = "https://avatar-scenes.preview.emergentagent.com"
+EXPECTED_TUTOR_URL = "https://auth-500.preview.emergentagent.com"
 
 
 class TestFixSimulatorsEndpoint:
