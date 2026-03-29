@@ -1655,12 +1655,14 @@ async def agent_regenerate_suggestions(session_id: str, background_tasks: Backgr
 
 
 async def _trigger_heygen_videos(project_id: str, pending_list: list):
-    """Background task: trigger HeyGen video generation for each pending slide (transparent BG)."""
+    """Background task: trigger HeyGen video generation for each pending slide."""
     for item in pending_list:
         try:
             used_transparent = False
             async with httpx.AsyncClient(timeout=60.0) as http_client:
-                # Try transparent WebM first
+                response = None
+
+                # Strategy 1: Try transparent WebM first (v1/video.webm)
                 webm_payload = {
                     "avatar_pose_id": item["avatar_id"],
                     "avatar_style": "normal",
@@ -1675,9 +1677,13 @@ async def _trigger_heygen_videos(project_id: str, pending_list: list):
                 )
                 if response.status_code == 200:
                     used_transparent = True
+                    logger.info(f"HeyGen WebM transparent succeeded for slide {item['slideId']}")
                 else:
-                    # Fallback to standard v2 endpoint
-                    logger.warning(f"WebM transparent failed for slide {item['slideId']}, using standard video")
+                    logger.warning(f"WebM transparent failed for slide {item['slideId']} ({response.status_code}): {response.text[:200]}")
+                    response = None
+
+                # Strategy 2: Fallback to standard v2 endpoint
+                if response is None:
                     fallback_payload = {
                         "video_inputs": [{
                             "character": {
@@ -2704,30 +2710,76 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                         )
                         continue
 
-                    logger.info(f"HeyGen using native TTS with transparent BG: voice_id={heygen_voice_id}")
+                    logger.info(f"HeyGen using native TTS: voice_id={heygen_voice_id}")
                     used_transparent = False
 
-                    async with httpx.AsyncClient(timeout=60.0) as http_client:
-                        # Try transparent WebM first (v1/video.webm)
-                        webm_payload = {
-                            "avatar_pose_id": avatar_id,
-                            "avatar_style": "normal",
-                            "input_text": narration_script[:5000],
-                            "voice_id": heygen_voice_id,
-                            "dimension": {"width": 1280, "height": 720},
-                        }
-                        logger.info(f"HeyGen transparent WebM: avatar={avatar_id}, voice_id={heygen_voice_id}")
-                        response = await http_client.post(
-                            f"{HEYGEN_BASE_URL}/v1/video.webm",
-                            headers=HEYGEN_HEADERS,
-                            json=webm_payload,
-                        )
+                    # Get the background image URL (if available) to use as HeyGen video background
+                    bg_url = scene.get("bgUrl", "")
+                    base_url = os.environ.get("FRONTEND_URL", "") or os.environ.get("BASE_URL", "")
+                    base_url = base_url.rstrip("/")
+                    full_bg_url = f"{base_url}{bg_url}" if bg_url and base_url else ""
 
-                        if response.status_code == 200:
-                            used_transparent = True
-                        else:
-                            # Fallback to standard v2 endpoint (no transparency)
-                            logger.warning(f"WebM transparent failed ({response.status_code}), falling back to standard video")
+                    async with httpx.AsyncClient(timeout=60.0) as http_client:
+                        response = None
+
+                        # Strategy 1: Use v2 with the generated background image (best result)
+                        if full_bg_url:
+                            v2_bg_payload = {
+                                "video_inputs": [{
+                                    "character": {
+                                        "type": "avatar",
+                                        "avatar_id": avatar_id,
+                                        "avatar_style": "normal"
+                                    },
+                                    "voice": {
+                                        "type": "text",
+                                        "input_text": narration_script[:5000],
+                                        "voice_id": heygen_voice_id,
+                                    },
+                                    "background": {
+                                        "type": "image",
+                                        "url": full_bg_url,
+                                    },
+                                }],
+                                "dimension": {"width": 1280, "height": 720},
+                                "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
+                            }
+                            logger.info(f"HeyGen v2 with background image: avatar={avatar_id}, bg={full_bg_url}")
+                            response = await http_client.post(
+                                f"{HEYGEN_BASE_URL}/v2/video/generate",
+                                headers=HEYGEN_HEADERS,
+                                json=v2_bg_payload,
+                            )
+                            if response.status_code == 200:
+                                logger.info("HeyGen v2 with background image succeeded")
+                            else:
+                                logger.warning(f"HeyGen v2 with BG image failed ({response.status_code}): {response.text[:200]}")
+                                response = None  # Reset to try next strategy
+
+                        # Strategy 2: Try transparent WebM (v1/video.webm)
+                        if response is None:
+                            webm_payload = {
+                                "avatar_pose_id": avatar_id,
+                                "avatar_style": "normal",
+                                "input_text": narration_script[:5000],
+                                "voice_id": heygen_voice_id,
+                                "dimension": {"width": 1280, "height": 720},
+                            }
+                            logger.info(f"HeyGen transparent WebM: avatar={avatar_id}, voice_id={heygen_voice_id}")
+                            response = await http_client.post(
+                                f"{HEYGEN_BASE_URL}/v1/video.webm",
+                                headers=HEYGEN_HEADERS,
+                                json=webm_payload,
+                            )
+                            if response.status_code == 200:
+                                used_transparent = True
+                                logger.info("HeyGen WebM transparent succeeded")
+                            else:
+                                logger.warning(f"WebM transparent failed ({response.status_code}): {response.text[:200]}")
+                                response = None
+
+                        # Strategy 3: Fallback to standard v2 (no transparency, no custom BG)
+                        if response is None:
                             fallback_payload = {
                                 "video_inputs": [{
                                     "character": {
@@ -2744,6 +2796,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 "dimension": {"width": 1280, "height": 720},
                                 "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
                             }
+                            logger.warning("Falling back to standard v2 (no transparency)")
                             response = await http_client.post(
                                 f"{HEYGEN_BASE_URL}/v2/video/generate",
                                 headers=HEYGEN_HEADERS,

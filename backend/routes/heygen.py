@@ -256,22 +256,18 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                     json=payload
                 )
                 
-                # If WebM endpoint fails (avatar not supported), fall back to standard endpoint
+                # If WebM endpoint fails, fall back to standard endpoint
                 if response.status_code != 200:
-                    error_data = response.json()
-                    error_code = error_data.get("data", {}).get("error", {}).get("code", "")
+                    error_data = {}
+                    try:
+                        error_data = response.json()
+                    except Exception:
+                        pass
+                    error_msg_raw = error_data.get("message", "") or str(error_data)
                     
-                    # Check if it's an avatar compatibility issue
-                    if "AVATAR_NOT_FOUND" in str(error_code) or "avatar" in str(error_data).lower():
-                        logger.warning("Avatar not compatible with WebM, falling back to standard video")
-                        # Fall back to standard endpoint without transparent background
-                        request.transparent_background = False
-                    else:
-                        logger.error(f"HeyGen WebM error: {response.status_code} - {response.text}")
-                        error_msg = error_data.get("error", {}).get("message", "")
-                        if not error_msg:
-                            error_msg = error_data.get("data", {}).get("error", {}).get("message", response.text)
-                        raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
+                    # Any WebM failure falls back to standard v2 (voice/avatar incompatible, etc.)
+                    logger.warning(f"WebM failed ({response.status_code}): {error_msg_raw[:200]}. Falling back to standard video")
+                    request.transparent_background = False
             
             # Standard video (either requested or fallback from WebM)
             if not request.transparent_background:
