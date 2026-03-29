@@ -93,7 +93,7 @@ async def _sync_job_to_db(job_id: str, updates: dict):
 
 # HeyGen config
 HEYGEN_API_KEY = os.environ.get('HEYGEN_API_KEY', '')
-HEYGEN_BASE_URL = "https://api.heygen.com"
+HEYGEN_BASE_URL = os.environ.get('HEYGEN_BASE_URL', 'https://api.heygen.com')
 HEYGEN_HEADERS = {
     "X-Api-Key": HEYGEN_API_KEY,
     "Accept": "application/json",
