@@ -95,6 +95,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - 2026-03-30: FEATURE - Avatar & Voice Preview in Agent IA "Configurações de Avatar". Replaced dropdown selectors with visual avatar grid (thumbnails, 4 columns), large preview card with "Ver Animado" video toggle, voice list with play buttons for audio preview, and selected voice preview card with "Selecionada" badge. All tested 100% (iteration_90).
 - 2026-03-30: FEATURE - "Testar Combinação" button generates a mini HeyGen test video with the selected avatar + voice combination. Backend POST /api/heygen/test-combination endpoint + frontend player with status polling. Tested 100% backend (5/5) + frontend (iteration_91).
 - 2026-03-30: FEATURE - Agent IA now analyzes ALL courses (imported PPT + agent-created). Expanded GET /api/agent/courses to return all 51 projects with 'source' field. CourseListPanel has filter tabs (Todos/Agente/Importados), visual badges (violet=Agente, green=Importado), distinct icons (Brain/Upload). Imported course analysis suggests simulators, jogos, avatares, narração. Tested 100% (iteration_92).
+- 2026-03-30: FEATURE - "Novos Slides Sugeridos" are now selectable with checkboxes. Users can select which new slides to create, with "Selecionar todos" toggle. Selected new slides are sent to backend via selectedNewSlides field in preview/apply requests. Backend ai_agent generates actual slide content for selected new slides. Tested 100% backend (6/6) + frontend (iteration_93).
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
