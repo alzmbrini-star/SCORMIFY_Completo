@@ -837,6 +837,7 @@ export default function Editor() {
 
   const handleBulkTextColorChange = async () => {
     if (!bulkTextColor && !bulkFontFamily && !bulkFontSize) return;
+    const fontSizeNum = bulkFontSize ? parseFloat(bulkFontSize) : null;
     try {
       const updatedSlides = slides.map(slide => ({
         ...slide,
@@ -845,7 +846,7 @@ export default function Editor() {
             const newStyle = { ...el.style };
             if (bulkTextColor) newStyle.color = bulkTextColor;
             if (bulkFontFamily) newStyle.fontFamily = bulkFontFamily;
-            if (bulkFontSize) newStyle.fontSize = bulkFontSize;
+            if (fontSizeNum) newStyle.fontSize = fontSizeNum;
             let newHtmlContent = el.htmlContent || '';
             if (newHtmlContent) {
               if (bulkTextColor) {
