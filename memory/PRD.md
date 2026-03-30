@@ -90,8 +90,9 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - 2026-03-28: Avatar Scene Suggestions feature + auto-generation on apply
 - 2026-03-27: E2E Video Export verified (client-side html2canvas + MediaRecorder)
 
-## Recent Fixes
+## Recent Fixes & Features
 - 2026-03-29: FIX - Production 500 error on /api/auth/me resolved. Root cause: .gitignore was blocking .env files from deployment. Fixed .gitignore, .env files now tracked in git. Auth flow fully tested (11/11 backend tests pass, frontend login flow verified).
+- 2026-03-30: FEATURE - Avatar & Voice Preview in Agent IA "Configurações de Avatar". Replaced dropdown selectors with visual avatar grid (thumbnails, 4 columns), large preview card with "Ver Animado" video toggle, voice list with play buttons for audio preview, and selected voice preview card with "Selecionada" badge. All tested 100% (iteration_90).
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
