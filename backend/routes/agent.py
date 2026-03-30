@@ -2069,14 +2069,14 @@ async def agent_generate_structure_from_template(session_id: str, data: dict):
 
 @router.get("/agent/courses")
 async def agent_list_courses():
-    """List courses created by the AI agent."""
+    """List all courses available for agent analysis (agent-created + imported)."""
     projects = await db.projects.find(
-        {"createdByAgent": True}, {"_id": 0, "id": 1, "name": 1, "description": 1, "createdAt": 1, "updatedAt": 1, "agentSessionId": 1}
-    ).sort("createdAt", -1).to_list(100)
-    # Add slide count
+        {}, {"_id": 0, "id": 1, "name": 1, "description": 1, "createdAt": 1, "updatedAt": 1, "agentSessionId": 1, "createdByAgent": 1, "importedFrom": 1}
+    ).sort("createdAt", -1).to_list(200)
     for p in projects:
         full_proj = await db.projects.find_one({"id": p["id"]}, {"_id": 0, "course.slides": 1})
         p["slidesCount"] = len(full_proj.get("course", {}).get("slides", [])) if full_proj else 0
+        p["source"] = "agent" if p.get("createdByAgent") else "imported"
     return projects
 
 

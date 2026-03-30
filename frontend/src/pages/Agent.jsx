@@ -541,7 +541,7 @@ export default function Agent() {
     if (m === 'create') {
       addChatMsg('agent', 'Envie o conteúdo que deseja transformar em curso. Você pode fazer upload de arquivo ou colar texto.');
     } else {
-      addChatMsg('agent', 'Selecione um curso criado pelo agente para analisar e sugerir melhorias.');
+      addChatMsg('agent', 'Selecione um curso para analisar e sugerir melhorias. Você pode escolher cursos criados pelo agente ou importados de PPT.');
       loadAgentCourses();
     }
   };
@@ -1087,6 +1087,7 @@ function StructurePanel({ structure, loading, onApprove, progressMsg }) {
 }
 
 function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
+  const [filter, setFilter] = useState('all'); // all | agent | imported
   const gradients = [
     'from-blue-600/80 to-cyan-500/80',
     'from-violet-600/80 to-fuchsia-500/80',
@@ -1095,26 +1096,53 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
     'from-rose-600/80 to-pink-500/80',
     'from-indigo-600/80 to-sky-500/80',
   ];
+
+  const filtered = filter === 'all' ? courses : courses.filter(c => c.source === filter);
+  const agentCount = courses.filter(c => c.source === 'agent').length;
+  const importedCount = courses.filter(c => c.source !== 'agent').length;
+
   return (
     <div className="space-y-4" data-testid="course-list-panel">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-400" /> Cursos do Agente</h2>
+        <h2 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-400" /> Cursos Disponíveis</h2>
         <Button variant="outline" size="sm" onClick={onRefresh} data-testid="refresh-courses-btn">
           <ArrowRight className="w-3 h-3 mr-1" /> Atualizar
         </Button>
       </div>
 
-      {courses.length === 0 ? (
+      {/* Filter tabs */}
+      <div className="flex gap-1.5" data-testid="course-filter-tabs">
+        {[
+          { key: 'all', label: `Todos (${courses.length})` },
+          { key: 'agent', label: `Agente (${agentCount})` },
+          { key: 'imported', label: `Importados (${importedCount})` },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setFilter(t.key)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              filter === t.key
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+            data-testid={`filter-${t.key}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-8 text-center space-y-3">
             <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />
-            <p className="text-sm text-slate-300">Nenhum curso criado pelo agente encontrado.</p>
-            <p className="text-xs text-slate-400">Crie um curso usando o modo "Criar Novo Curso" primeiro.</p>
+            <p className="text-sm text-slate-300">Nenhum curso encontrado nesta categoria.</p>
+            <p className="text-xs text-slate-400">Crie um curso pelo agente ou importe um arquivo PPT no Dashboard.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {courses.map((course, idx) => (
+          {filtered.map((course, idx) => (
             <Card
               key={course.id}
               className="bg-slate-900/50 border-slate-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all cursor-pointer group overflow-hidden"
@@ -1122,9 +1150,18 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
               data-testid={`course-item-${course.id}`}
             >
               <div className={`h-24 bg-gradient-to-br ${gradients[idx % gradients.length]} flex items-center justify-center relative`}>
-                <BookOpen className="w-10 h-10 text-white/30 group-hover:text-white/50 transition-colors" />
+                {course.source === 'agent' ? (
+                  <Brain className="w-10 h-10 text-white/30 group-hover:text-white/50 transition-colors" />
+                ) : (
+                  <Upload className="w-10 h-10 text-white/30 group-hover:text-white/50 transition-colors" />
+                )}
                 <Badge className="absolute top-2 right-2 bg-black/40 text-white text-[10px] border-0">
                   <Layers className="w-3 h-3 mr-1" />{course.slidesCount} slides
+                </Badge>
+                <Badge className={`absolute top-2 left-2 text-[9px] border-0 ${
+                  course.source === 'agent' ? 'bg-violet-600/70 text-violet-100' : 'bg-emerald-600/70 text-emerald-100'
+                }`}>
+                  {course.source === 'agent' ? 'Agente' : 'Importado'}
                 </Badge>
               </div>
               <CardContent className="p-3 space-y-1.5">
