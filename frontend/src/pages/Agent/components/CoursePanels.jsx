@@ -27,6 +27,203 @@ import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 
 const API = getApiUrl();
 
+/* ─── Avatar Preview Card ─── */
+function AvatarPreviewCard({ avatar, ...props }) {
+  const [showVideo, setShowVideo] = useState(false);
+  const videoRef = useRef(null);
+
+  if (!avatar) return null;
+
+  return (
+    <div className="rounded-lg bg-violet-950/40 border border-violet-700/30 overflow-hidden" {...props}>
+      <div className="relative">
+        {showVideo && avatar.preview_video_url ? (
+          <video
+            ref={videoRef}
+            src={avatar.preview_video_url}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-40 object-cover"
+            onError={() => setShowVideo(false)}
+            data-testid="avatar-preview-video"
+          />
+        ) : (
+          <img
+            src={avatar.preview_image_url}
+            alt={avatar.avatar_name}
+            className="w-full h-40 object-cover"
+            onError={(e) => { e.target.style.display = 'none'; }}
+            data-testid="avatar-preview-image"
+          />
+        )}
+        {/* Toggle video/image button */}
+        {avatar.preview_video_url && (
+          <button
+            onClick={() => setShowVideo(!showVideo)}
+            className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-[10px] text-white/90 hover:bg-violet-600/60 transition-colors"
+            data-testid="avatar-toggle-video-btn"
+          >
+            {showVideo ? (
+              <><Eye className="w-3 h-3" /> Foto</>
+            ) : (
+              <><Play className="w-3 h-3" /> Ver Animado</>
+            )}
+          </button>
+        )}
+      </div>
+      <div className="p-2.5 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
+        <p className="text-xs text-violet-200 font-medium">{avatar.avatar_name}</p>
+        <Badge className="text-[8px] px-1.5 py-0 bg-violet-600/20 text-violet-300 ml-auto">{avatar.gender}</Badge>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Voice Option Row ─── */
+function VoiceOptionRow({ voice, isSelected, onSelect }) {
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef(null);
+
+  const handlePlay = (e) => {
+    e.stopPropagation();
+    if (!voice.preview_audio) return;
+    if (playing && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setPlaying(false);
+      return;
+    }
+    const audio = new Audio(voice.preview_audio);
+    audioRef.current = audio;
+    audio.play().catch(() => {});
+    setPlaying(true);
+    audio.onended = () => setPlaying(false);
+    audio.onerror = () => setPlaying(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all text-left ${
+        isSelected
+          ? 'border-violet-500 bg-violet-600/10 text-violet-300'
+          : 'border-slate-700/50 text-slate-400 hover:border-violet-500/30'
+      }`}
+      data-testid={`voice-option-${voice.voice_id}`}
+    >
+      <Volume2 className={`w-3 h-3 shrink-0 ${isSelected ? 'text-violet-400' : 'text-slate-500'}`} />
+      <span className="font-medium truncate">{voice.country_flag || ''} {voice.name}</span>
+      <span className="text-[10px] text-slate-500 shrink-0">{voice.gender}</span>
+      {voice.language_code && (
+        <Badge className="text-[8px] px-1 py-0 bg-slate-800 text-slate-400 shrink-0">{voice.language_code}</Badge>
+      )}
+      {voice.preview_audio && (
+        <span
+          role="button"
+          onClick={handlePlay}
+          className={`ml-auto shrink-0 p-1 rounded-full transition-colors ${
+            playing ? 'bg-violet-500/30 text-violet-300' : 'text-violet-400/60 hover:text-violet-300 hover:bg-violet-500/10'
+          }`}
+          data-testid={`play-voice-${voice.voice_id}`}
+          title="Ouvir preview da voz"
+        >
+          {playing ? (
+            <span className="flex items-center justify-center w-3.5 h-3.5">
+              <span className="w-1 h-3 bg-violet-300 rounded-sm mx-px" />
+              <span className="w-1 h-3 bg-violet-300 rounded-sm mx-px" />
+            </span>
+          ) : (
+            <Play className="w-3.5 h-3.5" />
+          )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ─── Voice Preview Card ─── */
+function VoicePreviewCard({ voice, ...props }) {
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef(null);
+
+  const handlePlay = () => {
+    if (!voice.preview_audio) return;
+    if (playing && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setPlaying(false);
+      return;
+    }
+    const audio = new Audio(voice.preview_audio);
+    audioRef.current = audio;
+    audio.play().catch(() => {});
+    setPlaying(true);
+    audio.onended = () => setPlaying(false);
+    audio.onerror = () => setPlaying(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  if (!voice) return null;
+
+  return (
+    <div className="rounded-lg bg-violet-950/40 border border-violet-700/30 p-3" {...props}>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handlePlay}
+          disabled={!voice.preview_audio}
+          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
+            playing
+              ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/30'
+              : voice.preview_audio
+                ? 'bg-violet-600/20 text-violet-300 hover:bg-violet-500/30'
+                : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+          }`}
+          data-testid="selected-voice-play-btn"
+        >
+          {playing ? (
+            <span className="flex items-center gap-0.5">
+              <span className="w-1 h-4 bg-white rounded-sm animate-pulse" />
+              <span className="w-1 h-4 bg-white rounded-sm animate-pulse" style={{ animationDelay: '150ms' }} />
+            </span>
+          ) : (
+            <Play className="w-4 h-4 ml-0.5" />
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-violet-200 font-medium">{voice.country_flag || ''} {voice.name}</p>
+          <p className="text-[10px] text-violet-400/70">{voice.gender} {voice.language_code ? `\u2022 ${voice.language_code}` : ''}</p>
+        </div>
+        <Badge className="text-[8px] px-1.5 py-0 bg-emerald-600/20 text-emerald-300 shrink-0">Selecionada</Badge>
+      </div>
+      {!voice.preview_audio && (
+        <p className="text-[10px] text-slate-500 mt-2">Preview de áudio não disponível para esta voz.</p>
+      )}
+    </div>
+  );
+}
+
+
+
 export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply, onTypeOverride, onScriptOverride }) {
   const [avatarLimit, setAvatarLimit] = useState(3);
   const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
@@ -83,7 +280,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   useEffect(() => {
     if (!avatarSettingsOpen || heygenAvatars.length > 0) return;
     setLoadingAvatars(true);
-    fetch(`${API}/api/heygen/avatars?limit=200`)
+    fetch(`${API}/api/heygen/avatars?limit=50`)
       .then(r => r.ok ? r.json() : { avatars: [] })
       .then(data => setHeygenAvatars(data.avatars || []))
       .catch(() => {})
@@ -210,47 +407,54 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
               </button>
               {avatarSettingsOpen && (
                 <div className="mt-3 space-y-4 pt-3 border-t border-violet-800/20">
-                  {/* Avatar HeyGen selector */}
-                  <div className="space-y-1.5">
+                  {/* Avatar HeyGen selector with visual grid */}
+                  <div className="space-y-2">
                     <label className="text-xs text-violet-300 font-medium">Avatar HeyGen</label>
                     {loadingAvatars ? (
                       <div className="flex items-center gap-2 text-xs text-violet-400">
                         <Loader2 className="w-3 h-3 animate-spin" /> Carregando avatares...
                       </div>
                     ) : heygenAvatars.length > 0 ? (
-                      <div className="space-y-2">
-                        <Select value={defaultAvatarId} onValueChange={handleAvatarSelect}>
-                          <SelectTrigger className="h-8 text-xs bg-violet-950/50 border-violet-800/40" data-testid="avatar-select">
-                            <SelectValue placeholder="Selecione um avatar HeyGen..." />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-60">
-                            {heygenAvatars.map(a => (
-                              <SelectItem key={a.avatar_id} value={a.avatar_id}>
-                                <span className="flex items-center gap-2">
-                                  <span>{a.avatar_name}</span>
-                                  <span className="text-[10px] text-slate-400">({a.gender})</span>
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {/* Avatar preview */}
+                      <div className="space-y-3">
+                        {/* Avatar grid */}
+                        <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto pr-1" data-testid="avatar-grid">
+                          {heygenAvatars.map(a => (
+                            <button
+                              key={a.avatar_id}
+                              onClick={() => handleAvatarSelect(a.avatar_id)}
+                              className={`relative rounded-lg border-2 overflow-hidden transition-all group ${
+                                defaultAvatarId === a.avatar_id
+                                  ? 'border-violet-500 ring-1 ring-violet-500/30 shadow-lg shadow-violet-500/10'
+                                  : 'border-slate-700/50 hover:border-violet-500/40'
+                              }`}
+                              data-testid={`avatar-option-${a.avatar_id}`}
+                            >
+                              {a.preview_image_url ? (
+                                <img src={a.preview_image_url} alt={a.avatar_name} className="w-full h-20 object-cover" />
+                              ) : (
+                                <div className="w-full h-20 bg-slate-800 flex items-center justify-center">
+                                  <UserCircle className="w-8 h-8 text-slate-600" />
+                                </div>
+                              )}
+                              <p className="text-[9px] text-center truncate px-1 py-0.5 bg-slate-900/80">{a.avatar_name}</p>
+                              {defaultAvatarId === a.avatar_id && (
+                                <div className="absolute top-1 right-1 bg-violet-500 rounded-full p-0.5">
+                                  <Check className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Selected avatar large preview */}
                         {defaultAvatarId && (() => {
                           const sel = heygenAvatars.find(a => a.avatar_id === defaultAvatarId);
-                          return sel ? (
-                            <div className="flex items-center gap-3 p-2 rounded-md bg-violet-950/30 border border-violet-800/10">
-                              <img
-                                src={sel.preview_image_url}
-                                alt={sel.avatar_name}
-                                className="w-14 h-14 rounded-lg object-cover border border-violet-700/30"
-                                onError={(e) => { e.target.style.display = 'none'; }}
-                              />
-                              <div>
-                                <p className="text-xs text-violet-200 font-medium">{sel.avatar_name}</p>
-                                <p className="text-[10px] text-violet-400">{sel.gender} &bull; {sel.avatar_id.substring(0, 20)}...</p>
-                              </div>
-                            </div>
-                          ) : null;
+                          if (!sel) return null;
+                          return (
+                            <AvatarPreviewCard
+                              avatar={sel}
+                              data-testid="selected-avatar-preview"
+                            />
+                          );
                         })()}
                       </div>
                     ) : (
@@ -258,31 +462,34 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                     )}
                   </div>
 
-                  {/* HeyGen voice selector */}
-                  <div className="space-y-1.5">
+                  {/* HeyGen voice selector with audio preview */}
+                  <div className="space-y-2">
                     <label className="text-xs text-violet-300 font-medium">Voz HeyGen</label>
                     {loadingVoices ? (
                       <div className="flex items-center gap-2 text-xs text-violet-400">
                         <Loader2 className="w-3 h-3 animate-spin" /> Carregando vozes...
                       </div>
                     ) : heygenVoices.length > 0 ? (
-                      <Select value={defaultVoiceId} onValueChange={handleVoiceSelect}>
-                        <SelectTrigger className="h-8 text-xs bg-violet-950/50 border-violet-800/40" data-testid="voice-select">
-                          <SelectValue placeholder="Selecione uma voz HeyGen..." />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                      <div className="space-y-2">
+                        <div className="space-y-1 max-h-44 overflow-y-auto pr-1" data-testid="voice-list">
                           {heygenVoices.map(v => (
-                            <SelectItem key={v.voice_id} value={v.voice_id}>
-                              <span className="flex items-center gap-2">
-                                <span>{v.country_flag || ''} {v.name}</span>
-                                <span className="text-[10px] text-slate-400">
-                                  {v.gender} {v.language_code ? `• ${v.language_code}` : ''}
-                                </span>
-                              </span>
-                            </SelectItem>
+                            <VoiceOptionRow
+                              key={v.voice_id}
+                              voice={v}
+                              isSelected={defaultVoiceId === v.voice_id}
+                              onSelect={() => handleVoiceSelect(v.voice_id)}
+                            />
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </div>
+                        {/* Selected voice preview card */}
+                        {defaultVoiceId && (() => {
+                          const sel = heygenVoices.find(v => v.voice_id === defaultVoiceId);
+                          if (!sel) return null;
+                          return (
+                            <VoicePreviewCard voice={sel} data-testid="selected-voice-preview" />
+                          );
+                        })()}
+                      </div>
                     ) : (
                       <p className="text-[10px] text-amber-300/70">Nenhuma voz disponível. Verifique sua chave API HeyGen.</p>
                     )}
