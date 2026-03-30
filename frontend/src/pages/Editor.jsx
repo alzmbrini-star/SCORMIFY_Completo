@@ -282,6 +282,8 @@ export default function Editor() {
   const [showFlipbookDialog, setShowFlipbookDialog] = useState(false);
   const [showBulkTextColorDialog, setShowBulkTextColorDialog] = useState(false);
   const [bulkTextColor, setBulkTextColor] = useState('#ffffff');
+  const [bulkFontFamily, setBulkFontFamily] = useState('');
+  const [bulkFontSize, setBulkFontSize] = useState('');
   const [buttonConfig, setButtonConfig] = useState({
     text: 'Clique aqui', url: '', icon: '', style: 'primary', openInNewTab: true,
   });
@@ -834,39 +836,47 @@ export default function Editor() {
   // Add Flipbook element
 
   const handleBulkTextColorChange = async () => {
-    if (!bulkTextColor) return;
+    if (!bulkTextColor && !bulkFontFamily && !bulkFontSize) return;
     try {
       const updatedSlides = slides.map(slide => ({
         ...slide,
         elements: slide.elements.map(el => {
           if (el.type === 'text' || el.type === 'html') {
-            // Update text color in style
-            const newStyle = { ...el.style, color: bulkTextColor };
-            // Also update htmlContent if it contains color styles
+            const newStyle = { ...el.style };
+            if (bulkTextColor) newStyle.color = bulkTextColor;
+            if (bulkFontFamily) newStyle.fontFamily = bulkFontFamily;
+            if (bulkFontSize) newStyle.fontSize = bulkFontSize;
             let newHtmlContent = el.htmlContent || '';
             if (newHtmlContent) {
-              // Replace color in inline styles
-              newHtmlContent = newHtmlContent.replace(/color:\s*#[a-fA-F0-9]{3,8}/g, `color:${bulkTextColor}`);
-              newHtmlContent = newHtmlContent.replace(/color:\s*rgba?\([^)]+\)/g, `color:${bulkTextColor}`);
+              if (bulkTextColor) {
+                newHtmlContent = newHtmlContent.replace(/color:\s*#[a-fA-F0-9]{3,8}/g, `color:${bulkTextColor}`);
+                newHtmlContent = newHtmlContent.replace(/color:\s*rgba?\([^)]+\)/g, `color:${bulkTextColor}`);
+              }
+              if (bulkFontFamily) {
+                newHtmlContent = newHtmlContent.replace(/font-family:\s*[^;}"]+/g, `font-family:${bulkFontFamily}`);
+              }
+              if (bulkFontSize) {
+                newHtmlContent = newHtmlContent.replace(/font-size:\s*[^;}"]+/g, `font-size:${bulkFontSize}`);
+              }
             }
             return { ...el, style: newStyle, htmlContent: newHtmlContent };
           }
           return el;
         }),
       }));
-      // Save all slides via API
       for (const slide of updatedSlides) {
         for (const el of slide.elements) {
           const origEl = slides.find(s => s.id === slide.id)?.elements.find(e => e.id === el.id);
-          if (origEl && (origEl.style?.color !== el.style?.color || origEl.htmlContent !== el.htmlContent)) {
+          if (origEl && (origEl.style?.color !== el.style?.color || origEl.style?.fontFamily !== el.style?.fontFamily || origEl.style?.fontSize !== el.style?.fontSize || origEl.htmlContent !== el.htmlContent)) {
             await updateElement(slide.id, el.id, { style: el.style, htmlContent: el.htmlContent });
           }
         }
       }
-      toast.success(`Cor de texto alterada para ${bulkTextColor} em todos os slides`);
+      const changes = [bulkTextColor && `cor ${bulkTextColor}`, bulkFontFamily && `fonte ${bulkFontFamily}`, bulkFontSize && `tamanho ${bulkFontSize}`].filter(Boolean).join(', ');
+      toast.success(`Texto alterado (${changes}) em todos os slides`);
       setShowBulkTextColorDialog(false);
     } catch (err) {
-      toast.error('Erro ao alterar cor de texto: ' + err.message);
+      toast.error('Erro ao alterar texto: ' + err.message);
     }
   };
 
@@ -1892,6 +1902,8 @@ export default function Editor() {
         <BulkTextColorDialog
           open={showBulkTextColorDialog} onOpenChange={setShowBulkTextColorDialog}
           bulkTextColor={bulkTextColor} setBulkTextColor={setBulkTextColor}
+          bulkFontFamily={bulkFontFamily} setBulkFontFamily={setBulkFontFamily}
+          bulkFontSize={bulkFontSize} setBulkFontSize={setBulkFontSize}
           slides={slides} handleBulkTextColorChange={handleBulkTextColorChange}
         />
 

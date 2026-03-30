@@ -176,33 +176,97 @@ export function HtmlDialog({
   );
 }
 
-export function BulkTextColorDialog({ open, onOpenChange, bulkTextColor, setBulkTextColor, slides, handleBulkTextColorChange }) {
+export function BulkTextColorDialog({ open, onOpenChange, bulkTextColor, setBulkTextColor, bulkFontFamily, setBulkFontFamily, bulkFontSize, setBulkFontSize, slides, handleBulkTextColorChange }) {
+  const fonts = [
+    'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia',
+    'Times New Roman', 'Courier New', 'Roboto', 'Open Sans', 'Lato',
+    'Montserrat', 'Poppins', 'Inter', 'Raleway', 'Nunito', 'Oswald',
+    'Playfair Display', 'Source Sans Pro', 'PT Sans',
+  ];
+  const sizes = ['12px', '14px', '16px', '18px', '20px', '22px', '24px', '28px', '32px', '36px', '40px', '48px', '56px', '64px', '72px'];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Alterar Cor do Texto — Todos os Slides</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-4">
-          <p className="text-sm text-muted-foreground">A cor selecionada será aplicada a todos os textos em todos os {slides.length} slides do curso.</p>
-          <div className="flex items-center gap-3">
-            <input type="color" value={bulkTextColor} onChange={e => setBulkTextColor(e.target.value)} className="w-12 h-12 rounded cursor-pointer border-0 bg-transparent" data-testid="bulk-text-color-picker" />
-            <Input value={bulkTextColor} onChange={e => setBulkTextColor(e.target.value)} placeholder="#ffffff" className="flex-1" data-testid="bulk-text-color-hex" />
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader><DialogTitle>Alterar Texto — Todos os Slides</DialogTitle></DialogHeader>
+        <div className="space-y-5 py-4">
+          <p className="text-sm text-muted-foreground">As alterações serão aplicadas a todos os textos em todos os {slides.length} slides. Deixe campos vazios para manter o valor atual.</p>
+
+          {/* Color */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-300">Cor do Texto</label>
+            <div className="flex items-center gap-3">
+              <input type="color" value={bulkTextColor || '#ffffff'} onChange={e => setBulkTextColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 bg-transparent" data-testid="bulk-text-color-picker" />
+              <Input value={bulkTextColor} onChange={e => setBulkTextColor(e.target.value)} placeholder="#ffffff" className="flex-1" data-testid="bulk-text-color-hex" />
+              <button onClick={() => setBulkTextColor('')} className="text-[10px] text-slate-500 hover:text-slate-300 shrink-0">Limpar</button>
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {['#ffffff', '#f1f5f9', '#e2e8f0', '#1e293b', '#0f172a', '#000000', '#fbbf24', '#34d399', '#60a5fa', '#f472b6'].map(c => (
+                <button key={c} onClick={() => setBulkTextColor(c)}
+                  className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${bulkTextColor === c ? 'border-cyan-400 ring-2 ring-cyan-400/30' : 'border-slate-600'}`}
+                  style={{ background: c }} title={c} />
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {['#ffffff', '#f1f5f9', '#e2e8f0', '#1e293b', '#0f172a', '#000000', '#fbbf24', '#34d399', '#60a5fa', '#f472b6'].map(c => (
-              <button key={c} onClick={() => setBulkTextColor(c)}
-                className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${bulkTextColor === c ? 'border-cyan-400 ring-2 ring-cyan-400/30' : 'border-slate-600'}`}
-                style={{ background: c }} title={c} />
-            ))}
+
+          {/* Font Family */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-300">Fonte</label>
+            <select
+              value={bulkFontFamily}
+              onChange={e => setBulkFontFamily(e.target.value)}
+              className="w-full h-9 rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200"
+              data-testid="bulk-font-family-select"
+            >
+              <option value="">— Manter fonte atual —</option>
+              {fonts.map(f => (
+                <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+              ))}
+            </select>
+            {bulkFontFamily && (
+              <p className="text-sm text-slate-300 px-2 py-1 rounded bg-slate-800/50" style={{ fontFamily: bulkFontFamily }}>
+                Preview: O rápido rapaz pula sobre o cão preguiçoso.
+              </p>
+            )}
           </div>
-          <div className="flex gap-2">
-            {(slides.slice(0, 3)).map((s, i) => (
-              <div key={i} className="flex-1 h-12 rounded border border-slate-700 flex items-center justify-center text-xs font-medium" style={{ background: s.background || '#1e293b', color: bulkTextColor }}>Slide {i + 1}</div>
-            ))}
+
+          {/* Font Size */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-300">Tamanho do Texto</label>
+            <select
+              value={bulkFontSize}
+              onChange={e => setBulkFontSize(e.target.value)}
+              className="w-full h-9 rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200"
+              data-testid="bulk-font-size-select"
+            >
+              <option value="">— Manter tamanho atual —</option>
+              {sizes.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Preview */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-400">Preview</label>
+            <div className="flex gap-2">
+              {(slides.slice(0, 3)).map((s, i) => (
+                <div key={i} className="flex-1 h-14 rounded border border-slate-700 flex items-center justify-center text-xs font-medium overflow-hidden px-1 text-center"
+                  style={{
+                    background: s.background || '#1e293b',
+                    color: bulkTextColor || (s.elements?.find(e => e.type === 'text')?.style?.color) || '#fff',
+                    fontFamily: bulkFontFamily || undefined,
+                    fontSize: bulkFontSize || '12px',
+                  }}>
+                  Slide {i + 1}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         <div className="flex gap-3 justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleBulkTextColorChange} className="bg-amber-600 hover:bg-amber-700" data-testid="apply-bulk-text-color">Aplicar a Todos os Slides</Button>
+          <Button onClick={handleBulkTextColorChange} disabled={!bulkTextColor && !bulkFontFamily && !bulkFontSize} className="bg-amber-600 hover:bg-amber-700" data-testid="apply-bulk-text-style">Aplicar a Todos os Slides</Button>
         </div>
       </DialogContent>
     </Dialog>
