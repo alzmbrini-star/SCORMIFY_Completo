@@ -115,6 +115,7 @@ export default function Agent() {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [courseAnalysis, setCourseAnalysis] = useState(null);
   const [selectedImprovements, setSelectedImprovements] = useState([]);
+  const [selectedNewSlides, setSelectedNewSlides] = useState([]);
   const [editResult, setEditResult] = useState(null);
   const [previewData, setPreviewData] = useState(null);
 
@@ -577,6 +578,16 @@ export default function Agent() {
     });
   };
 
+  const toggleNewSlide = (newSlide) => {
+    setSelectedNewSlides(prev => {
+      const exists = prev.find(p => p.title === newSlide.title);
+      if (exists) {
+        return prev.filter(p => p.title !== newSlide.title);
+      }
+      return [...prev, newSlide];
+    });
+  };
+
   const handleTypeOverride = (impIndex, newType) => {
     // Update the type in selectedImprovements if it was selected
     setSelectedImprovements(prev => prev.map(imp => {
@@ -600,13 +611,14 @@ export default function Agent() {
   };
 
   const handleApplyImprovements = async () => {
-    if (selectedImprovements.length === 0) { toast.error('Selecione pelo menos uma melhoria'); return; }
+    if (selectedImprovements.length === 0 && selectedNewSlides.length === 0) { toast.error('Selecione pelo menos uma melhoria ou novo slide'); return; }
     setLoading(true);
-    addChatMsg('agent', `Gerando preview de ${selectedImprovements.length} melhorias...`);
+    const totalSelected = selectedImprovements.length + selectedNewSlides.length;
+    addChatMsg('agent', `Gerando preview de ${totalSelected} melhorias...`);
     try {
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/preview-improvements`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ improvements: selectedImprovements }),
+        body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -624,7 +636,7 @@ export default function Agent() {
     try {
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/apply-improvements`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ improvements: selectedImprovements, previewId: previewData.previewId }),
+        body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null, previewId: previewData.previewId }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -785,7 +797,7 @@ export default function Agent() {
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
-              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
+              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
               {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>

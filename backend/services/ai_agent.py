@@ -1790,7 +1790,7 @@ Retorne JSON:
     return _extract_json(response) or {"overallScore": 0, "strengths": [], "improvements": [], "missingElements": [], "suggestedNewSlides": []}
 
 
-async def apply_course_improvements(session_id: str, project: dict, selected_improvements: list) -> dict:
+async def apply_course_improvements(session_id: str, project: dict, selected_improvements: list, selected_new_slides: list = None) -> dict:
     """Apply selected improvements to an existing course."""
     chat = _new_chat(f"agent-edit-apply-{session_id}")
     
@@ -1798,6 +1798,11 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     
     # Group improvements by slide
     improvements_desc = json.dumps(selected_improvements, ensure_ascii=False)
+    
+    # Include selected new slides in the request
+    new_slides_desc = ""
+    if selected_new_slides:
+        new_slides_desc = f"\n\nNOVOS SLIDES PARA CRIAR (o usuário selecionou estes novos slides sugeridos):\n{json.dumps(selected_new_slides, ensure_ascii=False)}\n\nVocê DEVE gerar o conteúdo completo para cada novo slide listado acima e incluí-los no array 'newSlides' da resposta."
     
     # Check if any avatar_scene improvements are selected
     has_avatar_scenes = any(imp.get("type") == "avatar_scene" for imp in selected_improvements)
@@ -1844,6 +1849,7 @@ SLIDES ATUAIS: {json.dumps(slides_content, ensure_ascii=False)[:4000]}
 
 MELHORIAS SELECIONADAS:
 {improvements_desc}
+{new_slides_desc}
 
 IMPORTANTE: Cada slide deve ter UM ÚNICO elemento com todo o conteúdo HTML combinado. NÃO divida o conteúdo em múltiplos elementos.
 O slide tem dimensões 1920x820. O elemento principal deve usar width 1760 e height 700 para ocupar bem o espaço.

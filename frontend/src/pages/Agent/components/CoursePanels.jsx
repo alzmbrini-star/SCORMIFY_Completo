@@ -348,7 +348,7 @@ function TestCombinationPlayer({ avatarId, voiceId, avatarName, voiceName }) {
 }
 
 
-export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply, onTypeOverride, onScriptOverride }) {
+export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, selectedNewSlides = [], toggleNewSlide, onApply, onTypeOverride, onScriptOverride }) {
   const [avatarLimit, setAvatarLimit] = useState(3);
   const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -766,31 +766,69 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
             );
           })()}
 
-          {/* Suggested new slides */}
+          {/* Suggested new slides - now selectable */}
           {analysis.suggestedNewSlides?.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-sm font-medium text-slate-300">Novos Slides Sugeridos</h3>
-              {analysis.suggestedNewSlides.map((ns, i) => (
-                <Card key={i} className="bg-slate-900/50 border-slate-800">
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className="bg-blue-600/20 text-blue-300 text-[10px]">
-                        <Plus className="w-2 h-2 mr-1" />Novo
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px] border-slate-600">{ns.type}</Badge>
-                    </div>
-                    <p className="text-sm text-slate-200">{ns.title}</p>
-                    <p className="text-xs text-slate-400">{ns.reason}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-slate-300">Novos Slides Sugeridos</h3>
+                <button
+                  onClick={() => {
+                    if (selectedNewSlides.length === analysis.suggestedNewSlides.length) {
+                      analysis.suggestedNewSlides.forEach(ns => {
+                        if (selectedNewSlides.find(s => s.title === ns.title)) toggleNewSlide(ns);
+                      });
+                    } else {
+                      analysis.suggestedNewSlides.forEach(ns => {
+                        if (!selectedNewSlides.find(s => s.title === ns.title)) toggleNewSlide(ns);
+                      });
+                    }
+                  }}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                  data-testid="select-all-new-slides"
+                >
+                  {selectedNewSlides.length === analysis.suggestedNewSlides.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              </div>
+              {analysis.suggestedNewSlides.map((ns, i) => {
+                const isSelected = selectedNewSlides.some(s => s.title === ns.title);
+                return (
+                  <Card
+                    key={i}
+                    className={`bg-slate-900/50 cursor-pointer transition-all ${
+                      isSelected ? 'border-blue-500 ring-1 ring-blue-500/20' : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                    onClick={() => toggleNewSlide(ns)}
+                    data-testid={`new-slide-${i}`}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleNewSlide(ns)}
+                          className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                          data-testid={`new-slide-checkbox-${i}`}
+                        />
+                        <Badge className="bg-blue-600/20 text-blue-300 text-[10px]">
+                          <Plus className="w-2 h-2 mr-1" />Novo
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] border-slate-600">{ns.type}</Badge>
+                        {ns.position && (
+                          <span className="text-[10px] text-slate-500 ml-auto">{ns.position}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-200 ml-6">{ns.title}</p>
+                      <p className="text-xs text-slate-400 ml-6">{ns.reason}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
 
           {/* Apply button */}
           <Button
             onClick={onApply}
-            disabled={loading || selectedImprovements.length === 0}
+            disabled={loading || (selectedImprovements.length === 0 && selectedNewSlides.length === 0)}
             className="w-full bg-blue-600 hover:bg-blue-700"
             data-testid="apply-improvements-btn"
           >
@@ -799,7 +837,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
             ) : (
               <Zap className="w-4 h-4 mr-1" />
             )}
-            Aplicar {selectedImprovements.length} Melhoria{selectedImprovements.length !== 1 ? 's' : ''} Selecionada{selectedImprovements.length !== 1 ? 's' : ''}
+            Aplicar {selectedImprovements.length + selectedNewSlides.length} {(selectedImprovements.length + selectedNewSlides.length) === 1 ? 'Item Selecionado' : 'Itens Selecionados'}
           </Button>
         </div>
       )}

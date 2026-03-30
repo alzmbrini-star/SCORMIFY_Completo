@@ -1,0 +1,101 @@
+{
+  "summary": "Completed testing of 'Novos Slides Sugeridos' selectable feature. Backend: 6/6 tests pass - POST /api/agent/courses/{id}/preview-improvements and apply-improvements accept selectedNewSlides field, analysis returns suggestedNewSlides. Frontend: All UI components verified - 'Novos Slides Sugeridos' section with checkboxes, 'Selecionar todos' toggle, new slide cards with checkbox/Novo badge/type badge/position/title/reason, apply button count updates correctly, button text is 'Itens Selecionados' (not 'Itemns').",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_slides_selection.py",
+    "/app/test_reports/pytest/pytest_new_slides_selection.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Backend AgentImprovementsApply model has selectedNewSlides: Optional[list] = None field",
+    "GOOD: POST /api/agent/courses/{id}/preview-improvements accepts selectedNewSlides in request body",
+    "GOOD: POST /api/agent/courses/{id}/apply-improvements accepts selectedNewSlides in request body",
+    "GOOD: apply_course_improvements function accepts selected_new_slides parameter",
+    "GOOD: Course analysis returns suggestedNewSlides field with new slide suggestions",
+    "GOOD: Frontend selectedNewSlides state and toggleNewSlide function implemented in Agent.jsx",
+    "GOOD: 'Novos Slides Sugeridos' section renders with checkboxes (data-testid='new-slide-checkbox-0', 'new-slide-checkbox-1')",
+    "GOOD: 'Selecionar todos' link toggles all new slide checkboxes (data-testid='select-all-new-slides')",
+    "GOOD: 'Selecionar todos' text changes to 'Desmarcar todos' when all selected",
+    "GOOD: Each new slide card shows: checkbox, 'Novo' badge, type badge, position, title, reason",
+    "GOOD: Clicking new slide cards toggles selection",
+    "GOOD: Apply button count updates to include both improvements + new slides",
+    "GOOD: Apply button says 'Aplicar X Itens Selecionados' (not 'Itemns')",
+    "GOOD: Apply button is enabled when only new slides are selected (even with 0 improvements)",
+    "GOOD: handleApplyImprovements sends selectedNewSlides to preview-improvements endpoint"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_slides_selection.py"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "100% (all 'Novos Slides Sugeridos' features verified)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing imported courses",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Novos Slides Sugeridos feature fully tested. Navigation: Dashboard > Agente IA > Editar Curso Existente > Atualizar > filter-imported > click first imported course > wait 15-20s for analysis. The 'Novos Slides Sugeridos' section appears below the improvements list with checkboxes. Test course 'Chat-Bots-com-IA-Generativa-em-Plataformas-EAD' returned 2 suggested new slides (Quiz and Summary types). Backend endpoints accept selectedNewSlides field.",
+  "features_tested": {
+    "backend_apis": {
+      "POST /api/agent/courses/{id}/preview-improvements (with selectedNewSlides)": "PASS - Accepts selectedNewSlides field",
+      "POST /api/agent/courses/{id}/preview-improvements (only new slides)": "PASS - Works with empty improvements + selectedNewSlides",
+      "POST /api/agent/courses/{id}/preview-improvements (null selectedNewSlides)": "PASS - Backward compatible",
+      "POST /api/agent/courses/{id}/apply-improvements (with selectedNewSlides)": "PASS - Accepts selectedNewSlides field",
+      "AgentImprovementsApply model": "PASS - Has selectedNewSlides: Optional[list] = None",
+      "POST /api/agent/courses/{id}/analyze": "PASS - Returns suggestedNewSlides field"
+    },
+    "frontend_ui": {
+      "novos_slides_sugeridos_section": {
+        "status": "PASS",
+        "details": "Section visible with title 'Novos Slides Sugeridos'"
+      },
+      "select_all_new_slides": {
+        "data-testid": "select-all-new-slides",
+        "status": "PASS",
+        "details": "Toggles between 'Selecionar todos' and 'Desmarcar todos'"
+      },
+      "new_slide_checkboxes": {
+        "data-testid": "new-slide-checkbox-0, new-slide-checkbox-1",
+        "status": "PASS",
+        "details": "Checkboxes visible and functional"
+      },
+      "new_slide_cards": {
+        "data-testid": "new-slide-0, new-slide-1",
+        "status": "PASS",
+        "details": "Cards show checkbox, 'Novo' badge, type badge, position, title, reason"
+      },
+      "card_click_toggle": {
+        "status": "PASS",
+        "details": "Clicking card toggles selection"
+      },
+      "apply_button_count": {
+        "data-testid": "apply-improvements-btn",
+        "status": "PASS",
+        "details": "Count updates to include improvements + new slides"
+      },
+      "apply_button_text": {
+        "status": "PASS",
+        "details": "Says 'Itens Selecionados' (not 'Itemns')"
+      },
+      "apply_button_enabled": {
+        "status": "PASS",
+        "details": "Enabled when only new slides selected (0 improvements)"
+      }
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real integrations"
+  }
+}

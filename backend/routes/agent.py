@@ -2082,6 +2082,7 @@ async def agent_list_courses():
 
 class AgentImprovementsApply(BaseModel):
     improvements: list
+    selectedNewSlides: Optional[list] = None
     previewId: Optional[str] = None
 
 
@@ -2229,7 +2230,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
     from services.ai_agent import apply_course_improvements
     from models import generate_id
 
-    result = await apply_course_improvements(session_id, project, data.improvements)
+    result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
 
     original_slides = project.get("course", {}).get("slides", [])
 
@@ -2341,7 +2342,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     else:
         session_id = project.get("agentSessionId") or str(uuid.uuid4())
         from services.ai_agent import apply_course_improvements
-        result = await apply_course_improvements(session_id, project, data.improvements)
+        result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
 
     slides = project.get("course", {}).get("slides", [])
     new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
