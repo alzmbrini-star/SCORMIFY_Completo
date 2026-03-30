@@ -216,6 +216,73 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
 
 
+class TestCombinationRequest(BaseModel):
+    avatar_id: str
+    voice_id: str
+
+@router.post("/heygen/test-combination")
+async def test_avatar_voice_combination(request: TestCombinationRequest):
+    """Generate a short test video to preview avatar + voice combination"""
+    if not HEYGEN_API_KEY:
+        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
+
+    test_script = "Olá! Esta é uma prévia da minha voz e aparência. Espero que goste da combinação!"
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            payload = {
+                "video_inputs": [
+                    {
+                        "character": {
+                            "type": "avatar",
+                            "avatar_id": request.avatar_id,
+                            "avatar_style": "normal"
+                        },
+                        "voice": {
+                            "type": "text",
+                            "input_text": test_script,
+                            "voice_id": request.voice_id
+                        }
+                    }
+                ],
+                "dimension": {"width": 1280, "height": 720},
+                "title": "Test Combination Preview"
+            }
+
+            response = await http_client.post(
+                f"{HEYGEN_BASE_URL}/v2/video/generate",
+                headers=HEYGEN_HEADERS,
+                json=payload
+            )
+
+            if response.status_code != 200:
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get("error", {}).get("message", response.text[:200])
+                raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
+
+            data = response.json()
+            video_id = data.get("data", {}).get("video_id")
+            if not video_id:
+                raise HTTPException(status_code=500, detail="No video ID returned from HeyGen")
+
+            await db.heygen_videos.insert_one({
+                "video_id": video_id,
+                "avatar_id": request.avatar_id,
+                "voice_id": request.voice_id,
+                "script": test_script,
+                "title": "Test Combination Preview",
+                "status": "processing",
+                "is_test": True,
+                "created_at": now_utc()
+            })
+
+            return {"video_id": video_id, "status": "processing"}
+    except httpx.RequestError as e:
+        logger.error(f"HeyGen test-combination error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+
+
+
 class HeyGenVideoRequest(BaseModel):
     avatar_id: str
     voice_id: str

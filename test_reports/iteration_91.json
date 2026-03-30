@@ -1,0 +1,91 @@
+{
+  "summary": "Completed testing of 'Testar Combinação' feature. Backend: 5/5 tests pass (POST /api/heygen/test-combination returns 200 with video_id+status:processing, 422 for missing fields, GET /api/heygen/video-status works). Frontend: All UI components verified - test-combination-section, test-combination-btn, loading state all working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_heygen_test_combination.py",
+    "/app/test_reports/pytest/pytest_heygen_test_combination.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: POST /api/heygen/test-combination returns 200 with video_id and status:processing",
+    "GOOD: POST /api/heygen/test-combination returns 422 for missing avatar_id",
+    "GOOD: POST /api/heygen/test-combination returns 422 for missing voice_id",
+    "GOOD: POST /api/heygen/test-combination returns 422 for empty body",
+    "GOOD: GET /api/heygen/video-status/{video_id} returns correct status (waiting/processing/completed/failed)",
+    "GOOD: TestCombinationPlayer component (data-testid='test-combination-section') renders correctly",
+    "GOOD: 'Testar' button (data-testid='test-combination-btn') is visible and clickable",
+    "GOOD: Loading state (data-testid='test-combination-loading') appears with 'Gerando...' text and spinner",
+    "GOOD: Loading message shows 'Processando vídeo... Isso pode levar até 2 minutos.'",
+    "GOOD: Avatar grid (data-testid='avatar-grid') loads 50 avatars",
+    "GOOD: Voice list (data-testid='voice-list') loads 49 Portuguese voices with play buttons",
+    "GOOD: Selected voice preview card (data-testid='selected-voice-preview') shows 'Selecionada' badge"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_heygen_test_combination.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 tests passed)",
+    "frontend": "100% (all Testar Combinação features verified)"
+  },
+  "test_credentials": {
+    "admin_email": "admin@scormify.com",
+    "admin_password": "admin123"
+  },
+  "seed_data_creation": "None - used existing course 'Liderança de Impacto'",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Testar Combinação feature fully tested. Navigation: Dashboard > Agente IA > Editar Curso Existente > Atualizar > Select course > Wait 15s for analysis > Click avatar-settings-toggle > Wait 15s for avatars/voices to load. Backend endpoint POST /api/heygen/test-combination with {avatar_id, voice_id} returns video_id. HeyGen video takes 1-2 min to process.",
+  "features_tested": {
+    "backend_apis": {
+      "POST /api/heygen/test-combination (valid)": "PASS - Returns 200 with video_id and status:processing",
+      "POST /api/heygen/test-combination (missing avatar_id)": "PASS - Returns 422",
+      "POST /api/heygen/test-combination (missing voice_id)": "PASS - Returns 422",
+      "POST /api/heygen/test-combination (empty body)": "PASS - Returns 422",
+      "GET /api/heygen/video-status/{video_id}": "PASS - Returns status (waiting/processing/completed/failed)"
+    },
+    "frontend_ui": {
+      "test_combination_section": {
+        "data-testid": "test-combination-section",
+        "status": "PASS",
+        "details": "Section visible with title 'Testar Combinação' and description"
+      },
+      "test_combination_btn": {
+        "data-testid": "test-combination-btn",
+        "status": "PASS",
+        "details": "Button shows 'Testar' text with Video icon, clickable"
+      },
+      "test_combination_loading": {
+        "data-testid": "test-combination-loading",
+        "status": "PASS",
+        "details": "Loading state appears with spinner and 'Processando vídeo...' message"
+      },
+      "avatar_grid": {
+        "data-testid": "avatar-grid",
+        "status": "PASS",
+        "details": "50 avatar options loaded"
+      },
+      "voice_list": {
+        "data-testid": "voice-list",
+        "status": "PASS",
+        "details": "49 Portuguese voices with play buttons"
+      },
+      "selected_voice_preview": {
+        "data-testid": "selected-voice-preview",
+        "status": "PASS",
+        "details": "Shows 'Selecionada' badge when voice selected"
+      }
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real HeyGen integrations"
+  }
+}

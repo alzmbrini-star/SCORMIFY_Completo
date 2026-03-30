@@ -222,6 +222,130 @@ function VoicePreviewCard({ voice, ...props }) {
   );
 }
 
+/* ─── Test Combination Player ─── */
+function TestCombinationPlayer({ avatarId, voiceId, avatarName, voiceName }) {
+  const [state, setState] = useState('idle'); // idle | generating | polling | ready | error
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [videoId, setVideoId] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const pollRef = useRef(null);
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
+
+  // Reset when avatar/voice changes
+  useEffect(() => {
+    setState('idle');
+    setVideoUrl(null);
+    setVideoId(null);
+    setErrorMsg('');
+    if (pollRef.current) clearInterval(pollRef.current);
+  }, [avatarId, voiceId]);
+
+  const handleGenerate = async () => {
+    if (!avatarId || !voiceId) return;
+    setState('generating');
+    setErrorMsg('');
+    setVideoUrl(null);
+
+    try {
+      const res = await fetch(`${API}/api/heygen/test-combination`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar_id: avatarId, voice_id: voiceId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Falha ao gerar vídeo de teste');
+      }
+      const data = await res.json();
+      setVideoId(data.video_id);
+      setState('polling');
+
+      // Poll for status
+      pollRef.current = setInterval(async () => {
+        try {
+          const sRes = await fetch(`${API}/api/heygen/video-status/${data.video_id}`);
+          if (!sRes.ok) return;
+          const sData = await sRes.json();
+          if (sData.status === 'completed' && sData.video_url) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setVideoUrl(sData.video_url);
+            setState('ready');
+          } else if (sData.status === 'failed') {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setState('error');
+            setErrorMsg('O vídeo de teste falhou na geração.');
+          }
+        } catch {}
+      }, 4000);
+    } catch (e) {
+      setState('error');
+      setErrorMsg(e.message);
+    }
+  };
+
+  const isProcessing = state === 'generating' || state === 'polling';
+
+  return (
+    <div className="rounded-lg border border-dashed border-violet-600/30 bg-violet-950/20 p-3 space-y-3" data-testid="test-combination-section">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-violet-300">Testar Combinação</p>
+          <p className="text-[10px] text-slate-400">Gere um mini vídeo para validar avatar + voz</p>
+        </div>
+        <button
+          onClick={handleGenerate}
+          disabled={!avatarId || !voiceId || isProcessing}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            isProcessing
+              ? 'bg-violet-600/30 text-violet-300 cursor-wait'
+              : !avatarId || !voiceId
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                : 'bg-violet-600 text-white hover:bg-violet-500 shadow-md shadow-violet-500/20'
+          }`}
+          data-testid="test-combination-btn"
+        >
+          {isProcessing ? (
+            <><Loader2 className="w-3 h-3 animate-spin" /> Gerando...</>
+          ) : (
+            <><Video className="w-3 h-3" /> Testar</>
+          )}
+        </button>
+      </div>
+
+      {isProcessing && (
+        <div className="flex items-center gap-2 text-[10px] text-violet-400 animate-pulse" data-testid="test-combination-loading">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          {state === 'generating' ? 'Enviando para HeyGen...' : 'Processando vídeo... Isso pode levar até 2 minutos.'}
+        </div>
+      )}
+
+      {state === 'error' && (
+        <p className="text-[10px] text-red-400" data-testid="test-combination-error">{errorMsg}</p>
+      )}
+
+      {state === 'ready' && videoUrl && (
+        <div className="rounded-lg overflow-hidden border border-violet-700/30" data-testid="test-combination-video">
+          <video
+            src={videoUrl}
+            controls
+            autoPlay
+            className="w-full max-h-56"
+            style={{ background: '#000' }}
+          />
+          <div className="px-2.5 py-1.5 bg-slate-900/50 flex items-center gap-2 text-[10px] text-violet-300">
+            <Check className="w-3 h-3 text-emerald-400" />
+            Preview gerado com sucesso
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, onApply, onTypeOverride, onScriptOverride }) {
@@ -494,6 +618,14 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                       <p className="text-[10px] text-amber-300/70">Nenhuma voz disponível. Verifique sua chave API HeyGen.</p>
                     )}
                   </div>
+
+                  {/* Test Combination */}
+                  <TestCombinationPlayer
+                    avatarId={defaultAvatarId}
+                    voiceId={defaultVoiceId}
+                    avatarName={heygenAvatars.find(a => a.avatar_id === defaultAvatarId)?.avatar_name}
+                    voiceName={heygenVoices.find(v => v.voice_id === defaultVoiceId)?.name}
+                  />
 
                   {/* Max scenes */}
                   <div className="flex items-center justify-between">
