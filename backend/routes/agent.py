@@ -2070,25 +2070,26 @@ async def agent_generate_structure_from_template(session_id: str, data: dict):
 @router.get("/agent/courses")
 async def agent_list_courses():
     """List all courses available for agent analysis (agent-created + imported)."""
-    projects = await db.projects.find(
-        {}, {"_id": 0}
-    ).sort("createdAt", -1).to_list(500)
-    result = []
+    pipeline = [
+        {"$project": {
+            "_id": 0,
+            "id": 1,
+            "name": 1,
+            "description": 1,
+            "createdAt": 1,
+            "updatedAt": 1,
+            "agentSessionId": 1,
+            "createdByAgent": 1,
+            "slidesCount": {"$size": {"$ifNull": ["$course.slides", []]}}
+        }},
+        {"$sort": {"createdAt": -1}},
+        {"$limit": 500}
+    ]
+    projects = await db.projects.aggregate(pipeline).to_list(500)
     for p in projects:
-        slides = p.get("course", {}).get("slides", [])
         is_agent = bool(p.get("createdByAgent")) or bool(p.get("agentSessionId"))
-        result.append({
-            "id": p.get("id"),
-            "name": p.get("name", ""),
-            "description": p.get("description", ""),
-            "createdAt": p.get("createdAt"),
-            "updatedAt": p.get("updatedAt"),
-            "agentSessionId": p.get("agentSessionId"),
-            "createdByAgent": p.get("createdByAgent"),
-            "slidesCount": len(slides),
-            "source": "agent" if is_agent else "imported",
-        })
-    return result
+        p["source"] = "agent" if is_agent else "imported"
+    return projects
 
 
 class AgentImprovementsApply(BaseModel):
