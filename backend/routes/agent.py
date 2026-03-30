@@ -2071,13 +2071,24 @@ async def agent_generate_structure_from_template(session_id: str, data: dict):
 async def agent_list_courses():
     """List all courses available for agent analysis (agent-created + imported)."""
     projects = await db.projects.find(
-        {}, {"_id": 0, "id": 1, "name": 1, "description": 1, "createdAt": 1, "updatedAt": 1, "agentSessionId": 1, "createdByAgent": 1, "importedFrom": 1}
-    ).sort("createdAt", -1).to_list(200)
+        {}, {"_id": 0}
+    ).sort("createdAt", -1).to_list(500)
+    result = []
     for p in projects:
-        full_proj = await db.projects.find_one({"id": p["id"]}, {"_id": 0, "course.slides": 1})
-        p["slidesCount"] = len(full_proj.get("course", {}).get("slides", [])) if full_proj else 0
-        p["source"] = "agent" if p.get("createdByAgent") else "imported"
-    return projects
+        slides = p.get("course", {}).get("slides", [])
+        is_agent = bool(p.get("createdByAgent")) or bool(p.get("agentSessionId"))
+        result.append({
+            "id": p.get("id"),
+            "name": p.get("name", ""),
+            "description": p.get("description", ""),
+            "createdAt": p.get("createdAt"),
+            "updatedAt": p.get("updatedAt"),
+            "agentSessionId": p.get("agentSessionId"),
+            "createdByAgent": p.get("createdByAgent"),
+            "slidesCount": len(slides),
+            "source": "agent" if is_agent else "imported",
+        })
+    return result
 
 
 class AgentImprovementsApply(BaseModel):
