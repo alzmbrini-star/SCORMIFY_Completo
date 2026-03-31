@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { authHeaders } from '../contexts/AuthContext';
 import { resolveAssetUrls } from '../utils/htmlUtils';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
@@ -785,7 +786,7 @@ export default function Editor() {
     try {
       const res = await fetch(`${API_URL}/api/generate-html`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           prompt: aiHtmlPrompt,
