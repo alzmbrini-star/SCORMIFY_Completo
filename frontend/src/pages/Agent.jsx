@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authHeaders } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -150,7 +151,7 @@ export default function Agent() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API}/api/agent/sessions/by-project/${editProjectId}`);
+        const res = await fetch(`${API}/api/agent/sessions/by-project/${editProjectId}`, { headers: authHeaders() });
         if (!res.ok) { toast.error('Sessão não encontrada para este projeto'); setLoading(false); return; }
         const session = await res.json();
         setSessionId(session.id);
@@ -182,11 +183,11 @@ export default function Agent() {
 
   // Load templates on mount
   useEffect(() => {
-    fetch(`${API}/api/agent/templates`)
+    fetch(`${API}/api/agent/templates`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setTemplates)
       .catch(() => {});
-    fetch(`${API}/api/agent/design-templates`)
+    fetch(`${API}/api/agent/design-templates`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setDesignTemplates)
       .catch(() => {});
@@ -196,7 +197,7 @@ export default function Agent() {
     if (sessionId) return sessionId;
     try {
       const res = await fetch(`${API}/api/agent/sessions`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({}),
       });
       const data = await res.json();
@@ -219,7 +220,7 @@ export default function Agent() {
       if (!sid) return;
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', body: form });
+      const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', headers: authHeaders(), body: form });
       const data = await res.json();
       setFileName(file.name);
       addChatMsg('agent', `Arquivo "${file.name}" recebido! ${data.contentLength} caracteres extraídos. Clique em "Analisar".`);
@@ -239,7 +240,7 @@ export default function Agent() {
       if (!sid) return;
       const form = new FormData();
       form.append('text', contentText);
-      await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', body: form });
+      await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', headers: authHeaders(), body: form });
       addChatMsg('agent', 'Conteúdo recebido! Clique em "Analisar Conteúdo".');
       setCurrentStep(1);
     } catch { toast.error('Erro ao enviar conteúdo'); }
@@ -255,7 +256,7 @@ export default function Agent() {
       if (!sid) return;
       const form = new FormData();
       form.append('url', contentUrl);
-      const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', body: form });
+      const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', headers: authHeaders(), body: form });
       const data = await res.json();
       setFileName(contentUrl);
       addChatMsg('agent', `Conteúdo extraído da URL! ${data.contentLength} caracteres. Clique em "Analisar".`);
@@ -268,7 +269,7 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', 'Analisando o conteúdo com IA...');
     try {
-      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST' });
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setAnalysis(data);
@@ -290,11 +291,11 @@ export default function Agent() {
       const configToSend = { ...config };
       if (selectedDesignTemplate) configToSend.designTemplateId = selectedDesignTemplate.id;
       await fetch(`${API}/api/agent/sessions/${sessionId}/configure`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(configToSend),
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(configToSend),
       });
       const body = selectedTemplate ? { templateId: selectedTemplate.id } : {};
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-structure`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -311,7 +312,7 @@ export default function Agent() {
     setStoryboardProgressMsg('Verificando status...');
     try {
       // Check if storyboard already exists (e.g., user refreshed or polling timed out)
-      const checkRes = await fetch(`${API}/api/agent/sessions/${sessionId}`);
+      const checkRes = await fetch(`${API}/api/agent/sessions/${sessionId}`, { headers: authHeaders() });
       const checkSession = await checkRes.json();
       if (checkSession.step === 'storyboarded' && checkSession.storyboard) {
         setStoryboard(checkSession.storyboard);
@@ -329,11 +330,11 @@ export default function Agent() {
 
       setStoryboardProgressMsg('Iniciando geração do storyboard...');
       addChatMsg('agent', 'Criando storyboard detalhado... Pode levar 5-10 minutos. Você verá o progresso abaixo.');
-      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-storyboard`, { method: 'POST' });
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-storyboard`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error();
       const pollInterval = setInterval(async () => {
         try {
-          const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}`);
+          const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}`, { headers: authHeaders() });
           const session = await sRes.json();
 
           // Show progress
@@ -372,8 +373,7 @@ export default function Agent() {
       setTimeout(() => {
         clearInterval(pollInterval);
         // Final check before giving up
-        fetch(`${API}/api/agent/sessions/${sessionId}`)
-          .then(r => r.json())
+        fetch(`${API}/api/agent/sessions/${sessionId}`, { headers: authHeaders() })          .then(r => r.json())
           .then(session => {
             if (session.step === 'storyboarded' && session.storyboard) {
               setStoryboard(session.storyboard);
@@ -412,7 +412,7 @@ export default function Agent() {
         }
       }
       const saveRes = await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalFontSize, globalAnimation, designTemplateId: selectedDesignTemplate?.id || '' }),
       });
       if (!saveRes.ok) throw new Error('Falha ao salvar configuração de mídia');
@@ -444,7 +444,7 @@ export default function Agent() {
           : `Aplicando alterações em ${changedSlides.length} slide(s) modificado(s)...`);
 
         const res = await fetch(`${API}/api/agent/sessions/${sessionId}/apply-media-changes`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             projectId: editMediaProjectId,
             changedSlides: hasGlobalChanges ? null : (changedSlides.length > 0 ? changedSlides : []),
@@ -476,7 +476,7 @@ export default function Agent() {
     const heyCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
     addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
     try {
-      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST' });
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error('Falha ao iniciar geração');
       const initData = await res.json();
       
@@ -492,7 +492,7 @@ export default function Agent() {
         for (let i = 0; i < 360; i++) { // max 30 min (360 * 5s)
           await new Promise(r => setTimeout(r, 5000));
           try {
-            const statusRes = await fetch(`${API}/api/agent/sessions/${sessionId}/course-status`);
+            const statusRes = await fetch(`${API}/api/agent/sessions/${sessionId}/course-status`, { headers: authHeaders() });
             const statusData = await statusRes.json();
             if (statusData.message && statusData.message !== lastProgressMsg) {
               lastProgressMsg = statusData.message;
@@ -530,7 +530,7 @@ export default function Agent() {
   // ===== EDIT MODE HANDLERS =====
   const loadAgentCourses = async () => {
     try {
-      const res = await fetch(`${API}/api/agent/courses`);
+      const res = await fetch(`${API}/api/agent/courses`, { headers: authHeaders() });
       const data = await res.json();
       setAgentCourses(data);
     } catch { toast.error('Erro ao carregar cursos'); }
@@ -558,7 +558,7 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', `Analisando o curso "${course.name}"...`);
     try {
-      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST' });
+      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setCourseAnalysis(data);
@@ -617,7 +617,7 @@ export default function Agent() {
     addChatMsg('agent', `Gerando preview de ${totalSelected} melhorias...`);
     try {
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/preview-improvements`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null }),
       });
       if (!res.ok) throw new Error();
@@ -635,7 +635,7 @@ export default function Agent() {
     addChatMsg('agent', 'Aplicando melhorias ao curso...');
     try {
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/apply-improvements`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null, previewId: previewData.previewId }),
       });
       if (!res.ok) throw new Error();
@@ -658,7 +658,7 @@ export default function Agent() {
     addChatMsg('agent', 'Desfazendo melhorias...');
     try {
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/undo-improvements`, {
-        method: 'POST',
+        method: 'POST', headers: authHeaders(),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -689,7 +689,7 @@ export default function Agent() {
     setLoading(true);
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/chat`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ message: msg }),
       });
       const data = await res.json();
@@ -705,7 +705,7 @@ export default function Agent() {
           addChatMsg('agent', '⏳ Gerando cenário interativo com IA... isso pode levar alguns segundos.');
           try {
             const scenarioRes = await fetch(`${API}/api/agent/sessions/${sessionId}/add-scenario`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({ projectId: currentProjectId }),
             });
             const scenarioData = await scenarioRes.json();
