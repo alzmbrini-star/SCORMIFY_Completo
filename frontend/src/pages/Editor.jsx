@@ -530,6 +530,7 @@ export default function Editor() {
     try {
       const res = await fetch(`${API_URL}/api/projects/${currentProject.id}/fix-simulators`, {
         method: 'POST',
+        headers: authHeaders(),
         credentials: 'include',
       });
       const data = await res.json();

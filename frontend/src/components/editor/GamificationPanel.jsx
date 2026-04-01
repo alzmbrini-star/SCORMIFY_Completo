@@ -2,6 +2,7 @@
  * GamificationPanel - Configure badges and feedback for courses
  */
 import React, { useState, useEffect } from 'react';
+import { authHeaders } from '../../contexts/AuthContext';
 import { 
   Trophy, Award, Star, Target, Brain, Lightbulb, Rocket, 
   CheckCircle, Shield, Heart, ThumbsUp, Smile, Flame, Zap,
@@ -82,7 +83,7 @@ export default function GamificationPanel({ projectId, onClose }) {
 
   const loadConfig = async () => {
     try {
-      const res = await fetch(`${API}/api/projects/${projectId}/gamification`, { credentials: 'include' });
+      const res = await fetch(`${API}/api/projects/${projectId}/gamification`, { headers: authHeaders(), credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setConfig(data);
@@ -100,7 +101,7 @@ export default function GamificationPanel({ projectId, onClose }) {
     try {
       const res = await fetch(`${API}/api/projects/${projectId}/gamification`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(config),
       });
@@ -118,7 +119,7 @@ export default function GamificationPanel({ projectId, onClose }) {
 
   const resetToDefaults = async () => {
     try {
-      const res = await fetch(`${API}/api/gamification/defaults`, { credentials: 'include' });
+      const res = await fetch(`${API}/api/gamification/defaults`, { headers: authHeaders(), credentials: 'include' });
       if (res.ok) {
         const defaults = await res.json();
         setConfig(prev => ({
@@ -151,6 +152,7 @@ export default function GamificationPanel({ projectId, onClose }) {
       formData.append('file', file);
       const res = await fetch(`${API}/api/gamification/upload-badge-image`, {
         method: 'POST',
+        headers: authHeaders(),
         credentials: 'include',
         body: formData,
       });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authHeaders } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
@@ -81,11 +82,11 @@ export default function Admin() {
     setLoading(true);
     try {
       if (isSuperAdmin) {
-        const compRes = await fetch(`${API_URL}/api/companies`, { credentials: 'include' });
+        const compRes = await fetch(`${API_URL}/api/companies`, { headers: authHeaders(), credentials: 'include' });
         if (compRes.ok) setCompanies(await compRes.json());
       }
       
-      const userRes = await fetch(`${API_URL}/api/users`, { credentials: 'include' });
+      const userRes = await fetch(`${API_URL}/api/users`, { headers: authHeaders(), credentials: 'include' });
       if (userRes.ok) setUsers(await userRes.json());
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -96,7 +97,7 @@ export default function Admin() {
 
   const fetchTutorSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/tutor-settings`, { credentials: 'include' });
+      const res = await fetch(`${API_URL}/api/admin/tutor-settings`, { headers: authHeaders(), credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setTutorSettings(prev => ({ ...prev, ...data }));
@@ -109,7 +110,7 @@ export default function Admin() {
     try {
       const res = await fetch(`${API_URL}/api/admin/tutor-settings`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(tutorSettings)
       });
@@ -122,7 +123,7 @@ export default function Admin() {
   const fetchReports = async () => {
     setReportsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/admin/reports`, { credentials: 'include' });
+      const res = await fetch(`${API_URL}/api/admin/reports`, { headers: authHeaders(), credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setReports(data.reports || []);
@@ -172,7 +173,7 @@ export default function Admin() {
       
       const res = await fetch(url, {
         method: editingCompany ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(companyForm)
       });
@@ -198,6 +199,7 @@ export default function Admin() {
     try {
       const res = await fetch(`${API_URL}/api/companies/${company.id}`, {
         method: 'DELETE',
+        headers: authHeaders(),
         credentials: 'include'
       });
       
@@ -216,7 +218,7 @@ export default function Admin() {
       
       const res = await fetch(`${API_URL}/api/companies/${company.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({ permissions: newPermissions })
       });
@@ -243,7 +245,7 @@ export default function Admin() {
 
       const res = await fetch(url, {
         method: editingUser ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(body)
       });
@@ -269,6 +271,7 @@ export default function Admin() {
     try {
       const res = await fetch(`${API_URL}/api/users/${targetUser.user_id}`, {
         method: 'DELETE',
+        headers: authHeaders(),
         credentials: 'include'
       });
       
