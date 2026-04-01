@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Textarea } from '../../../components/ui/textarea';
@@ -52,7 +53,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
   useEffect(() => {
     if (config.narrationEnabled && elVoices.length === 0 && !loadingVoices) {
       setLoadingVoices(true);
-      fetch(`${API}/api/elevenlabs/voices`)
+      fetch(`${API}/api/elevenlabs/voices`, { headers: authHeaders() })
         .then(r => r.json())
         .then(data => setElVoices(data.voices || []))
         .catch(() => {})
@@ -113,7 +114,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
       try {
         await fetch(`${API}/api/agent/sessions/${sessionId}/save-narration-config`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             narrationSlides,
             narrationVoiceId: config.narrationVoiceId,
@@ -130,7 +131,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
       try {
         await fetch(`${API}/api/agent/sessions/${sessionId}/save-type-overrides`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ typeOverrides: slideTypeOverrides }),
         });
       } catch (e) {

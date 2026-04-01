@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Textarea } from '../../../components/ui/textarea';
@@ -82,7 +83,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
     if (!project?.projectId || !project?.heygenPending) return;
     setPolling(true);
     try {
-      const res = await fetch(`${API}/api/agent/projects/${project.projectId}/heygen-status`);
+      const res = await fetch(`${API}/api/agent/projects/${project.projectId}/heygen-status`, { headers: authHeaders() });
       const data = await res.json();
       setHeygenStatus(data);
     } catch { /* ignore */ }
@@ -92,7 +93,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
   const checkNarrationStatus = useCallback(async () => {
     if (!project?.projectId || !project?.narrationPending) return;
     try {
-      const res = await fetch(`${API}/api/agent/projects/${project.projectId}/narration-status`);
+      const res = await fetch(`${API}/api/agent/projects/${project.projectId}/narration-status`, { headers: authHeaders() });
       const data = await res.json();
       setNarrationStatus(data);
     } catch { /* ignore */ }
@@ -120,7 +121,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions`);
+        const res = await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions`, { headers: authHeaders() });
         const data = await res.json();
         if (cancelled) return;
         if (data.status === 'ready') {
@@ -145,7 +146,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
     setSuggestionsStatus('pending');
     setSuggestions(null);
     try {
-      await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions/regenerate`, { method: 'POST' });
+      await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions/regenerate`, { method: 'POST', headers: authHeaders() });
     } catch { /* will poll */ }
     finally { setRegenerating(false); }
   };

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Textarea } from '../../../components/ui/textarea';
@@ -77,7 +78,7 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, i
     setAiLoading(true);
     try {
       const res = await fetch(`${API}/api/agent/generate-bg-image`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ prompt: aiPrompt }),
       });
       const data = await res.json();
@@ -273,7 +274,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
     if (!sessionId) return;
     setLoadingEstimate(true);
     try {
-      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/cost-estimate`, { method: 'POST' });
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/cost-estimate`, { method: 'POST', headers: authHeaders() });
       const data = await res.json();
       setEstimate(data.estimate);
     } catch { /* ignore */ }
@@ -393,7 +394,7 @@ function ImageGalleryModal({ onClose, onSelect }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API}/api/gallery/images`)
+    fetch(`${API}/api/gallery/images`, { headers: authHeaders() })
       .then(r => r.json())
       .then(data => setImages(data.images || []))
       .catch(() => toast.error('Erro ao carregar galeria'))
@@ -567,7 +568,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
 
   // Load design templates
   useEffect(() => {
-    fetch(`${API}/api/agent/design-templates`)
+    fetch(`${API}/api/agent/design-templates`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setDesignTemplates)
       .catch(() => {});
@@ -596,7 +597,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   useEffect(() => {
     if (heygenCount > 0 && avatars.length === 0 && !loadingAvatars) {
       setLoadingAvatars(true);
-      fetch(`${API}/api/heygen/avatars?limit=50`)
+      fetch(`${API}/api/heygen/avatars?limit=50`, { headers: authHeaders() })
         .then(r => r.json())
         .then(data => setAvatars(data.avatars || []))
         .catch(() => toast.error('Erro ao carregar avatares'))
@@ -604,7 +605,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
     }
     if (heygenCount > 0 && voices.length === 0 && !loadingVoices) {
       setLoadingVoices(true);
-      fetch(`${API}/api/heygen/voices?language=portuguese`)
+      fetch(`${API}/api/heygen/voices?language=portuguese`, { headers: authHeaders() })
         .then(r => r.json())
         .then(data => setVoices(data.voices || []))
         .catch(() => toast.error('Erro ao carregar vozes'))
@@ -616,7 +617,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   useEffect(() => {
     if (narrationCount > 0 && elVoices.length === 0 && !loadingElVoices) {
       setLoadingElVoices(true);
-      fetch(`${API}/api/elevenlabs/voices`)
+      fetch(`${API}/api/elevenlabs/voices`, { headers: authHeaders() })
         .then(r => r.json())
         .then(data => setElVoices(data.voices || []))
         .catch(() => toast.error('Erro ao carregar vozes ElevenLabs'))
@@ -660,7 +661,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-slide-narration`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ slideIndex: idx, style: narrationStyle }),
       });
       if (!res.ok) {
@@ -701,7 +702,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
     try {
       const res = await fetch(`${API}/api/elevenlabs/generate-speech`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ text: text.slice(0, 200), voice_id: narrationVoiceId }),
       });
       if (!res.ok) {
@@ -737,7 +738,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
 
       const res = await fetch(`${API}/api/heygen/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           script: previewText,
           avatar_id: heygenConfig.avatarId,
@@ -764,7 +765,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
     if (!previewVideoId) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${API}/api/heygen/video/${previewVideoId}/status`);
+        const res = await fetch(`${API}/api/heygen/video/${previewVideoId}/status`, { headers: authHeaders() });
         const data = await res.json();
         if (data.status === 'completed' && data.video_url) {
           setPreviewUrl(data.video_url);

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Textarea } from '../../../components/ui/textarea';
@@ -252,7 +253,7 @@ function TestCombinationPlayer({ avatarId, voiceId, avatarName, voiceName }) {
     try {
       const res = await fetch(`${API}/api/heygen/test-combination`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ avatar_id: avatarId, voice_id: voiceId }),
       });
       if (!res.ok) {
@@ -266,7 +267,7 @@ function TestCombinationPlayer({ avatarId, voiceId, avatarName, voiceName }) {
       // Poll for status
       pollRef.current = setInterval(async () => {
         try {
-          const sRes = await fetch(`${API}/api/heygen/video-status/${data.video_id}`);
+          const sRes = await fetch(`${API}/api/heygen/video-status/${data.video_id}`, { headers: authHeaders() });
           if (!sRes.ok) return;
           const sData = await sRes.json();
           if (sData.status === 'completed' && sData.video_url) {
@@ -388,7 +389,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   // Load avatar settings
   useEffect(() => {
     if (!course?.id) return;
-    fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`)
+    fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {
@@ -404,7 +405,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   useEffect(() => {
     if (!avatarSettingsOpen || heygenAvatars.length > 0) return;
     setLoadingAvatars(true);
-    fetch(`${API}/api/heygen/avatars?limit=50`)
+    fetch(`${API}/api/heygen/avatars?limit=50`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : { avatars: [] })
       .then(data => setHeygenAvatars(data.avatars || []))
       .catch(() => {})
@@ -415,7 +416,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   useEffect(() => {
     if (!avatarSettingsOpen || heygenVoices.length > 0) return;
     setLoadingVoices(true);
-    fetch(`${API}/api/heygen/voices?language=portuguese`)
+    fetch(`${API}/api/heygen/voices?language=portuguese`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : { voices: [] })
       .then(data => {
         const voices = data.voices || [];
@@ -441,7 +442,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
     try {
       await fetch(`${API}/api/agent/projects/${course.id}/avatar-settings`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
       });
     } catch { /* ignore */ }
@@ -856,7 +857,7 @@ export function EditResultPanel({ result, course, navigate, onUndo, loading }) {
 
     const poll = async () => {
       try {
-        const resp = await fetch(`${API}/api/agent/projects/${course.id}/avatar-generation-status`);
+        const resp = await fetch(`${API}/api/agent/projects/${course.id}/avatar-generation-status`, { headers: authHeaders() });
         if (resp.ok) {
           const data = await resp.json();
           setAvatarStatus(data);

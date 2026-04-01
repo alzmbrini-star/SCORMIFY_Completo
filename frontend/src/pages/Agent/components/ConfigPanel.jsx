@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Textarea } from '../../../components/ui/textarea';
@@ -39,7 +40,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
   useEffect(() => {
     if (config.narrationEnabled && elVoices.length === 0 && !loadingVoices) {
       setLoadingVoices(true);
-      fetch(`${API}/api/elevenlabs/voices`)
+      fetch(`${API}/api/elevenlabs/voices`, { headers: authHeaders() })
         .then(r => r.json())
         .then(data => setElVoices(data.voices || []))
         .catch(() => {})
