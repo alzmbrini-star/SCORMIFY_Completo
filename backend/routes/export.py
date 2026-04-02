@@ -890,16 +890,19 @@ async def serve_asset(project_id: str, filename: str):
                     f.write(data)
                 logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
                 return FileResponse(file_path)
+            else:
+                logger.warning(f"Asset not found in MongoDB: {project_id}/{filename}")
         except Exception as e:
-            logger.warning(f"MongoDB asset fallback failed: {e}")
+            logger.warning(f"MongoDB asset fallback failed for {project_id}/{filename}: {e}")
+    else:
+        logger.warning(f"db is None when trying to serve asset: {project_id}/{filename}")
     
-    raise HTTPException(status_code=404, detail="File not found")
+    raise HTTPException(status_code=404, detail=f"Asset not found: {project_id}/{filename}")
 
 
 @router.post("/admin/repair-assets")
 async def repair_assets():
-    """Scan all local project assets and persist any missing ones to MongoDB.
-    Use this to fix production environments where assets were lost."""
+    """Scan all local project assets and persist any missing ones to MongoDB."""
     from services.asset_store import store_asset_async
     
     persisted = 0
@@ -919,7 +922,6 @@ async def repair_assets():
         for asset_file in assets_dir.iterdir():
             if not asset_file.is_file():
                 continue
-            # Check if already in MongoDB
             existing = await db.project_assets.find_one(
                 {"project_id": project_id, "filename": asset_file.name},
                 {"_id": 1}
@@ -943,6 +945,135 @@ async def repair_assets():
         "already_in_db": already_in_db,
         "errors": errors,
     }
+
+
+@router.get("/admin/asset-diagnostic")
+async def asset_diagnostic():
+    """Comprehensive diagnostic for asset storage in production.
+    Tests MongoDB connectivity, read/write, and reports asset status."""
+    import base64
+    from routes.deps import db as route_db, mongo_url as route_mongo_url, db_name as route_db_name
+    
+    results = {
+        "db_status": "unknown",
+        "db_name": route_db_name,
+        "mongo_url_prefix": route_mongo_url[:30] + "..." if route_mongo_url else "EMPTY",
+        "write_test": "not_run",
+        "read_test": "not_run",
+        "total_assets": 0,
+        "sample_projects_with_assets": [],
+        "projects_in_db": 0,
+        "projects_with_background_images": 0,
+        "missing_assets": [],
+        "local_files_count": 0,
+    }
+    
+    # 1. Check db connection
+    if route_db is None:
+        results["db_status"] = "ERROR: db is None"
+        return results
+    
+    try:
+        collections = await route_db.list_collection_names()
+        results["db_status"] = f"connected ({len(collections)} collections)"
+        results["has_project_assets_collection"] = "project_assets" in collections
+    except Exception as e:
+        results["db_status"] = f"ERROR: {str(e)}"
+        return results
+    
+    # 2. Write test
+    test_data = base64.b64encode(b"DIAGNOSTIC_TEST_IMAGE").decode('ascii')
+    try:
+        await route_db.project_assets.update_one(
+            {"project_id": "__diagnostic__", "filename": "test.png"},
+            {"$set": {"project_id": "__diagnostic__", "filename": "test.png", "data": test_data, "content_type": "image/png"}},
+            upsert=True,
+        )
+        results["write_test"] = "OK"
+    except Exception as e:
+        results["write_test"] = f"FAILED: {str(e)}"
+    
+    # 3. Read test
+    try:
+        doc = await route_db.project_assets.find_one(
+            {"project_id": "__diagnostic__", "filename": "test.png"},
+            {"_id": 0, "data": 1}
+        )
+        if doc and doc.get("data") == test_data:
+            results["read_test"] = "OK"
+        else:
+            results["read_test"] = f"FAILED: doc={doc is not None}, data_match={doc.get('data') == test_data if doc else 'N/A'}"
+        # Cleanup
+        await route_db.project_assets.delete_one({"project_id": "__diagnostic__", "filename": "test.png"})
+    except Exception as e:
+        results["read_test"] = f"FAILED: {str(e)}"
+    
+    # 4. Count total assets
+    try:
+        results["total_assets"] = await route_db.project_assets.count_documents({})
+        # Get sample projects that HAVE assets
+        pipeline = [
+            {"$group": {"_id": "$project_id", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 10}
+        ]
+        async for doc in route_db.project_assets.aggregate(pipeline):
+            results["sample_projects_with_assets"].append({
+                "project_id": doc["_id"],
+                "asset_count": doc["count"]
+            })
+    except Exception as e:
+        results["total_assets"] = f"ERROR: {str(e)}"
+    
+    # 5. Check projects with background images that might 404
+    try:
+        results["projects_in_db"] = await route_db.projects.count_documents({})
+        bg_count = 0
+        missing = []
+        async for proj in route_db.projects.find(
+            {"course.slides.0.backgroundImage": {"$exists": True, "$nin": ["", None]}},
+            {"_id": 0, "id": 1, "name": 1, "course.slides.0.backgroundImage": 1}
+        ).limit(30):
+            bg = proj.get("course", {}).get("slides", [{}])[0].get("backgroundImage", "")
+            if bg:
+                bg_count += 1
+                # Extract project_id and filename from the URL
+                # e.g., /api/projects/abc123/assets/slide_001.png
+                parts = bg.replace("/api/projects/", "").split("/assets/")
+                if len(parts) == 2:
+                    asset_pid, asset_fname = parts
+                    # Check if this asset exists in MongoDB
+                    exists = await route_db.project_assets.find_one(
+                        {"project_id": asset_pid, "filename": asset_fname},
+                        {"_id": 1}
+                    )
+                    if not exists:
+                        missing.append({
+                            "project_id": proj.get("id"),
+                            "project_name": proj.get("name", "?")[:40],
+                            "bg_url": bg,
+                            "asset_project_id": asset_pid,
+                            "asset_filename": asset_fname,
+                        })
+        results["projects_with_background_images"] = bg_count
+        results["missing_assets"] = missing[:20]  # Limit to 20
+    except Exception as e:
+        results["projects_with_background_images"] = f"ERROR: {str(e)}"
+    
+    # 6. Count local files
+    try:
+        local_count = 0
+        for project_dir in PROJECTS_DIR.iterdir():
+            if not project_dir.is_dir():
+                continue
+            assets_dir = project_dir / "assets"
+            if assets_dir.exists():
+                local_count += sum(1 for f in assets_dir.iterdir() if f.is_file())
+        results["local_files_count"] = local_count
+    except Exception as e:
+        results["local_files_count"] = f"ERROR: {str(e)}"
+    
+    return results
 
 
 @router.get("/exports/{filename}")
