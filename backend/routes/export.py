@@ -1076,6 +1076,78 @@ async def asset_diagnostic():
     return results
 
 
+@router.get("/admin/asset-diagnostic/{project_id}")
+async def asset_diagnostic_project(project_id: str):
+    """Check a specific project's assets - what slides reference vs what exists in MongoDB."""
+    from routes.deps import db as route_db
+    
+    results = {
+        "project_id": project_id,
+        "project_exists": False,
+        "slide_count": 0,
+        "referenced_assets": [],
+        "stored_assets": [],
+        "missing": [],
+        "found": [],
+    }
+    
+    proj = await route_db.projects.find_one({"id": project_id}, {"_id": 0, "name": 1, "course": 1})
+    if not proj:
+        return results
+    
+    results["project_exists"] = True
+    results["project_name"] = proj.get("name", "?")
+    
+    slides = proj.get("course", {}).get("slides", [])
+    results["slide_count"] = len(slides)
+    
+    referenced = set()
+    for i, slide in enumerate(slides):
+        bg = slide.get("backgroundImage", "")
+        if bg and "/assets/" in bg:
+            parts = bg.split("/assets/")
+            if len(parts) == 2:
+                ref_pid = parts[0].replace("/api/projects/", "")
+                ref_fname = parts[1]
+                referenced.add((ref_pid, ref_fname, f"slide[{i}].backgroundImage"))
+        
+        for j, el in enumerate(slide.get("elements", [])):
+            src = el.get("src", "")
+            if src and "/assets/" in src:
+                parts = src.split("/assets/")
+                if len(parts) == 2:
+                    ref_pid = parts[0].replace("/api/projects/", "")
+                    ref_fname = parts[1]
+                    referenced.add((ref_pid, ref_fname, f"slide[{i}].elements[{j}].src"))
+    
+    results["referenced_assets"] = [{"project_id": r[0], "filename": r[1], "location": r[2]} for r in referenced]
+    
+    stored = []
+    async for doc in route_db.project_assets.find(
+        {"project_id": project_id},
+        {"_id": 0, "filename": 1, "content_type": 1}
+    ):
+        stored.append(doc["filename"])
+    results["stored_assets"] = stored
+    
+    for ref in referenced:
+        ref_pid, ref_fname, ref_loc = ref
+        exists = await route_db.project_assets.find_one(
+            {"project_id": ref_pid, "filename": ref_fname},
+            {"_id": 1}
+        )
+        local_exists = (PROJECTS_DIR / ref_pid / "assets" / ref_fname).exists()
+        
+        entry = {"project_id": ref_pid, "filename": ref_fname, "location": ref_loc, "in_mongodb": exists is not None, "on_disk": local_exists}
+        if exists or local_exists:
+            results["found"].append(entry)
+        else:
+            results["missing"].append(entry)
+    
+    return results
+
+
+
 @router.get("/exports/{filename}")
 async def serve_export(filename: str, preview: str = None):
     """Serve exported files (SCORM zip or HTML) with forced download.
