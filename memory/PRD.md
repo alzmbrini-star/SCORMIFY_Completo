@@ -99,6 +99,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - 2026-03-30: FEATURE - Enhanced 'Alterar Texto' dialog: now includes Fonte (20 font options with preview text) and Tamanho do Texto (15 sizes) alongside Cor. Empty fields preserve current values. Preview shows 3 slides with applied styles. Tested 100% (iteration_94).
 - 2026-03-31: FIX (P0) - 401 Unauthorized in Agent subcomponents in production. Added authHeaders() to ALL fetch calls in 5 files: GeneratedPanel.jsx, CoursePanels.jsx, ConfigPanel.jsx, MediaConfigPanel.jsx, StoryboardPanel.jsx. Tested 100% backend (9/9) + frontend (iteration_95).
 - 2026-04-02: FIX - Production image 404 errors. Root cause: daemon threads for MongoDB asset persistence could die before completing. Fixed all asset persistence to be synchronous. Added onError fallback to Dashboard/Editor thumbnails so broken images hide gracefully. Added POST /api/admin/repair-assets endpoint to re-persist local assets to MongoDB. Verified 450 assets in MongoDB.
+- 2026-04-02: FEATURE - AI Agent "Gerar Curso" progress panel. Added GeneratingProgressPanel component showing: animated progress bar with %, phase timeline (init/slides/images/save), image generation sub-progress (X/Y), elapsed timer, summary stats (slides/images/time), helpful tip. Chat messages now have visual indicators (spinner for progress, checkmark for success, alert for errors). Tested 100% (iteration_96).
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
