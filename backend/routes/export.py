@@ -900,15 +900,11 @@ async def serve_asset(project_id: str, filename: str):
 async def repair_assets():
     """Scan all local project assets and persist any missing ones to MongoDB.
     Use this to fix production environments where assets were lost."""
-    from services.asset_store import store_asset_sync
-    import os as _os
+    from services.asset_store import store_asset_async
     
     persisted = 0
     errors = 0
     already_in_db = 0
-    
-    mongo_url = _os.environ.get("MONGO_URL")
-    db_name = _os.environ.get("DB_NAME", "scormify")
     
     if not PROJECTS_DIR.exists():
         return {"message": "No projects directory found", "persisted": 0}
@@ -932,9 +928,11 @@ async def repair_assets():
                 already_in_db += 1
                 continue
             try:
-                store_asset_sync(mongo_url, db_name, project_id, asset_file.name, str(asset_file))
-                persisted += 1
-                logger.info(f"Repair: persisted {project_id}/{asset_file.name}")
+                success = await store_asset_async(db, project_id, asset_file.name, str(asset_file))
+                if success:
+                    persisted += 1
+                else:
+                    errors += 1
             except Exception as e:
                 errors += 1
                 logger.warning(f"Repair: failed to persist {project_id}/{asset_file.name}: {e}")

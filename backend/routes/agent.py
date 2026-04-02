@@ -586,9 +586,8 @@ async def agent_generate_bg_image(data: dict):
             
             # Persist in MongoDB for production environments with ephemeral storage
             try:
-                from services.asset_store import store_asset_sync
-                store_asset_sync(mongo_url, os.environ['DB_NAME'], "bg_temp", fname, fpath)
-                logger.info(f"BG image generated and persisted to MongoDB: {fname}")
+                from services.asset_store import store_asset_async
+                await store_asset_async(db, "bg_temp", fname, fpath)
             except Exception as e:
                 logger.warning(f"Failed to persist BG image in MongoDB (non-fatal): {e}")
             
@@ -718,16 +717,10 @@ async def apply_media_changes(session_id: str, data: dict):
                         bg_url = f"/api/projects/bg_temp/assets/{fname}"
                         # Persist to MongoDB for production
                         try:
-                            from services.asset_store import store_asset_sync
-                            import threading
-                            threading.Thread(
-                                target=store_asset_sync,
-                                args=(mongo_url, os.environ['DB_NAME'], "bg_temp", fname, fpath),
-                                daemon=True
-                            ).start()
+                            from services.asset_store import store_asset_async
+                            await store_asset_async(db, "bg_temp", fname, fpath)
                         except Exception as pe:
                             logger.warning(f"Failed to persist uploaded BG to MongoDB: {pe}")
-                        logger.info(f"Persisted uploaded BG image: {fname}")
                     except Exception as e:
                         logger.error(f"Failed to save uploaded BG image: {e}")
                 if bg_url:
@@ -2707,9 +2700,8 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
 
                         # Persist in MongoDB synchronously
                         try:
-                            from services.asset_store import store_asset_sync
-                            store_asset_sync(os.environ.get("MONGO_URL"), os.environ["DB_NAME"], project_id, fname, fpath)
-                            logger.info(f"Avatar BG persisted to MongoDB: {project_id}/{fname}")
+                            from services.asset_store import store_asset_async
+                            await store_asset_async(_db, project_id, fname, fpath)
                         except Exception as persist_err:
                             logger.warning(f"Failed to persist avatar BG in MongoDB: {persist_err}")
 

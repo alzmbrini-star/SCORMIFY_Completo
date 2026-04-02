@@ -16,20 +16,54 @@ from pymongo import MongoClient
 logger = logging.getLogger(__name__)
 
 
+def _get_content_type(filename: str) -> str:
+    """Determine content type from filename extension."""
+    ext = Path(filename).suffix.lower()
+    ct_map = {
+        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml',
+        '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+        '.mp4': 'video/mp4', '.webm': 'video/webm',
+    }
+    return ct_map.get(ext, 'application/octet-stream')
+
+
+async def store_asset_async(db, project_id: str, filename: str, file_path: str):
+    """Store a file in MongoDB using an existing async motor db connection.
+    This is the PREFERRED method for all async contexts (routes, services)."""
+    try:
+        with open(file_path, 'rb') as f:
+            raw_data = f.read()
+        
+        data_b64 = base64.b64encode(raw_data).decode('ascii')
+        content_type = _get_content_type(filename)
+        
+        result = await db.project_assets.update_one(
+            {"project_id": project_id, "filename": filename},
+            {"$set": {
+                "project_id": project_id,
+                "filename": filename,
+                "data": data_b64,
+                "content_type": content_type,
+            }},
+            upsert=True
+        )
+        
+        action = "inserted" if result.upserted_id else "updated"
+        logger.info(f"Asset {action} in MongoDB: {project_id}/{filename} ({len(raw_data)} bytes)")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to store asset in MongoDB: {project_id}/{filename} - {e}")
+        return False
+
+
 def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: str, file_path: str):
-    """Store a file in MongoDB (synchronous, for use in background tasks)."""
+    """Store a file in MongoDB (synchronous, for startup/background tasks only)."""
     try:
         with open(file_path, 'rb') as f:
             data = base64.b64encode(f.read()).decode('ascii')
 
-        content_type = 'image/png'
-        ext = Path(filename).suffix.lower()
-        if ext in ('.jpg', '.jpeg'):
-            content_type = 'image/jpeg'
-        elif ext == '.mp3':
-            content_type = 'audio/mpeg'
-        elif ext == '.wav':
-            content_type = 'audio/wav'
+        content_type = _get_content_type(filename)
 
         is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
         timeout = 30000 if is_atlas else 10000
@@ -46,9 +80,9 @@ def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: st
             upsert=True
         )
         client.close()
-        logger.info(f"Stored asset in MongoDB: {project_id}/{filename}")
+        logger.info(f"Stored asset in MongoDB (sync): {project_id}/{filename}")
     except Exception as e:
-        logger.warning(f"Failed to store asset in MongoDB: {e}")
+        logger.warning(f"Failed to store asset in MongoDB (sync): {e}")
 
 
 def retrieve_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: str, dest_path: str) -> bool:

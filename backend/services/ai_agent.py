@@ -14,6 +14,26 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 logger = logging.getLogger(__name__)
 
+# Shared motor db connection for async asset persistence
+_motor_db = None
+
+async def _get_motor_db():
+    """Get or create a shared motor db connection for asset persistence."""
+    global _motor_db
+    if _motor_db is not None:
+        return _motor_db
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        mongo_url = os.environ.get('MONGO_URL', '')
+        db_name = os.environ.get('DB_NAME', '')
+        if mongo_url and db_name:
+            client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+            _motor_db = client[db_name]
+            return _motor_db
+    except Exception as e:
+        logger.warning(f"Failed to create motor db for asset persistence: {e}")
+    return None
+
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
 # Primary model: Gemini 3 Flash (fast + cheap), Fallback: GPT-4o
@@ -524,19 +544,12 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
                 f.write(img_bytes)
             logger.info(f"AI image generated (Gemini) for '{keyword}' -> {fname}")
             
-            # Persist in MongoDB for production environments with ephemeral storage (non-blocking)
-            import threading
+            # Persist in MongoDB async for production environments with ephemeral storage
             try:
-                from services.asset_store import store_asset_sync
-                mongo_url = os.environ.get('MONGO_URL', '')
-                db_name = os.environ.get('DB_NAME', '')
-                if mongo_url and db_name:
-                    threading.Thread(
-                        target=store_asset_sync,
-                        args=(mongo_url, db_name, project_id, fname, fpath),
-                        daemon=True
-                    ).start()
-                    logger.info(f"AI image persisting to MongoDB: {project_id}/{fname}")
+                from services.asset_store import store_asset_async
+                _db = await _get_motor_db()
+                if _db is not None:
+                    await store_asset_async(_db, project_id, fname, fpath)
             except Exception as e:
                 logger.warning(f"Failed to persist AI image in MongoDB (non-fatal): {e}")
             
@@ -603,19 +616,12 @@ async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -
                 with open(fpath, "wb") as f:
                     f.write(resp.content)
                 
-                # Persist in MongoDB for production environments with ephemeral storage (non-blocking)
-                import threading
+                # Persist in MongoDB async for production environments with ephemeral storage
                 try:
-                    from services.asset_store import store_asset_sync
-                    mongo_url = os.environ.get('MONGO_URL', '')
-                    db_name = os.environ.get('DB_NAME', '')
-                    if mongo_url and db_name:
-                        threading.Thread(
-                            target=store_asset_sync,
-                            args=(mongo_url, db_name, project_id, fname, fpath),
-                            daemon=True
-                        ).start()
-                        logger.info(f"Stock image persisting to MongoDB: {project_id}/{fname}")
+                    from services.asset_store import store_asset_async
+                    _db = await _get_motor_db()
+                    if _db is not None:
+                        await store_asset_async(_db, project_id, fname, fpath)
                 except Exception as e:
                     logger.warning(f"Failed to persist stock image in MongoDB (non-fatal): {e}")
                 
@@ -1556,15 +1562,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                         with open(fpath, "wb") as f:
                             f.write(b64mod.b64decode(data_part))
                         bg_image = f"/api/projects/{project_id}/assets/{fname}"
-                        # Persist to MongoDB for production (survives ephemeral storage)
+                        # Persist to MongoDB async for production (survives ephemeral storage)
                         try:
-                            from services.asset_store import store_asset_sync
-                            import threading
-                            threading.Thread(
-                                target=store_asset_sync,
-                                args=(mongo_url, db_name, project_id, fname, fpath),
-                                daemon=True
-                            ).start()
+                            from services.asset_store import store_asset_async
+                            _db = await _get_motor_db()
+                            if _db is not None:
+                                await store_asset_async(_db, project_id, fname, fpath)
                         except Exception as pe:
                             logger.warning(f"Failed to persist bg to MongoDB: {pe}")
                     except Exception as e:
@@ -1577,13 +1580,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                             src_pid, src_fname = parts
                             src_path = os.path.join(project_dir, src_pid, "assets", src_fname)
                             if os.path.exists(src_path):
-                                from services.asset_store import store_asset_sync
-                                import threading
-                                threading.Thread(
-                                    target=store_asset_sync,
-                                    args=(mongo_url, db_name, src_pid, src_fname, src_path),
-                                    daemon=True
-                                ).start()
+                                from services.asset_store import store_asset_async
+                                _db = await _get_motor_db()
+                                if _db is not None:
+                                    await store_asset_async(_db, src_pid, src_fname, src_path)
                     except Exception:
                         pass
 
