@@ -2184,7 +2184,11 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
             continue
         after_idx = ns.get("afterIndex", len(slides) - 1)
         insert_at = min(after_idx + 1, len(slides))
-        new_elements = _build_improved_elements(ns.get("elements", []) if isinstance(ns.get("elements"), list) else [], generate_id_fn)
+        
+        # Scenario slides are handled as placeholders - elements generated later
+        is_scenario = ns.get("type") == "scenario"
+        
+        new_elements = _build_improved_elements(ns.get("elements", []) if isinstance(ns.get("elements"), list) and not is_scenario else [], generate_id_fn)
         ns_title = ns.get("title", "Novo Slide")
         if not isinstance(ns_title, str):
             ns_title = str(ns_title)
@@ -2203,6 +2207,11 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
             "librasScript": ns.get("librasScript", ""),
             "duration": 5.0,
         }
+        # Attach scenario config for post-processing
+        if is_scenario and ns.get("scenarioConfig"):
+            new_slide["_scenarioConfig"] = ns["scenarioConfig"]
+            new_slide["_scenarioTitle"] = ns_title
+        
         slides.insert(insert_at, new_slide)
         new_slides_added += 1
 
@@ -2359,6 +2368,71 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     course["slides"] = slides
     await update_project(project_id, {"course": course})
 
+    # Post-process: Generate real scenarios for any scenario-type slides
+    scenarios_generated = 0
+    for slide in slides:
+        scenario_config = slide.pop("_scenarioConfig", None)
+        scenario_title = slide.pop("_scenarioTitle", None)
+        if not scenario_config:
+            continue
+        
+        try:
+            from services.scenario_service import generate_scenario_with_ai
+            scenario_data = await generate_scenario_with_ai({
+                "theme": scenario_config.get("theme", scenario_title or "Cenário interativo"),
+                "objectives": scenario_config.get("objectives", ""),
+                "audience": scenario_config.get("audience", ""),
+                "complexity": scenario_config.get("complexity", "intermediate"),
+                "industry": scenario_config.get("industry", ""),
+                "duration_minutes": scenario_config.get("duration_minutes", 10),
+                "language": "pt-BR",
+            })
+            
+            # Save scenario to DB
+            scenario_id = generate_id()
+            now_str = datetime.now(timezone.utc).isoformat()
+            scenario_doc = {
+                "id": scenario_id,
+                "project_id": project_id,
+                "title": scenario_data.get("title", scenario_title or "Cenário"),
+                "description": scenario_data.get("description", ""),
+                "context": scenario_data.get("context", ""),
+                "characters": scenario_data.get("characters", []),
+                "learning_objectives": scenario_data.get("learning_objectives", []),
+                "competencies_evaluated": scenario_data.get("competencies_evaluated", []),
+                "nodes": scenario_data.get("nodes", []),
+                "start_node_id": scenario_data["nodes"][0]["id"] if scenario_data.get("nodes") else None,
+                "config": scenario_config,
+                "created_at": now_str,
+                "updated_at": now_str,
+            }
+            await db.scenarios.insert_one(scenario_doc)
+            scenario_doc.pop("_id", None)
+            
+            # Replace slide elements with proper scenario element
+            slide["elements"] = [{
+                "id": generate_id(),
+                "type": "scenario",
+                "x": 0, "y": 0, "width": 1920, "height": 820,
+                "content": scenario_id,
+                "scenarioData": scenario_doc,
+                "style": {}, "startTime": 0, "animations": [],
+            }]
+            slide["notes"] = f"Cenário interativo: {scenario_doc['title']}"
+            slide["title"] = scenario_doc["title"]
+            scenarios_generated += 1
+            logger.info(f"Scenario generated for slide {slide['id']}: {scenario_doc['title']} ({len(scenario_data.get('nodes', []))} nodes)")
+        except Exception as e:
+            logger.error(f"Failed to generate scenario for slide {slide.get('id')}: {e}")
+            # Leave slide as-is with a placeholder note
+            slide["notes"] = f"Cenário pendente (erro na geração): {str(e)}"
+
+    # Save updated slides after scenario generation
+    if scenarios_generated > 0:
+        course["slides"] = slides
+        await update_project(project_id, {"course": course})
+        logger.info(f"Applied {scenarios_generated} scenarios to project {project_id}")
+
     # Detect avatar scenes and trigger background generation
     avatar_scene_pending = []
     for ns in result.get("newSlides", []):
@@ -2438,6 +2512,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         "newSlides": new_slides_added,
         "totalSlides": len(slides),
         "canUndo": True,
+        "scenariosGenerated": scenarios_generated,
         "avatarScenesTriggered": len(avatar_scene_pending),
         "avatarGenerationStarted": avatar_generation_started,
     }

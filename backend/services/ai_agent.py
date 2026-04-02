@@ -1903,27 +1903,19 @@ REGRA PARA CENAS COM AVATAR (type "avatar_scene"):
     if has_scenarios:
         scenario_instructions = """
 REGRA PARA CENÁRIOS INTERATIVOS (type "scenario"):
-- Cenários são árvores de decisão onde o aluno faz escolhas e vê consequências
-- Gere um elemento com type "scenario" e campo "scenarioData" contendo a árvore completa
-- Formato do scenarioData:
-  {{"title":"Título do cenário","description":"Contexto","context":"Situação inicial detalhada",
-    "characters":[{{"id":"char1","name":"Nome","role":"Papel","avatar":"professional"}}],
-    "learning_objectives":["Objetivo 1","Objetivo 2"],
-    "competencies_evaluated":["Competência 1"],
-    "nodes":[
-      {{"id":"node1","type":"situation","title":"Cena 1","narrative":"Descrição da situação...",
-        "character_id":"char1","is_ending":false,"score":0,
-        "choices":[
-          {{"id":"c1","text":"Opção A","next_node_id":"node2","feedback":"Feedback da escolha","score_impact":10}},
-          {{"id":"c2","text":"Opção B","next_node_id":"node3","feedback":"Feedback da escolha","score_impact":-5}}
-        ]}},
-      {{"id":"node2","type":"consequence","title":"Resultado A","narrative":"O que aconteceu...","is_ending":true,"score":10,"choices":[]}},
-      {{"id":"node3","type":"consequence","title":"Resultado B","narrative":"O que aconteceu...","is_ending":true,"score":-5,"choices":[]}}
-    ],
-    "start_node_id":"node1"}}
-- O cenário deve ter 5-8 nós para complexidade intermediária
-- Formato do elemento: {{"type":"scenario","scenarioData":{{...}},"width":960,"height":540}}
-- Conteúdo 100% relacionado ao tema do curso com situações realistas e consequências significativas
+- Quando a melhoria pede um cenário interativo, NÃO gere a árvore de decisão completa.
+- Gere APENAS um novo slide com as configurações do cenário para geração posterior.
+- O slide deve ter type "scenario" e incluir o campo "scenarioConfig" com:
+  - "theme": tema específico do cenário (baseado no conteúdo do slide/módulo)
+  - "objectives": objetivos de aprendizagem relevantes ao contexto
+  - "audience": público-alvo
+  - "complexity": "beginner", "intermediate" ou "advanced"
+  - "industry": setor/indústria se relevante
+  - "duration_minutes": 10 ou 15
+- Exemplo de novo slide cenário:
+  {{"afterIndex":3,"title":"Cenário: Atendimento ao Cliente","type":"scenario",
+    "scenarioConfig":{{"theme":"Atendimento ao cliente insatisfeito com produto defeituoso","objectives":"Praticar escuta ativa, técnicas de resolução de conflitos","audience":"Atendentes de suporte nível 1","complexity":"intermediate","industry":"Varejo","duration_minutes":10}}}}
+- NÃO inclua "elements" para slides de cenário - eles serão gerados automaticamente
 """
 
     visual_summary_instructions = ""

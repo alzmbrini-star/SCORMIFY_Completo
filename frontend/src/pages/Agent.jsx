@@ -683,8 +683,11 @@ export default function Agent() {
       setEditResult(data);
       setCurrentStep(3);
       let msg = `Melhorias aplicadas! ${data.updatedSlides} slides atualizados, ${data.newSlides} novos slides. Total: ${data.totalSlides} slides.`;
+      if (data.scenariosGenerated > 0) {
+        msg += ` ${data.scenariosGenerated} cenário(s) interativo(s) gerado(s) com IA.`;
+      }
       if (data.avatarScenesTriggered > 0) {
-        msg += ` ${data.avatarScenesTriggered} cena(s) com avatar estão sendo geradas em segundo plano (imagem de fundo, narração e vídeo do avatar).`;
+        msg += ` ${data.avatarScenesTriggered} cena(s) com avatar estão sendo geradas em segundo plano.`;
       }
       addChatMsg('agent', msg);
       toast.success('Melhorias aplicadas com sucesso!');
