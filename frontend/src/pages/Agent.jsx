@@ -92,6 +92,8 @@ export default function Agent() {
   const [storyboard, setStoryboard] = useState(null);
   const [storyboardProgressMsg, setStoryboardProgressMsg] = useState(null);
   const [generatedProject, setGeneratedProject] = useState(null);
+  const [generationPhases, setGenerationPhases] = useState([]); // Track generation progress phases
+  const [generationStartTime, setGenerationStartTime] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [designTemplates, setDesignTemplates] = useState([]);
@@ -472,8 +474,19 @@ export default function Agent() {
 
   const handleGenerateCourse = async () => {
     setLoading(true);
+    setGenerationStartTime(Date.now());
     const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
     const heyCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+    const vidCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
+    const slideCount = storyboard?.slides?.length || 0;
+
+    setGenerationPhases([
+      { id: 'init', label: 'Iniciando geração do curso', status: 'active', icon: 'rocket' },
+      { id: 'slides', label: `Gerando ${slideCount} slides com IA`, status: 'pending', icon: 'layers' },
+      ...(aiCount > 0 ? [{ id: 'images', label: `Criando ${aiCount} imagens com IA`, status: 'pending', icon: 'image', total: aiCount, completed: 0 }] : []),
+      { id: 'save', label: 'Salvando e finalizando projeto', status: 'pending', icon: 'save' },
+    ]);
+
     addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST', headers: authHeaders() });
@@ -483,13 +496,14 @@ export default function Agent() {
       if (initData.status === 'already_done') {
         setGeneratedProject(initData);
         setCurrentStep(6);
+        setGenerationPhases([]);
         return;
       }
 
       // Poll for completion
       const pollStatus = async () => {
         let lastProgressMsg = '';
-        for (let i = 0; i < 360; i++) { // max 30 min (360 * 5s)
+        for (let i = 0; i < 360; i++) {
           await new Promise(r => setTimeout(r, 5000));
           try {
             const statusRes = await fetch(`${API}/api/agent/sessions/${sessionId}/course-status`, { headers: authHeaders() });
@@ -497,13 +511,39 @@ export default function Agent() {
             if (statusData.message && statusData.message !== lastProgressMsg) {
               lastProgressMsg = statusData.message;
               addChatMsg('agent', `${statusData.message}`);
+
+              // Update generation phases based on message
+              setGenerationPhases(prev => {
+                const next = [...prev];
+                const msg = statusData.message.toLowerCase();
+                if (msg.includes('slides com ia') || msg.includes('gerando slides')) {
+                  next.forEach(p => { if (p.id === 'init') p.status = 'done'; });
+                  const sp = next.find(p => p.id === 'slides');
+                  if (sp) sp.status = 'active';
+                } else if (msg.includes('imagens ia') || msg.includes('gerando imagens')) {
+                  next.forEach(p => { if (p.id === 'init' || p.id === 'slides') p.status = 'done'; });
+                  const ip = next.find(p => p.id === 'images');
+                  if (ip) {
+                    ip.status = 'active';
+                    const match = statusData.message.match(/(\d+)\/(\d+)/);
+                    if (match) { ip.completed = parseInt(match[1]); ip.total = parseInt(match[2]); }
+                  }
+                } else if (msg.includes('salvando')) {
+                  next.forEach(p => { if (p.status !== 'pending' || p.id === 'save') {} else { p.status = 'done'; } });
+                  next.forEach(p => { if (p.id !== 'save') p.status = 'done'; });
+                  const sp = next.find(p => p.id === 'save');
+                  if (sp) sp.status = 'active';
+                }
+                return next;
+              });
             }
             if (statusData.status === 'done') {
+              setGenerationPhases(prev => prev.map(p => ({ ...p, status: 'done' })));
               setGeneratedProject(statusData);
               const heygenMsg = statusData.heygenPending > 0 ? ` ${statusData.heygenPending} vídeos HeyGen em processamento.` : '';
               const narrationMsg = statusData.narrationPending > 0 ? ` ${statusData.narrationPending} narrações em geração.` : '';
               addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${statusData.quizCount} perguntas.${heygenMsg}${narrationMsg}`);
-              setCurrentStep(6);
+              setTimeout(() => { setCurrentStep(6); setGenerationPhases([]); }, 1500);
               toast.success('Curso gerado com sucesso!');
               return;
             }
@@ -512,7 +552,6 @@ export default function Agent() {
             }
           } catch (pollErr) {
             if (pollErr.message.includes('Erro')) throw pollErr;
-            // Network error, keep polling
           }
         }
         throw new Error('Timeout na geração do curso');
@@ -522,6 +561,7 @@ export default function Agent() {
     } catch (e) {
       toast.error(e.message || 'Erro ao gerar curso');
       addChatMsg('agent', `Erro ao gerar o curso: ${e.message || 'Erro desconhecido'}`);
+      setGenerationPhases([]);
     } finally {
       setLoading(false);
     }
@@ -793,6 +833,9 @@ export default function Agent() {
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} config={config} setConfig={setConfig} sessionId={sessionId} />}
               {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
+              {mode === 'create' && generationPhases.length > 0 && currentStep !== 6 && (
+                <GeneratingProgressPanel phases={generationPhases} startTime={generationStartTime} config={config} storyboard={storyboard} mediaConfig={mediaConfig} />
+              )}
               {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
@@ -815,13 +858,27 @@ export default function Agent() {
           </div>
           <ScrollArea className="flex-1 p-3">
             <div className="space-y-3">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-emerald-600/20 text-emerald-100' : 'bg-slate-800 text-slate-200'}`}>
-                    {msg.text}
+              {chatMessages.map((msg, i) => {
+                const isProgress = msg.text?.match(/gerando|criando|salvando|processando|iniciando/i) && msg.role === 'agent';
+                const isSuccess = msg.text?.match(/criado!|completo|configurada!|criada!/i) && msg.role === 'agent';
+                const isError = msg.text?.match(/erro|falha|timeout/i) && msg.role === 'agent';
+                return (
+                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm flex items-start gap-2 ${
+                      msg.role === 'user' ? 'bg-emerald-600/20 text-emerald-100' :
+                      isError ? 'bg-red-900/20 border border-red-800/30 text-red-200' :
+                      isSuccess ? 'bg-emerald-900/20 border border-emerald-800/30 text-emerald-200' :
+                      isProgress ? 'bg-slate-800 text-slate-300' :
+                      'bg-slate-800 text-slate-200'
+                    }`}>
+                      {msg.role === 'agent' && isProgress && <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400 shrink-0 mt-0.5" />}
+                      {msg.role === 'agent' && isSuccess && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />}
+                      {msg.role === 'agent' && isError && <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />}
+                      <span>{msg.text}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {loading && (
                 <div className="flex justify-start">
                   <div className="bg-slate-800 rounded-lg px-3 py-2 text-sm text-slate-400 flex items-center gap-2">
@@ -1097,6 +1154,164 @@ function StructurePanel({ structure, loading, onApprove, progressMsg }) {
     </div>
   );
 }
+
+
+function GeneratingProgressPanel({ phases, startTime, config, storyboard, mediaConfig }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!startTime) return;
+    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [startTime]);
+
+  const doneCount = phases.filter(p => p.status === 'done').length;
+  const totalCount = phases.length;
+  const activePhase = phases.find(p => p.status === 'active');
+  const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  // For image phase, compute finer progress
+  const imagePhase = phases.find(p => p.id === 'images');
+  let effectivePercent = progressPercent;
+  if (activePhase?.id === 'images' && imagePhase?.total > 0) {
+    const basePercent = Math.round((doneCount / totalCount) * 100);
+    const phaseWidth = Math.round(100 / totalCount);
+    effectivePercent = basePercent + Math.round((imagePhase.completed / imagePhase.total) * phaseWidth);
+  }
+  if (doneCount === totalCount) effectivePercent = 100;
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const slideCount = storyboard?.slides?.length || 0;
+  const aiCount = Object.values(mediaConfig || {}).filter(m => m.type === 'ai_image').length;
+  const heyCount = Object.values(mediaConfig || {}).filter(m => m.type === 'heygen').length;
+
+  const phaseIcons = {
+    rocket: Rocket, layers: Layers, image: Image, save: Check,
+  };
+
+  return (
+    <div className="space-y-6" data-testid="generating-progress-panel">
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping" style={{ animationDuration: '2s' }} />
+          <div className="absolute inset-1 rounded-full bg-emerald-500/5" />
+          <Sparkles className="w-8 h-8 text-emerald-400 animate-pulse" />
+        </div>
+        <h2 className="text-xl font-semibold text-slate-100">Gerando seu Curso</h2>
+        <p className="text-sm text-slate-400">{config?.title || 'Curso'}</p>
+      </div>
+
+      {/* Main progress bar */}
+      <div className="space-y-2">
+        <div className="flex justify-between text-xs text-slate-400">
+          <span>Progresso geral</span>
+          <span className="tabular-nums font-medium text-emerald-400">{effectivePercent}%</span>
+        </div>
+        <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-1000 ease-out"
+            style={{
+              width: `${Math.max(effectivePercent, 3)}%`,
+              background: 'linear-gradient(90deg, #059669, #10b981, #34d399)',
+            }}
+          />
+        </div>
+        <div className="flex justify-between text-[11px] text-slate-500">
+          <span>Tempo: {formatTime(elapsed)}</span>
+          <span>{doneCount}/{totalCount} etapas concluídas</span>
+        </div>
+      </div>
+
+      {/* Phase timeline */}
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4 space-y-0">
+          {phases.map((phase, idx) => {
+            const Icon = phaseIcons[phase.icon] || Layers;
+            const isActive = phase.status === 'active';
+            const isDone = phase.status === 'done';
+            const isPending = phase.status === 'pending';
+            return (
+              <div key={phase.id} className="flex items-start gap-3 relative" data-testid={`phase-${phase.id}`}>
+                {/* Vertical connector */}
+                {idx < phases.length - 1 && (
+                  <div className={`absolute left-[15px] top-[32px] w-0.5 h-[calc(100%-16px)] ${isDone ? 'bg-emerald-500/50' : 'bg-slate-700'}`} />
+                )}
+                {/* Icon circle */}
+                <div className={`relative z-10 shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                  isDone ? 'bg-emerald-500/20 text-emerald-400' :
+                  isActive ? 'bg-emerald-500/10 text-emerald-300 ring-2 ring-emerald-500/40' :
+                  'bg-slate-800 text-slate-500'
+                }`}>
+                  {isDone ? <Check className="w-4 h-4" /> :
+                   isActive ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                   <Icon className="w-4 h-4" />}
+                </div>
+                {/* Content */}
+                <div className={`flex-1 pb-4 ${isPending ? 'opacity-40' : ''}`}>
+                  <p className={`text-sm font-medium ${isDone ? 'text-emerald-400' : isActive ? 'text-slate-100' : 'text-slate-400'}`}>
+                    {phase.label}
+                  </p>
+                  {isActive && phase.id === 'images' && phase.total > 0 && (
+                    <div className="mt-1.5 space-y-1">
+                      <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-emerald-400 transition-all duration-700"
+                          style={{ width: `${Math.round((phase.completed / phase.total) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500">{phase.completed} de {phase.total} imagens</p>
+                    </div>
+                  )}
+                  {isActive && phase.id !== 'images' && (
+                    <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <span className="inline-block w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                      Em andamento...
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+          <Layers className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-slate-100">{slideCount}</p>
+          <p className="text-[11px] text-slate-400">Slides</p>
+        </div>
+        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+          <Image className="w-5 h-5 text-purple-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-slate-100">{aiCount}</p>
+          <p className="text-[11px] text-slate-400">Imagens IA</p>
+        </div>
+        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+          <Clock className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-slate-100 tabular-nums">{formatTime(elapsed)}</p>
+          <p className="text-[11px] text-slate-400">Tempo</p>
+        </div>
+      </div>
+
+      {/* Tip */}
+      <div className="bg-slate-800/30 rounded-lg p-3 flex items-start gap-2">
+        <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-slate-400">
+          A geração pode levar alguns minutos dependendo da quantidade de slides e imagens.
+          Não feche esta janela durante o processo.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
 function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
   const [filter, setFilter] = useState('all'); // all | agent | imported
