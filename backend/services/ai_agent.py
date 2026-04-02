@@ -1733,13 +1733,24 @@ RESUMO DOS SLIDES:
 {json.dumps(slides_summary, ensure_ascii=False)[:6000]}
 
 TIPOS DE MELHORIA DISPONÍVEIS:
-- "content": Melhorar o conteúdo textual do slide
+- "content": Melhorar o conteúdo textual do slide (reduzir texto, usar bullet points, conceitos-chave)
 - "structure": Melhorar a estrutura/organização
 - "quiz": Adicionar quiz/avaliação
 - "narration": Adicionar ou melhorar narração
 - "visual": Melhorar o design visual
-- "simulator": Adicionar simulador/jogo educativo interativo
+- "simulator": Adicionar simulador/jogo educativo interativo (HTML+JS completo)
 - "avatar_scene": Adicionar cena com avatar falante para explicar conceitos complexos
+- "scenario": Adicionar cenário de decisão interativo (árvore de decisões com múltiplos caminhos e consequências). Cenários são excelentes para treinar tomada de decisão, liderança, atendimento ao cliente, ética.
+- "visual_summary": Adicionar quadro de resumo visual (infográfico, mapa mental, timeline, diagrama) para sintetizar informações densas de forma visual e memorável
+- "reinforcement": Adicionar reforço de aprendizagem (flashcards, destaque de conceito-chave, caixa "Sabia que?", dica prática, exemplo real, case study) para fixar o conteúdo sem poluir com mais texto
+
+PRINCÍPIOS PEDAGÓGICOS IMPORTANTES:
+- Slides com muito texto são INEFICAZES. Priorize sugestões que REDUZAM texto e AUMENTEM engajamento
+- Use "visual_summary" quando um slide tem muita informação textual que poderia ser um infográfico ou diagrama
+- Use "reinforcement" para adicionar elementos de fixação entre slides de conteúdo denso
+- Use "scenario" quando o tema envolve tomada de decisão, análise de situações ou aplicação prática
+- Prefira menos texto + mais interatividade do que paredes de texto
+- Cada módulo deve ter pelo menos 1 elemento interativo (quiz, cenário, simulador ou jogo)
 
 REGRAS PARA SUGESTÃO DE AVATAR_SCENE:
 - Sugira cenas com avatar APENAS onde um apresentador/instrutor virtual agregaria valor pedagógico real
@@ -1750,6 +1761,23 @@ REGRAS PARA SUGESTÃO DE AVATAR_SCENE:
   - "backgroundDescription": Descrição do cenário de fundo ideal (ex: "Escritório moderno com tela mostrando gráficos")
   - "avatarPosition": "left", "right" ou "center"
 
+REGRAS PARA SUGESTÃO DE SCENARIO:
+- Sugira cenários interativos onde o aluno precisa tomar decisões com consequências
+- Para cada sugestão de scenario, inclua campos extras:
+  - "scenarioTheme": Tema específico do cenário (ex: "Atendimento ao cliente insatisfeito")
+  - "scenarioComplexity": "beginner", "intermediate" ou "advanced"
+  - "scenarioObjectives": Lista de 2-3 objetivos de aprendizagem do cenário
+
+REGRAS PARA VISUAL_SUMMARY:
+- Use quando um slide ou módulo tem conteúdo denso que se beneficiaria de representação visual
+- Tipos: infográfico, mapa mental, timeline, diagrama de processo, quadro comparativo, resumo em tópicos visuais
+- Para cada sugestão, inclua "summaryFormat": tipo de resumo visual sugerido
+
+REGRAS PARA REINFORCEMENT:
+- Use para fixar conceitos-chave entre slides de conteúdo
+- Tipos: flashcard, destaque de conceito, caixa "Sabia que?", dica prática, exemplo real, analogia, case study
+- Para cada sugestão, inclua "reinforcementType": tipo de reforço sugerido
+
 Retorne JSON:
 ```json
 {{
@@ -1758,7 +1786,7 @@ Retorne JSON:
   "improvements": [
     {{
       "slideIndex": 0,
-      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene",
+      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement",
       "priority": "alta|media|baixa",
       "description": "descrição da melhoria",
       "suggestion": "sugestão concreta"
@@ -1772,6 +1800,32 @@ Retorne JSON:
       "narrationScript": "Olá! Vou explicar o conceito de X de forma simples...",
       "backgroundDescription": "Sala de aula moderna com quadro digital",
       "avatarPosition": "left"
+    }},
+    {{
+      "slideIndex": 4,
+      "type": "scenario",
+      "priority": "alta",
+      "description": "Cenário de tomada de decisão sobre atendimento",
+      "suggestion": "Cenário interativo onde o aluno pratica atendimento ao cliente",
+      "scenarioTheme": "Atendimento ao cliente insatisfeito",
+      "scenarioComplexity": "intermediate",
+      "scenarioObjectives": ["Praticar escuta ativa", "Aplicar técnicas de resolução"]
+    }},
+    {{
+      "slideIndex": 6,
+      "type": "visual_summary",
+      "priority": "media",
+      "description": "Substituir texto denso por infográfico visual",
+      "suggestion": "Transformar os 8 tópicos em um diagrama de processo visual",
+      "summaryFormat": "diagrama de processo"
+    }},
+    {{
+      "slideIndex": 3,
+      "type": "reinforcement",
+      "priority": "baixa",
+      "description": "Adicionar reforço de conceito-chave",
+      "suggestion": "Inserir caixa 'Sabia que?' com dado estatístico relevante",
+      "reinforcementType": "caixa 'Sabia que?'"
     }}
   ],
   "missingElements": ["elemento faltante"],
@@ -1779,7 +1833,7 @@ Retorne JSON:
     {{
       "position": "after_slide_2",
       "title": "Título sugerido",
-      "type": "content|quiz|summary|avatar_scene",
+      "type": "content|quiz|summary|avatar_scene|scenario|visual_summary|reinforcement",
       "reason": "motivo"
     }}
   ]
@@ -1806,6 +1860,9 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     
     # Check if any avatar_scene improvements are selected
     has_avatar_scenes = any(imp.get("type") == "avatar_scene" for imp in selected_improvements)
+    has_scenarios = any(imp.get("type") == "scenario" for imp in selected_improvements)
+    has_visual_summaries = any(imp.get("type") == "visual_summary" for imp in selected_improvements)
+    has_reinforcements = any(imp.get("type") == "reinforcement" for imp in selected_improvements)
     
     # Get current slide content for context
     slides_content = []
@@ -1841,6 +1898,69 @@ REGRA PARA CENAS COM AVATAR (type "avatar_scene"):
     "avatarScene":{{"narrationScript":"Olá! Agora vou explicar...","backgroundPrompt":"Professional studio with blue lighting","avatarPosition":"left"}},
     "narrationScript":"","librasScript":"","quizQuestions":[]}}
 """
+
+    scenario_instructions = ""
+    if has_scenarios:
+        scenario_instructions = """
+REGRA PARA CENÁRIOS INTERATIVOS (type "scenario"):
+- Cenários são árvores de decisão onde o aluno faz escolhas e vê consequências
+- Gere um elemento com type "scenario" e campo "scenarioData" contendo a árvore completa
+- Formato do scenarioData:
+  {{"title":"Título do cenário","description":"Contexto","context":"Situação inicial detalhada",
+    "characters":[{{"id":"char1","name":"Nome","role":"Papel","avatar":"professional"}}],
+    "learning_objectives":["Objetivo 1","Objetivo 2"],
+    "competencies_evaluated":["Competência 1"],
+    "nodes":[
+      {{"id":"node1","type":"situation","title":"Cena 1","narrative":"Descrição da situação...",
+        "character_id":"char1","is_ending":false,"score":0,
+        "choices":[
+          {{"id":"c1","text":"Opção A","next_node_id":"node2","feedback":"Feedback da escolha","score_impact":10}},
+          {{"id":"c2","text":"Opção B","next_node_id":"node3","feedback":"Feedback da escolha","score_impact":-5}}
+        ]}},
+      {{"id":"node2","type":"consequence","title":"Resultado A","narrative":"O que aconteceu...","is_ending":true,"score":10,"choices":[]}},
+      {{"id":"node3","type":"consequence","title":"Resultado B","narrative":"O que aconteceu...","is_ending":true,"score":-5,"choices":[]}}
+    ],
+    "start_node_id":"node1"}}
+- O cenário deve ter 5-8 nós para complexidade intermediária
+- Formato do elemento: {{"type":"scenario","scenarioData":{{...}},"width":960,"height":540}}
+- Conteúdo 100% relacionado ao tema do curso com situações realistas e consequências significativas
+"""
+
+    visual_summary_instructions = ""
+    if has_visual_summaries:
+        visual_summary_instructions = """
+REGRA PARA RESUMOS VISUAIS (type "visual_summary"):
+- Gere um elemento HTML completo que apresente a informação de forma VISUAL e MEMORÁVEL
+- Formato: {{"type":"html","htmlContent":"<!DOCTYPE html>...","width":960,"height":540}}
+- TIPOS DE RESUMO VISUAL:
+  * Infográfico: dados em cards coloridos, ícones, números grandes, mini gráficos CSS
+  * Mapa mental: nó central + ramificações com cores diferentes para cada categoria
+  * Timeline: linha horizontal/vertical com marcos, datas, ícones
+  * Diagrama de processo: boxes conectados por setas, etapas numeradas
+  * Quadro comparativo: tabela visual com ícones de check/X, cores, categorias
+  * Resumo em cards: conceitos-chave em cards coloridos com ícone + título + descrição curta
+- CSS: Use cores vibrantes, gradientes sutis, ícones SVG inline, layout flexbox/grid, animações de entrada
+- Objetivo: substituir TEXTO DENSO por representação visual que facilite a memorização
+- Máximo de 6-8 conceitos/itens por resumo visual
+"""
+
+    reinforcement_instructions = ""
+    if has_reinforcements:
+        reinforcement_instructions = """
+REGRA PARA REFORÇOS DE APRENDIZAGEM (type "reinforcement"):
+- Gere um elemento HTML que reforce conceitos-chave de forma envolvente
+- Formato: {{"type":"html","htmlContent":"<!DOCTYPE html>...","width":960,"height":540}}
+- TIPOS DE REFORÇO:
+  * Flashcard interativo: card que vira ao clicar (frente: pergunta, verso: resposta)
+  * Destaque de conceito: card grande com ícone, conceito-chave e explicação curta
+  * Caixa "Sabia que?": dado estatístico ou fato curioso relacionado ao tema
+  * Dica prática: ação concreta que o aluno pode aplicar imediatamente
+  * Exemplo real: case study mini com situação, ação e resultado
+  * Analogia visual: comparação criativa para fixar conceito complexo
+- CSS: Design chamativo mas limpo, cor de destaque, ícone grande, fonte legível
+- JavaScript: Interatividade simples (virar card, revelar resposta, expandir detalhes)
+- Objetivo: FIXAR conceitos sem adicionar mais texto longo
+"""
     
     prompt = f"""Aplique as seguintes melhorias ao curso. Gere o conteúdo atualizado para cada slide afetado.
 
@@ -1872,6 +1992,9 @@ REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculador
 - Conteúdo 100% relacionado ao tema do curso
 - Foco pedagógico: fixação de conteúdo, engajamento emocional, repetição ativa, feedback imediato
 {avatar_scene_instructions}
+{scenario_instructions}
+{visual_summary_instructions}
+{reinforcement_instructions}
 Retorne JSON com os slides a atualizar:
 ```json
 {{

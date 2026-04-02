@@ -5,13 +5,16 @@ import { Textarea } from '../../../components/ui/textarea';
 import { Input } from '../../../components/ui/input';
 import {
   Video, Type, Code, Target, Volume2, Image, Gamepad2, UserCircle,
-  Pencil, Check, RotateCcw,
+  Pencil, Check, RotateCcw, Monitor, BarChart3, Lightbulb,
 } from 'lucide-react';
 
 const slideTypeOptions = [
   { value: 'avatar_scene', label: 'Cena com Avatar', icon: Video, color: 'violet' },
+  { value: 'scenario', label: 'Cenário Interativo', icon: Monitor, color: 'cyan' },
+  { value: 'visual_summary', label: 'Resumo Visual', icon: BarChart3, color: 'amber' },
+  { value: 'reinforcement', label: 'Reforço', icon: Lightbulb, color: 'rose' },
   { value: 'content', label: 'Conteúdo (Texto)', icon: Type, color: 'slate' },
-  { value: 'simulator', label: 'Simulador Interativo', icon: Code, color: 'cyan' },
+  { value: 'simulator', label: 'Simulador Interativo', icon: Code, color: 'emerald' },
   { value: 'game', label: 'Jogo Educativo', icon: Gamepad2, color: 'emerald' },
   { value: 'quiz', label: 'Quiz', icon: Target, color: 'amber' },
 ];
