@@ -895,6 +895,58 @@ async def serve_asset(project_id: str, filename: str):
     
     raise HTTPException(status_code=404, detail="File not found")
 
+
+@router.post("/admin/repair-assets")
+async def repair_assets():
+    """Scan all local project assets and persist any missing ones to MongoDB.
+    Use this to fix production environments where assets were lost."""
+    from services.asset_store import store_asset_sync
+    import os as _os
+    
+    persisted = 0
+    errors = 0
+    already_in_db = 0
+    
+    mongo_url = _os.environ.get("MONGO_URL")
+    db_name = _os.environ.get("DB_NAME", "scormify")
+    
+    if not PROJECTS_DIR.exists():
+        return {"message": "No projects directory found", "persisted": 0}
+    
+    for project_dir in PROJECTS_DIR.iterdir():
+        if not project_dir.is_dir():
+            continue
+        assets_dir = project_dir / "assets"
+        if not assets_dir.exists():
+            continue
+        project_id = project_dir.name
+        for asset_file in assets_dir.iterdir():
+            if not asset_file.is_file():
+                continue
+            # Check if already in MongoDB
+            existing = await db.project_assets.find_one(
+                {"project_id": project_id, "filename": asset_file.name},
+                {"_id": 1}
+            )
+            if existing:
+                already_in_db += 1
+                continue
+            try:
+                store_asset_sync(mongo_url, db_name, project_id, asset_file.name, str(asset_file))
+                persisted += 1
+                logger.info(f"Repair: persisted {project_id}/{asset_file.name}")
+            except Exception as e:
+                errors += 1
+                logger.warning(f"Repair: failed to persist {project_id}/{asset_file.name}: {e}")
+    
+    return {
+        "message": f"Repair complete. Persisted {persisted} assets, {already_in_db} already in DB, {errors} errors.",
+        "persisted": persisted,
+        "already_in_db": already_in_db,
+        "errors": errors,
+    }
+
+
 @router.get("/exports/{filename}")
 async def serve_export(filename: str, preview: str = None):
     """Serve exported files (SCORM zip or HTML) with forced download.

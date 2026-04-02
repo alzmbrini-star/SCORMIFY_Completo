@@ -520,12 +520,14 @@ export default function Dashboard() {
                         src={project.thumbnail}
                         alt=""
                         className="w-full h-full object-cover"
+                        onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
                       />
                     ) : project.course?.slides?.[0]?.backgroundImage ? (
                       <img
                         src={`${getApiUrl()}${project.course.slides[0].backgroundImage}`}
                         alt=""
                         className="w-full h-full object-cover"
+                        onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
                       />
                     ) : project.course?.slides?.[0] ? (
                       <SlideMinPreview slide={project.course.slides[0]} title={project.title || project.name} />

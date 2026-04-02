@@ -80,6 +80,7 @@ const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDel
             style={{ zIndex: 0, opacity: slide.backgroundOpacity != null ? slide.backgroundOpacity : 1 }}
             loading="lazy"
             draggable={false}
+            onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
           />
         )}
         {hasElements && (

@@ -584,16 +584,11 @@ async def agent_generate_bg_image(data: dict):
             with open(fpath, "wb") as f:
                 f.write(img_bytes)
             
-            # Persist in MongoDB for production environments with ephemeral storage (non-blocking)
-            import threading
+            # Persist in MongoDB for production environments with ephemeral storage
             try:
                 from services.asset_store import store_asset_sync
-                threading.Thread(
-                    target=store_asset_sync,
-                    args=(mongo_url, os.environ['DB_NAME'], "bg_temp", fname, fpath),
-                    daemon=True
-                ).start()
-                logger.info(f"BG image generated and persisting to MongoDB: {fname}")
+                store_asset_sync(mongo_url, os.environ['DB_NAME'], "bg_temp", fname, fpath)
+                logger.info(f"BG image generated and persisted to MongoDB: {fname}")
             except Exception as e:
                 logger.warning(f"Failed to persist BG image in MongoDB (non-fatal): {e}")
             
@@ -2635,17 +2630,13 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                             f.write(img_bytes)
                         bg_url = f"/api/projects/{project_id}/assets/{fname}"
 
-                        # Persist in MongoDB
+                        # Persist in MongoDB synchronously
                         try:
                             from services.asset_store import store_asset_sync
-                            import threading
-                            threading.Thread(
-                                target=store_asset_sync,
-                                args=(os.environ.get("MONGO_URL"), os.environ["DB_NAME"], project_id, fname, fpath),
-                                daemon=True,
-                            ).start()
-                        except Exception:
-                            pass
+                            store_asset_sync(os.environ.get("MONGO_URL"), os.environ["DB_NAME"], project_id, fname, fpath)
+                            logger.info(f"Avatar BG persisted to MongoDB: {project_id}/{fname}")
+                        except Exception as persist_err:
+                            logger.warning(f"Failed to persist avatar BG in MongoDB: {persist_err}")
 
                         # Apply background to slide
                         await _db.projects.update_one(
