@@ -28,9 +28,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **VLibras**: Brazilian Sign Language accessibility widget
 - **AI Tutor**: AI-powered tutor embedded in exported courses
 - **Fix Simulators**: Tool to detect and fix static simulators
+- **Aprovador Role & Approval Queue**: New role `aprovador` for storyboard text review. Inline editing of slide titles, content, and narration scripts. Approval workflow: submit -> review/edit -> approve/reject -> resume generation. Integrated into Agent page as "Fila de Aprovacao".
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
+- Aprovador: aprovador@teste.com / aprovador123
 
 ## 3rd Party Integrations
 - Google Gemini (via Emergent LLM Key) - Text + Image generation (Nano Banana)
@@ -103,6 +105,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - 2026-04-02: FEATURE - AI Agent "Gerar Curso" progress panel. Added GeneratingProgressPanel component showing: animated progress bar with %, phase timeline (init/slides/images/save), image generation sub-progress (X/Y), elapsed timer, summary stats (slides/images/time), helpful tip. Chat messages now have visual indicators (spinner for progress, checkmark for success, alert for errors). Tested 100% (iteration_96).
 - 2026-04-02: FEATURE - Expanded AI Agent improvement types. Added 3 new types: Cenário Interativo (interactive decision scenarios with branching choices), Resumo Visual (visual summaries - infographics, mind maps, timelines, process diagrams), Reforço de Aprendizagem (flashcards, "Sabia que?" boxes, practical tips, case studies). Backend prompts include pedagogical principles: less text + more engagement. Frontend shows colored badges (cyan=scenario, amber=visual_summary, rose=reinforcement). SlideTypeSwitcher updated. Tested 100% (iteration_97).
 - 2026-04-06: FEATURE - Admin Panel: Excluir permanentemente usuários e empresas (hard delete), alterar senha ao editar usuário, trocar role editor ↔ company_admin. Modal de edição mostra campo de senha com placeholder 'Deixe vazio para não alterar'. Delete de empresa remove todos seus usuários. Testado 100% backend (12/12) + frontend (iteration_99).
+
+- 2026-04-06: FEATURE - Storyboard text editing + Aprovador role + Approval queue.
+  - StoryboardPanel: inline editing for slide titles, content elements, and narration scripts.
+  - Typo fix: "Proximo" -> "Proxima" on slide navigation button.
+  - New `aprovador` role: can login, auto-redirected to approval queue on /agent page.
+  - Approval workflow: Submit for Approval -> Aprovador reviews/edits/approves -> Super Admin resumes.
+  - Backend endpoints: submit-for-approval, approve-storyboard, reject-storyboard, resume-from-approval, update-storyboard-text, approval-queue.
+  - Admin panel: Aprovador option in role dropdown when creating/editing users.
+  - Agent page: 3-column ModeSelector with "Fila de Aprovacao" card (amber themed).
+  - ApprovalQueuePanel: full review UI with editable fields, approve/reject buttons.
+  - Tested 100% backend (14/14) + frontend (iteration_100).
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
