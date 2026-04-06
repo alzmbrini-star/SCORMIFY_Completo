@@ -18,7 +18,7 @@ from routes.deps import (
     PROJECTS_DIR, STORAGE_DIR, mongo_url, ELEVENLABS_API_KEY, HEYGEN_API_KEY,
     HEYGEN_BASE_URL, HEYGEN_HEADERS
 )
-from routes.auth import require_agent_access, require_auth, get_current_user, require_aprovador
+from routes.auth import require_agent_access, require_auth, get_current_user
 
 logger = logging.getLogger("server")
 
@@ -283,8 +283,12 @@ async def create_agent_session(data: AgentSessionCreate, request: Request, user:
 
 @router.get("/agent/sessions/{session_id}")
 async def get_agent_session(session_id: str, request: Request, user: dict = Depends(require_agent_access)):
-    """Get agent session state."""
-    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    """Get agent session state. Use ?light=1 for polling (excludes large contentText)."""
+    exclude = {"_id": 0}
+    # During polling, exclude large content fields to reduce payload and prevent gateway timeouts
+    if request.query_params.get("light"):
+        exclude["contentText"] = 0
+    s = await db.agent_sessions.find_one({"id": session_id}, exclude)
     if not s:
         raise HTTPException(404, "Session not found")
     return s

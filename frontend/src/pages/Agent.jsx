@@ -356,7 +356,8 @@ export default function Agent() {
       if (!res.ok) throw new Error();
       const pollInterval = setInterval(async () => {
         try {
-          const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}`, { headers: authHeaders() });
+          const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() });
+          if (!sRes.ok) return; // Skip this poll cycle on error
           const session = await sRes.json();
 
           // Show progress
@@ -395,7 +396,7 @@ export default function Agent() {
       setTimeout(() => {
         clearInterval(pollInterval);
         // Final check before giving up
-        fetch(`${API}/api/agent/sessions/${sessionId}`, { headers: authHeaders() })          .then(r => r.json())
+        fetch(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() })          .then(r => r.json())
           .then(session => {
             if (session.step === 'storyboarded' && session.storyboard) {
               setStoryboard(session.storyboard);
