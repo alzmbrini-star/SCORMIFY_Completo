@@ -124,6 +124,10 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Company selector dialog opens when clicking "Enviar para Aprovacao" in StoryboardPanel.
   - Super Admin sees all sessions in the queue.
 
+- 2026-04-06: FIX - Super Admin can now resume approved sessions directly into the Storyboard wizard.
+  - Clicking "Retomar" in the Fila de Aprovação loads the full session (storyboard, config, structure) into create mode at step 4.
+  - Super Admin can then proceed to Media Config and complete generation.
+
 - 2026-04-06: FEATURE - Tutor IA Dashboard (Analytics).
   - Tutor chat now logs all questions to `tutor_logs` collection with projectId, companyId, courseTopic.
   - GET /api/admin/tutor-dashboard: aggregated analytics by course and company.

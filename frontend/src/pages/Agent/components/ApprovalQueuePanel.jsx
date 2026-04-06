@@ -16,7 +16,7 @@ import {
 
 const API = getApiUrl();
 
-export default function ApprovalQueuePanel() {
+export default function ApprovalQueuePanel({ onResumeSession }) {
   const { user, isSuperAdmin, isAprovador } = useAuth();
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,24 +153,9 @@ export default function ApprovalQueuePanel() {
   };
 
   const handleResume = async (session) => {
-    setSaving(true);
-    try {
-      const res = await fetch(`${API}/api/agent/sessions/${session.id}/resume-from-approval`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({}),
-      });
-      if (res.ok) {
-        toast.success('Curso retomado! Vá para "Criar Novo Curso" para continuar.');
-        fetchQueue();
-      } else {
-        const err = await res.json();
-        toast.error(err.detail || 'Erro ao retomar');
-      }
-    } catch {
-      toast.error('Erro ao retomar');
+    if (onResumeSession) {
+      onResumeSession(session);
     }
-    setSaving(false);
   };
 
   // Detailed view of a storyboard session

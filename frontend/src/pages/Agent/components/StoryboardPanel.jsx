@@ -421,7 +421,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
         </Button>
         <span className="text-xs text-slate-400">{activeSlide + 1} / {storyboard.slides.length}</span>
         <Button variant="outline" size="sm" onClick={() => setActiveSlide(Math.min(storyboard.slides.length - 1, activeSlide + 1))} disabled={activeSlide >= storyboard.slides.length - 1}>
-          Pr\u00F3xima <ArrowRight className="w-4 h-4 ml-1" />
+          Próxima <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
 

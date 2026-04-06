@@ -447,6 +447,54 @@ export default function Agent() {
     setLoading(false);
   };
 
+  // Resume an approved session - load it into the create wizard at the storyboard step
+  const handleResumeApprovedSession = async (session) => {
+    setLoading(true);
+    try {
+      // First, call resume endpoint to set step back to 'storyboarded'
+      const resumeRes = await fetch(`${API}/api/agent/sessions/${session.id}/resume-from-approval`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({}),
+      });
+      if (!resumeRes.ok) {
+        const err = await resumeRes.json();
+        toast.error(err.detail || 'Erro ao retomar');
+        setLoading(false);
+        return;
+      }
+
+      // Now fetch the full session to load into the wizard
+      const fullRes = await fetch(`${API}/api/agent/sessions/${session.id}`, { headers: authHeaders() });
+      if (!fullRes.ok) {
+        toast.error('Erro ao carregar sessao');
+        setLoading(false);
+        return;
+      }
+      const fullSession = await fullRes.json();
+
+      // Load all session data into state
+      setSessionId(fullSession.id);
+      setStoryboard(fullSession.storyboard);
+      setConfig(fullSession.config || {});
+      setStructure(fullSession.structure || null);
+      setMediaConfig(fullSession.mediaConfig || {});
+      setBgConfig(fullSession.bgConfig || {});
+      setGlobalTextColor(fullSession.globalTextColor || '');
+      setGlobalFontSize(fullSession.globalFontSize || '');
+      setGlobalAnimation(fullSession.globalAnimation || '');
+      
+      // Switch to create mode at storyboard step
+      setMode('create');
+      setCurrentStep(4); // storyboard step
+      addChatMsg('agent', 'Storyboard aprovado carregado! Voce pode revisar e prosseguir para a configuracao de midia.');
+      toast.success('Sessao retomada com sucesso');
+    } catch {
+      toast.error('Erro ao retomar sessao');
+    }
+    setLoading(false);
+  };
+
   const handleSaveMediaConfig = async () => {
     setLoading(true);
     addChatMsg('agent', 'Salvando configuração de mídia e fundos...');
@@ -876,7 +924,7 @@ export default function Agent() {
               {!mode && <ModeSelector onSelect={handleSelectMode} showApprovalQueue={isSuperAdmin || isAprovador} />}
 
               {/* APPROVAL QUEUE MODE */}
-              {mode === 'approval' && <ApprovalQueuePanel />}
+              {mode === 'approval' && <ApprovalQueuePanel onResumeSession={handleResumeApprovedSession} />}
 
               {/* CREATE MODE */}
               {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
