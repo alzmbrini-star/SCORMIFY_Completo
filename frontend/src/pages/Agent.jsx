@@ -118,6 +118,9 @@ export default function Agent() {
   const [agentCourses, setAgentCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [courseAnalysis, setCourseAnalysis] = useState(null);
+
+  // Companies for approval workflow
+  const [companiesList, setCompaniesList] = useState([]);
   const [selectedImprovements, setSelectedImprovements] = useState([]);
   const [selectedNewSlides, setSelectedNewSlides] = useState([]);
   const [editResult, setEditResult] = useState(null);
@@ -151,6 +154,17 @@ export default function Agent() {
       setMode('approval');
     }
   }, [authLoading, hasAgentAccess, navigate, isAprovador, isSuperAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch companies for approval company selector
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API}/api/companies`, { headers: authHeaders() });
+        if (res.ok) setCompaniesList(await res.json());
+      } catch { /* ignore */ }
+    })();
+  }, [isSuperAdmin]);
 
   // Handle editMedia query param - load existing session for media editing
   useEffect(() => {
@@ -409,7 +423,7 @@ export default function Agent() {
     setCurrentStep(5); // media config step
   };
 
-  const handleSubmitForApproval = async () => {
+  const handleSubmitForApproval = async (targetCompanyId) => {
     if (!sessionId) return;
     setLoading(true);
     addChatMsg('agent', 'Enviando storyboard para aprovacao...');
@@ -417,10 +431,11 @@ export default function Agent() {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/submit-for-approval`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({}),
+        body: JSON.stringify({ targetCompanyId }),
       });
       if (res.ok) {
-        addChatMsg('agent', 'Storyboard enviado para aprovacao! Um aprovador vai revisar o conteudo e podera editar os textos antes de aprovar.');
+        const data = await res.json();
+        addChatMsg('agent', `Storyboard enviado para aprovacao da empresa "${data.targetCompany || ''}"! O aprovador da empresa vai revisar o conteudo.`);
         toast.success('Storyboard enviado para aprovacao');
       } else {
         const err = await res.json();
@@ -868,7 +883,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
-              {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} />}
+              {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} companies={companiesList} />}
               {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && generationPhases.length > 0 && currentStep !== 6 && (
                 <GeneratingProgressPanel phases={generationPhases} startTime={generationStartTime} config={config} storyboard={storyboard} mediaConfig={mediaConfig} />

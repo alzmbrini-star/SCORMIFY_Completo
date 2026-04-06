@@ -28,7 +28,7 @@ import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 
 const API = getApiUrl();
 
-export default function StoryboardPanel({ storyboard, loading, onApprove, onSubmitForApproval, config, setConfig, sessionId }) {
+export default function StoryboardPanel({ storyboard, loading, onApprove, onSubmitForApproval, config, setConfig, sessionId, companies }) {
   const [activeSlide, setActiveSlide] = useState(0);
   const [narrationSlides, setNarrationSlides] = useState({});
   const [elVoices, setElVoices] = useState([]);
@@ -38,6 +38,8 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
   const [slideTypeOverrides, setSlideTypeOverrides] = useState({});
   const [editedSlides, setEditedSlides] = useState({});
   const [savingEdits, setSavingEdits] = useState(false);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   // Initialize narration slides when storyboard loads
   useEffect(() => {
@@ -209,10 +211,16 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
   };
 
   const handleSubmitForApproval = async () => {
+    if (!selectedCompanyId) {
+      toast.error('Selecione uma empresa para enviar a aprovacao');
+      return;
+    }
     // Save edits first if any
     if (hasEdits) await saveTextEdits();
     if (onSubmitForApproval) {
-      onSubmitForApproval();
+      onSubmitForApproval(selectedCompanyId);
+      setShowApprovalDialog(false);
+      setSelectedCompanyId('');
     }
   };
 
@@ -579,10 +587,10 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
         {savingConfig ? 'Salvando configuracao...' : 'Aprovar e Configurar Midia'}
       </Button>
 
-      {/* Submit for approval button */}
+      {/* Submit for approval button - opens company selector */}
       {onSubmitForApproval && (
         <Button
-          onClick={handleSubmitForApproval}
+          onClick={() => setShowApprovalDialog(true)}
           disabled={loading || savingConfig || savingEdits}
           variant="outline"
           className="w-full border-amber-700 text-amber-300 hover:bg-amber-900/20"
@@ -591,6 +599,49 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
           <Send className="w-4 h-4 mr-1" />
           Enviar para Aprovacao
         </Button>
+      )}
+
+      {/* Company selection dialog for approval */}
+      {showApprovalDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" data-testid="approval-company-dialog">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md mx-4 space-y-4">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Send className="w-4 h-4 text-amber-400" />
+              Enviar para Aprovacao
+            </h3>
+            <p className="text-sm text-slate-400">
+              Selecione a empresa cujo aprovador ira revisar este storyboard:
+            </p>
+            <select
+              value={selectedCompanyId}
+              onChange={e => setSelectedCompanyId(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+              data-testid="approval-company-select"
+            >
+              <option value="">-- Selecione a Empresa --</option>
+              {(companies || []).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleSubmitForApproval}
+                disabled={!selectedCompanyId || savingEdits}
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                data-testid="confirm-submit-approval"
+              >
+                <Send className="w-4 h-4 mr-1" /> Enviar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setShowApprovalDialog(false); setSelectedCompanyId(''); }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

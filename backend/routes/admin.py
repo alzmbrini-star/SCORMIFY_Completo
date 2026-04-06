@@ -193,6 +193,8 @@ async def tutor_chat(request: Request):
     course_context = data.get("courseContext", "")
     history = data.get("history", [])
     session_id = data.get("sessionId", str(uuid.uuid4()))
+    project_id = data.get("projectId", "")
+    company_id = data.get("companyId", "")
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
     settings = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
@@ -235,6 +237,21 @@ CONTEUDO DO CURSO:
             if msg.get("role") == "user":
                 await chat.send_message(UserMessage(text=msg["content"]))
         response = await chat.send_message(UserMessage(text=user_message))
+
+        # Log the question for analytics dashboard
+        try:
+            await db.tutor_logs.insert_one({
+                "sessionId": session_id,
+                "projectId": project_id,
+                "companyId": company_id,
+                "courseTopic": course_topic,
+                "question": user_message,
+                "response": response[:500] if isinstance(response, str) else str(response)[:500],
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as log_err:
+            logger.warning(f"Failed to log tutor question (non-fatal): {log_err}")
+
         return JSONResponse(
             content={"response": response, "limitReached": False, "messagesUsed": msg_count + 1, "messageLimit": message_limit},
             headers=TUTOR_CORS_HEADERS
@@ -242,3 +259,151 @@ CONTEUDO DO CURSO:
     except Exception as e:
         logger.error(f"Tutor chat error: {e}")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+
+
+
+# =============================================================================
+# TUTOR ANALYTICS DASHBOARD
+# =============================================================================
+
+@router.get("/admin/tutor-dashboard")
+async def get_tutor_dashboard(request: Request, user: dict = Depends(require_auth)):
+    """Get tutor question analytics grouped by course and company.
+    - Super Admin: sees all data
+    - Company Admin: sees only data for their company
+    """
+    role = user.get("role")
+    company_id = user.get("companyId")
+
+    if role not in ("super_admin", "company_admin"):
+        raise HTTPException(403, "Acesso negado")
+
+    # Build match filter
+    match_filter = {}
+    if role == "company_admin" and company_id:
+        match_filter["companyId"] = company_id
+
+    # Aggregate questions by course topic
+    pipeline = [
+        {"$match": match_filter} if match_filter else {"$match": {}},
+        {"$group": {
+            "_id": {
+                "projectId": "$projectId",
+                "companyId": "$companyId",
+                "courseTopic": "$courseTopic",
+            },
+            "totalQuestions": {"$sum": 1},
+            "questions": {"$push": {
+                "question": "$question",
+                "response": "$response",
+                "createdAt": "$createdAt",
+                "sessionId": "$sessionId",
+            }},
+            "lastActivity": {"$max": "$createdAt"},
+        }},
+        {"$sort": {"totalQuestions": -1}},
+    ]
+
+    results = await db.tutor_logs.aggregate(pipeline).to_list(200)
+
+    # Enrich with project and company names
+    courses = []
+    for r in results:
+        group_key = r["_id"]
+        project_id = group_key.get("projectId", "")
+        cid = group_key.get("companyId", "")
+
+        project_name = group_key.get("courseTopic", "Curso desconhecido")
+        if project_id:
+            project = await db.projects.find_one({"id": project_id}, {"_id": 0, "name": 1})
+            if project:
+                project_name = project.get("name", project_name)
+
+        company_name = ""
+        if cid:
+            comp = await db.companies.find_one({"id": cid}, {"_id": 0, "name": 1})
+            if comp:
+                company_name = comp.get("name", "")
+
+        # Count unique question texts (top questions)
+        question_counts = {}
+        for q in r["questions"]:
+            qtxt = q.get("question", "").strip().lower()
+            if qtxt:
+                question_counts[qtxt] = question_counts.get(qtxt, 0) + 1
+
+        top_questions = sorted(question_counts.items(), key=lambda x: -x[1])[:10]
+
+        courses.append({
+            "projectId": project_id,
+            "companyId": cid,
+            "courseName": project_name,
+            "companyName": company_name,
+            "totalQuestions": r["totalQuestions"],
+            "uniqueQuestions": len(question_counts),
+            "lastActivity": r.get("lastActivity", ""),
+            "topQuestions": [{"question": q, "count": c} for q, c in top_questions],
+            "recentQuestions": sorted(r["questions"], key=lambda x: x.get("createdAt", ""), reverse=True)[:20],
+        })
+
+    # Summary stats
+    total_questions = sum(c["totalQuestions"] for c in courses)
+    total_courses = len(courses)
+
+    # Company summary (for super admin)
+    company_summary = {}
+    for c in courses:
+        cname = c["companyName"] or "Sem empresa"
+        if cname not in company_summary:
+            company_summary[cname] = {"companyId": c["companyId"], "totalQuestions": 0, "courses": 0}
+        company_summary[cname]["totalQuestions"] += c["totalQuestions"]
+        company_summary[cname]["courses"] += 1
+
+    return {
+        "totalQuestions": total_questions,
+        "totalCourses": total_courses,
+        "companies": [{"name": k, **v} for k, v in sorted(company_summary.items(), key=lambda x: -x[1]["totalQuestions"])],
+        "courses": courses,
+    }
+
+
+@router.get("/admin/tutor-dashboard/course/{project_id}")
+async def get_tutor_course_detail(project_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Get detailed tutor analytics for a specific course."""
+    role = user.get("role")
+    company_id = user.get("companyId")
+
+    if role not in ("super_admin", "company_admin"):
+        raise HTTPException(403, "Acesso negado")
+
+    match_filter = {"projectId": project_id}
+    if role == "company_admin" and company_id:
+        match_filter["companyId"] = company_id
+
+    logs = await db.tutor_logs.find(
+        match_filter,
+        {"_id": 0}
+    ).sort("createdAt", -1).to_list(500)
+
+    # Count question frequency
+    question_counts = {}
+    for log in logs:
+        qtxt = log.get("question", "").strip().lower()
+        if qtxt:
+            if qtxt not in question_counts:
+                question_counts[qtxt] = {"question": log["question"], "count": 0, "lastAsked": log.get("createdAt", "")}
+            question_counts[qtxt]["count"] += 1
+
+    top_questions = sorted(question_counts.values(), key=lambda x: -x["count"])
+
+    # Get project name
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "name": 1})
+
+    return {
+        "projectId": project_id,
+        "courseName": project.get("name", "Curso") if project else "Curso",
+        "totalQuestions": len(logs),
+        "uniqueQuestions": len(question_counts),
+        "topQuestions": top_questions[:30],
+        "recentLogs": logs[:50],
+    }

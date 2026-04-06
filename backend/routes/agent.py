@@ -3056,23 +3056,35 @@ async def update_storyboard_text(session_id: str, data: dict, request: Request, 
 
 @router.post("/agent/sessions/{session_id}/submit-for-approval")
 async def submit_for_approval(session_id: str, request: Request, user: dict = Depends(require_auth)):
-    """Submit storyboard for approval by Aprovador."""
+    """Submit storyboard for approval by Aprovador of a specific company."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
     if s.get("step") not in ("storyboarded",):
         raise HTTPException(400, f"Session must be in 'storyboarded' step to submit for approval, current: {s.get('step')}")
 
+    body = await request.json()
+    target_company_id = body.get("targetCompanyId")
+    if not target_company_id:
+        raise HTTPException(400, "targetCompanyId is required - select a company to send for approval")
+
+    # Verify company exists
+    company = await db.companies.find_one({"id": target_company_id}, {"_id": 0, "name": 1, "id": 1})
+    if not company:
+        raise HTTPException(404, "Company not found")
+
     await db.agent_sessions.update_one(
         {"id": session_id},
         {"$set": {
             "step": "pending_approval",
+            "targetCompanyId": target_company_id,
+            "targetCompanyName": company.get("name", ""),
             "submittedForApprovalBy": user.get("user_id"),
             "submittedForApprovalAt": datetime.now(timezone.utc).isoformat(),
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }}
     )
-    return {"status": "ok", "step": "pending_approval"}
+    return {"status": "ok", "step": "pending_approval", "targetCompany": company.get("name", "")}
 
 
 @router.post("/agent/sessions/{session_id}/approve-storyboard")
@@ -3155,23 +3167,23 @@ async def resume_from_approval(session_id: str, request: Request, user: dict = D
 @router.get("/agent/approval-queue")
 async def get_approval_queue(request: Request, user: dict = Depends(require_auth)):
     """Get storyboard sessions in the approval pipeline.
-    - Aprovador: sees pending_approval sessions (for their company)
-    - Super Admin: sees pending_approval + approved sessions (all)
-    - Company Admin: sees pending_approval + approved (for their company)
+    - Aprovador: sees ONLY pending_approval sessions targeted at their company
+    - Super Admin: sees ALL pending_approval + approved sessions
+    - Company Admin: sees pending_approval + approved targeted at their company
     """
     role = user.get("role")
     company_id = user.get("companyId")
 
     if role == "aprovador":
-        query = {"step": "pending_approval"}
-        if company_id:
-            query["$or"] = [{"companyId": company_id}, {"companyId": None}, {"companyId": {"$exists": False}}]
+        if not company_id:
+            raise HTTPException(403, "Aprovador must belong to a company")
+        query = {"step": "pending_approval", "targetCompanyId": company_id}
     elif role == "super_admin":
         query = {"step": {"$in": ["pending_approval", "approved"]}}
     elif role == "company_admin":
-        query = {"step": {"$in": ["pending_approval", "approved"]}}
-        if company_id:
-            query["companyId"] = company_id
+        if not company_id:
+            raise HTTPException(403, "Company admin must belong to a company")
+        query = {"step": {"$in": ["pending_approval", "approved"]}, "targetCompanyId": company_id}
     else:
         raise HTTPException(403, "Acesso negado")
 

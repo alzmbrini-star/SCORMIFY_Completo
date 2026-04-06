@@ -374,6 +374,11 @@ export default function ApprovalQueuePanel() {
                       <span className="flex items-center gap-1">
                         <User className="w-3 h-3" /> {session.userName || 'Desconhecido'}
                       </span>
+                      {session.targetCompanyName && (
+                        <span className="flex items-center gap-1 text-amber-400/70">
+                          Empresa: {session.targetCompanyName}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1">
                         <BookOpen className="w-3 h-3" /> {session.storyboard?.slides?.length || 0} slides
                       </span>

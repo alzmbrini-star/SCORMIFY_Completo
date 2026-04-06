@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
+import TutorDashboard from './TutorDashboard';
 const API_URL = getApiUrl();
 
 export default function Admin() {
@@ -393,7 +394,16 @@ export default function Admin() {
             className="gap-2"
           >
             <BarChart3 className="w-4 h-4" />
-            Relatórios
+            Relatorios
+          </Button>
+          <Button
+            variant={activeTab === 'tutor_dashboard' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('tutor_dashboard')}
+            className="gap-2"
+            data-testid="tab-tutor-dashboard"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Dashboard Tutor
           </Button>
         </div>
 
@@ -873,6 +883,13 @@ export default function Admin() {
         </div>
       )}
       </div>
+
+      {/* Tutor Dashboard Tab */}
+      {activeTab === 'tutor_dashboard' && (
+        <div className="max-w-5xl mx-auto px-4 pb-8">
+          <TutorDashboard />
+        </div>
+      )}
 
       {/* Company Modal */}
       {showCompanyModal && (
