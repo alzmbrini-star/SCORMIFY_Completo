@@ -139,21 +139,21 @@ async def update_company(company_id: str, request: Request, user: Dict = Depends
 
 @router.delete("/{company_id}")
 async def delete_company(company_id: str, request: Request, user: Dict = Depends(require_super_admin)):
-    """Delete company (Super Admin only) - Also deactivates all users"""
+    """Delete company permanently (Super Admin only) - Also deletes all users in that company"""
     company = await db.companies.find_one({"id": company_id})
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    # Deactivate all users in this company
-    await db.users.update_many(
-        {"companyId": company_id},
-        {"$set": {"isActive": False, "updatedAt": now_utc()}}
-    )
+    # Delete all sessions for users in this company
+    company_users = await db.users.find({"companyId": company_id}, {"user_id": 1}).to_list(None)
+    user_ids = [u["user_id"] for u in company_users]
+    if user_ids:
+        await db.user_sessions.delete_many({"user_id": {"$in": user_ids}})
     
-    # Soft delete company (mark as inactive)
-    await db.companies.update_one(
-        {"id": company_id},
-        {"$set": {"isActive": False, "updatedAt": now_utc()}}
-    )
+    # Permanently delete all users in this company
+    await db.users.delete_many({"companyId": company_id})
     
-    return {"message": "Company deactivated successfully"}
+    # Permanently delete the company
+    await db.companies.delete_one({"id": company_id})
+    
+    return {"message": f"Company and {len(user_ids)} users deleted successfully"}

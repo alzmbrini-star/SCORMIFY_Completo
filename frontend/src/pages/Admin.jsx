@@ -194,7 +194,7 @@ export default function Admin() {
   };
 
   const handleDeleteCompany = async (company) => {
-    if (!confirm(`Desativar empresa "${company.name}"?`)) return;
+    if (!confirm(`Excluir permanentemente a empresa "${company.name}" e TODOS os seus usuários?\n\nEsta ação não pode ser desfeita.`)) return;
     
     try {
       const res = await fetch(`${API_URL}/api/companies/${company.id}`, {
@@ -203,9 +203,12 @@ export default function Admin() {
         credentials: 'include'
       });
       
-      if (!res.ok) throw new Error('Erro ao desativar empresa');
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Erro ao excluir empresa');
+      }
       
-      toast.success('Empresa desativada');
+      toast.success('Empresa e seus usuários excluídos permanentemente');
       fetchData();
     } catch (error) {
       toast.error(error.message);
@@ -240,7 +243,7 @@ export default function Admin() {
         : `${API_URL}/api/users`;
       
       const body = editingUser 
-        ? { name: userForm.name, role: userForm.role }
+        ? { name: userForm.name, role: userForm.role, ...(userForm.password ? { password: userForm.password } : {}) }
         : userForm;
 
       const res = await fetch(url, {
@@ -266,7 +269,7 @@ export default function Admin() {
   };
 
   const handleDeleteUser = async (targetUser) => {
-    if (!confirm(`Desativar usuário "${targetUser.name}"?`)) return;
+    if (!confirm(`Excluir permanentemente o usuário "${targetUser.name}" (${targetUser.email})?\n\nEsta ação não pode ser desfeita.`)) return;
     
     try {
       const res = await fetch(`${API_URL}/api/users/${targetUser.user_id}`, {
@@ -275,9 +278,12 @@ export default function Admin() {
         credentials: 'include'
       });
       
-      if (!res.ok) throw new Error('Erro ao desativar usuário');
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Erro ao excluir usuário');
+      }
       
-      toast.success('Usuário desativado');
+      toast.success('Usuário excluído permanentemente');
       fetchData();
     } catch (error) {
       toast.error(error.message);
@@ -938,27 +944,32 @@ export default function Admin() {
                 />
               </div>
               {!editingUser && (
-                <>
-                  <div>
-                    <label className="block text-sm text-slate-300 mb-1">Email</label>
-                    <Input
-                      type="email"
-                      value={userForm.email}
-                      onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                      placeholder="email@exemplo.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-300 mb-1">Senha</label>
-                    <Input
-                      type="password"
-                      value={userForm.password}
-                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                      placeholder="Mínimo 6 caracteres"
-                    />
-                  </div>
-                </>
+                <div>
+                  <label className="block text-sm text-slate-300 mb-1">Email</label>
+                  <Input
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
               )}
+              {editingUser && (
+                <div className="text-sm text-slate-400 bg-slate-700/50 rounded-md px-3 py-2">
+                  {editingUser.email}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm text-slate-300 mb-1">
+                  {editingUser ? 'Nova Senha (deixe vazio para manter a atual)' : 'Senha'}
+                </label>
+                <Input
+                  type="password"
+                  value={userForm.password}
+                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                  placeholder={editingUser ? 'Deixe vazio para não alterar' : 'Mínimo 6 caracteres'}
+                />
+              </div>
               {isSuperAdmin && !editingUser && (
                 <div>
                   <label className="block text-sm text-slate-300 mb-1">Empresa</label>

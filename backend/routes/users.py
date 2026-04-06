@@ -170,6 +170,10 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
             update_data["isActive"] = body["isActive"]
         if "companyId" in body:
             update_data["companyId"] = body["companyId"]
+        if "password" in body and body["password"]:
+            if len(body["password"]) < 6:
+                raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+            update_data["passwordHash"] = hash_password(body["password"])
     elif user.get("role") == "company_admin":
         # Company admin can update users in their company
         if target_user.get("companyId") != user.get("companyId"):
@@ -179,10 +183,14 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
             update_data["name"] = body["name"]
         if "isActive" in body:
             update_data["isActive"] = body["isActive"]
-        # Company admin can promote to editor or demote, but not create other admins
+        # Company admin can toggle between editor and company_admin
         if "role" in body:
-            if body["role"] in ["editor"]:
+            if body["role"] in ["editor", "company_admin"]:
                 update_data["role"] = body["role"]
+        if "password" in body and body["password"]:
+            if len(body["password"]) < 6:
+                raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+            update_data["passwordHash"] = hash_password(body["password"])
     else:
         # Regular users can only update themselves
         if target_user["user_id"] != user["user_id"]:
@@ -207,9 +215,9 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, request: Request, user: Dict = Depends(require_company_admin)):
     """
-    Deactivate user:
-    - Super Admin: Can deactivate any user
-    - Company Admin: Can deactivate users in their company
+    Delete user:
+    - Super Admin: Can permanently delete any user
+    - Company Admin: Can permanently delete users in their company
     """
     target_user = await db.users.find_one({"user_id": user_id})
     if not target_user:
@@ -222,18 +230,19 @@ async def delete_user(user_id: str, request: Request, user: Dict = Depends(requi
     
     # Cannot delete yourself
     if target_user["user_id"] == user["user_id"]:
-        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
     
-    # Soft delete (deactivate)
-    await db.users.update_one(
-        {"user_id": user_id},
-        {"$set": {"isActive": False, "updatedAt": now_utc()}}
-    )
+    # Cannot delete super_admin unless you are super_admin
+    if target_user.get("role") == "super_admin" and user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Cannot delete a super admin")
+    
+    # Permanently delete user
+    await db.users.delete_one({"user_id": user_id})
     
     # Delete all sessions for this user
     await db.user_sessions.delete_many({"user_id": user_id})
     
-    return {"message": "User deactivated successfully"}
+    return {"message": "User deleted successfully"}
 
 
 @router.post("/{user_id}/reset-password")
