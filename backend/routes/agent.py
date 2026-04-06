@@ -18,7 +18,7 @@ from routes.deps import (
     PROJECTS_DIR, STORAGE_DIR, mongo_url, ELEVENLABS_API_KEY, HEYGEN_API_KEY,
     HEYGEN_BASE_URL, HEYGEN_HEADERS
 )
-from routes.auth import require_agent_access, require_auth, get_current_user
+from routes.auth import require_agent_access, require_auth, get_current_user, require_aprovador
 
 logger = logging.getLogger("server")
 
@@ -243,6 +243,10 @@ async def check_agent_access(request: Request):
     # Super admins always have access
     if user.get("role") == "super_admin":
         return {"hasAccess": True, "reason": "super_admin"}
+    
+    # Aprovadores have access (limited to approval queue)
+    if user.get("role") == "aprovador":
+        return {"hasAccess": True, "reason": "aprovador"}
     
     # Check company permissions
     company = user.get("company")
@@ -2998,3 +3002,190 @@ async def add_scenario_to_project(session_id: str, data: dict):
         "slideId": new_slide_id,
         "slideIndex": len(slides) - 1,
     }
+
+
+# =============================================================================
+# STORYBOARD APPROVAL WORKFLOW
+# =============================================================================
+
+@router.post("/agent/sessions/{session_id}/update-storyboard-text")
+async def update_storyboard_text(session_id: str, data: dict, request: Request, user: dict = Depends(require_auth)):
+    """Save inline text edits to the storyboard slides."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    edits = data.get("edits", {})
+    # edits = { "0": { "title": "...", "elements": [{"index": 0, "content": "..."}], "narrationScript": "..." }, ... }
+    storyboard = s.get("storyboard")
+    if not storyboard or not storyboard.get("slides"):
+        raise HTTPException(400, "No storyboard to edit")
+
+    slides = storyboard["slides"]
+    edited_count = 0
+    for idx_str, changes in edits.items():
+        idx = int(idx_str)
+        if idx < 0 or idx >= len(slides):
+            continue
+        slide = slides[idx]
+        if "title" in changes:
+            slide["title"] = changes["title"]
+            edited_count += 1
+        if "narrationScript" in changes:
+            slide["narrationScript"] = changes["narrationScript"]
+            edited_count += 1
+        if "elements" in changes:
+            for el_edit in changes["elements"]:
+                el_idx = el_edit.get("index", -1)
+                if 0 <= el_idx < len(slide.get("elements", [])):
+                    slide["elements"][el_idx]["content"] = el_edit["content"]
+                    edited_count += 1
+
+    storyboard["slides"] = slides
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "storyboard": storyboard,
+            "lastEditedBy": user.get("user_id"),
+            "lastEditedAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "editedFields": edited_count}
+
+
+@router.post("/agent/sessions/{session_id}/submit-for-approval")
+async def submit_for_approval(session_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Submit storyboard for approval by Aprovador."""
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.get("step") not in ("storyboarded",):
+        raise HTTPException(400, f"Session must be in 'storyboarded' step to submit for approval, current: {s.get('step')}")
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "step": "pending_approval",
+            "submittedForApprovalBy": user.get("user_id"),
+            "submittedForApprovalAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "step": "pending_approval"}
+
+
+@router.post("/agent/sessions/{session_id}/approve-storyboard")
+async def approve_storyboard_by_aprovador(session_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Aprovador approves the storyboard, marking it as 'approved'."""
+    if user.get("role") not in ("aprovador", "super_admin", "company_admin"):
+        raise HTTPException(403, "Apenas aprovadores podem aprovar storyboards")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.get("step") != "pending_approval":
+        raise HTTPException(400, f"Session must be in 'pending_approval' step, current: {s.get('step')}")
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "step": "approved",
+            "approvedBy": user.get("user_id"),
+            "approvedByName": user.get("name", ""),
+            "approvedAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "step": "approved"}
+
+
+@router.post("/agent/sessions/{session_id}/reject-storyboard")
+async def reject_storyboard(session_id: str, data: dict, request: Request, user: dict = Depends(require_auth)):
+    """Aprovador rejects the storyboard, sending it back for revision."""
+    if user.get("role") not in ("aprovador", "super_admin", "company_admin"):
+        raise HTTPException(403, "Apenas aprovadores podem rejeitar storyboards")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.get("step") != "pending_approval":
+        raise HTTPException(400, "Session must be in 'pending_approval' step")
+
+    reason = data.get("reason", "")
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "step": "storyboarded",
+            "rejectedBy": user.get("user_id"),
+            "rejectedByName": user.get("name", ""),
+            "rejectedAt": datetime.now(timezone.utc).isoformat(),
+            "rejectionReason": reason,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "step": "storyboarded"}
+
+
+@router.post("/agent/sessions/{session_id}/resume-from-approval")
+async def resume_from_approval(session_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Super Admin resumes the course generation after approval."""
+    if user.get("role") != "super_admin":
+        raise HTTPException(403, "Apenas Super Admins podem retomar a geração")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if s.get("step") != "approved":
+        raise HTTPException(400, f"Session must be in 'approved' step, current: {s.get('step')}")
+
+    # Move back to storyboarded so the Super Admin can proceed to media config
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "step": "storyboarded",
+            "resumedBy": user.get("user_id"),
+            "resumedAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "step": "storyboarded"}
+
+
+@router.get("/agent/approval-queue")
+async def get_approval_queue(request: Request, user: dict = Depends(require_auth)):
+    """Get storyboard sessions in the approval pipeline.
+    - Aprovador: sees pending_approval sessions (for their company)
+    - Super Admin: sees pending_approval + approved sessions (all)
+    - Company Admin: sees pending_approval + approved (for their company)
+    """
+    role = user.get("role")
+    company_id = user.get("companyId")
+
+    if role == "aprovador":
+        query = {"step": "pending_approval"}
+        if company_id:
+            query["$or"] = [{"companyId": company_id}, {"companyId": None}, {"companyId": {"$exists": False}}]
+    elif role == "super_admin":
+        query = {"step": {"$in": ["pending_approval", "approved"]}}
+    elif role == "company_admin":
+        query = {"step": {"$in": ["pending_approval", "approved"]}}
+        if company_id:
+            query["companyId"] = company_id
+    else:
+        raise HTTPException(403, "Acesso negado")
+
+    sessions = await db.agent_sessions.find(
+        query,
+        {"_id": 0, "contentText": 0}
+    ).sort("updatedAt", -1).to_list(100)
+
+    # Enrich with user names
+    for s in sessions:
+        uid = s.get("userId")
+        if uid:
+            u = await db.users.find_one({"user_id": uid}, {"_id": 0, "name": 1, "email": 1})
+            if u:
+                s["userName"] = u.get("name", u.get("email", ""))
+
+    return sessions

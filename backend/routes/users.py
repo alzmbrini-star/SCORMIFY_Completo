@@ -69,9 +69,9 @@ async def create_user(request: Request, user: Dict = Depends(require_company_adm
     if user.get("role") == "company_admin":
         # Company admin can only create users in their company
         company_id = user.get("companyId")
-        # Company admin can only create editors, not other admins
-        if role != "editor":
-            raise HTTPException(status_code=403, detail="You can only create editor users")
+        # Company admin can only create editors or aprovadores, not other admins
+        if role not in ("editor", "aprovador"):
+            raise HTTPException(status_code=403, detail="You can only create editor or aprovador users")
     elif user.get("role") == "super_admin":
         # Super admin can create users in any company
         if not company_id and role != "super_admin":
@@ -183,9 +183,9 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
             update_data["name"] = body["name"]
         if "isActive" in body:
             update_data["isActive"] = body["isActive"]
-        # Company admin can toggle between editor and company_admin
+        # Company admin can toggle between editor, company_admin, and aprovador
         if "role" in body:
-            if body["role"] in ["editor", "company_admin"]:
+            if body["role"] in ["editor", "company_admin", "aprovador"]:
                 update_data["role"] = body["role"]
         if "password" in body and body["password"]:
             if len(body["password"]) < 6:

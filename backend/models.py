@@ -424,7 +424,7 @@ class QuizSubmitRequest(BaseModel):
 
 class UserRole(BaseModel):
     """User roles within a company"""
-    # Roles: 'super_admin' (system-wide), 'company_admin', 'editor'
+    # Roles: 'super_admin' (system-wide), 'company_admin', 'editor', 'aprovador'
     pass
 
 class Company(BaseModel):
@@ -480,7 +480,7 @@ class User(BaseModel):
     # Company association (None for super_admin)
     companyId: Optional[str] = None
     
-    # Role within company: 'super_admin', 'company_admin', 'editor'
+    # Role within company: 'super_admin', 'company_admin', 'editor', 'aprovador'
     role: str = "editor"
     
     # Password hash (for email/password auth)

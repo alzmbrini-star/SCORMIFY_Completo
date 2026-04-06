@@ -198,6 +198,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user,
     isSuperAdmin: user?.role === 'super_admin',
     isCompanyAdmin: user?.role === 'company_admin' || user?.role === 'super_admin',
+    isAprovador: user?.role === 'aprovador',
   };
 
   return (

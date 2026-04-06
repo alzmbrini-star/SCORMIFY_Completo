@@ -524,9 +524,10 @@ export default function Admin() {
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           u.role === 'super_admin' ? 'bg-purple-500/20 text-purple-400' :
                           u.role === 'company_admin' ? 'bg-blue-500/20 text-blue-400' :
+                          u.role === 'aprovador' ? 'bg-amber-500/20 text-amber-400' :
                           'bg-slate-500/20 text-slate-400'
                         }`}>
-                          {u.role === 'super_admin' ? 'Super Admin' : u.role === 'company_admin' ? 'Admin' : 'Editor'}
+                          {u.role === 'super_admin' ? 'Super Admin' : u.role === 'company_admin' ? 'Admin' : u.role === 'aprovador' ? 'Aprovador' : 'Editor'}
                         </span>
                       </td>
                       {isSuperAdmin && (
@@ -993,6 +994,7 @@ export default function Admin() {
                   className="w-full h-10 px-3 rounded-md bg-slate-700 border border-slate-600 text-white"
                 >
                   <option value="editor">Editor</option>
+                  <option value="aprovador">Aprovador</option>
                   {(isSuperAdmin || user?.role === 'company_admin') && (
                     <option value="company_admin">Admin da Empresa</option>
                   )}

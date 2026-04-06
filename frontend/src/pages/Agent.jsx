@@ -34,6 +34,7 @@ import ConfigPanel from './Agent/components/ConfigPanel';
 import StoryboardPanel from './Agent/components/StoryboardPanel';
 import MediaConfigPanel from './Agent/components/MediaConfigPanel';
 import GeneratedPanel from './Agent/components/GeneratedPanel';
+import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
 import { CourseReviewPanel, EditResultPanel, PreviewPanel } from './Agent/components/CoursePanels';
 
 
@@ -64,10 +65,10 @@ const TEMPLATE_ICONS = {
 export default function Agent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isSuperAdmin, hasPermission, loading: authLoading } = useAuth();
+  const { isSuperAdmin, hasPermission, loading: authLoading, isAprovador, user: authUser } = useAuth();
   
   // Check access to AI Agent
-  const hasAgentAccess = isSuperAdmin || hasPermission('agentAccess');
+  const hasAgentAccess = isSuperAdmin || isAprovador || hasPermission('agentAccess');
   
   // Mode: null = selection, 'create' = new course, 'edit' = edit existing
   const [mode, setMode] = useState(null);
@@ -139,12 +140,17 @@ export default function Agent() {
     if (authLoading) return;
     
     if (!hasAgentAccess) {
-      toast.error('Você não tem permissão para acessar o Agente IA');
+      toast.error('Voce nao tem permissao para acessar o Agente IA');
       navigate('/');
       return;
     }
     setAccessChecked(true);
-  }, [authLoading, hasAgentAccess, navigate]);
+    
+    // Auto-select approval mode for aprovador users
+    if (isAprovador && !isSuperAdmin && !mode) {
+      setMode('approval');
+    }
+  }, [authLoading, hasAgentAccess, navigate, isAprovador, isSuperAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle editMedia query param - load existing session for media editing
   useEffect(() => {
@@ -403,6 +409,29 @@ export default function Agent() {
     setCurrentStep(5); // media config step
   };
 
+  const handleSubmitForApproval = async () => {
+    if (!sessionId) return;
+    setLoading(true);
+    addChatMsg('agent', 'Enviando storyboard para aprovacao...');
+    try {
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/submit-for-approval`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        addChatMsg('agent', 'Storyboard enviado para aprovacao! Um aprovador vai revisar o conteudo e podera editar os textos antes de aprovar.');
+        toast.success('Storyboard enviado para aprovacao');
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || 'Erro ao enviar para aprovacao');
+      }
+    } catch {
+      toast.error('Erro ao enviar para aprovacao');
+    }
+    setLoading(false);
+  };
+
   const handleSaveMediaConfig = async () => {
     setLoading(true);
     addChatMsg('agent', 'Salvando configuração de mídia e fundos...');
@@ -581,9 +610,11 @@ export default function Agent() {
     setCurrentStep(0);
     if (m === 'create') {
       addChatMsg('agent', 'Envie o conteúdo que deseja transformar em curso. Você pode fazer upload de arquivo ou colar texto.');
-    } else {
+    } else if (m === 'edit') {
       addChatMsg('agent', 'Selecione um curso para analisar e sugerir melhorias. Você pode escolher cursos criados pelo agente ou importados de PPT.');
       loadAgentCourses();
+    } else if (m === 'approval') {
+      addChatMsg('agent', 'Fila de aprovacao de storyboards. Revise, edite textos e aprove ou devolva para revisao.');
     }
   };
 
@@ -795,12 +826,12 @@ export default function Agent() {
         <Brain className="w-5 h-5 text-emerald-400" />
         <span className="font-semibold text-sm">Agente de Design Instrucional</span>
         {mode && (
-          <Badge className={`text-[10px] ${mode === 'create' ? 'bg-emerald-600/20 text-emerald-300' : 'bg-blue-600/20 text-blue-300'}`}>
-            {mode === 'create' ? 'Novo Curso' : 'Editar Curso'}
+          <Badge className={`text-[10px] ${mode === 'create' ? 'bg-emerald-600/20 text-emerald-300' : mode === 'approval' ? 'bg-amber-600/20 text-amber-300' : 'bg-blue-600/20 text-blue-300'}`}>
+            {mode === 'create' ? 'Novo Curso' : mode === 'approval' ? 'Fila de Aprovacao' : 'Editar Curso'}
           </Badge>
         )}
         <div className="flex-1" />
-        {mode && (
+        {mode && mode !== 'approval' && (
           <div className="hidden md:flex items-center gap-1">
             {steps.map((step, i) => {
               const Icon = step.icon;
@@ -827,14 +858,17 @@ export default function Agent() {
         <div className={`flex-1 flex flex-col min-w-0 ${showChat ? 'hidden md:flex' : 'flex'}`}>
           <ScrollArea className="flex-1">
             <div className="p-6 max-w-4xl mx-auto space-y-6">
-              {!mode && <ModeSelector onSelect={handleSelectMode} />}
+              {!mode && <ModeSelector onSelect={handleSelectMode} showApprovalQueue={isSuperAdmin || isAprovador} />}
+
+              {/* APPROVAL QUEUE MODE */}
+              {mode === 'approval' && <ApprovalQueuePanel />}
 
               {/* CREATE MODE */}
               {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
-              {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} config={config} setConfig={setConfig} sessionId={sessionId} />}
+              {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} />}
               {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && generationPhases.length > 0 && currentStep !== 6 && (
                 <GeneratingProgressPanel phases={generationPhases} startTime={generationStartTime} config={config} storyboard={storyboard} mediaConfig={mediaConfig} />
@@ -916,7 +950,7 @@ export default function Agent() {
 
 /* ====================== Sub-panels ====================== */
 
-function ModeSelector({ onSelect }) {
+function ModeSelector({ onSelect, showApprovalQueue }) {
   return (
     <div className="space-y-8" data-testid="mode-selector">
       <div className="text-center space-y-2">
@@ -925,11 +959,11 @@ function ModeSelector({ onSelect }) {
         </div>
         <h1 className="text-2xl font-bold">Agente de Design Instrucional</h1>
         <p className="text-slate-400 text-sm max-w-lg mx-auto">
-          Crie cursos profissionais do zero ou melhore cursos existentes com inteligência artificial.
+          Crie cursos profissionais do zero ou melhore cursos existentes com inteligencia artificial.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+      <div className={`grid gap-6 max-w-3xl mx-auto ${showApprovalQueue ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         <Card
           className="bg-slate-900/50 border-slate-800 hover:border-emerald-500/50 transition-all cursor-pointer group"
           onClick={() => onSelect('create')}
@@ -942,7 +976,7 @@ function ModeSelector({ onSelect }) {
             <div>
               <h3 className="font-semibold text-base mb-1">Criar Novo Curso</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Transforme qualquer conteúdo em um curso completo com estrutura pedagógica, quizzes e multimídia.
+                Transforme qualquer conteudo em um curso completo com estrutura pedagogica, quizzes e multimidia.
               </p>
             </div>
             <div className="flex flex-wrap gap-1 justify-center">
@@ -966,16 +1000,41 @@ function ModeSelector({ onSelect }) {
             <div>
               <h3 className="font-semibold text-base mb-1">Editar Curso Existente</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Analise e melhore cursos criados pelo agente com sugestões inteligentes de conteúdo e estrutura.
+                Analise e melhore cursos criados pelo agente com sugestoes inteligentes de conteudo e estrutura.
               </p>
             </div>
             <div className="flex flex-wrap gap-1 justify-center">
-              <Badge variant="outline" className="text-[10px] border-slate-700">Análise IA</Badge>
+              <Badge variant="outline" className="text-[10px] border-slate-700">Analise IA</Badge>
               <Badge variant="outline" className="text-[10px] border-slate-700">Melhorias</Badge>
               <Badge variant="outline" className="text-[10px] border-slate-700">Novos Slides</Badge>
             </div>
           </CardContent>
         </Card>
+
+        {showApprovalQueue && (
+          <Card
+            className="bg-slate-900/50 border-slate-800 hover:border-amber-500/50 transition-all cursor-pointer group"
+            onClick={() => onSelect('approval')}
+            data-testid="mode-approval"
+          >
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-amber-600/10 group-hover:bg-amber-600/20 transition-colors">
+                <BookOpenCheck className="w-7 h-7 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base mb-1">Fila de Aprovacao</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Revise storyboards pendentes, edite textos e aprove ou devolva para revisao.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1 justify-center">
+                <Badge variant="outline" className="text-[10px] border-amber-700">Revisar</Badge>
+                <Badge variant="outline" className="text-[10px] border-amber-700">Editar</Badge>
+                <Badge variant="outline" className="text-[10px] border-amber-700">Aprovar</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

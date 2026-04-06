@@ -126,12 +126,23 @@ async def require_company_admin(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
+async def require_aprovador(request: Request) -> Dict[str, Any]:
+    """Dependency that requires aprovador, company_admin, or super_admin role"""
+    user = await require_auth(request)
+    if user.get("role") not in ["super_admin", "company_admin", "aprovador"]:
+        raise HTTPException(status_code=403, detail="Acesso de aprovador necessário")
+    return user
+
 async def require_agent_access(request: Request) -> Dict[str, Any]:
     """Dependency that requires agent access permission"""
     user = await require_auth(request)
     
     # Super admins always have access
     if user.get("role") == "super_admin":
+        return user
+    
+    # Aprovadores have access to the approval queue
+    if user.get("role") == "aprovador":
         return user
     
     # Check company permissions

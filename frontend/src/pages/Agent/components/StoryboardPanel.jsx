@@ -21,14 +21,14 @@ import {
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
   Palette, Droplets, ImagePlus, UploadCloud,
   ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
-  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
+  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type, Save,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 
 const API = getApiUrl();
 
-export default function StoryboardPanel({ storyboard, loading, onApprove, config, setConfig, sessionId }) {
+export default function StoryboardPanel({ storyboard, loading, onApprove, onSubmitForApproval, config, setConfig, sessionId }) {
   const [activeSlide, setActiveSlide] = useState(0);
   const [narrationSlides, setNarrationSlides] = useState({});
   const [elVoices, setElVoices] = useState([]);
@@ -36,6 +36,8 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
   const [savingConfig, setSavingConfig] = useState(false);
   const [showNarrationPanel, setShowNarrationPanel] = useState(false);
   const [slideTypeOverrides, setSlideTypeOverrides] = useState({});
+  const [editedSlides, setEditedSlides] = useState({});
+  const [savingEdits, setSavingEdits] = useState(false);
 
   // Initialize narration slides when storyboard loads
   useEffect(() => {
@@ -163,6 +165,57 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
 
   const getSlideEffectiveType = (slide, index) => slideTypeOverrides[index] ?? slide.type;
 
+  // Text editing helpers
+  const handleSlideTextEdit = (slideIdx, field, value) => {
+    setEditedSlides(prev => {
+      const slide = prev[slideIdx] || {};
+      return { ...prev, [slideIdx]: { ...slide, [field]: value } };
+    });
+  };
+
+  const handleSlideElementEdit = (slideIdx, elIdx, content) => {
+    setEditedSlides(prev => {
+      const slide = prev[slideIdx] || {};
+      const elements = slide.elements || [];
+      const existing = elements.find(e => e.index === elIdx);
+      const updated = existing
+        ? elements.map(e => e.index === elIdx ? { ...e, content } : e)
+        : [...elements, { index: elIdx, content }];
+      return { ...prev, [slideIdx]: { ...slide, elements: updated } };
+    });
+  };
+
+  const hasEdits = Object.keys(editedSlides).length > 0;
+
+  const saveTextEdits = async () => {
+    if (!hasEdits || !sessionId) return;
+    setSavingEdits(true);
+    try {
+      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/update-storyboard-text`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ edits: editedSlides }),
+      });
+      if (res.ok) {
+        toast.success('Textos salvos!');
+        setEditedSlides({});
+      } else {
+        toast.error('Erro ao salvar textos');
+      }
+    } catch {
+      toast.error('Erro ao salvar');
+    }
+    setSavingEdits(false);
+  };
+
+  const handleSubmitForApproval = async () => {
+    // Save edits first if any
+    if (hasEdits) await saveTextEdits();
+    if (onSubmitForApproval) {
+      onSubmitForApproval();
+    }
+  };
+
   if (!storyboard?.slides) return null;
   const slide = storyboard.slides[activeSlide];
   const currentCost = slideCosts[activeSlide];
@@ -216,7 +269,15 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Badge className={`text-xs ${typeBadgeClass}`}>{effectiveType}</Badge>
-              Slide {activeSlide + 1}: {slide.title}
+              <span className="text-slate-500">Slide {activeSlide + 1}:</span>
+              <input
+                type="text"
+                value={(editedSlides[activeSlide]?.title) ?? slide.title ?? ''}
+                onChange={e => handleSlideTextEdit(activeSlide, 'title', e.target.value)}
+                className="bg-transparent border-b border-transparent hover:border-slate-600 focus:border-amber-500 focus:outline-none text-sm font-semibold text-white flex-1 min-w-0 px-1"
+                data-testid={`storyboard-slide-title-input-${activeSlide}`}
+              />
+              {editedSlides[activeSlide] && <Badge className="text-[9px] bg-amber-600/20 text-amber-300 px-1.5 py-0">Editado</Badge>}
               {wasConverted && (
                 <Badge className="text-[9px] bg-amber-600/20 text-amber-300 px-1.5 py-0">Tipo alterado</Badge>
               )}
@@ -243,25 +304,43 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
               </div>
             )}
 
-            {/* Regular slide content preview */}
+            {/* Regular slide content preview - EDITABLE */}
             {(!isAvatarScene || wasConverted) && (
-              <div className="rounded-lg overflow-hidden border border-slate-700" style={{ background: slide.background || '#fff', aspectRatio: '1920/820' }}>
-                <div className="p-4 h-full overflow-auto">
-                  {slide.elements?.map((el, elIdx) => (
-                    <div key={elIdx} className="text-sm" dangerouslySetInnerHTML={{ __html: el.content || '' }} style={{ color: slide.type === 'title' ? '#fff' : '#333' }} />
-                  ))}
-                </div>
+              <div className="space-y-2">
+                {slide.elements?.map((el, elIdx) => (
+                  <div key={elIdx}>
+                    <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
+                    <Textarea
+                      value={
+                        (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ??
+                        (el.content || '')
+                      }
+                      onChange={e => handleSlideElementEdit(activeSlide, elIdx, e.target.value)}
+                      className="bg-slate-800/70 border-slate-700 text-sm text-white min-h-[60px] focus:border-emerald-500"
+                      data-testid={`storyboard-element-input-${activeSlide}-${elIdx}`}
+                    />
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Also show content preview for avatar scenes */}
+            {/* Also show content for avatar scenes - EDITABLE */}
             {isAvatarScene && !wasConverted && slide.elements?.length > 0 && (
-              <div className="rounded-lg overflow-hidden border border-violet-800/20" style={{ background: slide.background || '#0f172a', aspectRatio: '1920/820' }}>
-                <div className="p-4 h-full overflow-auto">
-                  {slide.elements?.map((el, elIdx) => (
-                    <div key={elIdx} className="text-sm text-slate-200" dangerouslySetInnerHTML={{ __html: el.content || '' }} />
-                  ))}
-                </div>
+              <div className="space-y-2">
+                {slide.elements?.map((el, elIdx) => (
+                  <div key={elIdx}>
+                    <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
+                    <Textarea
+                      value={
+                        (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ??
+                        (el.content || '')
+                      }
+                      onChange={e => handleSlideElementEdit(activeSlide, elIdx, e.target.value)}
+                      className="bg-slate-800/70 border-slate-700 text-sm text-white min-h-[60px] focus:border-violet-500"
+                      data-testid={`storyboard-avatar-element-input-${activeSlide}-${elIdx}`}
+                    />
+                  </div>
+                ))}
               </div>
             )}
 
@@ -293,7 +372,15 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-slate-300">{slide.narrationScript}</p>
+                <Textarea
+                  value={
+                    (editedSlides[activeSlide]?.narrationScript) ??
+                    slide.narrationScript
+                  }
+                  onChange={e => handleSlideTextEdit(activeSlide, 'narrationScript', e.target.value)}
+                  className="bg-transparent border-0 text-sm text-slate-300 p-0 min-h-[40px] focus:ring-0 resize-none"
+                  data-testid={`storyboard-narration-input-${activeSlide}`}
+                />
               </div>
             )}
 
@@ -326,7 +413,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
         </Button>
         <span className="text-xs text-slate-400">{activeSlide + 1} / {storyboard.slides.length}</span>
         <Button variant="outline" size="sm" onClick={() => setActiveSlide(Math.min(storyboard.slides.length - 1, activeSlide + 1))} disabled={activeSlide >= storyboard.slides.length - 1}>
-          Pr\u00F3ximo <ArrowRight className="w-4 h-4 ml-1" />
+          Pr\u00F3xima <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
 
@@ -468,7 +555,20 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
         </CardContent>
       </Card>
 
-      {/* Approve button */}
+      {/* Save edits button */}
+      {hasEdits && (
+        <Button
+          onClick={saveTextEdits}
+          disabled={savingEdits}
+          className="w-full bg-blue-600 hover:bg-blue-700"
+          data-testid="save-storyboard-text-edits"
+        >
+          {savingEdits ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Pencil className="w-4 h-4 mr-1" />}
+          Salvar Edicoes de Texto ({Object.keys(editedSlides).length} slides)
+        </Button>
+      )}
+
+      {/* Approve button - direct to media config */}
       <Button
         onClick={handleApprove}
         disabled={loading || savingConfig || (config.narrationEnabled && !config.narrationVoiceId && enabledCount > 0)}
@@ -476,8 +576,22 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, config
         data-testid="approve-storyboard-btn"
       >
         {(loading || savingConfig) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Play className="w-4 h-4 mr-1" />}
-        {savingConfig ? 'Salvando configuração...' : 'Aprovar e Configurar Mídia'}
+        {savingConfig ? 'Salvando configuracao...' : 'Aprovar e Configurar Midia'}
       </Button>
+
+      {/* Submit for approval button */}
+      {onSubmitForApproval && (
+        <Button
+          onClick={handleSubmitForApproval}
+          disabled={loading || savingConfig || savingEdits}
+          variant="outline"
+          className="w-full border-amber-700 text-amber-300 hover:bg-amber-900/20"
+          data-testid="submit-for-approval-btn"
+        >
+          <Send className="w-4 h-4 mr-1" />
+          Enviar para Aprovacao
+        </Button>
+      )}
     </div>
   );
 }
