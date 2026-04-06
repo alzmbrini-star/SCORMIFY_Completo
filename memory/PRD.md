@@ -28,7 +28,8 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **VLibras**: Brazilian Sign Language accessibility widget
 - **AI Tutor**: AI-powered tutor embedded in exported courses
 - **Fix Simulators**: Tool to detect and fix static simulators
-- **Aprovador Role & Approval Queue**: New role `aprovador` for storyboard text review. Inline editing of slide titles, content, and narration scripts. Approval workflow: submit -> review/edit -> approve/reject -> resume generation. Integrated into Agent page as "Fila de Aprovacao".
+- **Aprovador Role & Approval Queue**: New role `aprovador` for storyboard text review. Inline editing of slide titles, content, and narration scripts. Approval workflow: submit -> review/edit -> approve/reject -> resume generation. Integrated into Agent page as "Fila de Aprovacao". Company-targeted: approval requires selecting target company, only that company's aprovador can review.
+- **Tutor IA Dashboard**: Analytics dashboard showing most asked questions per course and per company. Super Admin sees all data, Company Admin sees only their company. Includes summary cards, company breakdown, course drill-down with top questions ranking and recent interactions.
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -116,6 +117,21 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Agent page: 3-column ModeSelector with "Fila de Aprovacao" card (amber themed).
   - ApprovalQueuePanel: full review UI with editable fields, approve/reject buttons.
   - Tested 100% backend (14/14) + frontend (iteration_100).
+
+- 2026-04-06: FIX - Approval workflow now requires selecting a target company.
+  - submit-for-approval requires `targetCompanyId` in request body.
+  - Aprovador ONLY sees sessions targeted to their company.
+  - Company selector dialog opens when clicking "Enviar para Aprovacao" in StoryboardPanel.
+  - Super Admin sees all sessions in the queue.
+
+- 2026-04-06: FEATURE - Tutor IA Dashboard (Analytics).
+  - Tutor chat now logs all questions to `tutor_logs` collection with projectId, companyId, courseTopic.
+  - GET /api/admin/tutor-dashboard: aggregated analytics by course and company.
+  - GET /api/admin/tutor-dashboard/course/{id}: detailed view with top questions and recent logs.
+  - Super Admin sees all data; Company Admin sees only their company's courses.
+  - Frontend TutorDashboard component with summary cards, company breakdown, search, course detail drill-down.
+  - New "Dashboard Tutor" tab in Admin panel.
+  - Tested 100% backend (12/12) + frontend verified (iteration_101).
 
 ## Upcoming Tasks (Prioritized)
 - P1: SCORM 2004 & xAPI Export
