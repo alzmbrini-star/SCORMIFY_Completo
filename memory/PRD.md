@@ -128,6 +128,12 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Clicking "Retomar" in the Fila de Aprovação loads the full session (storyboard, config, structure) into create mode at step 4.
   - Super Admin can then proceed to Media Config and complete generation.
 
+- 2026-04-06: FIX - Production 502/404 errors during storyboard generation.
+  - Storyboard polling now uses `?light=1` to exclude large contentText field, reducing payload size.
+  - Added error resilience in polling (skip cycle on 502 instead of crashing).
+  - Removed unused `require_aprovador` import from agent.py.
+  - User must redeploy to production for new endpoints to be available.
+
 - 2026-04-06: FEATURE - Tutor IA Dashboard (Analytics).
   - Tutor chat now logs all questions to `tutor_logs` collection with projectId, companyId, courseTopic.
   - GET /api/admin/tutor-dashboard: aggregated analytics by course and company.
