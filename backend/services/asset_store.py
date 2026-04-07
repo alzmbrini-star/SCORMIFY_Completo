@@ -58,7 +58,9 @@ async def store_asset_async(db, project_id: str, filename: str, file_path: str):
 
 
 def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: str, file_path: str):
-    """Store a file in MongoDB (synchronous, for startup/background tasks only)."""
+    """Store a file in MongoDB (synchronous, for startup/background tasks only).
+    NOTE: This creates a new MongoClient per call. For batch operations, use
+    the unified startup_asset_sync in server.py which reuses a single client."""
     try:
         with open(file_path, 'rb') as f:
             data = base64.b64encode(f.read()).decode('ascii')
@@ -66,8 +68,16 @@ def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: st
         content_type = _get_content_type(filename)
 
         is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-        timeout = 30000 if is_atlas else 10000
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=timeout, connectTimeoutMS=timeout, retryWrites=True)
+        sel_timeout = 60000 if is_atlas else 10000
+        conn_timeout = 60000 if is_atlas else 10000
+        sock_timeout = 120000 if is_atlas else 30000
+        client = MongoClient(
+            mongo_url,
+            serverSelectionTimeoutMS=sel_timeout,
+            connectTimeoutMS=conn_timeout,
+            socketTimeoutMS=sock_timeout,
+            retryWrites=True,
+        )
         db = client[db_name]
         db.project_assets.update_one(
             {"project_id": project_id, "filename": filename},
@@ -90,8 +100,16 @@ def retrieve_asset_sync(mongo_url: str, db_name: str, project_id: str, filename:
     Returns True if the file was restored."""
     try:
         is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-        timeout = 30000 if is_atlas else 10000
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=timeout, connectTimeoutMS=timeout, retryReads=True)
+        sel_timeout = 60000 if is_atlas else 10000
+        conn_timeout = 60000 if is_atlas else 10000
+        sock_timeout = 120000 if is_atlas else 30000
+        client = MongoClient(
+            mongo_url,
+            serverSelectionTimeoutMS=sel_timeout,
+            connectTimeoutMS=conn_timeout,
+            socketTimeoutMS=sock_timeout,
+            retryReads=True,
+        )
         db = client[db_name]
         doc = db.project_assets.find_one(
             {"project_id": project_id, "filename": filename},
@@ -137,8 +155,16 @@ def restore_project_assets_sync(mongo_url: str, db_name: str, project_id: str, a
     Returns the number of files restored."""
     try:
         is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-        timeout = 30000 if is_atlas else 10000
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=timeout, connectTimeoutMS=timeout, retryReads=True)
+        sel_timeout = 60000 if is_atlas else 10000
+        conn_timeout = 60000 if is_atlas else 10000
+        sock_timeout = 120000 if is_atlas else 30000
+        client = MongoClient(
+            mongo_url,
+            serverSelectionTimeoutMS=sel_timeout,
+            connectTimeoutMS=conn_timeout,
+            socketTimeoutMS=sock_timeout,
+            retryReads=True,
+        )
         db = client[db_name]
         docs = list(db.project_assets.find(
             {"project_id": project_id},

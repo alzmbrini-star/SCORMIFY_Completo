@@ -38,9 +38,9 @@ if not mongo_url:
 is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
 client = AsyncIOMotorClient(
     mongo_url,
-    serverSelectionTimeoutMS=30000 if is_atlas else 10000,
-    connectTimeoutMS=30000 if is_atlas else 10000,
-    socketTimeoutMS=60000 if is_atlas else 30000,
+    serverSelectionTimeoutMS=60000 if is_atlas else 10000,
+    connectTimeoutMS=60000 if is_atlas else 10000,
+    socketTimeoutMS=120000 if is_atlas else 30000,
     maxPoolSize=20,
     retryWrites=True,
     retryReads=True,
@@ -278,188 +278,231 @@ async def _run_ensure_admin():
 
 
 @app.on_event("startup")
-async def startup_persist_local_assets():
-    """Persist local assets to MongoDB on startup in background"""
+async def startup_asset_sync():
+    """
+    Unified asset sync on startup:
+    1. RESTORE: MongoDB -> local disk (needed after deploy/fork when disk is empty)
+    2. PERSIST: local disk -> MongoDB (needed when new files exist locally but not in DB)
+    
+    Uses a SINGLE MongoClient with Atlas-optimized timeouts to avoid the timeout storm
+    that happened when store_asset_sync created a new connection per asset.
+    """
     import threading
     from routes.deps import PROJECTS_DIR, STORAGE_DIR
 
-    def _persist_assets():
+    def _asset_sync():
         try:
-            from services.asset_store import store_asset_sync
             from pymongo import MongoClient
+            from services.asset_store import _get_content_type
+            import time
 
             _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-            _timeout = 30000 if _is_atlas else 10000
+            _sel_timeout = 60000 if _is_atlas else 10000
+            _conn_timeout = 60000 if _is_atlas else 10000
+            _sock_timeout = 120000 if _is_atlas else 30000
+
             _client = MongoClient(
                 mongo_url,
-                serverSelectionTimeoutMS=_timeout,
-                connectTimeoutMS=_timeout,
-                socketTimeoutMS=60000 if _is_atlas else 30000,
+                serverSelectionTimeoutMS=_sel_timeout,
+                connectTimeoutMS=_conn_timeout,
+                socketTimeoutMS=_sock_timeout,
+                maxPoolSize=5,
                 retryWrites=True,
                 retryReads=True,
             )
             _db = _client[db_name]
 
-            total = 0
-
-            # Get all existing asset keys in one batch query (much faster on Atlas)
-            existing_assets = set()
-            try:
-                for doc in _db.project_assets.find({}, {"_id": 0, "project_id": 1, "filename": 1}):
-                    existing_assets.add(f"{doc['project_id']}/{doc['filename']}")
-            except Exception as e:
-                logger.warning(f"Failed to load existing asset index (non-fatal): {e}")
-
-            bg_temp_dir = PROJECTS_DIR / "bg_temp"
-            if bg_temp_dir.exists() and bg_temp_dir.is_dir():
-                for asset in bg_temp_dir.iterdir():
-                    if asset.is_file() and asset.suffix.lower() in ('.png', '.jpg', '.jpeg', '.gif', '.webp'):
-                        key = f"bg_temp/{asset.name}"
-                        if key not in existing_assets:
-                            store_asset_sync(mongo_url, db_name, "bg_temp", asset.name, str(asset))
-                            total += 1
-
-            for project_dir in PROJECTS_DIR.iterdir():
-                if not project_dir.is_dir() or project_dir.name == "bg_temp":
-                    continue
-                assets_dir = project_dir / "assets"
-                if not assets_dir.exists():
-                    continue
-                project_id = project_dir.name
-                for asset in assets_dir.iterdir():
-                    if asset.is_file() and asset.suffix.lower() in (
-                        '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg',
-                        '.webm', '.mp4', '.gif', '.webp', '.svg'
-                    ):
-                        key = f"{project_id}/{asset.name}"
-                        if key not in existing_assets:
-                            store_asset_sync(mongo_url, db_name, project_id, asset.name, str(asset))
-                            total += 1
-
-            # Audio migration - batch check
-            audio_dir = STORAGE_DIR / "audio"
-            audio_migrated = 0
-            if audio_dir.exists():
-                existing_audio = set()
-                try:
-                    for doc in _db.tts_generations.find(
-                        {"audio_data": {"$exists": True}},
-                        {"_id": 0, "filename": 1}
-                    ):
-                        existing_audio.add(doc.get('filename', ''))
-                except Exception:
-                    pass
-                
-                for audio_file in audio_dir.iterdir():
-                    if audio_file.is_file() and audio_file.suffix.lower() in ('.mp3', '.wav', '.ogg'):
-                        if audio_file.name not in existing_audio:
-                            with open(audio_file, 'rb') as f:
-                                audio_data = f.read()
-                            _db.tts_generations.update_one(
-                                {"filename": audio_file.name},
-                                {"$set": {
-                                    "filename": audio_file.name,
-                                    "audio_data": base64.b64encode(audio_data).decode(),
-                                    "file_size": len(audio_data),
-                                    "type": "narration",
-                                    "migrated_at": datetime.now(timezone.utc).isoformat()
-                                }},
-                                upsert=True
-                            )
-                            audio_migrated += 1
-
-            _client.close()
-            if total > 0 or audio_migrated > 0:
-                logger.info(f"Background asset persistence: saved {total} project assets, {audio_migrated} audio files to MongoDB")
-            else:
-                logger.info("Background asset persistence: all assets already in MongoDB")
-        except Exception as e:
-            logger.warning(f"Background asset persistence failed (non-fatal): {e}")
-
-    threading.Thread(target=_persist_assets, daemon=True).start()
-    logger.info("Startup asset persistence: started in background thread")
-
-
-@app.on_event("startup")
-async def startup_restore_assets_from_mongodb():
-    """After a fork, local files are lost. Restore project assets FROM MongoDB."""
-    import threading
-    from routes.deps import PROJECTS_DIR, STORAGE_DIR
-
-    def _restore_assets():
-        try:
-            from pymongo import MongoClient
-
-            _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-            _timeout = 30000 if _is_atlas else 10000
-            _client = MongoClient(
-                mongo_url,
-                serverSelectionTimeoutMS=_timeout,
-                connectTimeoutMS=_timeout,
-                retryReads=True,
-            )
-            _db = _client[db_name]
-
-            # Find all unique project_ids that have assets in MongoDB
-            project_ids = _db.project_assets.distinct("project_id")
+            # ── PHASE 1: RESTORE (MongoDB -> disk) ──
+            # Only fetch filenames first, then load data individually for missing files
             total_restored = 0
-
-            for pid in project_ids:
-                if pid == "global":
-                    assets_dir = STORAGE_DIR / "assets"
-                else:
-                    assets_dir = PROJECTS_DIR / pid / "assets"
-
-                # Check if any files are missing locally
-                docs = list(_db.project_assets.find(
-                    {"project_id": pid},
-                    {"_id": 0, "filename": 1, "data": 1}
+            try:
+                # Get lightweight index: project_id + filename (no data!)
+                all_assets_index = list(_db.project_assets.find(
+                    {},
+                    {"_id": 0, "project_id": 1, "filename": 1}
                 ))
+                logger.info(f"Asset sync: found {len(all_assets_index)} assets in MongoDB index")
 
-                for doc in docs:
-                    fp = assets_dir / doc["filename"]
-                    if not fp.exists() and doc.get("data"):
+                # Group by project and check which files are missing locally
+                missing = []
+                for doc in all_assets_index:
+                    pid = doc.get("project_id", "")
+                    fname = doc.get("filename", "")
+                    if not pid or not fname:
+                        continue
+                    if pid == "global":
+                        fp = STORAGE_DIR / "assets" / fname
+                    else:
+                        fp = PROJECTS_DIR / pid / "assets" / fname
+                    if not fp.exists():
+                        missing.append((pid, fname, fp))
+
+                if missing:
+                    logger.info(f"Asset sync: {len(missing)} files missing locally, restoring from MongoDB...")
+                    for pid, fname, fp in missing:
                         try:
-                            fp.parent.mkdir(parents=True, exist_ok=True)
-                            with open(fp, "wb") as f:
-                                f.write(base64.b64decode(doc["data"]))
-                            total_restored += 1
-                        except Exception:
-                            pass
+                            doc = _db.project_assets.find_one(
+                                {"project_id": pid, "filename": fname},
+                                {"_id": 0, "data": 1}
+                            )
+                            if doc and doc.get("data"):
+                                fp.parent.mkdir(parents=True, exist_ok=True)
+                                with open(fp, "wb") as f:
+                                    f.write(base64.b64decode(doc["data"]))
+                                total_restored += 1
+                        except Exception as e:
+                            logger.warning(f"Asset restore failed for {pid}/{fname}: {e}")
+                else:
+                    logger.info("Asset sync: all project assets already on disk")
+            except Exception as e:
+                logger.warning(f"Asset sync RESTORE phase failed (non-fatal): {e}")
 
-            # Also restore audio files from tts_generations
-            audio_dir = STORAGE_DIR / "audio"
+            # Restore audio files
             audio_restored = 0
             try:
-                audio_docs = list(_db.tts_generations.find(
+                audio_dir = STORAGE_DIR / "audio"
+                audio_filenames = list(_db.tts_generations.find(
                     {"audio_data": {"$exists": True}},
-                    {"_id": 0, "filename": 1, "audio_data": 1}
+                    {"_id": 0, "filename": 1}
                 ))
-                for adoc in audio_docs:
+                missing_audio = []
+                for adoc in audio_filenames:
                     fname = adoc.get("filename", "")
                     if fname:
                         afp = audio_dir / fname
-                        if not afp.exists() and adoc.get("audio_data"):
-                            try:
+                        if not afp.exists():
+                            missing_audio.append((fname, afp))
+
+                if missing_audio:
+                    logger.info(f"Asset sync: {len(missing_audio)} audio files missing, restoring...")
+                    for fname, afp in missing_audio:
+                        try:
+                            adoc = _db.tts_generations.find_one(
+                                {"filename": fname},
+                                {"_id": 0, "audio_data": 1}
+                            )
+                            if adoc and adoc.get("audio_data"):
                                 afp.parent.mkdir(parents=True, exist_ok=True)
                                 with open(afp, "wb") as f:
                                     f.write(base64.b64decode(adoc["audio_data"]))
                                 audio_restored += 1
-                            except Exception:
-                                pass
-            except Exception:
-                pass
+                        except Exception as e:
+                            logger.warning(f"Audio restore failed for {fname}: {e}")
+            except Exception as e:
+                logger.warning(f"Audio restore phase failed (non-fatal): {e}")
+
+            if total_restored > 0 or audio_restored > 0:
+                logger.info(f"Asset sync RESTORE complete: {total_restored} assets, {audio_restored} audio files restored from MongoDB")
+
+            # ── PHASE 2: PERSIST (disk -> MongoDB) ──
+            # Uses the SAME _db connection (no new MongoClient per asset!)
+            total_persisted = 0
+            try:
+                # Build set of existing asset keys from the index we already fetched
+                existing_keys = set()
+                for doc in all_assets_index:
+                    existing_keys.add(f"{doc['project_id']}/{doc['filename']}")
+
+                # Collect files to persist
+                files_to_persist = []
+
+                bg_temp_dir = PROJECTS_DIR / "bg_temp"
+                if bg_temp_dir.exists() and bg_temp_dir.is_dir():
+                    for asset in bg_temp_dir.iterdir():
+                        if asset.is_file() and asset.suffix.lower() in ('.png', '.jpg', '.jpeg', '.gif', '.webp'):
+                            key = f"bg_temp/{asset.name}"
+                            if key not in existing_keys:
+                                files_to_persist.append(("bg_temp", asset.name, str(asset)))
+
+                for project_dir in PROJECTS_DIR.iterdir():
+                    if not project_dir.is_dir() or project_dir.name == "bg_temp":
+                        continue
+                    assets_dir = project_dir / "assets"
+                    if not assets_dir.exists():
+                        continue
+                    project_id = project_dir.name
+                    for asset in assets_dir.iterdir():
+                        if asset.is_file() and asset.suffix.lower() in (
+                            '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg',
+                            '.webm', '.mp4', '.gif', '.webp', '.svg'
+                        ):
+                            key = f"{project_id}/{asset.name}"
+                            if key not in existing_keys:
+                                files_to_persist.append((project_id, asset.name, str(asset)))
+
+                if files_to_persist:
+                    logger.info(f"Asset sync: {len(files_to_persist)} new local files to persist to MongoDB...")
+                    for pid, fname, fpath in files_to_persist:
+                        try:
+                            with open(fpath, 'rb') as f:
+                                data_b64 = base64.b64encode(f.read()).decode('ascii')
+                            _db.project_assets.update_one(
+                                {"project_id": pid, "filename": fname},
+                                {"$set": {
+                                    "project_id": pid,
+                                    "filename": fname,
+                                    "data": data_b64,
+                                    "content_type": _get_content_type(fname),
+                                }},
+                                upsert=True
+                            )
+                            total_persisted += 1
+                        except Exception as e:
+                            logger.warning(f"Asset persist failed for {pid}/{fname}: {e}")
+                else:
+                    logger.info("Asset sync: no new local files to persist")
+            except Exception as e:
+                logger.warning(f"Asset sync PERSIST phase failed (non-fatal): {e}")
+
+            # Persist audio files
+            audio_persisted = 0
+            try:
+                audio_dir = STORAGE_DIR / "audio"
+                if audio_dir.exists():
+                    existing_audio = set()
+                    try:
+                        for doc in _db.tts_generations.find(
+                            {"audio_data": {"$exists": True}},
+                            {"_id": 0, "filename": 1}
+                        ):
+                            existing_audio.add(doc.get('filename', ''))
+                    except Exception:
+                        pass
+
+                    for audio_file in audio_dir.iterdir():
+                        if audio_file.is_file() and audio_file.suffix.lower() in ('.mp3', '.wav', '.ogg'):
+                            if audio_file.name not in existing_audio:
+                                try:
+                                    with open(audio_file, 'rb') as f:
+                                        audio_data = f.read()
+                                    _db.tts_generations.update_one(
+                                        {"filename": audio_file.name},
+                                        {"$set": {
+                                            "filename": audio_file.name,
+                                            "audio_data": base64.b64encode(audio_data).decode(),
+                                            "file_size": len(audio_data),
+                                            "type": "narration",
+                                            "migrated_at": datetime.now(timezone.utc).isoformat()
+                                        }},
+                                        upsert=True
+                                    )
+                                    audio_persisted += 1
+                                except Exception as e:
+                                    logger.warning(f"Audio persist failed for {audio_file.name}: {e}")
+            except Exception as e:
+                logger.warning(f"Audio persist phase failed (non-fatal): {e}")
 
             _client.close()
-            if total_restored > 0 or audio_restored > 0:
-                logger.info(f"Startup asset RESTORATION: restored {total_restored} project assets, {audio_restored} audio files from MongoDB")
-            else:
-                logger.info("Startup asset restoration: all assets already present on disk")
-        except Exception as e:
-            logger.warning(f"Startup asset restoration failed (non-fatal): {e}")
 
-    threading.Thread(target=_restore_assets, daemon=True).start()
-    logger.info("Startup asset restoration: started in background thread")
+            if total_persisted > 0 or audio_persisted > 0:
+                logger.info(f"Asset sync PERSIST complete: {total_persisted} assets, {audio_persisted} audio files saved to MongoDB")
+
+            logger.info(f"Asset sync DONE: restored={total_restored}+{audio_restored}, persisted={total_persisted}+{audio_persisted}")
+        except Exception as e:
+            logger.warning(f"Asset sync failed (non-fatal): {e}")
+
+    threading.Thread(target=_asset_sync, daemon=True).start()
+    logger.info("Startup asset sync: started in background thread")
 
 
 @app.on_event("startup")

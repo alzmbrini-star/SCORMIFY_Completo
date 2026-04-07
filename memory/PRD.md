@@ -145,7 +145,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - New "Dashboard Tutor" tab in Admin panel.
   - Tested 100% backend (12/12) + frontend verified (iteration_101).
 
+- 2026-04-07: FIX (P0) - MongoDB Atlas timeout storm during deploy.
+  - Root cause: `startup_persist_local_assets` called `store_asset_sync` per asset, creating a NEW MongoClient (TLS handshake + auth) for EACH of 596+ assets. Also `startup_restore_assets_from_mongodb` loaded ALL base64 data at once, timing out on Atlas.
+  - Fix: Merged both startup tasks into single `startup_asset_sync` that uses ONE MongoClient. Phase 1 RESTORE: fetches lightweight filename index first, then loads data only for missing files individually. Phase 2 PERSIST: uses same client to write new local files to MongoDB. Increased all Atlas timeouts to 60s (connection) / 120s (socket). Updated `store_asset_sync`, `retrieve_asset_sync`, and `restore_project_assets_sync` timeouts. Also increased main AsyncIOMotorClient timeouts.
+  - Verified: 3 deleted test files auto-restored on startup, per-request MongoDB fallback returns 200.
+
 ## Upcoming Tasks (Prioritized)
+- P0: Email Notifications (Approval workflow + Tutor IA alerts)
 - P1: SCORM 2004 & xAPI Export
 - P1: Dashboard for analytics & scoring
 - P1: Course version history
