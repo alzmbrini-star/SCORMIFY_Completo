@@ -23,7 +23,7 @@ import {
   AlertTriangle, Star, Zap, Image, Video, UserCircle, Eye,
   Palette, Droplets, ImagePlus, UploadCloud,
   ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
-  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
+  PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type, LogOut,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 
@@ -65,7 +65,7 @@ const TEMPLATE_ICONS = {
 export default function Agent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isSuperAdmin, hasPermission, loading: authLoading, isAprovador, user: authUser } = useAuth();
+  const { isSuperAdmin, hasPermission, loading: authLoading, isAprovador, user: authUser, logout } = useAuth();
   
   // Check access to AI Agent
   const hasAgentAccess = isSuperAdmin || isAprovador || hasPermission('agentAccess');
@@ -883,8 +883,18 @@ export default function Agent() {
     <div className="h-screen flex flex-col bg-slate-950 text-white" data-testid="agent-page">
       {/* Header */}
       <header className="h-14 border-b border-slate-800 flex items-center px-4 gap-3 shrink-0">
-        <Button variant="ghost" size="sm" onClick={() => mode ? (setMode(null), setCurrentStep(0)) : navigate('/')} data-testid="back-to-dashboard">
-          <ArrowLeft className="w-4 h-4 mr-1" /> {mode ? 'Voltar' : 'Dashboard'}
+        <Button variant="ghost" size="sm" onClick={() => {
+          if (mode && !(isAprovador && !isSuperAdmin)) {
+            setMode(null);
+            setCurrentStep(0);
+          } else if (isAprovador && !isSuperAdmin) {
+            if (mode) { setMode(null); setCurrentStep(0); }
+            // Aprovador can't go to dashboard - just reset mode
+          } else {
+            navigate('/');
+          }
+        }} data-testid="back-to-dashboard">
+          <ArrowLeft className="w-4 h-4 mr-1" /> {mode ? 'Voltar' : (isAprovador && !isSuperAdmin) ? 'Painel' : 'Dashboard'}
         </Button>
         <div className="w-px h-6 bg-slate-700" />
         <Brain className="w-5 h-5 text-emerald-400" />
@@ -914,6 +924,12 @@ export default function Agent() {
         <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setShowChat(!showChat)}>
           {showChat ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
         </Button>
+        {/* Logout button for Aprovador (no dashboard access) */}
+        {isAprovador && !isSuperAdmin && (
+          <Button variant="ghost" size="sm" onClick={() => { logout(); navigate('/login'); }} className="text-slate-400 hover:text-red-400" data-testid="aprovador-logout">
+            <LogOut className="w-4 h-4 mr-1" /> Sair
+          </Button>
+        )}
       </header>
 
       {/* Main content */}
@@ -922,7 +938,7 @@ export default function Agent() {
         <div className={`flex-1 flex flex-col min-w-0 ${showChat ? 'hidden md:flex' : 'flex'}`}>
           <ScrollArea className="flex-1">
             <div className="p-6 max-w-4xl mx-auto space-y-6">
-              {!mode && <ModeSelector onSelect={handleSelectMode} showApprovalQueue={isSuperAdmin || isAprovador} />}
+              {!mode && <ModeSelector onSelect={handleSelectMode} showApprovalQueue={isSuperAdmin || isAprovador} isAprovadorOnly={isAprovador && !isSuperAdmin} />}
 
               {/* APPROVAL QUEUE MODE */}
               {mode === 'approval' && <ApprovalQueuePanel onResumeSession={handleResumeApprovedSession} />}
@@ -1014,66 +1030,74 @@ export default function Agent() {
 
 /* ====================== Sub-panels ====================== */
 
-function ModeSelector({ onSelect, showApprovalQueue }) {
+function ModeSelector({ onSelect, showApprovalQueue, isAprovadorOnly }) {
   return (
     <div className="space-y-8" data-testid="mode-selector">
       <div className="text-center space-y-2">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600/10 mb-2">
           <Sparkles className="w-8 h-8 text-emerald-400" />
         </div>
-        <h1 className="text-2xl font-bold">Agente de Design Instrucional</h1>
+        <h1 className="text-2xl font-bold">
+          {isAprovadorOnly ? 'Painel do Aprovador' : 'Agente de Design Instrucional'}
+        </h1>
         <p className="text-slate-400 text-sm max-w-lg mx-auto">
-          Crie cursos profissionais do zero ou melhore cursos existentes com inteligencia artificial.
+          {isAprovadorOnly
+            ? 'Revise e aprove storyboards enviados para sua empresa.'
+            : 'Crie cursos profissionais do zero ou melhore cursos existentes com inteligencia artificial.'}
         </p>
       </div>
 
-      <div className={`grid gap-6 max-w-3xl mx-auto ${showApprovalQueue ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-        <Card
-          className="bg-slate-900/50 border-slate-800 hover:border-emerald-500/50 transition-all cursor-pointer group"
-          onClick={() => onSelect('create')}
-          data-testid="mode-create"
-        >
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-emerald-600/10 group-hover:bg-emerald-600/20 transition-colors">
-              <Plus className="w-7 h-7 text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-base mb-1">Criar Novo Curso</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Transforme qualquer conteudo em um curso completo com estrutura pedagogica, quizzes e multimidia.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1 justify-center">
-              <Badge variant="outline" className="text-[10px] border-slate-700">PDF</Badge>
-              <Badge variant="outline" className="text-[10px] border-slate-700">PPT</Badge>
-              <Badge variant="outline" className="text-[10px] border-slate-700">DOC</Badge>
-              <Badge variant="outline" className="text-[10px] border-slate-700">Texto</Badge>
-            </div>
-          </CardContent>
-        </Card>
+      <div className={`grid gap-6 max-w-3xl mx-auto ${isAprovadorOnly ? 'md:grid-cols-1 max-w-md' : showApprovalQueue ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+        {!isAprovadorOnly && (
+          <Card
+            className="bg-slate-900/50 border-slate-800 hover:border-emerald-500/50 transition-all cursor-pointer group"
+            onClick={() => onSelect('create')}
+            data-testid="mode-create"
+          >
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-emerald-600/10 group-hover:bg-emerald-600/20 transition-colors">
+                <Plus className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base mb-1">Criar Novo Curso</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Transforme qualquer conteudo em um curso completo com estrutura pedagogica, quizzes e multimidia.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1 justify-center">
+                <Badge variant="outline" className="text-[10px] border-slate-700">PDF</Badge>
+                <Badge variant="outline" className="text-[10px] border-slate-700">PPT</Badge>
+                <Badge variant="outline" className="text-[10px] border-slate-700">DOC</Badge>
+                <Badge variant="outline" className="text-[10px] border-slate-700">Texto</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card
-          className="bg-slate-900/50 border-slate-800 hover:border-blue-500/50 transition-all cursor-pointer group"
-          onClick={() => onSelect('edit')}
-          data-testid="mode-edit"
-        >
-          <CardContent className="p-8 text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-600/10 group-hover:bg-blue-600/20 transition-colors">
-              <Pencil className="w-7 h-7 text-blue-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-base mb-1">Editar Curso Existente</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Analise e melhore cursos criados pelo agente com sugestoes inteligentes de conteudo e estrutura.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1 justify-center">
-              <Badge variant="outline" className="text-[10px] border-slate-700">Analise IA</Badge>
-              <Badge variant="outline" className="text-[10px] border-slate-700">Melhorias</Badge>
-              <Badge variant="outline" className="text-[10px] border-slate-700">Novos Slides</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        {!isAprovadorOnly && (
+          <Card
+            className="bg-slate-900/50 border-slate-800 hover:border-blue-500/50 transition-all cursor-pointer group"
+            onClick={() => onSelect('edit')}
+            data-testid="mode-edit"
+          >
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-600/10 group-hover:bg-blue-600/20 transition-colors">
+                <Pencil className="w-7 h-7 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base mb-1">Editar Curso Existente</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Analise e melhore cursos criados pelo agente com sugestoes inteligentes de conteudo e estrutura.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1 justify-center">
+                <Badge variant="outline" className="text-[10px] border-slate-700">Analise IA</Badge>
+                <Badge variant="outline" className="text-[10px] border-slate-700">Melhorias</Badge>
+                <Badge variant="outline" className="text-[10px] border-slate-700">Novos Slides</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {showApprovalQueue && (
           <Card

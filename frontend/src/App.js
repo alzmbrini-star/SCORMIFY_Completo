@@ -31,6 +31,19 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Route guard for Aprovador role - only allows /agent access
+function AprovadorGuard({ children }) {
+  const { isAprovador, loading } = useAuth();
+  
+  if (loading) return null;
+  
+  if (isAprovador) {
+    return <Navigate to="/agent" replace />;
+  }
+
+  return children;
+}
+
 // App Router - handles OAuth callback detection
 function AppRouter() {
   const location = useLocation();
@@ -46,7 +59,9 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={
         <ProtectedRoute>
-          <Admin />
+          <AprovadorGuard>
+            <Admin />
+          </AprovadorGuard>
         </ProtectedRoute>
       } />
       <Route path="/agent" element={
@@ -56,12 +71,16 @@ function AppRouter() {
       } />
       <Route path="/editor/:projectId" element={
         <ProtectedRoute>
-          <Editor />
+          <AprovadorGuard>
+            <Editor />
+          </AprovadorGuard>
         </ProtectedRoute>
       } />
       <Route path="/" element={
         <ProtectedRoute>
-          <Dashboard />
+          <AprovadorGuard>
+            <Dashboard />
+          </AprovadorGuard>
         </ProtectedRoute>
       } />
     </Routes>

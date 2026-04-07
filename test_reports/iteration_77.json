@@ -19,8 +19,8 @@
     "GOOD: Fallback chain is correct: X-Forwarded headers > Referer > BASE_URL > REACT_APP_BACKEND_URL",
     "GOOD: SCORM export passes request to _get_external_url() at lines 169, 219",
     "GOOD: HTML export passes request to _get_external_url() at lines 288, 316",
-    "VERIFIED: tutorConfig.apiUrl in SCORM ZIP = 'https://storyboard-review.preview.emergentagent.com' (correct external URL)",
-    "VERIFIED: HTML export tutorConfig.apiUrl = 'https://storyboard-review.preview.emergentagent.com' (correct external URL)"
+    "VERIFIED: tutorConfig.apiUrl in SCORM ZIP = 'https://approval-flow-110.preview.emergentagent.com' (correct external URL)",
+    "VERIFIED: HTML export tutorConfig.apiUrl = 'https://approval-flow-110.preview.emergentagent.com' (correct external URL)"
   ],
   "updated_files": [
     "/app/backend/tests/test_export_url_fix.py"
@@ -40,12 +40,12 @@
     "scorm_export_url_fix": {
       "export_endpoint": "PASS - POST /api/course/{id}/export-scorm returns 200",
       "download_url_no_cluster": "PASS - downloadUrl does not contain 'cluster'",
-      "tutor_config_api_url": "PASS - tutorConfig.apiUrl = 'https://storyboard-review.preview.emergentagent.com'"
+      "tutor_config_api_url": "PASS - tutorConfig.apiUrl = 'https://approval-flow-110.preview.emergentagent.com'"
     },
     "html_export_url_fix": {
       "export_endpoint": "PASS - POST /api/course/{id}/export-html returns 200",
       "download_url_no_cluster": "PASS - downloadUrl does not contain 'cluster'",
-      "tutor_config_api_url": "PASS - tutorConfig.apiUrl = 'https://storyboard-review.preview.emergentagent.com'"
+      "tutor_config_api_url": "PASS - tutorConfig.apiUrl = 'https://approval-flow-110.preview.emergentagent.com'"
     },
     "tutor_chat_endpoint": {
       "status": "PASS - POST /api/tutor/chat returns 200 with response",
