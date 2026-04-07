@@ -381,6 +381,88 @@ async def startup_persist_local_assets():
 
 
 @app.on_event("startup")
+async def startup_restore_assets_from_mongodb():
+    """After a fork, local files are lost. Restore project assets FROM MongoDB."""
+    import threading
+    from routes.deps import PROJECTS_DIR, STORAGE_DIR
+
+    def _restore_assets():
+        try:
+            from pymongo import MongoClient
+
+            _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+            _timeout = 30000 if _is_atlas else 10000
+            _client = MongoClient(
+                mongo_url,
+                serverSelectionTimeoutMS=_timeout,
+                connectTimeoutMS=_timeout,
+                retryReads=True,
+            )
+            _db = _client[db_name]
+
+            # Find all unique project_ids that have assets in MongoDB
+            project_ids = _db.project_assets.distinct("project_id")
+            total_restored = 0
+
+            for pid in project_ids:
+                if pid == "global":
+                    assets_dir = STORAGE_DIR / "assets"
+                else:
+                    assets_dir = PROJECTS_DIR / pid / "assets"
+
+                # Check if any files are missing locally
+                docs = list(_db.project_assets.find(
+                    {"project_id": pid},
+                    {"_id": 0, "filename": 1, "data": 1}
+                ))
+
+                for doc in docs:
+                    fp = assets_dir / doc["filename"]
+                    if not fp.exists() and doc.get("data"):
+                        try:
+                            fp.parent.mkdir(parents=True, exist_ok=True)
+                            with open(fp, "wb") as f:
+                                f.write(base64.b64decode(doc["data"]))
+                            total_restored += 1
+                        except Exception:
+                            pass
+
+            # Also restore audio files from tts_generations
+            audio_dir = STORAGE_DIR / "audio"
+            audio_restored = 0
+            try:
+                audio_docs = list(_db.tts_generations.find(
+                    {"audio_data": {"$exists": True}},
+                    {"_id": 0, "filename": 1, "audio_data": 1}
+                ))
+                for adoc in audio_docs:
+                    fname = adoc.get("filename", "")
+                    if fname:
+                        afp = audio_dir / fname
+                        if not afp.exists() and adoc.get("audio_data"):
+                            try:
+                                afp.parent.mkdir(parents=True, exist_ok=True)
+                                with open(afp, "wb") as f:
+                                    f.write(base64.b64decode(adoc["audio_data"]))
+                                audio_restored += 1
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
+            _client.close()
+            if total_restored > 0 or audio_restored > 0:
+                logger.info(f"Startup asset RESTORATION: restored {total_restored} project assets, {audio_restored} audio files from MongoDB")
+            else:
+                logger.info("Startup asset restoration: all assets already present on disk")
+        except Exception as e:
+            logger.warning(f"Startup asset restoration failed (non-fatal): {e}")
+
+    threading.Thread(target=_restore_assets, daemon=True).start()
+    logger.info("Startup asset restoration: started in background thread")
+
+
+@app.on_event("startup")
 async def startup_check_system_deps():
     """Check system dependencies in background - SKIP in production to avoid slow startup"""
     # Skip heavy system installs in production containers

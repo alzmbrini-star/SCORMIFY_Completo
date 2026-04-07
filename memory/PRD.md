@@ -128,11 +128,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Clicking "Retomar" in the Fila de Aprovação loads the full session (storyboard, config, structure) into create mode at step 4.
   - Super Admin can then proceed to Media Config and complete generation.
 
-- 2026-04-06: FIX - Production 502/404 errors during storyboard generation.
-  - Storyboard polling now uses `?light=1` to exclude large contentText field, reducing payload size.
-  - Added error resilience in polling (skip cycle on 502 instead of crashing).
-  - Removed unused `require_aprovador` import from agent.py.
-  - User must redeploy to production for new endpoints to be available.
+- 2026-04-07: FIX - Images not persisting after FORK (re-occurrence).
+  - Root cause: after fork, local files are lost and startup only did LOCAL→MongoDB (not MongoDB→LOCAL).
+  - Added proactive asset RESTORATION at startup: restores ALL project assets and audio files from MongoDB to disk.
+  - Fixed `serve_global_asset` base64 bug (wrote string instead of bytes, causing corrupt files).
+  - Made `serve_asset` and `serve_global_asset` stream directly from memory if disk write fails.
+  - Added `POST /api/admin/restore-assets` endpoint for manual force-restoration.
+  - Tested: 97 assets auto-restored on startup, per-request fallback serves correctly (200 OK).
 
 - 2026-04-06: FEATURE - Tutor IA Dashboard (Analytics).
   - Tutor chat now logs all questions to `tutor_logs` collection with projectId, companyId, courseTopic.

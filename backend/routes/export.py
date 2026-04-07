@@ -884,12 +884,17 @@ async def serve_asset(project_id: str, filename: str):
             from services.asset_store import retrieve_asset_async
             data, content_type = await retrieve_asset_async(db, project_id, filename)
             if data:
-                # Restore to filesystem for future requests
-                file_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(file_path, 'wb') as f:
-                    f.write(data)
-                logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
-                return FileResponse(file_path)
+                # Try to restore to filesystem for future requests
+                try:
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(file_path, 'wb') as f:
+                        f.write(data)
+                    logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
+                    return FileResponse(file_path)
+                except Exception:
+                    # If disk write fails, stream directly from memory
+                    from fastapi.responses import Response
+                    return Response(content=data, media_type=content_type)
             else:
                 logger.warning(f"Asset not found in MongoDB: {project_id}/{filename}")
         except Exception as e:
@@ -943,6 +948,50 @@ async def repair_assets():
         "message": f"Repair complete. Persisted {persisted} assets, {already_in_db} already in DB, {errors} errors.",
         "persisted": persisted,
         "already_in_db": already_in_db,
+        "errors": errors,
+    }
+
+
+@router.post("/admin/restore-assets")
+async def restore_assets_from_mongodb():
+    """Force-restore all project assets from MongoDB to local filesystem.
+    Useful after a fork or pod restart when local files are missing."""
+    import base64 as b64mod
+    
+    restored = 0
+    errors = 0
+    already_local = 0
+    
+    # Get all assets from MongoDB
+    cursor = db.project_assets.find({}, {"_id": 0, "project_id": 1, "filename": 1, "data": 1})
+    async for doc in cursor:
+        pid = doc.get("project_id", "")
+        fname = doc.get("filename", "")
+        if not pid or not fname or not doc.get("data"):
+            continue
+        
+        if pid == "global":
+            fp = STORAGE_DIR / "assets" / fname
+        else:
+            fp = PROJECTS_DIR / pid / "assets" / fname
+        
+        if fp.exists():
+            already_local += 1
+            continue
+        
+        try:
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            with open(fp, 'wb') as f:
+                f.write(b64mod.b64decode(doc["data"]))
+            restored += 1
+        except Exception as e:
+            errors += 1
+            logger.warning(f"Restore failed for {pid}/{fname}: {e}")
+    
+    return {
+        "message": f"Restore complete. Restored {restored} assets, {already_local} already on disk, {errors} errors.",
+        "restored": restored,
+        "already_local": already_local,
         "errors": errors,
     }
 

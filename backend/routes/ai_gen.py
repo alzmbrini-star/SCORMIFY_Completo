@@ -31,12 +31,20 @@ async def serve_global_asset(filename: str):
             {"_id": 0, "data": 1, "content_type": 1}
         )
         if doc and doc.get("data"):
-            # Restore to disk for future requests
-            asset_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(asset_path, "wb") as f:
-                f.write(doc["data"])
-            logger.info(f"Restored global asset from MongoDB: {filename}")
-            return FileResponse(str(asset_path))
+            import base64 as b64mod
+            decoded_data = b64mod.b64decode(doc["data"])
+            content_type = doc.get("content_type", "application/octet-stream")
+            # Try to restore to disk for future requests
+            try:
+                asset_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(asset_path, "wb") as f:
+                    f.write(decoded_data)
+                logger.info(f"Restored global asset from MongoDB: {filename}")
+                return FileResponse(str(asset_path))
+            except Exception:
+                # If disk write fails, stream directly from memory
+                from fastapi.responses import Response
+                return Response(content=decoded_data, media_type=content_type)
     except Exception as e:
         logger.warning(f"MongoDB fallback failed for global asset {filename}: {e}")
     
