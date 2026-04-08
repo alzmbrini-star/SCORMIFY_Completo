@@ -298,28 +298,64 @@ export default function Agent() {
     finally { setLoading(false); }
   };
 
+  // Polling helper: waits for session step to change
+  const pollSessionStep = async (targetStep, errorStep, maxWait = 180000) => {
+    const start = Date.now();
+    while (Date.now() - start < maxWait) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const res = await fetch(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() });
+        if (!res.ok) continue;
+        const session = await res.json();
+        if (session.step === targetStep) return session;
+        if (session.step === errorStep) throw new Error(session.error || 'Erro no processamento');
+      } catch (e) {
+        if (e.message && e.message !== 'Erro no processamento') continue;
+        throw e;
+      }
+    }
+    throw new Error('Timeout aguardando processamento');
+  };
+
   const handleAnalyze = async () => {
     setLoading(true);
-    addChatMsg('agent', 'Analisando o conteúdo com IA...');
+    addChatMsg('agent', 'Analisando o conteudo com IA...');
     try {
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setAnalysis(data);
-      setConfig(prev => ({
-        ...prev, title: data.title || prev.title, description: data.summary || prev.description,
-        duration: data.estimatedDuration || prev.duration, modules: data.suggestedModules || prev.modules,
-        depth: data.difficulty || prev.depth,
-      }));
-      addChatMsg('agent', `Análise concluída! "${data.title}" sugerido como título. Configure e gere a estrutura.`);
-      setCurrentStep(2);
-    } catch { toast.error('Erro na análise'); addChatMsg('agent', 'Erro ao analisar.'); }
+
+      // If already analyzed (cached), use directly
+      if (data.title || data.topics) {
+        setAnalysis(data);
+        setConfig(prev => ({
+          ...prev, title: data.title || prev.title, description: data.summary || prev.description,
+          duration: data.estimatedDuration || prev.duration, modules: data.suggestedModules || prev.modules,
+          depth: data.difficulty || prev.depth,
+        }));
+        addChatMsg('agent', `Analise concluida! "${data.title}" sugerido como titulo. Configure e gere a estrutura.`);
+        setCurrentStep(2);
+      } else if (data.status === 'processing') {
+        // Poll for completion
+        addChatMsg('agent', 'Analise em andamento... aguarde.');
+        const session = await pollSessionStep('analyzed', 'analysis_error');
+        const analysis = session.analysis;
+        setAnalysis(analysis);
+        setConfig(prev => ({
+          ...prev, title: analysis.title || prev.title, description: analysis.summary || prev.description,
+          duration: analysis.estimatedDuration || prev.duration, modules: analysis.suggestedModules || prev.modules,
+          depth: analysis.difficulty || prev.depth,
+        }));
+        addChatMsg('agent', `Analise concluida! "${analysis.title}" sugerido como titulo. Configure e gere a estrutura.`);
+        setCurrentStep(2);
+      }
+    } catch (e) { toast.error(e.message || 'Erro na analise'); addChatMsg('agent', 'Erro ao analisar.'); }
     finally { setLoading(false); }
   };
 
   const handleGenerateStructure = async () => {
     setLoading(true);
-    addChatMsg('agent', selectedTemplate ? `Gerando estrutura usando template "${selectedTemplate.name}"...` : 'Gerando a estrutura pedagógica...');
+    addChatMsg('agent', selectedTemplate ? `Gerando estrutura usando template "${selectedTemplate.name}"...` : 'Gerando a estrutura pedagogica...');
     try {
       const configToSend = { ...config };
       if (selectedDesignTemplate) configToSend.designTemplateId = selectedDesignTemplate.id;
@@ -332,11 +368,24 @@ export default function Agent() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setStructure(data);
-      const totalSlides = data.modules?.reduce((sum, m) => sum + (m.slides?.length || 0), 0) || 0;
-      addChatMsg('agent', `Estrutura criada! ${data.modules?.length || 0} módulos com ${totalSlides} slides.`);
-      setCurrentStep(3);
-    } catch { toast.error('Erro ao gerar estrutura'); addChatMsg('agent', 'Erro ao gerar estrutura.'); }
+
+      // If already structured (cached), use directly
+      if (data.modules) {
+        setStructure(data);
+        const totalSlides = data.modules?.reduce((sum, m) => sum + (m.slides?.length || 0), 0) || 0;
+        addChatMsg('agent', `Estrutura criada! ${data.modules?.length || 0} modulos com ${totalSlides} slides.`);
+        setCurrentStep(3);
+      } else if (data.status === 'processing') {
+        // Poll for completion
+        addChatMsg('agent', 'Gerando estrutura... aguarde.');
+        const session = await pollSessionStep('structured', 'structure_error');
+        const structure = session.structure;
+        setStructure(structure);
+        const totalSlides = structure.modules?.reduce((sum, m) => sum + (m.slides?.length || 0), 0) || 0;
+        addChatMsg('agent', `Estrutura criada! ${structure.modules?.length || 0} modulos com ${totalSlides} slides.`);
+        setCurrentStep(3);
+      }
+    } catch (e) { toast.error(e.message || 'Erro ao gerar estrutura'); addChatMsg('agent', 'Erro ao gerar estrutura.'); }
     finally { setLoading(false); }
   };
 
@@ -707,10 +756,35 @@ export default function Agent() {
       const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setCourseAnalysis(data);
-      setSelectedImprovements([]);
-      addChatMsg('agent', `Análise concluída! Nota geral: ${data.overallScore}/10. ${data.improvements?.length || 0} melhorias sugeridas.`);
-    } catch { toast.error('Erro na análise'); addChatMsg('agent', 'Erro ao analisar o curso.'); }
+
+      // If already analyzed (cached), use directly
+      if (data.overallScore !== undefined || data.improvements) {
+        setCourseAnalysis(data);
+        setSelectedImprovements([]);
+        addChatMsg('agent', `Analise concluida! Nota geral: ${data.overallScore}/10. ${data.improvements?.length || 0} melhorias sugeridas.`);
+      } else if (data.status === 'processing') {
+        addChatMsg('agent', 'Analise do curso em andamento... aguarde.');
+        // Poll for course analysis completion
+        const maxWait = 180000;
+        const start = Date.now();
+        let result = null;
+        while (Date.now() - start < maxWait) {
+          await new Promise(r => setTimeout(r, 3000));
+          const pollRes = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST', headers: authHeaders() });
+          if (!pollRes.ok) continue;
+          const pollData = await pollRes.json();
+          if (pollData.overallScore !== undefined || pollData.improvements) {
+            result = pollData;
+            break;
+          }
+          if (pollData.status === 'error') throw new Error(pollData.error || 'Erro na analise');
+        }
+        if (!result) throw new Error('Timeout aguardando analise do curso');
+        setCourseAnalysis(result);
+        setSelectedImprovements([]);
+        addChatMsg('agent', `Analise concluida! Nota geral: ${result.overallScore}/10. ${result.improvements?.length || 0} melhorias sugeridas.`);
+      }
+    } catch (e) { toast.error(e.message || 'Erro na analise'); addChatMsg('agent', 'Erro ao analisar o curso.'); }
     finally { setLoading(false); }
   };
 

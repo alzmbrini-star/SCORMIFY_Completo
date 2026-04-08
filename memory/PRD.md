@@ -166,6 +166,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - 4 novos tipos de slide (infographic, flashcard, timeline, case_study) processados como HTML interativo em iframe.
   - Testado 100% backend (13/13) + frontend (iteration_103).
 
+- 2026-04-08: FIX (P0) - 504 Gateway Timeout em producao nos endpoints /analyze e /generate-structure.
+  - Root cause: Endpoints sincronos aguardavam resposta da IA (10-30s), excedendo timeout de 60s do proxy Kubernetes.
+  - Fix: Convertidos para processamento assincrono com polling (mesmo padrao do generate-storyboard).
+    - POST /analyze -> retorna imediatamente {"status":"processing"}, processa em thread, step muda para "analyzed"
+    - POST /generate-structure -> retorna imediatamente {"status":"processing"}, step muda para "structured"
+    - POST /courses/{id}/analyze -> usa analysis_cache collection, retorna "processing" e poll via POST
+    - Frontend atualizado com pollSessionStep() que checa a cada 3s ate max 3 minutos
+  - Testado: /analyze 193ms, /generate-structure 142ms, polling confirma resultados em <5s.
+
 ## Upcoming Tasks (Prioritized)
 - P0: Email Notifications (Approval workflow + Tutor IA alerts)
 - P1: SCORM 2004 & xAPI Export

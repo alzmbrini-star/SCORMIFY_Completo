@@ -422,22 +422,62 @@ async def _convert_api_extract(file_name: str, file_bytes: bytes, ext: str) -> s
     return f"[Erro ao extrair texto de {file_name}]"
 
 @router.post("/agent/sessions/{session_id}/analyze")
-async def agent_analyze(session_id: str):
-    """Step 1: Analyze content with AI."""
+async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
+    """Step 1: Analyze content with AI (async background processing to avoid 504 timeout)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
     if not s.get("contentText"):
         raise HTTPException(400, "No content uploaded")
 
-    from services.ai_agent import analyze_content
-    analysis = await analyze_content(session_id, s["contentText"], s.get("fileName", ""))
+    # If already analyzed, return cached result
+    if s.get("step") == "analyzed" and s.get("analysis"):
+        return s["analysis"]
 
+    # If already analyzing, return processing status
+    if s.get("step") == "analyzing":
+        return {"status": "processing", "message": "Analise em andamento..."}
+
+    # Mark as processing
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"analysis": analysis, "step": "analyzed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"step": "analyzing", "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
-    return analysis
+
+    def _sync_analyze():
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            from services.ai_agent import analyze_content
+            analysis = loop.run_until_complete(
+                analyze_content(session_id, s["contentText"], s.get("fileName", ""))
+            )
+            from pymongo import MongoClient
+            _client = MongoClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME", "scormify")]
+            _db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"analysis": analysis, "step": "analyzed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+            logger.info(f"Analysis complete for session {session_id}")
+        except Exception as e:
+            logger.error(f"Analysis failed for session {session_id}: {e}")
+            from pymongo import MongoClient
+            _client = MongoClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME", "scormify")]
+            _db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"step": "analysis_error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+        finally:
+            loop.close()
+
+    import threading
+    threading.Thread(target=_sync_analyze, daemon=True).start()
+
+    return {"status": "processing", "message": "Analise iniciada em segundo plano..."}
 
 @router.post("/agent/sessions/{session_id}/configure")
 async def agent_configure(session_id: str, data: AgentConfigUpdate):
@@ -455,10 +495,18 @@ async def agent_configure(session_id: str, data: AgentConfigUpdate):
 
 @router.post("/agent/sessions/{session_id}/generate-structure")
 async def agent_generate_structure(session_id: str, request: Request):
-    """Step 2: Generate course structure (optionally from a template)."""
+    """Step 2: Generate course structure (async background to avoid 504 timeout)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
+
+    # If already structured, return cached result
+    if s.get("step") == "structured" and s.get("structure"):
+        return s["structure"]
+
+    # If already generating, return processing status
+    if s.get("step") == "structuring":
+        return {"status": "processing", "message": "Gerando estrutura..."}
 
     # Check if body contains a templateId
     template_id = None
@@ -468,21 +516,57 @@ async def agent_generate_structure(session_id: str, request: Request):
     except Exception:
         pass
 
-    if template_id:
-        from services.ai_agent import generate_structure_from_template
-        structure = await generate_structure_from_template(session_id, s["contentText"], s.get("config", {}), template_id)
-        if not structure:
-            from services.ai_agent import generate_structure
-            structure = await generate_structure(session_id, s["contentText"], s.get("config", {}))
-    else:
-        from services.ai_agent import generate_structure
-        structure = await generate_structure(session_id, s["contentText"], s.get("config", {}))
-
+    # Mark as processing
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"structure": structure, "step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"step": "structuring", "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
-    return structure
+
+    def _sync_generate_structure():
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            if template_id:
+                from services.ai_agent import generate_structure_from_template, generate_structure
+                structure = loop.run_until_complete(
+                    generate_structure_from_template(session_id, s["contentText"], s.get("config", {}), template_id)
+                )
+                if not structure:
+                    structure = loop.run_until_complete(
+                        generate_structure(session_id, s["contentText"], s.get("config", {}))
+                    )
+            else:
+                from services.ai_agent import generate_structure
+                structure = loop.run_until_complete(
+                    generate_structure(session_id, s["contentText"], s.get("config", {}))
+                )
+
+            from pymongo import MongoClient
+            _client = MongoClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME", "scormify")]
+            _db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"structure": structure, "step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+            logger.info(f"Structure generation complete for session {session_id}")
+        except Exception as e:
+            logger.error(f"Structure generation failed for session {session_id}: {e}")
+            from pymongo import MongoClient
+            _client = MongoClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME", "scormify")]
+            _db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"step": "structure_error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+        finally:
+            loop.close()
+
+    import threading
+    threading.Thread(target=_sync_generate_structure, daemon=True).start()
+
+    return {"status": "processing", "message": "Gerando estrutura em segundo plano..."}
 
 @router.post("/agent/sessions/{session_id}/generate-storyboard")
 async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks):
@@ -2228,15 +2312,59 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
 
 @router.post("/agent/courses/{project_id}/analyze")
 async def agent_analyze_course(project_id: str):
-    """Analyze an existing agent-created course and suggest improvements."""
+    """Analyze an existing course and suggest improvements (async to avoid 504 timeout)."""
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(404, "Project not found")
 
+    # Check cache
+    cache_key = f"course_analysis_{project_id}"
+    cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
+    if cached and cached.get("status") == "done":
+        return cached["result"]
+    if cached and cached.get("status") == "processing":
+        return {"status": "processing", "message": "Analise do curso em andamento..."}
+
+    # Mark as processing
+    await db.analysis_cache.update_one(
+        {"key": cache_key},
+        {"$set": {"key": cache_key, "status": "processing", "projectId": project_id, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+
     session_id = project.get("agentSessionId") or str(uuid.uuid4())
-    from services.ai_agent import analyze_existing_course
-    analysis = await analyze_existing_course(session_id, project)
-    return analysis
+
+    def _sync_analyze_course():
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            from services.ai_agent import analyze_existing_course
+            analysis = loop.run_until_complete(analyze_existing_course(session_id, project))
+            from pymongo import MongoClient
+            _client = MongoClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME", "scormify")]
+            _db.analysis_cache.update_one(
+                {"key": cache_key},
+                {"$set": {"status": "done", "result": analysis, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+            logger.info(f"Course analysis complete for project {project_id}")
+        except Exception as e:
+            logger.error(f"Course analysis failed for project {project_id}: {e}")
+            from pymongo import MongoClient
+            _client = MongoClient(os.environ.get("MONGO_URL"))
+            _db = _client[os.environ.get("DB_NAME", "scormify")]
+            _db.analysis_cache.update_one(
+                {"key": cache_key},
+                {"$set": {"status": "error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            _client.close()
+        finally:
+            loop.close()
+
+    import threading
+    threading.Thread(target=_sync_analyze_course, daemon=True).start()
+    return {"status": "processing", "message": "Analise do curso iniciada..."}
 
 
 @router.post("/agent/courses/{project_id}/preview-improvements")
