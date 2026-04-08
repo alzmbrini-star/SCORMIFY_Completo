@@ -2287,6 +2287,15 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
                     texts.append(plain)
         return texts
 
+    def _extract_html(slide):
+        """Extract raw HTML content for visual rendering."""
+        htmls = []
+        for el in slide.get("elements", []):
+            c = el.get("htmlContent") or el.get("content") or ""
+            if c and isinstance(c, str):
+                htmls.append(c)
+        return htmls
+
     comparisons = []
     for idx in sorted(affected_indices):
         comparisons.append({
@@ -2297,6 +2306,8 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
             },
             "contentBefore": _extract_text(original_slides[idx]),
             "contentAfter": _extract_text(after_slides[idx]),
+            "htmlBefore": _extract_html(original_slides[idx]),
+            "htmlAfter": _extract_html(after_slides[idx]),
         })
 
     # New slides preview
@@ -2306,6 +2317,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
             "afterIndex": ns.get("afterIndex", 0),
             "title": ns.get("title", "Novo Slide"),
             "content": [_strip_html(e.get("content", "")) for e in ns.get("elements", [])],
+            "html": [e.get("content", "") for e in ns.get("elements", []) if e.get("content")],
         })
 
     # Cache the AI result for later apply
@@ -3204,4 +3216,247 @@ async def get_approval_queue(request: Request, user: dict = Depends(require_auth
             if u:
                 s["userName"] = u.get("name", u.get("email", ""))
 
-    return sessions
+    # Also fetch improvement approvals
+    if role == "aprovador":
+        imp_query = {"status": "pending", "targetCompanyId": company_id}
+    elif role == "super_admin":
+        imp_query = {"status": {"$in": ["pending", "approved", "rejected"]}}
+    elif role == "company_admin":
+        imp_query = {"status": {"$in": ["pending", "approved", "rejected"]}, "targetCompanyId": company_id}
+    else:
+        imp_query = {}
+
+    improvement_approvals = await db.improvement_approvals.find(
+        imp_query,
+        {"_id": 0}
+    ).sort("submittedAt", -1).to_list(100)
+
+    # Enrich improvement approvals with submitter names and project info
+    for ia in improvement_approvals:
+        uid = ia.get("submittedBy")
+        if uid:
+            u = await db.users.find_one({"user_id": uid}, {"_id": 0, "name": 1, "email": 1})
+            if u:
+                ia["submitterName"] = u.get("name", u.get("email", ""))
+        ia["_type"] = "improvement"
+
+    # Mark sessions as storyboard type
+    for s in sessions:
+        s["_type"] = "storyboard"
+
+    # Combine and sort by date
+    combined = sessions + improvement_approvals
+    combined.sort(key=lambda x: x.get("updatedAt") or x.get("submittedAt") or "", reverse=True)
+
+    return combined
+
+
+@router.post("/agent/courses/{project_id}/submit-improvements-for-approval")
+async def submit_improvements_for_approval(project_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Submit improvement preview for approval by a company's aprovador."""
+    body = await request.json()
+    preview_id = body.get("previewId")
+    target_company_id = body.get("targetCompanyId")
+    improvements = body.get("improvements", [])
+    selected_new_slides = body.get("selectedNewSlides")
+
+    if not preview_id:
+        raise HTTPException(400, "previewId is required")
+    if not target_company_id:
+        raise HTTPException(400, "targetCompanyId is required")
+
+    # Verify project exists
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "title": 1, "course": 1})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Verify company exists
+    company = await db.companies.find_one({"id": target_company_id}, {"_id": 0, "name": 1, "id": 1})
+    if not company:
+        raise HTTPException(404, "Company not found")
+
+    # Verify preview exists
+    preview = await db.improvement_previews.find_one({"id": preview_id}, {"_id": 0})
+    if not preview:
+        raise HTTPException(404, "Preview not found - generate a preview first")
+
+    # Build comparisons with HTML for visual rendering
+    import copy
+    from models import generate_id
+
+    original_slides = project.get("course", {}).get("slides", [])
+    ai_result = preview.get("aiResult", {})
+
+    after_slides = copy.deepcopy(original_slides)
+    _apply_ai_result_to_slides(after_slides, ai_result, generate_id)
+
+    affected_indices = set()
+    for upd in ai_result.get("updatedSlides", []):
+        idx = upd.get("slideIndex")
+        if idx is not None and 0 <= idx < len(original_slides):
+            affected_indices.add(idx)
+
+    def _extract_html_for_approval(slide):
+        htmls = []
+        for el in slide.get("elements", []):
+            c = el.get("htmlContent") or el.get("content") or ""
+            if c and isinstance(c, str):
+                htmls.append(c)
+        return htmls
+
+    comparisons = []
+    for idx in sorted(affected_indices):
+        comparisons.append({
+            "slideIndex": idx,
+            "title": {
+                "before": original_slides[idx].get("title", ""),
+                "after": after_slides[idx].get("title", ""),
+            },
+            "htmlBefore": _extract_html_for_approval(original_slides[idx]),
+            "htmlAfter": _extract_html_for_approval(after_slides[idx]),
+        })
+
+    new_slide_previews = []
+    for ns in ai_result.get("newSlides", []):
+        new_slide_previews.append({
+            "afterIndex": ns.get("afterIndex", 0),
+            "title": ns.get("title", "Novo Slide"),
+            "html": [e.get("content", "") for e in ns.get("elements", []) if e.get("content")],
+        })
+
+    approval_id = str(uuid.uuid4())
+    await db.improvement_approvals.insert_one({
+        "id": approval_id,
+        "projectId": project_id,
+        "projectTitle": project.get("title", "Sem titulo"),
+        "previewId": preview_id,
+        "targetCompanyId": target_company_id,
+        "targetCompanyName": company.get("name", ""),
+        "improvements": improvements,
+        "selectedNewSlides": selected_new_slides,
+        "comparisons": comparisons,
+        "newSlides": new_slide_previews,
+        "updatedCount": len(comparisons),
+        "newCount": len(new_slide_previews),
+        "status": "pending",
+        "submittedBy": user.get("user_id"),
+        "submittedAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        "status": "ok",
+        "approvalId": approval_id,
+        "targetCompany": company.get("name", ""),
+        "updatedCount": len(comparisons),
+        "newCount": len(new_slide_previews),
+    }
+
+
+@router.post("/agent/improvement-approvals/{approval_id}/approve")
+async def approve_improvement(approval_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Approve an improvement - automatically applies changes to the course."""
+    doc = await db.improvement_approvals.find_one({"id": approval_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Improvement approval not found")
+    if doc.get("status") != "pending":
+        raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
+
+    role = user.get("role")
+    company_id = user.get("companyId")
+    if role == "aprovador" and company_id != doc.get("targetCompanyId"):
+        raise HTTPException(403, "You can only approve improvements targeted to your company")
+
+    # Apply the improvements to the course
+    project_id = doc.get("projectId")
+    preview_id = doc.get("previewId")
+
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    preview = await db.improvement_previews.find_one({"id": preview_id}, {"_id": 0})
+    if not preview:
+        raise HTTPException(404, "Preview data not found - cannot apply improvements")
+
+    import copy
+    from models import generate_id
+
+    ai_result = preview.get("aiResult", {})
+    original_course = copy.deepcopy(project.get("course", {}))
+    slides = project.get("course", {}).get("slides", [])
+
+    _apply_ai_result_to_slides(slides, ai_result, generate_id)
+
+    # Handle new slides
+    new_slides_data = ai_result.get("newSlides", [])
+    new_slides_added = 0
+    if new_slides_data:
+        for ns in sorted(new_slides_data, key=lambda x: x.get("afterIndex", 0), reverse=True):
+            insert_idx = ns.get("afterIndex", len(slides) - 1) + 1
+            new_slide = {
+                "id": generate_id(),
+                "title": ns.get("title", "Novo Slide"),
+                "elements": ns.get("elements", []),
+                "backgroundImage": "",
+                "backgroundColor": "",
+            }
+            slides.insert(insert_idx, new_slide)
+            new_slides_added += 1
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "course._preApprovalBackup": original_course.get("slides"),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    await db.improvement_approvals.update_one(
+        {"id": approval_id},
+        {"$set": {
+            "status": "approved",
+            "approvedBy": user.get("user_id"),
+            "approvedAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    return {
+        "status": "approved",
+        "projectId": project_id,
+        "appliedSlides": len(ai_result.get("updatedSlides", [])),
+        "newSlides": new_slides_added,
+    }
+
+
+@router.post("/agent/improvement-approvals/{approval_id}/reject")
+async def reject_improvement(approval_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Reject an improvement approval."""
+    doc = await db.improvement_approvals.find_one({"id": approval_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Improvement approval not found")
+    if doc.get("status") != "pending":
+        raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
+
+    role = user.get("role")
+    company_id = user.get("companyId")
+    if role == "aprovador" and company_id != doc.get("targetCompanyId"):
+        raise HTTPException(403, "You can only reject improvements targeted to your company")
+
+    body = await request.json()
+    reason = body.get("reason", "")
+
+    await db.improvement_approvals.update_one(
+        {"id": approval_id},
+        {"$set": {
+            "status": "rejected",
+            "rejectedBy": user.get("user_id"),
+            "rejectedAt": datetime.now(timezone.utc).isoformat(),
+            "rejectionReason": reason,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    return {"status": "rejected", "reason": reason}

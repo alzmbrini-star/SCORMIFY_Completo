@@ -818,6 +818,40 @@ export default function Agent() {
     addChatMsg('agent', 'Preview cancelado. Você pode ajustar as melhorias selecionadas e tentar novamente.');
   };
 
+  const handleSubmitImprovementsForApproval = async (targetCompanyId) => {
+    if (!previewData?.previewId || !selectedCourse?.id) return;
+    setLoading(true);
+    addChatMsg('agent', 'Enviando melhorias para aprovacao...');
+    try {
+      const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/submit-improvements-for-approval`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          previewId: previewData.previewId,
+          targetCompanyId,
+          improvements: selectedImprovements,
+          selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        addChatMsg('agent', `Melhorias enviadas para aprovacao da empresa "${data.targetCompany}"! ${data.updatedCount} slides alterados e ${data.newCount} novos slides aguardam revisao.`);
+        toast.success('Melhorias enviadas para aprovacao');
+        setPreviewData(null);
+        setCurrentStep(0);
+        setCourseAnalysis(null);
+        setSelectedImprovements([]);
+        setSelectedNewSlides([]);
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || 'Erro ao enviar para aprovacao');
+      }
+    } catch {
+      toast.error('Erro ao enviar para aprovacao');
+    }
+    setLoading(false);
+  };
+
   // Chat with agent
   const handleChat = async () => {
     if (!chatInput.trim() || !sessionId) return;
@@ -958,7 +992,7 @@ export default function Agent() {
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
               {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
-              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} />}
+              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>
           </ScrollArea>

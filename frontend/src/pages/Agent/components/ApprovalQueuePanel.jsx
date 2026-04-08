@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   BookOpen, Clock, Check, Loader2, ArrowLeft, ArrowRight,
   Eye, Pencil, Send, X, RefreshCw, CheckCircle, XCircle,
-  User, FileText, Volume2, Play, Save,
+  User, FileText, Volume2, Play, Save, Sparkles,
 } from 'lucide-react';
 
 const API = getApiUrl();
@@ -21,6 +21,7 @@ export default function ApprovalQueuePanel({ onResumeSession }) {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedImprovement, setSelectedImprovement] = useState(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [editedSlides, setEditedSlides] = useState({});
   const [saving, setSaving] = useState(false);
@@ -157,6 +158,222 @@ export default function ApprovalQueuePanel({ onResumeSession }) {
       onResumeSession(session);
     }
   };
+
+  // ── Improvement Approval Handlers ──
+  const handleSelectImprovement = (item) => {
+    setSelectedImprovement(item);
+    setShowRejectDialog(false);
+    setRejectionReason('');
+  };
+
+  const handleApproveImprovement = async () => {
+    if (!selectedImprovement) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/agent/improvement-approvals/${selectedImprovement.id}/approve`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        toast.success('Melhorias aprovadas e aplicadas ao curso!');
+        setSelectedImprovement(null);
+        fetchQueue();
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || 'Erro ao aprovar melhorias');
+      }
+    } catch {
+      toast.error('Erro ao aprovar melhorias');
+    }
+    setSaving(false);
+  };
+
+  const handleRejectImprovement = async () => {
+    if (!selectedImprovement) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/agent/improvement-approvals/${selectedImprovement.id}/reject`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ reason: rejectionReason }),
+      });
+      if (res.ok) {
+        toast.success('Melhorias devolvidas para revisao');
+        setSelectedImprovement(null);
+        setShowRejectDialog(false);
+        setRejectionReason('');
+        fetchQueue();
+      } else {
+        toast.error('Erro ao rejeitar melhorias');
+      }
+    } catch {
+      toast.error('Erro ao rejeitar melhorias');
+    }
+    setSaving(false);
+  };
+
+  // ── Visual HTML Preview component for iframes ──
+  const HtmlVisualFrame = ({ htmlParts, label, borderColor = 'border-slate-700' }) => {
+    const combined = (htmlParts || []).join('\n');
+    if (!combined) return <span className="text-slate-500 italic text-xs">Sem conteudo</span>;
+    const srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:12px;font-family:'Segoe UI',Roboto,sans-serif;background:#1c1917;color:#fff;overflow:auto;font-size:13px;}</style></head><body>${combined}</body></html>`;
+    return (
+      <iframe
+        srcDoc={srcdoc}
+        sandbox="allow-same-origin"
+        className={`w-full rounded-lg border ${borderColor} bg-slate-900`}
+        style={{ height: 220, pointerEvents: 'none' }}
+        title={label}
+      />
+    );
+  };
+
+  // ── Improvement Detail View ──
+  if (selectedImprovement) {
+    const imp = selectedImprovement;
+    return (
+      <div className="space-y-4" data-testid="improvement-approval-detail">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => setSelectedImprovement(null)} data-testid="back-to-queue-imp">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
+          </Button>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-violet-400" />
+            Revisar Melhorias
+          </h2>
+          <Badge className="bg-violet-600/20 text-violet-300 text-xs">
+            {imp.projectTitle || 'Curso'}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <span className="flex items-center gap-1">
+            <User className="w-3 h-3" /> {imp.submitterName || 'Desconhecido'}
+          </span>
+          {imp.targetCompanyName && (
+            <span className="flex items-center gap-1 text-amber-400/70">
+              Empresa: {imp.targetCompanyName}
+            </span>
+          )}
+          <Badge className="bg-blue-600/20 text-blue-300 text-[10px]">
+            {imp.updatedCount} alterados
+          </Badge>
+          {imp.newCount > 0 && (
+            <Badge className="bg-emerald-600/20 text-emerald-300 text-[10px]">
+              {imp.newCount} novos
+            </Badge>
+          )}
+        </div>
+
+        {/* Comparisons */}
+        <div className="space-y-4">
+          {imp.comparisons?.map((comp, i) => (
+            <Card key={i} className="bg-slate-900/50 border-slate-800 overflow-hidden" data-testid={`imp-comparison-${i}`}>
+              <CardHeader className="py-2 px-4 bg-slate-800/50">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-violet-400" />
+                  Slide {comp.slideIndex + 1}
+                  {comp.title?.before !== comp.title?.after && (
+                    <Badge className="bg-amber-600/20 text-amber-300 text-[10px]">Titulo alterado</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="grid grid-cols-2 divide-x divide-slate-700">
+                  <div className="p-3">
+                    <div className="flex items-center gap-1 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                      <span className="text-[10px] font-medium text-red-400 uppercase tracking-wider">Antes</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-200 mb-2">{comp.title?.before}</p>
+                    <HtmlVisualFrame htmlParts={comp.htmlBefore} label={`Antes - Slide ${comp.slideIndex + 1}`} borderColor="border-slate-700" />
+                  </div>
+                  <div className="p-3">
+                    <div className="flex items-center gap-1 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider">Depois</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-200 mb-2">{comp.title?.after}</p>
+                    <HtmlVisualFrame htmlParts={comp.htmlAfter} label={`Depois - Slide ${comp.slideIndex + 1}`} borderColor="border-emerald-800/30" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* New slides */}
+          {imp.newSlides?.map((ns, i) => (
+            <Card key={`new-${i}`} className="bg-slate-900/50 border-slate-800" data-testid={`imp-new-slide-${i}`}>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge className="bg-emerald-600/20 text-emerald-300 text-[10px]">Novo</Badge>
+                  <span className="text-xs text-slate-500">Apos slide {ns.afterIndex + 1}</span>
+                </div>
+                <p className="text-sm font-medium text-slate-200 mb-2">{ns.title}</p>
+                <HtmlVisualFrame htmlParts={ns.html} label={`Novo - ${ns.title}`} borderColor="border-emerald-800/30" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Action buttons */}
+        {imp.status === 'pending' && (
+          <div className="space-y-2 pt-2 border-t border-slate-800">
+            <div className="flex gap-2">
+              <Button onClick={handleApproveImprovement} disabled={saving} className="flex-1 bg-emerald-600 hover:bg-emerald-700" data-testid="approve-improvement-btn">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
+                Aprovar e Aplicar
+              </Button>
+              <Button onClick={() => setShowRejectDialog(true)} disabled={saving} variant="outline" className="flex-1 border-red-700 text-red-400 hover:bg-red-900/20" data-testid="reject-improvement-btn">
+                <XCircle className="w-4 h-4 mr-1" /> Devolver
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {imp.status === 'approved' && (
+          <div className="p-3 bg-emerald-900/20 border border-emerald-800/30 rounded-lg text-center">
+            <CheckCircle className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+            <p className="text-sm text-emerald-300">Melhorias aprovadas e aplicadas ao curso.</p>
+          </div>
+        )}
+
+        {imp.status === 'rejected' && (
+          <div className="p-3 bg-red-900/20 border border-red-800/30 rounded-lg text-center">
+            <XCircle className="w-5 h-5 text-red-400 mx-auto mb-1" />
+            <p className="text-sm text-red-300">Melhorias devolvidas para revisao.</p>
+            {imp.rejectionReason && <p className="text-xs text-slate-400 mt-1">Motivo: {imp.rejectionReason}</p>}
+          </div>
+        )}
+
+        {/* Rejection dialog */}
+        {showRejectDialog && (
+          <Card className="bg-slate-900 border-red-800/40">
+            <CardContent className="p-4 space-y-3">
+              <p className="text-sm text-red-300">Motivo da devolucao (opcional):</p>
+              <Textarea
+                value={rejectionReason}
+                onChange={e => setRejectionReason(e.target.value)}
+                placeholder="Descreva o que precisa ser alterado..."
+                className="bg-slate-800 border-slate-700 text-sm text-white"
+                data-testid="imp-rejection-reason-input"
+              />
+              <div className="flex gap-2">
+                <Button onClick={handleRejectImprovement} disabled={saving} className="bg-red-600 hover:bg-red-700" data-testid="confirm-reject-improvement">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                  Confirmar Devolucao
+                </Button>
+                <Button variant="outline" onClick={() => { setShowRejectDialog(false); setRejectionReason(''); }}>
+                  Cancelar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   // Detailed view of a storyboard session
   if (selectedSession) {
@@ -337,62 +554,83 @@ export default function ApprovalQueuePanel({ onResumeSession }) {
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-8 text-center">
             <CheckCircle className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400">Nenhum storyboard pendente de aprovacao.</p>
+            <p className="text-slate-400">Nenhum item pendente de aprovacao.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {queue.map(session => (
-            <Card key={session.id} className={`bg-slate-900/50 border-slate-800 hover:border-amber-700/40 transition-colors ${session.step === 'approved' ? 'border-emerald-800/30' : ''}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className={`text-[10px] ${session.step === 'pending_approval' ? 'bg-amber-600/20 text-amber-300' : 'bg-emerald-600/20 text-emerald-300'}`}>
-                        {session.step === 'pending_approval' ? 'Pendente' : 'Aprovado'}
-                      </Badge>
-                      <span className="text-sm font-medium truncate">
-                        {session.config?.title || session.storyboard?.title || 'Curso sem titulo'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <User className="w-3 h-3" /> {session.userName || 'Desconhecido'}
-                      </span>
-                      {session.targetCompanyName && (
-                        <span className="flex items-center gap-1 text-amber-400/70">
-                          Empresa: {session.targetCompanyName}
+          {queue.map(item => {
+            const isImprovement = item._type === 'improvement';
+            const isPending = isImprovement ? item.status === 'pending' : item.step === 'pending_approval';
+            const isApproved = isImprovement ? item.status === 'approved' : item.step === 'approved';
+            const isRejected = isImprovement ? item.status === 'rejected' : false;
+            const title = isImprovement
+              ? item.projectTitle || 'Melhorias de Curso'
+              : (item.config?.title || item.storyboard?.title || 'Curso sem titulo');
+            const updatedAt = item.updatedAt || item.submittedAt;
+
+            return (
+              <Card key={item.id} className={`bg-slate-900/50 border-slate-800 hover:border-amber-700/40 transition-colors ${isApproved ? 'border-emerald-800/30' : ''} ${isRejected ? 'border-red-800/30' : ''}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {isImprovement ? (
+                          <Badge className="bg-violet-600/20 text-violet-300 text-[10px]">Melhorias</Badge>
+                        ) : (
+                          <Badge className="bg-amber-600/20 text-amber-300 text-[10px]">Storyboard</Badge>
+                        )}
+                        <Badge className={`text-[10px] ${isPending ? 'bg-amber-600/20 text-amber-300' : isApproved ? 'bg-emerald-600/20 text-emerald-300' : 'bg-red-600/20 text-red-300'}`}>
+                          {isPending ? 'Pendente' : isApproved ? 'Aprovado' : 'Devolvido'}
+                        </Badge>
+                        <span className="text-sm font-medium truncate">{title}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3" /> {item.userName || item.submitterName || 'Desconhecido'}
                         </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <BookOpen className="w-3 h-3" /> {session.storyboard?.slides?.length || 0} slides
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {new Date(session.updatedAt).toLocaleDateString('pt-BR')}
-                      </span>
+                        {item.targetCompanyName && (
+                          <span className="flex items-center gap-1 text-amber-400/70">
+                            Empresa: {item.targetCompanyName}
+                          </span>
+                        )}
+                        {isImprovement ? (
+                          <span className="flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> {item.updatedCount} slides alterados
+                            {item.newCount > 0 && ` + ${item.newCount} novos`}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="w-3 h-3" /> {item.storyboard?.slides?.length || 0} slides
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {new Date(updatedAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
                     </div>
-                    {session.approvedByName && (
-                      <p className="text-xs text-emerald-400/70 mt-1">
-                        Aprovado por: {session.approvedByName}
-                      </p>
-                    )}
+                    <div className="flex gap-2 shrink-0 ml-3">
+                      {isImprovement && (isPending || isApproved || isRejected) && (
+                        <Button size="sm" onClick={() => handleSelectImprovement(item)} data-testid={`review-improvement-${item.id}`}>
+                          <Eye className="w-4 h-4 mr-1" /> Revisar
+                        </Button>
+                      )}
+                      {!isImprovement && isPending && (isAprovador || isSuperAdmin) && (
+                        <Button size="sm" onClick={() => handleSelectSession(item)} data-testid={`review-session-${item.id}`}>
+                          <Eye className="w-4 h-4 mr-1" /> Revisar
+                        </Button>
+                      )}
+                      {!isImprovement && isApproved && isSuperAdmin && (
+                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleResume(item)} data-testid={`resume-session-${item.id}`}>
+                          <Play className="w-4 h-4 mr-1" /> Retomar
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2 shrink-0 ml-3">
-                    {session.step === 'pending_approval' && (isAprovador || isSuperAdmin) && (
-                      <Button size="sm" onClick={() => handleSelectSession(session)} data-testid={`review-session-${session.id}`}>
-                        <Eye className="w-4 h-4 mr-1" /> Revisar
-                      </Button>
-                    )}
-                    {session.step === 'approved' && isSuperAdmin && (
-                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleResume(session)} data-testid={`resume-session-${session.id}`}>
-                        <Play className="w-4 h-4 mr-1" /> Retomar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

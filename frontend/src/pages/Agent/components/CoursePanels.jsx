@@ -994,17 +994,54 @@ function StatusBadge({ label, status }) {
 }
 
 
-export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
+export function PreviewPanel({ preview, loading, onConfirm, onCancel, onSubmitForApproval, companies }) {
   const [activeTab, setActiveTab] = useState('changes');
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   if (!preview) return null;
 
-  // Strip HTML tags and decode entities for readable text
-  const stripHtml = (html) => {
-    if (!html) return '';
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
+  // Check if content looks like HTML/CSS code (not readable text)
+  const isHtmlContent = (text) => {
+    if (!text) return false;
+    return /(<[a-z][\s\S]*>|{[^}]*:[^}]*}|body\s*{|\.[\w-]+\s*{)/i.test(text);
+  };
+
+  // Render HTML visually in a sandboxed iframe
+  const HtmlVisualPreview = ({ htmlParts, label }) => {
+    const combined = (htmlParts || []).join('\n');
+    if (!combined) return <span className="text-slate-500 italic text-xs">Sem conteudo</span>;
+
+    const hasHtml = isHtmlContent(combined);
+
+    if (hasHtml) {
+      const srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:12px;font-family:'Segoe UI',Roboto,sans-serif;background:#1c1917;color:#fff;overflow:auto;font-size:13px;}</style></head><body>${combined}</body></html>`;
+      return (
+        <iframe
+          srcDoc={srcdoc}
+          sandbox="allow-same-origin"
+          className="w-full rounded-lg border border-slate-700 bg-slate-900"
+          style={{ height: 200, pointerEvents: 'none' }}
+          title={label}
+        />
+      );
+    }
+
+    // Fallback: plain text
+    return (
+      <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+        {combined.substring(0, 500)}
+        {combined.length > 500 && '...'}
+      </p>
+    );
+  };
+
+  const handleSubmitApproval = () => {
+    if (selectedCompanyId && onSubmitForApproval) {
+      onSubmitForApproval(selectedCompanyId);
+      setShowApprovalDialog(false);
+      setSelectedCompanyId('');
+    }
   };
 
   return (
@@ -1035,9 +1072,8 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
 
         <TabsContent value="changes" className="space-y-4 mt-4">
           {preview.comparisons?.map((comp, i) => {
-            const beforeText = (comp.contentBefore || []).map(c => stripHtml(c)).join('\n\n');
-            const afterText = (comp.contentAfter || []).map(c => stripHtml(c)).join('\n\n');
             const titleChanged = comp.title.before !== comp.title.after;
+            const hasHtmlData = comp.htmlBefore?.length > 0 || comp.htmlAfter?.length > 0;
 
             return (
               <Card key={i} className="bg-slate-900/50 border-slate-800 overflow-hidden" data-testid={`preview-comparison-${i}`}>
@@ -1046,7 +1082,10 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
                     <Layers className="w-4 h-4 text-blue-400" />
                     Slide {comp.slideIndex + 1}
                     {titleChanged && (
-                      <Badge className="bg-amber-600/20 text-amber-300 text-[10px]">Título alterado</Badge>
+                      <Badge className="bg-amber-600/20 text-amber-300 text-[10px]">Titulo alterado</Badge>
+                    )}
+                    {hasHtmlData && (
+                      <Badge className="bg-violet-600/20 text-violet-300 text-[10px]">Visual</Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
@@ -1059,12 +1098,15 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
                         <span className="text-[10px] font-medium text-red-400 uppercase tracking-wider">Antes</span>
                       </div>
                       <p className="text-xs font-semibold text-slate-200 mb-2">{comp.title.before}</p>
-                      <div className="bg-slate-800 rounded-lg p-3 max-h-52 overflow-y-auto">
-                        <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
-                          {beforeText.substring(0, 500) || <span className="text-slate-500 italic">Sem conteúdo de texto</span>}
-                          {beforeText.length > 500 && '...'}
-                        </p>
-                      </div>
+                      {hasHtmlData ? (
+                        <HtmlVisualPreview htmlParts={comp.htmlBefore} label={`Antes - Slide ${comp.slideIndex + 1}`} />
+                      ) : (
+                        <div className="bg-slate-800 rounded-lg p-3 max-h-52 overflow-y-auto">
+                          <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                            {(comp.contentBefore || []).join('\n\n').substring(0, 500) || <span className="text-slate-500 italic">Sem conteudo de texto</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     {/* After */}
                     <div className="p-3">
@@ -1073,12 +1115,15 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
                         <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider">Depois</span>
                       </div>
                       <p className="text-xs font-semibold text-slate-200 mb-2">{comp.title.after}</p>
-                      <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-52 overflow-y-auto">
-                        <p className="text-xs text-emerald-200 whitespace-pre-line leading-relaxed">
-                          {afterText.substring(0, 500) || <span className="text-slate-500 italic">Sem conteúdo de texto</span>}
-                          {afterText.length > 500 && '...'}
-                        </p>
-                      </div>
+                      {hasHtmlData ? (
+                        <HtmlVisualPreview htmlParts={comp.htmlAfter} label={`Depois - Slide ${comp.slideIndex + 1}`} />
+                      ) : (
+                        <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-52 overflow-y-auto">
+                          <p className="text-xs text-emerald-200 whitespace-pre-line leading-relaxed">
+                            {(comp.contentAfter || []).join('\n\n').substring(0, 500) || <span className="text-slate-500 italic">Sem conteudo de texto</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1093,7 +1138,7 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
         {preview.newCount > 0 && (
           <TabsContent value="new" className="space-y-3 mt-4">
             {preview.newSlides?.map((ns, i) => {
-              const newText = (ns.content || []).map(c => stripHtml(c)).join('\n\n');
+              const hasHtml = ns.html?.length > 0;
               return (
                 <Card key={i} className="bg-slate-900/50 border-slate-800" data-testid={`preview-new-slide-${i}`}>
                   <CardContent className="p-3">
@@ -1101,15 +1146,18 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
                       <Badge className="bg-emerald-600/20 text-emerald-300 text-[10px]">
                         <Plus className="w-2 h-2 mr-1" /> Novo
                       </Badge>
-                      <span className="text-xs text-slate-500">Após slide {ns.afterIndex + 1}</span>
+                      <span className="text-xs text-slate-500">Apos slide {ns.afterIndex + 1}</span>
                     </div>
                     <p className="text-sm font-medium text-slate-200 mb-2">{ns.title}</p>
-                    <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-40 overflow-y-auto">
-                      <p className="text-xs text-emerald-200 whitespace-pre-line leading-relaxed">
-                        {newText.substring(0, 300) || <span className="text-slate-500 italic">Sem conteúdo de texto</span>}
-                        {newText.length > 300 && '...'}
-                      </p>
-                    </div>
+                    {hasHtml ? (
+                      <HtmlVisualPreview htmlParts={ns.html} label={`Novo Slide - ${ns.title}`} />
+                    ) : (
+                      <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                        <p className="text-xs text-emerald-200 whitespace-pre-line leading-relaxed">
+                          {(ns.content || []).join('\n\n').substring(0, 300) || <span className="text-slate-500 italic">Sem conteudo de texto</span>}
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -1129,6 +1177,17 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
           {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
           Confirmar e Aplicar
         </Button>
+        {onSubmitForApproval && (
+          <Button
+            onClick={() => setShowApprovalDialog(true)}
+            disabled={loading}
+            variant="outline"
+            className="flex-1 border-amber-700 text-amber-300 hover:bg-amber-900/20"
+            data-testid="submit-improvements-for-approval-btn"
+          >
+            <Send className="w-4 h-4 mr-1" /> Enviar para Aprovacao
+          </Button>
+        )}
         <Button
           variant="outline"
           onClick={onCancel}
@@ -1139,6 +1198,49 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel }) {
           <X className="w-4 h-4 mr-1" /> Cancelar
         </Button>
       </div>
+
+      {/* Company selection dialog for improvement approval */}
+      {showApprovalDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" data-testid="improvement-approval-company-dialog">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md mx-4 space-y-4">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Send className="w-4 h-4 text-amber-400" />
+              Enviar Melhorias para Aprovacao
+            </h3>
+            <p className="text-sm text-slate-400">
+              Selecione a empresa cujo aprovador ira revisar estas melhorias antes de serem aplicadas ao curso:
+            </p>
+            <select
+              value={selectedCompanyId}
+              onChange={e => setSelectedCompanyId(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+              data-testid="improvement-approval-company-select"
+            >
+              <option value="">-- Selecione a Empresa --</option>
+              {(companies || []).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleSubmitApproval}
+                disabled={!selectedCompanyId}
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                data-testid="confirm-submit-improvement-approval"
+              >
+                <Send className="w-4 h-4 mr-1" /> Enviar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setShowApprovalDialog(false); setSelectedCompanyId(''); }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
