@@ -11,7 +11,7 @@ import base64
 import re
 import httpx
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from routes.deps import (
     db, now_utc, serialize_doc, get_project_by_id, update_project,
@@ -434,9 +434,20 @@ async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
     if s.get("step") == "analyzed" and s.get("analysis"):
         return s["analysis"]
 
-    # If already analyzing, return processing status
+    # If already analyzing, check if stuck (> 3 min)
     if s.get("step") == "analyzing":
-        return {"status": "processing", "message": "Analise em andamento..."}
+        updated = s.get("updatedAt", "")
+        try:
+            from datetime import datetime as dt
+            cache_time = dt.fromisoformat(updated.replace("Z", "+00:00"))
+            age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
+            if age_seconds > 180:
+                logger.warning(f"Stale analyzing step for session {session_id} (age={age_seconds:.0f}s), restarting")
+                # Fall through to restart analysis
+            else:
+                return {"status": "processing", "message": "Analise em andamento..."}
+        except Exception:
+            return {"status": "processing", "message": "Analise em andamento..."}
 
     # Mark as processing
     await db.agent_sessions.update_one(
@@ -504,9 +515,19 @@ async def agent_generate_structure(session_id: str, request: Request):
     if s.get("step") == "structured" and s.get("structure"):
         return s["structure"]
 
-    # If already generating, return processing status
+    # If already generating, check if stuck (> 3 min)
     if s.get("step") == "structuring":
-        return {"status": "processing", "message": "Gerando estrutura..."}
+        updated = s.get("updatedAt", "")
+        try:
+            from datetime import datetime as dt
+            cache_time = dt.fromisoformat(updated.replace("Z", "+00:00"))
+            age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
+            if age_seconds > 180:
+                logger.warning(f"Stale structuring step for session {session_id} (age={age_seconds:.0f}s), restarting")
+            else:
+                return {"status": "processing", "message": "Gerando estrutura..."}
+        except Exception:
+            return {"status": "processing", "message": "Gerando estrutura..."}
 
     # Check if body contains a templateId
     template_id = None
@@ -2320,9 +2341,21 @@ async def agent_analyze_course(project_id: str, request: Request):
     cache_key = f"course_analysis_{project_id}"
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
 
-    # If currently processing, return status (prevents duplicate analysis)
+    # If currently processing, check if it's stuck (> 3 min old)
     if cached and cached.get("status") == "processing":
-        return {"status": "processing", "message": "Analise do curso em andamento..."}
+        updated = cached.get("updatedAt", "")
+        try:
+            from datetime import datetime as dt
+            cache_time = dt.fromisoformat(updated.replace("Z", "+00:00"))
+            age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
+            if age_seconds > 180:
+                logger.warning(f"Stale processing cache for {project_id} (age={age_seconds:.0f}s), clearing")
+                await db.analysis_cache.delete_one({"key": cache_key})
+                # Fall through to start new analysis
+            else:
+                return {"status": "processing", "message": "Analise do curso em andamento..."}
+        except Exception:
+            return {"status": "processing", "message": "Analise do curso em andamento..."}
 
     # If done, return result and clear cache for next time
     if cached and cached.get("status") == "done":
@@ -2330,6 +2363,7 @@ async def agent_analyze_course(project_id: str, request: Request):
         await db.analysis_cache.delete_one({"key": cache_key})
         return result
 
+    # If error, return error and clear cache
     if cached and cached.get("status") == "error":
         err = cached.get("error", "Erro desconhecido")
         await db.analysis_cache.delete_one({"key": cache_key})
@@ -3602,3 +3636,26 @@ async def reject_improvement(approval_id: str, request: Request, user: dict = De
     )
 
     return {"status": "rejected", "reason": reason}
+
+
+
+@router.post("/agent/clear-stuck-caches")
+async def clear_stuck_caches(user: dict = Depends(require_auth)):
+    """Admin endpoint to clear stuck analysis caches and sessions."""
+    if user.get("role") != "super_admin":
+        raise HTTPException(403, "Only super_admin can clear caches")
+
+    # Clear all analysis_cache entries
+    cache_result = await db.analysis_cache.delete_many({})
+
+    # Reset stuck sessions (analyzing/structuring for > 5 min)
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    stuck_result = await db.agent_sessions.update_many(
+        {"step": {"$in": ["analyzing", "structuring"]}, "updatedAt": {"$lt": cutoff}},
+        {"$set": {"step": "uploaded", "error": "Reset by admin"}}
+    )
+
+    return {
+        "cachesCleared": cache_result.deleted_count,
+        "stuckSessionsReset": stuck_result.modified_count,
+    }
