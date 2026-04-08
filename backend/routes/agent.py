@@ -305,10 +305,14 @@ async def agent_upload_content(session_id: str, request: Request, file: UploadFi
 
     # Handle URL scraping
     if url and url.strip():
-        file_name = url.strip()
+        clean_url = url.strip()
+        # Auto-add protocol if missing
+        if not clean_url.startswith("http://") and not clean_url.startswith("https://"):
+            clean_url = "https://" + clean_url
+        file_name = clean_url
         try:
             async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-                resp = await client.get(url.strip(), headers={
+                resp = await client.get(clean_url, headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml",
                     "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
