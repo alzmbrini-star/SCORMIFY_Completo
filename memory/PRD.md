@@ -158,6 +158,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - ApprovalQueuePanel: diferencia items por tipo (badge Storyboard/Melhorias), renderiza HTML visual, botoes aprovar/devolver.
   - Testado 100% backend (15/15) + frontend (iteration_102).
 
+- 2026-04-08: FEATURE - Sistema de Balanceamento de Recursos Pedagogicos.
+  - ConfigPanel: Novo card "Recursos Pedagogicos" com 4 niveis de interatividade (Baixa/Media/Alta/Maxima).
+  - 8 tipos de recursos toggleaveis: Quiz, Jogos Educativos, Cenarios de Desafio, Infograficos Interativos, Flashcards Animados, Linhas do Tempo, Estudos de Caso, Cenas com Avatar.
+  - Barra de distribuicao visual mostrando % aproximada de cada recurso.
+  - Backend: generate_structure envia instrucoes explicitas de distribuicao na prompt (ex: "De 20 slides, gere EXATAMENTE: 9 conteudo, 2 quiz, 3 simulador...").
+  - 4 novos tipos de slide (infographic, flashcard, timeline, case_study) processados como HTML interativo em iframe.
+  - Testado 100% backend (13/13) + frontend (iteration_103).
+
 ## Upcoming Tasks (Prioritized)
 - P0: Email Notifications (Approval workflow + Tutor IA alerts)
 - P1: SCORM 2004 & xAPI Export
