@@ -84,10 +84,35 @@ def _extract_json(text: str) -> Optional[dict]:
         return None
 
 
-async def analyze_content(session_id: str, content_text: str, file_info: str = "") -> dict:
+async def _resilient_send(session_id_prefix: str, system_msg: str, prompt: str) -> str:
+    """Send message with retry + fallback (Gemini -> GPT-4o)."""
+    import asyncio as aio
+    models = [PRIMARY_MODEL, FALLBACK_MODEL]
+    for attempt, (provider, model) in enumerate(models):
+        for retry in range(2):
+            try:
+                chat = LlmChat(
+                    api_key=EMERGENT_KEY,
+                    session_id=f"{session_id_prefix}_r{attempt}_{retry}",
+                    system_message=system_msg,
+                ).with_model(provider, model)
+                response = await chat.send_message(UserMessage(text=prompt))
+                return response
+            except Exception as e:
+                err_str = str(e)[:120]
+                logger.warning(f"LLM {provider}/{model} attempt {retry}: {err_str}")
+                if retry == 0 and ("RateLimit" in err_str or "429" in err_str or "No deployments" in err_str):
+                    await aio.sleep(3)
+                    continue
+                break
+    raise Exception("All LLM models failed")
+
+
+
     """Step 1: Analyze uploaded content and extract key information."""
     prompt = f"""Analise o seguinte conteúdo educacional e retorne um JSON com:
 
+async def analyze_content(session_id: str, content_text: str, file_info: str = "") -> dict:
 1. "title": título sugerido para o curso
 2. "summary": resumo do conteúdo (2-3 frases)
 3. "mainTopics": lista dos tópicos principais identificados
@@ -1854,8 +1879,6 @@ Se o usuário pedir mudanças na estrutura ou conteúdo, sugira as alterações 
 
 async def analyze_existing_course(session_id: str, project: dict) -> dict:
     """Analyze an existing Scormfy course and suggest improvements."""
-    chat = _new_chat(f"agent-edit-analyze-{session_id}")
-    
     slides = project.get("course", {}).get("slides", [])
     slides_summary = []
     has_avatar = False
@@ -2003,14 +2026,16 @@ Retorne JSON:
 }}
 ```"""
     
-    response = await chat.send_message(UserMessage(text=prompt))
+    response = await _resilient_send(
+        f"agent-edit-analyze-{session_id}",
+        SYSTEM_PROMPT,
+        prompt
+    )
     return _extract_json(response) or {"overallScore": 0, "strengths": [], "improvements": [], "missingElements": [], "suggestedNewSlides": []}
 
 
 async def apply_course_improvements(session_id: str, project: dict, selected_improvements: list, selected_new_slides: list = None) -> dict:
     """Apply selected improvements to an existing course."""
-    chat = _new_chat(f"agent-edit-apply-{session_id}")
-    
     slides = project.get("course", {}).get("slides", [])
     
     # Group improvements by slide
@@ -2188,7 +2213,11 @@ Retorne JSON com os slides a atualizar:
 }}
 ```"""
     
-    response = await chat.send_message(UserMessage(text=prompt))
+    response = await _resilient_send(
+        f"agent-edit-apply-{session_id}",
+        SYSTEM_PROMPT,
+        prompt
+    )
     return _extract_json(response) or {"updatedSlides": [], "newSlides": []}
 
 
