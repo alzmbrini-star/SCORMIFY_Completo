@@ -150,6 +150,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Fix: Merged both startup tasks into single `startup_asset_sync` that uses ONE MongoClient. Phase 1 RESTORE: fetches lightweight filename index first, then loads data only for missing files individually. Phase 2 PERSIST: uses same client to write new local files to MongoDB. Increased all Atlas timeouts to 60s (connection) / 120s (socket). Updated `store_asset_sync`, `retrieve_asset_sync`, and `restore_project_assets_sync` timeouts. Also increased main AsyncIOMotorClient timeouts.
   - Verified: 3 deleted test files auto-restored on startup, per-request MongoDB fallback returns 200.
 
+- 2026-04-08: FEATURE - Enviar Melhorias para Aprovacao (Improvement Approval Workflow).
+  - PreviewPanel: novo botao "Enviar para Aprovacao" com dialog de selecao de empresa (ao lado de "Confirmar e Aplicar").
+  - Visual HTML Preview: conteudo HTML e renderizado em iframes sandboxed (visual) ao inves de codigo-fonte.
+  - Backend endpoints: POST submit-improvements-for-approval, approve (auto-aplica melhorias), reject.
+  - Approval Queue unificada: retorna storyboards + melhorias combinados com campo _type.
+  - ApprovalQueuePanel: diferencia items por tipo (badge Storyboard/Melhorias), renderiza HTML visual, botoes aprovar/devolver.
+  - Testado 100% backend (15/15) + frontend (iteration_102).
+
 ## Upcoming Tasks (Prioritized)
 - P0: Email Notifications (Approval workflow + Tutor IA alerts)
 - P1: SCORM 2004 & xAPI Export
