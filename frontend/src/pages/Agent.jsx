@@ -757,19 +757,19 @@ export default function Agent() {
       if (!res.ok) throw new Error();
       const data = await res.json();
 
-      // If already analyzed (cached), use directly
+      // If result returned directly (not processing), use it
       if (data.overallScore !== undefined || data.improvements) {
         setCourseAnalysis(data);
         setSelectedImprovements([]);
         addChatMsg('agent', `Analise concluida! Nota geral: ${data.overallScore}/10. ${data.improvements?.length || 0} melhorias sugeridas.`);
       } else if (data.status === 'processing') {
-        addChatMsg('agent', 'Analise do curso em andamento... aguarde.');
-        // Poll for course analysis completion
+        addChatMsg('agent', 'Analise em andamento... aguarde.');
+        // Poll every 2s for faster response
         const maxWait = 180000;
         const start = Date.now();
         let result = null;
         while (Date.now() - start < maxWait) {
-          await new Promise(r => setTimeout(r, 3000));
+          await new Promise(r => setTimeout(r, 2000));
           const pollRes = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST', headers: authHeaders() });
           if (!pollRes.ok) continue;
           const pollData = await pollRes.json();

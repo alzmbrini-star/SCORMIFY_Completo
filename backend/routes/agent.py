@@ -2311,21 +2311,31 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
 
 
 @router.post("/agent/courses/{project_id}/analyze")
-async def agent_analyze_course(project_id: str):
+async def agent_analyze_course(project_id: str, request: Request):
     """Analyze an existing course and suggest improvements (async to avoid 504 timeout)."""
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Check cache
     cache_key = f"course_analysis_{project_id}"
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
-    if cached and cached.get("status") == "done":
-        return cached["result"]
+
+    # If currently processing, return status (prevents duplicate analysis)
     if cached and cached.get("status") == "processing":
         return {"status": "processing", "message": "Analise do curso em andamento..."}
 
-    # Mark as processing
+    # If done, return result and clear cache for next time
+    if cached and cached.get("status") == "done":
+        result = cached["result"]
+        await db.analysis_cache.delete_one({"key": cache_key})
+        return result
+
+    if cached and cached.get("status") == "error":
+        err = cached.get("error", "Erro desconhecido")
+        await db.analysis_cache.delete_one({"key": cache_key})
+        return {"status": "error", "error": err}
+
+    # Mark as processing and start background analysis
     await db.analysis_cache.update_one(
         {"key": cache_key},
         {"$set": {"key": cache_key, "status": "processing", "projectId": project_id, "updatedAt": datetime.now(timezone.utc).isoformat()}},
