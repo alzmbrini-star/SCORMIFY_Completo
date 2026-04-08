@@ -88,6 +88,17 @@ export default function Agent() {
     interactivity: 'media', visualStyle: 'moderno e profissional',
     format: 'curso_completo', description: '',
     narrationEnabled: false, narrationVoiceId: '',
+    resourceBalance: 'media',
+    enabledResources: {
+      quiz: true,
+      simulator: true,
+      scenario: true,
+      avatar_scene: false,
+      infographic: true,
+      flashcard: true,
+      timeline: true,
+      case_study: true,
+    },
   });
   const [structure, setStructure] = useState(null);
   const [storyboard, setStoryboard] = useState(null);

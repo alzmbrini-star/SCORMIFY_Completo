@@ -134,6 +134,83 @@ Retorne APENAS o JSON dentro de ```json```."""
 
 async def generate_structure(session_id: str, content_text: str, config: dict) -> dict:
     """Step 2: Generate course architecture based on content and configuration."""
+
+    # ── Resource Balance Logic ──
+    resource_balance = config.get('resourceBalance', 'media')
+    enabled_resources = config.get('enabledResources', {})
+
+    # Build the list of allowed types
+    all_types = ['content', 'title', 'summary']  # always present
+    resource_type_map = {
+        'quiz': 'quiz',
+        'simulator': 'simulator',
+        'scenario': 'scenario',
+        'avatar_scene': 'avatar_scene',
+        'infographic': 'infographic',
+        'flashcard': 'flashcard',
+        'timeline': 'timeline',
+        'case_study': 'case_study',
+    }
+    for key, slide_type in resource_type_map.items():
+        if enabled_resources.get(key, False):
+            all_types.append(slide_type)
+
+    available_types = '|'.join(all_types)
+
+    # Distribution instructions based on balance level
+    dist_instructions = {
+        'baixa': """DISTRIBUICAO DE RECURSOS (Nivel: Baixa Interatividade):
+- ~70% dos slides devem ser de conteudo didatico (type="content")
+- ~15% quizzes de fixacao (type="quiz") - 1 por modulo
+- ~10% flashcards ou outro recurso leve habilitado
+- ~5% resumo/titulo
+- Priorize clareza e profundidade textual sobre interatividade.""",
+        'media': """DISTRIBUICAO DE RECURSOS (Nivel: Media Interatividade - BALANCEADO):
+- ~45% dos slides devem ser de conteudo didatico (type="content")
+- ~12% quizzes de fixacao (type="quiz") - 1 por modulo
+- ~13% simuladores/jogos educativos (type="simulator") - 1 por modulo
+- ~8% cenarios de desafio (type="scenario") - decisoes interativas
+- ~7% infograficos interativos (type="infographic") - dados visuais
+- ~5% flashcards (type="flashcard") - revisao
+- ~5% linhas do tempo (type="timeline") - cronologia
+- ~5% estudos de caso (type="case_study") - casos reais
+- VARIE os tipos de recursos entre os modulos para manter engajamento.""",
+        'alta': """DISTRIBUICAO DE RECURSOS (Nivel: Alta Interatividade):
+- ~30% dos slides devem ser de conteudo didatico (type="content")
+- ~12% quizzes (type="quiz")
+- ~15% simuladores/jogos educativos (type="simulator") - 1-2 por modulo, VARIE os tipos
+- ~10% cenarios de desafio (type="scenario") - arvore de decisoes
+- ~8% infograficos interativos (type="infographic")
+- ~7% flashcards (type="flashcard")
+- ~7% linhas do tempo (type="timeline")
+- ~6% estudos de caso (type="case_study")
+- ~5% cenas com avatar (type="avatar_scene") - max 2-3 no curso todo
+- PRIORIZE diversidade: NUNCA coloque dois slides do mesmo tipo interativo seguidos.
+- Cada modulo deve ter PELO MENOS 3 tipos diferentes de recursos interativos.""",
+        'maxima': """DISTRIBUICAO DE RECURSOS (Nivel: Maxima Interatividade):
+- ~20% dos slides devem ser de conteudo didatico (type="content") - breves e objetivos
+- ~10% quizzes (type="quiz")
+- ~16% simuladores/jogos educativos (type="simulator") - 2 por modulo, tipos DIFERENTES
+- ~12% cenarios de desafio (type="scenario") - arvores complexas
+- ~10% infograficos interativos (type="infographic")
+- ~8% flashcards (type="flashcard")
+- ~8% linhas do tempo (type="timeline")
+- ~8% estudos de caso (type="case_study")
+- ~8% cenas com avatar (type="avatar_scene") - max 3 no curso
+- A MAIORIA dos slides deve ser interativa. Conteudo puro deve ser MINIMO.
+- Cada modulo OBRIGATORIAMENTE tem pelo menos 4 tipos de recursos diferentes.
+- VARIE ao maximo: nunca repita o mesmo tipo de recurso em sequencia.""",
+    }
+
+    balance_rules = dist_instructions.get(resource_balance, dist_instructions['media'])
+
+    # Filter rules to only mention enabled resources
+    disabled_types = [k for k, v in resource_type_map.items() if not enabled_resources.get(k, False)]
+    if disabled_types:
+        disabled_note = f"\nRECURSOS DESABILITADOS (NAO USE estes types): {', '.join(disabled_types)}. Redistribua a % deles para os recursos habilitados."
+    else:
+        disabled_note = ""
+
     prompt = f"""Crie a estrutura pedagógica completa para um curso digital baseado no conteúdo e configuração abaixo.
 
 CONFIGURAÇÃO:
@@ -141,7 +218,6 @@ CONFIGURAÇÃO:
 - Nível: {config.get('depth', 'intermediario')}
 - Duração alvo: {config.get('duration', 30)} minutos
 - Módulos: {config.get('modules', 3)}
-- Interatividade: {config.get('interactivity', 'media')}
 - Formato: {config.get('format', 'curso_completo')}
 
 CONTEÚDO BASE:
@@ -164,7 +240,7 @@ Retorne um JSON com a estrutura:
         {{
           "id": "slide1",
           "title": "Título do Slide",
-          "type": "content|title|quiz|summary|scenario|simulator",
+          "type": "{available_types}",
           "purpose": "Breve descrição do objetivo deste slide",
           "estimatedDuration": 30
         }}
@@ -176,15 +252,15 @@ Retorne um JSON com a estrutura:
 }}
 ```
 
-REGRAS:
+{balance_rules}{disabled_note}
+
+REGRAS GERAIS:
 - Primeiro slide deve ser uma capa/título do curso
-- Cada módulo deve ter 2-5 slides de conteúdo
-- Inclua slides de quiz ao final de cada módulo
-- IMPORTANTE: Quando o tema envolver tomada de decisão, resolução de problemas, liderança, atendimento ao cliente, ética ou situações práticas, OBRIGATORIAMENTE inclua pelo menos 1 slide com "type": "scenario" (NÃO use type content com título "cenário" - use type scenario para gerar simulação interativa real)
-- IMPORTANTE: OBRIGATORIAMENTE inclua pelo menos 1-2 slides com "type": "simulator" por módulo. Simuladores são elementos HTML+JS interativos como: calculadoras temáticas, jogos de arrastar e soltar, flashcards interativos, quizzes gamificados com pontuação, simuladores de processos, jogos de memória, linha do tempo interativa, painel de tomada de decisão, etc. O simulador DEVE estar diretamente relacionado ao conteúdo do módulo.
 - Último slide deve ser um resumo/conclusão
 - Aplique progressão de complexidade
-- Use microlearning: máximo 3 conceitos por slide"""
+- Use microlearning: máximo 3 conceitos por slide
+- CUMPRA a distribuição acima com precisão. Conte os slides de cada tipo antes de finalizar.
+- Distribua os recursos de forma INTERCALADA - não agrupe todos os quizzes no final, etc."""
 
     models = [PRIMARY_MODEL, FALLBACK_MODEL]
     for provider, model in models:
@@ -340,6 +416,66 @@ SLIDES DE CENA COM AVATAR (type="avatar_scene"):
   - Avatar centralizado: conteúdo textual acima ou abaixo
 - Formato: {{"type":"text","content":"<h2>Título</h2><ul><li>Ponto 1</li></ul>","width":900,"height":600,"x":960,"y":110}}
 - avatarScene: {{"narrationScript":"Olá! Vou explicar...","backgroundPrompt":"Professional studio","avatarPosition":"left"}}
+
+SLIDES DE INFOGRAFICO INTERATIVO (type="infographic"):
+- Gere um documento HTML COMPLETO com visualização de dados interativa
+- Ideal para: estatísticas, comparações, processos, hierarquias, dados quantitativos
+- O HTML será renderizado dentro de um iframe isolado de 960x540px
+- O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
+- TIPOS DE INFOGRÁFICOS:
+  * Gráfico de barras/pizza animado com dados do curso (CSS animations)
+  * Diagrama de processo com etapas clicáveis que revelam detalhes
+  * Comparativo visual (antes/depois, prós/contras) com hover effects
+  * Painel de KPIs/métricas com contadores animados
+  * Mapa mental/conceitual SVG com nós clicáveis
+  * Pirâmide/funil interativo com camadas expansíveis
+- REGRAS: Design moderno, cores vibrantes, animações de entrada (fade-in, slide-up), hover effects em cada elemento, tooltips com informações extras
+- Os dados devem ser 100% baseados no conteúdo real do módulo
+- NÃO inclua "narrationScript" detalhado (aluno interage diretamente)
+
+SLIDES DE FLASHCARD (type="flashcard"):
+- Gere um documento HTML COMPLETO com sistema de flashcards interativos
+- Ideal para: revisão de termos, conceitos-chave, vocabulário técnico, definições
+- O HTML será renderizado dentro de um iframe isolado de 960x540px
+- O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
+- FUNCIONALIDADES OBRIGATÓRIAS:
+  * Mínimo 5 cartões com frente (pergunta/termo) e verso (resposta/definição)
+  * Animação 3D de flip ao clicar no cartão (CSS transform: rotateY)
+  * Navegação entre cartões (setas ou swipe)
+  * Contador de progresso (cartão 3 de 8)
+  * Botões "Sei" / "Não sei" para auto-avaliação
+  * Resultado final com % de acertos
+- Design: Cartões com bordas arredondadas, sombras, gradientes sutis, fonte clara
+- O conteúdo deve cobrir os conceitos mais importantes do módulo
+
+SLIDES DE LINHA DO TEMPO (type="timeline"):
+- Gere um documento HTML COMPLETO com linha do tempo interativa
+- Ideal para: evolução histórica, etapas de processo, cronologia, fases de projeto
+- O HTML será renderizado dentro de um iframe isolado de 960x540px
+- O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
+- FUNCIONALIDADES OBRIGATÓRIAS:
+  * Linha do tempo horizontal ou vertical com mínimo 5 marcos
+  * Cada marco é clicável e expande detalhes (título, descrição, ícone)
+  * Animação de scroll/navegação entre os marcos
+  * Indicador visual de progresso na timeline
+  * Destaque visual do marco ativo (cor, tamanho, brilho)
+  * Transições suaves entre marcos (CSS transitions)
+- Design: Linha conectora estilizada, nós circulares com ícones/números, cards de detalhes com sombra
+- Conteúdo baseado na cronologia real do tema do módulo
+
+SLIDES DE ESTUDO DE CASO (type="case_study"):
+- Gere um documento HTML COMPLETO com estudo de caso interativo
+- Ideal para: aplicação prática, análise de cenários reais, reflexão crítica
+- O HTML será renderizado dentro de um iframe isolado de 960x540px
+- O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
+- ESTRUTURA OBRIGATÓRIA:
+  * Apresentação do caso (contexto, empresa/situação fictícia mas realista)
+  * Dados e evidências visuais (números, gráficos simples)
+  * 3-4 perguntas de reflexão que o aluno pode clicar para ver sugestão de resposta
+  * Seção "Lições Aprendidas" revelável ao final
+  * Botão "Revelar Análise" que mostra a análise completa do caso
+- Design: Layout de "documento" profissional, seções bem separadas, destaque em dados importantes, accordion para revelar conteúdo
+- O caso deve ser relevante e aplicável ao tema do módulo
 
 PARA TODOS OS SLIDES:
 - imageKeywords: 2-3 palavras em INGLÊS descrevendo uma foto profissional relevante
@@ -1487,6 +1623,33 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 }]
             else:
                 # No HTML content generated, fallback to content slide
+                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
+        elif stype in ("infographic", "flashcard", "timeline", "case_study"):
+            bg = palette.get("contentBg", "#ffffff")
+            # These types use HTML+JS interactive content just like simulators
+            html_content = ""
+            for el in sb_slide.get("elements", []):
+                if el.get("type") == "html" and el.get("htmlContent"):
+                    html_content = el["htmlContent"]
+                    break
+            if not html_content:
+                for el in sb_slide.get("elements", []):
+                    content = el.get("content", "")
+                    if content and ("<!DOCTYPE" in content or "<html" in content or "<script" in content):
+                        html_content = content
+                        break
+            if html_content:
+                slide_elements = [{
+                    "id": generate_id(),
+                    "type": "html",
+                    "htmlContent": html_content,
+                    "x": 0,
+                    "y": 0,
+                    "width": 960,
+                    "height": 540,
+                    "zIndex": 1,
+                }]
+            else:
                 slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
         else:
             bg = palette["contentBg"]

@@ -22,6 +22,8 @@ import {
   Palette, Droplets, ImagePlus, UploadCloud,
   ChevronDown, ChevronUp, RefreshCw, Monitor, Rocket, BookMarked,
   PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
+  Gamepad2, FlipVertical, LayoutList, BriefcaseBusiness,
+  Swords, PieChart, Info,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 
@@ -203,6 +205,161 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               <label className="text-xs text-slate-400 mb-1 block">Módulos: {config.modules}</label>
               <Slider value={[config.modules]} onValueChange={([v]) => update('modules', v)} min={1} max={12} step={1} className="mt-2" />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Resource Balance Config */}
+        <Card className="bg-slate-900/50 border-slate-800" data-testid="resource-balance-card">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Gamepad2 className="w-4 h-4 text-violet-400" />
+              <label className="text-sm font-medium">Recursos Pedagogicos</label>
+            </div>
+            <p className="text-xs text-slate-400">Configure o nivel de interatividade e quais recursos o Agente IA deve usar ao criar o curso.</p>
+
+            {/* Interactivity Level */}
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 block">Nivel de Interatividade</label>
+              <div className="grid grid-cols-4 gap-2" data-testid="interactivity-level-grid">
+                {[
+                  { id: 'baixa', label: 'Baixa', desc: '~80% conteudo', color: 'slate' },
+                  { id: 'media', label: 'Media', desc: 'Balanceado', color: 'blue' },
+                  { id: 'alta', label: 'Alta', desc: 'Muito interativo', color: 'violet' },
+                  { id: 'maxima', label: 'Maxima', desc: 'Todos os recursos', color: 'amber' },
+                ].map(level => {
+                  const selected = config.resourceBalance === level.id;
+                  return (
+                    <button
+                      key={level.id}
+                      onClick={() => {
+                        update('resourceBalance', level.id);
+                        // Auto-enable resources based on level
+                        const presets = {
+                          baixa: { quiz: true, simulator: false, scenario: false, avatar_scene: false, infographic: false, flashcard: true, timeline: false, case_study: false },
+                          media: { quiz: true, simulator: true, scenario: true, avatar_scene: false, infographic: true, flashcard: true, timeline: true, case_study: true },
+                          alta: { quiz: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
+                          maxima: { quiz: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
+                        };
+                        update('enabledResources', presets[level.id]);
+                      }}
+                      className={`p-2.5 rounded-lg border text-center transition-all ${
+                        selected
+                          ? `border-${level.color}-500 bg-${level.color}-600/10 ring-1 ring-${level.color}-500/30`
+                          : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                      }`}
+                      data-testid={`interactivity-${level.id}`}
+                    >
+                      <p className={`text-xs font-semibold ${selected ? 'text-white' : 'text-slate-300'}`}>{level.label}</p>
+                      <p className="text-[10px] text-slate-500">{level.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Resource Toggles */}
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 block">Recursos Habilitados</label>
+              <div className="grid grid-cols-2 gap-2" data-testid="resource-toggles">
+                {[
+                  { id: 'quiz', label: 'Quizzes', icon: Target, desc: 'Perguntas de fixacao', color: 'text-emerald-400' },
+                  { id: 'simulator', label: 'Jogos Educativos', icon: Gamepad2, desc: 'Jogos e simuladores HTML', color: 'text-violet-400' },
+                  { id: 'scenario', label: 'Cenarios de Desafio', icon: Swords, desc: 'Arvore de decisoes', color: 'text-amber-400' },
+                  { id: 'infographic', label: 'Infograficos', icon: PieChart, desc: 'Dados visuais interativos', color: 'text-blue-400' },
+                  { id: 'flashcard', label: 'Flashcards', icon: FlipVertical, desc: 'Cartoes de revisao flip', color: 'text-cyan-400' },
+                  { id: 'timeline', label: 'Linhas do Tempo', icon: LayoutList, desc: 'Cronologia interativa', color: 'text-rose-400' },
+                  { id: 'case_study', label: 'Estudos de Caso', icon: BriefcaseBusiness, desc: 'Casos reais com analise', color: 'text-orange-400' },
+                  { id: 'avatar_scene', label: 'Cenas com Avatar', icon: UserCircle, desc: 'Avatar IA apresentando', color: 'text-pink-400' },
+                ].map(res => {
+                  const enabled = config.enabledResources?.[res.id] ?? false;
+                  const Icon = res.icon;
+                  return (
+                    <button
+                      key={res.id}
+                      onClick={() => {
+                        const updated = { ...config.enabledResources, [res.id]: !enabled };
+                        update('enabledResources', updated);
+                      }}
+                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
+                        enabled
+                          ? 'border-slate-600 bg-slate-800/80'
+                          : 'border-slate-800 bg-slate-900/50 opacity-50'
+                      }`}
+                      data-testid={`resource-toggle-${res.id}`}
+                    >
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${enabled ? 'bg-slate-700' : 'bg-slate-800'}`}>
+                        <Icon className={`w-3.5 h-3.5 ${enabled ? res.color : 'text-slate-600'}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-xs font-medium ${enabled ? 'text-slate-200' : 'text-slate-500'}`}>{res.label}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{res.desc}</p>
+                      </div>
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        enabled ? 'border-emerald-500 bg-emerald-600/20' : 'border-slate-700'
+                      }`}>
+                        {enabled && <Check className="w-2.5 h-2.5 text-emerald-400" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Distribution Preview */}
+            {(() => {
+              const res = config.enabledResources || {};
+              const enabledCount = Object.values(res).filter(Boolean).length;
+              const level = config.resourceBalance || 'media';
+              const distMap = {
+                baixa:  { content: 70, quiz: 15, flashcard: 10, other: 5 },
+                media:  { content: 45, quiz: 12, simulator: 13, scenario: 8, infographic: 7, flashcard: 5, timeline: 5, case_study: 5 },
+                alta:   { content: 30, quiz: 12, simulator: 15, scenario: 10, infographic: 8, flashcard: 7, timeline: 7, case_study: 6, avatar_scene: 5 },
+                maxima: { content: 20, quiz: 10, simulator: 16, scenario: 12, infographic: 10, flashcard: 8, timeline: 8, case_study: 8, avatar_scene: 8 },
+              };
+              const dist = distMap[level] || distMap.media;
+              const colorMap = {
+                content: '#64748b', quiz: '#10b981', simulator: '#8b5cf6', scenario: '#f59e0b',
+                infographic: '#3b82f6', flashcard: '#06b6d4', timeline: '#f43f5e',
+                case_study: '#f97316', avatar_scene: '#ec4899', other: '#475569',
+              };
+              const labelMap = {
+                content: 'Conteudo', quiz: 'Quiz', simulator: 'Jogos', scenario: 'Cenarios',
+                infographic: 'Infograficos', flashcard: 'Flashcards', timeline: 'Timeline',
+                case_study: 'Caso', avatar_scene: 'Avatar', other: 'Outros',
+              };
+              return (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-1">
+                    <Info className="w-3 h-3 text-slate-500" />
+                    <span className="text-[10px] text-slate-500">Distribuicao aproximada ({enabledCount} recursos ativos)</span>
+                  </div>
+                  <div className="h-3 rounded-full overflow-hidden flex bg-slate-800">
+                    {Object.entries(dist).map(([key, pct]) => {
+                      if (key !== 'content' && key !== 'other' && !res[key]) return null;
+                      return (
+                        <div
+                          key={key}
+                          style={{ width: `${pct}%`, backgroundColor: colorMap[key] || '#475569' }}
+                          className="h-full transition-all duration-300"
+                          title={`${labelMap[key] || key}: ~${pct}%`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {Object.entries(dist).map(([key, pct]) => {
+                      if (key !== 'content' && key !== 'other' && !res[key]) return null;
+                      return (
+                        <span key={key} className="flex items-center gap-1 text-[10px] text-slate-400">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: colorMap[key] }} />
+                          {labelMap[key]} ~{pct}%
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
