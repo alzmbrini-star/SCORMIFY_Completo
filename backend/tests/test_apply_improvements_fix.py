@@ -14,7 +14,7 @@ import os
 import json
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://approval-flow-110.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scormify-preview.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@scormify.com"
