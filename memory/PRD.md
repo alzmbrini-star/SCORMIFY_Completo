@@ -180,13 +180,12 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Testado: /analyze 193ms, /generate-structure 142ms, polling confirma resultados em <5s.
 
 - 2026-04-14: FEATURE - Leonardo AI Integration (Editor + Agent).
-  - Backend: 3 new endpoints - POST /api/leonardo/generate (starts image generation via Leonardo Phoenix 1.0), GET /api/leonardo/status/{id} (polls completion), POST /api/leonardo/save-to-project (downloads and saves to project assets).
+  - Backend: 3 new endpoints - POST /api/leonardo/generate (starts image generation via Leonardo Phoenix 1.0), GET /api/leonardo/status/{id} (polls completion), POST /api/leonardo/save-to-project (downloads and saves to project assets + auto-saves to AI Image Gallery).
   - Service: leonardo_ai.py with generate_image, poll_generation, generate_and_wait, download_image_to_disk.
   - Editor: Leonardo AI button in toolbar (Wand2 icon, violet gradient). Opens dialog with LeonardoPanel - prompt textarea, 6 style presets (Automatico, Cinematico, Ilustracao, Fotografia, Arte Digital, 3D), generate button, results grid with "Usar no Curso" button that adds image directly to current slide.
   - Agent: Leonardo AI as media type option in MediaConfigPanel. When creating a course, slides configured as "Leonardo AI" will use Leonardo API instead of Gemini for image generation. Custom prompt per slide supported.
-  - Backend ai_agent.py: generate_course_from_storyboard supports leonardo media type with parallel generation.
-  - Backend agent.py: apply-media-config supports leonardo type for editing existing projects.
-  - Tested 100% backend (12/12) + frontend (iteration_104).
+  - Gallery Integration: All Leonardo images are auto-saved to the AI Image Gallery (image_gallery collection) with "leonardo:" prefix in keywords. Works in Editor save-to-project, Agent course generation, and Agent apply-media-config flows.
+  - Tested 100% backend (12/12) + frontend (iteration_104). Gallery auto-save verified via curl (13->14 images).
 
 
 ## Upcoming Tasks (Prioritized)

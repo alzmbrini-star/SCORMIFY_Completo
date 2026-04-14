@@ -82,6 +82,7 @@ async def leonardo_save_to_project(request: Request, user: dict = Depends(requir
     body = await request.json()
     image_url = body.get("imageUrl")
     project_id = body.get("projectId")
+    prompt = body.get("prompt", "")
 
     if not image_url or not project_id:
         raise HTTPException(400, "imageUrl and projectId are required")
@@ -96,12 +97,25 @@ async def leonardo_save_to_project(request: Request, user: dict = Depends(requir
         raise HTTPException(500, "Falha ao baixar imagem do Leonardo")
 
     # Persist to MongoDB
-    mongo_url = os.environ.get("MONGO_URL", "")
-    db_name = os.environ.get("DB_NAME", "scormify")
     try:
         await store_asset_async(db, project_id, filename, dest_path)
     except Exception as e:
         logger.warning(f"Failed to persist Leonardo image to MongoDB: {e}")
 
     asset_url = f"/api/projects/{project_id}/assets/{filename}"
+
+    # Auto-save to AI Image Gallery
+    try:
+        from routes.gallery import auto_save_to_gallery
+        await auto_save_to_gallery(
+            image_url=asset_url,
+            keywords=f"leonardo: {prompt}" if prompt else "leonardo ai",
+            project_id=project_id,
+            project_name="",
+            user_id=user.get("user_id", ""),
+            company_id=user.get("companyId", ""),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to auto-save Leonardo image to gallery: {e}")
+
     return {"url": asset_url, "filename": filename, "projectId": project_id}

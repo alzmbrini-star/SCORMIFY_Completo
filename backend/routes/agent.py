@@ -1049,6 +1049,12 @@ async def apply_media_changes(session_id: str, data: dict):
                                     el["x"] = 60
                         changed = True
                         logger.info(f"Leonardo AI image generated for slide {i}: {img_url}")
+                        # Auto-save to gallery
+                        try:
+                            from routes.gallery import auto_save_to_gallery
+                            await auto_save_to_gallery(img_url, f"leonardo: {kw}", project_id, "", "", "")
+                        except Exception:
+                            pass
             except Exception as e:
                 logger.error(f"Failed to generate Leonardo image for slide {i}: {e}")
 

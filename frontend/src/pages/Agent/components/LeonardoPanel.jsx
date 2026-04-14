@@ -90,7 +90,7 @@ export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
       const res = await fetch(`${API}/api/leonardo/save-to-project`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ imageUrl, projectId }),
+        body: JSON.stringify({ imageUrl, projectId, prompt: prompt.trim() }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();

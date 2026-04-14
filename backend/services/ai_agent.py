@@ -1522,6 +1522,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                             ok = await download_image_to_disk(leo_urls[0], dest)
                             if ok:
                                 img_url = f"/api/projects/{project_id}/assets/{fname}"
+                                # Auto-save to gallery
+                                try:
+                                    import asyncio as _asyncio
+                                    _asyncio.ensure_future(_auto_save_gallery(img_url, f"leonardo: {keyword}", project_id))
+                                except Exception:
+                                    pass
                     else:
                         img_url = await _fetch_stock_image(keyword, project_dir, project_id)
                     completed_count += 1
