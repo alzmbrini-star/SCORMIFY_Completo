@@ -8,6 +8,7 @@ import uuid
 import asyncio
 import logging
 import base64
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -1465,7 +1466,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         if media_type == "ai_image":
             kw = sb_slide.get("imageKeywords", sb_slide.get("title", "education"))
             if project_dir and project_id:
-                ai_image_tasks.append((i, kw))
+                ai_image_tasks.append((i, kw, "gemini"))
         elif media_type == "gallery_image":
             gallery_url = mc.get("galleryImageUrl", "")
             if gallery_url:
@@ -1481,6 +1482,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "avatar_id": mc.get("avatar_id", ""),
                 "voice_id": mc.get("voice_id", ""),
             }
+        elif media_type == "leonardo":
+            kw = mc.get("leonardoPrompt") or sb_slide.get("imageKeywords", sb_slide.get("title", "education"))
+            if project_dir and project_id:
+                ai_image_tasks.append((i, kw, "leonardo"))
         elif media_type == "none":
             slide_media[i] = {"type": "none"}
 
@@ -1500,15 +1505,29 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         semaphore = asyncio.Semaphore(5)  # Max 5 concurrent image generations
         completed_count = 0
         
-        async def _generate_one_image(slide_idx, keyword):
+        async def _generate_one_image(slide_idx, keyword, source="gemini"):
             nonlocal completed_count
             async with semaphore:
                 try:
-                    img_url = await _fetch_stock_image(keyword, project_dir, project_id)
+                    if source == "leonardo":
+                        from services.leonardo_ai import generate_and_wait, download_image_to_disk
+                        import uuid as _uuid
+                        leo_urls = await generate_and_wait(prompt=keyword, width=1024, height=576, num_images=1)
+                        img_url = None
+                        if leo_urls:
+                            fname = f"leonardo_{_uuid.uuid4().hex[:10]}.png"
+                            assets_dir = Path(project_dir) / project_id / "assets"
+                            assets_dir.mkdir(parents=True, exist_ok=True)
+                            dest = str(assets_dir / fname)
+                            ok = await download_image_to_disk(leo_urls[0], dest)
+                            if ok:
+                                img_url = f"/api/projects/{project_id}/assets/{fname}"
+                    else:
+                        img_url = await _fetch_stock_image(keyword, project_dir, project_id)
                     completed_count += 1
                     if img_url:
                         slide_media[slide_idx] = {"type": "image", "url": img_url}
-                        logger.info(f"Image {completed_count}/{total_images} generated for slide {slide_idx}")
+                        logger.info(f"Image {completed_count}/{total_images} generated for slide {slide_idx} via {source}")
                     # Update progress
                     if _pdb:
                         try:
@@ -1526,7 +1545,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     logger.warning(f"Image generation failed for slide {slide_idx}: {str(e)[:80]}")
         
         # Run all image tasks concurrently (semaphore limits concurrency to 5)
-        await asyncio.gather(*[_generate_one_image(idx, kw) for idx, kw in ai_image_tasks])
+        await asyncio.gather(*[_generate_one_image(idx, kw, src) for idx, kw, src in ai_image_tasks])
 
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")

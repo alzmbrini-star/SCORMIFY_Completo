@@ -114,6 +114,7 @@ import {
   GitBranch,
   Trophy,
   Wrench,
+  Wand2,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -124,6 +125,7 @@ import RichTextEditor from '../components/RichTextEditor';
 import QuizGenerator from '../components/quiz/QuizGenerator';
 import ScenarioCreator from '../components/scenario/ScenarioCreator';
 import GamificationPanel from '../components/editor/GamificationPanel';
+import LeonardoPanel from './Agent/components/LeonardoPanel';
 
 // Extracted components and hooks
 import { getThumbAssetUrl, formatDuration, formatDateTime, formatTime, getStatusBadge } from './Editor/utils';
@@ -308,6 +310,7 @@ export default function Editor() {
   const [gallerySearch, setGallerySearch] = useState('');
   const [copiedElement, setCopiedElement] = useState(null);
   const [fixingSimulators, setFixingSimulators] = useState(false);
+  const [showLeonardoPanel, setShowLeonardoPanel] = useState(false);
 
   const fileInputRef = useRef(null);
   const API_URL = getApiUrl();
@@ -1340,6 +1343,21 @@ export default function Editor() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 hover:from-violet-500/20 hover:to-fuchsia-500/20"
+                    onClick={() => setShowLeonardoPanel(true)}
+                    data-testid="leonardo-ai-btn"
+                  >
+                    <Wand2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Leonardo AI (Gerar Imagens)</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 bg-gradient-to-r from-green-500/10 to-cyan-500/10 hover:from-green-500/20 hover:to-cyan-500/20"
                     onClick={() => setShowQuizDialog(true)}
                     data-testid="add-quiz-btn"
@@ -1347,7 +1365,7 @@ export default function Editor() {
                     <HelpCircle className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>📝 Adicionar Quiz</TooltipContent>
+                <TooltipContent>Adicionar Quiz</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -2021,6 +2039,36 @@ export default function Editor() {
             <GamificationPanel 
               projectId={currentProject?.id}
               onClose={() => setShowGamificationPanel(false)}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Leonardo AI Panel Dialog */}
+        <Dialog open={showLeonardoPanel} onOpenChange={setShowLeonardoPanel}>
+          <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 p-0">
+            <LeonardoPanel
+              projectId={currentProject?.id}
+              onClose={() => setShowLeonardoPanel(false)}
+              onImageSaved={(url) => {
+                if (!currentSlide) {
+                  toast.error('Selecione um slide primeiro');
+                  return;
+                }
+                const slideWidth = currentSlide?.width || 960;
+                const slideHeight = currentSlide?.height || 540;
+                addElement(currentSlide.id, {
+                  type: 'image',
+                  x: Math.round(slideWidth * 0.1),
+                  y: Math.round(slideHeight * 0.1),
+                  width: Math.round(slideWidth * 0.8),
+                  height: Math.round(slideHeight * 0.8),
+                  src: url,
+                  objectFit: 'contain',
+                  style: { borderRadius: '8px' },
+                });
+                setShowLeonardoPanel(false);
+                toast.success('Imagem Leonardo AI adicionada ao slide!');
+              }}
             />
           </DialogContent>
         </Dialog>

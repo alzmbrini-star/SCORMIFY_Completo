@@ -249,6 +249,7 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, i
 const MEDIA_TYPES = [
   { id: 'ai_image', label: 'Imagem IA', description: 'Fotorealista gerada por IA', icon: Image, color: 'emerald' },
   { id: 'gallery_image', label: 'Da Galeria', description: 'Reutilizar imagem existente', icon: ImagePlus, color: 'amber' },
+  { id: 'leonardo', label: 'Leonardo AI', description: 'Imagem premium com Leonardo', icon: Sparkles, color: 'violet' },
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
   { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
   { id: 'heygen', label: 'Avatar HeyGen', description: 'Vídeo com avatar IA', icon: UserCircle, color: 'purple' },
@@ -1332,6 +1333,23 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                       <button onClick={() => { setGallerySlideIndex(idx); setShowGallery(true); }} className="text-[11px] text-amber-400/70 hover:text-amber-300 flex items-center gap-1">
                         <ImagePlus className="w-3 h-3" /> Clique para selecionar da galeria
                       </button>
+                    )}
+
+                    {/* Leonardo AI info */}
+                    {mc.type === 'leonardo' && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] text-violet-400/60">
+                          <Sparkles className="w-3 h-3 inline mr-1" />
+                          Imagem sera gerada via Leonardo AI com alta qualidade
+                        </p>
+                        <Input
+                          value={mc.leonardoPrompt || ''}
+                          onChange={e => updateSlideMedia(idx, 'leonardo', mc.url || '', { leonardoPrompt: e.target.value })}
+                          placeholder="Descreva a imagem (opcional - usa keywords do slide por padrao)"
+                          className="h-7 text-[11px] bg-slate-800/60 border-violet-700/30"
+                          data-testid={`leonardo-prompt-${idx}`}
+                        />
+                      </div>
                     )}
 
                     {/* HeyGen info */}

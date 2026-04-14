@@ -5,7 +5,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Textarea } from '../../../components/ui/textarea';
 import { ImagePlus, Loader2, Download, Check, Sparkles, X, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '../../../App';
+import { authHeaders } from '../../../contexts/AuthContext';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -19,7 +19,6 @@ const STYLE_PRESETS = [
 ];
 
 export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
-  const { authHeaders } = useAuth();
   const [prompt, setPrompt] = useState('');
   const [style, setStyle] = useState(null);
   const [generating, setGenerating] = useState(false);

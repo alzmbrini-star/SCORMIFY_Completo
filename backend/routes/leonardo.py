@@ -6,7 +6,8 @@ import base64
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Depends
-from routes.deps import db, require_auth, PROJECTS_DIR, STORAGE_DIR
+from routes.deps import db, PROJECTS_DIR, STORAGE_DIR
+from routes.auth import require_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 LEONARDO_API_KEY = os.environ.get("LEONARDO_API_KEY", "")
 LEONARDO_BASE_URL = "https://cloud.leonardo.ai/api/rest/v1"
 
-# Phoenix model - high quality, fast
-DEFAULT_MODEL_ID = "de7d3faf-862f-4b82-83c4-ba5924675209"
+# Phoenix 1.0 model - high quality
+DEFAULT_MODEL_ID = "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3"
 
 
 def _headers():

@@ -1009,6 +1009,49 @@ async def apply_media_changes(session_id: str, data: dict):
                     el["x"] = 80
             changed = True
 
+        elif media_type == "leonardo":
+            # Generate image via Leonardo AI
+            leo_prompt = mc.get("leonardoPrompt", "")
+            sb_slide = storyboard_slides[i] if i < len(storyboard_slides) else {}
+            kw = leo_prompt or sb_slide.get("imageKeywords", slide.get("title", "education"))
+            try:
+                from services.leonardo_ai import generate_and_wait, download_image_to_disk
+                import uuid as _uuid
+                leo_urls = await generate_and_wait(prompt=kw, width=1024, height=576, num_images=1)
+                if leo_urls:
+                    fname = f"leonardo_{_uuid.uuid4().hex[:10]}.png"
+                    assets_dir = PROJECTS_DIR / project_id / "assets"
+                    assets_dir.mkdir(parents=True, exist_ok=True)
+                    dest = str(assets_dir / fname)
+                    ok = await download_image_to_disk(leo_urls[0], dest)
+                    if ok:
+                        img_url = f"/api/projects/{project_id}/assets/{fname}"
+                        img_found = False
+                        for el in slide.get("elements", []):
+                            if el.get("type") == "image":
+                                el["src"] = img_url
+                                el["content"] = img_url
+                                img_found = True
+                                break
+                        if not img_found:
+                            from models import generate_id
+                            slide.setdefault("elements", [])
+                            slide["elements"].append({
+                                "id": generate_id(), "type": "image",
+                                "x": 1160, "y": 90, "width": 700, "height": 440,
+                                "src": img_url, "content": img_url,
+                                "style": {"borderRadius": "12px"}, "startTime": 0,
+                                "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+                            })
+                            for el in slide.get("elements", []):
+                                if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                                    el["width"] = 1050
+                                    el["x"] = 60
+                        changed = True
+                        logger.info(f"Leonardo AI image generated for slide {i}: {img_url}")
+            except Exception as e:
+                logger.error(f"Failed to generate Leonardo image for slide {i}: {e}")
+
         # Apply narration config from media config
         narr = mc.get("narration", {})
         if narr.get("enabled") and narr.get("selectedScript") and narr.get("voiceId"):
