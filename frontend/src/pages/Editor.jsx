@@ -2046,6 +2046,9 @@ export default function Editor() {
         {/* Leonardo AI Panel Dialog */}
         <Dialog open={showLeonardoPanel} onOpenChange={setShowLeonardoPanel}>
           <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 p-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Leonardo AI</DialogTitle>
+            </DialogHeader>
             <LeonardoPanel
               projectId={currentProject?.id}
               onClose={() => setShowLeonardoPanel(false)}

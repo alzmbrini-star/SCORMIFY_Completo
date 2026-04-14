@@ -30,6 +30,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **Fix Simulators**: Tool to detect and fix static simulators
 - **Aprovador Role & Approval Queue**: New role `aprovador` for storyboard text review. Inline editing of slide titles, content, and narration scripts. Approval workflow: submit -> review/edit -> approve/reject -> resume generation. Integrated into Agent page as "Fila de Aprovacao". Company-targeted: approval requires selecting target company, only that company's aprovador can review.
 - **Tutor IA Dashboard**: Analytics dashboard showing most asked questions per course and per company. Super Admin sees all data, Company Admin sees only their company. Includes summary cards, company breakdown, course drill-down with top questions ranking and recent interactions.
+- **Leonardo AI Integration**: Premium image generation via Leonardo AI in Editor toolbar and Agent workflow. 6 style presets, direct slide insertion, and per-slide configuration in MediaConfigPanel.
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -41,6 +42,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - HeyGen - Avatar videos + voice TTS (user API key)
 - ElevenLabs - Audio narration for regular slides only (user API key)
 - ConvertAPI - PPT import (user API key)
+- Leonardo AI - Premium image generation (user API key: 59495cbf-a332-4a84-b6ab-a4d6f45a9ab2)
 
 ## Code Architecture
 ```
@@ -49,9 +51,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 │   ├── routes
 │   │   ├── agent.py            # AI agent endpoints, HeyGen/ElevenLabs orchestration
 │   │   ├── heygen.py           # Core HeyGen endpoints
+│   │   ├── leonardo.py         # Leonardo AI image generation endpoints
 │   │   ├── gamification.py     # Gamification + badge image upload
 │   ├── services
 │   │   ├── ai_agent.py         # AI prompting logic for storyboards
+│   │   ├── leonardo_ai.py      # Leonardo AI API service
 ├── frontend
 │   ├── src
 │   │   ├── pages
@@ -175,8 +179,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
     - Frontend atualizado com pollSessionStep() que checa a cada 3s ate max 3 minutos
   - Testado: /analyze 193ms, /generate-structure 142ms, polling confirma resultados em <5s.
 
+- 2026-04-14: FEATURE - Leonardo AI Integration (Editor + Agent).
+  - Backend: 3 new endpoints - POST /api/leonardo/generate (starts image generation via Leonardo Phoenix 1.0), GET /api/leonardo/status/{id} (polls completion), POST /api/leonardo/save-to-project (downloads and saves to project assets).
+  - Service: leonardo_ai.py with generate_image, poll_generation, generate_and_wait, download_image_to_disk.
+  - Editor: Leonardo AI button in toolbar (Wand2 icon, violet gradient). Opens dialog with LeonardoPanel - prompt textarea, 6 style presets (Automatico, Cinematico, Ilustracao, Fotografia, Arte Digital, 3D), generate button, results grid with "Usar no Curso" button that adds image directly to current slide.
+  - Agent: Leonardo AI as media type option in MediaConfigPanel. When creating a course, slides configured as "Leonardo AI" will use Leonardo API instead of Gemini for image generation. Custom prompt per slide supported.
+  - Backend ai_agent.py: generate_course_from_storyboard supports leonardo media type with parallel generation.
+  - Backend agent.py: apply-media-config supports leonardo type for editing existing projects.
+  - Tested 100% backend (12/12) + frontend (iteration_104).
+
+
 ## Upcoming Tasks (Prioritized)
-- P0: Email Notifications (Approval workflow + Tutor IA alerts)
+- P1: Email Notifications (Approval workflow + Tutor IA alerts)
 - P1: SCORM 2004 & xAPI Export
 - P1: Dashboard for analytics & scoring
 - P1: Course version history
