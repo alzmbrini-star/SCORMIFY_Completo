@@ -1954,6 +1954,7 @@ TIPOS DE MELHORIA DISPONÍVEIS:
 - "scenario": Adicionar cenário de decisão interativo (árvore de decisões com múltiplos caminhos e consequências). Cenários são excelentes para treinar tomada de decisão, liderança, atendimento ao cliente, ética.
 - "visual_summary": Adicionar quadro de resumo visual (infográfico, mapa mental, timeline, diagrama) para sintetizar informações densas de forma visual e memorável
 - "reinforcement": Adicionar reforço de aprendizagem (flashcards, destaque de conceito-chave, caixa "Sabia que?", dica prática, exemplo real, case study) para fixar o conteúdo sem poluir com mais texto
+- "imagem_premium": Gerar imagem profissional de alta qualidade via Leonardo AI para enriquecer visualmente o slide. Use quando o slide precisa de uma imagem impactante, fotorrealista ou artística que elevará a qualidade visual do curso
 
 PRINCÍPIOS PEDAGÓGICOS IMPORTANTES:
 - Slides com muito texto são INEFICAZES. Priorize sugestões que REDUZAM texto e AUMENTEM engajamento
@@ -1989,6 +1990,14 @@ REGRAS PARA REINFORCEMENT:
 - Tipos: flashcard, destaque de conceito, caixa "Sabia que?", dica prática, exemplo real, analogia, case study
 - Para cada sugestão, inclua "reinforcementType": tipo de reforço sugerido
 
+REGRAS PARA IMAGEM_PREMIUM (Leonardo AI):
+- Sugira quando um slide de conteúdo ficaria significativamente melhor com uma imagem profissional de alta qualidade
+- Exemplos: fotos fotorrealistas, ilustrações artísticas, cenas cinematográficas, arte digital
+- Para cada sugestão, inclua campos extras:
+  - "imagePrompt": Prompt DETALHADO em INGLÊS para gerar a imagem (ex: "Modern corporate meeting room with diverse team, glass walls, city skyline view, warm lighting, photorealistic")
+  - "imageStyle": Estilo sugerido: "CINEMATIC", "ILLUSTRATION", "PHOTOGRAPHY", "DIGITAL_ART", "RENDER_3D" ou null para automático
+- Sugira 1-3 imagens premium por curso, priorizando slides de capa, abertura de módulo ou conteúdo-chave
+
 Retorne JSON:
 ```json
 {{
@@ -1997,7 +2006,7 @@ Retorne JSON:
   "improvements": [
     {{
       "slideIndex": 0,
-      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement",
+      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_premium",
       "priority": "alta|media|baixa",
       "description": "descrição da melhoria",
       "suggestion": "sugestão concreta"
@@ -2037,6 +2046,15 @@ Retorne JSON:
       "description": "Adicionar reforço de conceito-chave",
       "suggestion": "Inserir caixa 'Sabia que?' com dado estatístico relevante",
       "reinforcementType": "caixa 'Sabia que?'"
+    }},
+    {{
+      "slideIndex": 0,
+      "type": "imagem_premium",
+      "priority": "media",
+      "description": "Adicionar imagem profissional de capa",
+      "suggestion": "Imagem cinematográfica de alta qualidade para o slide de abertura",
+      "imagePrompt": "Modern professional training environment with warm lighting, corporate aesthetic, photorealistic",
+      "imageStyle": "CINEMATIC"
     }}
   ],
   "missingElements": ["elemento faltante"],
@@ -2044,7 +2062,7 @@ Retorne JSON:
     {{
       "position": "after_slide_2",
       "title": "Título sugerido",
-      "type": "content|quiz|summary|avatar_scene|scenario|visual_summary|reinforcement",
+      "type": "content|quiz|summary|avatar_scene|scenario|visual_summary|reinforcement|imagem_premium",
       "reason": "motivo"
     }}
   ]
@@ -2076,6 +2094,7 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     has_scenarios = any(imp.get("type") == "scenario" for imp in selected_improvements)
     has_visual_summaries = any(imp.get("type") == "visual_summary" for imp in selected_improvements)
     has_reinforcements = any(imp.get("type") == "reinforcement" for imp in selected_improvements)
+    has_imagem_premium = any(imp.get("type") == "imagem_premium" for imp in selected_improvements)
     
     # Get current slide content for context
     slides_content = []
@@ -2166,6 +2185,19 @@ REGRA PARA REFORÇOS DE APRENDIZAGEM (type "reinforcement"):
 - JavaScript: Interatividade simples (virar card, revelar resposta, expandir detalhes)
 - Objetivo: FIXAR conceitos sem adicionar mais texto longo
 """
+
+    imagem_premium_instructions = ""
+    if has_imagem_premium:
+        imagem_premium_instructions = """
+REGRA PARA IMAGEM PREMIUM (type "imagem_premium"):
+- Para melhorias do tipo "imagem_premium", inclua o campo "_leonardoImage" no updatedSlide:
+  - "_leonardoImage": {{"prompt": "prompt detalhado em inglês para Leonardo AI", "style": "CINEMATIC" ou "PHOTOGRAPHY" ou "ILLUSTRATION" ou "DIGITAL_ART" ou "RENDER_3D" ou null}}
+- O prompt deve ser detalhado e descritivo (em inglês), adequado ao tema do slide
+- A imagem será gerada automaticamente via Leonardo AI e inserida como elemento do slide
+- Ao atualizar o slide, reorganize os elementos existentes para acomodar a imagem (layout duas colunas: texto à esquerda, imagem à direita)
+- Exemplo de updatedSlide com imagem premium:
+  {{"slideIndex":0,"title":"Título","elements":[{{"type":"text","content":"<h2>Título</h2><p>Conteúdo</p>","width":1050,"height":700,"x":60,"y":60}}],"_leonardoImage":{{"prompt":"Modern corporate training room with digital screens and professionals","style":"CINEMATIC"}}}}
+"""
     
     prompt = f"""Aplique as seguintes melhorias ao curso. Gere o conteúdo atualizado para cada slide afetado.
 
@@ -2200,6 +2232,7 @@ REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculador
 {scenario_instructions}
 {visual_summary_instructions}
 {reinforcement_instructions}
+{imagem_premium_instructions}
 Retorne JSON com os slides a atualizar:
 ```json
 {{

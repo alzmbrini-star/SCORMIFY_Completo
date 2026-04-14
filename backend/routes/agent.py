@@ -2671,6 +2671,79 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         await update_project(project_id, {"course": course})
         logger.info(f"Applied {scenarios_generated} scenarios to project {project_id}")
 
+    # Post-process: Generate Leonardo AI images for slides with _leonardoImage
+    leonardo_images_generated = 0
+    leonardo_tasks = []
+    for upd in result.get("updatedSlides", []):
+        leo_img = upd.get("_leonardoImage")
+        if leo_img and isinstance(leo_img, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                leonardo_tasks.append((idx, leo_img))
+    for ns in result.get("newSlides", []):
+        leo_img = ns.get("_leonardoImage")
+        if leo_img and isinstance(leo_img, dict):
+            ns_title = ns.get("title", "")
+            for si, s in enumerate(slides):
+                if s.get("title") == ns_title:
+                    leonardo_tasks.append((si, leo_img))
+                    break
+
+    if leonardo_tasks:
+        from services.leonardo_ai import generate_and_wait, download_image_to_disk
+        import uuid as _leo_uuid
+        for slide_idx, leo_cfg in leonardo_tasks:
+            try:
+                leo_prompt = leo_cfg.get("prompt", "professional corporate training")
+                leo_style = leo_cfg.get("style")
+                leo_urls = await generate_and_wait(prompt=leo_prompt, width=1024, height=576, num_images=1, style=leo_style)
+                if leo_urls:
+                    fname = f"leonardo_{_leo_uuid.uuid4().hex[:10]}.png"
+                    assets_dir = PROJECTS_DIR / project_id / "assets"
+                    assets_dir.mkdir(parents=True, exist_ok=True)
+                    dest = str(assets_dir / fname)
+                    ok = await download_image_to_disk(leo_urls[0], dest)
+                    if ok:
+                        img_url = f"/api/projects/{project_id}/assets/{fname}"
+                        slide = slides[slide_idx]
+                        # Add image element to slide
+                        img_found = False
+                        for el in slide.get("elements", []):
+                            if el.get("type") == "image":
+                                el["src"] = img_url
+                                el["content"] = img_url
+                                img_found = True
+                                break
+                        if not img_found:
+                            slide.setdefault("elements", [])
+                            slide["elements"].append({
+                                "id": generate_id(), "type": "image",
+                                "x": 1160, "y": 90, "width": 700, "height": 440,
+                                "src": img_url, "content": img_url,
+                                "style": {"borderRadius": "12px"}, "startTime": 0,
+                                "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+                            })
+                            # Resize text to two-column layout
+                            for el in slide.get("elements", []):
+                                if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                                    el["width"] = 1050
+                                    el["x"] = 60
+                        leonardo_images_generated += 1
+                        logger.info(f"Leonardo premium image generated for improvement slide {slide_idx}: {img_url}")
+                        # Auto-save to gallery
+                        try:
+                            from routes.gallery import auto_save_to_gallery
+                            await auto_save_to_gallery(img_url, f"leonardo: {leo_prompt}", project_id, "", "", "")
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.error(f"Leonardo image generation failed for improvement slide {slide_idx}: {e}")
+
+    if leonardo_images_generated > 0:
+        course["slides"] = slides
+        await update_project(project_id, {"course": course})
+        logger.info(f"Applied {leonardo_images_generated} Leonardo premium images to project {project_id}")
+
     # Detect avatar scenes and trigger background generation
     avatar_scene_pending = []
     for ns in result.get("newSlides", []):
@@ -2751,6 +2824,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         "totalSlides": len(slides),
         "canUndo": True,
         "scenariosGenerated": scenarios_generated,
+        "leonardoImagesGenerated": leonardo_images_generated,
         "avatarScenesTriggered": len(avatar_scene_pending),
         "avatarGenerationStarted": avatar_generation_started,
     }

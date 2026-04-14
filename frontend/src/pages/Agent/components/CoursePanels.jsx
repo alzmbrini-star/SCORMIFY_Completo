@@ -466,8 +466,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
 
   if (!course) return null;
   const priorityColors = { alta: 'text-red-400 border-red-800/40', media: 'text-amber-400 border-amber-800/40', baixa: 'text-blue-400 border-blue-800/40' };
-  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço' };
-  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb };
+  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_premium: 'Imagem Premium' };
+  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_premium: ImagePlus };
 
   return (
     <div className="space-y-4" data-testid="course-review-panel">
@@ -719,6 +719,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                                 effectiveType === 'visual_summary' ? 'border-amber-600/50 text-amber-300 bg-amber-500/10' :
                                 effectiveType === 'reinforcement' ? 'border-rose-600/50 text-rose-300 bg-rose-500/10' :
                                 effectiveType === 'simulator' ? 'border-emerald-600/50 text-emerald-300 bg-emerald-500/10' :
+                                effectiveType === 'imagem_premium' ? 'border-fuchsia-600/50 text-fuchsia-300 bg-fuchsia-500/10' :
                                 'border-slate-600'
                               }`}>
                                 <TypeIcon className="w-2.5 h-2.5 mr-1" />
@@ -747,6 +748,13 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             {imp.reinforcementType && (
                               <Badge className="text-[9px] bg-rose-900/30 text-rose-300 border-rose-700/30 mt-1.5">{imp.reinforcementType}</Badge>
                             )}
+                            {imp.imagePrompt && (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                <Badge className="text-[9px] bg-fuchsia-900/30 text-fuchsia-300 border-fuchsia-700/30">Leonardo AI</Badge>
+                                {imp.imageStyle && <Badge className="text-[9px] bg-slate-800 text-slate-300">{imp.imageStyle}</Badge>}
+                                <p className="text-[10px] text-fuchsia-400/60 w-full mt-1 italic">{imp.imagePrompt}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -766,7 +774,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             )}
                             {wasConverted && (
                               <div className="text-xs text-amber-300/80 bg-amber-950/20 rounded-md p-2 border border-amber-800/20">
-                                A IA vai gerar {effectiveType === 'content' ? 'conteúdo textual rico' : effectiveType === 'simulator' ? 'um simulador interativo' : effectiveType === 'game' ? 'um jogo educativo' : effectiveType === 'quiz' ? 'um quiz' : effectiveType === 'scenario' ? 'um cenário interativo de decisão' : effectiveType === 'visual_summary' ? 'um quadro de resumo visual' : effectiveType === 'reinforcement' ? 'um reforço de aprendizagem' : 'este conteúdo'} ao invés de uma cena com avatar.
+                                A IA vai gerar {effectiveType === 'content' ? 'conteúdo textual rico' : effectiveType === 'simulator' ? 'um simulador interativo' : effectiveType === 'game' ? 'um jogo educativo' : effectiveType === 'quiz' ? 'um quiz' : effectiveType === 'scenario' ? 'um cenário interativo de decisão' : effectiveType === 'visual_summary' ? 'um quadro de resumo visual' : effectiveType === 'reinforcement' ? 'um reforço de aprendizagem' : effectiveType === 'imagem_premium' ? 'uma imagem premium via Leonardo AI' : 'este conteúdo'} ao invés de uma cena com avatar.
                               </div>
                             )}
                             <SlideTypeSwitcher
@@ -834,6 +842,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                           ns.type === 'visual_summary' ? 'border-amber-600/50 text-amber-300 bg-amber-500/10' :
                           ns.type === 'reinforcement' ? 'border-rose-600/50 text-rose-300 bg-rose-500/10' :
                           ns.type === 'avatar_scene' ? 'border-violet-600/50 text-violet-300 bg-violet-500/10' :
+                          ns.type === 'imagem_premium' ? 'border-fuchsia-600/50 text-fuchsia-300 bg-fuchsia-500/10' :
                           'border-slate-600'
                         }`}>{typeLabels[ns.type] || ns.type}</Badge>
                         {ns.position && (
