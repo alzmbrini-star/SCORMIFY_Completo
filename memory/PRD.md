@@ -187,6 +187,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Gallery Integration: All Leonardo images are auto-saved to the AI Image Gallery (image_gallery collection) with "leonardo:" prefix in keywords. Works in Editor save-to-project, Agent course generation, and Agent apply-media-config flows.
   - Tested 100% backend (12/12) + frontend (iteration_104). Gallery auto-save verified via curl (13->14 images).
 
+- 2026-04-14: FEATURE - Leonardo AI nas Melhorias do Agent IA.
+  - Novo tipo de melhoria "imagem_premium": a IA sugere imagens profissionais Leonardo AI para slides que precisam de impacto visual (capa, abertura de modulo, conteudo-chave).
+  - Cada sugestao inclui imagePrompt (ingles, detalhado) e imageStyle (CINEMATIC, PHOTOGRAPHY, etc.).
+  - Ao aplicar melhorias, slides com _leonardoImage sao processados automaticamente: gera imagem via Leonardo, salva no projeto, insere como elemento, redimensiona layout para duas colunas.
+  - Imagens geradas sao auto-salvas na Galeria de Imagens IA.
+  - Frontend: badge fuchsia "Imagem Premium" com icone ImagePlus, exibe prompt e estilo sugerido.
+  - Type Switcher atualizado com opcao "Imagem Premium (Leonardo)".
+  - Testado 100% backend (7/7) + frontend (iteration_105).
+
 
 ## Upcoming Tasks (Prioritized)
 - P1: Email Notifications (Approval workflow + Tutor IA alerts)
