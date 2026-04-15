@@ -194,9 +194,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Imagens geradas sao auto-salvas na Galeria de Imagens IA.
   - Frontend: badge fuchsia "Imagem Premium" com icone ImagePlus, exibe prompt e estilo sugerido.
   - Type Switcher atualizado com opcao "Imagem Premium (Leonardo)".
+- 2026-04-15: FEATURE - Custos Leonardo AI no Relatorio de Uso.
   - Testado 100% backend (7/7) + frontend (iteration_105).
 
-- 2026-04-15: FEATURE - Custos Leonardo AI no Relatorio de Uso.
+- 2026-04-15: FIX (P0) - PPT Upload quebrado apos deploy em producao.
+  - Causa raiz: O estado do upload chunked (jobs dict) era armazenado APENAS em memoria. Quando o servidor reinicia (deploy), o estado e perdido e o chunk endpoint retorna 404.
+  - Fix Backend: Upload metadata agora persistido em MongoDB (collection ppt_uploads). Endpoints /chunk e /complete recuperam estado do MongoDB se nao encontrado em memoria. Timeouts aumentados para Atlas.
+  - Fix Frontend: Upload chunked agora tem retry automatico (ate 2x). Se chunk falha com 404/410, reinicia o upload do zero. Mensagem de erro clara ao usuario.
+  - Tambem melhorado: Avatar BG persistence com retry + timeouts maiores para Atlas.
+  - Testado: Upload init → restart servidor → chunk aceito com sucesso (recuperado do MongoDB).
   - Cost Estimate: POST /api/agent/sessions/{id}/cost-estimate agora retorna leonardoImages, costs.leonardo ($0.036/imagem), models.leonardo.
   - Usage Logs: usage_logs inclui leonardoImages nos detalhes e leonardoGeneration no estimatedCost.
   - Admin Reports: GET /api/admin/reports retorna totalLeonardoImages por empresa.

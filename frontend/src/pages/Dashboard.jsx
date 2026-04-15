@@ -154,8 +154,16 @@ export default function Dashboard() {
       setUploadProgress(30);
       setProcessingStatus('Processing PowerPoint...');
     } catch (err) {
+      const status = err.response?.status;
       const detail = err.response?.data?.detail || err.message || 'Erro desconhecido';
-      toast.error(`Falha no upload: ${detail}`);
+      if (status === 410 || status === 404) {
+        toast.error('O servidor reiniciou durante o upload. Por favor, tente importar novamente.');
+      } else {
+        toast.error(`Falha no upload: ${detail}`);
+      }
+      setUploadProgress(0);
+      setProcessingStatus('');
+      setProcessingJobId(null);
       setShowUploadDialog(false);
     }
   };

@@ -361,14 +361,24 @@ async def init_chunked_upload(
     upload_path = UPLOADS_DIR / f"chunk_{upload_id}"
     upload_path.mkdir(parents=True, exist_ok=True)
     
-    # Store upload metadata
-    jobs[f"upload_{upload_id}"] = {
+    upload_meta = {
         'filename': filename,
         'totalSize': total_size,
         'receivedSize': 0,
         'chunkCount': 0,
         'path': str(upload_path),
     }
+    
+    # Store in memory AND MongoDB (survives restarts/deploys)
+    jobs[f"upload_{upload_id}"] = upload_meta
+    try:
+        await db.ppt_uploads.update_one(
+            {"uploadId": upload_id},
+            {"$set": {"uploadId": upload_id, **upload_meta, "createdAt": now_utc().isoformat()}},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to persist upload meta to MongoDB (non-fatal): {e}")
     
     logger.info(f"Chunked upload initialized: {upload_id}, file={filename}, size={total_size}")
     return {"uploadId": upload_id}
@@ -383,8 +393,29 @@ async def upload_chunk(
     """Upload a single chunk of a PPT file"""
     meta_key = f"upload_{upload_id}"
     meta = jobs.get(meta_key)
+    
+    # If not in memory, try to recover from MongoDB (after deploy/restart)
     if not meta:
-        raise HTTPException(status_code=404, detail="Upload nao encontrado. Inicie um novo upload.")
+        try:
+            mongo_meta = await db.ppt_uploads.find_one({"uploadId": upload_id}, {"_id": 0})
+            if mongo_meta:
+                # Recreate upload directory
+                upload_path = Path(mongo_meta.get('path', str(UPLOADS_DIR / f"chunk_{upload_id}")))
+                upload_path.mkdir(parents=True, exist_ok=True)
+                meta = {
+                    'filename': mongo_meta.get('filename', 'upload.pptx'),
+                    'totalSize': mongo_meta.get('totalSize', 0),
+                    'receivedSize': mongo_meta.get('receivedSize', 0),
+                    'chunkCount': mongo_meta.get('chunkCount', 0),
+                    'path': str(upload_path),
+                }
+                jobs[meta_key] = meta
+                logger.info(f"Recovered upload state from MongoDB: {upload_id}")
+        except Exception as e:
+            logger.warning(f"Failed to recover upload state from MongoDB: {e}")
+    
+    if not meta:
+        raise HTTPException(status_code=410, detail="Upload expirado ou servidor reiniciou. Por favor, tente importar o arquivo novamente.")
     
     content = await chunk.read()
     chunk_path = Path(meta['path']) / f"chunk_{chunk_index:04d}"
@@ -406,8 +437,25 @@ async def complete_chunked_upload(
     """Complete a chunked upload and start processing"""
     meta_key = f"upload_{upload_id}"
     meta = jobs.get(meta_key)
+    
+    # Try to recover from MongoDB if not in memory
     if not meta:
-        raise HTTPException(status_code=404, detail="Upload nao encontrado.")
+        try:
+            mongo_meta = await db.ppt_uploads.find_one({"uploadId": upload_id}, {"_id": 0})
+            if mongo_meta:
+                meta = {
+                    'filename': mongo_meta.get('filename', 'upload.pptx'),
+                    'totalSize': mongo_meta.get('totalSize', 0),
+                    'receivedSize': mongo_meta.get('receivedSize', 0),
+                    'chunkCount': mongo_meta.get('chunkCount', 0),
+                    'path': mongo_meta.get('path', str(UPLOADS_DIR / f"chunk_{upload_id}")),
+                }
+                jobs[meta_key] = meta
+        except Exception:
+            pass
+    
+    if not meta:
+        raise HTTPException(status_code=410, detail="Upload expirado. Por favor, tente importar novamente.")
     
     filename = meta['filename']
     chunk_dir = Path(meta['path'])
@@ -426,10 +474,14 @@ async def complete_chunked_upload(
                 data = await inp.read()
                 await out.write(data)
     
-    # Cleanup chunk dir
+    # Cleanup chunk dir and upload metadata
     import shutil
     shutil.rmtree(str(chunk_dir), ignore_errors=True)
     del jobs[meta_key]
+    try:
+        await db.ppt_uploads.delete_one({"uploadId": upload_id})
+    except Exception:
+        pass
     
     # Create project
     project = Project(name=project_name)

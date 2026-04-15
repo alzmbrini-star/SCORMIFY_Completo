@@ -126,31 +126,44 @@ export const ProjectProvider = ({ children }) => {
         return response.data;
       }
       
-      // For large files, use chunked upload
-      // Step 1: Init
-      const initRes = await axios.post(`${API_URL}/ppt/upload/init`, {
-        filename: file.name,
-        totalSize: file.size,
-      });
-      const uploadId = initRes.data.uploadId;
-      
-      // Step 2: Upload chunks
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
+      // For large files, use chunked upload with retry
+      const doChunkedUpload = async (retryCount = 0) => {
+        // Step 1: Init
+        const initRes = await axios.post(`${API_URL}/ppt/upload/init`, {
+          filename: file.name,
+          totalSize: file.size,
+        });
+        const uploadId = initRes.data.uploadId;
         
-        const chunkForm = new FormData();
-        chunkForm.append('chunk', chunk, `chunk_${i}`);
-        await axios.post(`${API_URL}/ppt/upload/chunk/${uploadId}?chunk_index=${i}`, chunkForm);
-      }
+        // Step 2: Upload chunks
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          
+          const chunkForm = new FormData();
+          chunkForm.append('chunk', chunk, `chunk_${i}`);
+          try {
+            await axios.post(`${API_URL}/ppt/upload/chunk/${uploadId}?chunk_index=${i}`, chunkForm);
+          } catch (chunkErr) {
+            const status = chunkErr.response?.status;
+            if ((status === 404 || status === 410) && retryCount < 2) {
+              console.warn(`Chunk upload failed (${status}), retrying upload from scratch (attempt ${retryCount + 1})`);
+              return doChunkedUpload(retryCount + 1);
+            }
+            throw chunkErr;
+          }
+        }
+        
+        // Step 3: Complete
+        const completeRes = await axios.post(`${API_URL}/ppt/upload/complete/${uploadId}`, null, {
+          params: { project_name: projectName || undefined },
+        });
+        return completeRes.data;
+      };
       
-      // Step 3: Complete
-      const completeRes = await axios.post(`${API_URL}/ppt/upload/complete/${uploadId}`, null, {
-        params: { project_name: projectName || undefined },
-      });
-      return completeRes.data;
+      return await doChunkedUpload();
     } catch (err) {
       setError(err.message);
       throw err;
