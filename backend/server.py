@@ -300,16 +300,16 @@ async def startup_asset_sync():
             import time
 
             _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-            _sel_timeout = 60000 if _is_atlas else 10000
-            _conn_timeout = 60000 if _is_atlas else 10000
-            _sock_timeout = 120000 if _is_atlas else 30000
+            _sel_timeout = 120000 if _is_atlas else 10000
+            _conn_timeout = 120000 if _is_atlas else 10000
+            _sock_timeout = 300000 if _is_atlas else 30000
 
             _client = MongoClient(
                 mongo_url,
                 serverSelectionTimeoutMS=_sel_timeout,
                 connectTimeoutMS=_conn_timeout,
                 socketTimeoutMS=_sock_timeout,
-                maxPoolSize=5,
+                maxPoolSize=10,
                 retryWrites=True,
                 retryReads=True,
             )
@@ -342,6 +342,7 @@ async def startup_asset_sync():
 
                 if missing:
                     logger.info(f"Asset sync: {len(missing)} files missing locally, restoring from MongoDB...")
+                    failed_assets = []
                     for pid, fname, fp in missing:
                         try:
                             doc = _db.project_assets.find_one(
@@ -354,7 +355,26 @@ async def startup_asset_sync():
                                     f.write(base64.b64decode(doc["data"]))
                                 total_restored += 1
                         except Exception as e:
+                            failed_assets.append((pid, fname, fp))
                             logger.warning(f"Asset restore failed for {pid}/{fname}: {e}")
+
+                    # Retry failed assets once with a small delay
+                    if failed_assets:
+                        logger.info(f"Asset sync: retrying {len(failed_assets)} failed assets...")
+                        time.sleep(3)
+                        for pid, fname, fp in failed_assets:
+                            try:
+                                doc = _db.project_assets.find_one(
+                                    {"project_id": pid, "filename": fname},
+                                    {"_id": 0, "data": 1}
+                                )
+                                if doc and doc.get("data"):
+                                    fp.parent.mkdir(parents=True, exist_ok=True)
+                                    with open(fp, "wb") as f:
+                                        f.write(base64.b64decode(doc["data"]))
+                                    total_restored += 1
+                            except Exception as e:
+                                logger.warning(f"Asset restore retry failed for {pid}/{fname}: {e}")
                 else:
                     logger.info("Asset sync: all project assets already on disk")
             except Exception as e:
