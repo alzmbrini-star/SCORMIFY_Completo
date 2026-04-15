@@ -90,10 +90,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     let interval;
+    let errorCount = 0;
+    const MAX_ERRORS = 15; // tolerate ~15s of downtime (polling every 1s)
     if (processingJobId) {
       interval = setInterval(async () => {
         try {
           const status = await checkJobStatus(processingJobId);
+          errorCount = 0; // reset on success
           setProcessingStatus(status.message);
           setUploadProgress(status.progress);
 
@@ -112,9 +115,18 @@ export default function Dashboard() {
             toast.error(`Import failed: ${status.message}`);
           }
         } catch (err) {
-          clearInterval(interval);
-          setProcessingJobId(null);
-          toast.error('Error checking job status');
+          errorCount++;
+          const httpStatus = err.response?.status;
+          if (httpStatus === 502 || httpStatus === 503 || httpStatus === 504) {
+            setProcessingStatus('Servidor reiniciando, aguarde...');
+          }
+          if (errorCount >= MAX_ERRORS) {
+            clearInterval(interval);
+            setProcessingJobId(null);
+            setUploadProgress(0);
+            setProcessingStatus('');
+            toast.error('Servidor indisponivel. Recarregue a pagina e tente novamente.');
+          }
         }
       }, 1000);
     }
