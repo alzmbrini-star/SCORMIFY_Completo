@@ -196,6 +196,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Type Switcher atualizado com opcao "Imagem Premium (Leonardo)".
   - Testado 100% backend (7/7) + frontend (iteration_105).
 
+- 2026-04-15: FEATURE - Custos Leonardo AI no Relatorio de Uso.
+  - Cost Estimate: POST /api/agent/sessions/{id}/cost-estimate agora retorna leonardoImages, costs.leonardo ($0.036/imagem), models.leonardo.
+  - Usage Logs: usage_logs inclui leonardoImages nos detalhes e leonardoGeneration no estimatedCost.
+  - Admin Reports: GET /api/admin/reports retorna totalLeonardoImages por empresa.
+  - Frontend CostEstimateCard: badge fuchsia "Leonardo AI", grid dinamica (3 ou 4 colunas), coluna de custo Leonardo com estilo fuchsia, rodape inclui "+ Leonardo AI".
+  - Frontend Admin: card Leonardo AI com icone Sparkles no relatorio de uso quando totalLeonardoImages > 0.
+  - Testado 100% backend (5/5) + frontend (iteration_106).
+
 
 ## Upcoming Tasks (Prioritized)
 - P1: Email Notifications (Approval workflow + Tutor IA alerts)
