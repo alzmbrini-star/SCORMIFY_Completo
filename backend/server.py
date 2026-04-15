@@ -318,12 +318,20 @@ async def startup_asset_sync():
             # ── PHASE 1: RESTORE (MongoDB -> disk) ──
             # Only fetch filenames first, then load data individually for missing files
             total_restored = 0
+            all_assets_index = []  # Must be defined before try block (used by PERSIST phase)
             try:
                 # Get lightweight index: project_id + filename (no data!)
-                all_assets_index = list(_db.project_assets.find(
+                # Use batch_size to avoid Atlas cursor timeout on large collections
+                cursor = _db.project_assets.find(
                     {},
-                    {"_id": 0, "project_id": 1, "filename": 1}
-                ))
+                    {"_id": 0, "project_id": 1, "filename": 1},
+                    no_cursor_timeout=True,
+                    batch_size=500,
+                )
+                try:
+                    all_assets_index = list(cursor)
+                finally:
+                    cursor.close()
                 logger.info(f"Asset sync: found {len(all_assets_index)} assets in MongoDB index")
 
                 # Group by project and check which files are missing locally
