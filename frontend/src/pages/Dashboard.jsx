@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
 } from '../components/ui/dialog';
@@ -329,6 +330,7 @@ export default function Dashboard() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Create New Project</DialogTitle>
+                  <DialogDescription>Crie um novo projeto em branco para comecar a editar.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   <Input
@@ -373,6 +375,7 @@ export default function Dashboard() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Import PowerPoint</DialogTitle>
+                  <DialogDescription>Importe um arquivo .ppt ou .pptx para converter em curso.</DialogDescription>
                 </DialogHeader>
                 <div className="py-6">
                   {processingJobId ? (
@@ -416,6 +419,7 @@ export default function Dashboard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Renomear Projeto</DialogTitle>
+              <DialogDescription>Insira o novo nome para o projeto.</DialogDescription>
             </DialogHeader>
             <div className="py-4">
               <Input
