@@ -6,6 +6,7 @@ import os
 import subprocess
 import shutil
 import logging
+import base64
 from pathlib import Path
 from typing import List, Tuple, Optional
 import uuid
@@ -330,14 +331,41 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
     # Persist slide images in MongoDB for production environments with ephemeral storage
     if slide_images:
         try:
-            from services.asset_store import store_asset_sync
-            mongo_url = os.environ.get('MONGO_URL')
-            db_name = os.environ.get('DB_NAME')
+            from services.asset_store import _get_content_type
+            mongo_url = os.environ.get('MONGO_URL', '')
+            db_name = os.environ.get('DB_NAME', '')
             if mongo_url and db_name:
+                from pymongo import MongoClient as _PersistClient
+                _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+                _pclient = _PersistClient(
+                    mongo_url,
+                    serverSelectionTimeoutMS=60000 if _is_atlas else 10000,
+                    connectTimeoutMS=60000 if _is_atlas else 10000,
+                    socketTimeoutMS=120000 if _is_atlas else 30000,
+                    retryWrites=True,
+                )
+                _pdb = _pclient[db_name]
+                persisted = 0
                 for img_path in slide_images:
-                    img_filename = Path(img_path).name
-                    store_asset_sync(mongo_url, db_name, project_id, img_filename, img_path)
-                logger.info(f"Persisted {len(slide_images)} slide images in MongoDB")
+                    try:
+                        img_filename = Path(img_path).name
+                        with open(img_path, 'rb') as f:
+                            data_b64 = base64.b64encode(f.read()).decode('ascii')
+                        _pdb.project_assets.update_one(
+                            {"project_id": project_id, "filename": img_filename},
+                            {"$set": {
+                                "project_id": project_id,
+                                "filename": img_filename,
+                                "data": data_b64,
+                                "content_type": _get_content_type(img_filename),
+                            }},
+                            upsert=True,
+                        )
+                        persisted += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to persist slide image {img_path}: {e}")
+                _pclient.close()
+                logger.info(f"Persisted {persisted}/{len(slide_images)} slide images in MongoDB (single connection)")
         except Exception as e:
             logger.warning(f"Failed to persist slide images in MongoDB (non-fatal): {e}")
     

@@ -2995,7 +2995,14 @@ async def _apply_heygen_video_to_slide(project_id: str, slide_id: str, video_url
 async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
     """Background task: generate background images and HeyGen avatar videos (with native TTS) for avatar scenes."""
     from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
-    _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000)
+    _mongo_url = os.environ.get("MONGO_URL", "")
+    _is_atlas = "mongodb.net" in _mongo_url or "mongodb+srv" in _mongo_url
+    _client = _MotorClient(
+        _mongo_url,
+        serverSelectionTimeoutMS=60000 if _is_atlas else 30000,
+        connectTimeoutMS=60000 if _is_atlas else 30000,
+        socketTimeoutMS=120000 if _is_atlas else 60000,
+    )
     _db = _client[os.environ.get("DB_NAME")]
 
     for scene in scenes:
@@ -3027,12 +3034,21 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                             f.write(img_bytes)
                         bg_url = f"/api/projects/{project_id}/assets/{fname}"
 
-                        # Persist in MongoDB synchronously
+                        # Persist in MongoDB with retry
                         try:
                             from services.asset_store import store_asset_async
                             await store_asset_async(_db, project_id, fname, fpath)
+                            logger.info(f"Avatar BG persisted to MongoDB: {project_id}/{fname}")
                         except Exception as persist_err:
-                            logger.warning(f"Failed to persist avatar BG in MongoDB: {persist_err}")
+                            logger.error(f"Failed to persist avatar BG in MongoDB (attempt 1): {persist_err}")
+                            # Retry once
+                            try:
+                                import asyncio as _aio
+                                await _aio.sleep(2)
+                                await store_asset_async(_db, project_id, fname, fpath)
+                                logger.info(f"Avatar BG persisted to MongoDB on retry: {project_id}/{fname}")
+                            except Exception as retry_err:
+                                logger.error(f"Failed to persist avatar BG in MongoDB (attempt 2): {retry_err}")
 
                         # Apply background to slide
                         await _db.projects.update_one(
