@@ -203,6 +203,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Frontend CostEstimateCard: badge fuchsia "Leonardo AI", grid dinamica (3 ou 4 colunas), coluna de custo Leonardo com estilo fuchsia, rodape inclui "+ Leonardo AI".
   - Frontend Admin: card Leonardo AI com icone Sparkles no relatorio de uso quando totalLeonardoImages > 0.
   - Testado 100% backend (5/5) + frontend (iteration_106).
+  - Frontend Admin: Card "Leonardo AI - Uso de Imagens" com gradiente fuchsia/violet no topo do relatorio. Mostra: imagens geradas, pendentes, custo USD/BRL, modelo, custo por imagem.
 
 
 ## Upcoming Tasks (Prioritized)

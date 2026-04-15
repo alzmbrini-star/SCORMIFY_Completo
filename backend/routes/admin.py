@@ -181,7 +181,30 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
                     for p in orphan_projects[:50]
                 ],
             })
-    return {"reports": reports, "generatedAt": datetime.now(timezone.utc).isoformat(), "currency": {"USD_TO_BRL": USD_TO_BRL}}
+    # Aggregate Leonardo AI usage from leonardo_generations collection
+    leo_query = {}
+    if not is_super:
+        leo_query = {"userId": user.get("user_id")}
+    leonardo_gens = await db.leonardo_generations.find(leo_query, {"_id": 0}).to_list(10000)
+    leonardo_cost_per_image = 0.036  # USD
+
+    # Build Leonardo stats per user and global
+    leonardo_total = len([g for g in leonardo_gens if g.get("status") == "complete"])
+    leonardo_pending = len([g for g in leonardo_gens if g.get("status") == "pending"])
+    leonardo_total_cost = leonardo_total * leonardo_cost_per_image
+
+    leonardo_summary = {
+        "totalGenerations": len(leonardo_gens),
+        "completedGenerations": leonardo_total,
+        "pendingGenerations": leonardo_pending,
+        "totalImages": sum(len(g.get("images", [])) for g in leonardo_gens if g.get("status") == "complete"),
+        "totalCostUSD": round(leonardo_total_cost, 4),
+        "totalCostBRL": round(leonardo_total_cost * USD_TO_BRL, 2),
+        "costPerImage": leonardo_cost_per_image,
+        "model": "Leonardo Phoenix 1.0",
+    }
+
+    return {"reports": reports, "leonardo": leonardo_summary, "generatedAt": datetime.now(timezone.utc).isoformat(), "currency": {"USD_TO_BRL": USD_TO_BRL}}
 
 
 @router.options("/tutor/chat")

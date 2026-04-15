@@ -68,6 +68,7 @@ export default function Admin() {
   
   // Reports states
   const [reports, setReports] = useState([]);
+  const [leonardoSummary, setLeonardoSummary] = useState(null);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState(null);
 
@@ -129,6 +130,7 @@ export default function Admin() {
       if (res.ok) {
         const data = await res.json();
         setReports(data.reports || []);
+        setLeonardoSummary(data.leonardo || null);
       } else {
         toast.error('Erro ao carregar relatórios');
       }
@@ -712,6 +714,40 @@ export default function Admin() {
               {reportsLoading ? 'Carregando...' : 'Atualizar'}
             </Button>
           </div>
+
+          {/* Leonardo AI Usage Summary */}
+          {leonardoSummary && leonardoSummary.totalGenerations > 0 && (
+            <div className="bg-gradient-to-r from-fuchsia-950/40 to-violet-950/40 border border-fuchsia-800/30 rounded-xl p-5" data-testid="leonardo-usage-card">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-5 h-5 text-fuchsia-400" />
+                <h3 className="text-base font-semibold text-fuchsia-200">Leonardo AI - Uso de Imagens</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-fuchsia-600/20 text-fuchsia-300 ml-auto">{leonardoSummary.model}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-900/60 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-fuchsia-300">{leonardoSummary.completedGenerations}</p>
+                  <p className="text-[11px] text-slate-400">Imagens Geradas</p>
+                </div>
+                <div className="bg-slate-900/60 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-amber-300">{leonardoSummary.pendingGenerations}</p>
+                  <p className="text-[11px] text-slate-400">Pendentes</p>
+                </div>
+                <div className="bg-slate-900/60 rounded-lg p-3 text-center">
+                  <DollarSign className="w-4 h-4 mx-auto text-green-400 mb-0.5" />
+                  <p className="text-2xl font-bold text-green-300">${leonardoSummary.totalCostUSD.toFixed(4)}</p>
+                  <p className="text-[11px] text-slate-400">Custo USD</p>
+                </div>
+                <div className="bg-slate-900/60 rounded-lg p-3 text-center">
+                  <DollarSign className="w-4 h-4 mx-auto text-emerald-400 mb-0.5" />
+                  <p className="text-2xl font-bold text-emerald-300">R$ {leonardoSummary.totalCostBRL.toFixed(2)}</p>
+                  <p className="text-[11px] text-slate-400">Custo BRL</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-fuchsia-400/50 mt-3 text-center">
+                Custo por imagem: ${leonardoSummary.costPerImage} USD | Total de gerações: {leonardoSummary.totalGenerations}
+              </p>
+            </div>
+          )}
 
           {reportsLoading && reports.length === 0 ? (
             <div className="flex items-center justify-center py-12">
