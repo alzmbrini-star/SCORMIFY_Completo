@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 106: Tested Leonardo AI Cost Tracking in Cost Estimate and Admin Reports. All 5 backend tests passed. Frontend code verified: CostEstimateCard in MediaConfigPanel.jsx correctly shows Leonardo badge, cost column (fuchsia styling), and summary footer when leonardoCount > 0. Admin.jsx correctly shows Leonardo AI card with Sparkles icon when totalLeonardoImages > 0.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_leonardo_cost_reports.py",
+    "/app/test_reports/pytest/pytest_leonardo_cost_reports.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend agent.py cost-estimate endpoint (line 1265-1359): Returns leonardoImages count, costs.leonardo ($0.036/image), models.leonardo ('Leonardo Phoenix 1.0' or 'N/A') - VERIFIED",
+    "Backend agent.py usage_logs (line 1571-1588): Includes leonardoImages in details and leonardoGeneration in estimatedCost - VERIFIED",
+    "Backend admin.py get_admin_reports (line 118-124, 144, 171): Aggregates leonardoGeneration cost and totalLeonardoImages from usage_logs - VERIFIED",
+    "Frontend MediaConfigPanel.jsx CostEstimateCard (line 270): Accepts leonardoCount prop - VERIFIED",
+    "Frontend MediaConfigPanel.jsx (line 339): Shows Leonardo badge with fuchsia styling when leonardoCount > 0 - VERIFIED",
+    "Frontend MediaConfigPanel.jsx (line 348): Grid changes from 3 to 4 columns when leonardoImages > 0 - VERIFIED",
+    "Frontend MediaConfigPanel.jsx (lines 359-363): Shows Leonardo cost column with fuchsia-900/20 background - VERIFIED",
+    "Frontend MediaConfigPanel.jsx (line 391): Shows '+ Leonardo AI' in summary footer when leonardoImages > 0 - VERIFIED",
+    "Frontend Admin.jsx (line 31): Sparkles icon imported - VERIFIED",
+    "Frontend Admin.jsx (lines 799-803): Leonardo AI card with Sparkles icon, fuchsia styling, conditional on totalLeonardoImages > 0 - VERIFIED"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_leonardo_cost_reports.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 tests passed)",
+    "frontend": "100% (code verification passed)"
+  },
+  "test_credentials": {
+    "super_admin": "admin@scormify.com / admin123"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Leonardo AI cost tracking is fully implemented: 1) Backend cost-estimate endpoint returns leonardoImages, costs.leonardo ($0.036/image), models.leonardo fields, 2) Backend usage_logs include leonardoImages in details and leonardoGeneration in estimatedCost, 3) Backend admin reports aggregate totalLeonardoImages per company, 4) Frontend CostEstimateCard shows Leonardo badge, 4-column grid, cost column, and summary footer when Leonardo images present, 5) Frontend Admin reports show Leonardo AI card with Sparkles icon when totalLeonardoImages > 0. Note: Leonardo AI card in Admin reports is conditionally rendered - only shows when totalLeonardoImages > 0 (currently 0 for all companies as no courses have been generated with Leonardo in Agent flow yet).",
+  "verified_features": {
+    "backend_cost_estimate_leonardoImages": "Returns leonardoImages count - VERIFIED via pytest",
+    "backend_cost_estimate_costs_leonardo": "Returns costs.leonardo ($0.036/image) - VERIFIED via pytest",
+    "backend_cost_estimate_models_leonardo": "Returns models.leonardo ('Leonardo Phoenix 1.0' or 'N/A') - VERIFIED via pytest",
+    "backend_usage_logs_leonardoImages": "usage_logs.details.leonardoImages field - VERIFIED in code",
+    "backend_usage_logs_leonardoGeneration": "usage_logs.estimatedCost.leonardoGeneration field - VERIFIED in code",
+    "backend_admin_reports_totalLeonardoImages": "stats.totalLeonardoImages in admin reports - VERIFIED via pytest",
+    "frontend_cost_estimate_leonardo_badge": "Badge with fuchsia styling when leonardoCount > 0 - VERIFIED in code",
+    "frontend_cost_estimate_4_column_grid": "Grid changes to 4 columns when leonardoImages > 0 - VERIFIED in code",
+    "frontend_cost_estimate_leonardo_column": "Leonardo cost column with fuchsia styling - VERIFIED in code",
+    "frontend_cost_estimate_summary_footer": "'+ Leonardo AI' in footer when leonardoImages > 0 - VERIFIED in code",
+    "frontend_admin_leonardo_card": "Leonardo AI card with Sparkles icon when totalLeonardoImages > 0 - VERIFIED in code"
+  },
+  "test_session_used": "e5d36dfb-70f2-4501-8a22-2bb86710bbb4"
+}

@@ -27,7 +27,8 @@ import {
   FileText,
   Loader2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
@@ -795,10 +796,17 @@ export default function Admin() {
                           <div className="text-xl font-bold text-white">{report.stats?.totalAiImages || 0}</div>
                           <div className="text-xs text-slate-400">Imagens IA</div>
                         </div>
+                        {(report.stats?.totalLeonardoImages || 0) > 0 && (
+                          <div className="bg-fuchsia-950/30 border border-fuchsia-800/20 rounded-lg p-3 text-center">
+                            <Sparkles className="w-5 h-5 mx-auto text-fuchsia-400 mb-1" />
+                            <div className="text-xl font-bold text-fuchsia-200">{report.stats.totalLeonardoImages}</div>
+                            <div className="text-xs text-fuchsia-400/70">Leonardo AI</div>
+                          </div>
+                        )}
                         <div className="bg-slate-900/50 rounded-lg p-3 text-center">
                           <div className="w-5 h-5 mx-auto text-orange-400 mb-1 flex items-center justify-center">🔊</div>
                           <div className="text-xl font-bold text-white">{report.stats?.totalNarrations || 0}</div>
-                          <div className="text-xs text-slate-400">Narrações</div>
+                          <div className="text-xs text-slate-400">Narracoes</div>
                         </div>
                         <div className="bg-slate-900/50 rounded-lg p-3 text-center">
                           <DollarSign className="w-5 h-5 mx-auto text-green-400 mb-1" />

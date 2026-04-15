@@ -267,7 +267,7 @@ const NARRATION_STYLES = [
 ];
 
 
-function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfig, isEditMode, changedSlideCount }) {
+function CostEstimateCard({ sessionId, aiCount, leonardoCount, videoCount, heygenCount, bgConfig, isEditMode, changedSlideCount }) {
   const [estimate, setEstimate] = useState(null);
   const [loadingEstimate, setLoadingEstimate] = useState(false);
 
@@ -295,9 +295,11 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
       ...estimate,
       totalSlides: changedSlideCount,
       aiImages: Math.round(estimate.aiImages * ratio),
+      leonardoImages: Math.round((estimate.leonardoImages || 0) * ratio),
       costs: {
         text: Math.round(estimate.costs.text * ratio * 1000) / 1000,
         images: Math.round(estimate.costs.images * ratio * 1000) / 1000,
+        leonardo: Math.round((estimate.costs.leonardo || 0) * ratio * 1000) / 1000,
         narration: Math.round(estimate.costs.narration * ratio * 1000) / 1000,
         total: Math.round(estimate.costs.total * ratio * 1000) / 1000,
       },
@@ -334,7 +336,8 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
         {/* Media summary badges */}
         <div className="flex flex-wrap gap-2 text-xs">
           {aiCount > 0 && <Badge className="bg-emerald-600/20 text-emerald-300"><Image className="w-3 h-3 mr-1" />{aiCount} Imagens IA</Badge>}
-          {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Vídeos</Badge>}
+          {leonardoCount > 0 && <Badge className="bg-fuchsia-600/20 text-fuchsia-300"><Sparkles className="w-3 h-3 mr-1" />{leonardoCount} Leonardo AI</Badge>}
+          {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Videos</Badge>}
           {heygenCount > 0 && <Badge className="bg-purple-600/20 text-purple-300"><UserCircle className="w-3 h-3 mr-1" />{heygenCount} Avatares</Badge>}
           {customBgCount > 0 && <Badge className="bg-cyan-600/20 text-cyan-300"><Palette className="w-3 h-3 mr-1" />{customBgCount} Fundos</Badge>}
         </div>
@@ -342,7 +345,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
         {displayEstimate && (
           <div className="space-y-2">
             {/* Cost breakdown */}
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className={`grid gap-2 text-center ${(displayEstimate.leonardoImages || 0) > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <div className="bg-slate-800/60 rounded-lg p-2">
                 <p className="text-[10px] text-slate-400">Texto (IA)</p>
                 <p className="text-sm font-bold text-slate-200">${displayEstimate.costs.text.toFixed(3)}</p>
@@ -353,8 +356,15 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
                 <p className="text-sm font-bold text-slate-200">${displayEstimate.costs.images.toFixed(3)}</p>
                 <p className="text-[9px] text-cyan-400/60">{displayEstimate.models.images}</p>
               </div>
+              {(displayEstimate.leonardoImages || 0) > 0 && (
+                <div className="bg-fuchsia-900/20 border border-fuchsia-800/30 rounded-lg p-2">
+                  <p className="text-[10px] text-fuchsia-300">Leonardo ({displayEstimate.leonardoImages})</p>
+                  <p className="text-sm font-bold text-fuchsia-200">${(displayEstimate.costs.leonardo || 0).toFixed(3)}</p>
+                  <p className="text-[9px] text-fuchsia-400/60">{displayEstimate.models.leonardo}</p>
+                </div>
+              )}
               <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[10px] text-slate-400">Narração</p>
+                <p className="text-[10px] text-slate-400">Narracao</p>
                 <p className="text-sm font-bold text-slate-200">${displayEstimate.costs.narration.toFixed(3)}</p>
                 <p className="text-[9px] text-cyan-400/60">{displayEstimate.models.narration}</p>
               </div>
@@ -378,7 +388,7 @@ function CostEstimateCard({ sessionId, aiCount, videoCount, heygenCount, bgConfi
             </div>
 
             <p className="text-[10px] text-slate-500 text-center">
-              {displayEstimate.totalSlides} slides | {displayEstimate.storyboardBatches || Math.ceil(displayEstimate.totalSlides / 4)} batches | Gemini 3 Flash + Nano Banana
+              {displayEstimate.totalSlides} slides | {displayEstimate.storyboardBatches || Math.ceil(displayEstimate.totalSlides / 4)} batches | Gemini 3 Flash + Nano Banana{(displayEstimate.leonardoImages || 0) > 0 ? ' + Leonardo AI' : ''}
             </p>
           </div>
         )}
@@ -563,6 +573,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   };
 
   const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
+  const leonardoCount = Object.values(mediaConfig).filter(m => m.type === 'leonardo').length;
   const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
   const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
   const narrationCount = Object.values(mediaConfig).filter(m => m.narration?.enabled).length;
@@ -1573,7 +1584,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
       </div>
 
       {/* Summary & Cost Estimate */}
-      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} isEditMode={isEditMode} changedSlideCount={changedSlideCount} />
+      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} leonardoCount={leonardoCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} isEditMode={isEditMode} changedSlideCount={changedSlideCount} />
 
       {(!heygenReady || !narrationReady) && !loading && (
         <p className="text-xs text-amber-400/80 text-center">

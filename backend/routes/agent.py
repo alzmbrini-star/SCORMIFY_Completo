@@ -1284,7 +1284,8 @@ async def agent_cost_estimate(session_id: str):
 
     # Count AI images needed
     ai_images = sum(1 for v in media_config.values() if v.get("type") == "ai_image")
-    if ai_images == 0:
+    leonardo_images = sum(1 for v in media_config.values() if v.get("type") == "leonardo")
+    if ai_images == 0 and leonardo_images == 0:
         ai_images = content_slides  # Default: all content slides get AI images
 
     # Storyboard batches (4 slides per batch)
@@ -1296,9 +1297,12 @@ async def agent_cost_estimate(session_id: str):
     text_cost_per_batch = 0.006
     # Gemini Nano Banana: ~$0.02 per image
     image_cost_per_image = 0.02
+    # Leonardo AI Phoenix 1.0: ~$0.036 per image (based on API credit cost)
+    leonardo_cost_per_image = 0.036
 
     text_cost = (storyboard_batches + 2) * text_cost_per_batch  # +2 for analysis & structure
     image_cost = ai_images * image_cost_per_image
+    leonardo_cost = leonardo_images * leonardo_cost_per_image
 
     # ElevenLabs narration cost based on per-slide config
     narration_cost = 0.0
@@ -1317,11 +1321,11 @@ async def agent_cost_estimate(session_id: str):
             if script:
                 narration_cost += len(script) * cost_per_char
 
-    total_cost = text_cost + image_cost + narration_cost
+    total_cost = text_cost + image_cost + leonardo_cost + narration_cost
 
     # Compare with old GPT-5.2 + GPT Image 1 costs
     old_text_cost = (storyboard_batches + 2) * 0.06  # GPT-5.2 ~10x more expensive
-    old_image_cost = ai_images * 0.08  # GPT Image 1 ~4x more expensive
+    old_image_cost = (ai_images + leonardo_images) * 0.08  # GPT Image 1 ~4x more expensive
     old_total = old_text_cost + old_image_cost + narration_cost
     savings_pct = round((1 - total_cost / old_total) * 100) if old_total > 0 else 0
 
@@ -1330,11 +1334,13 @@ async def agent_cost_estimate(session_id: str):
             "totalSlides": total_slides,
             "contentSlides": content_slides,
             "aiImages": ai_images,
+            "leonardoImages": leonardo_images,
             "storyboardBatches": storyboard_batches,
             "narrationEnabled": config.get("narrationEnabled", False),
             "costs": {
                 "text": round(text_cost, 3),
                 "images": round(image_cost, 3),
+                "leonardo": round(leonardo_cost, 3),
                 "narration": round(narration_cost, 3),
                 "total": round(total_cost, 3),
             },
@@ -1346,6 +1352,7 @@ async def agent_cost_estimate(session_id: str):
             "models": {
                 "text": "Gemini 3 Flash",
                 "images": "Gemini Nano Banana",
+                "leonardo": "Leonardo Phoenix 1.0" if leonardo_images > 0 else "N/A",
                 "narration": "ElevenLabs" if config.get("narrationEnabled") else "N/A",
             }
         }
@@ -1560,6 +1567,7 @@ async def agent_generate_course(session_id: str):
             try:
                 slides_count = len(course_data.get("slides", []))
                 ai_images_count = sum(1 for s in course_data.get("slides", []) for e in s.get("elements", []) if e.get("type") == "image" and "ai_img" in e.get("src", ""))
+                leonardo_images_count = sum(1 for s in course_data.get("slides", []) for e in s.get("elements", []) if e.get("type") == "image" and "leonardo_" in e.get("src", ""))
                 usage_log = {
                     "id": str(uuid.uuid4()),
                     "type": "course_generation",
@@ -1570,12 +1578,14 @@ async def agent_generate_course(session_id: str):
                     "details": {
                         "slides": slides_count,
                         "aiImages": ai_images_count,
+                        "leonardoImages": leonardo_images_count,
                         "narrations": narration_count + len(per_slide_narration) if per_slide_narration else narration_count,
                         "heygenVideos": len(heygen_pending) if heygen_pending else 0,
                     },
                     "estimatedCost": {
                         "textGeneration": round((len(_s.get("storyboard", {}).get("slides", [])) / 5 + 2) * 0.006, 4),
                         "imageGeneration": round(ai_images_count * 0.02, 4),
+                        "leonardoGeneration": round(leonardo_images_count * 0.036, 4),
                         "narration": round(narration_count * 0.01, 4) if narration_count else 0,
                         "currency": "USD"
                     },

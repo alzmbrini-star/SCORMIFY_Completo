@@ -115,11 +115,13 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
         total_cost_usd = sum(
             u.get("estimatedCost", {}).get("textGeneration", 0) +
             u.get("estimatedCost", {}).get("imageGeneration", 0) +
+            u.get("estimatedCost", {}).get("leonardoGeneration", 0) +
             u.get("estimatedCost", {}).get("narration", 0)
             for u in company_usage
         )
         total_slides = sum(u.get("details", {}).get("slides", 0) for u in company_usage)
         total_images = sum(u.get("details", {}).get("aiImages", 0) for u in company_usage)
+        total_leonardo = sum(u.get("details", {}).get("leonardoImages", 0) for u in company_usage)
         total_narrations = sum(u.get("details", {}).get("narrations", 0) for u in company_usage)
         project_details = []
         for p in company_projects:
@@ -139,7 +141,8 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
             "company": {"id": company_id, "name": company["name"], "slug": company.get("slug", "")},
             "stats": {
                 "totalCourses": len(company_projects), "totalSlides": total_slides,
-                "totalAiImages": total_images, "totalNarrations": total_narrations,
+                "totalAiImages": total_images, "totalLeonardoImages": total_leonardo,
+                "totalNarrations": total_narrations,
                 "totalCostUSD": round(total_cost_usd, 4), "totalCostBRL": round(total_cost_usd * USD_TO_BRL, 2),
             },
             "editors": [
@@ -155,6 +158,7 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
             total_cost_orphan = sum(
                 u.get("estimatedCost", {}).get("textGeneration", 0) +
                 u.get("estimatedCost", {}).get("imageGeneration", 0) +
+                u.get("estimatedCost", {}).get("leonardoGeneration", 0) +
                 u.get("estimatedCost", {}).get("narration", 0)
                 for u in orphan_usage
             )
@@ -164,6 +168,7 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
                     "totalCourses": len(orphan_projects),
                     "totalSlides": sum(u.get("details", {}).get("slides", 0) for u in orphan_usage),
                     "totalAiImages": sum(u.get("details", {}).get("aiImages", 0) for u in orphan_usage),
+                    "totalLeonardoImages": sum(u.get("details", {}).get("leonardoImages", 0) for u in orphan_usage),
                     "totalNarrations": sum(u.get("details", {}).get("narrations", 0) for u in orphan_usage),
                     "totalCostUSD": round(total_cost_orphan, 4),
                     "totalCostBRL": round(total_cost_orphan * USD_TO_BRL, 2),
