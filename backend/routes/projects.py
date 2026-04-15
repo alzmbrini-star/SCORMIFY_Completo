@@ -34,15 +34,46 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
     from pymongo import MongoClient
     from services.ppt_image_parser import parse_pptx_high_fidelity
     db_name = os.environ.get("DB_NAME", "scormify")
+    _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
     sync_client = None
     try:
         jobs[job_id]["status"] = "processing"
         jobs[job_id]["message"] = "Converting PowerPoint slides to images..."
         jobs[job_id]["progress"] = 10
-        sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+        sync_client = MongoClient(
+            mongo_url,
+            serverSelectionTimeoutMS=120000 if _is_atlas else 30000,
+            connectTimeoutMS=120000 if _is_atlas else 30000,
+            socketTimeoutMS=300000 if _is_atlas else 60000,
+            retryWrites=True,
+            retryReads=True,
+        )
         sync_db = sync_client[db_name]
         # Sync job status to MongoDB
         sync_db.jobs.update_one({"id": job_id}, {"$set": {"status": "processing", "progress": 10, "message": "Converting PowerPoint slides to images..."}}, upsert=True)
+        
+        # If file is missing (deploy happened), try to recover from MongoDB
+        if not Path(file_path).exists():
+            logger.warning(f"PPT file missing from disk, trying to recover from MongoDB: {file_path}")
+            recovered = False
+            try:
+                import base64 as _b64
+                ppt_doc = sync_db.ppt_uploads.find_one(
+                    {"$or": [{"path": file_path}, {"projectId": project_id}]},
+                    {"data": 1}
+                )
+                if ppt_doc and ppt_doc.get("data"):
+                    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+                    with open(file_path, 'wb') as f:
+                        f.write(_b64.b64decode(ppt_doc["data"]))
+                    recovered = True
+                    logger.info(f"PPT file recovered from MongoDB: {file_path}")
+            except Exception as recover_err:
+                logger.error(f"Failed to recover PPT from MongoDB: {recover_err}")
+            
+            if not recovered:
+                raise FileNotFoundError(f"Arquivo PPT nao encontrado. O servidor reiniciou durante o processamento. Por favor, importe o arquivo novamente.")
+        
         course = parse_pptx_high_fidelity(file_path, project_id, str(PROJECTS_DIR))
         jobs[job_id]["progress"] = 80
         jobs[job_id]["message"] = "Saving course data..."
@@ -59,6 +90,11 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
         jobs[job_id]["message"] = "Processing complete - slides rendered with high fidelity"
         jobs[job_id]["result"] = {"projectId": project_id}
         sync_db.jobs.update_one({"id": job_id}, {"$set": jobs[job_id]})
+        # Cleanup: remove PPT blob from MongoDB (no longer needed)
+        try:
+            sync_db.ppt_uploads.delete_many({"$or": [{"path": file_path}, {"projectId": project_id}]})
+        except Exception:
+            pass
     except Exception as e:
         logger.error(f"Error processing PPT: {e}")
         jobs[job_id]["status"] = "failed"
@@ -483,6 +519,25 @@ async def complete_chunked_upload(
     except Exception:
         pass
     
+    # Persist assembled PPT file to MongoDB so it survives deploy/restart
+    try:
+        import base64 as _b64
+        async with aiofiles.open(final_path, 'rb') as pf:
+            ppt_bytes = await pf.read()
+        project_name_for_persist = project_name or Path(filename).stem
+        await db.ppt_uploads.update_one(
+            {"path": str(final_path)},
+            {"$set": {
+                "filename": filename,
+                "path": str(final_path),
+                "data": _b64.b64encode(ppt_bytes).decode('ascii'),
+                "createdAt": now_utc().isoformat(),
+            }},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to persist chunked PPT to MongoDB (non-fatal): {e}")
+    
     # Create project
     project = Project(name=project_name)
     project_dict = project.model_dump()
@@ -564,6 +619,23 @@ async def upload_ppt(
     upload_path = UPLOADS_DIR / f"{project.id}_{file.filename}"
     async with aiofiles.open(upload_path, 'wb') as f:
         await f.write(content)
+    
+    # Persist PPT file to MongoDB so it survives deploy/restart
+    try:
+        import base64 as _b64
+        await db.ppt_uploads.update_one(
+            {"projectId": project.id},
+            {"$set": {
+                "projectId": project.id,
+                "filename": file.filename,
+                "path": str(upload_path),
+                "data": _b64.b64encode(content).decode('ascii'),
+                "createdAt": now_utc().isoformat(),
+            }},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to persist PPT to MongoDB (non-fatal): {e}")
     
     # Create job
     job_id = str(uuid.uuid4())

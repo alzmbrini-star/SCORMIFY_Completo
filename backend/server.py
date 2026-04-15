@@ -455,8 +455,13 @@ async def startup_asset_sync():
 
                 if files_to_persist:
                     logger.info(f"Asset sync: {len(files_to_persist)} new local files to persist to MongoDB...")
+                    failed_persists = []
                     for pid, fname, fpath in files_to_persist:
                         try:
+                            file_size = Path(fpath).stat().st_size
+                            if file_size > 10 * 1024 * 1024:  # Skip files > 10MB (Atlas timeout risk)
+                                logger.warning(f"Asset too large for Atlas persist ({file_size} bytes), skipping: {pid}/{fname}")
+                                continue
                             with open(fpath, 'rb') as f:
                                 data_b64 = base64.b64encode(f.read()).decode('ascii')
                             _db.project_assets.update_one(
@@ -471,7 +476,32 @@ async def startup_asset_sync():
                             )
                             total_persisted += 1
                         except Exception as e:
+                            failed_persists.append((pid, fname, fpath))
                             logger.warning(f"Asset persist failed for {pid}/{fname}: {e}")
+                    
+                    # Retry failed persists once
+                    if failed_persists:
+                        logger.info(f"Asset sync: retrying {len(failed_persists)} failed persists...")
+                        time.sleep(5)
+                        for pid, fname, fpath in failed_persists:
+                            try:
+                                if not Path(fpath).exists():
+                                    continue
+                                with open(fpath, 'rb') as f:
+                                    data_b64 = base64.b64encode(f.read()).decode('ascii')
+                                _db.project_assets.update_one(
+                                    {"project_id": pid, "filename": fname},
+                                    {"$set": {
+                                        "project_id": pid,
+                                        "filename": fname,
+                                        "data": data_b64,
+                                        "content_type": _get_content_type(fname),
+                                    }},
+                                    upsert=True
+                                )
+                                total_persisted += 1
+                            except Exception as e:
+                                logger.warning(f"Asset persist retry failed for {pid}/{fname}: {e}")
                 else:
                     logger.info("Asset sync: no new local files to persist")
             except Exception as e:
