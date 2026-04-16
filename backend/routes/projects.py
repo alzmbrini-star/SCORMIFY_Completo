@@ -49,30 +49,70 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
             retryReads=True,
         )
         sync_db = sync_client[db_name]
-        # Sync job status to MongoDB
         sync_db.jobs.update_one({"id": job_id}, {"$set": {"status": "processing", "progress": 10, "message": "Converting PowerPoint slides to images..."}}, upsert=True)
         
+        # Sanitize file path - replace problematic characters
+        safe_path = Path(file_path)
+        if not safe_path.exists():
+            # Try alternate safe path (strip non-ASCII from filename)
+            import re as _re
+            safe_name = _re.sub(r'[^\w\-_. ]', '_', safe_path.name)
+            alt_path = safe_path.parent / safe_name
+            if alt_path.exists():
+                file_path = str(alt_path)
+                safe_path = alt_path
+                logger.info(f"Using sanitized path: {file_path}")
+        
         # If file is missing (deploy happened), try to recover from MongoDB
-        if not Path(file_path).exists():
+        if not safe_path.exists():
             logger.warning(f"PPT file missing from disk, trying to recover from MongoDB: {file_path}")
             recovered = False
             try:
                 import base64 as _b64
                 ppt_doc = sync_db.ppt_uploads.find_one(
                     {"$or": [{"path": file_path}, {"projectId": project_id}]},
-                    {"data": 1}
+                    {"_id": 0, "data": 1, "fileSize": 1}
                 )
                 if ppt_doc and ppt_doc.get("data"):
-                    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-                    with open(file_path, 'wb') as f:
-                        f.write(_b64.b64decode(ppt_doc["data"]))
+                    # Use a safe recovery path (avoid special characters)
+                    recovery_path = UPLOADS_DIR / f"{project_id}_recovered.pptx"
+                    recovery_path.parent.mkdir(parents=True, exist_ok=True)
+                    decoded = _b64.b64decode(ppt_doc["data"])
+                    
+                    # Validate file size if we stored it
+                    original_size = ppt_doc.get("fileSize", 0)
+                    if original_size > 0 and len(decoded) != original_size:
+                        logger.error(f"PPT recovery size mismatch: expected={original_size}, got={len(decoded)}. File may be corrupted.")
+                    
+                    with open(recovery_path, 'wb') as f:
+                        f.write(decoded)
+                    
+                    # Validate the recovered file is a valid PPTX (ZIP format)
+                    import zipfile
+                    try:
+                        with zipfile.ZipFile(recovery_path, 'r') as zf:
+                            zf.testzip()
+                        logger.info(f"PPT file recovered and validated: {recovery_path} ({len(decoded)} bytes)")
+                        file_path = str(recovery_path)
+                    except (zipfile.BadZipFile, Exception) as zf_err:
+                        logger.error(f"Recovered PPT is not a valid ZIP/PPTX: {zf_err}")
+                        recovery_path.unlink(missing_ok=True)
+                        raise FileNotFoundError(f"Arquivo PPT recuperado esta corrompido. Por favor, importe o arquivo novamente.")
+                    
                     recovered = True
-                    logger.info(f"PPT file recovered from MongoDB: {file_path}")
+            except FileNotFoundError:
+                raise
             except Exception as recover_err:
                 logger.error(f"Failed to recover PPT from MongoDB: {recover_err}")
             
             if not recovered:
                 raise FileNotFoundError(f"Arquivo PPT nao encontrado. O servidor reiniciou durante o processamento. Por favor, importe o arquivo novamente.")
+        else:
+            # Validate file on disk is valid before processing
+            file_size = safe_path.stat().st_size
+            if file_size == 0:
+                raise FileNotFoundError("Arquivo PPT esta vazio (0 bytes).")
+            logger.info(f"PPT file found on disk: {file_path} ({file_size} bytes)")
         
         course = parse_pptx_high_fidelity(file_path, project_id, str(PROJECTS_DIR))
         jobs[job_id]["progress"] = 80
@@ -615,8 +655,10 @@ async def upload_ppt(
     project_dir = PROJECTS_DIR / project.id
     (project_dir / "assets").mkdir(parents=True, exist_ok=True)
     
-    # Save uploaded file
-    upload_path = UPLOADS_DIR / f"{project.id}_{file.filename}"
+    # Save uploaded file with sanitized filename
+    import re as _re_fn
+    safe_filename = _re_fn.sub(r'[^\w\-_. ]', '_', file.filename)
+    upload_path = UPLOADS_DIR / f"{project.id}_{safe_filename}"
     async with aiofiles.open(upload_path, 'wb') as f:
         await f.write(content)
     
@@ -634,15 +676,16 @@ async def upload_ppt(
                 {"$set": {
                     "projectId": project.id,
                     "jobId": job_id,
-                    "filename": file.filename,
+                    "filename": safe_filename,
                     "path": str(upload_path),
+                    "fileSize": len(content),
                     "data": _b64.b64encode(content).decode('ascii'),
                     "createdAt": now_utc().isoformat(),
                 }},
                 upsert=True,
             )
             ppt_persisted = True
-            logger.info(f"PPT file persisted to MongoDB: {project.id}/{file.filename}")
+            logger.info(f"PPT file persisted to MongoDB: {project.id}/{safe_filename} ({len(content)} bytes)")
             break
         except Exception as e:
             logger.warning(f"Failed to persist PPT to MongoDB (attempt {_persist_attempt+1}): {e}")
@@ -652,6 +695,8 @@ async def upload_ppt(
     
     if not ppt_persisted:
         logger.error(f"CRITICAL: PPT file NOT persisted to MongoDB after 3 attempts: {project.id}")
+        if len(content) > 12 * 1024 * 1024:
+            logger.warning(f"PPT file is {len(content)} bytes - too large for MongoDB BSON limit (16MB). Skipping persist.")
     
     # Create job
     jobs[job_id] = {
