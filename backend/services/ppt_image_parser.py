@@ -530,6 +530,27 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             except:
                 pass
         
+        # Extract ALL text from slide shapes (critical for narration when images are unavailable)
+        slide_text_parts = []
+        try:
+            for shape in pptx_slide.shapes:
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        para_text = para.text.strip()
+                        if para_text and para_text != title:
+                            slide_text_parts.append(para_text)
+                # Also extract from tables
+                if shape.has_table:
+                    for row in shape.table.rows:
+                        for cell in row.cells:
+                            cell_text = cell.text.strip()
+                            if cell_text:
+                                slide_text_parts.append(cell_text)
+        except Exception as txt_err:
+            logger.warning(f"Failed to extract text from slide {slide_idx + 1}: {txt_err}")
+        
+        extracted_text = "\n".join(slide_text_parts) if slide_text_parts else None
+        
         # Get notes
         notes = None
         if pptx_slide.has_notes_slide:
@@ -548,7 +569,8 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
             background="#FFFFFF",
             backgroundImage=background_image,
             elements=elements,
-            notes=notes
+            notes=notes,
+            extractedText=extracted_text,
         )
         
         slides.append(slide)

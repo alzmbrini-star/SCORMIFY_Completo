@@ -578,6 +578,17 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
     slide_text = "\n".join(text_parts) if text_parts else ""
     slide_title = slide.get('title', '')
     has_images = len(image_files) > 0
+    
+    # For PPT-imported slides: use extractedText and notes as additional context
+    extracted_text = slide.get('extractedText', '') or ''
+    slide_notes = slide.get('notes', '') or ''
+    
+    # Combine all available text sources
+    if extracted_text and extracted_text not in slide_text:
+        slide_text = (slide_text + "\n" + extracted_text).strip() if slide_text else extracted_text
+    
+    # Log what we're sending to the AI for debugging
+    logger.info(f"Narration gen for slide {slide_id}: title='{slide_title[:40]}', text_len={len(slide_text)}, images={len(image_files)}, has_notes={bool(slide_notes)}, has_extractedText={bool(extracted_text)}")
 
     style_guide = {
         "educational": "educativo e didático, explicando conceitos de forma clara e objetiva",
@@ -628,8 +639,14 @@ Texto da terceira opção aqui..."""
             prompt += "\n\nAs imagens do slide estão anexadas. Leia o conteúdo visual e textual delas para criar a narração."
         if slide_text:
             prompt += f"\n\nTexto extraído do slide:\n{slide_text}"
+        if slide_notes:
+            prompt += f"\n\nNotas do apresentador (use como guia de contexto):\n{slide_notes}"
         if request.slide_content:
             prompt += f"\n\nContexto adicional do usuário: {request.slide_content}"
+        
+        # Warn if we have very little content
+        if not slide_text and not has_images and not slide_notes:
+            prompt += "\n\nATENÇÃO: Não foi possível extrair conteúdo detalhado deste slide. Gere uma narração baseada no título, mas seja MUITO específico e evite frases genéricas."
 
         user_message = UserMessage(
             text=prompt,
