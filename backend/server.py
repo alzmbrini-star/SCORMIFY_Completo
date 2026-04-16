@@ -251,6 +251,107 @@ async def startup_ensure_admin():
         logger.warning(f"Startup admin check scheduling failed (non-fatal): {e}")
 
 
+@app.on_event("startup")
+async def startup_recover_stalled_ppt_jobs():
+    """Recover PPT processing jobs that were interrupted by a deploy/restart"""
+    try:
+        asyncio.create_task(_recover_stalled_ppt_jobs())
+        logger.info("Startup PPT recovery: started in background task")
+    except Exception as e:
+        logger.warning(f"Startup PPT recovery scheduling failed (non-fatal): {e}")
+
+
+async def _recover_stalled_ppt_jobs():
+    """Find PPT uploads in MongoDB that have stalled jobs and restart processing."""
+    if db is None:
+        return
+    try:
+        await asyncio.sleep(10)  # Wait for server to be ready
+        
+        # Find stalled jobs (status=processing or pending, with PPT data in ppt_uploads)
+        stalled_uploads = await db.ppt_uploads.find(
+            {"data": {"$exists": True}},
+            {"_id": 0, "projectId": 1, "jobId": 1, "filename": 1, "path": 1}
+        ).to_list(50)
+        
+        if not stalled_uploads:
+            return
+        
+        recovered = 0
+        for upload in stalled_uploads:
+            project_id = upload.get("projectId")
+            job_id = upload.get("jobId")
+            file_path = upload.get("path", "")
+            
+            if not project_id:
+                continue
+            
+            # Check if the job is actually stalled (not completed)
+            if job_id:
+                job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "status": 1})
+                if job and job.get("status") == "completed":
+                    # Job already completed, clean up the upload data
+                    await db.ppt_uploads.delete_one({"projectId": project_id})
+                    continue
+            
+            # Check if project exists and is still in 'processing' state
+            project = await db.projects.find_one({"id": project_id}, {"_id": 0, "status": 1})
+            if not project or project.get("status") != "processing":
+                # Project completed or doesn't exist, clean up
+                await db.ppt_uploads.delete_one({"projectId": project_id})
+                continue
+            
+            # This is a stalled job - recover the PPT file and restart processing
+            logger.info(f"Recovering stalled PPT job: project={project_id}, job={job_id}")
+            
+            try:
+                import base64 as _b64
+                ppt_doc = await db.ppt_uploads.find_one(
+                    {"projectId": project_id},
+                    {"_id": 0, "data": 1, "path": 1}
+                )
+                if ppt_doc and ppt_doc.get("data"):
+                    # Restore file to disk
+                    restore_path = Path(file_path) if file_path else (UPLOADS_DIR / f"{project_id}_recovered.pptx")
+                    restore_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(restore_path, 'wb') as f:
+                        f.write(_b64.b64decode(ppt_doc["data"]))
+                    
+                    # Create/update job
+                    if not job_id:
+                        job_id = str(uuid.uuid4())
+                    
+                    from routes.projects import process_ppt_upload, jobs
+                    jobs[job_id] = {
+                        'id': job_id,
+                        'status': 'pending',
+                        'progress': 0,
+                        'message': 'Recuperando processamento interrompido...',
+                        'result': None
+                    }
+                    await db.jobs.update_one(
+                        {"id": job_id},
+                        {"$set": jobs[job_id]},
+                        upsert=True
+                    )
+                    
+                    # Start processing in background thread (same as normal flow)
+                    import threading
+                    def _run_ppt():
+                        process_ppt_upload(job_id, str(restore_path), project_id)
+                    t = threading.Thread(target=_run_ppt, daemon=True)
+                    t.start()
+                    recovered += 1
+                    logger.info(f"Restarted stalled PPT processing: project={project_id}")
+            except Exception as e:
+                logger.error(f"Failed to recover stalled PPT job for project {project_id}: {e}")
+        
+        if recovered > 0:
+            logger.info(f"Startup PPT recovery: restarted {recovered} stalled jobs")
+    except Exception as e:
+        logger.warning(f"Startup PPT recovery failed (non-fatal): {e}")
+
+
 async def _run_ensure_admin():
     if db is None:
         return

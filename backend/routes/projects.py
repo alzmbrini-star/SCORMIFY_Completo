@@ -620,25 +620,40 @@ async def upload_ppt(
     async with aiofiles.open(upload_path, 'wb') as f:
         await f.write(content)
     
+    # Create job ID early (needed for MongoDB persist)
+    job_id = str(uuid.uuid4())
+    
     # Persist PPT file to MongoDB so it survives deploy/restart
-    try:
-        import base64 as _b64
-        await db.ppt_uploads.update_one(
-            {"projectId": project.id},
-            {"$set": {
-                "projectId": project.id,
-                "filename": file.filename,
-                "path": str(upload_path),
-                "data": _b64.b64encode(content).decode('ascii'),
-                "createdAt": now_utc().isoformat(),
-            }},
-            upsert=True,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to persist PPT to MongoDB (non-fatal): {e}")
+    # This is CRITICAL - without it, the file is lost if server restarts during processing
+    ppt_persisted = False
+    for _persist_attempt in range(3):
+        try:
+            import base64 as _b64
+            await db.ppt_uploads.update_one(
+                {"projectId": project.id},
+                {"$set": {
+                    "projectId": project.id,
+                    "jobId": job_id,
+                    "filename": file.filename,
+                    "path": str(upload_path),
+                    "data": _b64.b64encode(content).decode('ascii'),
+                    "createdAt": now_utc().isoformat(),
+                }},
+                upsert=True,
+            )
+            ppt_persisted = True
+            logger.info(f"PPT file persisted to MongoDB: {project.id}/{file.filename}")
+            break
+        except Exception as e:
+            logger.warning(f"Failed to persist PPT to MongoDB (attempt {_persist_attempt+1}): {e}")
+            if _persist_attempt < 2:
+                import asyncio as _aio
+                await _aio.sleep(2)
+    
+    if not ppt_persisted:
+        logger.error(f"CRITICAL: PPT file NOT persisted to MongoDB after 3 attempts: {project.id}")
     
     # Create job
-    job_id = str(uuid.uuid4())
     jobs[job_id] = {
         'id': job_id,
         'status': 'pending',
