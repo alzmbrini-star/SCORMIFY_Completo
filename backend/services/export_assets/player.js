@@ -922,6 +922,10 @@ var CoursePlayer = (function() {
             
             var el = createElementNode(element);
             if (el) {
+                // Get the intended opacity from element style (default 1)
+                var elementOpacity = (element.style && element.style.opacity !== undefined && element.style.opacity !== null) 
+                    ? element.style.opacity : 1;
+                
                 // Check if element has timeline settings
                 var startTime = element.startTime || 0;
                 var endTime = element.endTime !== undefined && element.endTime !== null ? element.endTime : slideDuration;
@@ -932,9 +936,9 @@ var CoursePlayer = (function() {
                     el.style.visibility = 'hidden';
                     el.style.transition = 'opacity 0.3s ease-in-out';
                     
-                    // Schedule element to appear at startTime
+                    // Schedule element to appear at startTime (respecting element's own opacity)
                     var showTimer = setTimeout(function() {
-                        el.style.opacity = '1';
+                        el.style.opacity = String(elementOpacity);
                         el.style.visibility = 'visible';
                     }, startTime * 1000);
                     window.slideTimelineTimers.push(showTimer);
@@ -962,7 +966,7 @@ var CoursePlayer = (function() {
                     }];
                 }
                 if (anims.length > 0) {
-                    scheduleAnimations(el, anims);
+                    scheduleAnimations(el, anims, elementOpacity);
                 }
             }
         });
@@ -1586,7 +1590,8 @@ var CoursePlayer = (function() {
         }
     }
     
-    function scheduleAnimations(el, animations) {
+    function scheduleAnimations(el, animations, elementOpacity) {
+        var targetOpacity = (elementOpacity !== undefined && elementOpacity !== null) ? String(elementOpacity) : '1';
         animations.forEach(function(anim, index) {
             var delay = (anim.startTime || anim.delay || index * 0.3) * 1000;
             var duration = (anim.duration || 0.5) * 1000;
@@ -1603,7 +1608,7 @@ var CoursePlayer = (function() {
                     case 'slideInDown': el.style.transform = 'translateY(-40px)'; break;
                     case 'zoomIn': el.style.transform = 'scale(0.5)'; break;
                     case 'bounce': el.style.transform = 'translateY(-30px)'; break;
-                    case 'typewriter': el.style.opacity = '1'; el.style.clipPath = 'inset(0 100% 0 0)'; break;
+                    case 'typewriter': el.style.opacity = targetOpacity; el.style.clipPath = 'inset(0 100% 0 0)'; break;
                 }
             }
             
@@ -1613,11 +1618,11 @@ var CoursePlayer = (function() {
                     el.style.clipPath = 'inset(0 0% 0 0)';
                 } else if (effect === 'bounce') {
                     el.style.transition = 'opacity ' + duration + 'ms ease, transform ' + duration + 'ms cubic-bezier(0.34, 1.56, 0.64, 1)';
-                    el.style.opacity = '1';
+                    el.style.opacity = targetOpacity;
                     el.style.transform = 'translateY(0) translateX(0) scale(1)';
                 } else {
                     el.style.transition = 'opacity ' + duration + 'ms ' + easing + ', transform ' + duration + 'ms ' + easing;
-                    el.style.opacity = anim.type === 'exit' ? '0' : '1';
+                    el.style.opacity = anim.type === 'exit' ? '0' : targetOpacity;
                     el.style.transform = 'translateY(0) translateX(0) scale(1)';
                 }
             }, delay);

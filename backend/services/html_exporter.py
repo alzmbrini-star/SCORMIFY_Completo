@@ -2183,6 +2183,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var startTime = elem.startTime || 0;
                         var endTime = (elem.endTime !== undefined && elem.endTime !== null) ? elem.endTime : slideDuration;
                         var element = document.getElementById('element-' + elemIndex);
+                        var elementOpacity = (elem.style && elem.style.opacity !== undefined && elem.style.opacity !== null) ? elem.style.opacity : 1;
                         
                         if (element) {{
                             // Check if this is an animation clip or mask element
@@ -2308,12 +2309,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                                 element.style.clipPath = 'inset(0 0% 0 0)';
                                             }} else if (eff === 'bounce') {{
                                                 element.style.transition = 'opacity ' + animDuration + 's ease, transform ' + animDuration + 's cubic-bezier(0.34, 1.56, 0.64, 1)';
-                                                element.style.opacity = '1';
+                                                element.style.opacity = String(elementOpacity);
                                                 element.style.transform = 'translateY(0) translateX(0) scale(1)';
                                             }} else {{
                                                 var easeFunc = anim.easing || 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
                                                 element.style.transition = 'opacity ' + animDuration + 's ' + easeFunc + ', transform ' + animDuration + 's ' + easeFunc;
-                                                element.style.opacity = '1';
+                                                element.style.opacity = String(elementOpacity);
                                                 element.style.transform = 'translateY(0) translateX(0) scale(1)';
                                             }}
                                         }}, (startTime + actualDelay) * 1000);
