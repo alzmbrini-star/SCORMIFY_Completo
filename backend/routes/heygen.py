@@ -590,6 +590,20 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
     # Log what we're sending to the AI for debugging
     logger.info(f"Narration gen for slide {slide_id}: title='{slide_title[:40]}', text_len={len(slide_text)}, images={len(image_files)}, has_notes={bool(slide_notes)}, has_extractedText={bool(extracted_text)}")
 
+    # Build rich course context (critical when slide-specific content is unavailable)
+    course_title = course.get('metadata', {}).get('title', '') or project.get('name', '')
+    course_desc = course.get('metadata', {}).get('description', '') or ''
+    slide_index = next((i for i, s in enumerate(slides) if s.get('id') == slide_id), 0)
+    total_slides_count = len(slides)
+    
+    # Get titles of nearby slides for structural context
+    slide_titles_context = []
+    for i, s in enumerate(slides):
+        t = s.get('title', f'Slide {i+1}')
+        marker = " <<<< SLIDE ATUAL" if s.get('id') == slide_id else ""
+        slide_titles_context.append(f"  {i+1}. {t}{marker}")
+    slides_structure = "\n".join(slide_titles_context)
+
     style_guide = {
         "educational": "educativo e didático, explicando conceitos de forma clara e objetiva",
         "conversational": "conversacional e descontraído, como se estivesse falando com um amigo",
@@ -632,21 +646,38 @@ Texto da terceira opção aqui..."""
             system_message=system_msg
         ).with_model("gemini", "gemini-3-flash-preview")
 
-        prompt = "Crie 3 opções de texto de narração para o seguinte slide:"
-        if slide_title:
-            prompt += f"\n\nTítulo do slide: {slide_title}"
+        prompt = f"Crie 3 opções de texto de narração para o slide {slide_index + 1} de {total_slides_count} do curso:"
+        
+        # Always include course context
+        if course_title:
+            prompt += f"\n\nCURSO: {course_title}"
+        if course_desc:
+            prompt += f"\nDESCRIÇÃO DO CURSO: {course_desc}"
+        
+        # Include structure of all slides so AI knows the flow
+        prompt += f"\n\nESTRUTURA DO CURSO ({total_slides_count} slides):\n{slides_structure}"
+        
+        prompt += f"\n\n--- CONTEÚDO DO SLIDE ATUAL (Slide {slide_index + 1}: {slide_title}) ---"
+        
         if has_images:
-            prompt += "\n\nAs imagens do slide estão anexadas. Leia o conteúdo visual e textual delas para criar a narração."
+            prompt += "\n\nAs imagens do slide estão anexadas. Leia ATENTAMENTE todo o texto visível nas imagens (OCR) e use como base da narração."
         if slide_text:
             prompt += f"\n\nTexto extraído do slide:\n{slide_text}"
         if slide_notes:
-            prompt += f"\n\nNotas do apresentador (use como guia de contexto):\n{slide_notes}"
+            prompt += f"\n\nNotas do apresentador:\n{slide_notes}"
         if request.slide_content:
             prompt += f"\n\nContexto adicional do usuário: {request.slide_content}"
         
-        # Warn if we have very little content
+        # When we have very little content, explicitly ask for specific narration
         if not slide_text and not has_images and not slide_notes:
-            prompt += "\n\nATENÇÃO: Não foi possível extrair conteúdo detalhado deste slide. Gere uma narração baseada no título, mas seja MUITO específico e evite frases genéricas."
+            prompt += f"""
+
+IMPORTANTE: Não foi possível carregar a imagem nem extrair texto deste slide.
+Use o TÍTULO do slide "{slide_title}" e a POSIÇÃO no curso (slide {slide_index + 1} de {total_slides_count}) para criar uma narração ESPECÍFICA e CONTEXTUALIZADA.
+- Se o título tem um tema claro, APROFUNDE nesse tema
+- Considere o que veio antes e o que vem depois na estrutura do curso
+- NÃO use frases genéricas como "Bem-vindos à nossa jornada" ou "Neste módulo vamos explorar"
+- SEJA ESPECÍFICO sobre o conteúdo baseado no título e contexto do curso"""
 
         user_message = UserMessage(
             text=prompt,
