@@ -1,0 +1,31 @@
+# Runtime storage (regenerated from MongoDB on startup)
+backend/storage/projects/
+backend/storage/audio/
+backend/storage/exports/
+backend/storage/uploads/
+backend/storage/assets/
+backend/storage/scorm_preview/
+
+# Test files not needed in production
+backend/static_test/
+frontend/public/test/
+backend/tests/
+
+# Build artifacts and caches
+.git/
+.cache/
+**/__pycache__/
+**/*.pyc
+*.pack
+
+# IDE
+.idea/
+.vscode/
+
+# Test reports
+test_reports/
+
+# Misc
+.emergent/
+Imagens/
+auth_testing.md
