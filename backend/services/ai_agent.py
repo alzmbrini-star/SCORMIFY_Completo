@@ -28,7 +28,15 @@ async def _get_motor_db():
         mongo_url = os.environ.get('MONGO_URL', '')
         db_name = os.environ.get('DB_NAME', '')
         if mongo_url and db_name:
-            client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+            _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
+            client = AsyncIOMotorClient(
+                mongo_url,
+                serverSelectionTimeoutMS=120000 if _is_atlas else 30000,
+                connectTimeoutMS=120000 if _is_atlas else 30000,
+                socketTimeoutMS=300000 if _is_atlas else 60000,
+                retryWrites=True,
+                retryReads=True,
+            )
             _motor_db = client[db_name]
             return _motor_db
     except Exception as e:
@@ -712,8 +720,19 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
                 _db = await _get_motor_db()
                 if _db is not None:
                     await store_asset_async(_db, project_id, fname, fpath)
+                    logger.info(f"AI image persisted in MongoDB: {project_id}/{fname}")
             except Exception as e:
-                logger.warning(f"Failed to persist AI image in MongoDB (non-fatal): {e}")
+                logger.warning(f"Failed to persist AI image in MongoDB (attempt 1): {e}")
+                # Retry once after brief delay
+                try:
+                    import asyncio as _aio2
+                    await _aio2.sleep(2)
+                    _db = await _get_motor_db()
+                    if _db is not None:
+                        await store_asset_async(_db, project_id, fname, fpath)
+                        logger.info(f"AI image persisted in MongoDB on retry: {project_id}/{fname}")
+                except Exception as e2:
+                    logger.error(f"Failed to persist AI image in MongoDB (attempt 2): {e2}")
             
             # Auto-save to image gallery
             img_url = f"/api/projects/{project_id}/assets/{fname}"
@@ -738,7 +757,12 @@ async def _auto_save_gallery(image_url: str, keywords: str, project_id: str):
         _db_name = os.environ.get('DB_NAME', '')
         if not _mongo_url or not _db_name:
             return
-        _client = AsyncIOMotorClient(_mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+        _client = AsyncIOMotorClient(
+            _mongo_url,
+            serverSelectionTimeoutMS=60000,
+            connectTimeoutMS=60000,
+            socketTimeoutMS=120000,
+        )
         _db = _client[_db_name]
         existing = await _db.image_gallery.find_one({"imageUrl": image_url})
         if not existing:
@@ -784,8 +808,17 @@ async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -
                     _db = await _get_motor_db()
                     if _db is not None:
                         await store_asset_async(_db, project_id, fname, fpath)
+                        logger.info(f"Stock image persisted in MongoDB: {project_id}/{fname}")
                 except Exception as e:
-                    logger.warning(f"Failed to persist stock image in MongoDB (non-fatal): {e}")
+                    logger.warning(f"Failed to persist stock image in MongoDB (attempt 1): {e}")
+                    try:
+                        import asyncio as _aio3
+                        await _aio3.sleep(2)
+                        _db = await _get_motor_db()
+                        if _db is not None:
+                            await store_asset_async(_db, project_id, fname, fpath)
+                    except Exception:
+                        pass
                 
                 return f"/api/projects/{project_id}/assets/{fname}"
     except Exception as e:
