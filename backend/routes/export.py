@@ -884,25 +884,19 @@ async def serve_asset(project_id: str, filename: str):
             from services.asset_store import retrieve_asset_async
             data, content_type = await retrieve_asset_async(db, project_id, filename)
             if data:
-                # Try to restore to filesystem for future requests
+                # Cache to filesystem for future requests
                 try:
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(file_path, 'wb') as f:
                         f.write(data)
-                    logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
                     return FileResponse(file_path)
                 except Exception:
-                    # If disk write fails, stream directly from memory
                     from fastapi.responses import Response
                     return Response(content=data, media_type=content_type)
-            else:
-                logger.warning(f"Asset not found in MongoDB: {project_id}/{filename}")
         except Exception as e:
             logger.warning(f"MongoDB asset fallback failed for {project_id}/{filename}: {e}")
-    else:
-        logger.warning(f"db is None when trying to serve asset: {project_id}/{filename}")
     
-    raise HTTPException(status_code=404, detail=f"Asset not found: {project_id}/{filename}")
+    raise HTTPException(status_code=404, detail=f"Asset not found: {filename}")
 
 
 @router.post("/admin/repair-assets")

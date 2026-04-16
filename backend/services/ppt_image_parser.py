@@ -339,33 +339,42 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
                 _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
                 _pclient = _PersistClient(
                     mongo_url,
-                    serverSelectionTimeoutMS=60000 if _is_atlas else 10000,
-                    connectTimeoutMS=60000 if _is_atlas else 10000,
-                    socketTimeoutMS=120000 if _is_atlas else 30000,
+                    serverSelectionTimeoutMS=120000 if _is_atlas else 10000,
+                    connectTimeoutMS=120000 if _is_atlas else 10000,
+                    socketTimeoutMS=600000 if _is_atlas else 30000,
                     retryWrites=True,
+                    maxPoolSize=2,
                 )
                 _pdb = _pclient[db_name]
                 persisted = 0
                 for img_path in slide_images:
-                    try:
-                        img_filename = Path(img_path).name
-                        with open(img_path, 'rb') as f:
-                            data_b64 = base64.b64encode(f.read()).decode('ascii')
-                        _pdb.project_assets.update_one(
-                            {"project_id": project_id, "filename": img_filename},
-                            {"$set": {
-                                "project_id": project_id,
-                                "filename": img_filename,
-                                "data": data_b64,
-                                "content_type": _get_content_type(img_filename),
-                            }},
-                            upsert=True,
-                        )
-                        persisted += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to persist slide image {img_path}: {e}")
+                    img_filename = Path(img_path).name
+                    for attempt in range(3):
+                        try:
+                            with open(img_path, 'rb') as f:
+                                data_b64 = base64.b64encode(f.read()).decode('ascii')
+                            _pdb.project_assets.update_one(
+                                {"project_id": project_id, "filename": img_filename},
+                                {"$set": {
+                                    "project_id": project_id,
+                                    "filename": img_filename,
+                                    "data": data_b64,
+                                    "content_type": _get_content_type(img_filename),
+                                }},
+                                upsert=True,
+                            )
+                            persisted += 1
+                            break
+                        except Exception as e:
+                            logger.warning(f"Failed to persist slide image {img_filename} (attempt {attempt+1}): {e}")
+                            if attempt < 2:
+                                import time as _time
+                                _time.sleep(2)
+                    if _is_atlas and persisted > 0 and persisted % 5 == 0:
+                        import time as _time
+                        _time.sleep(0.5)
                 _pclient.close()
-                logger.info(f"Persisted {persisted}/{len(slide_images)} slide images in MongoDB (single connection)")
+                logger.info(f"Persisted {persisted}/{len(slide_images)} slide images in MongoDB")
         except Exception as e:
             logger.warning(f"Failed to persist slide images in MongoDB (non-fatal): {e}")
     
