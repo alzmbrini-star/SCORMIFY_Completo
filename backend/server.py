@@ -309,11 +309,13 @@ async def startup_asset_sync():
                 serverSelectionTimeoutMS=_sel_timeout,
                 connectTimeoutMS=_conn_timeout,
                 socketTimeoutMS=_sock_timeout,
-                maxPoolSize=10,
+                maxPoolSize=3,
                 retryWrites=True,
                 retryReads=True,
             )
             _db = _client[db_name]
+            # Throttle delay between heavy operations to avoid saturating Atlas connection pool
+            _throttle = 0.15 if _is_atlas else 0
 
             # ── PHASE 1: RESTORE (MongoDB -> disk) ──
             # Only fetch filenames first, then load data individually for missing files
@@ -351,7 +353,7 @@ async def startup_asset_sync():
                 if missing:
                     logger.info(f"Asset sync: {len(missing)} files missing locally, restoring from MongoDB...")
                     failed_assets = []
-                    for pid, fname, fp in missing:
+                    for idx, (pid, fname, fp) in enumerate(missing):
                         try:
                             doc = _db.project_assets.find_one(
                                 {"project_id": pid, "filename": fname},
@@ -362,6 +364,8 @@ async def startup_asset_sync():
                                 with open(fp, "wb") as f:
                                     f.write(base64.b64decode(doc["data"]))
                                 total_restored += 1
+                            if _throttle and idx % 5 == 4:
+                                time.sleep(_throttle)
                         except Exception as e:
                             failed_assets.append((pid, fname, fp))
                             logger.warning(f"Asset restore failed for {pid}/{fname}: {e}")
@@ -464,7 +468,7 @@ async def startup_asset_sync():
                 if files_to_persist:
                     logger.info(f"Asset sync: {len(files_to_persist)} new local files to persist to MongoDB...")
                     failed_persists = []
-                    for pid, fname, fpath in files_to_persist:
+                    for idx, (pid, fname, fpath) in enumerate(files_to_persist):
                         try:
                             file_size = Path(fpath).stat().st_size
                             if file_size > 10 * 1024 * 1024:  # Skip files > 10MB (Atlas timeout risk)
@@ -483,6 +487,8 @@ async def startup_asset_sync():
                                 upsert=True
                             )
                             total_persisted += 1
+                            if _throttle and idx % 3 == 2:
+                                time.sleep(_throttle)
                         except Exception as e:
                             failed_persists.append((pid, fname, fpath))
                             logger.warning(f"Asset persist failed for {pid}/{fname}: {e}")
