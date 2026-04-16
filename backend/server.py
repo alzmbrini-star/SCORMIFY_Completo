@@ -318,86 +318,41 @@ async def startup_asset_sync():
             _restore_throttle = 0.2 if _is_atlas else 0  # Between individual asset restores
             _persist_throttle = 0.5 if _is_atlas else 0  # Between persist operations (heavier - writes large base64)
 
-            # ── PHASE 1: RESTORE (MongoDB -> disk) ──
-            # Strategy: Get distinct project_ids first (lightweight), then query per-project
+            # ── PHASE 1: INDEX (MongoDB -> memory) ──
+            # Only build the index of what's in MongoDB (lightweight: project_id + filename only)
+            # Image assets are NOT restored at startup — they're served on-demand via serve_asset MongoDB fallback
+            # This prevents Atlas timeouts caused by bulk binary reads during startup
             total_restored = 0
-            all_assets_index = []  # Must be defined before try block (used by PERSIST phase)
+            all_assets_index = []
             try:
-                # Small delay to let Atlas connections warm up
-                time.sleep(3)
+                time.sleep(3)  # Let Atlas connections warm up
                 
-                # Step 1: Get distinct project_ids (very lightweight query)
+                # Get distinct project_ids (very lightweight)
                 project_ids = _db.project_assets.distinct("project_id")
                 logger.info(f"Asset sync: found {len(project_ids)} projects in MongoDB")
                 
-                # Step 2: For each project, get filenames and check local disk
-                missing = []
+                # Build index per project (filenames only, no binary data)
                 for pid in project_ids:
                     try:
                         docs = list(_db.project_assets.find(
                             {"project_id": pid},
                             {"_id": 0, "project_id": 1, "filename": 1},
-                            batch_size=100,
+                            batch_size=200,
                         ))
                         all_assets_index.extend(docs)
-                        for doc in docs:
-                            fname = doc.get("filename", "")
-                            if not fname:
-                                continue
-                            if pid == "global":
-                                fp = STORAGE_DIR / "assets" / fname
-                            else:
-                                fp = PROJECTS_DIR / pid / "assets" / fname
-                            if not fp.exists():
-                                missing.append((pid, fname, fp))
                         if _restore_throttle:
-                            time.sleep(_restore_throttle * 0.5)
+                            time.sleep(_restore_throttle * 0.3)
                     except Exception as e:
                         logger.warning(f"Asset sync: failed to index project {pid[:12]}...: {e}")
                 
-                logger.info(f"Asset sync: found {len(all_assets_index)} assets total, {len(missing)} missing locally")
-
-                if missing:
-                    logger.info(f"Asset sync: restoring {len(missing)} files from MongoDB...")
-                    failed_assets = []
-                    for idx, (pid, fname, fp) in enumerate(missing):
-                        try:
-                            doc = _db.project_assets.find_one(
-                                {"project_id": pid, "filename": fname},
-                                {"_id": 0, "data": 1}
-                            )
-                            if doc and doc.get("data"):
-                                fp.parent.mkdir(parents=True, exist_ok=True)
-                                with open(fp, "wb") as f:
-                                    f.write(base64.b64decode(doc["data"]))
-                                total_restored += 1
-                            if _restore_throttle and idx % 5 == 4:
-                                time.sleep(_restore_throttle)
-                        except Exception as e:
-                            failed_assets.append((pid, fname, fp))
-                            logger.warning(f"Asset restore failed for {pid}/{fname}: {e}")
-
-                    # Retry failed assets once with a small delay
-                    if failed_assets:
-                        logger.info(f"Asset sync: retrying {len(failed_assets)} failed assets...")
-                        time.sleep(3)
-                        for pid, fname, fp in failed_assets:
-                            try:
-                                doc = _db.project_assets.find_one(
-                                    {"project_id": pid, "filename": fname},
-                                    {"_id": 0, "data": 1}
-                                )
-                                if doc and doc.get("data"):
-                                    fp.parent.mkdir(parents=True, exist_ok=True)
-                                    with open(fp, "wb") as f:
-                                        f.write(base64.b64decode(doc["data"]))
-                                    total_restored += 1
-                            except Exception as e:
-                                logger.warning(f"Asset restore retry failed for {pid}/{fname}: {e}")
-                else:
-                    logger.info("Asset sync: all project assets already on disk")
+                total_in_mongo = len(all_assets_index)
+                local_exists = sum(1 for doc in all_assets_index
+                    if (PROJECTS_DIR / doc.get("project_id","") / "assets" / doc.get("filename","")).exists()
+                    or (doc.get("project_id") == "global" and (STORAGE_DIR / "assets" / doc.get("filename","")).exists())
+                )
+                logger.info(f"Asset sync: {total_in_mongo} assets indexed, {local_exists} already on disk, {total_in_mongo - local_exists} will be served on-demand from MongoDB")
             except Exception as e:
-                logger.warning(f"Asset sync RESTORE phase failed (non-fatal): {e}")
+                logger.warning(f"Asset sync INDEX phase failed (non-fatal): {e}")
 
             # Restore audio files
             audio_restored = 0
