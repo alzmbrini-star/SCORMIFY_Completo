@@ -319,40 +319,46 @@ async def startup_asset_sync():
             _persist_throttle = 0.5 if _is_atlas else 0  # Between persist operations (heavier - writes large base64)
 
             # ── PHASE 1: RESTORE (MongoDB -> disk) ──
-            # Only fetch filenames first, then load data individually for missing files
+            # Strategy: Get distinct project_ids first (lightweight), then query per-project
             total_restored = 0
             all_assets_index = []  # Must be defined before try block (used by PERSIST phase)
             try:
-                # Get lightweight index: project_id + filename (no data!)
-                # Use batch_size to avoid Atlas cursor timeout on large collections
-                cursor = _db.project_assets.find(
-                    {},
-                    {"_id": 0, "project_id": 1, "filename": 1},
-                    no_cursor_timeout=True,
-                    batch_size=500,
-                )
-                try:
-                    all_assets_index = list(cursor)
-                finally:
-                    cursor.close()
-                logger.info(f"Asset sync: found {len(all_assets_index)} assets in MongoDB index")
-
-                # Group by project and check which files are missing locally
+                # Small delay to let Atlas connections warm up
+                time.sleep(3)
+                
+                # Step 1: Get distinct project_ids (very lightweight query)
+                project_ids = _db.project_assets.distinct("project_id")
+                logger.info(f"Asset sync: found {len(project_ids)} projects in MongoDB")
+                
+                # Step 2: For each project, get filenames and check local disk
                 missing = []
-                for doc in all_assets_index:
-                    pid = doc.get("project_id", "")
-                    fname = doc.get("filename", "")
-                    if not pid or not fname:
-                        continue
-                    if pid == "global":
-                        fp = STORAGE_DIR / "assets" / fname
-                    else:
-                        fp = PROJECTS_DIR / pid / "assets" / fname
-                    if not fp.exists():
-                        missing.append((pid, fname, fp))
+                for pid in project_ids:
+                    try:
+                        docs = list(_db.project_assets.find(
+                            {"project_id": pid},
+                            {"_id": 0, "project_id": 1, "filename": 1},
+                            batch_size=100,
+                        ))
+                        all_assets_index.extend(docs)
+                        for doc in docs:
+                            fname = doc.get("filename", "")
+                            if not fname:
+                                continue
+                            if pid == "global":
+                                fp = STORAGE_DIR / "assets" / fname
+                            else:
+                                fp = PROJECTS_DIR / pid / "assets" / fname
+                            if not fp.exists():
+                                missing.append((pid, fname, fp))
+                        if _restore_throttle:
+                            time.sleep(_restore_throttle * 0.5)
+                    except Exception as e:
+                        logger.warning(f"Asset sync: failed to index project {pid[:12]}...: {e}")
+                
+                logger.info(f"Asset sync: found {len(all_assets_index)} assets total, {len(missing)} missing locally")
 
                 if missing:
-                    logger.info(f"Asset sync: {len(missing)} files missing locally, restoring from MongoDB...")
+                    logger.info(f"Asset sync: restoring {len(missing)} files from MongoDB...")
                     failed_assets = []
                     for idx, (pid, fname, fp) in enumerate(missing):
                         try:
