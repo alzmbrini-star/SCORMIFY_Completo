@@ -1661,6 +1661,7 @@ export default function Editor() {
                                     isSelected={selectedElementId === element.id}
                                     onClick={() => setSelectedElementId(element.id)}
                                     onDelete={() => handleDeleteElement(element.id)}
+                                    onUpdateOpacity={(elId, opacity) => updateElement(currentSlide.id, elId, { style: { ...(currentSlide.elements.find(e => e.id === elId)?.style || {}), opacity } })}
                                   />
                                 ))}
                             </SortableContext>
