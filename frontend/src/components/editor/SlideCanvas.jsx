@@ -494,7 +494,7 @@ const SlideCanvas = ({
           src={getAssetUrl(slide.backgroundImage)}
           alt=""
           className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
-          style={{ zIndex: 0 }}
+          style={{ zIndex: 0, opacity: slide.backgroundImageOpacity != null ? slide.backgroundImageOpacity : 1 }}
           draggable={false}
         />
       )}

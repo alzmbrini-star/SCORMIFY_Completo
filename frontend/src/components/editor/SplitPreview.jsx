@@ -332,7 +332,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
             >
             {/* Background */}
             {currentSlide.backgroundImage && (
-              <img src={getAssetUrl(currentSlide.backgroundImage, projectId)} alt="" className="absolute inset-0 w-full h-full" style={{ zIndex: 0, objectFit: 'fill' }} />
+              <img src={getAssetUrl(currentSlide.backgroundImage, projectId)} alt="" className="absolute inset-0 w-full h-full" style={{ zIndex: 0, objectFit: 'fill', opacity: currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1 }} />
             )}
 
             {/* Elements */}

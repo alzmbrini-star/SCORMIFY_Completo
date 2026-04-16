@@ -82,3 +82,4 @@ backend/storage/scorm_preview/
 # Test files (not needed in production)
 backend/static_test/
 frontend/node_modules/.cache/default-development/16.pack
+frontend/node_modules/.cache/default-development/3.pack

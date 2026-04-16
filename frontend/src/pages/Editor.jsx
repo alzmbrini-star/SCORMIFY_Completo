@@ -1600,8 +1600,41 @@ export default function Editor() {
 
               <TabsContent value="layers" className="flex-1 mt-0 overflow-hidden">
                 <ScrollArea className="h-[calc(100vh-200px)]">
-                  {(currentSlide?.elements?.length > 0 || currentSlide?.annotations?.length > 0) ? (
+                  {(currentSlide?.elements?.length > 0 || currentSlide?.annotations?.length > 0 || currentSlide?.backgroundImage) ? (
                     <div className="p-2 space-y-1">
+                      {/* Background Image Layer - Opacity Control */}
+                      {currentSlide?.backgroundImage && (
+                        <div className="mb-3">
+                          <div className="text-xs font-medium text-muted-foreground px-2 py-1">Imagem de Fundo</div>
+                          <div className="flex items-center gap-2 p-2 rounded bg-muted/50 border border-border/50">
+                            <Image className="w-4 h-4 text-blue-400 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm truncate">Background</span>
+                                <span className="text-[10px] text-muted-foreground font-mono" data-testid="bg-opacity-value">
+                                  {Math.round((currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1) * 100)}%
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-muted-foreground">Transparencia</span>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  value={Math.round((currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1) * 100)}
+                                  onChange={(e) => {
+                                    const opacity = parseInt(e.target.value) / 100;
+                                    updateSlide(currentSlide.id, { backgroundImageOpacity: opacity });
+                                  }}
+                                  className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
+                                  data-testid="bg-opacity-slider"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Elements - Sortable */}
                       {currentSlide.elements?.length > 0 && (
                         <div className="mb-2">
