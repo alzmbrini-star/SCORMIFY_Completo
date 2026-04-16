@@ -496,25 +496,63 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
     text_parts = []
     image_files = []  # list of FileContent for Gemini vision
 
+    async def _load_image_for_vision(asset_url: str) -> bool:
+        """Load image from disk or MongoDB fallback. Returns True if loaded."""
+        nonlocal image_files
+        try:
+            img_data = None
+            fname = None
+            pid = project_id
+
+            if asset_url.startswith('/api/projects/'):
+                parts = asset_url.split('/assets/')
+                if len(parts) != 2:
+                    return False
+                fname = parts[1]
+                # Extract project_id from URL if different
+                url_pid = asset_url.split('/api/projects/')[1].split('/')[0]
+                if url_pid:
+                    pid = url_pid
+                local_path = PROJECTS_DIR / pid / "assets" / fname
+                if local_path.exists():
+                    img_data = local_path.read_bytes()
+            elif asset_url.startswith('/api/assets/'):
+                fname = asset_url.split('/api/assets/')[-1]
+                local_path = STORAGE_DIR / "assets" / fname
+                if local_path.exists():
+                    img_data = local_path.read_bytes()
+                pid = "global"
+            else:
+                return False
+
+            # Fallback: load from MongoDB if not on disk
+            if img_data is None and fname and db is not None:
+                try:
+                    from services.asset_store import retrieve_asset_async
+                    data, _ = await retrieve_asset_async(db, pid, fname)
+                    if data:
+                        img_data = data
+                        logger.info(f"Loaded image from MongoDB fallback for vision: {pid}/{fname}")
+                except Exception as e:
+                    logger.warning(f"MongoDB fallback failed for {pid}/{fname}: {e}")
+
+            if img_data and len(img_data) > 100:
+                ext = (fname or '').rsplit('.', 1)[-1].lower() if fname else 'png'
+                mime = 'image/png' if ext == 'png' else 'image/jpeg' if ext in ('jpg', 'jpeg') else 'image/webp'
+                image_files.append(FileContent(
+                    content_type=mime,
+                    file_content_base64=base64.b64encode(img_data).decode('utf-8')
+                ))
+                logger.info(f"Loaded image for vision: {fname}")
+                return True
+        except Exception as e:
+            logger.warning(f"Failed to load image for vision ({asset_url}): {e}")
+        return False
+
     # Check for backgroundImage (PPT-imported slides store full slide as image)
     bg_image = slide.get('backgroundImage', '')
-    if bg_image and bg_image.startswith('/api/projects/'):
-        # Extract file path from URL: /api/projects/{id}/assets/{filename}
-        parts = bg_image.split('/assets/')
-        if len(parts) == 2:
-            local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
-            if local_path.exists():
-                try:
-                    img_data = local_path.read_bytes()
-                    ext = local_path.suffix.lower()
-                    mime = 'image/png' if ext == '.png' else 'image/jpeg'
-                    image_files.append(FileContent(
-                        content_type=mime,
-                        file_content_base64=base64.b64encode(img_data).decode('utf-8')
-                    ))
-                    logger.info(f"Loaded background image for vision: {local_path.name}")
-                except Exception as e:
-                    logger.warning(f"Failed to load background image: {e}")
+    if bg_image and bg_image.startswith('/api/'):
+        await _load_image_for_vision(bg_image)
 
     # Extract content from elements
     for element in slide.get('elements', []):
@@ -529,60 +567,13 @@ async def generate_slide_narration(project_id: str, slide_id: str, request: Gene
             # Also check for inline images in htmlContent (RTF editor embeds images)
             img_matches = re.findall(r'src="(/api/[^"]+)"', raw_content)
             for img_src in img_matches:
-                if img_src.startswith('/api/projects/'):
-                    parts = img_src.split('/assets/')
-                    if len(parts) == 2:
-                        local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
-                        if local_path.exists():
-                            try:
-                                img_data = local_path.read_bytes()
-                                ext = local_path.suffix.lower()
-                                mime = 'image/png' if ext == '.png' else 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/webp'
-                                image_files.append(FileContent(
-                                    content_type=mime,
-                                    file_content_base64=base64.b64encode(img_data).decode('utf-8')
-                                ))
-                                logger.info(f"Loaded inline image for vision: {local_path.name}")
-                            except Exception as e:
-                                logger.warning(f"Failed to load inline image: {e}")
-                elif img_src.startswith('/api/assets/'):
-                    # Global assets path
-                    asset_name = img_src.split('/api/assets/')[-1]
-                    local_path = STORAGE_DIR / "assets" / asset_name
-                    if local_path.exists():
-                        try:
-                            img_data = local_path.read_bytes()
-                            ext = local_path.suffix.lower()
-                            mime = 'image/png' if ext == '.png' else 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/webp'
-                            image_files.append(FileContent(
-                                content_type=mime,
-                                file_content_base64=base64.b64encode(img_data).decode('utf-8')
-                            ))
-                            logger.info(f"Loaded global asset image for vision: {asset_name}")
-                        except Exception as e:
-                            logger.warning(f"Failed to load global asset image: {e}")
+                await _load_image_for_vision(img_src)
         elif el_type == 'image' and element.get('src'):
-            src = element['src']
-            if src.startswith('/api/projects/'):
-                parts = src.split('/assets/')
-                if len(parts) == 2:
-                    local_path = PROJECTS_DIR / project_id / "assets" / parts[1]
-                    if local_path.exists():
-                        try:
-                            img_data = local_path.read_bytes()
-                            ext = local_path.suffix.lower()
-                            mime = 'image/png' if ext == '.png' else 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/webp'
-                            image_files.append(FileContent(
-                                content_type=mime,
-                                file_content_base64=base64.b64encode(img_data).decode('utf-8')
-                            ))
-                            logger.info(f"Loaded element image for vision: {local_path.name}")
-                        except Exception as e:
-                            logger.warning(f"Failed to load element image: {e}")
+            await _load_image_for_vision(element['src'])
         elif el_type == 'quiz':
             text_parts.append("[Quiz/Atividade interativa presente no slide]")
         elif el_type == 'video':
-            text_parts.append("[Vídeo presente no slide]")
+            text_parts.append("[Video presente no slide]")
 
     slide_text = "\n".join(text_parts) if text_parts else ""
     slide_title = slide.get('title', '')
