@@ -315,7 +315,8 @@ async def startup_asset_sync():
             )
             _db = _client[db_name]
             # Throttle delay between heavy operations to avoid saturating Atlas connection pool
-            _throttle = 0.15 if _is_atlas else 0
+            _restore_throttle = 0.2 if _is_atlas else 0  # Between individual asset restores
+            _persist_throttle = 0.5 if _is_atlas else 0  # Between persist operations (heavier - writes large base64)
 
             # ── PHASE 1: RESTORE (MongoDB -> disk) ──
             # Only fetch filenames first, then load data individually for missing files
@@ -364,8 +365,8 @@ async def startup_asset_sync():
                                 with open(fp, "wb") as f:
                                     f.write(base64.b64decode(doc["data"]))
                                 total_restored += 1
-                            if _throttle and idx % 5 == 4:
-                                time.sleep(_throttle)
+                            if _restore_throttle and idx % 5 == 4:
+                                time.sleep(_restore_throttle)
                         except Exception as e:
                             failed_assets.append((pid, fname, fp))
                             logger.warning(f"Asset restore failed for {pid}/{fname}: {e}")
@@ -487,8 +488,8 @@ async def startup_asset_sync():
                                 upsert=True
                             )
                             total_persisted += 1
-                            if _throttle and idx % 3 == 2:
-                                time.sleep(_throttle)
+                            if _persist_throttle:
+                                time.sleep(_persist_throttle)
                         except Exception as e:
                             failed_persists.append((pid, fname, fpath))
                             logger.warning(f"Asset persist failed for {pid}/{fname}: {e}")
