@@ -883,6 +883,10 @@ var CoursePlayer = (function() {
             bgImg.style.objectPosition = 'center center';
             bgImg.style.pointerEvents = 'none';
             bgImg.style.zIndex = '0';
+            // Apply background image opacity if set
+            if (slide.backgroundImageOpacity != null && slide.backgroundImageOpacity !== undefined) {
+                bgImg.style.opacity = slide.backgroundImageOpacity;
+            }
             container.appendChild(bgImg);
         }
         
@@ -1543,10 +1547,10 @@ var CoursePlayer = (function() {
         if (style.fill) el.style.backgroundColor = style.fill;
         if (style.stroke) el.style.borderColor = style.stroke;
         if (style.strokeWidth) el.style.borderWidth = style.strokeWidth + 'px';
-        // Only apply opacity if it's a non-zero value.
-        // PPT imports often set opacity: 0 which makes elements invisible.
-        // Timeline and animations handle show/hide separately.
-        if (style.opacity !== undefined && style.opacity > 0) el.style.opacity = style.opacity;
+        // Apply opacity from element style (0 to 1 range)
+        if (style.opacity !== undefined && style.opacity !== null) {
+            el.style.opacity = style.opacity;
+        }
         if (style.fontSize) el.style.fontSize = style.fontSize + 'px';
         if (style.fontFamily) el.style.fontFamily = style.fontFamily;
         if (style.fontWeight) el.style.fontWeight = style.fontWeight;

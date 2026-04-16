@@ -505,6 +505,7 @@ async def get_slides_data(project_id: str, default_duration: float = 5.0):
             'duration': max(2.0, float(duration)),
             'background': slide.get('background', '#FFFFFF'),
             'backgroundImage': bg_image,
+            'backgroundImageOpacity': slide.get('backgroundImageOpacity', 1),
             'elements': elements,
             'videoElements': video_elements,
             'audioElements': audio_items,

@@ -90,6 +90,9 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
     bgImg.crossOrigin = 'anonymous';
     bgImg.src = bgUrl;
     bgImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
+    if (slide.backgroundImageOpacity != null) {
+      bgImg.style.opacity = slide.backgroundImageOpacity;
+    }
     slideDiv.appendChild(bgImg);
     // Wait for it to load
     await new Promise((res) => {
