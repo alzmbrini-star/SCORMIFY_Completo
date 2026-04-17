@@ -2141,7 +2141,7 @@ export default function Editor() {
               projectId={currentProject?.id}
               onClose={() => setShowAestheticsPanel(false)}
               onFixApplied={() => {
-                loadProject(currentProject?.id);
+                fetchProject(currentProject?.id);
                 toast.success('Projeto atualizado com correcoes esteticas!');
               }}
             />
