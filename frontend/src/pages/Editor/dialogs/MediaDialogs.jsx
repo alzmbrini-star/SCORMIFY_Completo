@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '../../../components/ui/dialog';
@@ -7,6 +7,33 @@ import { Input } from '../../../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic } from 'lucide-react';
 import RichTextEditor from '../../../components/RichTextEditor';
+
+// Gallery image with auto-retry on load failure
+function GalleryImage({ src, alt }) {
+  const [retries, setRetries] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  const handleError = useCallback(() => {
+    if (retries < 2) {
+      setTimeout(() => setRetries(r => r + 1), 1500 * (retries + 1));
+    } else {
+      setFailed(true);
+    }
+  }, [retries]);
+
+  if (failed) {
+    return (
+      <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+        <div className="text-center p-2">
+          <Image className="w-6 h-6 text-slate-500 mx-auto mb-1" />
+          <p className="text-[9px] text-slate-500 leading-tight">{alt?.slice(0, 60) || 'Imagem'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <img src={`${src}${retries > 0 ? `?r=${retries}` : ''}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onError={handleError} />;
+}
 
 export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleAddMedia }) {
   return (
@@ -351,7 +378,7 @@ export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryL
                   <button key={img.id} onClick={() => handleSelectGalleryImage(img)}
                     className="group relative rounded-lg overflow-hidden border border-border hover:border-amber-500 transition-all aspect-[4/3]"
                     data-testid={`editor-gallery-img-${img.id}`}>
-                    <img src={img.imageUrl.startsWith('/') ? `${API_URL}${img.imageUrl}` : img.imageUrl} alt={img.keywords || ''} className="w-full h-full object-cover" loading="lazy" />
+                    <GalleryImage src={img.imageUrl.startsWith('/') ? `${API_URL}${img.imageUrl}` : img.imageUrl} alt={img.keywords || ''} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
                       <p className="text-[10px] text-white/90 truncate">{img.keywords || 'Sem palavras-chave'}</p>
                     </div>
