@@ -5,7 +5,7 @@ import {
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
-import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash2 } from 'lucide-react';
 import RichTextEditor from '../../../components/RichTextEditor';
 
 // Gallery image with auto-retry on load failure
@@ -353,6 +353,30 @@ export function DesignTemplateDialog({ open, onOpenChange, designTemplates, appl
 
 export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryLoading, gallerySearch, setGallerySearch, handleSelectGalleryImage, API_URL, onRefreshGallery }) {
   const [cleaning, setCleaning] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+
+  const handleDeleteImage = async (e, imgId) => {
+    e.stopPropagation();
+    if (deleting) return;
+    setDeleting(imgId);
+    try {
+      const { authHeaders } = await import('../../../contexts/AuthContext');
+      const { getApiUrl } = await import('../../../utils/apiUrl');
+      const { toast } = await import('sonner');
+      const res = await fetch(`${getApiUrl()}/api/gallery/images/${imgId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Imagem removida');
+      if (onRefreshGallery) onRefreshGallery();
+    } catch {
+      const { toast } = await import('sonner');
+      toast.error('Erro ao remover imagem');
+    }
+    setDeleting(null);
+  };
 
   const handleCleanup = async () => {
     setCleaning(true);
@@ -410,7 +434,15 @@ export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryL
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
                       <p className="text-[10px] text-white/90 truncate">{img.keywords || 'Sem palavras-chave'}</p>
                     </div>
-                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div
+                        role="button"
+                        onClick={(e) => handleDeleteImage(e, img.id)}
+                        className="bg-red-600 hover:bg-red-500 text-white rounded-full p-1 cursor-pointer"
+                        data-testid={`gallery-delete-${img.id}`}
+                      >
+                        {deleting === img.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      </div>
                       <div className="bg-amber-500 text-black rounded-full p-1"><Plus className="w-3 h-3" /></div>
                     </div>
                   </button>

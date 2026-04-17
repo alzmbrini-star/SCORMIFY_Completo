@@ -14,6 +14,21 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Gallery"])
 
 
+@router.delete("/gallery/images/{image_id}")
+async def gallery_delete_image(image_id: str, request: Request):
+    """Delete a single image from the gallery."""
+    current_user = await get_current_user(request)
+    if not current_user:
+        raise HTTPException(401, "Not authenticated")
+    
+    result = await db.image_gallery.delete_one({"id": image_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Image not found")
+    return {"deleted": True, "id": image_id}
+
+
+
+
 @router.get("/gallery/images")
 async def gallery_list_images(request: Request, user: dict = None):
     """List AI-generated images accessible to the current user's company.
