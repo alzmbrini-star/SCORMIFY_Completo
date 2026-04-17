@@ -96,9 +96,16 @@ async def leonardo_save_to_project(request: Request, user: dict = Depends(requir
     if not success:
         raise HTTPException(500, "Falha ao baixar imagem do Leonardo")
 
-    # Persist to MongoDB
+    # Verify file exists on disk
+    from pathlib import Path
+    if not Path(dest_path).exists():
+        raise HTTPException(500, "Arquivo baixado mas não encontrado no disco")
+
+    # Persist to MongoDB (required for production K8s ephemeral storage)
     try:
-        await store_asset_async(db, project_id, filename, dest_path)
+        stored = await store_asset_async(db, project_id, filename, dest_path)
+        if not stored:
+            logger.warning(f"store_asset_async returned False for Leonardo image {filename}")
     except Exception as e:
         logger.warning(f"Failed to persist Leonardo image to MongoDB: {e}")
 

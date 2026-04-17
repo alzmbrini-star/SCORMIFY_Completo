@@ -96,12 +96,32 @@ export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ imageUrl, projectId, prompt: prompt.trim() }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro ao salvar');
+      }
       const data = await res.json();
-      toast.success('Imagem salva no projeto!');
-      if (onImageSaved) onImageSaved(data.url, data.filename);
-    } catch {
-      toast.error('Erro ao salvar imagem');
+
+      // Verify the saved asset is accessible before using it
+      const verifyUrl = `${API}${data.url}`;
+      try {
+        const verifyRes = await fetch(verifyUrl, { method: 'HEAD' });
+        if (verifyRes.ok) {
+          toast.success('Imagem salva no projeto!');
+          if (onImageSaved) onImageSaved(data.url, data.filename);
+          setSaving(null);
+          return;
+        }
+      } catch { /* verification failed, try fallback */ }
+
+      // Fallback: use the original Leonardo CDN URL directly
+      console.warn('Asset verification failed, using Leonardo CDN URL as fallback');
+      toast.success('Imagem adicionada (via CDN)');
+      if (onImageSaved) onImageSaved(imageUrl, data.filename);
+    } catch (e) {
+      // Last resort: use the original Leonardo CDN URL directly
+      toast.warning('Salvamento parcial - usando imagem do CDN');
+      if (onImageSaved) onImageSaved(imageUrl, `leonardo_${Date.now()}.png`);
     }
     setSaving(null);
   };
