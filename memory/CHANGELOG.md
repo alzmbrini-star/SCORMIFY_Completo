@@ -8,6 +8,12 @@
 - **Applied in**: `services/ai_agent.py` (lines 121-125)
 - **Status**: Tested - import verified, backend restarted clean
 
+### Enhancement: Storyboard HTML Preview Rendering
+- **Problem**: The Storyboard panel showed raw HTML tags (`<h1>`, `<p>`, `<strong>`) instead of rendered formatted content, making it hard for approvers to visualize the final slides.
+- **Fix**: Added preview/edit toggle in `StoryboardPanel.jsx`. Default mode ("Visualizar") renders HTML content with proper prose styling. "Editar" mode shows original Textarea fields.
+- **Applied in**: `frontend/src/pages/Agent/components/StoryboardPanel.jsx`
+- **Status**: Implemented, lint clean
+
 
 
 ## 2026-03-27 (Fork: Video Export Production Fix)

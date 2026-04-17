@@ -40,6 +40,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
   const [savingEdits, setSavingEdits] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [previewMode, setPreviewMode] = useState(true);
 
   // Initialize narration slides when storyboard loads
   useEffect(() => {
@@ -292,6 +293,23 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Preview/Edit toggle */}
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setPreviewMode(true)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${previewMode ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/40' : 'text-slate-400 hover:text-slate-200'}`}
+                data-testid="storyboard-preview-mode-btn"
+              >
+                <Eye className="w-3 h-3" /> Visualizar
+              </button>
+              <button
+                onClick={() => setPreviewMode(false)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${!previewMode ? 'bg-amber-600/20 text-amber-300 border border-amber-600/40' : 'text-slate-400 hover:text-slate-200'}`}
+                data-testid="storyboard-edit-mode-btn"
+              >
+                <Pencil className="w-3 h-3" /> Editar
+              </button>
+            </div>
             {/* Avatar scene mockup (when type is still avatar_scene) */}
             {isAvatarScene && effectiveType === 'avatar_scene' && slide.avatarScene && (
               <AvatarSceneMockup
@@ -312,43 +330,69 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
               </div>
             )}
 
-            {/* Regular slide content preview - EDITABLE */}
+            {/* Regular slide content preview */}
             {(!isAvatarScene || wasConverted) && (
               <div className="space-y-2">
-                {slide.elements?.map((el, elIdx) => (
-                  <div key={elIdx}>
-                    <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
-                    <Textarea
-                      value={
-                        (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ??
-                        (el.content || '')
-                      }
-                      onChange={e => handleSlideElementEdit(activeSlide, elIdx, e.target.value)}
-                      className="bg-slate-800/70 border-slate-700 text-sm text-white min-h-[60px] focus:border-emerald-500"
-                      data-testid={`storyboard-element-input-${activeSlide}-${elIdx}`}
-                    />
-                  </div>
-                ))}
+                {previewMode ? (
+                  <div
+                    className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-200 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-300 [&_p]:text-sm [&_p]:text-slate-300 [&_p]:mb-2 [&_strong]:text-emerald-300 [&_ul]:text-slate-300 [&_ol]:text-slate-300 [&_li]:text-sm [&_li]:mb-1 [&_a]:text-emerald-400 min-h-[80px]"
+                    data-testid={`storyboard-preview-${activeSlide}`}
+                    dangerouslySetInnerHTML={{
+                      __html: slide.elements?.map((el, elIdx) => {
+                        const content = (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ?? (el.content || '');
+                        return content;
+                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>'
+                    }}
+                  />
+                ) : (
+                  slide.elements?.map((el, elIdx) => (
+                    <div key={elIdx}>
+                      <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
+                      <Textarea
+                        value={
+                          (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ??
+                          (el.content || '')
+                        }
+                        onChange={e => handleSlideElementEdit(activeSlide, elIdx, e.target.value)}
+                        className="bg-slate-800/70 border-slate-700 text-sm text-white min-h-[60px] focus:border-emerald-500"
+                        data-testid={`storyboard-element-input-${activeSlide}-${elIdx}`}
+                      />
+                    </div>
+                  ))
+                )}
               </div>
             )}
 
-            {/* Also show content for avatar scenes - EDITABLE */}
+            {/* Also show content for avatar scenes */}
             {isAvatarScene && !wasConverted && slide.elements?.length > 0 && (
               <div className="space-y-2">
-                {slide.elements?.map((el, elIdx) => (
-                  <div key={elIdx}>
-                    <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
-                    <Textarea
-                      value={
-                        (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ??
-                        (el.content || '')
-                      }
-                      onChange={e => handleSlideElementEdit(activeSlide, elIdx, e.target.value)}
-                      className="bg-slate-800/70 border-slate-700 text-sm text-white min-h-[60px] focus:border-violet-500"
-                      data-testid={`storyboard-avatar-element-input-${activeSlide}-${elIdx}`}
-                    />
-                  </div>
-                ))}
+                {previewMode ? (
+                  <div
+                    className="bg-slate-800/50 rounded-lg p-4 border border-violet-700/30 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-200 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-300 [&_p]:text-sm [&_p]:text-slate-300 [&_p]:mb-2 [&_strong]:text-violet-300 [&_ul]:text-slate-300 [&_ol]:text-slate-300 [&_li]:text-sm [&_li]:mb-1 min-h-[80px]"
+                    data-testid={`storyboard-avatar-preview-${activeSlide}`}
+                    dangerouslySetInnerHTML={{
+                      __html: slide.elements?.map((el, elIdx) => {
+                        const content = (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ?? (el.content || '');
+                        return content;
+                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>'
+                    }}
+                  />
+                ) : (
+                  slide.elements?.map((el, elIdx) => (
+                    <div key={elIdx}>
+                      <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
+                      <Textarea
+                        value={
+                          (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ??
+                          (el.content || '')
+                        }
+                        onChange={e => handleSlideElementEdit(activeSlide, elIdx, e.target.value)}
+                        className="bg-slate-800/70 border-slate-700 text-sm text-white min-h-[60px] focus:border-violet-500"
+                        data-testid={`storyboard-avatar-element-input-${activeSlide}-${elIdx}`}
+                      />
+                    </div>
+                  ))
+                )}
               </div>
             )}
 
