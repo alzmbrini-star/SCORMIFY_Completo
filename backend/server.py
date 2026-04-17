@@ -248,6 +248,17 @@ async def _run_migrate_urls():
 async def startup_create_indexes():
     """Create MongoDB indexes for production performance."""
     try:
+        # Deduplicate project_assets before creating index (handles legacy duplicates)
+        pipeline = [
+            {"$group": {"_id": {"project_id": "$project_id", "filename": "$filename"}, "count": {"$sum": 1}, "ids": {"$push": "$_id"}}},
+            {"$match": {"count": {"$gt": 1}}}
+        ]
+        async for dup in db.project_assets.aggregate(pipeline):
+            # Keep first, delete rest
+            ids_to_remove = dup["ids"][1:]
+            if ids_to_remove:
+                await db.project_assets.delete_many({"_id": {"$in": ids_to_remove}})
+        
         await db.project_assets.create_index(
             [("project_id", 1), ("filename", 1)],
             unique=True,
