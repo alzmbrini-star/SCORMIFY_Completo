@@ -6,8 +6,9 @@ import { Textarea } from '../../../components/ui/textarea';
 import { ImagePlus, Loader2, Download, Check, Sparkles, X, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authHeaders } from '../../../contexts/AuthContext';
+import { getApiUrl } from '../../../utils/apiUrl';
 
-const API = process.env.REACT_APP_BACKEND_URL;
+const API = getApiUrl();
 
 const STYLE_PRESETS = [
   { id: null, label: 'Automatico' },

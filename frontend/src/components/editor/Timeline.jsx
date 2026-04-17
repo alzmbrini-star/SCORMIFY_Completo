@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { getApiUrl } from '../../utils/apiUrl';
 import { Button } from '../ui/button';
 import { Slider } from '../ui/slider';
 import { Input } from '../ui/input';
@@ -601,7 +602,7 @@ const Timeline = ({
                     const rawSrc = audio.src || audio.url || '';
                     if (!rawSrc) return '';
                     if (rawSrc.startsWith('http') || rawSrc.startsWith('data:') || rawSrc.startsWith('blob:')) return rawSrc;
-                    return `${process.env.REACT_APP_BACKEND_URL}${rawSrc}`;
+                    return `${getApiUrl()}${rawSrc}`;
                   })()}
                   preload="auto"
                 />
