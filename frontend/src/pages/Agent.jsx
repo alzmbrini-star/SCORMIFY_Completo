@@ -1089,10 +1089,10 @@ export default function Agent() {
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} companies={companiesList} />}
               {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
-              {mode === 'create' && generationPhases.length > 0 && currentStep !== 6 && (
+              {mode === 'create' && generationPhases.length > 0 && !generatedProject && (
                 <GeneratingProgressPanel phases={generationPhases} startTime={generationStartTime} config={config} storyboard={storyboard} mediaConfig={mediaConfig} />
               )}
-              {mode === 'create' && currentStep === 6 && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
+              {mode === 'create' && currentStep === 6 && generatedProject && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
