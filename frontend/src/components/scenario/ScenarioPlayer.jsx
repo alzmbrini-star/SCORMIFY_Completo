@@ -31,6 +31,8 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
   const [optimalCount, setOptimalCount] = useState(0);
   const [totalDecisions, setTotalDecisions] = useState(0);
 
+  const totalPoints = totalDecisions > 0 ? Math.round((optimalCount / totalDecisions) * 100) : 0;
+
   const currentNode = nodesMap[currentNodeId];
 
   const handleChoiceSelect = useCallback((choice) => {
