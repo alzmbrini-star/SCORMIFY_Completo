@@ -74,6 +74,7 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
       const res = await fetch(`${API}/api/aesthetics/analyze/${projectId}`, {
         method: 'POST',
         headers: authHeaders(),
+        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -114,14 +115,18 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
       const res = await fetch(`${API}/api/aesthetics/apply-fix/${projectId}`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
         body: JSON.stringify(applyAll ? { applyAll: true } : { fixIds: [...selectedFixes] }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Erro ${res.status}`);
+      }
       const data = await res.json();
       toast.success(`${data.applied} correcoes aplicadas!`);
       if (onFixApplied) onFixApplied();
-    } catch {
-      toast.error('Erro ao aplicar correcoes');
+    } catch (e) {
+      toast.error(e.message || 'Erro ao aplicar correcoes');
     }
     setApplying(false);
   }, [projectId, selectedFixes, onFixApplied]);
