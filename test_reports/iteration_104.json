@@ -22,7 +22,7 @@
   "critical_code_review_comments": [
     "Backend leonardo_ai.py service correctly implements generate_image, poll_generation, generate_and_wait, and download_image_to_disk functions",
     "Backend routes/leonardo.py has 3 endpoints: POST /leonardo/generate, GET /leonardo/status/{id}, POST /leonardo/save-to-project - all working",
-    "Leonardo API key is properly configured in backend .env (LEONARDO_API_KEY=59495cbf-a332-4a84-b6ab-a4d6f45a9ab2)",
+    "Leonardo API key is properly configured in backend .env (LEONARDO_API_KEY=ai-tutor-platform-12)",
     "Frontend LeonardoPanel.jsx has proper data-testid attributes: leonardo-panel, leonardo-prompt-input, leonardo-style-{id}, leonardo-generate-btn, leonardo-results, leonardo-save-{i}",
     "Editor.jsx imports LeonardoPanel and has showLeonardoPanel state (line 313), button with data-testid='leonardo-ai-btn' (line 1347-1354)",
     "MediaConfigPanel.jsx MEDIA_TYPES array includes leonardo option at line 252: { id: 'leonardo', label: 'Leonardo AI', description: 'Imagem premium com Leonardo', icon: Sparkles, color: 'violet' }",

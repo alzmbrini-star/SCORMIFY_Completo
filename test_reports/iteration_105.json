@@ -24,7 +24,7 @@
     "Frontend CoursePanels.jsx badge color for imagem_premium is fuchsia (line 722): 'border-fuchsia-600/50 text-fuchsia-300 bg-fuchsia-500/10'",
     "Frontend CoursePanels.jsx shows Leonardo AI label and imagePrompt for imagem_premium improvements (lines 753-756)",
     "Frontend AvatarSceneControls.jsx slideTypeOptions includes imagem_premium at line 16: { value: 'imagem_premium', label: 'Imagem Premium (Leonardo)', icon: ImagePlus, color: 'fuchsia' }",
-    "Leonardo API key is configured in backend .env (LEONARDO_API_KEY=59495cbf-a332-4a84-b6ab-a4d6f45a9ab2)"
+    "Leonardo API key is configured in backend .env (LEONARDO_API_KEY=ai-tutor-platform-12)"
   ],
   "updated_files": [
     "/app/backend/tests/test_imagem_premium_leonardo.py"

@@ -1813,7 +1813,7 @@ async def agent_get_suggestions(session_id: str):
     """Get improvement suggestions for a session."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0, "suggestions": 1, "suggestionsGeneratedAt": 1, "suggestionsError": 1})
     if not s:
-        raise HTTPException(404, "Session not found")
+        return {"status": "pending"}
     if s.get("suggestions"):
         return {"status": "ready", "suggestions": s["suggestions"], "generatedAt": s.get("suggestionsGeneratedAt")}
     if s.get("suggestionsError"):
