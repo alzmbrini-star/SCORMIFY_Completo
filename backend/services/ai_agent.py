@@ -34,6 +34,7 @@ async def _get_motor_db():
                 serverSelectionTimeoutMS=120000 if _is_atlas else 30000,
                 connectTimeoutMS=120000 if _is_atlas else 30000,
                 socketTimeoutMS=300000 if _is_atlas else 60000,
+                maxPoolSize=3,
                 retryWrites=True,
                 retryReads=True,
             )
@@ -117,11 +118,10 @@ async def _resilient_send(session_id_prefix: str, system_msg: str, prompt: str) 
     raise Exception("All LLM models failed")
 
 
-
+async def analyze_content(session_id: str, content_text: str, file_info: str = "") -> dict:
     """Step 1: Analyze uploaded content and extract key information."""
     prompt = f"""Analise o seguinte conteúdo educacional e retorne um JSON com:
 
-async def analyze_content(session_id: str, content_text: str, file_info: str = "") -> dict:
 1. "title": título sugerido para o curso
 2. "summary": resumo do conteúdo (2-3 frases)
 3. "mainTopics": lista dos tópicos principais identificados
@@ -752,18 +752,9 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
 async def _auto_save_gallery(image_url: str, keywords: str, project_id: str):
     """Auto-save generated image to gallery (fire-and-forget)."""
     try:
-        from motor.motor_asyncio import AsyncIOMotorClient
-        _mongo_url = os.environ.get('MONGO_URL', '')
-        _db_name = os.environ.get('DB_NAME', '')
-        if not _mongo_url or not _db_name:
+        _db = await _get_motor_db()
+        if _db is None:
             return
-        _client = AsyncIOMotorClient(
-            _mongo_url,
-            serverSelectionTimeoutMS=60000,
-            connectTimeoutMS=60000,
-            socketTimeoutMS=120000,
-        )
-        _db = _client[_db_name]
         existing = await _db.image_gallery.find_one({"imageUrl": image_url})
         if not existing:
             # Get project info for context
@@ -1527,13 +1518,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         total_images = len(ai_image_tasks)
         logger.info(f"Generating {total_images} AI images in parallel batches...")
         
-        # Update progress via MongoDB
-        try:
-            from motor.motor_asyncio import AsyncIOMotorClient as _ProgressClient
-            _pclient = _ProgressClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
-            _pdb = _pclient[os.environ.get("DB_NAME")]
-        except Exception:
-            _pdb = None
+        # Update progress via shared motor db
+        _pdb = await _get_motor_db()
         
         semaphore = asyncio.Semaphore(5)  # Max 5 concurrent image generations
         completed_count = 0
@@ -1661,13 +1647,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "created_at": now_str,
                     "updated_at": now_str,
                 }
-                # Use sync pymongo to avoid event loop conflicts
-                from pymongo import MongoClient
-                from routes.deps import mongo_url, db_name
-                sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
-                sync_db = sync_client[db_name]
-                sync_db.scenarios.insert_one(scenario_doc)
-                sync_client.close()
+                # Use shared sync client from agent module
+                from routes.agent import _get_bg_db
+                _bgdb = _get_bg_db()
+                _bgdb.scenarios.insert_one(scenario_doc)
                 scenario_doc.pop("_id", None)
                 slide_elements = _build_scenario_slide(sb_slide, palette, module_name, scenario_doc)
                 logger.info(f"Scenario generated for course slide {i}: {scenario_doc['title']}")

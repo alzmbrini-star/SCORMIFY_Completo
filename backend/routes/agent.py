@@ -29,6 +29,52 @@ router = APIRouter(tags=["Agent"])
 # AI INSTRUCTIONAL DESIGN AGENT
 # =============================================================================
 
+# Shared sync MongoClient for background tasks (limited pool to avoid Atlas exhaustion)
+_bg_sync_client = None
+_bg_sync_db = None
+
+def _get_bg_db():
+    """Get shared sync MongoDB client for background tasks. Creates once, reuses."""
+    global _bg_sync_client, _bg_sync_db
+    if _bg_sync_db is not None:
+        return _bg_sync_db
+    from pymongo import MongoClient
+    _mongo_url = os.environ.get("MONGO_URL", "")
+    _is_atlas = "mongodb.net" in _mongo_url or "mongodb+srv" in _mongo_url
+    _bg_sync_client = MongoClient(
+        _mongo_url,
+        serverSelectionTimeoutMS=60000 if _is_atlas else 10000,
+        connectTimeoutMS=60000 if _is_atlas else 10000,
+        socketTimeoutMS=120000 if _is_atlas else 30000,
+        maxPoolSize=3,
+        retryWrites=True,
+    )
+    _bg_sync_db = _bg_sync_client[os.environ.get("DB_NAME", "scormify")]
+    return _bg_sync_db
+
+# Shared async MotorClient for background async tasks
+_bg_motor_client = None
+_bg_motor_db = None
+
+async def _get_bg_motor_db():
+    """Get shared async Motor client for background tasks. Creates once, reuses."""
+    global _bg_motor_client, _bg_motor_db
+    if _bg_motor_db is not None:
+        return _bg_motor_db
+    from motor.motor_asyncio import AsyncIOMotorClient
+    _mongo_url = os.environ.get("MONGO_URL", "")
+    _is_atlas = "mongodb.net" in _mongo_url or "mongodb+srv" in _mongo_url
+    _bg_motor_client = AsyncIOMotorClient(
+        _mongo_url,
+        serverSelectionTimeoutMS=60000 if _is_atlas else 10000,
+        connectTimeoutMS=60000 if _is_atlas else 10000,
+        socketTimeoutMS=120000 if _is_atlas else 30000,
+        maxPoolSize=3,
+        retryWrites=True,
+    )
+    _bg_motor_db = _bg_motor_client[os.environ.get("DB_NAME", "scormify")]
+    return _bg_motor_db
+
 class AgentSessionCreate(BaseModel):
     """Create agent session - optionally with initial text content"""
     contentText: Optional[str] = None
@@ -463,25 +509,19 @@ async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
             analysis = loop.run_until_complete(
                 analyze_content(session_id, s["contentText"], s.get("fileName", ""))
             )
-            from pymongo import MongoClient
-            _client = MongoClient(os.environ.get("MONGO_URL"))
-            _db = _client[os.environ.get("DB_NAME", "scormify")]
-            _db.agent_sessions.update_one(
+            _bgdb = _get_bg_db()
+            _bgdb.agent_sessions.update_one(
                 {"id": session_id},
                 {"$set": {"analysis": analysis, "step": "analyzed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
             logger.info(f"Analysis complete for session {session_id}")
         except Exception as e:
             logger.error(f"Analysis failed for session {session_id}: {e}")
-            from pymongo import MongoClient
-            _client = MongoClient(os.environ.get("MONGO_URL"))
-            _db = _client[os.environ.get("DB_NAME", "scormify")]
-            _db.agent_sessions.update_one(
+            _bgdb = _get_bg_db()
+            _bgdb.agent_sessions.update_one(
                 {"id": session_id},
                 {"$set": {"step": "analysis_error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
         finally:
             loop.close()
 
@@ -562,25 +602,19 @@ async def agent_generate_structure(session_id: str, request: Request):
                     generate_structure(session_id, s["contentText"], s.get("config", {}))
                 )
 
-            from pymongo import MongoClient
-            _client = MongoClient(os.environ.get("MONGO_URL"))
-            _db = _client[os.environ.get("DB_NAME", "scormify")]
-            _db.agent_sessions.update_one(
+            _bgdb = _get_bg_db()
+            _bgdb.agent_sessions.update_one(
                 {"id": session_id},
                 {"$set": {"structure": structure, "step": "structured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
             logger.info(f"Structure generation complete for session {session_id}")
         except Exception as e:
             logger.error(f"Structure generation failed for session {session_id}: {e}")
-            from pymongo import MongoClient
-            _client = MongoClient(os.environ.get("MONGO_URL"))
-            _db = _client[os.environ.get("DB_NAME", "scormify")]
-            _db.agent_sessions.update_one(
+            _bgdb = _get_bg_db()
+            _bgdb.agent_sessions.update_one(
                 {"id": session_id},
                 {"$set": {"step": "structure_error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
         finally:
             loop.close()
 
@@ -619,12 +653,10 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
         _asyncio.set_event_loop(loop)
         try:
             from services.ai_agent import generate_storyboard
-            from motor.motor_asyncio import AsyncIOMotorClient
-            _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
-            _db = _client[os.environ.get("DB_NAME")]
 
             async def _progress(batch_num, total, message):
-                await _db.agent_sessions.update_one(
+                _bgdb = _get_bg_db()
+                _bgdb.agent_sessions.update_one(
                     {"id": session_id},
                     {"$set": {
                         "storyboardProgress": {"batch": batch_num, "total": total, "message": message},
@@ -635,13 +667,11 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             storyboard = loop.run_until_complete(
                 generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress)
             )
-            loop.run_until_complete(
-                _db.agent_sessions.update_one(
-                    {"id": session_id},
-                    {"$set": {"storyboard": storyboard, "step": "storyboarded", "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
-                )
+            _bgdb = _get_bg_db()
+            _bgdb.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"storyboard": storyboard, "step": "storyboarded", "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
         except Exception as e:
             err_msg = str(e)
             logger.error(f"Storyboard generation error: {err_msg}")
@@ -651,16 +681,11 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             elif "502" in err_msg or "BadGateway" in err_msg:
                 error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
             try:
-                from motor.motor_asyncio import AsyncIOMotorClient
-                _client = AsyncIOMotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
-                _db = _client[os.environ.get("DB_NAME")]
-                loop.run_until_complete(
-                    _db.agent_sessions.update_one(
-                        {"id": session_id},
-                        {"$set": {"step": "structured", "error": error_detail, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
-                    )
+                _bgdb = _get_bg_db()
+                _bgdb.agent_sessions.update_one(
+                    {"id": session_id},
+                    {"$set": {"step": "structured", "error": error_detail, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
                 )
-                _client.close()
             except Exception:
                 pass
         finally:
@@ -2443,25 +2468,19 @@ async def agent_analyze_course(project_id: str, request: Request):
         try:
             from services.ai_agent import analyze_existing_course
             analysis = loop.run_until_complete(analyze_existing_course(session_id, project))
-            from pymongo import MongoClient
-            _client = MongoClient(os.environ.get("MONGO_URL"))
-            _db = _client[os.environ.get("DB_NAME", "scormify")]
-            _db.analysis_cache.update_one(
+            _bgdb = _get_bg_db()
+            _bgdb.analysis_cache.update_one(
                 {"key": cache_key},
                 {"$set": {"status": "done", "result": analysis, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
             logger.info(f"Course analysis complete for project {project_id}")
         except Exception as e:
             logger.error(f"Course analysis failed for project {project_id}: {e}")
-            from pymongo import MongoClient
-            _client = MongoClient(os.environ.get("MONGO_URL"))
-            _db = _client[os.environ.get("DB_NAME", "scormify")]
-            _db.analysis_cache.update_one(
+            _bgdb = _get_bg_db()
+            _bgdb.analysis_cache.update_one(
                 {"key": cache_key},
                 {"$set": {"status": "error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
-            _client.close()
         finally:
             loop.close()
 
@@ -2994,16 +3013,7 @@ async def _apply_heygen_video_to_slide(project_id: str, slide_id: str, video_url
 
 async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
     """Background task: generate background images and HeyGen avatar videos (with native TTS) for avatar scenes."""
-    from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
-    _mongo_url = os.environ.get("MONGO_URL", "")
-    _is_atlas = "mongodb.net" in _mongo_url or "mongodb+srv" in _mongo_url
-    _client = _MotorClient(
-        _mongo_url,
-        serverSelectionTimeoutMS=60000 if _is_atlas else 30000,
-        connectTimeoutMS=60000 if _is_atlas else 30000,
-        socketTimeoutMS=120000 if _is_atlas else 60000,
-    )
-    _db = _client[os.environ.get("DB_NAME")]
+    _db = await _get_bg_motor_db()
 
     for scene in scenes:
         slide_id = scene.get("slideId", "")

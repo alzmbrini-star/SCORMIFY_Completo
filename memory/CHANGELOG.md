@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-17 (Fork: AI Agent analyze_content Fix)
+
+### CRITICAL Bug Fix: AI Agent Course Creation - `analyze_content` ImportError
+- **Root Cause**: The `async def analyze_content()` function definition in `/app/backend/services/ai_agent.py` was accidentally placed INSIDE a prompt f-string instead of being a proper Python function declaration. This made the function invisible to Python imports, causing `ImportError: cannot import name 'analyze_content'` when the background analysis thread tried to execute.
+- **Fix**: Moved the `async def analyze_content(...)` declaration to its correct position ABOVE the docstring and prompt string, restoring it as a proper top-level async function.
+- **Applied in**: `services/ai_agent.py` (lines 121-125)
+- **Status**: Tested - import verified, backend restarted clean
+
+
+
 ## 2026-03-27 (Fork: Video Export Production Fix)
 
 ### CRITICAL Bug Fix: Video Export 520 in Production (Event Loop Blocking)
