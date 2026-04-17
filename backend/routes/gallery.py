@@ -123,6 +123,43 @@ async def gallery_delete_image(image_id: str, request: Request):
     return {"status": "ok", "deleted": image_id}
 
 
+@router.post("/gallery/cleanup")
+async def gallery_cleanup(request: Request):
+    """Remove gallery entries whose assets no longer exist in MongoDB."""
+    current_user = await get_current_user(request)
+    if not current_user or current_user.get("role") != "super_admin":
+        raise HTTPException(403, "Super admin only")
+
+    images = await db.image_gallery.find({}, {"_id": 0, "id": 1, "imageUrl": 1}).to_list(500)
+    removed = 0
+    kept = 0
+
+    for img in images:
+        url = img.get("imageUrl", "")
+        if not url.startswith("/api/projects/"):
+            kept += 1
+            continue
+        parts = url.split("/")
+        if len(parts) >= 6:
+            project_id = parts[3]
+            filename = parts[5]
+            exists = await db.project_assets.find_one(
+                {"project_id": project_id, "filename": filename},
+                {"_id": 1}
+            )
+            if exists:
+                kept += 1
+            else:
+                await db.image_gallery.delete_one({"id": img["id"]})
+                removed += 1
+        else:
+            kept += 1
+
+    return {"removed": removed, "kept": kept, "total_before": len(images)}
+
+
+
+
 async def auto_save_to_gallery(image_url: str, keywords: str, project_id: str, project_name: str, user_id: str, company_id: str):
     """Auto-save a generated image to the gallery (called from other routes)."""
     try:
