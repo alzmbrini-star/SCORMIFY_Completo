@@ -2087,7 +2087,10 @@ export default function Editor() {
 
         {/* Gamification Panel Dialog */}
         <Dialog open={showGamificationPanel} onOpenChange={setShowGamificationPanel}>
-          <DialogContent className="max-w-3xl bg-slate-900 border-slate-700">
+          <DialogContent className="max-w-3xl bg-slate-900 border-slate-700" aria-describedby={undefined}>
+            <DialogHeader className="sr-only">
+              <DialogTitle>Gamificacao</DialogTitle>
+            </DialogHeader>
             <GamificationPanel 
               projectId={currentProject?.id}
               onClose={() => setShowGamificationPanel(false)}
