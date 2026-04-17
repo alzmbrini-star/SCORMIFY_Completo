@@ -62,7 +62,7 @@ async def _precache_gallery_assets(images: list):
             return
 
         restored = 0
-        for project_id, filename, file_path in missing[:15]:
+        for project_id, filename, file_path in missing[:5]:
             try:
                 data, _ = await retrieve_asset_async(db, project_id, filename)
                 if data:

@@ -416,50 +416,33 @@ async def startup_asset_sync():
             import time
 
             _is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-            _sel_timeout = 120000 if _is_atlas else 10000
-            _conn_timeout = 120000 if _is_atlas else 10000
-            _sock_timeout = 300000 if _is_atlas else 30000
 
             _client = MongoClient(
                 mongo_url,
-                serverSelectionTimeoutMS=_sel_timeout,
-                connectTimeoutMS=_conn_timeout,
-                socketTimeoutMS=_sock_timeout,
-                maxPoolSize=3,
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=30000,
+                socketTimeoutMS=60000,
+                maxPoolSize=2,
                 retryWrites=True,
                 retryReads=True,
             )
             _db = _client[db_name]
-            # Throttle delay between heavy operations to avoid saturating Atlas connection pool
-            _restore_throttle = 0.2 if _is_atlas else 0  # Between individual asset restores
-            _persist_throttle = 0.5 if _is_atlas else 0  # Between persist operations (heavier - writes large base64)
+            _persist_throttle = 0.5 if _is_atlas else 0
 
-            # ── PHASE 1: INDEX (MongoDB -> memory) ──
-            # Only build the index of what's in MongoDB (lightweight: project_id + filename only)
-            # Image assets are NOT restored at startup — they're served on-demand via serve_asset MongoDB fallback
-            # This prevents Atlas timeouts caused by bulk binary reads during startup
+            # ── PHASE 1: INDEX (single query instead of per-project) ──
             total_restored = 0
             all_assets_index = []
             try:
-                time.sleep(3)  # Let Atlas connections warm up
+                time.sleep(5)  # Let Atlas connections warm up and indexes build
                 
-                # Get distinct project_ids (very lightweight)
-                project_ids = _db.project_assets.distinct("project_id")
+                # Single lightweight query for ALL asset metadata (no binary data)
+                all_assets_index = list(_db.project_assets.find(
+                    {},
+                    {"_id": 0, "project_id": 1, "filename": 1},
+                ).batch_size(500))
+                
+                project_ids = set(doc.get("project_id", "") for doc in all_assets_index)
                 logger.info(f"Asset sync: found {len(project_ids)} projects in MongoDB")
-                
-                # Build index per project (filenames only, no binary data)
-                for pid in project_ids:
-                    try:
-                        docs = list(_db.project_assets.find(
-                            {"project_id": pid},
-                            {"_id": 0, "project_id": 1, "filename": 1},
-                            batch_size=200,
-                        ))
-                        all_assets_index.extend(docs)
-                        if _restore_throttle:
-                            time.sleep(_restore_throttle * 0.3)
-                    except Exception as e:
-                        logger.warning(f"Asset sync: failed to index project {pid[:12]}...: {e}")
                 
                 total_in_mongo = len(all_assets_index)
                 local_exists = sum(1 for doc in all_assets_index
