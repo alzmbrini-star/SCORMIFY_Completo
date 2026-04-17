@@ -8,7 +8,12 @@
 - **Applied in**: `services/ai_agent.py` (lines 121-125)
 - **Status**: Tested - import verified, backend restarted clean
 
-### Enhancement: Storyboard HTML Preview Rendering
+### Fix: Agent 404 Errors on Suggestions Polling + MongoDB Connection Leaks
+- **Problem**: During AI course creation, the frontend polled `/api/agent/sessions/{id}/suggestions` indefinitely even on 404 errors, flooding the browser console. Backend background tasks (`_generate_improvement_suggestions`, `_generate_narrations`) each created their own MongoDB clients, risking Atlas M0 connection limit exhaustion.
+- **Fix (Frontend)**: Added `res.ok` check in suggestions polling with max 5 retries before switching to error state. Prevents infinite 404 polling.
+- **Fix (Backend)**: Replaced standalone `AsyncIOMotorClient()` creation in `_generate_improvement_suggestions` and `_generate_narrations` with the shared singleton `_get_bg_motor_db()` (maxPoolSize=3).
+- **Applied in**: `GeneratedPanel.jsx` (polling logic), `agent.py` (background tasks)
+- **Status**: Backend compiled, endpoint tested
 - **Problem**: The Storyboard panel showed raw HTML tags (`<h1>`, `<p>`, `<strong>`) instead of rendered formatted content, making it hard for approvers to visualize the final slides.
 - **Fix**: Added preview/edit toggle in `StoryboardPanel.jsx`. Default mode ("Visualizar") renders HTML content with proper prose styling. "Editar" mode shows original Textarea fields.
 - **Applied in**: `frontend/src/pages/Agent/components/StoryboardPanel.jsx`

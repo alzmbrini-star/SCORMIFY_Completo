@@ -119,9 +119,20 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
     const poll = async () => {
       try {
         const res = await fetch(`${API}/api/agent/sessions/${sessionId}/suggestions`, { headers: authHeaders() });
+        if (cancelled) return;
+        if (!res.ok) {
+          retryCount++;
+          if (retryCount >= MAX_RETRIES) {
+            setSuggestionsStatus('error');
+          }
+          return;
+        }
+        retryCount = 0;
         const data = await res.json();
         if (cancelled) return;
         if (data.status === 'ready') {
@@ -132,7 +143,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
         } else {
           setSuggestionsStatus('pending');
         }
-      } catch { if (!cancelled) setSuggestionsStatus('error'); }
+      } catch { if (!cancelled) { retryCount++; if (retryCount >= MAX_RETRIES) setSuggestionsStatus('error'); } }
     };
     poll();
     const interval = setInterval(() => {
