@@ -17,7 +17,7 @@ router = APIRouter(tags=["Gallery"])
 @router.get("/gallery/images")
 async def gallery_list_images(request: Request, user: dict = None):
     """List AI-generated images accessible to the current user's company.
-    Super admins see all images. Pre-caches missing assets from MongoDB."""
+    Super admins see all images."""
     current_user = await get_current_user(request)
     if not current_user:
         raise HTTPException(401, "Not authenticated")
@@ -34,27 +34,35 @@ async def gallery_list_images(request: Request, user: dict = None):
         query, {"_id": 0}
     ).sort("createdAt", -1).to_list(200)
 
-    # Pre-cache: check which gallery images are missing on disk and restore from MongoDB
-    # This prevents 53 individual MongoDB fallbacks when the gallery opens
-    from pathlib import Path
-    from routes.deps import PROJECTS_DIR
-    missing_assets = []
-    for img in images:
-        url = img.get("imageUrl", "")
-        if url.startswith("/api/projects/"):
-            parts = url.split("/")
-            if len(parts) >= 6:
-                project_id = parts[3]
-                filename = parts[5]
-                file_path = PROJECTS_DIR / project_id / "assets" / filename
-                if not file_path.exists():
-                    missing_assets.append((project_id, filename, file_path))
+    # Fire-and-forget: pre-cache missing gallery assets in background
+    import asyncio
+    asyncio.create_task(_precache_gallery_assets(images))
 
-    # Batch restore up to 20 missing assets (non-blocking best effort)
-    if missing_assets:
+    return {"images": images, "total": len(images)}
+
+
+async def _precache_gallery_assets(images: list):
+    """Background task: restore missing gallery assets from MongoDB to disk."""
+    try:
+        from pathlib import Path
+        from routes.deps import PROJECTS_DIR
         from services.asset_store import retrieve_asset_async
+
+        missing = []
+        for img in images:
+            url = img.get("imageUrl", "")
+            if url.startswith("/api/projects/"):
+                parts = url.split("/")
+                if len(parts) >= 6:
+                    file_path = PROJECTS_DIR / parts[3] / "assets" / parts[5]
+                    if not file_path.exists():
+                        missing.append((parts[3], parts[5], file_path))
+
+        if not missing:
+            return
+
         restored = 0
-        for project_id, filename, file_path in missing_assets[:20]:
+        for project_id, filename, file_path in missing[:15]:
             try:
                 data, _ = await retrieve_asset_async(db, project_id, filename)
                 if data:
@@ -65,9 +73,9 @@ async def gallery_list_images(request: Request, user: dict = None):
             except Exception:
                 pass
         if restored > 0:
-            logger.info(f"Gallery pre-cache: restored {restored}/{len(missing_assets)} images from MongoDB")
-
-    return {"images": images, "total": len(images)}
+            logger.info(f"Gallery pre-cache: restored {restored}/{len(missing)} images")
+    except Exception as e:
+        logger.warning(f"Gallery pre-cache failed (non-fatal): {e}")
 
 
 @router.post("/gallery/images")
