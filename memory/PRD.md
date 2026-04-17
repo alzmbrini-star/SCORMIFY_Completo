@@ -31,6 +31,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **Aprovador Role & Approval Queue**: New role `aprovador` for storyboard text review. Inline editing of slide titles, content, and narration scripts. Approval workflow: submit -> review/edit -> approve/reject -> resume generation. Integrated into Agent page as "Fila de Aprovacao". Company-targeted: approval requires selecting target company, only that company's aprovador can review.
 - **Tutor IA Dashboard**: Analytics dashboard showing most asked questions per course and per company. Super Admin sees all data, Company Admin sees only their company. Includes summary cards, company breakdown, course drill-down with top questions ranking and recent interactions.
 - **Leonardo AI Integration**: Premium image generation via Leonardo AI in Editor toolbar and Agent workflow. 6 style presets, direct slide insertion, and per-slide configuration in MediaConfigPanel.
+- **Aesthetic Analyzer**: AI-powered course visual quality analysis using Gemini 3 Flash. Checks color contrast, font harmony, layout, HTML/simulator readability. Provides score (0-100), categorized issues, and one-click auto-fix. Available in both Editor (sidebar panel) and Agent (after course generation).
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -52,6 +53,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 │   │   ├── agent.py            # AI agent endpoints, HeyGen/ElevenLabs orchestration
 │   │   ├── heygen.py           # Core HeyGen endpoints
 │   │   ├── leonardo.py         # Leonardo AI image generation endpoints
+│   │   │   ├── aesthetics.py      # Aesthetic analyzer endpoints (analyze + apply fixes)
 │   │   ├── gamification.py     # Gamification + badge image upload
 │   ├── services
 │   │   ├── ai_agent.py         # AI prompting logic for storyboards

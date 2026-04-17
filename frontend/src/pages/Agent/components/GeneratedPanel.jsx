@@ -12,6 +12,7 @@ import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import { Slider } from '../../../components/ui/slider';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { toast } from 'sonner';
+import AestheticsPanel from '../../../components/editor/AestheticsPanel';
 import {
   Brain, Upload, FileText, Settings, BookOpen, Layers, Play,
   Send, ArrowLeft, ArrowRight, Check, Loader2, Sparkles,
@@ -252,6 +253,13 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Aesthetic Analysis */}
+      <Card className="bg-slate-900/50 border-violet-800/30 text-left mx-auto max-w-2xl" data-testid="aesthetics-section">
+        <CardContent className="p-4">
+          <AestheticsPanel projectId={project.projectId} />
+        </CardContent>
+      </Card>
 
       {/* Improvement Suggestions */}
       <Card className="bg-slate-900/50 border-cyan-800/30 text-left mx-auto max-w-2xl" data-testid="suggestions-panel">

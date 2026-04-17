@@ -176,6 +176,10 @@ app.include_router(vlibras_routes.router, prefix="/api")
 from routes import leonardo as leonardo_routes
 app.include_router(leonardo_routes.router, prefix="/api")
 
+from routes import aesthetics as aesthetics_routes
+app.include_router(aesthetics_routes.router, prefix="/api")
+
+
 print("[STARTUP] server.py: Routes loaded. Setting up startup events...", flush=True)
 
 # ---- STARTUP EVENTS (all non-blocking background tasks) ----

@@ -126,6 +126,7 @@ import QuizGenerator from '../components/quiz/QuizGenerator';
 import ScenarioCreator from '../components/scenario/ScenarioCreator';
 import GamificationPanel from '../components/editor/GamificationPanel';
 import LeonardoPanel from './Agent/components/LeonardoPanel';
+import AestheticsPanel from '../components/editor/AestheticsPanel';
 
 // Extracted components and hooks
 import { getThumbAssetUrl, formatDuration, formatDateTime, formatTime, getStatusBadge } from './Editor/utils';
@@ -311,6 +312,7 @@ export default function Editor() {
   const [copiedElement, setCopiedElement] = useState(null);
   const [fixingSimulators, setFixingSimulators] = useState(false);
   const [showLeonardoPanel, setShowLeonardoPanel] = useState(false);
+  const [showAestheticsPanel, setShowAestheticsPanel] = useState(false);
 
   const fileInputRef = useRef(null);
   const API_URL = getApiUrl();
@@ -1358,6 +1360,21 @@ export default function Editor() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-pink-500/10 to-violet-500/10 hover:from-pink-500/20 hover:to-violet-500/20"
+                    onClick={() => setShowAestheticsPanel(!showAestheticsPanel)}
+                    data-testid="aesthetics-btn"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Analisador de Estetica</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 bg-gradient-to-r from-green-500/10 to-cyan-500/10 hover:from-green-500/20 hover:to-cyan-500/20"
                     onClick={() => setShowQuizDialog(true)}
                     data-testid="add-quiz-btn"
@@ -2109,6 +2126,20 @@ export default function Editor() {
             />
           </DialogContent>
         </Dialog>
+
+        {/* Aesthetics Panel - Side Sheet */}
+        <Sheet open={showAestheticsPanel} onOpenChange={setShowAestheticsPanel}>
+          <SheetContent side="right" className="w-[380px] bg-slate-950 border-slate-800 p-4 overflow-y-auto">
+            <AestheticsPanel
+              projectId={currentProject?.id}
+              onClose={() => setShowAestheticsPanel(false)}
+              onFixApplied={() => {
+                loadProject(currentProject?.id);
+                toast.success('Projeto atualizado com correcoes esteticas!');
+              }}
+            />
+          </SheetContent>
+        </Sheet>
 
         {/* Timeline Expandida - Sheet from bottom */}
         <Sheet open={showTimelineExpanded} onOpenChange={setShowTimelineExpanded}>
