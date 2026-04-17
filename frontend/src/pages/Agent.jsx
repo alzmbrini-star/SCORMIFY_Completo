@@ -29,6 +29,26 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 
 const API = getApiUrl();
 
+// Retry fetch wrapper for transient 5xx errors (deploy restarts, Atlas timeouts)
+async function fetchRetry(url, options = {}, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.status >= 500 && i < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      if (i < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // Extracted sub-panels
 import ConfigPanel from './Agent/components/ConfigPanel';
 import StoryboardPanel from './Agent/components/StoryboardPanel';
@@ -216,11 +236,11 @@ export default function Agent() {
 
   // Load templates on mount
   useEffect(() => {
-    fetch(`${API}/api/agent/templates`, { headers: authHeaders() })
+    fetchRetry(`${API}/api/agent/templates`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setTemplates)
       .catch(() => {});
-    fetch(`${API}/api/agent/design-templates`, { headers: authHeaders() })
+    fetchRetry(`${API}/api/agent/design-templates`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setDesignTemplates)
       .catch(() => {});
@@ -229,7 +249,7 @@ export default function Agent() {
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
     try {
-      const res = await fetch(`${API}/api/agent/sessions`, {
+      const res = await fetchRetry(`${API}/api/agent/sessions`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({}),
       });
@@ -304,7 +324,7 @@ export default function Agent() {
     while (Date.now() - start < maxWait) {
       await new Promise(r => setTimeout(r, 3000));
       try {
-        const res = await fetch(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() });
+        const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() }, 2);
         if (!res.ok) continue;
         const session = await res.json();
         if (session.step === targetStep) return session;
@@ -321,7 +341,7 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', 'Analisando o conteudo com IA...');
     try {
-      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST', headers: authHeaders() });
+      const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error();
       const data = await res.json();
 
@@ -642,7 +662,7 @@ export default function Agent() {
 
     addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
     try {
-      const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST', headers: authHeaders() });
+      const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) throw new Error('Falha ao iniciar geração');
       const initData = await res.json();
       
@@ -659,7 +679,7 @@ export default function Agent() {
         for (let i = 0; i < 360; i++) {
           await new Promise(r => setTimeout(r, 5000));
           try {
-            const statusRes = await fetch(`${API}/api/agent/sessions/${sessionId}/course-status`, { headers: authHeaders() });
+            const statusRes = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/course-status`, { headers: authHeaders() }, 2);
             const statusData = await statusRes.json();
             if (statusData.message && statusData.message !== lastProgressMsg) {
               lastProgressMsg = statusData.message;

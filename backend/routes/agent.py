@@ -1415,7 +1415,14 @@ async def agent_generate_course(session_id: str):
             from services.ai_agent import generate_course_from_storyboard
             from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient
 
-            _client = _MotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+            _client = _MotorClient(
+                os.environ.get("MONGO_URL"),
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=30000,
+                socketTimeoutMS=120000,
+                maxPoolSize=3,
+                retryWrites=True,
+            )
             _db = _client[os.environ.get("DB_NAME")]
 
             _s = loop.run_until_complete(_db.agent_sessions.find_one({"id": session_id}, {"_id": 0}))
@@ -1633,7 +1640,7 @@ async def agent_generate_course(session_id: str):
                 error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
             try:
                 from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient2
-                _c2 = _MotorClient2(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000)
+                _c2 = _MotorClient2(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, maxPoolSize=2)
                 _d2 = _c2[os.environ.get("DB_NAME")]
                 loop.run_until_complete(_d2.agent_sessions.update_one(
                     {"id": session_id},
