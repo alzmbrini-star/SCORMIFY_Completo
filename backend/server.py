@@ -241,6 +241,22 @@ async def _run_migrate_urls():
 
 
 @app.on_event("startup")
+async def startup_create_indexes():
+    """Create MongoDB indexes for production performance."""
+    try:
+        await db.project_assets.create_index(
+            [("project_id", 1), ("filename", 1)],
+            unique=True,
+            background=True,
+        )
+        await db.image_gallery.create_index([("companyId", 1), ("createdAt", -1)], background=True)
+        await db.agent_sessions.create_index([("id", 1)], unique=True, background=True)
+        logger.info("MongoDB indexes ensured")
+    except Exception as e:
+        logger.warning(f"Index creation failed (non-fatal): {e}")
+
+
+@app.on_event("startup")
 async def startup_ensure_admin():
     """Ensure super admin user exists in database"""
     try:

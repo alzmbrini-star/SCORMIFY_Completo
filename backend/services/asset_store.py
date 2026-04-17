@@ -8,12 +8,16 @@ Assets are stored in a 'project_assets' collection with:
 - data: base64-encoded string
 - content_type: str
 """
+import asyncio
 import base64
 import logging
 from pathlib import Path
 from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
+
+# Limit concurrent MongoDB asset queries to avoid Atlas M0 timeouts
+_asset_semaphore = asyncio.Semaphore(5)
 
 
 def _get_content_type(filename: str) -> str:
@@ -134,30 +138,30 @@ def retrieve_asset_sync(mongo_url: str, db_name: str, project_id: str, filename:
 async def retrieve_asset_async(db, project_id: str, filename: str) -> tuple:
     """Retrieve asset data and content_type from MongoDB (async).
     Returns (bytes, content_type) or (None, None).
-    Includes retry for Atlas timeouts."""
+    Uses semaphore to limit concurrent queries and prevent Atlas M0 timeouts."""
     if db is None:
         logger.warning("retrieve_asset_async called with db=None")
         return None, None
     
-    for attempt in range(2):
-        try:
-            doc = await db.project_assets.find_one(
-                {"project_id": project_id, "filename": filename},
-                {"_id": 0, "data": 1, "content_type": 1}
-            )
-            if not doc or not doc.get('data'):
+    async with _asset_semaphore:
+        for attempt in range(2):
+            try:
+                doc = await db.project_assets.find_one(
+                    {"project_id": project_id, "filename": filename},
+                    {"_id": 0, "data": 1, "content_type": 1}
+                )
+                if not doc or not doc.get('data'):
+                    if attempt == 0:
+                        logger.info(f"Asset not in MongoDB: {project_id}/{filename}")
+                    return None, None
+                data = base64.b64decode(doc['data'])
+                logger.info(f"Retrieved asset from MongoDB: {project_id}/{filename} ({len(data)} bytes)")
+                return data, doc.get('content_type', 'application/octet-stream')
+            except Exception as e:
+                logger.warning(f"Failed async retrieve of asset (attempt {attempt+1}): {project_id}/{filename}: {e}")
                 if attempt == 0:
-                    logger.info(f"Asset not in MongoDB: {project_id}/{filename}")
-                return None, None
-            data = base64.b64decode(doc['data'])
-            logger.info(f"Retrieved asset from MongoDB: {project_id}/{filename} ({len(data)} bytes)")
-            return data, doc.get('content_type', 'application/octet-stream')
-        except Exception as e:
-            logger.warning(f"Failed async retrieve of asset (attempt {attempt+1}): {project_id}/{filename}: {e}")
-            if attempt == 0:
-                import asyncio
-                await asyncio.sleep(1)
-    return None, None
+                    await asyncio.sleep(2)
+        return None, None
 
 
 def restore_project_assets_sync(mongo_url: str, db_name: str, project_id: str, assets_dir: str) -> int:
