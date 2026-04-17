@@ -68,31 +68,30 @@ app.add_middleware(
     max_age=86400,
 )
 
-# Extra CORS middleware for /tutor/chat — ensures headers survive even if proxy strips them
+# Extra CORS middleware — ensures headers survive even if K8s/Cloudflare proxy strips them
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 
-class TutorCorsMiddleware(BaseHTTPMiddleware):
+class UniversalCorsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if "/tutor/chat" in request.url.path:
-            if request.method == "OPTIONS":
-                return StarletteResponse(
-                    status_code=204,
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "POST, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                        "Access-Control-Max-Age": "86400",
-                    },
-                )
-            response = await call_next(request)
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-            return response
-        return await call_next(request)
+        origin = request.headers.get("origin", "*")
+        if request.method == "OPTIONS":
+            return StarletteResponse(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": origin if origin != "*" else "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                    "Access-Control-Max-Age": "86400",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = origin if origin != "*" else "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        return response
 
-app.add_middleware(TutorCorsMiddleware)
+app.add_middleware(UniversalCorsMiddleware)
 
 # Health endpoints - defined FIRST to ensure immediate availability
 @app.get("/health")

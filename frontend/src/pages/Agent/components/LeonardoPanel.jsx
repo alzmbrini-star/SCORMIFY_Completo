@@ -47,8 +47,8 @@ export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Erro ao gerar');
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro ao conectar com Leonardo AI');
       }
       const { generationId } = await res.json();
 
@@ -74,8 +74,11 @@ export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
         throw new Error('Timeout aguardando geracao');
       }
     } catch (e) {
-      setError(e.message);
-      toast.error(e.message);
+      const msg = e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError')
+        ? 'Erro de conexão com o servidor. Verifique se o deploy está ativo.'
+        : e.message;
+      setError(msg);
+      toast.error(msg);
     }
     setGenerating(false);
   };
