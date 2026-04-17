@@ -125,14 +125,24 @@ async def gallery_delete_image(image_id: str, request: Request):
 
 @router.post("/gallery/cleanup")
 async def gallery_cleanup(request: Request):
-    """Remove gallery entries whose assets no longer exist in MongoDB."""
+    """Remove gallery entries whose assets are broken - checks both existence AND data integrity."""
     current_user = await get_current_user(request)
     if not current_user or current_user.get("role") != "super_admin":
         raise HTTPException(403, "Super admin only")
 
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    
+    # mode=deep actually verifies data field exists (slower but thorough)
+    deep = body.get("deep", True)
+
     images = await db.image_gallery.find({}, {"_id": 0, "id": 1, "imageUrl": 1}).to_list(500)
     removed = 0
     kept = 0
+    errors = []
 
     for img in images:
         url = img.get("imageUrl", "")
@@ -143,19 +153,33 @@ async def gallery_cleanup(request: Request):
         if len(parts) >= 6:
             project_id = parts[3]
             filename = parts[5]
-            exists = await db.project_assets.find_one(
-                {"project_id": project_id, "filename": filename},
-                {"_id": 1}
-            )
-            if exists:
-                kept += 1
-            else:
+            try:
+                if deep:
+                    # Check document exists AND has non-empty data field
+                    doc = await db.project_assets.find_one(
+                        {"project_id": project_id, "filename": filename, "data": {"$exists": True, "$ne": ""}},
+                        {"_id": 1}
+                    )
+                else:
+                    doc = await db.project_assets.find_one(
+                        {"project_id": project_id, "filename": filename},
+                        {"_id": 1}
+                    )
+                if doc:
+                    kept += 1
+                else:
+                    await db.image_gallery.delete_one({"id": img["id"]})
+                    removed += 1
+            except Exception as e:
+                # If query times out, the asset is effectively broken - remove it
+                logger.warning(f"Gallery cleanup: timeout checking {filename}, removing entry: {e}")
                 await db.image_gallery.delete_one({"id": img["id"]})
                 removed += 1
+                errors.append(filename)
         else:
             kept += 1
 
-    return {"removed": removed, "kept": kept, "total_before": len(images)}
+    return {"removed": removed, "kept": kept, "total_before": len(images), "timeout_removed": len(errors)}
 
 
 

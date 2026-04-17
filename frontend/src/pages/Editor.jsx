@@ -1991,6 +1991,7 @@ export default function Editor() {
           gallerySearch={gallerySearch} setGallerySearch={setGallerySearch}
           handleSelectGalleryImage={handleSelectGalleryImage}
           API_URL={API_URL}
+          onRefreshGallery={handleOpenGallery}
         />
 
         <FlipbookDialog
