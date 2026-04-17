@@ -2130,7 +2130,10 @@ export default function Editor() {
 
         {/* Aesthetics Panel - Side Sheet */}
         <Sheet open={showAestheticsPanel} onOpenChange={setShowAestheticsPanel}>
-          <SheetContent side="right" className="w-[380px] bg-slate-950 border-slate-800 p-4 overflow-y-auto">
+          <SheetContent side="right" className="w-[380px] bg-slate-950 border-slate-800 p-4 overflow-y-auto" aria-describedby={undefined}>
+            <SheetHeader className="sr-only">
+              <SheetTitle>Analisador de Estetica</SheetTitle>
+            </SheetHeader>
             <AestheticsPanel
               projectId={currentProject?.id}
               onClose={() => setShowAestheticsPanel(false)}
