@@ -3454,7 +3454,7 @@ async def submit_for_approval(session_id: str, request: Request, user: dict = De
         from services.email_service import notify_approval_submitted
         import asyncio
         aprovadors = await db.users.find(
-            {"companyId": target_company_id, "role": {"$in": ["aprovador", "company_admin"]}},
+            {"companyId": target_company_id, "roles": {"$in": ["aprovador", "company_admin"]}},
             {"_id": 0, "email": 1}
         ).to_list(20)
         course_title = s.get("config", {}).get("title") or s.get("analysis", {}).get("title", "Sem titulo")
@@ -3471,7 +3471,8 @@ async def submit_for_approval(session_id: str, request: Request, user: dict = De
 @router.post("/agent/sessions/{session_id}/approve-storyboard")
 async def approve_storyboard_by_aprovador(session_id: str, request: Request, user: dict = Depends(require_auth)):
     """Aprovador approves the storyboard, marking it as 'approved'."""
-    if user.get("role") not in ("aprovador", "super_admin", "company_admin"):
+    from routes.auth import has_any_role
+    if not has_any_role(user, "aprovador", "super_admin", "company_admin"):
         raise HTTPException(403, "Apenas aprovadores podem aprovar storyboards")
 
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
@@ -3510,7 +3511,8 @@ async def approve_storyboard_by_aprovador(session_id: str, request: Request, use
 @router.post("/agent/sessions/{session_id}/reject-storyboard")
 async def reject_storyboard(session_id: str, data: dict, request: Request, user: dict = Depends(require_auth)):
     """Aprovador rejects the storyboard, sending it back for revision."""
-    if user.get("role") not in ("aprovador", "super_admin", "company_admin"):
+    from routes.auth import has_any_role
+    if not has_any_role(user, "aprovador", "super_admin", "company_admin"):
         raise HTTPException(403, "Apenas aprovadores podem rejeitar storyboards")
 
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
