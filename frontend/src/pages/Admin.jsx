@@ -257,11 +257,18 @@ export default function Admin() {
         body: JSON.stringify(body)
       });
 
-      const clone = res.clone();
       if (!res.ok) {
-        let detail = 'Erro ao salvar usuario';
-        try { const d = await clone.json(); detail = d.detail || detail; } catch {}
-        throw new Error(detail);
+        let detail = '';
+        try { detail = (await res.clone().json()).detail; } catch {
+          try { detail = await res.clone().text(); } catch {
+            // Status-based fallback when body stream is consumed by platform interceptor
+            if (res.status === 400) detail = 'Dados invalidos ou email ja existe';
+            else if (res.status === 403) detail = 'Sem permissao';
+            else if (res.status === 404) detail = 'Nao encontrado';
+            else detail = `Erro ${res.status}`;
+          }
+        }
+        throw new Error(detail || `Erro ${res.status}`);
       }
 
       toast.success(editingUser ? 'Usuario atualizado!' : 'Usuario criado!');
