@@ -12,25 +12,35 @@ APP_NAME = "Scormify"
 
 
 async def send_email(to: str, subject: str, html: str) -> dict:
-    """Send an email via Resend (non-blocking)."""
+    """Send an email via Resend. Falls back to test sender if domain not verified yet."""
     if not resend.api_key:
         logger.warning("RESEND_API_KEY not set, skipping email")
         return {"status": "skipped", "reason": "no_api_key"}
 
-    params = {
-        "from": f"{APP_NAME} <{SENDER_EMAIL}>",
-        "to": [to],
-        "subject": subject,
-        "html": html,
-    }
-    try:
-        result = await asyncio.to_thread(resend.Emails.send, params)
-        email_id = result.get("id") if isinstance(result, dict) else str(result)
-        logger.info(f"Email sent to {to}: {subject} (id={email_id})")
-        return {"status": "sent", "id": email_id}
-    except Exception as e:
-        logger.error(f"Email send failed to {to}: {e}")
-        return {"status": "error", "error": str(e)[:200]}
+    # Try with verified domain first, fallback to test sender
+    senders = [f"{APP_NAME} <{SENDER_EMAIL}>"]
+    if SENDER_EMAIL != "onboarding@resend.dev":
+        senders.append(f"{APP_NAME} <onboarding@resend.dev>")
+
+    for sender in senders:
+        params = {
+            "from": sender,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+        try:
+            result = await asyncio.to_thread(resend.Emails.send, params)
+            email_id = result.get("id") if isinstance(result, dict) else str(result)
+            logger.info(f"Email sent to {to} from {sender}: {subject} (id={email_id})")
+            return {"status": "sent", "id": email_id, "from": sender}
+        except Exception as e:
+            err_msg = str(e)
+            if "not verified" in err_msg and sender != senders[-1]:
+                logger.info(f"Domain not verified yet, trying fallback sender...")
+                continue
+            logger.error(f"Email send failed to {to}: {e}")
+            return {"status": "error", "error": err_msg[:200]}
 
 
 def _base_template(title: str, body_html: str) -> str:
