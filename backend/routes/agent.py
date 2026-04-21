@@ -3739,6 +3739,22 @@ async def submit_improvements_for_approval(project_id: str, request: Request, us
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     })
 
+    # Send email to aprovadors (fire-and-forget)
+    try:
+        from services.email_service import notify_approval_submitted
+        import asyncio as _aio
+        aprovadors = await db.users.find(
+            {"companyId": target_company_id, "roles": {"$in": ["aprovador", "company_admin"]}},
+            {"_id": 0, "email": 1}
+        ).to_list(20)
+        course_title = project.get("title", "Sem titulo")
+        author_name = user.get("name", "Usuario")
+        for apr in aprovadors:
+            if apr.get("email"):
+                _aio.create_task(notify_approval_submitted(apr["email"], author_name, course_title, approval_id))
+    except Exception as e:
+        logger.warning(f"Failed to send improvement approval notification: {e}")
+
     return {
         "status": "ok",
         "approvalId": approval_id,
@@ -3757,9 +3773,12 @@ async def approve_improvement(approval_id: str, request: Request, user: dict = D
     if doc.get("status") != "pending":
         raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
 
+    from routes.auth import has_any_role
     role = user.get("role")
     company_id = user.get("companyId")
-    if role == "aprovador" and company_id != doc.get("targetCompanyId"):
+    if not has_any_role(user, "aprovador", "company_admin", "super_admin"):
+        raise HTTPException(403, "Only aprovadores can approve improvements")
+    if has_role(user, "aprovador") and not has_any_role(user, "super_admin", "company_admin") and company_id != doc.get("targetCompanyId"):
         raise HTTPException(403, "You can only approve improvements targeted to your company")
 
     # Apply the improvements to the course
@@ -3818,6 +3837,18 @@ async def approve_improvement(approval_id: str, request: Request, user: dict = D
         }}
     )
 
+    # Notify author of approval
+    try:
+        from services.email_service import notify_approval_approved
+        import asyncio as _aio
+        author_id = doc.get("submittedBy")
+        if author_id:
+            author = await db.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1})
+            if author and author.get("email"):
+                _aio.create_task(notify_approval_approved(author["email"], user.get("name", "Aprovador"), doc.get("projectTitle", "Curso")))
+    except Exception as e:
+        logger.warning(f"Failed to send improvement approved notification: {e}")
+
     return {
         "status": "approved",
         "projectId": project_id,
@@ -3835,9 +3866,11 @@ async def reject_improvement(approval_id: str, request: Request, user: dict = De
     if doc.get("status") != "pending":
         raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
 
-    role = user.get("role")
+    from routes.auth import has_any_role, has_role
     company_id = user.get("companyId")
-    if role == "aprovador" and company_id != doc.get("targetCompanyId"):
+    if not has_any_role(user, "aprovador", "company_admin", "super_admin"):
+        raise HTTPException(403, "Only aprovadores can reject improvements")
+    if has_role(user, "aprovador") and not has_any_role(user, "super_admin", "company_admin") and company_id != doc.get("targetCompanyId"):
         raise HTTPException(403, "You can only reject improvements targeted to your company")
 
     body = await request.json()
@@ -3853,6 +3886,18 @@ async def reject_improvement(approval_id: str, request: Request, user: dict = De
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }}
     )
+
+    # Notify author of rejection
+    try:
+        from services.email_service import notify_approval_rejected
+        import asyncio as _aio
+        author_id = doc.get("submittedBy")
+        if author_id:
+            author = await db.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1})
+            if author and author.get("email"):
+                _aio.create_task(notify_approval_rejected(author["email"], user.get("name", "Aprovador"), doc.get("projectTitle", "Curso"), reason))
+    except Exception as e:
+        logger.warning(f"Failed to send improvement rejected notification: {e}")
 
     return {"status": "rejected", "reason": reason}
 
