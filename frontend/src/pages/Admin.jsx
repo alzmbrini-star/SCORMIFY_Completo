@@ -257,12 +257,14 @@ export default function Admin() {
         body: JSON.stringify(body)
       });
 
+      const text = await res.text();
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.detail);
+        let detail = 'Erro ao salvar usuario';
+        try { detail = JSON.parse(text).detail || detail; } catch {}
+        throw new Error(detail);
       }
 
-      toast.success(editingUser ? 'Usuário atualizado!' : 'Usuário criado!');
+      toast.success(editingUser ? 'Usuario atualizado!' : 'Usuario criado!');
       setShowUserModal(false);
       setEditingUser(null);
       setUserForm({ name: '', email: '', password: '', role: 'editor', companyId: user?.companyId || '' });
@@ -283,11 +285,13 @@ export default function Admin() {
       });
       
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.detail || 'Erro ao excluir usuário');
+        const text = await res.text();
+        let detail = 'Erro ao excluir usuario';
+        try { detail = JSON.parse(text).detail || detail; } catch {}
+        throw new Error(detail);
       }
       
-      toast.success('Usuário excluído permanentemente');
+      toast.success('Usuario excluido permanentemente');
       fetchData();
     } catch (error) {
       toast.error(error.message);
