@@ -3773,7 +3773,7 @@ async def approve_improvement(approval_id: str, request: Request, user: dict = D
     if doc.get("status") != "pending":
         raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
 
-    from routes.auth import has_any_role
+    from routes.auth import has_any_role, has_role
     role = user.get("role")
     company_id = user.get("companyId")
     if not has_any_role(user, "aprovador", "company_admin", "super_admin"):
