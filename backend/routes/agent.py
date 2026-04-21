@@ -1630,6 +1630,21 @@ async def agent_generate_course(session_id: str):
             _client.close()
             logger.info(f"Course generation completed for session {session_id}, project {project.id}")
 
+            # Send email notification about course generation
+            try:
+                from services.email_service import notify_course_generated
+                author_id = _s.get("userId")
+                if author_id:
+                    author = loop.run_until_complete(_get_bg_motor_db())
+                    author_doc = loop.run_until_complete(author.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1}))
+                    if author_doc and author_doc.get("email"):
+                        course_title = project.title or "Curso"
+                        slides_ct = len(course_data.get("slides", []))
+                        quiz_ct = sum(1 for s in course_data.get("slides", []) if s.get("type") == "quiz")
+                        loop.run_until_complete(notify_course_generated(author_doc["email"], course_title, slides_ct, quiz_ct, project.id))
+            except Exception as notif_err:
+                logger.warning(f"Failed to send course generation notification: {notif_err}")
+
         except Exception as e:
             err_msg = str(e)
             logger.error(f"Course generation error: {err_msg}")
@@ -3433,6 +3448,23 @@ async def submit_for_approval(session_id: str, request: Request, user: dict = De
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }}
     )
+
+    # Send email notification to aprovadors of the target company
+    try:
+        from services.email_service import notify_approval_submitted
+        import asyncio
+        aprovadors = await db.users.find(
+            {"companyId": target_company_id, "role": {"$in": ["aprovador", "company_admin"]}},
+            {"_id": 0, "email": 1}
+        ).to_list(20)
+        course_title = s.get("config", {}).get("title") or s.get("analysis", {}).get("title", "Sem titulo")
+        author_name = user.get("name", "Usuario")
+        for apr in aprovadors:
+            if apr.get("email"):
+                asyncio.create_task(notify_approval_submitted(apr["email"], author_name, course_title, session_id))
+    except Exception as e:
+        logger.warning(f"Failed to send approval notification: {e}")
+
     return {"status": "ok", "step": "pending_approval", "targetCompany": company.get("name", "")}
 
 
@@ -3458,6 +3490,20 @@ async def approve_storyboard_by_aprovador(session_id: str, request: Request, use
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }}
     )
+
+    # Notify author of approval
+    try:
+        from services.email_service import notify_approval_approved
+        import asyncio
+        author_id = s.get("submittedForApprovalBy") or s.get("userId")
+        if author_id:
+            author = await db.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1})
+            if author and author.get("email"):
+                course_title = s.get("config", {}).get("title") or s.get("analysis", {}).get("title", "Sem titulo")
+                asyncio.create_task(notify_approval_approved(author["email"], user.get("name", "Aprovador"), course_title))
+    except Exception as e:
+        logger.warning(f"Failed to send approval notification: {e}")
+
     return {"status": "ok", "step": "approved"}
 
 
@@ -3485,6 +3531,20 @@ async def reject_storyboard(session_id: str, data: dict, request: Request, user:
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }}
     )
+
+    # Notify author of rejection
+    try:
+        from services.email_service import notify_approval_rejected
+        import asyncio
+        author_id = s.get("submittedForApprovalBy") or s.get("userId")
+        if author_id:
+            author = await db.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1})
+            if author and author.get("email"):
+                course_title = s.get("config", {}).get("title") or s.get("analysis", {}).get("title", "Sem titulo")
+                asyncio.create_task(notify_approval_rejected(author["email"], user.get("name", "Aprovador"), course_title, reason))
+    except Exception as e:
+        logger.warning(f"Failed to send rejection notification: {e}")
+
     return {"status": "ok", "step": "storyboarded"}
 
 

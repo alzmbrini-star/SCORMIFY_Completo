@@ -32,6 +32,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - **Tutor IA Dashboard**: Analytics dashboard showing most asked questions per course and per company. Super Admin sees all data, Company Admin sees only their company. Includes summary cards, company breakdown, course drill-down with top questions ranking and recent interactions.
 - **Leonardo AI Integration**: Premium image generation via Leonardo AI in Editor toolbar and Agent workflow. 6 style presets, direct slide insertion, and per-slide configuration in MediaConfigPanel.
 - **Aesthetic Analyzer**: AI-powered course visual quality analysis using Gemini 3 Flash. Checks color contrast, font harmony, layout, HTML/simulator readability. Provides score (0-100), categorized issues, and one-click auto-fix. Available in both Editor (sidebar panel) and Agent (after course generation).
+- **Email Notifications (Resend)**: Transactional email notifications for: approval submitted (to aprovador), approval result approved/rejected (to author), course generated (to author), AI Tutor activity summary (to admin). User preferences configurable. Templates in HTML with Scormify branding.
 
 ## Credentials
 - Admin: admin@scormify.com / admin123
@@ -44,6 +45,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ElevenLabs - Audio narration for regular slides only (user API key)
 - ConvertAPI - PPT import (user API key)
 - Leonardo AI - Premium image generation (user API key: 59495cbf-a332-4a84-b6ab-a4d6f45a9ab2)
+- Resend - Email notifications (API key in .env, free tier 100/day)
 
 ## Code Architecture
 ```
