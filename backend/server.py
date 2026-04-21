@@ -260,6 +260,26 @@ async def startup_ensure_admin():
         logger.warning(f"Startup admin check scheduling failed (non-fatal): {e}")
 
 
+
+@app.on_event("startup")
+async def startup_migrate_roles():
+    """Migrate legacy single-role 'role' field to multi-role 'roles' array."""
+    try:
+        migrated = 0
+        async for user in db.users.find({"roles": {"$exists": False}}, {"_id": 0, "user_id": 1, "role": 1}):
+            legacy_role = user.get("role", "editor")
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {"roles": [legacy_role]}}
+            )
+            migrated += 1
+        if migrated > 0:
+            logger.info(f"Roles migration: converted {migrated} users from single role to multi-role")
+    except Exception as e:
+        logger.warning(f"Roles migration failed (non-fatal): {e}")
+
+
+
 @app.on_event("startup")
 async def startup_recover_stalled_ppt_jobs():
     """Recover PPT processing jobs that were interrupted by a deploy/restart"""

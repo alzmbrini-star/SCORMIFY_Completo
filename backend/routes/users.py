@@ -58,7 +58,12 @@ async def create_user(request: Request, user: Dict = Depends(require_company_adm
     name = body.get("name", "").strip()
     password = body.get("password", "")
     company_id = body.get("companyId")
-    role = body.get("role", "editor")
+    # Support both legacy 'role' (string) and new 'roles' (array)
+    roles = body.get("roles", [])
+    if not roles:
+        legacy_role = body.get("role", "editor")
+        roles = [legacy_role] if isinstance(legacy_role, str) else legacy_role
+    role = roles[0] if roles else "editor"  # Keep legacy field for backward compat
     
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
@@ -66,15 +71,14 @@ async def create_user(request: Request, user: Dict = Depends(require_company_adm
         raise HTTPException(status_code=400, detail="Name is required")
     
     # Check permissions
-    if user.get("role") == "company_admin":
-        # Company admin can only create users in their company
+    from routes.auth import has_role
+    if has_role(user, "company_admin") and not has_role(user, "super_admin"):
         company_id = user.get("companyId")
-        # Company admin can only create editors or aprovadores, not other admins
-        if role not in ("editor", "aprovador"):
-            raise HTTPException(status_code=403, detail="You can only create editor or aprovador users")
-    elif user.get("role") == "super_admin":
-        # Super admin can create users in any company
-        if not company_id and role != "super_admin":
+        allowed = {"editor", "aprovador"}
+        if not set(roles).issubset(allowed):
+            raise HTTPException(status_code=403, detail="You can only assign editor or aprovador roles")
+    elif has_role(user, "super_admin"):
+        if not company_id and "super_admin" not in roles:
             raise HTTPException(status_code=400, detail="Company ID is required")
     
     # Check if email already exists
@@ -100,6 +104,7 @@ async def create_user(request: Request, user: Dict = Depends(require_company_adm
         "picture": None,
         "companyId": company_id,
         "role": role,
+        "roles": roles,
         "isActive": True,
         "createdAt": now_utc(),
         "updatedAt": now_utc()
@@ -130,9 +135,10 @@ async def get_user(user_id: str, request: Request, user: Dict = Depends(require_
         raise HTTPException(status_code=404, detail="User not found")
     
     # Check permissions
-    if user.get("role") == "super_admin":
+    from routes.auth import has_role
+    if has_role(user, "super_admin"):
         pass  # Can view any user
-    elif user.get("role") == "company_admin":
+    elif has_role(user, "company_admin"):
         if target_user.get("companyId") != user.get("companyId"):
             raise HTTPException(status_code=403, detail="Access denied")
     else:
@@ -160,12 +166,17 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
     update_data = {"updatedAt": now_utc()}
     
     # Determine what can be updated based on role
-    if user.get("role") == "super_admin":
+    from routes.auth import has_role
+    if has_role(user, "super_admin"):
         # Super admin can update anything
         if "name" in body:
             update_data["name"] = body["name"]
-        if "role" in body:
+        if "roles" in body:
+            update_data["roles"] = body["roles"]
+            update_data["role"] = body["roles"][0] if body["roles"] else "editor"
+        elif "role" in body:
             update_data["role"] = body["role"]
+            update_data["roles"] = [body["role"]]
         if "isActive" in body:
             update_data["isActive"] = body["isActive"]
         if "companyId" in body:
@@ -174,7 +185,7 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
             if len(body["password"]) < 6:
                 raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
             update_data["passwordHash"] = hash_password(body["password"])
-    elif user.get("role") == "company_admin":
+    elif has_role(user, "company_admin"):
         # Company admin can update users in their company
         if target_user.get("companyId") != user.get("companyId"):
             raise HTTPException(status_code=403, detail="Access denied")
@@ -183,10 +194,15 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
             update_data["name"] = body["name"]
         if "isActive" in body:
             update_data["isActive"] = body["isActive"]
-        # Company admin can toggle between editor, company_admin, and aprovador
-        if "role" in body:
-            if body["role"] in ["editor", "company_admin", "aprovador"]:
+        allowed_roles = {"editor", "company_admin", "aprovador"}
+        if "roles" in body:
+            if set(body["roles"]).issubset(allowed_roles):
+                update_data["roles"] = body["roles"]
+                update_data["role"] = body["roles"][0] if body["roles"] else "editor"
+        elif "role" in body:
+            if body["role"] in allowed_roles:
                 update_data["role"] = body["role"]
+                update_data["roles"] = [body["role"]]
         if "password" in body and body["password"]:
             if len(body["password"]) < 6:
                 raise HTTPException(status_code=400, detail="Password must be at least 6 characters")

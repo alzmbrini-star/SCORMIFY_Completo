@@ -112,24 +112,51 @@ async def require_auth(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 
+
+def has_role(user: dict, role: str) -> bool:
+    """Check if user has a specific role. Supports both legacy 'role' (string) and 'roles' (array)."""
+    if not user:
+        return False
+    # Super admin always has all roles
+    roles = user.get("roles", [])
+    legacy_role = user.get("role", "")
+    if "super_admin" in roles or legacy_role == "super_admin":
+        return True
+    return role in roles or legacy_role == role
+
+
+def has_any_role(user: dict, *target_roles) -> bool:
+    """Check if user has any of the specified roles."""
+    if not user:
+        return False
+    roles = user.get("roles", [])
+    legacy_role = user.get("role", "")
+    if "super_admin" in roles or legacy_role == "super_admin":
+        return True
+    for r in target_roles:
+        if r in roles or legacy_role == r:
+            return True
+    return False
+
+
 async def require_super_admin(request: Request) -> Dict[str, Any]:
     """Dependency that requires super admin role"""
     user = await require_auth(request)
-    if user.get("role") != "super_admin":
+    if not has_role(user, "super_admin"):
         raise HTTPException(status_code=403, detail="Super admin access required")
     return user
 
 async def require_company_admin(request: Request) -> Dict[str, Any]:
     """Dependency that requires company admin or super admin role"""
     user = await require_auth(request)
-    if user.get("role") not in ["super_admin", "company_admin"]:
+    if not has_any_role(user, "super_admin", "company_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 async def require_aprovador(request: Request) -> Dict[str, Any]:
     """Dependency that requires aprovador, company_admin, or super_admin role"""
     user = await require_auth(request)
-    if user.get("role") not in ["super_admin", "company_admin", "aprovador"]:
+    if not has_any_role(user, "super_admin", "company_admin", "aprovador"):
         raise HTTPException(status_code=403, detail="Acesso de aprovador necessário")
     return user
 
@@ -138,11 +165,11 @@ async def require_agent_access(request: Request) -> Dict[str, Any]:
     user = await require_auth(request)
     
     # Super admins always have access
-    if user.get("role") == "super_admin":
+    if has_role(user, "super_admin"):
         return user
     
     # Aprovadores have access to the approval queue
-    if user.get("role") == "aprovador":
+    if has_role(user, "aprovador"):
         return user
     
     # Check company permissions

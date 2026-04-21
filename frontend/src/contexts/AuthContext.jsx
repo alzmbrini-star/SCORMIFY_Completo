@@ -196,9 +196,9 @@ export function AuthProvider({ children }) {
     hasRole,
     checkAuth,
     isAuthenticated: !!user,
-    isSuperAdmin: user?.role === 'super_admin',
-    isCompanyAdmin: user?.role === 'company_admin' || user?.role === 'super_admin',
-    isAprovador: user?.role === 'aprovador',
+    isSuperAdmin: (user?.roles || [user?.role]).includes('super_admin'),
+    isCompanyAdmin: (user?.roles || [user?.role]).includes('company_admin') || (user?.roles || [user?.role]).includes('super_admin'),
+    isAprovador: (user?.roles || [user?.role]).includes('aprovador'),
   };
 
   return (

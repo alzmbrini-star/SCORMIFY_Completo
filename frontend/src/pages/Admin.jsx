@@ -52,7 +52,7 @@ export default function Admin() {
   
   // Form states
   const [companyForm, setCompanyForm] = useState({ name: '', slug: '', maxUsers: 10, maxProjects: 100 });
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'editor', companyId: '' });
+  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', roles: ['editor'], companyId: '' });
   
   // Tutor states
   const [tutorSettings, setTutorSettings] = useState({
@@ -247,7 +247,7 @@ export default function Admin() {
         : `${API_URL}/api/users`;
       
       const body = editingUser 
-        ? { name: userForm.name, role: userForm.role, ...(userForm.password ? { password: userForm.password } : {}) }
+        ? { name: userForm.name, roles: userForm.roles, ...(userForm.password ? { password: userForm.password } : {}) }
         : userForm;
 
       const res = await fetch(url, {
@@ -274,7 +274,7 @@ export default function Admin() {
       toast.success(editingUser ? 'Usuario atualizado!' : 'Usuario criado!');
       setShowUserModal(false);
       setEditingUser(null);
-      setUserForm({ name: '', email: '', password: '', role: 'editor', companyId: user?.companyId || '' });
+      setUserForm({ name: '', email: '', password: '', roles: ['editor'], companyId: user?.companyId || '' });
       fetchData();
     } catch (error) {
       toast.error(error.message);
@@ -322,7 +322,7 @@ export default function Admin() {
       name: targetUser.name,
       email: targetUser.email,
       password: '',
-      role: targetUser.role,
+      roles: targetUser.roles || [targetUser.role || 'editor'],
       companyId: targetUser.companyId
     });
     setShowUserModal(true);
@@ -334,7 +334,7 @@ export default function Admin() {
       name: '',
       email: '',
       password: '',
-      role: 'editor',
+      roles: ['editor'],
       companyId: isSuperAdmin ? (companies[0]?.id || '') : user?.companyId
     });
     setShowUserModal(true);
@@ -364,7 +364,7 @@ export default function Admin() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-slate-400 text-sm">
-              {user?.name} ({user?.role === 'super_admin' ? 'Super Admin' : 'Admin'})
+              {user?.name} ({(user?.roles || [user?.role]).includes('super_admin') ? 'Super Admin' : 'Admin'})
             </span>
             <Button variant="outline" size="sm" onClick={logout}>
               Sair
@@ -545,14 +545,18 @@ export default function Admin() {
                       <td className="p-4 text-white">{u.name}</td>
                       <td className="p-4 text-slate-300">{u.email}</td>
                       <td className="p-4">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          u.role === 'super_admin' ? 'bg-purple-500/20 text-purple-400' :
-                          u.role === 'company_admin' ? 'bg-blue-500/20 text-blue-400' :
-                          u.role === 'aprovador' ? 'bg-amber-500/20 text-amber-400' :
-                          'bg-slate-500/20 text-slate-400'
-                        }`}>
-                          {u.role === 'super_admin' ? 'Super Admin' : u.role === 'company_admin' ? 'Admin' : u.role === 'aprovador' ? 'Aprovador' : 'Editor'}
-                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {(u.roles || [u.role]).map(r => (
+                            <span key={r} className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                              r === 'super_admin' ? 'bg-purple-500/20 text-purple-400' :
+                              r === 'company_admin' ? 'bg-blue-500/20 text-blue-400' :
+                              r === 'aprovador' ? 'bg-amber-500/20 text-amber-400' :
+                              'bg-slate-500/20 text-slate-400'
+                            }`}>
+                              {r === 'super_admin' ? 'Super Admin' : r === 'company_admin' ? 'Admin' : r === 'aprovador' ? 'Aprovador' : 'Editor'}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                       {isSuperAdmin && (
                         <td className="p-4 text-slate-300">
@@ -1059,21 +1063,37 @@ export default function Admin() {
                 </div>
               )}
               <div>
-                <label className="block text-sm text-slate-300 mb-1">Função</label>
-                <select
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                  className="w-full h-10 px-3 rounded-md bg-slate-700 border border-slate-600 text-white"
-                >
-                  <option value="editor">Editor</option>
-                  <option value="aprovador">Aprovador</option>
-                  {(isSuperAdmin || user?.role === 'company_admin') && (
-                    <option value="company_admin">Admin da Empresa</option>
-                  )}
-                  {isSuperAdmin && (
-                    <option value="super_admin">Super Admin</option>
-                  )}
-                </select>
+                <label className="block text-sm text-slate-300 mb-2">Funcoes (multiplas)</label>
+                <div className="space-y-2">
+                  {[
+                    { value: 'editor', label: 'Editor', desc: 'Criar e editar cursos' },
+                    { value: 'aprovador', label: 'Aprovador', desc: 'Aprovar storyboards' },
+                    ...((isSuperAdmin || (user?.roles || [user?.role]).includes('company_admin')) ? [{ value: 'company_admin', label: 'Admin da Empresa', desc: 'Gerenciar usuarios da empresa' }] : []),
+                    ...(isSuperAdmin ? [{ value: 'super_admin', label: 'Super Admin', desc: 'Acesso total ao sistema' }] : []),
+                  ].map(opt => (
+                    <label key={opt.value} className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
+                      userForm.roles.includes(opt.value)
+                        ? 'border-violet-500 bg-violet-500/10'
+                        : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={userForm.roles.includes(opt.value)}
+                        onChange={(e) => {
+                          const newRoles = e.target.checked
+                            ? [...userForm.roles, opt.value]
+                            : userForm.roles.filter(r => r !== opt.value);
+                          setUserForm({ ...userForm, roles: newRoles.length > 0 ? newRoles : ['editor'] });
+                        }}
+                        className="w-4 h-4 rounded border-slate-500 text-violet-500 focus:ring-violet-500 bg-slate-700"
+                      />
+                      <div>
+                        <span className="text-sm text-white font-medium">{opt.label}</span>
+                        <p className="text-[10px] text-slate-400">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
