@@ -68,28 +68,6 @@ app.add_middleware(
     max_age=86400,
 )
 
-# Extra CORS: raw ASGI middleware (avoids BaseHTTPMiddleware body-stream bug)
-from starlette.responses import Response as StarletteResponse
-
-@app.middleware("http")
-async def cors_preflight_middleware(request: Request, call_next):
-    origin = request.headers.get("origin", "*")
-    if request.method == "OPTIONS":
-        return StarletteResponse(
-            status_code=204,
-            headers={
-                "Access-Control-Allow-Origin": origin if origin != "*" else "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-                "Access-Control-Max-Age": "86400",
-            },
-        )
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = origin if origin != "*" else "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-    return response
-
 # Health endpoints - defined FIRST to ensure immediate availability
 @app.get("/health")
 async def health_check():

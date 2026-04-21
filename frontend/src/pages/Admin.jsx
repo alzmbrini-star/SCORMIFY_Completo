@@ -257,10 +257,10 @@ export default function Admin() {
         body: JSON.stringify(body)
       });
 
-      const text = await res.text();
+      const clone = res.clone();
       if (!res.ok) {
         let detail = 'Erro ao salvar usuario';
-        try { detail = JSON.parse(text).detail || detail; } catch {}
+        try { const d = await clone.json(); detail = d.detail || detail; } catch {}
         throw new Error(detail);
       }
 
@@ -285,9 +285,9 @@ export default function Admin() {
       });
       
       if (!res.ok) {
-        const text = await res.text();
+        const clone = res.clone();
         let detail = 'Erro ao excluir usuario';
-        try { detail = JSON.parse(text).detail || detail; } catch {}
+        try { const d = await clone.json(); detail = d.detail || detail; } catch {}
         throw new Error(detail);
       }
       
