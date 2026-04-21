@@ -14,14 +14,20 @@ router = APIRouter(tags=["Notifications"])
 
 @router.post("/notifications/test-email")
 async def test_email(request: Request, user: dict = Depends(require_auth)):
-    """Send a test email to the current user."""
+    """Send a test email to the current user or a specific email."""
     current_user = await get_current_user(request)
     if not current_user:
         raise HTTPException(401, "Not authenticated")
 
-    email = current_user.get("email")
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    email = body.get("email") or current_user.get("email")
     if not email:
-        raise HTTPException(400, "User has no email")
+        raise HTTPException(400, "No email provided")
 
     from services.email_service import _base_template
     html = _base_template("Email de Teste", f"""

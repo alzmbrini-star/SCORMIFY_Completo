@@ -1,41 +1,39 @@
-"""Email notification service using SendGrid API."""
+"""Email notification service using Resend API."""
 import os
 import asyncio
 import logging
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import resend
 
 logger = logging.getLogger("server")
 
-SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "alzmbrini@gmail.com")
+resend.api_key = os.environ.get("RESEND_API_KEY", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 APP_NAME = "Scormify"
 
 
 async def send_email(to: str, subject: str, html: str) -> dict:
-    """Send an email via SendGrid (non-blocking)."""
-    if not SENDGRID_API_KEY:
-        logger.warning("SENDGRID_API_KEY not set, skipping email")
+    """Send an email via Resend (non-blocking)."""
+    if not resend.api_key:
+        logger.warning("RESEND_API_KEY not set, skipping email")
         return {"status": "skipped", "reason": "no_api_key"}
 
-    message = Mail(
-        from_email=SENDER_EMAIL,
-        to_emails=to,
-        subject=subject,
-        html_content=html,
-    )
+    params = {
+        "from": f"{APP_NAME} <{SENDER_EMAIL}>",
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }
     try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = await asyncio.to_thread(sg.send, message)
-        logger.info(f"Email sent to {to}: {subject} (status={response.status_code})")
-        return {"status": "sent", "code": response.status_code}
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        email_id = result.get("id") if isinstance(result, dict) else str(result)
+        logger.info(f"Email sent to {to}: {subject} (id={email_id})")
+        return {"status": "sent", "id": email_id}
     except Exception as e:
         logger.error(f"Email send failed to {to}: {e}")
         return {"status": "error", "error": str(e)[:200]}
 
 
 def _base_template(title: str, body_html: str) -> str:
-    """Wrap content in a styled email template."""
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#0f172a;font-family:Arial,Helvetica,sans-serif;">
@@ -56,8 +54,6 @@ def _base_template(title: str, body_html: str) -> str:
 </td></tr></table>
 </body></html>"""
 
-
-# ── Notification Templates ──
 
 async def notify_approval_submitted(approver_email: str, author_name: str, course_title: str, session_id: str):
     html = _base_template("Novo Storyboard para Aprovacao", f"""
