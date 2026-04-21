@@ -1,33 +1,34 @@
-"""Email notification service using Resend API."""
+"""Email notification service using SendGrid API."""
 import os
 import asyncio
 import logging
-import resend
-from datetime import datetime, timezone
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 logger = logging.getLogger("server")
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "alzmbrini@gmail.com")
 APP_NAME = "Scormify"
 
 
 async def send_email(to: str, subject: str, html: str) -> dict:
-    """Send an email via Resend (non-blocking)."""
-    if not resend.api_key:
-        logger.warning("RESEND_API_KEY not set, skipping email")
+    """Send an email via SendGrid (non-blocking)."""
+    if not SENDGRID_API_KEY:
+        logger.warning("SENDGRID_API_KEY not set, skipping email")
         return {"status": "skipped", "reason": "no_api_key"}
 
-    params = {
-        "from": f"{APP_NAME} <{SENDER_EMAIL}>",
-        "to": [to],
-        "subject": subject,
-        "html": html,
-    }
+    message = Mail(
+        from_email=SENDER_EMAIL,
+        to_emails=to,
+        subject=subject,
+        html_content=html,
+    )
     try:
-        result = await asyncio.to_thread(resend.Emails.send, params)
-        logger.info(f"Email sent to {to}: {subject}")
-        return {"status": "sent", "id": result.get("id") if isinstance(result, dict) else str(result)}
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = await asyncio.to_thread(sg.send, message)
+        logger.info(f"Email sent to {to}: {subject} (status={response.status_code})")
+        return {"status": "sent", "code": response.status_code}
     except Exception as e:
         logger.error(f"Email send failed to {to}: {e}")
         return {"status": "error", "error": str(e)[:200]}
@@ -59,22 +60,16 @@ def _base_template(title: str, body_html: str) -> str:
 # ── Notification Templates ──
 
 async def notify_approval_submitted(approver_email: str, author_name: str, course_title: str, session_id: str):
-    """Notify approver that a storyboard was submitted for review."""
     html = _base_template("Novo Storyboard para Aprovacao", f"""
     <h2 style="color:#f8fafc;font-size:18px;margin:0 0 12px;">Storyboard Aguardando Aprovacao</h2>
     <p><strong style="color:#a78bfa;">{author_name}</strong> enviou o storyboard do curso 
     <strong style="color:#60a5fa;">"{course_title}"</strong> para sua aprovacao.</p>
-    <table cellpadding="0" cellspacing="0" style="margin:20px 0;">
-    <tr><td style="background:#7c3aed;border-radius:6px;padding:12px 24px;">
-      <a href="#" style="color:#fff;text-decoration:none;font-weight:bold;font-size:14px;">Revisar Storyboard</a>
-    </td></tr></table>
     <p style="color:#94a3b8;font-size:12px;">ID da sessao: {session_id}</p>
     """)
     return await send_email(approver_email, f"[Aprovacao] {course_title} - Aguardando sua revisao", html)
 
 
 async def notify_approval_approved(author_email: str, approver_name: str, course_title: str):
-    """Notify author that their storyboard was approved."""
     html = _base_template("Storyboard Aprovado!", f"""
     <div style="text-align:center;margin-bottom:16px;">
       <span style="display:inline-block;background:#059669;border-radius:50%;padding:12px;">
@@ -90,7 +85,6 @@ async def notify_approval_approved(author_email: str, approver_name: str, course
 
 
 async def notify_approval_rejected(author_email: str, approver_name: str, course_title: str, reason: str = ""):
-    """Notify author that their storyboard was rejected."""
     reason_html = f'<p style="background:#1e1b2e;border-left:3px solid #ef4444;padding:12px;border-radius:4px;color:#fca5a5;">"{reason}"</p>' if reason else ""
     html = _base_template("Storyboard Devolvido", f"""
     <h2 style="color:#f87171;font-size:18px;margin:0 0 12px;">Storyboard Devolvido para Revisao</h2>
@@ -103,7 +97,6 @@ async def notify_approval_rejected(author_email: str, approver_name: str, course
 
 
 async def notify_course_generated(author_email: str, course_title: str, slides_count: int, quiz_count: int, project_id: str):
-    """Notify author that their course was generated successfully."""
     html = _base_template("Curso Gerado com Sucesso!", f"""
     <div style="text-align:center;margin-bottom:16px;">
       <span style="display:inline-block;background:#7c3aed;border-radius:50%;padding:12px;">
@@ -123,13 +116,11 @@ async def notify_course_generated(author_email: str, course_title: str, slides_c
         <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">Perguntas</p>
       </td>
     </tr></table>
-    <p style="color:#94a3b8;font-size:12px;">Acesse o editor para revisar e exportar seu curso.</p>
     """)
     return await send_email(author_email, f"[Gerado] {course_title} - {slides_count} slides prontos!", html)
 
 
 async def notify_tutor_summary(admin_email: str, course_title: str, questions_count: int, top_questions: list):
-    """Notify admin about AI Tutor activity summary."""
     questions_html = ""
     for i, q in enumerate(top_questions[:5]):
         questions_html += f'<tr><td style="padding:6px 12px;border-bottom:1px solid #334155;color:#e2e8f0;font-size:13px;">{i+1}. {q.get("question","")[:100]}</td><td style="padding:6px 12px;border-bottom:1px solid #334155;color:#f59e0b;font-size:13px;text-align:right;">{q.get("count",0)}x</td></tr>'
