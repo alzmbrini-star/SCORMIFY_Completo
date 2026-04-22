@@ -208,9 +208,15 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
 
 
 @router.options("/tutor/chat")
-async def tutor_chat_options():
+async def tutor_chat_options(request: Request):
     """Explicit OPTIONS handler for CORS preflight from SCORM/LMS domains"""
-    return JSONResponse(content="", headers=TUTOR_CORS_HEADERS)
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(content="", headers={
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400",
+    })
 
 
 @router.post("/tutor/chat")

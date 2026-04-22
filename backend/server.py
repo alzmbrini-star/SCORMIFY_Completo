@@ -675,3 +675,46 @@ async def shutdown():
         client.close()
 
 print("[STARTUP] server.py: Ready to accept connections.", flush=True)
+
+
+# ── ASGI Wrapper: CORS for /tutor/chat (survives proxy header stripping) ──
+# Must be AFTER all routes are defined. Does NOT use BaseHTTPMiddleware.
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+class _TutorCorsASGI:
+    def __init__(self, inner: ASGIApp):
+        self.inner = inner
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http" or "/tutor/chat" not in scope.get("path", ""):
+            await self.inner(scope, receive, send)
+            return
+
+        headers_list = scope.get("headers", [])
+        origin = "*"
+        for key, val in headers_list:
+            if key == b"origin":
+                origin = val.decode()
+                break
+
+        if scope.get("method") == "OPTIONS":
+            await send({"type": "http.response.start", "status": 204, "headers": [
+                (b"access-control-allow-origin", origin.encode()),
+                (b"access-control-allow-methods", b"POST, OPTIONS"),
+                (b"access-control-allow-headers", b"Content-Type, Authorization"),
+                (b"access-control-max-age", b"86400"),
+                (b"content-length", b"0"),
+            ]})
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        async def _inject(message):
+            if message["type"] == "http.response.start":
+                h = list(message.get("headers", []))
+                h.append((b"access-control-allow-origin", origin.encode()))
+                message = {**message, "headers": h}
+            await send(message)
+
+        await self.inner(scope, receive, _inject)
+
+app = _TutorCorsASGI(app)
