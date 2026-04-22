@@ -678,15 +678,15 @@ print("[STARTUP] server.py: Ready to accept connections.", flush=True)
 
 
 # ── CORS for /api/tutor/chat ──
-# The production proxy does NOT inject any CORS headers, so the backend must
-# provide them. Previously the backend ended up emitting two values
-# ("*" from CORSMiddleware + "<origin>" from a custom wrapper) and the browser
-# rejected with "contains multiple values".
+# In production, Cloudflare strips "Access-Control-Allow-Origin: *" from POST
+# responses (but keeps specific origins). So we can't rely on CORSMiddleware's
+# wildcard for this endpoint.
 #
-# Solution: an ASGI wrapper that intercepts ONLY the OPTIONS preflight for
-# /api/tutor/chat and returns a 204 with a reflected origin. For POST we let the
-# response pass through untouched so the global CORSMiddleware (allow_origins=*)
-# is the sole source of Access-Control-Allow-Origin.
+# Solution: ASGI wrapper that for /api/tutor/chat:
+#   • OPTIONS -> return 204 with reflected origin (bypasses CORSMiddleware).
+#   • POST    -> let the app handle the request, then replace any
+#                Access-Control-Allow-Origin header with the reflected origin
+#                and remove duplicates so exactly ONE value reaches the browser.
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 
@@ -695,11 +695,7 @@ class _TutorCorsASGI:
         self.inner = inner
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if (
-            scope["type"] != "http"
-            or scope.get("method") != "OPTIONS"
-            or "/tutor/chat" not in scope.get("path", "")
-        ):
+        if scope["type"] != "http" or "/tutor/chat" not in scope.get("path", ""):
             await self.inner(scope, receive, send)
             return
 
@@ -709,19 +705,43 @@ class _TutorCorsASGI:
                 origin = val
                 break
 
-        await send({
-            "type": "http.response.start",
-            "status": 204,
-            "headers": [
-                (b"access-control-allow-origin", origin),
-                (b"access-control-allow-methods", b"POST, OPTIONS"),
-                (b"access-control-allow-headers", b"Content-Type, Authorization"),
-                (b"access-control-max-age", b"86400"),
-                (b"vary", b"Origin"),
-                (b"content-length", b"0"),
-            ],
-        })
-        await send({"type": "http.response.body", "body": b""})
+        # Preflight -> answer directly with reflected origin.
+        if scope.get("method") == "OPTIONS":
+            await send({
+                "type": "http.response.start",
+                "status": 204,
+                "headers": [
+                    (b"access-control-allow-origin", origin),
+                    (b"access-control-allow-methods", b"POST, OPTIONS"),
+                    (b"access-control-allow-headers", b"Content-Type, Authorization"),
+                    (b"access-control-max-age", b"86400"),
+                    (b"vary", b"Origin"),
+                    (b"content-length", b"0"),
+                ],
+            })
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        # Actual request (POST etc.): strip existing CORS headers and inject
+        # the reflected origin so there is exactly one Access-Control-Allow-Origin
+        # (Cloudflare is known to drop "*" for authenticated/dynamic POSTs).
+        async def _fix_cors(message):
+            if message["type"] == "http.response.start":
+                headers = [
+                    (k, v) for k, v in message.get("headers", [])
+                    if k.lower() not in (
+                        b"access-control-allow-origin",
+                        b"access-control-allow-credentials",
+                        b"vary",
+                    )
+                ]
+                headers.append((b"access-control-allow-origin", origin))
+                headers.append((b"access-control-allow-credentials", b"false"))
+                headers.append((b"vary", b"Origin"))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.inner(scope, receive, _fix_cors)
 
 
 app = _TutorCorsASGI(app)
