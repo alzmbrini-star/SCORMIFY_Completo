@@ -677,11 +677,29 @@ async def shutdown():
 print("[STARTUP] server.py: Ready to accept connections.", flush=True)
 
 
-# ── ASGI Wrapper: CORS for /tutor/chat (survives proxy header stripping) ──
-# Must be AFTER all routes are defined. Does NOT use BaseHTTPMiddleware.
+# ── CORS for /api/tutor/chat ──
+# The Emergent/Kubernetes ingress proxy already injects "Access-Control-Allow-Origin: *"
+# on all responses. If our backend also sends a CORS header (via CORSMiddleware),
+# the proxy APPENDS on production -> browser receives "*, *" (or "*, <origin>") and
+# rejects with "Access-Control-Allow-Origin contains multiple values".
+#
+# Solution: wrap the app with a small ASGI middleware that STRIPS any CORS-related
+# response headers produced by the backend for /api/tutor/chat. The platform proxy
+# remains the single source of truth for CORS on that endpoint.
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-class _TutorCorsASGI:
+_CORS_HEADERS_TO_STRIP = {
+    b"access-control-allow-origin",
+    b"access-control-allow-credentials",
+    b"access-control-allow-methods",
+    b"access-control-allow-headers",
+    b"access-control-expose-headers",
+    b"access-control-max-age",
+    b"vary",
+}
+
+
+class _StripTutorCorsASGI:
     def __init__(self, inner: ASGIApp):
         self.inner = inner
 
@@ -690,31 +708,16 @@ class _TutorCorsASGI:
             await self.inner(scope, receive, send)
             return
 
-        headers_list = scope.get("headers", [])
-        origin = "*"
-        for key, val in headers_list:
-            if key == b"origin":
-                origin = val.decode()
-                break
-
-        if scope.get("method") == "OPTIONS":
-            await send({"type": "http.response.start", "status": 204, "headers": [
-                (b"access-control-allow-origin", origin.encode()),
-                (b"access-control-allow-methods", b"POST, OPTIONS"),
-                (b"access-control-allow-headers", b"Content-Type, Authorization"),
-                (b"access-control-max-age", b"86400"),
-                (b"content-length", b"0"),
-            ]})
-            await send({"type": "http.response.body", "body": b""})
-            return
-
-        async def _inject(message):
+        async def _strip(message):
             if message["type"] == "http.response.start":
-                h = list(message.get("headers", []))
-                h.append((b"access-control-allow-origin", origin.encode()))
-                message = {**message, "headers": h}
+                headers = [
+                    (k, v) for k, v in message.get("headers", [])
+                    if k.lower() not in _CORS_HEADERS_TO_STRIP
+                ]
+                message = {**message, "headers": headers}
             await send(message)
 
-        await self.inner(scope, receive, _inject)
+        await self.inner(scope, receive, _strip)
 
-app = _TutorCorsASGI(app)
+
+app = _StripTutorCorsASGI(app)

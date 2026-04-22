@@ -1,6 +1,6 @@
 """Admin settings, reports and AI tutor routes"""
 from fastapi import APIRouter, HTTPException, Request, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from typing import Optional
 from datetime import datetime, timezone
 import uuid
@@ -14,13 +14,10 @@ logger = logging.getLogger("server")
 
 router = APIRouter(tags=["Admin"])
 
-# CORS headers for tutor endpoint (called cross-origin from SCORM/LMS)
-TUTOR_CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400",
-}
+# NOTE: CORS for /tutor/chat is handled by the global CORSMiddleware +
+# the Emergent/Kubernetes ingress proxy (which injects "Access-Control-Allow-Origin: *"
+# on all responses). Adding manual CORS headers here caused duplicate
+# "Access-Control-Allow-Origin" values that browsers reject.
 
 
 @router.get("/dashboard/metrics")
@@ -208,15 +205,10 @@ async def get_admin_reports(request: Request, user: dict = Depends(require_auth)
 
 
 @router.options("/tutor/chat")
-async def tutor_chat_options(request: Request):
-    """Explicit OPTIONS handler for CORS preflight from SCORM/LMS domains"""
-    origin = request.headers.get("origin", "*")
-    return JSONResponse(content="", headers={
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Max-Age": "86400",
-    })
+async def tutor_chat_options():
+    """Explicit OPTIONS handler for CORS preflight from SCORM/LMS domains.
+    CORS headers are injected by the platform proxy + global CORSMiddleware."""
+    return Response(status_code=204)
 
 
 @router.post("/tutor/chat")
@@ -240,8 +232,7 @@ async def tutor_chat(request: Request):
     msg_count = len([m for m in history if m.get("role") == "user"])
     if msg_count >= message_limit:
         return JSONResponse(
-            content={"response": f"Voce atingiu o limite de {message_limit} mensagens para esta sessao.", "limitReached": True},
-            headers=TUTOR_CORS_HEADERS
+            content={"response": f"Voce atingiu o limite de {message_limit} mensagens para esta sessao.", "limitReached": True}
         )
     emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
     if not emergent_key:
@@ -287,8 +278,7 @@ CONTEUDO DO CURSO:
             logger.warning(f"Failed to log tutor question (non-fatal): {log_err}")
 
         return JSONResponse(
-            content={"response": response, "limitReached": False, "messagesUsed": msg_count + 1, "messageLimit": message_limit},
-            headers=TUTOR_CORS_HEADERS
+            content={"response": response, "limitReached": False, "messagesUsed": msg_count + 1, "messageLimit": message_limit}
         )
     except Exception as e:
         logger.error(f"Tutor chat error: {e}")
