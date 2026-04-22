@@ -178,7 +178,11 @@ async def _run_migrate_urls():
         return
     try:
         migrated_count = 0
-        projects = await db.projects.find({}).to_list(1000)
+        # Use projection to avoid loading full course data into memory
+        projects = await db.projects.find(
+            {},
+            {"_id": 0, "id": 1, "course.slides.elements.type": 1, "course.slides.elements.htmlContent": 1, "course.slides.elements.src": 1, "course.slides.backgroundImage": 1}
+        ).to_list(1000)
         for project in projects:
             updated = False
             course = project.get('course', {})
