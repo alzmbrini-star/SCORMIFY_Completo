@@ -1041,6 +1041,7 @@ async def apply_media_changes(session_id: str, data: dict):
             kw = leo_prompt or sb_slide.get("imageKeywords", slide.get("title", "education"))
             try:
                 from services.leonardo_ai import generate_and_wait, download_image_to_disk
+                from services.asset_store import store_asset_async
                 import uuid as _uuid
                 leo_urls = await generate_and_wait(prompt=kw, width=1024, height=576, num_images=1)
                 if leo_urls:
@@ -1049,6 +1050,17 @@ async def apply_media_changes(session_id: str, data: dict):
                     assets_dir.mkdir(parents=True, exist_ok=True)
                     dest = str(assets_dir / fname)
                     ok = await download_image_to_disk(leo_urls[0], dest)
+                    if ok:
+                        # Persist to MongoDB so the image survives K8s pod restarts
+                        # (local disk is ephemeral in production).
+                        try:
+                            persisted = await store_asset_async(db, project_id, fname, dest)
+                            if not persisted:
+                                logger.error(f"Leonardo image {fname} failed to persist in MongoDB")
+                                ok = False
+                        except Exception as persist_err:
+                            logger.error(f"Leonardo MongoDB persist error for {fname}: {persist_err}")
+                            ok = False
                     if ok:
                         img_url = f"/api/projects/{project_id}/assets/{fname}"
                         img_found = False
@@ -2733,6 +2745,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
 
     if leonardo_tasks:
         from services.leonardo_ai import generate_and_wait, download_image_to_disk
+        from services.asset_store import store_asset_async
         import uuid as _leo_uuid
         for slide_idx, leo_cfg in leonardo_tasks:
             try:
@@ -2745,6 +2758,15 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
                     assets_dir.mkdir(parents=True, exist_ok=True)
                     dest = str(assets_dir / fname)
                     ok = await download_image_to_disk(leo_urls[0], dest)
+                    if ok:
+                        # Persist to MongoDB so the image survives pod restarts.
+                        try:
+                            if not await store_asset_async(db, project_id, fname, dest):
+                                logger.error(f"Leonardo image {fname} failed to persist in MongoDB")
+                                ok = False
+                        except Exception as persist_err:
+                            logger.error(f"Leonardo MongoDB persist error for {fname}: {persist_err}")
+                            ok = False
                     if ok:
                         img_url = f"/api/projects/{project_id}/assets/{fname}"
                         slide = slides[slide_idx]

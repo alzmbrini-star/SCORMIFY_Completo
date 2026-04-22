@@ -90,7 +90,12 @@ export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
       return;
     }
     setSaving(index);
-    try {
+
+    // Retry loop: the backend only returns 200 after the image is persisted in
+    // MongoDB. If it fails transiently (network/DB hiccup), we retry once.
+    // We must NOT fall back to the Leonardo CDN URL because it expires in ~24-72h
+    // and the image would disappear later in production.
+    const attemptSave = async () => {
       const res = await fetch(`${API}/api/leonardo/save-to-project`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -98,30 +103,28 @@ export default function LeonardoPanel({ projectId, onImageSaved, onClose }) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erro ao salvar');
+        throw new Error(err.detail || `Erro ${res.status} ao salvar imagem`);
       }
-      const data = await res.json();
+      return await res.json();
+    };
 
-      // Verify the saved asset is accessible before using it
-      const verifyUrl = `${API}${data.url}`;
+    try {
+      let data;
       try {
-        const verifyRes = await fetch(verifyUrl, { method: 'HEAD' });
-        if (verifyRes.ok) {
-          toast.success('Imagem salva no projeto!');
-          if (onImageSaved) onImageSaved(data.url, data.filename);
-          setSaving(null);
-          return;
+        data = await attemptSave();
+      } catch (firstErr) {
+        // One retry after a short delay for transient errors
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          data = await attemptSave();
+        } catch {
+          throw firstErr;
         }
-      } catch { /* verification failed, try fallback */ }
-
-      // Fallback: use the original Leonardo CDN URL directly
-      console.warn('Asset verification failed, using Leonardo CDN URL as fallback');
-      toast.success('Imagem adicionada (via CDN)');
-      if (onImageSaved) onImageSaved(imageUrl, data.filename);
+      }
+      toast.success('Imagem salva no projeto!');
+      if (onImageSaved) onImageSaved(data.url, data.filename);
     } catch (e) {
-      // Last resort: use the original Leonardo CDN URL directly
-      toast.warning('Salvamento parcial - usando imagem do CDN');
-      if (onImageSaved) onImageSaved(imageUrl, `leonardo_${Date.now()}.png`);
+      toast.error(e.message || 'Falha ao salvar imagem. Tente novamente.');
     }
     setSaving(null);
   };

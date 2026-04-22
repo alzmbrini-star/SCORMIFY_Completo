@@ -101,13 +101,21 @@ async def leonardo_save_to_project(request: Request, user: dict = Depends(requir
     if not Path(dest_path).exists():
         raise HTTPException(500, "Arquivo baixado mas não encontrado no disco")
 
-    # Persist to MongoDB (required for production K8s ephemeral storage)
+    # Persist to MongoDB (required for production K8s ephemeral storage).
+    # This MUST succeed — otherwise the image will disappear on pod restart and
+    # the client must not fall back to the Leonardo CDN URL (which expires in ~24-72h).
     try:
         stored = await store_asset_async(db, project_id, filename, dest_path)
-        if not stored:
-            logger.warning(f"store_asset_async returned False for Leonardo image {filename}")
     except Exception as e:
-        logger.warning(f"Failed to persist Leonardo image to MongoDB: {e}")
+        logger.error(f"Failed to persist Leonardo image to MongoDB: {e}")
+        stored = False
+    if not stored:
+        # Clean up orphaned local file so nothing points to a volatile asset.
+        try:
+            Path(dest_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(500, "Falha ao persistir imagem no armazenamento permanente. Tente novamente.")
 
     asset_url = f"/api/projects/{project_id}/assets/{filename}"
 

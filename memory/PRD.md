@@ -87,6 +87,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-22: BUGFIX - Imagens Leonardo AI sumindo em produção. 3 causas corrigidas:
+  1. `LeonardoPanel.jsx` tinha fallback perigoso: se a verificação HEAD do asset salvo falhasse, usava a URL do CDN do Leonardo (`cdn.leonardo.ai`) direto. Essas URLs expiram em ~24-72h → imagem quebrava depois de um tempo. Removido o fallback; agora faz retry automático e dá erro explícito se não conseguir persistir.
+  2. `routes/agent.py` (fluxos de geração automática e melhorias): imagens Leonardo baixadas para disco local mas NUNCA persistidas no MongoDB → sumiam no próximo restart do pod K8s. Adicionado `store_asset_async` em ambos os fluxos com falha explícita.
+  3. `routes/leonardo.py::save-to-project`: `store_asset_async` retornava False silenciosamente. Agora retorna 500 explicitamente se não persistir, e remove arquivo local órfão.
+  4. `routes/gallery.py::cleanup`: agora também remove entradas legadas apontando para `cdn.leonardo.ai` (URLs temporárias).
 - 2026-04-22: BUGFIX - CORS Tutor IA para LMS externos: ASGI wrapper `_TutorCorsASGI` em `server.py` substituído por estratégia de reflect-origin (origin específico em vez de `*`). Descoberto que Cloudflare filtra `Access-Control-Allow-Origin: *` em responses POST dinâmicos. OPTIONS responde 204 com origin refletido; POST passa pelo app e tem header CORS substituído. Removidas todas as injeções manuais de CORS em `routes/admin.py::tutor_chat`. LMS `didaxiscursos.treynando.com.br` agora acessa `/api/tutor/chat` sem erro.
 - 2026-04-22: DEPLOY FIX - Removidas 4 seções duplicadas em `.gitignore` que bloqueavam `.env`, `.env.*`, `*.env`. Deploy de produção estava falhando porque o sistema Emergent precisa dos `.env` no repositório para configurar o container.
 - 2026-03-29: FIX - Avatar scene HeyGen generation simplified: WebM transparent first, v2 standard fallback (removed unreliable background-image-URL strategy that caused HeyGen processing failures in production)

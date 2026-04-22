@@ -161,6 +161,12 @@ async def gallery_cleanup(request: Request):
 
     for img in images:
         url = img.get("imageUrl", "")
+        # External Leonardo CDN URLs expire in ~24-72h. Legacy entries that point
+        # to cdn.leonardo.ai are not persisted and must be removed.
+        if "cdn.leonardo.ai" in url or "leonardo-api-prod" in url:
+            await db.image_gallery.delete_one({"id": img["id"]})
+            removed += 1
+            continue
         if not url.startswith("/api/projects/"):
             kept += 1
             continue
