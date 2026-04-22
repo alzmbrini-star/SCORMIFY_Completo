@@ -507,7 +507,6 @@
         .video-element {
             border: none !important;
             background: transparent !important;
-            position: relative !important;
             overflow: hidden !important;
         }
         
