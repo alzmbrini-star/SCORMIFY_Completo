@@ -678,14 +678,18 @@ print("[STARTUP] server.py: Ready to accept connections.", flush=True)
 
 
 # ── CORS for /api/tutor/chat ──
-# The Emergent/Kubernetes ingress proxy already injects "Access-Control-Allow-Origin: *"
-# on all responses. If our backend also sends a CORS header (via CORSMiddleware),
-# the proxy APPENDS on production -> browser receives "*, *" (or "*, <origin>") and
-# rejects with "Access-Control-Allow-Origin contains multiple values".
+# The Emergent production proxy behaves asymmetrically for the /api/tutor/chat route:
+#   • POST responses   -> proxy AUTO-INJECTS "Access-Control-Allow-Origin: *".
+#     If the backend also sends a CORS header, the browser receives duplicate values
+#     and rejects with "Access-Control-Allow-Origin contains multiple values".
+#   • OPTIONS preflight -> proxy does NOT inject any CORS header, so the backend MUST
+#     respond with a proper preflight or the browser blocks the request.
 #
-# Solution: wrap the app with a small ASGI middleware that STRIPS any CORS-related
-# response headers produced by the backend for /api/tutor/chat. The platform proxy
-# remains the single source of truth for CORS on that endpoint.
+# Solution: ASGI wrapper that intercepts /api/tutor/chat:
+#   • OPTIONS -> respond directly with a 204 containing reflected CORS headers
+#                (bypasses CORSMiddleware to avoid duplicate headers).
+#   • other   -> STRIP any CORS response headers from the backend, letting the
+#                platform proxy be the single source of truth.
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 _CORS_HEADERS_TO_STRIP = {
@@ -699,7 +703,7 @@ _CORS_HEADERS_TO_STRIP = {
 }
 
 
-class _StripTutorCorsASGI:
+class _TutorCorsASGI:
     def __init__(self, inner: ASGIApp):
         self.inner = inner
 
@@ -708,6 +712,34 @@ class _StripTutorCorsASGI:
             await self.inner(scope, receive, send)
             return
 
+        # Extract Origin header from the request
+        origin = b"*"
+        for key, val in scope.get("headers", []):
+            if key == b"origin":
+                origin = val
+                break
+
+        # Handle preflight directly (do NOT forward to app -> avoids CORSMiddleware
+        # adding a second Access-Control-Allow-Origin header).
+        if scope.get("method") == "OPTIONS":
+            await send({
+                "type": "http.response.start",
+                "status": 204,
+                "headers": [
+                    (b"access-control-allow-origin", origin),
+                    (b"access-control-allow-methods", b"POST, OPTIONS"),
+                    (b"access-control-allow-headers", b"Content-Type, Authorization"),
+                    (b"access-control-max-age", b"86400"),
+                    (b"vary", b"Origin"),
+                    (b"content-length", b"0"),
+                ],
+            })
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        # For POST: strip any CORS headers emitted by the backend so the platform
+        # proxy's "Access-Control-Allow-Origin: *" is the only one that reaches the
+        # browser (no duplicates).
         async def _strip(message):
             if message["type"] == "http.response.start":
                 headers = [
@@ -720,4 +752,4 @@ class _StripTutorCorsASGI:
         await self.inner(scope, receive, _strip)
 
 
-app = _StripTutorCorsASGI(app)
+app = _TutorCorsASGI(app)
