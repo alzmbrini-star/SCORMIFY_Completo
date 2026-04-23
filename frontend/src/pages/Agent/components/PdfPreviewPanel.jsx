@@ -195,14 +195,28 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
       }));
 
       // Poll faithful status until done
-      for (let i = 0; i < 600; i++) {  // 600 * 2s = 20 min max
+      for (let i = 0; i < 900; i++) {  // 900 * 2s = 30 min max
         await new Promise(r => setTimeout(r, 2000));
         try {
           const sr = await fetch(`${apiBase}/api/projects/${projectId}/faithful-status`, {
             headers: authHeaders(),
           });
-          if (!sr.ok) continue;
+          if (!sr.ok) {
+            // 520/502/503 during heavy rendering are transient — keep polling
+            // and show a soft "please wait" message so the user knows we're
+            // still alive.
+            setPreview(prev => ({
+              ...(prev || {}),
+              hasPdf: true,
+              processing: true,
+              faithfulMode: true,
+              statusMessage: `Servidor ocupado renderizando... (tentativa ${i + 1})`,
+            }));
+            continue;
+          }
           const s = await sr.json();
+          // Backend returns progress=-1 on transient timeout — skip update
+          if (s.progress === -1) continue;
           setPreview(prev => ({
             ...(prev || {}),
             hasPdf: true,
@@ -220,7 +234,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
             throw new Error(s.message || 'Falha ao gerar em Modo Fiel');
           }
         } catch (pollErr) {
-          // Ignore transient poll errors (network/Cloudflare); keep polling
+          // Network error / Cloudflare blip — keep polling, don't abort
           console.warn('faithful poll retry:', pollErr);
         }
       }

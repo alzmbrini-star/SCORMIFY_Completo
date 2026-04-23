@@ -858,13 +858,16 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
 # ---------------------------------------------------------------------------
 # Faithful mode: 1 PDF page -> 1 slide (page rendered as full background)
 # ---------------------------------------------------------------------------
-# Canvas matches the Scormify slide aspect ratio. Lower DPI (120 instead of
-# 200) keeps the JPEG readable while rendering ~2-3x faster — critical for
-# production where CPU is limited and Cloudflare times out at 100s.
-SLIDE_WIDTH = 1920
-SLIDE_HEIGHT = 820
-FAITHFUL_DPI = 120
-FAITHFUL_JPEG_QUALITY = 82
+# Canvas kept at slide aspect but with reduced resolution/DPI to keep the
+# JPEG small enough that production pods (250m CPU) can render each page
+# in under ~1 second, avoiding Cloudflare 520s during polling.
+SLIDE_WIDTH = 1280
+SLIDE_HEIGHT = 546
+FAITHFUL_DPI = 110
+FAITHFUL_JPEG_QUALITY = 80
+# Sleep between pages so the OS scheduler gives CPU time to the uvicorn
+# event loop handling /faithful-status polling requests.
+FAITHFUL_PAGE_COOLDOWN = 0.30  # seconds
 
 
 async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
@@ -949,7 +952,11 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
         except Exception as r:
             logger.error(f"[faithful] page error: {r}")
             pages_out.append({"page_num": i + 1, "filename": f"pdf_page_{i+1}.jpg", "text": ""})
-        await asyncio.sleep(0)
+        # Cooldown between pages so the OS scheduler can give CPU time to the
+        # main uvicorn event loop (which serves /faithful-status polling).
+        # On production pods with 250m CPU this is essential — without it the
+        # extraction thread hogs the CPU and polling returns 520.
+        await asyncio.sleep(FAITHFUL_PAGE_COOLDOWN)
 
     pages_out.sort(key=lambda p: p["page_num"])
     pdf.close()

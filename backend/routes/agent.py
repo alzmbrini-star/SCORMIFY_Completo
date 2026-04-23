@@ -1064,6 +1064,14 @@ async def agent_generate_faithful_course(
     import asyncio as _asyncio
 
     def _thread_runner():
+        # Lower CPU scheduling priority so the uvicorn event loop (which
+        # serves /faithful-status polling) is favored by the OS on low-CPU
+        # production pods.
+        try:
+            import os as _os
+            _os.nice(10)
+        except Exception:
+            pass
         loop = _asyncio.new_event_loop()
         _asyncio.set_event_loop(loop)
         try:
@@ -1203,8 +1211,23 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
 
 @router.get("/projects/{project_id}/faithful-status")
 async def get_faithful_status(project_id: str, user: dict = Depends(require_auth)):
-    """Poll endpoint for Modo Fiel background rendering progress."""
-    p = await db.projects.find_one({"id": project_id}, {"_id": 0, "faithfulStatus": 1, "status": 1})
+    """Poll endpoint for Modo Fiel background rendering progress.
+
+    Ultra-light: only fetches the `faithfulStatus` field with a short timeout
+    so it responds fast even when CPU is busy rendering pages.
+    """
+    try:
+        p = await asyncio.wait_for(
+            db.projects.find_one(
+                {"id": project_id},
+                {"_id": 0, "faithfulStatus": 1}
+            ),
+            timeout=5.0,
+        )
+    except asyncio.TimeoutError:
+        # Don't fail the polling — return a "still processing" placeholder so
+        # the client keeps polling instead of erroring out.
+        return {"status": "processing", "progress": -1, "message": "Aguarde..."}
     if not p:
         raise HTTPException(404, "Project not found")
     return p.get("faithfulStatus") or {"status": "done", "progress": 100, "message": ""}
