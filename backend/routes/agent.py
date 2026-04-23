@@ -612,27 +612,50 @@ async def _background_pdf_extraction(session_id: str, file_bytes: bytes):
 
         # Progress throttle: update MongoDB at most every ~1.5s to avoid
         # hammering the database while still giving smooth UI progress.
+        # We also SERIALIZE updates via an asyncio.Lock so slow Atlas writes
+        # don't accumulate orphan tasks and block the event loop.
         import time as _time
-        last_update = {"t": 0.0}
+        from datetime import datetime, timezone
+        last_update = {"t": 0.0, "pending_msg": None, "pending_pct": None}
+        progress_lock = asyncio.Lock()
+
+        async def _flush_progress():
+            async with progress_lock:
+                if last_update["pending_pct"] is None:
+                    return
+                pct = last_update["pending_pct"]
+                msg = last_update["pending_msg"]
+                last_update["pending_pct"] = None
+                last_update["pending_msg"] = None
+                try:
+                    await asyncio.wait_for(
+                        db.agent_sessions.update_one(
+                            {"id": session_id},
+                            {"$set": {
+                                "pdfExtractionStatus.progress": pct,
+                                "pdfExtractionStatus.message": msg,
+                                "updatedAt": datetime.now(timezone.utc).isoformat(),
+                            }}
+                        ),
+                        timeout=5.0,
+                    )
+                except Exception as e:
+                    logger.warning(f"[bg-pdf] progress flush failed: {e}")
 
         def _progress(pct, msg):
             now = _time.monotonic()
+            overall = min(int(pct * 80), 80)
+            # Always remember the latest state
+            last_update["pending_pct"] = overall
+            last_update["pending_msg"] = f"Extraindo {msg}..."
+            # Throttle: only flush if 1s passed since last flush, OR we're at 100%
             if now - last_update["t"] < 1.0 and pct < 0.999:
                 return
             last_update["t"] = now
-            # Map extraction phase to overall progress: 0-80% = page extraction,
-            # 80-100% reserved for post-processing (image persist + markdown).
-            overall = min(int(pct * 80), 80)
+            # Schedule a non-blocking flush (create_task OK here because
+            # _flush_progress itself has a timeout, so tasks can't pile up).
             try:
-                import asyncio as _aio
-                _aio.create_task(db.agent_sessions.update_one(
-                    {"id": session_id},
-                    {"$set": {
-                        "pdfExtractionStatus.progress": overall,
-                        "pdfExtractionStatus.message": f"Extraindo {msg}...",
-                        "updatedAt": datetime.now(timezone.utc).isoformat(),
-                    }}
-                ))
+                asyncio.create_task(_flush_progress())
             except Exception:
                 pass
 

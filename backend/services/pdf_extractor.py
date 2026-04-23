@@ -50,7 +50,9 @@ import fitz  # PyMuPDF
 logger = logging.getLogger(__name__)
 
 # Minimum text length per page to consider it "native" (otherwise OCR).
-MIN_NATIVE_TEXT_CHARS = 60
+# Keep this low so pages with sparse-but-real text (titles, captions) don't
+# trigger expensive OCR unnecessarily.
+MIN_NATIVE_TEXT_CHARS = 25
 # Render DPI for OCR/fallback image.
 RENDER_DPI = 180
 # Max OCR concurrency (avoid CPU starvation; Tesseract is CPU-bound and
@@ -282,10 +284,15 @@ async def _gemini_ocr(image_path: Path) -> str:
             text="Transcreva o texto desta pagina preservando paragrafos e titulos.",
             file_contents=[attachment],
         )
-        response = await chat.send_message(msg)
+        # Hard cap: if Gemini takes >25s on one page, give up and return empty
+        # so the overall extraction keeps moving.
+        response = await asyncio.wait_for(chat.send_message(msg), timeout=25.0)
         if isinstance(response, str):
             return response.strip()
         return str(response).strip()
+    except asyncio.TimeoutError:
+        logger.warning(f"[pdf_extractor] gemini OCR timed out on {image_path.name}")
+        return ""
     except Exception as e:
         logger.warning(f"[pdf_extractor] gemini OCR failed on {image_path.name}: {e}")
         return ""
@@ -384,16 +391,24 @@ async def extract_pdf(
         )
 
     # Process pages ONE AT A TIME with explicit yields to the event loop.
-    # Processing in parallel batches saturates the uvicorn event loop on
-    # production (Tesseract OCR + fitz pixmap rendering are CPU-heavy), causing
-    # 520 timeouts on other API requests to the same worker.
+    # Each page has a hard timeout so a single corrupt/huge page never
+    # freezes the whole extraction.
+    PAGE_TIMEOUT = 60.0  # seconds
     for i in range(total_pages):
+        page_num = i + 1
         try:
-            page = await _process_page(i)
+            page = await asyncio.wait_for(_process_page(i), timeout=PAGE_TIMEOUT)
             if isinstance(page, PdfPage):
                 pages.append(page)
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"[pdf_extractor] page {page_num} timed out after {PAGE_TIMEOUT}s; skipping"
+            )
+            # Create a minimal page entry so the overall count stays right
+            pages.append(PdfPage(page_num=page_num, text="", images=[], is_scanned=False))
         except Exception as e:
-            logger.error(f"[pdf_extractor] page {i+1} error: {e}")
+            logger.error(f"[pdf_extractor] page {page_num} error: {e}", exc_info=True)
+            pages.append(PdfPage(page_num=page_num, text="", images=[], is_scanned=False))
         # Yield control so other HTTP requests on the same worker can be served.
         await asyncio.sleep(0)
 
