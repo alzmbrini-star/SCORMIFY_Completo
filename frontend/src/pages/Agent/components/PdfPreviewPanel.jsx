@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Check, X as IconX, FileText, Image as ImageIcon, Save } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Check, X as IconX, FileText, Image as ImageIcon, Save, Sparkles, Copy } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
@@ -21,8 +22,10 @@ const authHeaders = (extra = {}) => {
  *   - onSaved(): optional callback when user clicks "Salvar preferencias"
  */
 export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [faithfulLoading, setFaithfulLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [images, setImages] = useState([]);
 
@@ -86,6 +89,33 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
     }
   };
 
+  const handleGenerateFaithful = async () => {
+    if (!window.confirm(
+      'Modo Fiel: cada pagina do PDF vira um slide identico ao original (layout, cores, imagens, logos preservados).\n\n' +
+      'Esta opcao pula a IA completamente — o curso nao tera textos reescritos nem slides extras, apenas as paginas como foram feitas.\n\n' +
+      'Deseja prosseguir? Isto pode levar 1-5 minutos dependendo do tamanho do PDF.'
+    )) return;
+    setFaithfulLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/agent/sessions/${sessionId}/generate-faithful-course`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro ao gerar em Modo Fiel');
+      }
+      const data = await res.json();
+      toast.success(`Curso criado em Modo Fiel: ${data.slidesCreated} slides (${data.totalPages} paginas)`);
+      setTimeout(() => navigate(`/editor/${data.projectId}`), 800);
+    } catch (e) {
+      toast.error(e.message || 'Falha ao gerar em Modo Fiel');
+    } finally {
+      setFaithfulLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div
@@ -124,6 +154,30 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
         <Badge className="bg-emerald-600/20 text-emerald-300 border-emerald-500/30" data-testid="pdf-preview-count">
           {includedCount} / {images.length} incluidas
         </Badge>
+      </div>
+
+      {/* Faithful mode CTA */}
+      <div className="flex items-center justify-between px-4 py-3 bg-indigo-900/40 border-b border-indigo-700/40">
+        <div className="flex items-start gap-3">
+          <Copy className="w-5 h-5 text-indigo-300 mt-0.5 shrink-0" />
+          <div>
+            <h5 className="text-sm font-semibold text-white">Modo Fiel — Pagina do PDF = Slide</h5>
+            <p className="text-xs text-indigo-200/80 mt-0.5 max-w-2xl">
+              Preserva o layout original do PDF pixel-a-pixel (cores, imagens, logos, setas, diagramas).
+              Cada pagina vira um slide identico. Pula a IA — sem textos reescritos.
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={handleGenerateFaithful}
+          disabled={faithfulLoading}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
+          data-testid="pdf-faithful-mode-btn"
+        >
+          <Sparkles className="w-4 h-4 mr-1" />
+          {faithfulLoading ? 'Gerando...' : 'Gerar em Modo Fiel'}
+        </Button>
       </div>
 
       {images.length === 0 ? (

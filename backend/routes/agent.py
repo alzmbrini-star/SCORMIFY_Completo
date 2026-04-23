@@ -476,9 +476,23 @@ async def agent_upload_content(session_id: str, request: Request, file: UploadFi
         else:
             content_text = file_bytes.decode("utf-8", errors="ignore")
 
+    # For PDFs we store the raw bytes (base64) on the session so the user can
+    # later regenerate in "Modo Fiel" without re-uploading.
+    set_doc = {
+        "contentText": content_text,
+        "fileName": file_name,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if ext == "pdf" and file_bytes and len(file_bytes) < 50 * 1024 * 1024:
+        try:
+            import base64 as _b64mod
+            set_doc["rawFileBase64"] = _b64mod.b64encode(file_bytes).decode("ascii")
+        except Exception:
+            pass
+
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"contentText": content_text, "fileName": file_name, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": set_doc}
     )
     return {"status": "ok", "contentLength": len(content_text), "fileName": file_name}
 
@@ -597,14 +611,8 @@ async def agent_save_pdf_preview(
 
 @router.post("/projects/{project_id}/repair-pdf-images")
 async def repair_pdf_images(project_id: str, user: dict = Depends(require_auth)):
-    """Retroactively add PDF-extracted images to a project that was generated
-    before the auto-distribution fallback existed (or when the LLM stripped
-    the [IMG:] markers).
-
-    Looks up the agent session that created the project, finds its
-    `pdfExtraction` + `pdfPreview` data, and re-runs the image placement
-    on the current slides.
-    """
+    """Retroactively add PDF-extracted images to a project (re-runs the
+    page-aware image placement + creates gallery slides if needed)."""
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(404, "Project not found")
@@ -670,6 +678,117 @@ async def repair_pdf_images(project_id: str, user: dict = Depends(require_auth))
         "imagesInserted": inserted,
         "totalExtracted": len(available),
         "excluded": sum(1 for p in image_prefs.values() if not p.get("included", True)),
+    }
+
+
+@router.post("/agent/sessions/{session_id}/generate-faithful-course")
+async def agent_generate_faithful_course(
+    session_id: str,
+    request: Request,
+    user: dict = Depends(require_agent_access),
+):
+    """Faithful mode: 1 PDF page -> 1 slide (page rendered as background).
+    Preserves the original PDF's layout, colors, images, fonts and logos
+    verbatim. Skips the LLM entirely so there is no rewriting.
+
+    Expects the session to have had a PDF uploaded (via /upload). Optionally
+    the body may contain {"title": "..."} to override the course name.
+    """
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if not s.get("rawFileBase64") and not s.get("fileName"):
+        raise HTTPException(400, "No uploaded file on this session")
+
+    import base64 as _b64
+    file_b64 = s.get("rawFileBase64")
+    if not file_b64:
+        raise HTTPException(400, "Original PDF bytes not stored on session")
+    try:
+        pdf_bytes = _b64.b64decode(file_b64)
+    except Exception:
+        raise HTTPException(400, "Invalid stored PDF bytes")
+
+    title = (body.get("title") or s.get("fileName", "Curso").rsplit(".", 1)[0]).strip()[:160]
+
+    # Build the project
+    from models import Project
+    project = Project(name=title, description=f"Curso fiel ao PDF: {s.get('fileName','')}")
+    project_dir = PROJECTS_DIR / project.id
+    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+
+    # Render pages (background images) + OCR
+    from services.pdf_extractor import (
+        extract_pdf_faithful, build_faithful_slides,
+    )
+    from services.asset_store import store_asset_async
+
+    async def _progress(pct, msg):
+        try:
+            await db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {"courseProgress": {
+                    "message": f"Renderizando paginas ({msg})",
+                    "progress": round(pct * 100),
+                }, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+        except Exception:
+            pass
+
+    extraction = await extract_pdf_faithful(
+        pdf_bytes, project_dir / "assets", progress_cb=lambda p, m: None
+    )
+
+    # Persist each page image to MongoDB
+    for p in extraction["pages"]:
+        fpath = project_dir / "assets" / p["filename"]
+        if fpath.exists():
+            try:
+                await store_asset_async(db, project.id, p["filename"], str(fpath))
+            except Exception as e:
+                logger.warning(f"[faithful] persist {p['filename']} failed: {e}")
+
+    slides = build_faithful_slides(extraction["pages"], project.id)
+
+    # Build the project document
+    project_dict = project.model_dump()
+    project_dict["createdAt"] = project.createdAt.isoformat()
+    project_dict["updatedAt"] = project.updatedAt.isoformat()
+    project_dict["course"]["createdAt"] = project.course.createdAt.isoformat()
+    project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
+    project_dict["course"]["metadata"]["title"] = title
+    project_dict["course"]["metadata"]["description"] = project.description
+    project_dict["course"]["slides"] = slides
+    project_dict["createdByAgent"] = True
+    project_dict["agentSessionId"] = session_id
+    project_dict["status"] = "generated"
+    project_dict["userId"] = s.get("userId")
+    project_dict["companyId"] = s.get("companyId")
+    project_dict["importMode"] = "faithful"
+
+    await db.projects.insert_one(project_dict)
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "projectId": project.id,
+            "step": "generated",
+            "courseProgress": {"message": "Curso fiel criado com sucesso!", "progress": 100},
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    return {
+        "status": "ok",
+        "projectId": project.id,
+        "totalPages": extraction["total_pages"],
+        "slidesCreated": len(slides),
     }
 
 

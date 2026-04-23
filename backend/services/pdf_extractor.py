@@ -768,3 +768,149 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
         f"across {max_page} pdf pages"
     )
     return total
+
+
+# ---------------------------------------------------------------------------
+# Faithful mode: 1 PDF page -> 1 slide (page rendered as full background)
+# ---------------------------------------------------------------------------
+SLIDE_WIDTH = 1920
+SLIDE_HEIGHT = 820
+FAITHFUL_DPI = 200
+
+
+async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
+                               progress_cb=None) -> dict:
+    """Render each PDF page as a single 1920x820 background image so the
+    course slide preserves the page's original layout, images, colors, logos
+    and fonts verbatim.
+
+    Returns:
+        {
+          "pages": [
+            {"page_num": 1, "filename": "pdf_page_1.jpg", "text": "..."},
+            ...
+          ],
+          "total_pages": N,
+        }
+    """
+    assets_dir = Path(assets_dir)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
+    tesseract_ok = _tesseract_available()
+    total_pages = pdf.page_count
+    logger.info(
+        f"[pdf_extractor/faithful] rendering {total_pages} pages at "
+        f"{SLIDE_WIDTH}x{SLIDE_HEIGHT} (DPI {FAITHFUL_DPI})"
+    )
+
+    pages_out: list = []
+    sem = asyncio.Semaphore(OCR_CONCURRENCY)
+
+    async def _render_page(i: int) -> dict:
+        page = pdf.load_page(i)
+        page_num = i + 1
+        filename = f"pdf_page_{page_num}.jpg"
+        target = assets_dir / filename
+
+        # Render at high DPI for crisp detail, then fit to slide aspect 1920x820.
+        # We render at the page's natural size then scale/pad to fit.
+        mat = fitz.Matrix(FAITHFUL_DPI / 72, FAITHFUL_DPI / 72)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        # Use PIL to fit into target aspect with white background (page margin)
+        try:
+            from PIL import Image
+            import io as _io
+            src_img = Image.open(_io.BytesIO(pix.tobytes("png"))).convert("RGB")
+            # Fit-inside: keep aspect ratio, pad with white
+            src_w, src_h = src_img.size
+            target_ratio = SLIDE_WIDTH / SLIDE_HEIGHT
+            src_ratio = src_w / src_h
+            if src_ratio > target_ratio:
+                # Source wider -> fit width
+                new_w = SLIDE_WIDTH
+                new_h = int(SLIDE_WIDTH / src_ratio)
+            else:
+                new_h = SLIDE_HEIGHT
+                new_w = int(SLIDE_HEIGHT * src_ratio)
+            resized = src_img.resize((new_w, new_h), Image.LANCZOS)
+            canvas = Image.new("RGB", (SLIDE_WIDTH, SLIDE_HEIGHT), "white")
+            canvas.paste(resized, ((SLIDE_WIDTH - new_w) // 2, (SLIDE_HEIGHT - new_h) // 2))
+            canvas.save(target, "JPEG", quality=90, optimize=True)
+        except Exception as e:
+            logger.warning(f"[faithful] PIL fit failed on page {page_num}: {e}; using raw pixmap")
+            pix.save(str(target))
+
+        # Text (native extraction first, OCR fallback on blank pages)
+        text = _extract_text_with_layout(page)
+        if len(text.strip()) < MIN_NATIVE_TEXT_CHARS:
+            async with sem:
+                text = await _ocr_page(target, tesseract_ok)
+
+        if progress_cb:
+            try:
+                progress_cb((i + 1) / total_pages, f"pagina {page_num}/{total_pages}")
+            except Exception:
+                pass
+
+        return {"page_num": page_num, "filename": filename, "text": text.strip()}
+
+    # Process pages in batches to keep memory bounded.
+    batch_size = 4
+    for start in range(0, total_pages, batch_size):
+        batch = [_render_page(i) for i in range(start, min(start + batch_size, total_pages))]
+        results = await asyncio.gather(*batch, return_exceptions=True)
+        for r in results:
+            if isinstance(r, dict):
+                pages_out.append(r)
+            else:
+                logger.error(f"[pdf_extractor/faithful] page error: {r}")
+
+    pages_out.sort(key=lambda p: p["page_num"])
+    pdf.close()
+    logger.info(f"[pdf_extractor/faithful] rendered {len(pages_out)} pages")
+    return {"pages": pages_out, "total_pages": total_pages}
+
+
+def build_faithful_slides(pages: list, project_id: str) -> list:
+    """Turn each rendered page into a minimal slide preserving the original
+    design. The page image is set as the slide's background so zero editable
+    elements overlap the visual content. The OCR/extracted text stays in the
+    slide `notes` for narration and search.
+    """
+    try:
+        from models import generate_id
+    except Exception:
+        import uuid as _uuid
+        def generate_id():
+            return _uuid.uuid4().hex
+
+    slides = []
+    for i, p in enumerate(pages):
+        url = f"/api/projects/{project_id}/assets/{p['filename']}"
+        # Derive a slide title from the first line of the OCR'd text
+        first_line = ""
+        for line in (p.get("text") or "").split("\n"):
+            line = line.strip()
+            if 5 <= len(line) <= 80:
+                first_line = line
+                break
+        title = first_line or f"Pagina {p['page_num']}"
+        slides.append({
+            "id": generate_id(),
+            "title": title[:120],
+            "order": i,
+            "width": SLIDE_WIDTH,
+            "height": SLIDE_HEIGHT,
+            "background": "#ffffff",
+            "backgroundImage": url,
+            "backgroundOpacity": 100,
+            "elements": [],
+            "annotations": [],
+            "transition": {"type": "fade", "duration": 0.5},
+            "audio": [],
+            "notes": p.get("text", ""),
+            "type": "content",
+            "_pdfFaithful": True,
+            "_pdfPage": p["page_num"],
+        })
+    return slides
