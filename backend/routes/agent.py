@@ -507,6 +507,94 @@ async def _convert_api_extract(file_name: str, file_bytes: bytes, ext: str) -> s
         logger.warning(f"ConvertAPI text extraction failed: {e}")
     return f"[Erro ao extrair texto de {file_name}]"
 
+
+@router.get("/agent/sessions/{session_id}/pdf-preview")
+async def agent_pdf_preview(session_id: str, user: dict = Depends(require_agent_access)):
+    """Return the PDF extraction preview (chapters + pages + images + user edits)."""
+    s = await db.agent_sessions.find_one(
+        {"id": session_id},
+        {"_id": 0, "pdfExtraction": 1, "pdfPreview": 1, "contentText": 1, "fileName": 1}
+    )
+    if not s:
+        raise HTTPException(404, "Session not found")
+    pdf_meta = s.get("pdfExtraction") or {}
+    if not pdf_meta.get("tmpProjectId"):
+        return {"hasPdf": False}
+
+    tmp_pid = pdf_meta["tmpProjectId"]
+    filenames = pdf_meta.get("assetFilenames", [])
+
+    # Load or initialize per-image user preferences
+    saved = s.get("pdfPreview") or {}
+    image_prefs = saved.get("images", {})
+    images = []
+    for fname in filenames:
+        pref = image_prefs.get(fname, {})
+        images.append({
+            "filename": fname,
+            "url": f"/api/projects/{tmp_pid}/assets/{fname}",
+            "included": pref.get("included", True),
+            "caption": pref.get("caption", ""),
+            "pageHint": _page_hint_from_filename(fname),
+        })
+    return {
+        "hasPdf": True,
+        "fileName": s.get("fileName", ""),
+        "totalPages": pdf_meta.get("totalPages", 0),
+        "scannedPages": pdf_meta.get("scannedPages", 0),
+        "imagesExtracted": pdf_meta.get("imagesExtracted", 0),
+        "images": images,
+    }
+
+
+def _page_hint_from_filename(fname: str) -> str:
+    """Extract 'Pagina N' hint from pdf_pN_imgM.png / pdf_pN_full.png."""
+    import re as _re
+    m = _re.match(r"pdf_p(\d+)_", fname)
+    return f"Pagina {m.group(1)}" if m else ""
+
+
+@router.post("/agent/sessions/{session_id}/pdf-preview")
+async def agent_save_pdf_preview(
+    session_id: str, request: Request,
+    user: dict = Depends(require_agent_access),
+):
+    """Save user edits on extracted PDF images before course generation.
+    Body: {"images": [{"filename": "...", "included": true, "caption": "..."}, ...]}
+    """
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0, "pdfExtraction": 1})
+    if not s:
+        raise HTTPException(404, "Session not found")
+    if not (s.get("pdfExtraction") or {}).get("tmpProjectId"):
+        raise HTTPException(400, "No PDF extraction found for this session")
+
+    body = await request.json()
+    items = body.get("images", [])
+    if not isinstance(items, list):
+        raise HTTPException(400, "images must be a list")
+
+    prefs: dict = {}
+    excluded = 0
+    for it in items:
+        fname = it.get("filename")
+        if not fname:
+            continue
+        included = bool(it.get("included", True))
+        caption = (it.get("caption") or "").strip()[:200]
+        prefs[fname] = {"included": included, "caption": caption}
+        if not included:
+            excluded += 1
+
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": {
+            "pdfPreview": {"images": prefs, "savedAt": datetime.now(timezone.utc).isoformat()},
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"status": "ok", "total": len(prefs), "excluded": excluded}
+
+
 @router.post("/agent/sessions/{session_id}/analyze")
 async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
     """Step 1: Analyze content with AI (async background processing to avoid 504 timeout)."""
@@ -1539,14 +1627,17 @@ async def agent_generate_course(session_id: str):
                         PROJECTS_DIR,
                     ))
                     available = set(pdf_meta.get("assetFilenames", []))
+                    image_prefs = (_s.get("pdfPreview") or {}).get("images", {})
                     inserted = replace_img_markers_in_slides(
                         course_data.get("slides", []),
                         project.id,
                         available,
+                        image_prefs=image_prefs,
                     )
                     logger.info(
                         f"PDF import post-processing: {inserted} image elements "
-                        f"added from {len(available)} extracted assets"
+                        f"added from {len(available)} extracted assets "
+                        f"(user excluded: {sum(1 for p in image_prefs.values() if not p.get('included', True))})"
                     )
             except Exception as pdf_err:
                 logger.warning(f"PDF post-processing failed (non-fatal): {pdf_err}")

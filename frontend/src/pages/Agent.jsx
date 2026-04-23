@@ -56,6 +56,7 @@ import MediaConfigPanel from './Agent/components/MediaConfigPanel';
 import GeneratedPanel from './Agent/components/GeneratedPanel';
 import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
 import { CourseReviewPanel, EditResultPanel, PreviewPanel } from './Agent/components/CoursePanels';
+import PdfPreviewPanel from './Agent/components/PdfPreviewPanel';
 
 
 // ===== CREATE MODE STEPS =====
@@ -1084,7 +1085,7 @@ export default function Agent() {
 
               {/* CREATE MODE */}
               {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
-              {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} />}
+              {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} sessionId={sessionId} apiBase={API} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} companies={companiesList} />}
@@ -1327,9 +1328,12 @@ function UploadPanel({ contentText, setContentText, contentUrl, setContentUrl, f
   );
 }
 
-function AnalyzePanel({ analysis, loading, onAnalyze }) {
+function AnalyzePanel({ analysis, loading, onAnalyze, sessionId, apiBase }) {
   return (
     <div className="space-y-4" data-testid="analyze-panel">
+      {sessionId && apiBase && (
+        <PdfPreviewPanel sessionId={sessionId} apiBase={apiBase} />
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2"><Brain className="w-5 h-5 text-emerald-400" /> Análise do Conteúdo</h2>
         {!analysis && (

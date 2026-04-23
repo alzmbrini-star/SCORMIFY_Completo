@@ -502,13 +502,18 @@ def _build_image_element(project_id: str, filename: str,
 
 
 def replace_img_markers_in_slides(slides: list, project_id: str,
-                                  available_filenames: set) -> int:
+                                  available_filenames: set,
+                                  image_prefs: Optional[dict] = None) -> int:
     """Walk generated slides and:
       - Remove `[IMG:filename]` markers from text/html fields.
       - For each unique marker, add a corresponding image element if the
-        filename exists in the PDF extraction asset set.
-    Returns total markers processed.
+        filename exists in the PDF extraction asset set AND the user did not
+        exclude it (`image_prefs[filename].included`).
+      - If the user supplied a caption (`image_prefs[filename].caption`), add a
+        small caption block under the image.
+    Returns total image elements inserted.
     """
+    image_prefs = image_prefs or {}
     total = 0
     for slide in slides:
         used_here: set = set()
@@ -520,8 +525,12 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
                     continue
                 matches = IMG_MARKER_RE.findall(val)
                 for fname in matches:
-                    if fname in available_filenames:
-                        used_here.add(fname)
+                    if fname not in available_filenames:
+                        continue
+                    # Skip if user excluded it
+                    if not image_prefs.get(fname, {}).get("included", True):
+                        continue
+                    used_here.add(fname)
                 # Strip markers from the text field so they don't show up to users
                 el[field_name] = IMG_MARKER_RE.sub("", val).strip()
 
@@ -541,6 +550,7 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
             url = f"/api/projects/{project_id}/assets/{fname}"
             if url in existing_srcs:
                 continue
+            caption = image_prefs.get(fname, {}).get("caption", "").strip()
             if placement_idx == 0:
                 img_el = _build_image_element(project_id, fname,
                                               x=1160, y=90, width=700, height=440)
@@ -555,4 +565,23 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
             slide.setdefault("elements", []).append(img_el)
             placement_idx += 1
             total += 1
+
+            # Add user caption as a small text element below the image
+            if caption:
+                try:
+                    from models import generate_id
+                    cap_id = generate_id()
+                except Exception:
+                    import uuid as _uuid
+                    cap_id = _uuid.uuid4().hex
+                cap_x = img_el["x"]
+                cap_y = img_el["y"] + img_el["height"] + 8
+                slide.setdefault("elements", []).append({
+                    "id": cap_id,
+                    "type": "text",
+                    "x": cap_x, "y": cap_y, "width": img_el["width"], "height": 40,
+                    "content": f"<p style='font-size:12px;color:#cbd5e1;font-style:italic;margin:0;text-align:center'>{caption}</p>",
+                    "style": {},
+                    "startTime": 0,
+                })
     return total

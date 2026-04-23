@@ -87,6 +87,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-23: FEATURE - Preview Editorial de imagens extraidas de PDF antes da geracao do curso.
+  - Backend: `GET /api/agent/sessions/{sid}/pdf-preview` (lista com URL + pageHint) e `POST /api/agent/sessions/{sid}/pdf-preview` (salva `included`/`caption` por imagem).
+  - `replace_img_markers_in_slides` agora respeita `image_prefs`: pula imagens excluidas e gera elemento de legenda sob a imagem quando o usuario preencheu caption.
+  - Frontend: novo `PdfPreviewPanel.jsx` renderizado dentro do `AnalyzePanel` (step 1) — aparece automaticamente quando a sessao tem `pdfExtraction`. Grid de thumbnails, toggle individual incluir/excluir, input de legenda, botoes "Selecionar todas" / "Desmarcar todas" / "Salvar preferencias".
+  - Validado end-to-end via Playwright: upload de PDF com 2 imagens renderiza preview com "2 / 2 incluidas" e captions editaveis.
 - 2026-04-23: FEATURE - Importação de PDF com OCR + preservação de layout. Novo módulo `services/pdf_extractor.py` usando PyMuPDF:
   - Extrai texto nativo preservando ordem de leitura (blocks por bbox)
   - Extrai imagens embutidas com posição (salva como `pdf_p{n}_img{m}.png`)
