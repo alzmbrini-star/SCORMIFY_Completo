@@ -53,8 +53,8 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
             fileName: sessData.fileName || '',
           });
           setImages([]);
-          // Keep polling every 3s while processing
-          pollTimer = setTimeout(load, 3000);
+          // Keep polling every 1.5s while processing (matches backend throttle)
+          pollTimer = setTimeout(load, 1500);
           setLoading(false);
           return;
         }
@@ -172,22 +172,41 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
   if (!preview?.hasPdf) return null;
 
   if (preview.processing) {
+    const pct = Math.max(0, Math.min(100, preview.progress || 0));
     return (
       <div
         data-testid="pdf-preview-processing"
         className="rounded-xl border border-indigo-700/40 bg-slate-900/80 overflow-hidden"
       >
-        <div className="flex items-center gap-3 px-4 py-4 bg-indigo-900/30">
-          <div className="w-6 h-6 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0" />
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-white">
+        <div className="flex items-start gap-3 px-4 pt-4 pb-2 bg-indigo-900/30">
+          <div className="w-6 h-6 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-semibold text-white truncate">
               Processando PDF... {preview.fileName && <span className="text-indigo-200/80 font-normal">({preview.fileName})</span>}
             </h4>
             <p className="text-xs text-indigo-200/80 mt-0.5">
-              {preview.statusMessage} — isso pode levar 1-5 minutos dependendo do tamanho do arquivo.
-              Esta tela vai atualizar automaticamente quando terminar.
+              {preview.statusMessage}
             </p>
           </div>
+          <span
+            className="text-sm font-bold text-indigo-200 tabular-nums shrink-0"
+            data-testid="pdf-preview-progress-pct"
+          >
+            {pct}%
+          </span>
+        </div>
+        {/* Progress bar */}
+        <div className="px-4 pb-4 bg-indigo-900/30">
+          <div className="h-2 w-full bg-indigo-950/60 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-indigo-500 to-indigo-300 transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${pct}%` }}
+              data-testid="pdf-preview-progress-bar"
+            />
+          </div>
+          <p className="text-[11px] text-indigo-200/60 mt-2">
+            Esta tela atualiza automaticamente. Voce pode deixar essa aba aberta — vamos liberar o botao &quot;Analisar&quot; assim que terminar.
+          </p>
         </div>
       </div>
     );

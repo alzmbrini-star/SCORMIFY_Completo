@@ -610,16 +610,56 @@ async def _background_pdf_extraction(session_id: str, file_bytes: bytes):
         tmp_project_id = f"pdfimport_{session_id}"
         tmp_assets_dir = _PROJECTS_DIR / tmp_project_id / "assets"
 
-        extraction = await extract_pdf(file_bytes, tmp_assets_dir)
+        # Progress throttle: update MongoDB at most every ~1.5s to avoid
+        # hammering the database while still giving smooth UI progress.
+        import time as _time
+        last_update = {"t": 0.0}
 
-        # Persist each extracted image to MongoDB
-        for fname in extraction.get("asset_filenames", []):
+        def _progress(pct, msg):
+            now = _time.monotonic()
+            if now - last_update["t"] < 1.0 and pct < 0.999:
+                return
+            last_update["t"] = now
+            # Map extraction phase to overall progress: 0-80% = page extraction,
+            # 80-100% reserved for post-processing (image persist + markdown).
+            overall = min(int(pct * 80), 80)
+            try:
+                import asyncio as _aio
+                _aio.create_task(db.agent_sessions.update_one(
+                    {"id": session_id},
+                    {"$set": {
+                        "pdfExtractionStatus.progress": overall,
+                        "pdfExtractionStatus.message": f"Extraindo {msg}...",
+                        "updatedAt": datetime.now(timezone.utc).isoformat(),
+                    }}
+                ))
+            except Exception:
+                pass
+
+        extraction = await extract_pdf(file_bytes, tmp_assets_dir, progress_cb=_progress)
+
+        # 80-95%: persist images to MongoDB
+        total_assets = len(extraction.get("asset_filenames", []))
+        for idx, fname in enumerate(extraction.get("asset_filenames", [])):
             fpath = tmp_assets_dir / fname
             if fpath.exists():
                 try:
                     await store_asset_async(db, tmp_project_id, fname, str(fpath))
                 except Exception as pe:
                     logger.warning(f"[bg-pdf] asset persist failed {fname}: {pe}")
+            if total_assets > 0 and (idx + 1) % 10 == 0:
+                pct = 80 + int(15 * (idx + 1) / total_assets)
+                try:
+                    await db.agent_sessions.update_one(
+                        {"id": session_id},
+                        {"$set": {
+                            "pdfExtractionStatus.progress": pct,
+                            "pdfExtractionStatus.message": f"Salvando imagens ({idx+1}/{total_assets})...",
+                            "updatedAt": datetime.now(timezone.utc).isoformat(),
+                        }}
+                    )
+                except Exception:
+                    pass
 
         # Update session with rich extraction. Replace the fast PyPDF2 preview
         # with the markdown payload (which includes [IMG:] markers).
