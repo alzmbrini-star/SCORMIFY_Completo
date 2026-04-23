@@ -506,10 +506,11 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
             content_text = file_bytes.decode("utf-8", errors="ignore")
 
         elif ext == "pdf":
-            # PDF: extract a first-pass of text quickly with PyPDF2, store the
-            # raw bytes in GridFS, and kick off the rich extraction (images +
-            # OCR) as a BACKGROUND task. Frontend polls the session for
-            # `pdfExtractionStatus` to detect completion.
+            # PDF: fast text-only extraction. Full image extraction was
+            # disabled because it was unreliable in production (Tesseract OCR
+            # hangs, Cloudflare 520 timeouts). Users are steered towards
+            # "Modo Fiel" which renders each page as a slide background and
+            # is far more predictable.
             try:
                 from PyPDF2 import PdfReader
                 import io as _io
@@ -573,12 +574,14 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
     if pdf_gridfs_id:
         set_doc["rawFileGridFS"] = str(pdf_gridfs_id)
 
-    # For PDFs: mark the heavy extraction as pending; the background task
-    # below will run it and flip the status to "done" when finished.
+    # For PDFs: mark the session as ready-for-Modo-Fiel. Image extraction is
+    # NO LONGER done automatically because it was unreliable in production
+    # (Cloudflare 520 timeouts, Tesseract hangs). Users choose Modo Fiel
+    # explicitly, which is predictable and fast.
     if ext == "pdf" and file_bytes:
         set_doc["pdfExtractionStatus"] = {
-            "status": "processing",
-            "message": "Extraindo imagens e texto do PDF...",
+            "status": "pdf_ready",
+            "message": "PDF recebido. Use Modo Fiel para gerar o curso.",
             "progress": 0,
             "startedAt": datetime.now(timezone.utc).isoformat(),
         }
@@ -588,19 +591,11 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
         {"$set": set_doc}
     )
 
-    # Kick off background extraction for PDFs (doesn't block the response).
-    # We track the task per-session so Modo Fiel can cancel it later if the
-    # user decides to skip the slow extraction.
-    if ext == "pdf" and file_bytes:
-        import asyncio as _aio
-        task = _aio.create_task(_background_pdf_extraction(session_id, file_bytes))
-        _PDF_EXTRACTION_TASKS[session_id] = task
-
     return {
         "status": "ok",
         "contentLength": len(content_text),
         "fileName": file_name,
-        "pdfProcessing": ext == "pdf" and bool(file_bytes),
+        "pdfReady": ext == "pdf" and bool(file_bytes),
     }
 
 
@@ -1060,9 +1055,27 @@ async def agent_generate_faithful_course(
         }}
     )
 
-    # Kick off background rendering (doesn't block the HTTP response)
-    import asyncio as _aio
-    _aio.create_task(_background_faithful_render(session_id, project.id, pdf_bytes))
+    # Kick off background rendering in a SEPARATE THREAD with its own event
+    # loop so it doesn't compete with incoming HTTP requests on the main
+    # uvicorn event loop. This is critical for production where Tesseract /
+    # PyMuPDF can monopolize the main loop and cause Cloudflare 520s on
+    # polling endpoints.
+    import threading as _threading
+    import asyncio as _asyncio
+
+    def _thread_runner():
+        loop = _asyncio.new_event_loop()
+        _asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                _background_faithful_render(session_id, project.id, pdf_bytes)
+            )
+        except Exception as e:
+            logger.error(f"[bg-faithful-thread] {e}", exc_info=True)
+        finally:
+            loop.close()
+
+    _threading.Thread(target=_thread_runner, daemon=True, name=f"faithful-{project.id[:8]}").start()
 
     return {
         "status": "processing",
@@ -1072,7 +1085,17 @@ async def agent_generate_faithful_course(
 
 
 async def _background_faithful_render(session_id: str, project_id: str, pdf_bytes: bytes):
-    """Render the PDF into faithful slides in the background."""
+    """Render the PDF into faithful slides in the background.
+
+    IMPORTANT: this function is expected to run in its OWN asyncio event loop
+    (not the main uvicorn loop) via a daemon thread. Because Motor clients
+    are bound to a specific event loop, we create a dedicated Motor client
+    here and close it at the end.
+    """
+    from motor.motor_asyncio import AsyncIOMotorClient
+    import os as _os
+    local_client = AsyncIOMotorClient(_os.environ['MONGO_URL'])
+    local_db = local_client[_os.environ['DB_NAME']]
     try:
         from services.pdf_extractor import (
             extract_pdf_faithful, build_faithful_slides,
@@ -1091,7 +1114,7 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
                 return
             last_update["t"] = now
             try:
-                asyncio.create_task(db.projects.update_one(
+                asyncio.create_task(local_db.projects.update_one(
                     {"id": project_id},
                     {"$set": {
                         "faithfulStatus.progress": int(pct * 90),
@@ -1112,12 +1135,12 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
             fpath = project_dir / "assets" / p["filename"]
             if fpath.exists():
                 try:
-                    await store_asset_async(db, project_id, p["filename"], str(fpath))
+                    await store_asset_async(local_db, project_id, p["filename"], str(fpath))
                 except Exception as e:
                     logger.warning(f"[bg-faithful] persist {p['filename']} failed: {e}")
             if total > 0 and (i + 1) % 5 == 0:
                 try:
-                    await db.projects.update_one(
+                    await local_db.projects.update_one(
                         {"id": project_id},
                         {"$set": {
                             "faithfulStatus.progress": 90 + int(9 * (i + 1) / total),
@@ -1129,7 +1152,7 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
 
         slides = build_faithful_slides(extraction["pages"], project_id)
 
-        await db.projects.update_one(
+        await local_db.projects.update_one(
             {"id": project_id},
             {"$set": {
                 "course.slides": slides,
@@ -1144,7 +1167,7 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
             }}
         )
 
-        await db.agent_sessions.update_one(
+        await local_db.agent_sessions.update_one(
             {"id": session_id},
             {"$set": {
                 "step": "generated",
@@ -1157,7 +1180,7 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
         import traceback as _tb
         logger.error(f"[bg-faithful] project={project_id} failed: {e}\n{_tb.format_exc()}")
         try:
-            await db.projects.update_one(
+            await local_db.projects.update_one(
                 {"id": project_id},
                 {"$set": {
                     "status": "error",
@@ -1169,6 +1192,11 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
                     },
                 }}
             )
+        except Exception:
+            pass
+    finally:
+        try:
+            local_client.close()
         except Exception:
             pass
 

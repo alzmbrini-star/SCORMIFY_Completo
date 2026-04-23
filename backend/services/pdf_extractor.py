@@ -858,9 +858,13 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
 # ---------------------------------------------------------------------------
 # Faithful mode: 1 PDF page -> 1 slide (page rendered as full background)
 # ---------------------------------------------------------------------------
+# Canvas matches the Scormify slide aspect ratio. Lower DPI (120 instead of
+# 200) keeps the JPEG readable while rendering ~2-3x faster — critical for
+# production where CPU is limited and Cloudflare times out at 100s.
 SLIDE_WIDTH = 1920
 SLIDE_HEIGHT = 820
-FAITHFUL_DPI = 200
+FAITHFUL_DPI = 120
+FAITHFUL_JPEG_QUALITY = 82
 
 
 async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
@@ -916,7 +920,7 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
                 resized = src_img.resize((new_w, new_h), Image.LANCZOS)
                 canvas = Image.new("RGB", (SLIDE_WIDTH, SLIDE_HEIGHT), "white")
                 canvas.paste(resized, ((SLIDE_WIDTH - new_w) // 2, (SLIDE_HEIGHT - new_h) // 2))
-                canvas.save(target, "JPEG", quality=90, optimize=True)
+                canvas.save(target, "JPEG", quality=FAITHFUL_JPEG_QUALITY, optimize=True)
             except Exception as e:
                 logger.warning(f"[faithful] PIL fit failed on page {page_num}: {e}; using raw pixmap")
                 pix.save(str(target))

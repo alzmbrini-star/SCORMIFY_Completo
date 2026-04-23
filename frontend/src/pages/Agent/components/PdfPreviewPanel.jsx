@@ -48,6 +48,20 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
         const sessData = sessRes.ok ? await sessRes.json() : {};
         const status = sessData?.pdfExtractionStatus?.status;
 
+        if (status === 'pdf_ready') {
+          // PDF uploaded and ready for Modo Fiel. Don't poll — just show CTA.
+          if (!active) return;
+          if (onStatusChange) onStatusChange(false);
+          setPreview({
+            hasPdf: true,
+            pdfReady: true,
+            fileName: sessData.fileName || '',
+          });
+          setImages([]);
+          setLoading(false);
+          return;
+        }
+
         if (status === 'processing') {
           if (!active) return;
           if (onStatusChange) onStatusChange(true);
@@ -153,11 +167,6 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
 
   const handleGenerateFaithful = async () => {
     if (faithfulLoading) return;
-    if (!window.confirm(
-      'Modo Fiel: cada pagina do PDF vira um slide identico ao original (layout, cores, imagens, logos preservados).\n\n' +
-      'Esta opcao pula a IA completamente — o curso nao tera textos reescritos nem slides extras.\n\n' +
-      'Deseja prosseguir?'
-    )) return;
     setFaithfulLoading(true);
     if (onStatusChange) onStatusChange(true);
     try {
@@ -235,6 +244,53 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
   }
 
   if (!preview?.hasPdf) return null;
+
+  // Fresh PDF uploaded — offer Modo Fiel as the primary (and only) path.
+  if (preview.pdfReady && !preview.processing && !preview.extractionFailed) {
+    return (
+      <div
+        data-testid="pdf-preview-ready"
+        className="rounded-xl border border-indigo-500/40 bg-gradient-to-br from-indigo-900/40 to-slate-900 overflow-hidden"
+      >
+        <div className="flex items-start gap-3 px-5 py-5">
+          <div className="shrink-0 mt-1">
+            <div className="w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-indigo-300" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-base font-semibold text-white">
+              PDF recebido {preview.fileName && <span className="text-indigo-200/80 font-normal">({preview.fileName})</span>}
+            </h4>
+            <p className="text-sm text-indigo-100/80 mt-1">
+              Vamos gerar o curso em <b>Modo Fiel</b>: cada pagina vira um slide preservando
+              o layout, cores, imagens e logos originais do PDF.
+            </p>
+            <ul className="text-xs text-indigo-200/70 mt-2 space-y-1 list-disc list-inside">
+              <li>1 pagina do PDF = 1 slide identico</li>
+              <li>Pula a IA e gera rapidamente</li>
+              <li>Ideal para manuais, apresentacoes e materiais ja formatados</li>
+            </ul>
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-5 py-4 bg-slate-900/80 border-t border-indigo-500/30">
+          <p className="text-xs text-indigo-200/70">
+            Preferiu usar outro metodo? Clique em &quot;Analisar Conteudo&quot; abaixo para gerar com IA baseado no texto.
+          </p>
+          <Button
+            size="default"
+            onClick={handleGenerateFaithful}
+            disabled={faithfulLoading}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
+            data-testid="pdf-faithful-mode-btn"
+          >
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            {faithfulLoading ? 'Gerando...' : 'Gerar em Modo Fiel'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Extraction failed or produced no images: offer Modo Fiel prominently.
   if (preview.extractionFailed) {
