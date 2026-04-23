@@ -766,12 +766,13 @@ async def agent_pdf_preview(session_id: str, user: dict = Depends(require_agent_
     s = await db.agent_sessions.find_one(
         {"id": session_id},
         {"_id": 0, "pdfExtraction": 1, "pdfPreview": 1, "contentText": 1,
-         "fileName": 1, "pdfExtractionStatus": 1}
+         "fileName": 1, "pdfExtractionStatus": 1, "rawFileGridFS": 1}
     )
     if not s:
         raise HTTPException(404, "Session not found")
     pdf_meta = s.get("pdfExtraction") or {}
     status_info = s.get("pdfExtractionStatus") or {}
+    has_pdf_file = bool(s.get("rawFileGridFS"))
 
     # Still processing in background — let the client poll
     if not pdf_meta.get("tmpProjectId") and status_info.get("status") == "processing":
@@ -781,6 +782,24 @@ async def agent_pdf_preview(session_id: str, user: dict = Depends(require_agent_
             "fileName": s.get("fileName", ""),
             "statusMessage": status_info.get("message", "Processando..."),
             "progress": status_info.get("progress", 0),
+        }
+
+    # PDF was uploaded but extraction produced no images (failed, empty, or
+    # fully scanned and OCR gave little/nothing). Keep the panel visible so
+    # the user can fall back to Modo Fiel.
+    if has_pdf_file and not pdf_meta.get("tmpProjectId"):
+        return {
+            "hasPdf": True,
+            "processing": False,
+            "extractionFailed": True,
+            "fileName": s.get("fileName", ""),
+            "statusMessage": (
+                status_info.get("message")
+                or "A extracao automatica nao produziu imagens utilizaveis. "
+                "Use Modo Fiel para gerar o curso com as paginas do PDF como slides."
+            ),
+            "images": [],
+            "totalPages": status_info.get("totalPages", 0),
         }
 
     if not pdf_meta.get("tmpProjectId"):

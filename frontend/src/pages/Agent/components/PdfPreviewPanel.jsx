@@ -62,8 +62,22 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
         if (status === 'error') {
           if (active) {
             if (onStatusChange) onStatusChange(false);
-            toast.error(sessData.pdfExtractionStatus.message || 'Falha na extracao do PDF');
-            setPreview({ hasPdf: false });
+            // Don't hide the panel — fetch preview so user sees the Modo Fiel
+            // fallback with a friendly error message.
+            try {
+              const res = await fetch(`${apiBase}/api/agent/sessions/${sessionId}/pdf-preview`, {
+                headers: authHeaders(),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                setPreview(data);
+                setImages((data.images || []).map(img => ({ ...img })));
+              } else {
+                setPreview({ hasPdf: false });
+              }
+            } catch {
+              setPreview({ hasPdf: false });
+            }
           }
           return;
         }
@@ -170,6 +184,44 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
   }
 
   if (!preview?.hasPdf) return null;
+
+  // Extraction failed or produced no images: offer Modo Fiel prominently.
+  if (preview.extractionFailed) {
+    return (
+      <div
+        data-testid="pdf-preview-failed"
+        className="rounded-xl border border-amber-600/40 bg-slate-900/80 overflow-hidden"
+      >
+        <div className="flex items-start gap-3 px-4 py-4 bg-amber-900/20">
+          <FileText className="w-6 h-6 text-amber-300 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-semibold text-white">
+              Extracao automatica nao produziu imagens {preview.fileName && <span className="text-amber-200/80 font-normal">({preview.fileName})</span>}
+            </h4>
+            <p className="text-xs text-amber-100/80 mt-1">
+              {preview.statusMessage}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80 border-t border-amber-700/30 gap-3">
+          <p className="text-xs text-slate-300 flex-1">
+            O <b>Modo Fiel</b> gera 1 slide por pagina do PDF, preservando o
+            layout original (cores, imagens, logos). Recomendado para este PDF.
+          </p>
+          <Button
+            size="sm"
+            onClick={handleGenerateFaithful}
+            disabled={faithfulLoading}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
+            data-testid="pdf-faithful-mode-btn-failed"
+          >
+            <Sparkles className="w-4 h-4 mr-1" />
+            {faithfulLoading ? 'Gerando...' : 'Gerar em Modo Fiel'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (preview.processing) {
     const pct = Math.max(0, Math.min(100, preview.progress || 0));
