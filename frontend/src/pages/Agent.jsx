@@ -272,16 +272,58 @@ export default function Agent() {
     try {
       const sid = await ensureSession();
       if (!sid) return;
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, { method: 'POST', headers: authHeaders(), body: form });
-      const data = await res.json();
+
+      const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5 MB
+      let data;
+
+      if (file.size <= CHUNK_THRESHOLD) {
+        // Small file: single POST
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`${API}/api/agent/sessions/${sid}/upload`, {
+          method: 'POST', headers: authHeaders(), body: form,
+        });
+        if (!res.ok) throw new Error(`Upload falhou (${res.status})`);
+        data = await res.json();
+      } else {
+        // Large file: chunked upload to bypass proxy/Cloudflare body limits
+        const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB per chunk
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = `u${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+
+        addChatMsg('agent', `Arquivo grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Enviando em ${totalChunks} partes...`);
+
+        let lastResponse = null;
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          const form = new FormData();
+          form.append('chunk', chunk, `chunk_${i}`);
+          form.append('uploadId', uploadId);
+          form.append('chunkIndex', String(i));
+          form.append('totalChunks', String(totalChunks));
+          form.append('fileName', file.name);
+
+          const res = await fetch(`${API}/api/agent/sessions/${sid}/upload-chunk`, {
+            method: 'POST', headers: authHeaders(), body: form,
+          });
+          if (!res.ok) throw new Error(`Falha no chunk ${i + 1}/${totalChunks} (${res.status})`);
+          lastResponse = await res.json();
+          setFileName(`${file.name} (${i + 1}/${totalChunks})`);
+        }
+        data = lastResponse;
+      }
+
       setFileName(file.name);
-      addChatMsg('agent', `Arquivo "${file.name}" recebido! ${data.contentLength} caracteres extraídos. Clique em "Analisar".`);
+      const msg = data?.pdfProcessing
+        ? `Arquivo "${file.name}" recebido! Extraindo imagens e texto em segundo plano...`
+        : `Arquivo "${file.name}" recebido! ${data?.contentLength || 0} caracteres extraídos. Clique em "Analisar".`;
+      addChatMsg('agent', msg);
       setCurrentStep(1);
-    } catch {
-      toast.error('Erro no upload');
-      addChatMsg('agent', 'Erro ao processar o arquivo.');
+    } catch (err) {
+      toast.error(err?.message || 'Erro no upload');
+      addChatMsg('agent', err?.message || 'Erro ao processar o arquivo.');
     } finally { setLoading(false); }
   };
 

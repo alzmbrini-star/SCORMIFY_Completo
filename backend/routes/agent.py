@@ -339,6 +339,92 @@ async def get_agent_session(session_id: str, request: Request, user: dict = Depe
         raise HTTPException(404, "Session not found")
     return s
 
+@router.post("/agent/sessions/{session_id}/upload-chunk")
+async def agent_upload_chunk(
+    session_id: str,
+    chunk: UploadFile = File(...),
+    uploadId: str = Form(...),
+    chunkIndex: int = Form(...),
+    totalChunks: int = Form(...),
+    fileName: str = Form(...),
+    user: dict = Depends(require_agent_access),
+):
+    """Chunked upload for large files (>5MB) that exceed Cloudflare / nginx
+    request-body limits when sent in a single POST.
+
+    The client splits the file into ~5MB chunks and sends them sequentially
+    with a shared `uploadId`. Once all chunks arrive, the last request
+    reassembles the file and forwards it through the normal upload pipeline
+    (same behavior as /upload, including async PDF extraction).
+
+    Returns: {"status": "chunk_received", "received": N, "total": M} until the
+    last chunk, then the full upload response.
+    """
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0, "id": 1})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    # Sanitize uploadId (must be safe for a filename)
+    import re as _re
+    safe_upload_id = _re.sub(r"[^A-Za-z0-9_\-]", "", uploadId)[:64]
+    if not safe_upload_id:
+        raise HTTPException(400, "Invalid uploadId")
+
+    # Validate chunk indexes
+    if chunkIndex < 0 or totalChunks <= 0 or chunkIndex >= totalChunks:
+        raise HTTPException(400, "Invalid chunk index")
+
+    # Per-session tmp dir (rooted under /tmp so the container's ephemeral disk
+    # is enough). Chunks are small (~5MB) so we don't exceed disk budget.
+    tmp_dir = Path("/tmp") / f"upload_{session_id}_{safe_upload_id}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    chunk_path = tmp_dir / f"chunk_{chunkIndex:04d}"
+    try:
+        bytes_ = await chunk.read()
+        chunk_path.write_bytes(bytes_)
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao salvar chunk: {e}")
+
+    # How many chunks have we received so far?
+    received = sum(1 for p in tmp_dir.iterdir() if p.name.startswith("chunk_"))
+
+    if received < totalChunks:
+        return {"status": "chunk_received", "received": received, "total": totalChunks}
+
+    # All chunks received — reassemble in order
+    try:
+        parts = sorted(
+            p for p in tmp_dir.iterdir() if p.name.startswith("chunk_")
+        )
+        assembled = b"".join(p.read_bytes() for p in parts)
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao montar arquivo: {e}")
+    finally:
+        # Cleanup tmp chunks
+        try:
+            import shutil as _sh
+            _sh.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+    # Forward to the standard upload pipeline as if it came in a single POST.
+    # Build a minimal fake UploadFile-like object using SpooledTemporaryFile.
+    import io as _io
+    class _FakeUpload:
+        def __init__(self, name: str, data: bytes):
+            self.filename = name
+            self.file = _io.BytesIO(data)
+            self._data = data
+        async def read(self):
+            return self._data
+
+    fake_file = _FakeUpload(fileName, assembled)
+    return await _agent_upload_content_impl(
+        session_id, None, fake_file, None, None, user
+    )
+
+
 @router.post("/agent/sessions/{session_id}/upload")
 async def agent_upload_content(session_id: str, request: Request, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None), user: dict = Depends(require_agent_access)):
     """Upload content to agent session (file, text, or URL).
