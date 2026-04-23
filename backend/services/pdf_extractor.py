@@ -53,8 +53,33 @@ logger = logging.getLogger(__name__)
 MIN_NATIVE_TEXT_CHARS = 60
 # Render DPI for OCR/fallback image.
 RENDER_DPI = 180
-# Max OCR concurrency (avoid CPU starvation).
-OCR_CONCURRENCY = 3
+# Max OCR concurrency (avoid CPU starvation; Tesseract is CPU-bound and
+# competes with uvicorn event loop threads for cores).
+OCR_CONCURRENCY = 1
+
+# Dedicated thread pool so PyMuPDF/Tesseract work doesn't starve the default
+# asyncio pool (which is also used by motor/MongoDB). Keep it small (2) to
+# avoid cpu thrashing on 2-core production pods.
+_PDF_EXECUTOR = None
+
+
+def _get_pdf_executor():
+    global _PDF_EXECUTOR
+    if _PDF_EXECUTOR is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _PDF_EXECUTOR = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="pdf-extract"
+        )
+    return _PDF_EXECUTOR
+
+
+async def _run_blocking(func, *args, **kwargs):
+    """Run a CPU-bound function in the dedicated PDF executor so the default
+    asyncio pool (used by motor/mongo) stays responsive."""
+    loop = asyncio.get_event_loop()
+    import functools as _ft
+    call = _ft.partial(func, *args, **kwargs) if kwargs else (lambda: func(*args))
+    return await loop.run_in_executor(_get_pdf_executor(), call)
 
 
 @dataclass
@@ -136,7 +161,10 @@ def _extract_embedded_images(
     page: fitz.Page,
     page_num: int,
     assets_dir: Path,
+    max_per_page: int = 8,
 ) -> List[PdfImage]:
+    """Extract embedded images from a page. Caps at `max_per_page` to avoid
+    blowup on PDFs where every letter is embedded as a tiny image."""
     images: List[PdfImage] = []
     try:
         image_list = page.get_images(full=True)
@@ -145,6 +173,8 @@ def _extract_embedded_images(
 
     seen_xrefs = set()
     for img_idx, img_info in enumerate(image_list, start=1):
+        if len(images) >= max_per_page:
+            break
         xref = img_info[0]
         if xref in seen_xrefs:
             continue
@@ -157,6 +187,10 @@ def _extract_embedded_images(
                 continue
             # Filter out tiny images (logos, bullet glyphs, backgrounds)
             if len(img_bytes) < 3_000:
+                continue
+            # Skip ridiculously large images (>20MB decompressed) — they're
+            # usually full-page scans and would bloat the course.
+            if len(img_bytes) > 20_000_000:
                 continue
             # Normalize uncommon formats to PNG
             if ext not in ("png", "jpg", "jpeg", "webp"):
@@ -261,8 +295,9 @@ async def _ocr_page(image_path: Path, tesseract_ok: bool) -> str:
     """Run OCR: Tesseract first, Gemini fallback (strategy 3c)."""
     text = ""
     if tesseract_ok:
-        # run blocking tesseract in threadpool
-        text = await asyncio.to_thread(_tesseract_ocr, image_path)
+        # Run tesseract in the dedicated PDF executor so motor/mongo calls
+        # are not blocked by OCR work.
+        text = await _run_blocking(_tesseract_ocr, image_path)
     if len(text.strip()) < MIN_NATIVE_TEXT_CHARS:
         gemini_text = await _gemini_ocr(image_path)
         if len(gemini_text.strip()) > len(text.strip()):
@@ -308,8 +343,12 @@ async def extract_pdf(
         nonlocal scanned_pages_count
         page = pdf.load_page(page_idx)
         page_num = page_idx + 1
-        text = _extract_text_with_layout(page)
-        images = _extract_embedded_images(pdf, page, page_num, assets_dir)
+        # PyMuPDF text/image extraction is CPU-bound; use the dedicated PDF
+        # executor so the default asyncio pool (motor/mongo) stays responsive.
+        text = await _run_blocking(_extract_text_with_layout, page)
+        images = await _run_blocking(
+            _extract_embedded_images, pdf, page, page_num, assets_dir
+        )
         for img in images:
             asset_filenames.append(img.filename)
 
@@ -318,7 +357,7 @@ async def extract_pdf(
 
         if is_scanned:
             scanned_pages_count += 1
-            rendered_filename = await asyncio.to_thread(
+            rendered_filename = await _run_blocking(
                 _render_page_as_image, page, page_num, assets_dir
             )
             if rendered_filename:
@@ -344,16 +383,19 @@ async def extract_pdf(
             rendered_image=rendered_image,
         )
 
-    # Process pages in batches to keep memory bounded on large PDFs.
-    batch_size = 6
-    for start in range(0, total_pages, batch_size):
-        batch = [_process_page(i) for i in range(start, min(start + batch_size, total_pages))]
-        results = await asyncio.gather(*batch, return_exceptions=True)
-        for r in results:
-            if isinstance(r, PdfPage):
-                pages.append(r)
-            else:
-                logger.error(f"[pdf_extractor] page processing error: {r}")
+    # Process pages ONE AT A TIME with explicit yields to the event loop.
+    # Processing in parallel batches saturates the uvicorn event loop on
+    # production (Tesseract OCR + fitz pixmap rendering are CPU-heavy), causing
+    # 520 timeouts on other API requests to the same worker.
+    for i in range(total_pages):
+        try:
+            page = await _process_page(i)
+            if isinstance(page, PdfPage):
+                pages.append(page)
+        except Exception as e:
+            logger.error(f"[pdf_extractor] page {i+1} error: {e}")
+        # Yield control so other HTTP requests on the same worker can be served.
+        await asyncio.sleep(0)
 
     pages.sort(key=lambda p: p.page_num)
     pdf.close()
