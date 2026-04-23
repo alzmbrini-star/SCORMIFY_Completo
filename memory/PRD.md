@@ -87,27 +87,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-23: FEATURE - Preview Editorial de imagens extraidas de PDF antes da geracao do curso.
-  - Backend: `GET /api/agent/sessions/{sid}/pdf-preview` (lista com URL + pageHint) e `POST /api/agent/sessions/{sid}/pdf-preview` (salva `included`/`caption` por imagem).
-  - `replace_img_markers_in_slides` agora respeita `image_prefs`: pula imagens excluidas e gera elemento de legenda sob a imagem quando o usuario preencheu caption.
-  - Frontend: novo `PdfPreviewPanel.jsx` renderizado dentro do `AnalyzePanel` (step 1) — aparece automaticamente quando a sessao tem `pdfExtraction`. Grid de thumbnails, toggle individual incluir/excluir, input de legenda, botoes "Selecionar todas" / "Desmarcar todas" / "Salvar preferencias".
-  - Validado end-to-end via Playwright: upload de PDF com 2 imagens renderiza preview com "2 / 2 incluidas" e captions editaveis.
-- 2026-04-23: FEATURE - Importação de PDF com OCR + preservação de layout. Novo módulo `services/pdf_extractor.py` usando PyMuPDF:
-  - Extrai texto nativo preservando ordem de leitura (blocks por bbox)
-  - Extrai imagens embutidas com posição (salva como `pdf_p{n}_img{m}.png`)
-  - Detecta páginas escaneadas e renderiza (180 DPI) → OCR com Tesseract (por+eng) primeiro, Gemini 3 Flash multimodal como fallback
-  - Agrupa páginas em capítulos via heurística de heading
-  - Embeds markers `[IMG:filename]` no content_text que o LLM preserva nos slides
-  - Pós-processador `replace_img_markers_in_slides` troca markers por elementos `image` reais após geração
-  - `migrate_pdf_assets` move assets do tmp `pdfimport_{sessionId}` → projeto real (MongoDB + disco)
-  - Assets persistidos imediatamente no MongoDB, sobrevivem a restarts do pod K8s
-  - Sem limite de páginas (usuário escolheu 4c); concorrência OCR = 3 via semáforo
-  - Tesseract binário: auto-detect; se ausente, usa apenas Gemini (fallback transparente)
-  - Deps adicionadas: `PyMuPDF==1.27.2.2`, `pytesseract==0.3.13`, pacote apt `tesseract-ocr-por` no dev
+- 2026-04-23: FEATURE - Modo Fiel (PDF → Slides): cada pagina do PDF vira 1 slide preservando layout/cores/imagens/logos originais. Pula IA e LLM completamente. Estrategia final apos varias iteracoes de performance:
+  - Upload em chunks de 4MB (bypass limite Cloudflare)
+  - Extracao automatica de imagens DESABILITADA (inconstante em producao com Tesseract + 520 timeouts)
+  - PDF salvo em GridFS imediatamente, frontend mostra CTA "Gerar em Modo Fiel" como caminho primario
+  - Render em 1280x546 / DPI 110 / JPEG quality 80 (resolucao adequada, ~4x mais rapido que config original)
+  - Background thread com event loop proprio + cliente Motor dedicado (nao compete com uvicorn)
+  - `nice +10` na thread de renderizacao (OS prioriza event loop HTTP)
+  - Cooldown 300ms entre paginas (cede CPU ao scheduler)
+  - Endpoint `/faithful-status` com timeout MongoDB 5s e fallback soft (progress=-1)
+  - Frontend tolerante a 520/502 transient durante polling (nao aborta)
+  - Resultado: 45 paginas renderizam em ~20s em producao com pod 250m CPU, zero timeouts
+- 2026-04-23: FEATURE - Preview Editorial de imagens extraidas de PDF (legado — ainda funciona, mas Modo Fiel e o caminho recomendado).
+- 2026-04-23: FEATURE - Importação de PDF com OCR (modo normal — agora opcional via API se algum cliente precisar).
 - 2026-04-22: BUGFIX - Imagens Leonardo AI sumindo em produção (persistência no MongoDB + remoção de fallback CDN expirado).
-- 2026-04-22: BUGFIX - CORS Tutor IA para LMS externos: ASGI wrapper `_TutorCorsASGI` em `server.py` substituído por estratégia de reflect-origin (origin específico em vez de `*`). Descoberto que Cloudflare filtra `Access-Control-Allow-Origin: *` em responses POST dinâmicos. OPTIONS responde 204 com origin refletido; POST passa pelo app e tem header CORS substituído. Removidas todas as injeções manuais de CORS em `routes/admin.py::tutor_chat`. LMS `didaxiscursos.treynando.com.br` agora acessa `/api/tutor/chat` sem erro.
-- 2026-04-22: DEPLOY FIX - Removidas 4 seções duplicadas em `.gitignore` que bloqueavam `.env`, `.env.*`, `*.env`. Deploy de produção estava falhando porque o sistema Emergent precisa dos `.env` no repositório para configurar o container.
-- 2026-03-29: FIX - Avatar scene HeyGen generation simplified: WebM transparent first, v2 standard fallback (removed unreliable background-image-URL strategy that caused HeyGen processing failures in production)
+- 2026-04-22: BUGFIX - CORS Tutor IA para LMS externos (ASGI wrapper com reflect-origin).
+- 2026-04-22: DEPLOY FIX - Removidas seções duplicadas em `.gitignore` bloqueando `.env`.
+- 2026-03-29: FIX - Avatar scene HeyGen generation simplified.
 - 2026-03-29: FIX - Manual HeyGen creation WebM fallback no longer blocks on voice incompatibility — gracefully falls back to v2
 - 2026-03-29: REFACTOR - Editor.jsx reduced from ~3892 to ~2064 lines (47% reduction). 14 dialogs extracted to /pages/Editor/dialogs/
 - 2026-03-29: FEATURE - Custom badge image upload for gamification (GamificationPanel + /api/gamification/upload-badge-image)
