@@ -395,21 +395,61 @@ async def agent_upload_content(session_id: str, request: Request, file: UploadFi
             content_text = file_bytes.decode("utf-8", errors="ignore")
 
         elif ext == "pdf":
-            # Native PDF extraction
+            # Rich PDF extraction: preserves embedded images + layout, renders
+            # scanned pages and runs OCR (Tesseract first, Gemini fallback).
             try:
-                from PyPDF2 import PdfReader
-                import io as _io
-                reader = PdfReader(_io.BytesIO(file_bytes))
-                pages = []
-                for page in reader.pages:
-                    t = page.extract_text()
-                    if t:
-                        pages.append(t)
-                content_text = "\n\n".join(pages)
+                from services.pdf_extractor import extract_pdf, payload_to_markdown
+                from services.asset_store import store_asset_async
+                from routes.deps import PROJECTS_DIR as _PROJECTS_DIR
+
+                # Store extracted images under a temporary project_id keyed by
+                # the session. They will be migrated to the real project_id when
+                # the course is generated.
+                tmp_project_id = f"pdfimport_{session_id}"
+                tmp_assets_dir = _PROJECTS_DIR / tmp_project_id / "assets"
+                extraction = await extract_pdf(file_bytes, tmp_assets_dir)
+
+                # Persist each extracted image to MongoDB so they survive pod
+                # restarts and are immediately servable via /api/projects/...
+                for fname in extraction.get("asset_filenames", []):
+                    fpath = tmp_assets_dir / fname
+                    if fpath.exists():
+                        try:
+                            await store_asset_async(db, tmp_project_id, fname, str(fpath))
+                        except Exception as pe:
+                            logger.warning(f"PDF asset persist failed {fname}: {pe}")
+
+                content_text = payload_to_markdown(extraction)
+
+                # Store extraction metadata on the session for post-processing.
+                await db.agent_sessions.update_one(
+                    {"id": session_id},
+                    {"$set": {
+                        "pdfExtraction": {
+                            "tmpProjectId": tmp_project_id,
+                            "totalPages": extraction.get("total_pages", 0),
+                            "scannedPages": extraction.get("scanned_pages", 0),
+                            "imagesExtracted": extraction.get("images_extracted", 0),
+                            "assetFilenames": extraction.get("asset_filenames", []),
+                        }
+                    }}
+                )
             except Exception as e:
-                logger.warning(f"PyPDF2 extraction failed: {e}")
-                # Fallback to ConvertAPI
-                content_text = await _convert_api_extract(file_name, file_bytes, ext)
+                logger.warning(f"Rich PDF extraction failed, falling back to PyPDF2: {e}")
+                # Fallback to native text-only extraction (legacy behavior)
+                try:
+                    from PyPDF2 import PdfReader
+                    import io as _io
+                    reader = PdfReader(_io.BytesIO(file_bytes))
+                    pages = []
+                    for page in reader.pages:
+                        t = page.extract_text()
+                        if t:
+                            pages.append(t)
+                    content_text = "\n\n".join(pages)
+                except Exception as e2:
+                    logger.warning(f"PyPDF2 extraction failed: {e2}")
+                    content_text = await _convert_api_extract(file_name, file_bytes, ext)
 
         elif ext in ("docx",):
             # Native DOCX extraction
@@ -1482,6 +1522,34 @@ async def agent_generate_course(session_id: str):
                 global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation,
                 design_template_id=config.get("designTemplateId", "")
             ))
+
+            # PDF imports: migrate extracted images from the temp project to the
+            # real one, and replace [IMG:filename] markers in slides with real
+            # image elements.
+            try:
+                pdf_meta = _s.get("pdfExtraction") or {}
+                if pdf_meta.get("tmpProjectId"):
+                    from services.pdf_extractor import (
+                        migrate_pdf_assets, replace_img_markers_in_slides,
+                    )
+                    loop.run_until_complete(migrate_pdf_assets(
+                        _db,
+                        pdf_meta["tmpProjectId"],
+                        project.id,
+                        PROJECTS_DIR,
+                    ))
+                    available = set(pdf_meta.get("assetFilenames", []))
+                    inserted = replace_img_markers_in_slides(
+                        course_data.get("slides", []),
+                        project.id,
+                        available,
+                    )
+                    logger.info(
+                        f"PDF import post-processing: {inserted} image elements "
+                        f"added from {len(available)} extracted assets"
+                    )
+            except Exception as pdf_err:
+                logger.warning(f"PDF post-processing failed (non-fatal): {pdf_err}")
 
             loop.run_until_complete(_db.agent_sessions.update_one(
                 {"id": session_id},

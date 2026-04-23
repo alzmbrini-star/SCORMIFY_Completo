@@ -135,6 +135,7 @@ def ensure_system_dependencies():
     # Quick check only - no auto-install to avoid blocking server startup
     libreoffice_path = shutil.which('libreoffice')
     poppler_path = shutil.which('pdftoppm')
+    tesseract_path = shutil.which('tesseract')
     
     if libreoffice_path:
         logger.info(f"✓ LibreOffice found at: {libreoffice_path}")
@@ -146,10 +147,33 @@ def ensure_system_dependencies():
     else:
         logger.warning("⚠ poppler-utils not found - some PDF features may be unavailable")
     
+    if tesseract_path:
+        logger.info(f"✓ tesseract-ocr found at: {tesseract_path}")
+    else:
+        logger.warning("⚠ tesseract-ocr not found - OCR will fallback to Gemini vision only")
+    
     logger.info("=" * 50)
     logger.info("✓ Server startup complete!")
     logger.info("=" * 50)
     return True
+
+
+def check_and_install_tesseract():
+    """Install tesseract-ocr + Portuguese language pack if missing.
+    Called on-demand (first PDF import) so startup isn't blocked."""
+    if shutil.which('tesseract'):
+        return True
+    logger.info("Installing tesseract-ocr (por + eng)...")
+    try:
+        subprocess.run(
+            ['sudo', 'apt-get', 'install', '-y', '-qq',
+             'tesseract-ocr', 'tesseract-ocr-por', 'tesseract-ocr-eng'],
+            check=True, capture_output=True, timeout=180
+        )
+        return shutil.which('tesseract') is not None
+    except Exception as e:
+        logger.warning(f"Tesseract install failed: {e}")
+        return False
 
 
 def get_libreoffice_path():

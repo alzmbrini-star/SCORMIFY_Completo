@@ -343,6 +343,9 @@ Nível do curso: {config.get('depth', 'intermediario')}
 CONTEÚDO-BASE COMPLETO para referência:
 {content_text[:6000]}
 
+IMPORTANTE SOBRE IMAGENS DO CONTEÚDO-BASE:
+Se o CONTEÚDO-BASE acima contiver marcadores no formato `[IMG:filename.png]`, significa que o PDF/documento original possui imagens reais (diagramas, fotos, fluxogramas) já extraídas. Mantenha esses marcadores EXATAMENTE como estão dentro do HTML do slide apropriado (geralmente em um `<p>` ou no final do bloco) para preservar o material didático original. NÃO invente nomes novos de imagem, NÃO altere os nomes dos arquivos, e NÃO remova os marcadores — eles serão substituídos automaticamente por elementos de imagem reais depois da geração.
+
 Slides a gerar: {json.dumps(batch_info, ensure_ascii=False)}
 
 Retorne JSON:
