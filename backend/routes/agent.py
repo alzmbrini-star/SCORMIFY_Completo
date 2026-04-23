@@ -341,7 +341,14 @@ async def get_agent_session(session_id: str, request: Request, user: dict = Depe
 
 @router.post("/agent/sessions/{session_id}/upload")
 async def agent_upload_content(session_id: str, request: Request, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None), user: dict = Depends(require_agent_access)):
-    """Upload content to agent session (file, text, or URL)."""
+    """Upload content to agent session (file, text, or URL).
+
+    For PDFs: the raw bytes are saved to GridFS and the heavy extraction
+    (image extraction + OCR + gallery preparation) is processed in a
+    background task to avoid 504/520 gateway timeouts. The client polls
+    GET /api/agent/sessions/{id} and watches `pdfExtractionStatus`
+    to detect completion.
+    """
     try:
         return await _agent_upload_content_impl(session_id, request, file, text, url, user)
     except HTTPException:
@@ -360,8 +367,6 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
 
     content_text = text or ""
     file_name = ""
-    # Initialize upload-path locals so they are always defined (prevents
-    # NameError when text/url is sent without a file).
     ext = ""
     file_bytes = b""
 
@@ -411,61 +416,23 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
             content_text = file_bytes.decode("utf-8", errors="ignore")
 
         elif ext == "pdf":
-            # Rich PDF extraction: preserves embedded images + layout, renders
-            # scanned pages and runs OCR (Tesseract first, Gemini fallback).
+            # PDF: extract a first-pass of text quickly with PyPDF2, store the
+            # raw bytes in GridFS, and kick off the rich extraction (images +
+            # OCR) as a BACKGROUND task. Frontend polls the session for
+            # `pdfExtractionStatus` to detect completion.
             try:
-                from services.pdf_extractor import extract_pdf, payload_to_markdown
-                from services.asset_store import store_asset_async
-                from routes.deps import PROJECTS_DIR as _PROJECTS_DIR
-
-                # Store extracted images under a temporary project_id keyed by
-                # the session. They will be migrated to the real project_id when
-                # the course is generated.
-                tmp_project_id = f"pdfimport_{session_id}"
-                tmp_assets_dir = _PROJECTS_DIR / tmp_project_id / "assets"
-                extraction = await extract_pdf(file_bytes, tmp_assets_dir)
-
-                # Persist each extracted image to MongoDB so they survive pod
-                # restarts and are immediately servable via /api/projects/...
-                for fname in extraction.get("asset_filenames", []):
-                    fpath = tmp_assets_dir / fname
-                    if fpath.exists():
-                        try:
-                            await store_asset_async(db, tmp_project_id, fname, str(fpath))
-                        except Exception as pe:
-                            logger.warning(f"PDF asset persist failed {fname}: {pe}")
-
-                content_text = payload_to_markdown(extraction)
-
-                # Store extraction metadata on the session for post-processing.
-                await db.agent_sessions.update_one(
-                    {"id": session_id},
-                    {"$set": {
-                        "pdfExtraction": {
-                            "tmpProjectId": tmp_project_id,
-                            "totalPages": extraction.get("total_pages", 0),
-                            "scannedPages": extraction.get("scanned_pages", 0),
-                            "imagesExtracted": extraction.get("images_extracted", 0),
-                            "assetFilenames": extraction.get("asset_filenames", []),
-                        }
-                    }}
-                )
+                from PyPDF2 import PdfReader
+                import io as _io
+                reader = PdfReader(_io.BytesIO(file_bytes))
+                pages = []
+                for page in reader.pages:
+                    t = page.extract_text()
+                    if t:
+                        pages.append(t)
+                content_text = "\n\n".join(pages)[:20000]
             except Exception as e:
-                logger.warning(f"Rich PDF extraction failed, falling back to PyPDF2: {e}")
-                # Fallback to native text-only extraction (legacy behavior)
-                try:
-                    from PyPDF2 import PdfReader
-                    import io as _io
-                    reader = PdfReader(_io.BytesIO(file_bytes))
-                    pages = []
-                    for page in reader.pages:
-                        t = page.extract_text()
-                        if t:
-                            pages.append(t)
-                    content_text = "\n\n".join(pages)
-                except Exception as e2:
-                    logger.warning(f"PyPDF2 extraction failed: {e2}")
-                    content_text = await _convert_api_extract(file_name, file_bytes, ext)
+                logger.warning(f"PyPDF2 fast extraction failed: {e}")
+                content_text = ""
 
         elif ext in ("docx",):
             # Native DOCX extraction
@@ -516,11 +483,107 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
     if pdf_gridfs_id:
         set_doc["rawFileGridFS"] = str(pdf_gridfs_id)
 
+    # For PDFs: mark the heavy extraction as pending; the background task
+    # below will run it and flip the status to "done" when finished.
+    if ext == "pdf" and file_bytes:
+        set_doc["pdfExtractionStatus"] = {
+            "status": "processing",
+            "message": "Extraindo imagens e texto do PDF...",
+            "progress": 0,
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+        }
+
     await db.agent_sessions.update_one(
         {"id": session_id},
         {"$set": set_doc}
     )
-    return {"status": "ok", "contentLength": len(content_text), "fileName": file_name}
+
+    # Kick off background extraction for PDFs (doesn't block the response)
+    if ext == "pdf" and file_bytes:
+        import asyncio as _aio
+        _aio.create_task(_background_pdf_extraction(session_id, file_bytes))
+
+    return {
+        "status": "ok",
+        "contentLength": len(content_text),
+        "fileName": file_name,
+        "pdfProcessing": ext == "pdf" and bool(file_bytes),
+    }
+
+
+async def _background_pdf_extraction(session_id: str, file_bytes: bytes):
+    """Run rich PDF extraction (images + OCR) in the background and update
+    the session document when done. Runs after the upload HTTP response has
+    already been returned to the client, so heavy OCR never triggers a 504/520.
+    """
+    try:
+        from services.pdf_extractor import extract_pdf, payload_to_markdown
+        from services.asset_store import store_asset_async
+        from routes.deps import PROJECTS_DIR as _PROJECTS_DIR
+
+        tmp_project_id = f"pdfimport_{session_id}"
+        tmp_assets_dir = _PROJECTS_DIR / tmp_project_id / "assets"
+
+        extraction = await extract_pdf(file_bytes, tmp_assets_dir)
+
+        # Persist each extracted image to MongoDB
+        for fname in extraction.get("asset_filenames", []):
+            fpath = tmp_assets_dir / fname
+            if fpath.exists():
+                try:
+                    await store_asset_async(db, tmp_project_id, fname, str(fpath))
+                except Exception as pe:
+                    logger.warning(f"[bg-pdf] asset persist failed {fname}: {pe}")
+
+        # Update session with rich extraction. Replace the fast PyPDF2 preview
+        # with the markdown payload (which includes [IMG:] markers).
+        md = payload_to_markdown(extraction)
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {
+                "contentText": md,
+                "pdfExtraction": {
+                    "tmpProjectId": tmp_project_id,
+                    "totalPages": extraction.get("total_pages", 0),
+                    "scannedPages": extraction.get("scanned_pages", 0),
+                    "imagesExtracted": extraction.get("images_extracted", 0),
+                    "assetFilenames": extraction.get("asset_filenames", []),
+                },
+                "pdfExtractionStatus": {
+                    "status": "done",
+                    "message": (
+                        f"Extracao concluida: {extraction.get('total_pages', 0)} paginas, "
+                        f"{extraction.get('images_extracted', 0)} imagens"
+                    ),
+                    "progress": 100,
+                    "finishedAt": datetime.now(timezone.utc).isoformat(),
+                },
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        logger.info(
+            f"[bg-pdf] session={session_id} done: "
+            f"{extraction.get('total_pages', 0)} pages, "
+            f"{extraction.get('images_extracted', 0)} images"
+        )
+    except Exception as e:
+        import traceback as _tb
+        logger.error(f"[bg-pdf] session={session_id} failed: {e}\n{_tb.format_exc()}")
+        try:
+            await db.agent_sessions.update_one(
+                {"id": session_id},
+                {"$set": {
+                    "pdfExtractionStatus": {
+                        "status": "error",
+                        "message": f"Falha na extracao: {str(e)[:180]}",
+                        "progress": 0,
+                        "finishedAt": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+        except Exception:
+            pass
 
 
 async def _convert_api_extract(file_name: str, file_bytes: bytes, ext: str) -> str:
@@ -553,11 +616,24 @@ async def agent_pdf_preview(session_id: str, user: dict = Depends(require_agent_
     """Return the PDF extraction preview (chapters + pages + images + user edits)."""
     s = await db.agent_sessions.find_one(
         {"id": session_id},
-        {"_id": 0, "pdfExtraction": 1, "pdfPreview": 1, "contentText": 1, "fileName": 1}
+        {"_id": 0, "pdfExtraction": 1, "pdfPreview": 1, "contentText": 1,
+         "fileName": 1, "pdfExtractionStatus": 1}
     )
     if not s:
         raise HTTPException(404, "Session not found")
     pdf_meta = s.get("pdfExtraction") or {}
+    status_info = s.get("pdfExtractionStatus") or {}
+
+    # Still processing in background — let the client poll
+    if not pdf_meta.get("tmpProjectId") and status_info.get("status") == "processing":
+        return {
+            "hasPdf": True,
+            "processing": True,
+            "fileName": s.get("fileName", ""),
+            "statusMessage": status_info.get("message", "Processando..."),
+            "progress": status_info.get("progress", 0),
+        }
+
     if not pdf_meta.get("tmpProjectId"):
         return {"hasPdf": False}
 

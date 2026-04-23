@@ -31,8 +31,42 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    let pollTimer = null;
+
+    const load = async () => {
       try {
+        // First check the extraction status
+        const sessRes = await fetch(`${apiBase}/api/agent/sessions/${sessionId}?light=1`, {
+          headers: authHeaders(),
+        });
+        const sessData = sessRes.ok ? await sessRes.json() : {};
+        const status = sessData?.pdfExtractionStatus?.status;
+
+        if (status === 'processing') {
+          if (!active) return;
+          setPreview({
+            hasPdf: true,
+            processing: true,
+            statusMessage: sessData.pdfExtractionStatus.message || 'Processando PDF...',
+            progress: sessData.pdfExtractionStatus.progress || 0,
+            fileName: sessData.fileName || '',
+          });
+          setImages([]);
+          // Keep polling every 3s while processing
+          pollTimer = setTimeout(load, 3000);
+          setLoading(false);
+          return;
+        }
+
+        if (status === 'error') {
+          if (active) {
+            toast.error(sessData.pdfExtractionStatus.message || 'Falha na extracao do PDF');
+            setPreview({ hasPdf: false });
+          }
+          return;
+        }
+
+        // Extraction done (or no PDF) — fetch the preview endpoint normally
         const res = await fetch(`${apiBase}/api/agent/sessions/${sessionId}/pdf-preview`, {
           headers: authHeaders(),
         });
@@ -46,8 +80,13 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
       } finally {
         if (active) setLoading(false);
       }
-    })();
-    return () => { active = false; };
+    };
+
+    load();
+    return () => {
+      active = false;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [sessionId, apiBase]);
 
   const toggleInclude = (idx) => {
@@ -128,6 +167,28 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
   }
 
   if (!preview?.hasPdf) return null;
+
+  if (preview.processing) {
+    return (
+      <div
+        data-testid="pdf-preview-processing"
+        className="rounded-xl border border-indigo-700/40 bg-slate-900/80 overflow-hidden"
+      >
+        <div className="flex items-center gap-3 px-4 py-4 bg-indigo-900/30">
+          <div className="w-6 h-6 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0" />
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-white">
+              Processando PDF... {preview.fileName && <span className="text-indigo-200/80 font-normal">({preview.fileName})</span>}
+            </h4>
+            <p className="text-xs text-indigo-200/80 mt-0.5">
+              {preview.statusMessage} — isso pode levar 1-5 minutos dependendo do tamanho do arquivo.
+              Esta tela vai atualizar automaticamente quando terminar.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const includedCount = images.filter(i => i.included).length;
 
