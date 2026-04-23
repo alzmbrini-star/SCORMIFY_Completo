@@ -633,7 +633,16 @@ async def repair_pdf_images(project_id: str, user: dict = Depends(require_auth))
     slides = project.get("course", {}).get("slides", [])
 
     # Remove any previous image elements pointing to pdf_p*_img*/pdf_p*_full.png
-    # to keep the operation idempotent.
+    # and any previous auto-generated gallery slides (flag _pdfGallery OR
+    # legacy slides titled "Ilustracoes da pagina ..." from older runs),
+    # so the operation is idempotent.
+    def _is_prev_gallery(s):
+        if s.get("_pdfGallery"):
+            return True
+        title = (s.get("title") or "").strip().lower()
+        return title.startswith("ilustracoes da pagina") or title.startswith("ilustrações da página")
+
+    slides = [s for s in slides if not _is_prev_gallery(s)]
     for slide in slides:
         slide["elements"] = [
             el for el in slide.get("elements", [])
@@ -642,7 +651,11 @@ async def repair_pdf_images(project_id: str, user: dict = Depends(require_auth))
                     and ("/pdf_p" in el["src"] or el["src"].endswith("_full.png")))
         ]
 
-    inserted = replace_img_markers_in_slides(slides, project_id, available, image_prefs=image_prefs)
+    inserted = replace_img_markers_in_slides(
+        slides, project_id, available,
+        image_prefs=image_prefs,
+        total_pdf_pages=pdf_meta.get("totalPages"),
+    )
 
     await db.projects.update_one(
         {"id": project_id},
@@ -1698,6 +1711,7 @@ async def agent_generate_course(session_id: str):
                         project.id,
                         available,
                         image_prefs=image_prefs,
+                        total_pdf_pages=pdf_meta.get("totalPages"),
                     )
                     logger.info(
                         f"PDF import post-processing: {inserted} image elements "

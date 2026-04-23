@@ -502,9 +502,14 @@ def _build_image_element(project_id: str, filename: str,
 
 
 def _is_content_slide(slide: dict) -> bool:
-    """Slides that accept an illustrative image (skip title/quiz/scenario/summary)."""
+    """Slides that accept an illustrative image (skip title/quiz/scenario/summary
+    and skip the gallery slides we create ourselves so they don't get reused)."""
     t = (slide.get("type") or "content").lower()
-    return t in ("content", "image", "html", "default", "")
+    if t not in ("content", "image", "html", "default", ""):
+        return False
+    if slide.get("_pdfGallery"):
+        return False
+    return True
 
 
 def _insert_image_on_slide(slide: dict, project_id: str, fname: str, caption: str,
@@ -548,18 +553,103 @@ def _insert_image_on_slide(slide: dict, project_id: str, fname: str, caption: st
         })
 
 
+def _page_num_from_filename(fname: str) -> Optional[int]:
+    """Extract page number from `pdf_pN_imgM.ext` or `pdf_pN_full.png`."""
+    m = re.match(r"pdf_p(\d+)_", fname)
+    return int(m.group(1)) if m else None
+
+
+def _make_gallery_slide(project_id: str, page_num: int, filenames: list,
+                        captions_map: dict, design_ref: Optional[dict] = None) -> dict:
+    """Build a new slide containing a grid of 2-4 PDF images from the same page.
+    Used when a page has more images than the anchor slide can hold, so the
+    sequence is preserved by inserting overflow slides.
+    """
+    try:
+        from models import generate_id
+        sid = generate_id()
+    except Exception:
+        import uuid as _uuid
+        sid = _uuid.uuid4().hex
+
+    count = len(filenames)
+    # Layout: 1 → full; 2 → side by side; 3-4 → 2×2 grid
+    elements: list = []
+    try:
+        from models import generate_id as _gid
+    except Exception:
+        import uuid as _uuid_mod
+        def _gid():
+            return _uuid_mod.uuid4().hex
+
+    # Title element
+    elements.append({
+        "id": _gid(),
+        "type": "text",
+        "x": 60, "y": 40, "width": 1800, "height": 60,
+        "content": f"<h2 style='color:#fff;font-size:30px;margin:0;font-weight:700'>Ilustracoes da pagina {page_num}</h2>",
+        "style": {}, "startTime": 0,
+    })
+
+    positions = {
+        1: [(160, 140, 1600, 800)],
+        2: [(100, 160, 850, 760), (970, 160, 850, 760)],
+        3: [(100, 140, 850, 420), (970, 140, 850, 420), (540, 580, 840, 360)],
+        4: [(100, 140, 850, 400), (970, 140, 850, 400),
+            (100, 560, 850, 400), (970, 560, 850, 400)],
+    }
+    layout = positions.get(min(count, 4), positions[4])[:count]
+
+    for (x, y, w, h), fname in zip(layout, filenames):
+        url = f"/api/projects/{project_id}/assets/{fname}"
+        elements.append({
+            "id": _gid(),
+            "type": "image",
+            "x": x, "y": y, "width": w, "height": h,
+            "src": url, "content": url,
+            "style": {"borderRadius": "12px", "objectFit": "contain"},
+            "startTime": 0,
+        })
+        cap = captions_map.get(fname, "").strip()
+        if cap:
+            elements.append({
+                "id": _gid(),
+                "type": "text",
+                "x": x, "y": y + h + 4, "width": w, "height": 32,
+                "content": f"<p style='font-size:12px;color:#cbd5e1;font-style:italic;margin:0;text-align:center'>{cap}</p>",
+                "style": {}, "startTime": 0,
+            })
+
+    bg = {}
+    if design_ref:
+        bg = design_ref.get("background") or {}
+    return {
+        "id": sid,
+        "type": "content",
+        "title": f"Ilustracoes da pagina {page_num}",
+        "elements": elements,
+        "background": bg,
+        "notes": f"Galeria automatica da pagina {page_num} do PDF original.",
+        "_pdfGallery": True,
+    }
+
+
 def replace_img_markers_in_slides(slides: list, project_id: str,
                                   available_filenames: set,
-                                  image_prefs: Optional[dict] = None) -> int:
-    """Place PDF-extracted images into slides. Strategy:
-      1. Primary: honor `[IMG:filename]` markers that survived the LLM.
-      2. Fallback: if the LLM stripped the markers (common when it rewrites
-         content in its own words), auto-distribute the available included
-         images across content slides in page order so the user still gets
-         the extracted visuals.
+                                  image_prefs: Optional[dict] = None,
+                                  total_pdf_pages: Optional[int] = None) -> int:
+    """Place PDF-extracted images into slides in the correct sequence.
 
-    `image_prefs` example:
-        {"pdf_p1_img1.png": {"included": True, "caption": "Diagrama"}, ...}
+    Strategy:
+      1. Primary: honor `[IMG:filename]` markers the LLM kept.
+      2. For each page, place its first 2 images on the mapped content slide
+         (next to the relevant text).
+      3. If a page has MORE images than fit on the mapped slide, insert extra
+         "Ilustracoes da pagina N" gallery slides RIGHT AFTER the anchor,
+         keeping 2-4 images per overflow slide. This preserves the PDF ->
+         course sequence even for image-dense manuals.
+      4. `total_pdf_pages` must be passed by the caller so the page -> slide
+         proportional mapping is accurate even when not every page has images.
     """
     image_prefs = image_prefs or {}
     total = 0
@@ -585,48 +675,96 @@ def replace_img_markers_in_slides(slides: list, project_id: str,
             placed_filenames.add(fname)
             total += 1
 
-    # ── Fallback path: auto-distribute remaining images ─────────────────
+    # ── Fallback path: sequential page-by-page placement ────────────────
     remaining = [
         f for f in available_filenames
         if f not in placed_filenames
         and image_prefs.get(f, {}).get("included", True)
     ]
-    # Stable order: pdf_p{page}_img{n}* sorts naturally
-    remaining.sort()
     if not remaining:
         return total
 
-    content_slides = [s for s in slides if _is_content_slide(s)]
-    if not content_slides:
+    # Group remaining images by source page
+    by_page: dict = {}
+    for fname in remaining:
+        p = _page_num_from_filename(fname) or 1
+        by_page.setdefault(p, []).append(fname)
+    for p in by_page:
+        by_page[p].sort()  # stable order within a page
+
+    content_slide_indices = [i for i, s in enumerate(slides) if _is_content_slide(s)]
+    if not content_slide_indices:
         logger.warning(
-            f"[pdf_extractor] {len(remaining)} extracted images could not be "
-            f"placed: no content slides available"
+            f"[pdf_extractor] {len(remaining)} images could not be placed: "
+            f"no content slides"
         )
         return total
 
-    # Distribute evenly: image_i -> content_slides[i * N / M]
-    N = len(content_slides)
-    M = len(remaining)
-    for i, fname in enumerate(remaining):
-        target_idx = min((i * N) // M, N - 1)
-        slide = content_slides[target_idx]
-        # How many images already on this slide?
-        current_imgs = sum(1 for el in slide.get("elements", []) if el.get("type") == "image")
-        slot_idx = 0 if current_imgs == 0 else 1
-        if current_imgs >= 2:
-            # Slide full; try next one
-            for shift in range(1, N):
-                alt = content_slides[(target_idx + shift) % N]
-                if sum(1 for el in alt.get("elements", []) if el.get("type") == "image") < 2:
-                    slide = alt
-                    slot_idx = 0 if sum(1 for el in alt.get("elements", []) if el.get("type") == "image") == 0 else 1
-                    break
-        caption = image_prefs.get(fname, {}).get("caption", "").strip()
-        _insert_image_on_slide(slide, project_id, fname, caption, slot_idx)
-        total += 1
+    N = len(content_slide_indices)
+    page_nums = [p for p in (_page_num_from_filename(f) for f in available_filenames) if p]
+    max_page = total_pdf_pages or (max(page_nums) if page_nums else 1)
+    max_page = max(max_page, 1)
+
+    captions_map = {
+        f: (image_prefs.get(f, {}).get("caption", "") or "")
+        for f in remaining
+    }
+
+    # Reference design (background) to keep gallery slides consistent
+    design_ref = slides[0] if slides else None
+
+    # Walk pages in order, inserting gallery slides as needed. We process in
+    # reverse order so inserting a gallery doesn't shift the anchor indices
+    # of pages we haven't processed yet.
+    sorted_pages = sorted(by_page.keys(), reverse=True)
+
+    for page in sorted_pages:
+        imgs = by_page[page]
+        slot = min(((page - 1) * N) // max_page, N - 1)
+        anchor_slide_idx = content_slide_indices[slot]
+        anchor_slide = slides[anchor_slide_idx]
+        current_imgs_on_anchor = sum(
+            1 for el in anchor_slide.get("elements", [])
+            if el.get("type") == "image"
+        )
+        capacity = max(0, 2 - current_imgs_on_anchor)
+
+        # Fill anchor with up to `capacity` images
+        first_batch = imgs[:capacity]
+        overflow = imgs[capacity:]
+
+        for idx, fname in enumerate(first_batch):
+            cap = captions_map.get(fname, "").strip()
+            _insert_image_on_slide(
+                anchor_slide, project_id, fname, cap,
+                slot_idx=current_imgs_on_anchor + idx,
+            )
+            total += 1
+
+        # For overflow images, create gallery slides right after the anchor
+        # (chunks of up to 4 images each).
+        if overflow:
+            chunk_size = 4
+            chunks = [overflow[i:i + chunk_size]
+                      for i in range(0, len(overflow), chunk_size)]
+            insert_at = anchor_slide_idx + 1
+            for chunk in chunks:
+                gallery = _make_gallery_slide(
+                    project_id, page, chunk, captions_map, design_ref=design_ref
+                )
+                slides.insert(insert_at, gallery)
+                total += len(chunk)
+                insert_at += 1
+
+            # Rebuild content_slide_indices after insertion so future pages
+            # (processed in reverse order so they are earlier in the list) map
+            # correctly. But because we process in reverse, inserting AFTER
+            # the current anchor does not affect earlier-page indices.
+            content_slide_indices = [i for i, s in enumerate(slides) if _is_content_slide(s)]
+            N = len(content_slide_indices)
 
     logger.info(
-        f"[pdf_extractor] auto-distributed {len(remaining)} images (LLM stripped markers) "
-        f"across {N} content slides"
+        f"[pdf_extractor] placed {total} images ({len(remaining)} via fallback) "
+        f"across {max_page} pdf pages"
     )
     return total
