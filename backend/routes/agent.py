@@ -396,37 +396,115 @@ async def agent_upload_chunk(
     if received < totalChunks:
         return {"status": "chunk_received", "received": received, "total": totalChunks}
 
-    # All chunks received — reassemble in order
+    # All chunks received — stream them directly into GridFS one by one,
+    # WITHOUT ever holding the full file in memory. This is critical on low-
+    # memory production pods where assembling a 30-100MB file in RAM
+    # (plus PyPDF2 parsing it) causes OOM → 520 errors.
+    import gc as _gc
+    parts = sorted(p for p in tmp_dir.iterdir() if p.name.startswith("chunk_"))
+    if not parts:
+        raise HTTPException(500, "Nenhum chunk encontrado para montar")
+
+    from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+    pdf_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="pdf_imports")
+
+    # Stream chunks straight into GridFS
     try:
-        parts = sorted(
-            p for p in tmp_dir.iterdir() if p.name.startswith("chunk_")
+        upload_stream = pdf_bucket.open_upload_stream(
+            filename=f"session_{session_id}.pdf",
+            metadata={"session_id": session_id, "file_name": fileName},
         )
-        assembled = b"".join(p.read_bytes() for p in parts)
+        first_part_bytes = b""  # keep only the first ~256KB for PyPDF2 text preview
+        PREVIEW_BYTES = 256 * 1024
+
+        for idx, chunk_path in enumerate(parts):
+            data = chunk_path.read_bytes()
+            await upload_stream.write(data)
+            # Keep a small preview for quick text extraction
+            if len(first_part_bytes) < PREVIEW_BYTES:
+                first_part_bytes += data[:PREVIEW_BYTES - len(first_part_bytes)]
+            # Delete the chunk file immediately after writing to free disk
+            try:
+                chunk_path.unlink()
+            except Exception:
+                pass
+            # Yield and collect every few chunks to keep memory low
+            if (idx + 1) % 3 == 0:
+                _gc.collect()
+                import asyncio as _aio
+                await _aio.sleep(0)
+
+        await upload_stream.close()
+        pdf_gridfs_id = upload_stream._id
     except Exception as e:
-        raise HTTPException(500, f"Erro ao montar arquivo: {e}")
-    finally:
-        # Cleanup tmp chunks
+        import traceback as _tb
+        logger.error(f"[upload-chunk] GridFS streaming failed: {e}\n{_tb.format_exc()}")
         try:
             import shutil as _sh
             _sh.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
             pass
+        raise HTTPException(500, f"Erro ao salvar PDF: {str(e)[:180]}")
 
-    # Forward to the standard upload pipeline as if it came in a single POST.
-    # Build a minimal fake UploadFile-like object using SpooledTemporaryFile.
-    import io as _io
-    class _FakeUpload:
-        def __init__(self, name: str, data: bytes):
-            self.filename = name
-            self.file = _io.BytesIO(data)
-            self._data = data
-        async def read(self):
-            return self._data
+    # Cleanup
+    try:
+        import shutil as _sh
+        _sh.rmtree(tmp_dir, ignore_errors=True)
+    except Exception:
+        pass
 
-    fake_file = _FakeUpload(fileName, assembled)
-    return await _agent_upload_content_impl(
-        session_id, None, fake_file, None, None, user
+    # Try a quick text preview from the first chunk (doesn't require the full
+    # PDF). If it fails, we leave content_text empty — Modo Fiel will render
+    # the pages regardless.
+    content_text = ""
+    if fileName.lower().endswith(".pdf") and first_part_bytes:
+        try:
+            from PyPDF2 import PdfReader
+            import io as _io
+            reader = PdfReader(_io.BytesIO(first_part_bytes), strict=False)
+            pages = []
+            # Only parse up to 10 pages for the preview (stays cheap)
+            for i, page in enumerate(reader.pages):
+                if i >= 10:
+                    break
+                try:
+                    t = page.extract_text()
+                    if t:
+                        pages.append(t)
+                except Exception:
+                    continue
+            content_text = "\n\n".join(pages)[:10000]
+        except Exception as e:
+            logger.info(f"[upload-chunk] PyPDF2 preview skipped (not critical): {e}")
+            content_text = ""
+
+    # Release the preview bytes so they don't linger in memory
+    first_part_bytes = None
+    _gc.collect()
+
+    # Update the session — mirrors the logic in _agent_upload_content_impl
+    set_doc = {
+        "contentText": content_text,
+        "fileName": fileName,
+        "rawFileGridFS": str(pdf_gridfs_id),
+        "pdfExtractionStatus": {
+            "status": "pdf_ready",
+            "message": "PDF recebido. Use Modo Fiel para gerar o curso.",
+            "progress": 0,
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+        },
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.agent_sessions.update_one(
+        {"id": session_id},
+        {"$set": set_doc},
     )
+    return {
+        "status": "ok",
+        "contentLength": len(content_text),
+        "fileName": fileName,
+        "pdfReady": True,
+    }
 
 
 @router.post("/agent/sessions/{session_id}/upload")
