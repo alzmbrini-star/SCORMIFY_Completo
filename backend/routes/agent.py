@@ -988,8 +988,25 @@ async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
-    if not s.get("contentText"):
-        raise HTTPException(400, "No content uploaded")
+
+    # PDF still being processed in background? Ask the client to wait.
+    status_info = s.get("pdfExtractionStatus") or {}
+    if status_info.get("status") == "processing":
+        raise HTTPException(
+            425,  # Too Early
+            "O PDF ainda esta sendo processado. Aguarde a extracao terminar antes de analisar."
+        )
+
+    if not (s.get("contentText") or "").strip():
+        # PDF extracted but no text? (likely a fully scanned PDF where PyPDF2
+        # found nothing and the background OCR is still running, or finished
+        # with no readable text.)
+        if status_info.get("status") in ("done", "error"):
+            raise HTTPException(
+                400,
+                "Nao foi possivel extrair texto do arquivo. Use 'Modo Fiel' para gerar slides a partir das imagens das paginas, ou envie um conteudo com texto."
+            )
+        raise HTTPException(400, "Nenhum conteudo recebido para analisar.")
 
     # If already analyzed, return cached result
     if s.get("step") == "analyzed" and s.get("analysis"):

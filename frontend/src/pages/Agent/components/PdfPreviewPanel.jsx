@@ -21,7 +21,7 @@ const authHeaders = (extra = {}) => {
  *   - apiBase: absolute API url (REACT_APP_BACKEND_URL)
  *   - onSaved(): optional callback when user clicks "Salvar preferencias"
  */
-export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
+export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusChange }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,6 +44,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
 
         if (status === 'processing') {
           if (!active) return;
+          if (onStatusChange) onStatusChange(true);
           setPreview({
             hasPdf: true,
             processing: true,
@@ -60,6 +61,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
 
         if (status === 'error') {
           if (active) {
+            if (onStatusChange) onStatusChange(false);
             toast.error(sessData.pdfExtractionStatus.message || 'Falha na extracao do PDF');
             setPreview({ hasPdf: false });
           }
@@ -67,6 +69,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved }) {
         }
 
         // Extraction done (or no PDF) — fetch the preview endpoint normally
+        if (onStatusChange) onStatusChange(false);
         const res = await fetch(`${apiBase}/api/agent/sessions/${sessionId}/pdf-preview`, {
           headers: authHeaders(),
         });

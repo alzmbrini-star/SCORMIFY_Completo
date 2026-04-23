@@ -385,7 +385,15 @@ export default function Agent() {
     addChatMsg('agent', 'Analisando o conteudo com IA...');
     try {
       const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST', headers: authHeaders() });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Parse backend error message if possible
+        let errMsg = `Erro ${res.status} na analise`;
+        try {
+          const errBody = await res.json();
+          if (errBody?.detail) errMsg = errBody.detail;
+        } catch { /* ignore */ }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
 
       // If already analyzed (cached), use directly
@@ -1371,17 +1379,28 @@ function UploadPanel({ contentText, setContentText, contentUrl, setContentUrl, f
 }
 
 function AnalyzePanel({ analysis, loading, onAnalyze, sessionId, apiBase }) {
+  const [pdfProcessing, setPdfProcessing] = useState(false);
   return (
     <div className="space-y-4" data-testid="analyze-panel">
       {sessionId && apiBase && (
-        <PdfPreviewPanel sessionId={sessionId} apiBase={apiBase} />
+        <PdfPreviewPanel
+          sessionId={sessionId}
+          apiBase={apiBase}
+          onStatusChange={setPdfProcessing}
+        />
       )}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2"><Brain className="w-5 h-5 text-emerald-400" /> Análise do Conteúdo</h2>
         {!analysis && (
-          <Button onClick={onAnalyze} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700" data-testid="analyze-btn">
+          <Button
+            onClick={onAnalyze}
+            disabled={loading || pdfProcessing}
+            title={pdfProcessing ? 'Aguarde a extracao do PDF terminar' : undefined}
+            className="bg-emerald-600 hover:bg-emerald-700"
+            data-testid="analyze-btn"
+          >
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
-            Analisar Conteúdo
+            {pdfProcessing ? 'Aguardando PDF...' : 'Analisar Conteúdo'}
           </Button>
         )}
       </div>
