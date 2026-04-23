@@ -22,6 +22,10 @@ from routes.auth import require_agent_access, require_auth, get_current_user
 
 logger = logging.getLogger("server")
 
+# Track background PDF extraction tasks per session so Modo Fiel can cancel
+# them and free the thread pool when the user decides to skip the slow path.
+_PDF_EXTRACTION_TASKS: dict = {}
+
 router = APIRouter(tags=["Agent"])
 
 
@@ -584,10 +588,13 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
         {"$set": set_doc}
     )
 
-    # Kick off background extraction for PDFs (doesn't block the response)
+    # Kick off background extraction for PDFs (doesn't block the response).
+    # We track the task per-session so Modo Fiel can cancel it later if the
+    # user decides to skip the slow extraction.
     if ext == "pdf" and file_bytes:
         import asyncio as _aio
-        _aio.create_task(_background_pdf_extraction(session_id, file_bytes))
+        task = _aio.create_task(_background_pdf_extraction(session_id, file_bytes))
+        _PDF_EXTRACTION_TASKS[session_id] = task
 
     return {
         "status": "ok",
@@ -973,6 +980,33 @@ async def agent_generate_faithful_course(
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
+
+    # Cancel the normal extraction task (if running) to free up the thread
+    # pool. The user chose Modo Fiel — the slow extraction is no longer needed.
+    _prev_task = _PDF_EXTRACTION_TASKS.pop(session_id, None)
+    if _prev_task and not _prev_task.done():
+        try:
+            _prev_task.cancel()
+            logger.info(f"[faithful] cancelled background extraction for {session_id}")
+        except Exception:
+            pass
+    # Mark the normal extraction as cancelled so the preview panel doesn't
+    # keep polling forever.
+    try:
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {
+                "pdfExtractionStatus": {
+                    "status": "cancelled",
+                    "message": "Extracao cancelada pelo usuario (usando Modo Fiel).",
+                    "progress": 0,
+                    "finishedAt": datetime.now(timezone.utc).isoformat(),
+                },
+            }}
+        )
+    except Exception:
+        pass
+
     gridfs_id = s.get("rawFileGridFS")
     if not gridfs_id:
         raise HTTPException(400, "PDF original nao disponivel nesta sessao. Reenvie o arquivo.")
@@ -989,46 +1023,12 @@ async def agent_generate_faithful_course(
 
     title = (body.get("title") or s.get("fileName", "Curso").rsplit(".", 1)[0]).strip()[:160]
 
-    # Build the project
+    # Background generation to avoid Cloudflare 100s timeout on large PDFs.
+    # Build the project stub immediately and return; the heavy rendering
+    # happens in a separate task. Frontend polls pdfFaithfulStatus to know
+    # when it's done and redirect to the editor.
     from models import Project
     project = Project(name=title, description=f"Curso fiel ao PDF: {s.get('fileName','')}")
-    project_dir = PROJECTS_DIR / project.id
-    (project_dir / "assets").mkdir(parents=True, exist_ok=True)
-
-    # Render pages (background images) + OCR
-    from services.pdf_extractor import (
-        extract_pdf_faithful, build_faithful_slides,
-    )
-    from services.asset_store import store_asset_async
-
-    async def _progress(pct, msg):
-        try:
-            await db.agent_sessions.update_one(
-                {"id": session_id},
-                {"$set": {"courseProgress": {
-                    "message": f"Renderizando paginas ({msg})",
-                    "progress": round(pct * 100),
-                }, "updatedAt": datetime.now(timezone.utc).isoformat()}}
-            )
-        except Exception:
-            pass
-
-    extraction = await extract_pdf_faithful(
-        pdf_bytes, project_dir / "assets", progress_cb=lambda p, m: None
-    )
-
-    # Persist each page image to MongoDB
-    for p in extraction["pages"]:
-        fpath = project_dir / "assets" / p["filename"]
-        if fpath.exists():
-            try:
-                await store_asset_async(db, project.id, p["filename"], str(fpath))
-            except Exception as e:
-                logger.warning(f"[faithful] persist {p['filename']} failed: {e}")
-
-    slides = build_faithful_slides(extraction["pages"], project.id)
-
-    # Build the project document
     project_dict = project.model_dump()
     project_dict["createdAt"] = project.createdAt.isoformat()
     project_dict["updatedAt"] = project.updatedAt.isoformat()
@@ -1036,32 +1036,150 @@ async def agent_generate_faithful_course(
     project_dict["course"]["updatedAt"] = project.course.updatedAt.isoformat()
     project_dict["course"]["metadata"]["title"] = title
     project_dict["course"]["metadata"]["description"] = project.description
-    project_dict["course"]["slides"] = slides
+    project_dict["course"]["slides"] = []  # filled in background
     project_dict["createdByAgent"] = True
     project_dict["agentSessionId"] = session_id
-    project_dict["status"] = "generated"
+    project_dict["status"] = "generating"
     project_dict["userId"] = s.get("userId")
     project_dict["companyId"] = s.get("companyId")
     project_dict["importMode"] = "faithful"
-
+    project_dict["faithfulStatus"] = {
+        "status": "processing",
+        "message": "Renderizando paginas...",
+        "progress": 0,
+        "startedAt": datetime.now(timezone.utc).isoformat(),
+    }
     await db.projects.insert_one(project_dict)
 
     await db.agent_sessions.update_one(
         {"id": session_id},
         {"$set": {
             "projectId": project.id,
-            "step": "generated",
-            "courseProgress": {"message": "Curso fiel criado com sucesso!", "progress": 100},
+            "faithfulProjectId": project.id,
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }}
     )
 
+    # Kick off background rendering (doesn't block the HTTP response)
+    import asyncio as _aio
+    _aio.create_task(_background_faithful_render(session_id, project.id, pdf_bytes))
+
     return {
-        "status": "ok",
+        "status": "processing",
         "projectId": project.id,
-        "totalPages": extraction["total_pages"],
-        "slidesCreated": len(slides),
+        "message": "O curso fiel esta sendo gerado em segundo plano.",
     }
+
+
+async def _background_faithful_render(session_id: str, project_id: str, pdf_bytes: bytes):
+    """Render the PDF into faithful slides in the background."""
+    try:
+        from services.pdf_extractor import (
+            extract_pdf_faithful, build_faithful_slides,
+        )
+        from services.asset_store import store_asset_async
+
+        project_dir = PROJECTS_DIR / project_id
+        (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+
+        import time as _time
+        last_update = {"t": 0.0}
+
+        def _progress(pct, msg):
+            now = _time.monotonic()
+            if now - last_update["t"] < 1.0 and pct < 0.999:
+                return
+            last_update["t"] = now
+            try:
+                asyncio.create_task(db.projects.update_one(
+                    {"id": project_id},
+                    {"$set": {
+                        "faithfulStatus.progress": int(pct * 90),
+                        "faithfulStatus.message": f"Renderizando {msg}...",
+                        "updatedAt": datetime.now(timezone.utc).isoformat(),
+                    }}
+                ))
+            except Exception:
+                pass
+
+        extraction = await extract_pdf_faithful(
+            pdf_bytes, project_dir / "assets", progress_cb=_progress
+        )
+
+        # Persist pages to MongoDB (90-99%)
+        total = len(extraction["pages"])
+        for i, p in enumerate(extraction["pages"]):
+            fpath = project_dir / "assets" / p["filename"]
+            if fpath.exists():
+                try:
+                    await store_asset_async(db, project_id, p["filename"], str(fpath))
+                except Exception as e:
+                    logger.warning(f"[bg-faithful] persist {p['filename']} failed: {e}")
+            if total > 0 and (i + 1) % 5 == 0:
+                try:
+                    await db.projects.update_one(
+                        {"id": project_id},
+                        {"$set": {
+                            "faithfulStatus.progress": 90 + int(9 * (i + 1) / total),
+                            "faithfulStatus.message": f"Salvando imagens ({i+1}/{total})...",
+                        }}
+                    )
+                except Exception:
+                    pass
+
+        slides = build_faithful_slides(extraction["pages"], project_id)
+
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {
+                "course.slides": slides,
+                "status": "generated",
+                "faithfulStatus": {
+                    "status": "done",
+                    "message": f"Curso fiel criado: {len(slides)} slides.",
+                    "progress": 100,
+                    "finishedAt": datetime.now(timezone.utc).isoformat(),
+                },
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {
+                "step": "generated",
+                "courseProgress": {"message": "Curso fiel criado com sucesso!", "progress": 100},
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        logger.info(f"[bg-faithful] project {project_id} done: {len(slides)} slides")
+    except Exception as e:
+        import traceback as _tb
+        logger.error(f"[bg-faithful] project={project_id} failed: {e}\n{_tb.format_exc()}")
+        try:
+            await db.projects.update_one(
+                {"id": project_id},
+                {"$set": {
+                    "status": "error",
+                    "faithfulStatus": {
+                        "status": "error",
+                        "message": f"Falha: {str(e)[:180]}",
+                        "progress": 0,
+                        "finishedAt": datetime.now(timezone.utc).isoformat(),
+                    },
+                }}
+            )
+        except Exception:
+            pass
+
+
+@router.get("/projects/{project_id}/faithful-status")
+async def get_faithful_status(project_id: str, user: dict = Depends(require_auth)):
+    """Poll endpoint for Modo Fiel background rendering progress."""
+    p = await db.projects.find_one({"id": project_id}, {"_id": 0, "faithfulStatus": 1, "status": 1})
+    if not p:
+        raise HTTPException(404, "Project not found")
+    return p.get("faithfulStatus") or {"status": "done", "progress": 100, "message": ""}
 
 
 @router.post("/agent/sessions/{session_id}/analyze")

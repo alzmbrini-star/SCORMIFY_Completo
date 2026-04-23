@@ -881,7 +881,6 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
     pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
-    tesseract_ok = _tesseract_available()
     total_pages = pdf.page_count
     logger.info(
         f"[pdf_extractor/faithful] rendering {total_pages} pages at "
@@ -889,7 +888,6 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
     )
 
     pages_out: list = []
-    sem = asyncio.Semaphore(OCR_CONCURRENCY)
 
     async def _render_page(i: int) -> dict:
         page = pdf.load_page(i)
@@ -897,40 +895,37 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
         filename = f"pdf_page_{page_num}.jpg"
         target = assets_dir / filename
 
-        # Render at high DPI for crisp detail, then fit to slide aspect 1920x820.
-        # We render at the page's natural size then scale/pad to fit.
-        mat = fitz.Matrix(FAITHFUL_DPI / 72, FAITHFUL_DPI / 72)
-        pix = page.get_pixmap(matrix=mat, alpha=False)
-        # Use PIL to fit into target aspect with white background (page margin)
-        try:
-            from PIL import Image
-            import io as _io
-            src_img = Image.open(_io.BytesIO(pix.tobytes("png"))).convert("RGB")
-            # Fit-inside: keep aspect ratio, pad with white
-            src_w, src_h = src_img.size
-            target_ratio = SLIDE_WIDTH / SLIDE_HEIGHT
-            src_ratio = src_w / src_h
-            if src_ratio > target_ratio:
-                # Source wider -> fit width
-                new_w = SLIDE_WIDTH
-                new_h = int(SLIDE_WIDTH / src_ratio)
-            else:
-                new_h = SLIDE_HEIGHT
-                new_w = int(SLIDE_HEIGHT * src_ratio)
-            resized = src_img.resize((new_w, new_h), Image.LANCZOS)
-            canvas = Image.new("RGB", (SLIDE_WIDTH, SLIDE_HEIGHT), "white")
-            canvas.paste(resized, ((SLIDE_WIDTH - new_w) // 2, (SLIDE_HEIGHT - new_h) // 2))
-            canvas.save(target, "JPEG", quality=90, optimize=True)
-        except Exception as e:
-            logger.warning(f"[faithful] PIL fit failed on page {page_num}: {e}; using raw pixmap")
-            pix.save(str(target))
+        # Heavy work (render + PIL fit + save) runs in the dedicated PDF
+        # executor so the event loop stays responsive.
+        def _do_render():
+            mat = fitz.Matrix(FAITHFUL_DPI / 72, FAITHFUL_DPI / 72)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            try:
+                from PIL import Image
+                import io as _io
+                src_img = Image.open(_io.BytesIO(pix.tobytes("png"))).convert("RGB")
+                src_w, src_h = src_img.size
+                target_ratio = SLIDE_WIDTH / SLIDE_HEIGHT
+                src_ratio = src_w / src_h
+                if src_ratio > target_ratio:
+                    new_w = SLIDE_WIDTH
+                    new_h = int(SLIDE_WIDTH / src_ratio)
+                else:
+                    new_h = SLIDE_HEIGHT
+                    new_w = int(SLIDE_HEIGHT * src_ratio)
+                resized = src_img.resize((new_w, new_h), Image.LANCZOS)
+                canvas = Image.new("RGB", (SLIDE_WIDTH, SLIDE_HEIGHT), "white")
+                canvas.paste(resized, ((SLIDE_WIDTH - new_w) // 2, (SLIDE_HEIGHT - new_h) // 2))
+                canvas.save(target, "JPEG", quality=90, optimize=True)
+            except Exception as e:
+                logger.warning(f"[faithful] PIL fit failed on page {page_num}: {e}; using raw pixmap")
+                pix.save(str(target))
+            return _extract_text_with_layout(page)
 
-        # Text (native extraction first, OCR fallback on blank pages)
-        text = _extract_text_with_layout(page)
-        if len(text.strip()) < MIN_NATIVE_TEXT_CHARS:
-            async with sem:
-                text = await _ocr_page(target, tesseract_ok)
+        text = await _run_blocking(_do_render)
 
+        # Skip OCR entirely in Modo Fiel — the page image already preserves
+        # all visual content. Native-text extraction is enough for notes.
         if progress_cb:
             try:
                 progress_cb((i + 1) / total_pages, f"pagina {page_num}/{total_pages}")
@@ -939,16 +934,18 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
 
         return {"page_num": page_num, "filename": filename, "text": text.strip()}
 
-    # Process pages in batches to keep memory bounded.
-    batch_size = 4
-    for start in range(0, total_pages, batch_size):
-        batch = [_render_page(i) for i in range(start, min(start + batch_size, total_pages))]
-        results = await asyncio.gather(*batch, return_exceptions=True)
-        for r in results:
-            if isinstance(r, dict):
-                pages_out.append(r)
-            else:
-                logger.error(f"[pdf_extractor/faithful] page error: {r}")
+    # Serial processing with explicit yields so the event loop never freezes.
+    for i in range(total_pages):
+        try:
+            result = await asyncio.wait_for(_render_page(i), timeout=30.0)
+            pages_out.append(result)
+        except asyncio.TimeoutError:
+            logger.warning(f"[faithful] page {i+1} render timed out; skipping")
+            pages_out.append({"page_num": i + 1, "filename": f"pdf_page_{i+1}.jpg", "text": ""})
+        except Exception as r:
+            logger.error(f"[faithful] page error: {r}")
+            pages_out.append({"page_num": i + 1, "filename": f"pdf_page_{i+1}.jpg", "text": ""})
+        await asyncio.sleep(0)
 
     pages_out.sort(key=lambda p: p["page_num"])
     pdf.close()

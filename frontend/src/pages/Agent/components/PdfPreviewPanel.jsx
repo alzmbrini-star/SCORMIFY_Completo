@@ -34,6 +34,12 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
     let pollTimer = null;
 
     const load = async () => {
+      // If Modo Fiel is running, its own polling loop drives the UI state.
+      // Don't let the normal extraction poll overwrite it.
+      if (faithfulLoading) {
+        pollTimer = setTimeout(load, 2000);
+        return;
+      }
       try {
         // First check the extraction status
         const sessRes = await fetch(`${apiBase}/api/agent/sessions/${sessionId}?light=1`, {
@@ -146,12 +152,14 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
   };
 
   const handleGenerateFaithful = async () => {
+    if (faithfulLoading) return;
     if (!window.confirm(
       'Modo Fiel: cada pagina do PDF vira um slide identico ao original (layout, cores, imagens, logos preservados).\n\n' +
-      'Esta opcao pula a IA completamente — o curso nao tera textos reescritos nem slides extras, apenas as paginas como foram feitas.\n\n' +
-      'Deseja prosseguir? Isto pode levar 1-5 minutos dependendo do tamanho do PDF.'
+      'Esta opcao pula a IA completamente — o curso nao tera textos reescritos nem slides extras.\n\n' +
+      'Deseja prosseguir?'
     )) return;
     setFaithfulLoading(true);
+    if (onStatusChange) onStatusChange(true);
     try {
       const res = await fetch(`${apiBase}/api/agent/sessions/${sessionId}/generate-faithful-course`, {
         method: 'POST',
@@ -160,15 +168,58 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erro ao gerar em Modo Fiel');
+        throw new Error(err.detail || `Erro ${res.status}`);
       }
       const data = await res.json();
-      toast.success(`Curso criado em Modo Fiel: ${data.slidesCreated} slides (${data.totalPages} paginas)`);
-      setTimeout(() => navigate(`/editor/${data.projectId}`), 800);
+      const projectId = data.projectId;
+      if (!projectId) throw new Error('Resposta invalida do servidor');
+
+      // Switch panel to "faithful processing" mode with its own progress
+      setPreview(prev => ({
+        ...(prev || {}),
+        hasPdf: true,
+        processing: true,
+        faithfulMode: true,
+        fileName: prev?.fileName || '',
+        statusMessage: 'Renderizando paginas do PDF...',
+        progress: 0,
+      }));
+
+      // Poll faithful status until done
+      for (let i = 0; i < 600; i++) {  // 600 * 2s = 20 min max
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const sr = await fetch(`${apiBase}/api/projects/${projectId}/faithful-status`, {
+            headers: authHeaders(),
+          });
+          if (!sr.ok) continue;
+          const s = await sr.json();
+          setPreview(prev => ({
+            ...(prev || {}),
+            hasPdf: true,
+            processing: s.status === 'processing',
+            faithfulMode: true,
+            statusMessage: s.message || 'Renderizando...',
+            progress: s.progress || 0,
+          }));
+          if (s.status === 'done') {
+            toast.success('Curso fiel criado! Abrindo o editor...');
+            setTimeout(() => navigate(`/editor/${projectId}`), 500);
+            return;
+          }
+          if (s.status === 'error') {
+            throw new Error(s.message || 'Falha ao gerar em Modo Fiel');
+          }
+        } catch (pollErr) {
+          // Ignore transient poll errors (network/Cloudflare); keep polling
+          console.warn('faithful poll retry:', pollErr);
+        }
+      }
+      throw new Error('Tempo esgotado aguardando geracao do curso fiel');
     } catch (e) {
       toast.error(e.message || 'Falha ao gerar em Modo Fiel');
-    } finally {
       setFaithfulLoading(false);
+      if (onStatusChange) onStatusChange(false);
     }
   };
 
@@ -225,6 +276,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
 
   if (preview.processing) {
     const pct = Math.max(0, Math.min(100, preview.progress || 0));
+    const isFaithful = preview.faithfulMode;
     return (
       <div
         data-testid="pdf-preview-processing"
@@ -234,7 +286,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
           <div className="w-6 h-6 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-semibold text-white truncate">
-              Processando PDF... {preview.fileName && <span className="text-indigo-200/80 font-normal">({preview.fileName})</span>}
+              {isFaithful ? 'Gerando Modo Fiel' : 'Processando PDF'}... {preview.fileName && <span className="text-indigo-200/80 font-normal">({preview.fileName})</span>}
             </h4>
             <p className="text-xs text-indigo-200/80 mt-0.5">
               {preview.statusMessage}
@@ -257,31 +309,35 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
             />
           </div>
           <p className="text-[11px] text-indigo-200/60 mt-2">
-            Esta tela atualiza automaticamente. Voce pode deixar essa aba aberta — vamos liberar o botao &quot;Analisar&quot; assim que terminar.
+            {isFaithful
+              ? 'Cada pagina esta sendo renderizada como slide. Voce sera redirecionado ao editor automaticamente.'
+              : 'Esta tela atualiza automaticamente. Voce pode deixar essa aba aberta — vamos liberar o botao "Analisar" assim que terminar.'}
           </p>
         </div>
 
-        {/* Faithful mode escape hatch: available even while processing,
-            because it uses the PDF stored in GridFS (already saved on upload). */}
-        <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80 border-t border-indigo-700/30 gap-3">
-          <div className="flex items-start gap-2 min-w-0 flex-1">
-            <Copy className="w-4 h-4 text-indigo-300 mt-0.5 shrink-0" />
-            <p className="text-xs text-indigo-200/80">
-              Esta demorando? Voce pode pular a extracao e gerar o curso
-              com <b>Modo Fiel</b> (cada pagina = 1 slide identico ao PDF).
-            </p>
+        {/* Show the escape-hatch Modo Fiel button ONLY when the normal
+            extraction is running (not when Modo Fiel itself is processing) */}
+        {!isFaithful && (
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80 border-t border-indigo-700/30 gap-3">
+            <div className="flex items-start gap-2 min-w-0 flex-1">
+              <Copy className="w-4 h-4 text-indigo-300 mt-0.5 shrink-0" />
+              <p className="text-xs text-indigo-200/80">
+                Esta demorando? Voce pode pular a extracao e gerar o curso
+                com <b>Modo Fiel</b> (cada pagina = 1 slide identico ao PDF).
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleGenerateFaithful}
+              disabled={faithfulLoading}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
+              data-testid="pdf-faithful-mode-btn-while-processing"
+            >
+              <Sparkles className="w-4 h-4 mr-1" />
+              {faithfulLoading ? 'Gerando...' : 'Gerar em Modo Fiel'}
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={handleGenerateFaithful}
-            disabled={faithfulLoading}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
-            data-testid="pdf-faithful-mode-btn-while-processing"
-          >
-            <Sparkles className="w-4 h-4 mr-1" />
-            {faithfulLoading ? 'Gerando...' : 'Gerar em Modo Fiel'}
-          </Button>
-        </div>
+        )}
       </div>
     );
   }
