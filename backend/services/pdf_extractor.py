@@ -501,87 +501,132 @@ def _build_image_element(project_id: str, filename: str,
     }
 
 
+def _is_content_slide(slide: dict) -> bool:
+    """Slides that accept an illustrative image (skip title/quiz/scenario/summary)."""
+    t = (slide.get("type") or "content").lower()
+    return t in ("content", "image", "html", "default", "")
+
+
+def _insert_image_on_slide(slide: dict, project_id: str, fname: str, caption: str,
+                           slot_idx: int = 0) -> None:
+    """Insert an extracted image + optional caption into a slide."""
+    existing_srcs = {
+        (el.get("src") or "") for el in slide.get("elements", [])
+        if el.get("type") == "image"
+    }
+    url = f"/api/projects/{project_id}/assets/{fname}"
+    if url in existing_srcs:
+        return
+    if slot_idx == 0:
+        img_el = _build_image_element(project_id, fname,
+                                      x=1160, y=90, width=700, height=440)
+        # Rebalance text columns if needed
+        for el in slide.get("elements", []):
+            if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                el["width"] = 1050
+                el["x"] = 60
+    else:
+        img_el = _build_image_element(project_id, fname,
+                                      x=1160, y=560, width=700, height=300)
+    slide.setdefault("elements", []).append(img_el)
+
+    if caption:
+        try:
+            from models import generate_id
+            cap_id = generate_id()
+        except Exception:
+            import uuid as _uuid
+            cap_id = _uuid.uuid4().hex
+        slide["elements"].append({
+            "id": cap_id,
+            "type": "text",
+            "x": img_el["x"], "y": img_el["y"] + img_el["height"] + 8,
+            "width": img_el["width"], "height": 40,
+            "content": f"<p style='font-size:12px;color:#cbd5e1;font-style:italic;margin:0;text-align:center'>{caption}</p>",
+            "style": {},
+            "startTime": 0,
+        })
+
+
 def replace_img_markers_in_slides(slides: list, project_id: str,
                                   available_filenames: set,
                                   image_prefs: Optional[dict] = None) -> int:
-    """Walk generated slides and:
-      - Remove `[IMG:filename]` markers from text/html fields.
-      - For each unique marker, add a corresponding image element if the
-        filename exists in the PDF extraction asset set AND the user did not
-        exclude it (`image_prefs[filename].included`).
-      - If the user supplied a caption (`image_prefs[filename].caption`), add a
-        small caption block under the image.
-    Returns total image elements inserted.
+    """Place PDF-extracted images into slides. Strategy:
+      1. Primary: honor `[IMG:filename]` markers that survived the LLM.
+      2. Fallback: if the LLM stripped the markers (common when it rewrites
+         content in its own words), auto-distribute the available included
+         images across content slides in page order so the user still gets
+         the extracted visuals.
+
+    `image_prefs` example:
+        {"pdf_p1_img1.png": {"included": True, "caption": "Diagrama"}, ...}
     """
     image_prefs = image_prefs or {}
     total = 0
+    placed_filenames: set = set()
+
+    # ── Primary path: markers left by the LLM ───────────────────────────
     for slide in slides:
         used_here: set = set()
-        # Scan each text-bearing element
         for el in slide.get("elements", []):
             for field_name in ("content", "htmlContent", "text"):
                 val = el.get(field_name)
                 if not isinstance(val, str) or "[IMG:" not in val:
                     continue
-                matches = IMG_MARKER_RE.findall(val)
-                for fname in matches:
-                    if fname not in available_filenames:
-                        continue
-                    # Skip if user excluded it
-                    if not image_prefs.get(fname, {}).get("included", True):
-                        continue
-                    used_here.add(fname)
-                # Strip markers from the text field so they don't show up to users
+                for fname in IMG_MARKER_RE.findall(val):
+                    if (fname in available_filenames
+                            and image_prefs.get(fname, {}).get("included", True)):
+                        used_here.add(fname)
                 el[field_name] = IMG_MARKER_RE.sub("", val).strip()
 
-        if not used_here:
-            continue
-
-        # Avoid duplicating: if the slide already has an image element pointing
-        # to one of these filenames, skip that filename.
-        existing_srcs = {
-            (el.get("src") or "") for el in slide.get("elements", [])
-            if el.get("type") == "image"
-        }
-
-        # Place up to 2 extracted images per slide (first as main image, second smaller).
-        placement_idx = 0
-        for fname in list(used_here)[:2]:
-            url = f"/api/projects/{project_id}/assets/{fname}"
-            if url in existing_srcs:
-                continue
+        for slot_idx, fname in enumerate(list(used_here)[:2]):
             caption = image_prefs.get(fname, {}).get("caption", "").strip()
-            if placement_idx == 0:
-                img_el = _build_image_element(project_id, fname,
-                                              x=1160, y=90, width=700, height=440)
-                # Rebalance text columns if needed
-                for el in slide.get("elements", []):
-                    if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
-                        el["width"] = 1050
-                        el["x"] = 60
-            else:
-                img_el = _build_image_element(project_id, fname,
-                                              x=1160, y=560, width=700, height=300)
-            slide.setdefault("elements", []).append(img_el)
-            placement_idx += 1
+            _insert_image_on_slide(slide, project_id, fname, caption, slot_idx)
+            placed_filenames.add(fname)
             total += 1
 
-            # Add user caption as a small text element below the image
-            if caption:
-                try:
-                    from models import generate_id
-                    cap_id = generate_id()
-                except Exception:
-                    import uuid as _uuid
-                    cap_id = _uuid.uuid4().hex
-                cap_x = img_el["x"]
-                cap_y = img_el["y"] + img_el["height"] + 8
-                slide.setdefault("elements", []).append({
-                    "id": cap_id,
-                    "type": "text",
-                    "x": cap_x, "y": cap_y, "width": img_el["width"], "height": 40,
-                    "content": f"<p style='font-size:12px;color:#cbd5e1;font-style:italic;margin:0;text-align:center'>{caption}</p>",
-                    "style": {},
-                    "startTime": 0,
-                })
+    # ── Fallback path: auto-distribute remaining images ─────────────────
+    remaining = [
+        f for f in available_filenames
+        if f not in placed_filenames
+        and image_prefs.get(f, {}).get("included", True)
+    ]
+    # Stable order: pdf_p{page}_img{n}* sorts naturally
+    remaining.sort()
+    if not remaining:
+        return total
+
+    content_slides = [s for s in slides if _is_content_slide(s)]
+    if not content_slides:
+        logger.warning(
+            f"[pdf_extractor] {len(remaining)} extracted images could not be "
+            f"placed: no content slides available"
+        )
+        return total
+
+    # Distribute evenly: image_i -> content_slides[i * N / M]
+    N = len(content_slides)
+    M = len(remaining)
+    for i, fname in enumerate(remaining):
+        target_idx = min((i * N) // M, N - 1)
+        slide = content_slides[target_idx]
+        # How many images already on this slide?
+        current_imgs = sum(1 for el in slide.get("elements", []) if el.get("type") == "image")
+        slot_idx = 0 if current_imgs == 0 else 1
+        if current_imgs >= 2:
+            # Slide full; try next one
+            for shift in range(1, N):
+                alt = content_slides[(target_idx + shift) % N]
+                if sum(1 for el in alt.get("elements", []) if el.get("type") == "image") < 2:
+                    slide = alt
+                    slot_idx = 0 if sum(1 for el in alt.get("elements", []) if el.get("type") == "image") == 0 else 1
+                    break
+        caption = image_prefs.get(fname, {}).get("caption", "").strip()
+        _insert_image_on_slide(slide, project_id, fname, caption, slot_idx)
+        total += 1
+
+    logger.info(
+        f"[pdf_extractor] auto-distributed {len(remaining)} images (LLM stripped markers) "
+        f"across {N} content slides"
+    )
     return total
