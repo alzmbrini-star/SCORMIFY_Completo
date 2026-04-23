@@ -902,37 +902,36 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
         filename = f"pdf_page_{page_num}.jpg"
         target = assets_dir / filename
 
-        # Heavy work (render + PIL fit + save) runs in the dedicated PDF
-        # executor so the event loop stays responsive.
+        # Memory-efficient render: use fitz.Matrix to scale directly to final
+        # size in a single pass (no PIL intermediate canvas), and release the
+        # pixmap explicitly so the MuPDF C memory is freed before the next
+        # page. This is essential on low-memory production pods.
         def _do_render():
-            mat = fitz.Matrix(FAITHFUL_DPI / 72, FAITHFUL_DPI / 72)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
+            # Compute scale so the page FITS inside SLIDE_WIDTH x SLIDE_HEIGHT
+            page_rect = page.rect
+            src_w = page_rect.width
+            src_h = page_rect.height
+            scale_w = SLIDE_WIDTH / src_w
+            scale_h = SLIDE_HEIGHT / src_h
+            scale = min(scale_w, scale_h)
+            matrix = fitz.Matrix(scale, scale)
+            pix = None
             try:
-                from PIL import Image
-                import io as _io
-                src_img = Image.open(_io.BytesIO(pix.tobytes("png"))).convert("RGB")
-                src_w, src_h = src_img.size
-                target_ratio = SLIDE_WIDTH / SLIDE_HEIGHT
-                src_ratio = src_w / src_h
-                if src_ratio > target_ratio:
-                    new_w = SLIDE_WIDTH
-                    new_h = int(SLIDE_WIDTH / src_ratio)
-                else:
-                    new_h = SLIDE_HEIGHT
-                    new_w = int(SLIDE_HEIGHT * src_ratio)
-                resized = src_img.resize((new_w, new_h), Image.LANCZOS)
-                canvas = Image.new("RGB", (SLIDE_WIDTH, SLIDE_HEIGHT), "white")
-                canvas.paste(resized, ((SLIDE_WIDTH - new_w) // 2, (SLIDE_HEIGHT - new_h) // 2))
-                canvas.save(target, "JPEG", quality=FAITHFUL_JPEG_QUALITY, optimize=True)
-            except Exception as e:
-                logger.warning(f"[faithful] PIL fit failed on page {page_num}: {e}; using raw pixmap")
-                pix.save(str(target))
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
+                # Save directly as JPEG via pixmap (no PIL needed).
+                pix.save(str(target), jpg_quality=FAITHFUL_JPEG_QUALITY)
+            finally:
+                # Explicit release of MuPDF memory before the next page.
+                if pix is not None:
+                    try:
+                        pix = None
+                    except Exception:
+                        pass
+            # Extract text AFTER pixmap is released to reduce peak memory.
             return _extract_text_with_layout(page)
 
         text = await _run_blocking(_do_render)
 
-        # Skip OCR entirely in Modo Fiel — the page image already preserves
-        # all visual content. Native-text extraction is enough for notes.
         if progress_cb:
             try:
                 progress_cb((i + 1) / total_pages, f"pagina {page_num}/{total_pages}")
@@ -941,7 +940,11 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
 
         return {"page_num": page_num, "filename": filename, "text": text.strip()}
 
-    # Serial processing with explicit yields so the event loop never freezes.
+    # Serial processing with batching + explicit GC between batches. Running
+    # gc.collect() periodically reclaims MuPDF/Python memory and prevents OOM
+    # on low-memory production pods (~512Mi RAM).
+    import gc as _gc
+    BATCH_SIZE = 3
     for i in range(total_pages):
         try:
             result = await asyncio.wait_for(_render_page(i), timeout=30.0)
@@ -952,11 +955,13 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
         except Exception as r:
             logger.error(f"[faithful] page error: {r}")
             pages_out.append({"page_num": i + 1, "filename": f"pdf_page_{i+1}.jpg", "text": ""})
-        # Cooldown between pages so the OS scheduler can give CPU time to the
-        # main uvicorn event loop (which serves /faithful-status polling).
-        # On production pods with 250m CPU this is essential — without it the
-        # extraction thread hogs the CPU and polling returns 520.
-        await asyncio.sleep(FAITHFUL_PAGE_COOLDOWN)
+
+        # After each batch: give CPU back to uvicorn event loop AND free memory
+        if (i + 1) % BATCH_SIZE == 0:
+            _gc.collect()
+            await asyncio.sleep(1.0)
+        else:
+            await asyncio.sleep(FAITHFUL_PAGE_COOLDOWN)
 
     pages_out.sort(key=lambda p: p["page_num"])
     pdf.close()

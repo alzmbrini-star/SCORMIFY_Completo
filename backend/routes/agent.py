@@ -1137,7 +1137,9 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
             pdf_bytes, project_dir / "assets", progress_cb=_progress
         )
 
-        # Persist pages to MongoDB (90-99%)
+        # Persist pages to MongoDB INCREMENTALLY so a crash mid-way doesn't
+        # lose all progress (the pod can be restarted and re-render missing
+        # pages). (90-99% range)
         total = len(extraction["pages"])
         for i, p in enumerate(extraction["pages"]):
             fpath = project_dir / "assets" / p["filename"]
