@@ -544,7 +544,7 @@ def _insert_image_on_slide(slide: dict, project_id: str, fname: str, caption: st
             cap_id = _uuid.uuid4().hex
         slide["elements"].append({
             "id": cap_id,
-            "type": "text",
+            "type": "html",
             "x": img_el["x"], "y": img_el["y"] + img_el["height"] + 8,
             "width": img_el["width"], "height": 40,
             "content": f"<p style='font-size:12px;color:#cbd5e1;font-style:italic;margin:0;text-align:center'>{caption}</p>",
@@ -585,7 +585,7 @@ def _make_gallery_slide(project_id: str, page_num: int, filenames: list,
     # Title element
     elements.append({
         "id": _gid(),
-        "type": "text",
+        "type": "html",
         "x": 60, "y": 40, "width": 1800, "height": 60,
         "content": f"<h2 style='color:#fff;font-size:30px;margin:0;font-weight:700'>Ilustracoes da pagina {page_num}</h2>",
         "style": {}, "startTime": 0,
@@ -614,7 +614,7 @@ def _make_gallery_slide(project_id: str, page_num: int, filenames: list,
         if cap:
             elements.append({
                 "id": _gid(),
-                "type": "text",
+                "type": "html",
                 "x": x, "y": y + h + 4, "width": w, "height": 32,
                 "content": f"<p style='font-size:12px;color:#cbd5e1;font-style:italic;margin:0;text-align:center'>{cap}</p>",
                 "style": {}, "startTime": 0,

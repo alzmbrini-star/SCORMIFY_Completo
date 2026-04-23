@@ -115,6 +115,7 @@ import {
   Trophy,
   Wrench,
   Wand2,
+  FileImage,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -551,6 +552,34 @@ export default function Editor() {
       toast.error('Erro ao conectar com o servidor');
     } finally {
       setFixingSimulators(false);
+    }
+  };
+
+  const [repairingPdfImages, setRepairingPdfImages] = useState(false);
+  const handleRepairPdfImages = async () => {
+    if (!currentProject?.id) return;
+    setRepairingPdfImages(true);
+    try {
+      const res = await fetch(`${API_URL}/api/projects/${currentProject.id}/repair-pdf-images`, {
+        method: 'POST',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.detail || 'Erro ao recuperar imagens do PDF');
+        return;
+      }
+      if (data.status === 'noop') {
+        toast.info(data.message || 'Este curso nao foi criado a partir de PDF com imagens.');
+        return;
+      }
+      toast.success(`${data.imagesInserted} imagens recuperadas do PDF (${data.excluded} excluidas pelo usuario)`);
+      window.location.reload();
+    } catch (err) {
+      toast.error('Erro ao conectar com o servidor');
+    } finally {
+      setRepairingPdfImages(false);
     }
   };
 
@@ -1060,6 +1089,18 @@ export default function Editor() {
                     <RefreshCw className="w-4 h-4 mr-2" />
                   )}
                   {fixingSimulators ? 'Corrigindo...' : 'Corrigir Simuladores'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleRepairPdfImages}
+                  disabled={repairingPdfImages}
+                  data-testid="repair-pdf-images-btn"
+                >
+                  {repairingPdfImages ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileImage className="w-4 h-4 mr-2" />
+                  )}
+                  {repairingPdfImages ? 'Recuperando...' : 'Recuperar Imagens do PDF'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
