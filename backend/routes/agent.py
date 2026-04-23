@@ -476,19 +476,29 @@ async def agent_upload_content(session_id: str, request: Request, file: UploadFi
         else:
             content_text = file_bytes.decode("utf-8", errors="ignore")
 
-    # For PDFs we store the raw bytes (base64) on the session so the user can
-    # later regenerate in "Modo Fiel" without re-uploading.
+    # For PDFs we store the raw bytes in GridFS (bucket "pdf_imports") so the
+    # user can later regenerate in "Modo Fiel" without re-uploading. We don't
+    # embed the bytes in the session document (MongoDB 16MB limit).
+    pdf_gridfs_id = None
+    if ext == "pdf" and file_bytes:
+        try:
+            from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+            pdf_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="pdf_imports")
+            pdf_gridfs_id = await pdf_bucket.upload_from_stream(
+                f"session_{session_id}.pdf",
+                file_bytes,
+                metadata={"session_id": session_id, "file_name": file_name}
+            )
+        except Exception as e:
+            logger.warning(f"PDF GridFS save failed (Modo Fiel will require re-upload): {e}")
+
     set_doc = {
         "contentText": content_text,
         "fileName": file_name,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
-    if ext == "pdf" and file_bytes and len(file_bytes) < 50 * 1024 * 1024:
-        try:
-            import base64 as _b64mod
-            set_doc["rawFileBase64"] = _b64mod.b64encode(file_bytes).decode("ascii")
-        except Exception:
-            pass
+    if pdf_gridfs_id:
+        set_doc["rawFileGridFS"] = str(pdf_gridfs_id)
 
     await db.agent_sessions.update_one(
         {"id": session_id},
@@ -703,17 +713,19 @@ async def agent_generate_faithful_course(
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
-    if not s.get("rawFileBase64") and not s.get("fileName"):
-        raise HTTPException(400, "No uploaded file on this session")
+    gridfs_id = s.get("rawFileGridFS")
+    if not gridfs_id:
+        raise HTTPException(400, "PDF original nao disponivel nesta sessao. Reenvie o arquivo.")
 
-    import base64 as _b64
-    file_b64 = s.get("rawFileBase64")
-    if not file_b64:
-        raise HTTPException(400, "Original PDF bytes not stored on session")
     try:
-        pdf_bytes = _b64.b64decode(file_b64)
-    except Exception:
-        raise HTTPException(400, "Invalid stored PDF bytes")
+        from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+        from bson import ObjectId
+        pdf_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="pdf_imports")
+        stream = await pdf_bucket.open_download_stream(ObjectId(gridfs_id))
+        pdf_bytes = await stream.read()
+    except Exception as e:
+        logger.error(f"[faithful] Failed to read PDF from GridFS: {e}")
+        raise HTTPException(500, f"Nao foi possivel ler o PDF salvo: {e}")
 
     title = (body.get("title") or s.get("fileName", "Curso").rsplit(".", 1)[0]).strip()[:160]
 
