@@ -196,7 +196,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
           </span>
         </div>
         {/* Progress bar */}
-        <div className="px-4 pb-4 bg-indigo-900/30">
+        <div className="px-4 pb-3 bg-indigo-900/30">
           <div className="h-2 w-full bg-indigo-950/60 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-indigo-500 to-indigo-300 transition-all duration-500 ease-out rounded-full"
@@ -207,6 +207,28 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
           <p className="text-[11px] text-indigo-200/60 mt-2">
             Esta tela atualiza automaticamente. Voce pode deixar essa aba aberta — vamos liberar o botao &quot;Analisar&quot; assim que terminar.
           </p>
+        </div>
+
+        {/* Faithful mode escape hatch: available even while processing,
+            because it uses the PDF stored in GridFS (already saved on upload). */}
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80 border-t border-indigo-700/30 gap-3">
+          <div className="flex items-start gap-2 min-w-0 flex-1">
+            <Copy className="w-4 h-4 text-indigo-300 mt-0.5 shrink-0" />
+            <p className="text-xs text-indigo-200/80">
+              Esta demorando? Voce pode pular a extracao e gerar o curso
+              com <b>Modo Fiel</b> (cada pagina = 1 slide identico ao PDF).
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleGenerateFaithful}
+            disabled={faithfulLoading}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
+            data-testid="pdf-faithful-mode-btn-while-processing"
+          >
+            <Sparkles className="w-4 h-4 mr-1" />
+            {faithfulLoading ? 'Gerando...' : 'Gerar em Modo Fiel'}
+          </Button>
         </div>
       </div>
     );
