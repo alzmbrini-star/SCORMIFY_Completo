@@ -342,12 +342,28 @@ async def get_agent_session(session_id: str, request: Request, user: dict = Depe
 @router.post("/agent/sessions/{session_id}/upload")
 async def agent_upload_content(session_id: str, request: Request, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None), user: dict = Depends(require_agent_access)):
     """Upload content to agent session (file, text, or URL)."""
+    try:
+        return await _agent_upload_content_impl(session_id, request, file, text, url, user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback as _tb
+        tb = _tb.format_exc()
+        logger.error(f"[upload] session={session_id} unhandled error: {e}\n{tb}")
+        raise HTTPException(500, f"Erro ao processar upload: {str(e)[:200]}")
+
+
+async def _agent_upload_content_impl(session_id: str, request, file, text, url, user):
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
 
     content_text = text or ""
     file_name = ""
+    # Initialize upload-path locals so they are always defined (prevents
+    # NameError when text/url is sent without a file).
+    ext = ""
+    file_bytes = b""
 
     # Handle URL scraping
     if url and url.strip():
