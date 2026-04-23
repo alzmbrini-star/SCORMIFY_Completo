@@ -108,7 +108,6 @@ class PdfChapter:
 
 def _tesseract_available() -> bool:
     try:
-        import pytesseract  # noqa
         return subprocess.run(
             ["tesseract", "--version"],
             capture_output=True, timeout=5
@@ -250,13 +249,30 @@ def _render_page_as_image(
 
 
 def _tesseract_ocr(image_path: Path) -> str:
+    """Run tesseract as a subprocess with a hard 20s timeout.
+
+    Using subprocess (instead of pytesseract's in-process call) lets us kill
+    the Tesseract process if it gets stuck on a malformed image, preventing
+    the thread worker from being held forever and freezing the event loop.
+    """
     try:
-        import pytesseract
-        from PIL import Image
-        with Image.open(image_path) as img:
-            return pytesseract.image_to_string(img, lang="por+eng") or ""
+        result = subprocess.run(
+            ["tesseract", str(image_path), "-", "-l", "por+eng"],
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+        if result.returncode == 0:
+            return (result.stdout or b"").decode("utf-8", errors="ignore")
+        return ""
+    except subprocess.TimeoutExpired:
+        logger.warning(f"[pdf_extractor] tesseract timed out on {image_path.name}")
+        return ""
+    except FileNotFoundError:
+        # Tesseract binary not installed
+        return ""
     except Exception as e:
-        logger.warning(f"[pdf_extractor] tesseract OCR failed on {image_path.name}: {e}")
+        logger.warning(f"[pdf_extractor] tesseract failed on {image_path.name}: {e}")
         return ""
 
 
@@ -350,8 +366,6 @@ async def extract_pdf(
         nonlocal scanned_pages_count
         page = pdf.load_page(page_idx)
         page_num = page_idx + 1
-        # PyMuPDF text/image extraction is CPU-bound; use the dedicated PDF
-        # executor so the default asyncio pool (motor/mongo) stays responsive.
         text = await _run_blocking(_extract_text_with_layout, page)
         images = await _run_blocking(
             _extract_embedded_images, pdf, page, page_num, assets_dir
@@ -362,7 +376,10 @@ async def extract_pdf(
         is_scanned = len(text.strip()) < MIN_NATIVE_TEXT_CHARS
         rendered_image: Optional[str] = None
 
-        if is_scanned:
+        # If the page has extractable images, assume it's a visual page (cover,
+        # infographic, diagram). Skip the expensive OCR — we already have the
+        # images, and the LLM/post-processor will know what to do with them.
+        if is_scanned and not images:
             scanned_pages_count += 1
             rendered_filename = await _run_blocking(
                 _render_page_as_image, page, page_num, assets_dir
@@ -393,24 +410,35 @@ async def extract_pdf(
     # Process pages ONE AT A TIME with explicit yields to the event loop.
     # Each page has a hard timeout so a single corrupt/huge page never
     # freezes the whole extraction.
-    PAGE_TIMEOUT = 60.0  # seconds
+    PAGE_TIMEOUT = 90.0  # seconds
+    t_extract_start = asyncio.get_event_loop().time()
     for i in range(total_pages):
         page_num = i + 1
+        t_page = asyncio.get_event_loop().time()
         try:
             page = await asyncio.wait_for(_process_page(i), timeout=PAGE_TIMEOUT)
             if isinstance(page, PdfPage):
                 pages.append(page)
+            elapsed_page = asyncio.get_event_loop().time() - t_page
+            if elapsed_page > 5.0:
+                logger.info(
+                    f"[pdf_extractor] page {page_num}/{total_pages} took "
+                    f"{elapsed_page:.1f}s (scanned={getattr(page, 'is_scanned', False)})"
+                )
         except asyncio.TimeoutError:
             logger.warning(
                 f"[pdf_extractor] page {page_num} timed out after {PAGE_TIMEOUT}s; skipping"
             )
-            # Create a minimal page entry so the overall count stays right
             pages.append(PdfPage(page_num=page_num, text="", images=[], is_scanned=False))
         except Exception as e:
             logger.error(f"[pdf_extractor] page {page_num} error: {e}", exc_info=True)
             pages.append(PdfPage(page_num=page_num, text="", images=[], is_scanned=False))
         # Yield control so other HTTP requests on the same worker can be served.
         await asyncio.sleep(0)
+    logger.info(
+        f"[pdf_extractor] all {total_pages} pages processed in "
+        f"{asyncio.get_event_loop().time() - t_extract_start:.1f}s"
+    )
 
     pages.sort(key=lambda p: p.page_num)
     pdf.close()
