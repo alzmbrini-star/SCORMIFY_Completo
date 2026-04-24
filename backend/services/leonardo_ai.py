@@ -55,7 +55,29 @@ async def generate_image(
             headers=_headers(),
             json=payload,
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            # Log the FULL response body so we can diagnose what Leonardo is
+            # rejecting (they often return 500 with a descriptive JSON body
+            # when the payload has invalid fields for the chosen model).
+            try:
+                body = resp.text[:600]
+            except Exception:
+                body = "<no body>"
+            logger.error(
+                f"Leonardo API error: HTTP {resp.status_code} — body={body} — "
+                f"payload={payload}"
+            )
+            # Detect the specific "Invalid response from authorization hook"
+            # error which Leonardo returns when the API key is invalid,
+            # expired, or the account is out of credits / suspended.
+            if "authorization hook" in body.lower() or "unauthorized" in body.lower():
+                raise ValueError(
+                    "Chave Leonardo AI invalida, expirada ou conta sem creditos. "
+                    "Verifique LEONARDO_API_KEY no ambiente e o status da conta em cloud.leonardo.ai."
+                )
+            # Surface the actual error text to the frontend so the user sees
+            # something more useful than a generic 500.
+            raise ValueError(f"Leonardo API HTTP {resp.status_code}: {body[:200]}")
         data = resp.json()
 
     gen_id = data.get("sdGenerationJob", {}).get("generationId")

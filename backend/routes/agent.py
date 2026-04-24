@@ -2885,12 +2885,16 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     leonardo_images_generated = 0
     leonardo_tasks = []
     for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
         leo_img = upd.get("_leonardoImage")
         if leo_img and isinstance(leo_img, dict):
             idx = upd.get("slideIndex")
             if idx is not None and 0 <= idx < len(slides):
                 leonardo_tasks.append((idx, leo_img))
     for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
         leo_img = ns.get("_leonardoImage")
         if leo_img and isinstance(leo_img, dict):
             ns_title = ns.get("title", "")
@@ -2967,6 +2971,8 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     # Detect avatar scenes and trigger background generation
     avatar_scene_pending = []
     for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
         avatar_scene = ns.get("avatarScene")
         if avatar_scene and isinstance(avatar_scene, dict):
             # Find the slide that was just added
@@ -3001,6 +3007,8 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
 
     # Also check updatedSlides for avatar scenes
     for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
         avatar_scene = upd.get("avatarScene")
         if avatar_scene and isinstance(avatar_scene, dict):
             idx = upd.get("slideIndex")
