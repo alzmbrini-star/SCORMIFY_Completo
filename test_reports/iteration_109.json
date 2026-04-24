@@ -1,0 +1,37 @@
+{
+  "summary": "Re-test of the P0 sub-resource RBAC fix from iteration_108. 72/73 tests passing (24/24 anon=401, 23/24 cross-company=404, all regression passing, all 19 iteration_108 tests still green). ONE remaining P0 SECURITY LEAK confirmed via live probe: PUT /api/projects/{pid}/slides/{sid}/annotations/{anid} (update_annotation, line 1522-1553 of routes/projects.py) is missing the _can_access_project check. The handler has require_auth but only guards project-not-found; a company_admin from company_d9dec773d063 (admin@empresateste.com) was able to modify a real annotation on the Didaxis project cb4e0112-3e45-44fe-ab29-304b0ef8f0a0 and got 200 back with the updated payload (annotation id 68429bcf-5843-4fac-921a-93d63eda9465 — cleaned up via slide deletion).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "PUT /api/projects/{project_id}/slides/{slide_id}/annotations/{annotation_id}",
+        "issue": "P0 - Missing _can_access_project guard. require_auth IS present (anon returns 401) but there is NO companyId check, so any authenticated user from any company can PUT updates on any project's annotations. LIVE-VERIFIED: admin@empresateste.com (company_d9dec773d063) successfully mutated a Didaxis annotation and received 200. All other 23 sub-resource endpoints in the same file DO have `if not _can_access_project(user, project): raise HTTPException(404)` — only update_annotation at line 1522-1553 is missing it (fixed_count: between lines 1529 and 1531, add the guard block that exists in delete_annotation at line 1562-1563).",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rbac_subresources.py",
+    "/app/backend/tests/test_rbac_projects_multitenancy.py",
+    "/app/test_reports/pytest/rbac_subresources_results.xml"
+  ],
+  "action_items": [
+    "Add the missing guard in /app/backend/routes/projects.py around line 1529-1531 (update_annotation handler): insert `if not _can_access_project(user, project): raise HTTPException(status_code=404, detail='Project not found')` immediately after the existing `if not project: raise 404` block, matching the pattern used in every other sub-resource handler (see delete_annotation at lines 1558-1563 for the exact pattern).",
+    "After the fix, re-run: pytest /app/backend/tests/test_rbac_subresources.py::TestUpdateAnnotationGuard -v . Expected: test_cross_company_update_annotation_returns_404 PASSES (cross-company PUT returns 404, anonymous PUT returns 401)."
+  ],
+  "critical_code_review_comments": [
+    "26 handlers each duplicate the same 4-line project-fetch+access-check block. This bug is direct evidence of the maintainability risk flagged in iteration_108: the update_annotation handler simply forgot one of the two lines. A shared FastAPI dependency like `async def authorized_project(project_id: str, user: dict = Depends(require_auth)) -> dict: ...` returning the pre-checked project dict would eliminate this entire class of oversight and shorten projects.py by ~80 lines.",
+    "projects.py is now 1620 lines (up from 1574 in iteration_108 due to the 26 guards added). Splitting into projects_crud.py / projects_slides.py / projects_media.py / projects_audio.py / projects_annotations.py is increasingly overdue."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rbac_subresources.py (new — 24 parametrised anon+404 sub-resource tests, 4 regression tests, 1 targeted update_annotation guard test)"
+  ],
+  "success_rate": {"backend": "98.6% (72/73 tests)", "frontend": "N/A (not requested)"},
+  "test_credentials": "admin@scormify.com / admin123 ; aprovador@teste.com / aprovador123 ; admin@empresateste.com / empresa123 — all valid.",
+  "seed_data_creation": "None persistent. TEST_RETEST_* slides were created by TestAprovadorCanMutate / TestSuperAdminCanMutate / TestUpdateAnnotationGuard on the Didaxis project and deleted in-test (verified by TestCleanupVerification::test_no_leftover_test_slides, which passed — remaining TEST_RETEST_ slides = 0).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Main agent needs to apply the 2-line guard on update_annotation (/app/backend/routes/projects.py line ~1529-1530). This is the LAST remaining P0. Once fixed, just rerun `pytest /app/backend/tests/test_rbac_subresources.py -v` — all 54 tests must be green. The parametric structure of TestAnonymous401 and TestCrossCompany404 makes it trivial to add new sub-resource endpoints in the future: append one tuple to ENDPOINTS and both 401-anon and 404-cross-company variants get generated automatically.",
+  "rca of the issue": "RCA: main agent applied the guard via regex script to 24 handlers and 2 manually, but update_annotation at line 1522 was one of the three manual ones (per the problem statement) and the companyId check was forgotten. The require_auth dependency WAS added, which is why anonymous → 401 works; but the body of the handler only does `if not project: raise 404` without the follow-up `if not _can_access_project(user, project): raise 404`. Reproduction: (1) login as aprovador, create slide+annotation on project cb4e0112-3e45-44fe-ab29-304b0ef8f0a0; (2) login as admin@empresateste.com; (3) PUT /api/projects/cb4e0112-.../slides/{sid}/annotations/{anid} with body {\"text\":\"HACKED\"} → returns 200 and the annotation is updated in Didaxis's DB. Mitigation: add `if not _can_access_project(user, project): raise HTTPException(status_code=404, detail='Project not found')` between lines 1529 and 1531, identical to delete_annotation's guard at lines 1562-1563."
+}
