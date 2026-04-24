@@ -18,7 +18,7 @@ from routes.deps import (
     PROJECTS_DIR, STORAGE_DIR, mongo_url, ELEVENLABS_API_KEY, HEYGEN_API_KEY,
     HEYGEN_BASE_URL, HEYGEN_HEADERS
 )
-from routes.auth import require_agent_access, require_auth, get_current_user
+from routes.auth import require_agent_access, require_auth, get_current_user, has_role
 
 logger = logging.getLogger("server")
 
@@ -2401,9 +2401,23 @@ async def agent_generate_structure_from_template(session_id: str, data: dict):
 # --- Agent: Course Editing ---
 
 @router.get("/agent/courses")
-async def agent_list_courses():
-    """List all courses available for agent analysis (agent-created + imported)."""
-    pipeline = [
+async def agent_list_courses(user: dict = Depends(require_auth)):
+    """List courses available for agent analysis (agent-created + imported).
+
+    Enforces per-company isolation: super_admin sees everything, other roles
+    see only projects whose companyId matches theirs.
+    """
+    match_stage: dict = {}
+    if not has_role(user, "super_admin"):
+        user_company = user.get("companyId")
+        if not user_company:
+            return []
+        match_stage = {"companyId": user_company}
+
+    pipeline = []
+    if match_stage:
+        pipeline.append({"$match": match_stage})
+    pipeline.extend([
         {"$project": {
             "_id": 0,
             "id": 1,
@@ -2417,7 +2431,7 @@ async def agent_list_courses():
         }},
         {"$sort": {"createdAt": -1}},
         {"$limit": 500}
-    ]
+    ])
     projects = await db.projects.aggregate(pipeline).to_list(500)
     for p in projects:
         is_agent = bool(p.get("createdByAgent")) or bool(p.get("agentSessionId"))

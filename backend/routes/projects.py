@@ -1,5 +1,5 @@
 """Project CRUD, slides, elements, media, audio, annotations routes"""
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Request, Depends
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from pathlib import Path
@@ -17,6 +17,7 @@ from routes.deps import (
     PROJECTS_DIR, STORAGE_DIR, UPLOADS_DIR, jobs, mongo_url,
     create_job, update_job, get_job, update_job_sync
 )
+from routes.auth import require_auth, has_role
 from models import (
     Project, ProjectCreate, ProjectUpdate, Course, CourseMetadata,
     Slide, SlideCreate, SlideUpdate, SlideElement, ElementCreate, ElementUpdate,
@@ -27,6 +28,24 @@ from models import (
 logger = logging.getLogger("server")
 
 router = APIRouter(tags=["Projects"])
+
+
+def _can_access_project(user: dict, project: dict) -> bool:
+    """Return True if the user can access this project.
+
+    Rules:
+      - super_admin: full access
+      - anyone else: project's companyId must match user's companyId
+      - legacy projects without companyId: only visible to super_admin
+        (keeps old orphan data safe from cross-tenant leakage)
+    """
+    if has_role(user, "super_admin"):
+        return True
+    user_company = user.get("companyId")
+    proj_company = project.get("companyId")
+    if not user_company or not proj_company:
+        return False
+    return user_company == proj_company
 
 
 def process_ppt_upload(job_id: str, file_path: str, project_id: str):
@@ -153,14 +172,28 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
 
 
 @router.get("/projects", response_model=List[dict])
-async def list_projects():
-    """List all projects"""
-    projects = await db.projects.find({}, {"_id": 0}).sort("createdAt", -1).to_list(100)
+async def list_projects(user: dict = Depends(require_auth)):
+    """List projects visible to the current user.
+
+    - super_admin: sees ALL projects (including legacy ones without companyId)
+    - any other role (company_admin, editor, aprovador, ...): sees only
+      projects where companyId == user.companyId.
+    """
+    if has_role(user, "super_admin"):
+        query = {}
+    else:
+        user_company = user.get("companyId")
+        if not user_company:
+            # No company → no access to any project (avoid leaking orphan data)
+            return []
+        query = {"companyId": user_company}
+    projects = await db.projects.find(query, {"_id": 0}).sort("createdAt", -1).to_list(500)
     return projects
 
 @router.post("/projects", response_model=dict)
-async def create_project(data: ProjectCreate):
-    """Create a new project"""
+async def create_project(data: ProjectCreate, user: dict = Depends(require_auth)):
+    """Create a new project. Automatically tags it with the creator's
+    userId and companyId so per-company isolation works downstream."""
     project = Project(
         name=data.name,
         description=data.description
@@ -183,6 +216,8 @@ async def create_project(data: ProjectCreate):
     project_dict['course']['createdAt'] = project.course.createdAt.isoformat()
     project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
     project_dict['source'] = 'manual'
+    project_dict['userId'] = user.get('user_id')
+    project_dict['companyId'] = user.get('companyId')
     
     await db.projects.insert_one(project_dict)
     
@@ -193,10 +228,14 @@ async def create_project(data: ProjectCreate):
     return serialize_doc(project_dict)
 
 @router.get("/projects/{project_id}", response_model=dict)
-async def get_project(project_id: str):
-    """Get project by ID"""
+async def get_project(project_id: str, user: dict = Depends(require_auth)):
+    """Get project by ID. Enforces per-company access isolation."""
     project = await get_project_by_id(project_id)
     if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not _can_access_project(user, project):
+        # 404 (not 403) to avoid leaking project existence to other tenants
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Sanitize any non-string htmlContent (from previous AI bugs)
@@ -384,10 +423,12 @@ def _build_crate_simulator(capacity: int, crate_values: list) -> str:
 
 
 @router.put("/projects/{project_id}", response_model=dict)
-async def update_project_endpoint(project_id: str, data: ProjectUpdate):
-    """Update project"""
+async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: dict = Depends(require_auth)):
+    """Update project. Enforces per-company access isolation."""
     project = await get_project_by_id(project_id)
     if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not _can_access_project(user, project):
         raise HTTPException(status_code=404, detail="Project not found")
     
     update_data = data.model_dump(exclude_unset=True)
@@ -401,10 +442,12 @@ async def update_project_endpoint(project_id: str, data: ProjectUpdate):
     return await get_project_by_id(project_id)
 
 @router.delete("/projects/{project_id}")
-async def delete_project(project_id: str):
-    """Delete project"""
+async def delete_project(project_id: str, user: dict = Depends(require_auth)):
+    """Delete project. Enforces per-company access isolation."""
     project = await get_project_by_id(project_id)
     if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not _can_access_project(user, project):
         raise HTTPException(status_code=404, detail="Project not found")
     
     await db.projects.delete_one({"id": project_id})
@@ -420,7 +463,8 @@ async def delete_project(project_id: str):
 
 @router.post("/ppt/upload/init")
 async def init_chunked_upload(
-    request: Request
+    request: Request,
+    user: dict = Depends(require_auth)
 ):
     """Initialize a chunked PPT upload - returns an upload_id"""
     body = await request.json()
@@ -443,6 +487,8 @@ async def init_chunked_upload(
         'receivedSize': 0,
         'chunkCount': 0,
         'path': str(upload_path),
+        'userId': user.get('user_id'),
+        'companyId': user.get('companyId'),
     }
     
     # Store in memory AND MongoDB (survives restarts/deploys)
@@ -587,6 +633,10 @@ async def complete_chunked_upload(
     project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
     project_dict['status'] = 'processing'
     project_dict['source'] = 'ppt'
+    # Carry over the uploader's identity captured at /init so per-company
+    # isolation works for PPT-imported projects as well.
+    project_dict['userId'] = meta.get('userId')
+    project_dict['companyId'] = meta.get('companyId')
     
     await db.projects.insert_one(project_dict)
     
@@ -622,7 +672,8 @@ async def upload_ppt(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    project_name: Optional[str] = None
+    project_name: Optional[str] = None,
+    user: dict = Depends(require_auth)
 ):
     """Upload and process a PPT/PPTX file"""
     logger.info(f"PPT upload received: filename={file.filename}, content_type={file.content_type}, size_hint={file.size}")
@@ -648,6 +699,8 @@ async def upload_ppt(
     project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
     project_dict['status'] = 'processing'
     project_dict['source'] = 'ppt'
+    project_dict['userId'] = user.get('user_id')
+    project_dict['companyId'] = user.get('companyId')
     
     await db.projects.insert_one(project_dict)
     

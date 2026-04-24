@@ -1,0 +1,53 @@
+{
+  "summary": "Backend-only validation of the RBAC/multi-tenancy fix on /api/projects and /api/agent/courses. All 12 combinations from the request validated via pytest (19/19 passing). However, a P0 SECURITY LEAK was confirmed on sub-resource endpoints: they were NOT included in the fix and still allow unauthenticated + cross-company mutations (live probe created fake slides on the real Didaxis project — cleaned up after).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/projects/{project_id}/slides",
+        "issue": "P0 - No auth required AND no companyId check. Verified live: anonymous request created slide id=67434c98-27bd-42e9-9817-7c0adb09a5b7 on the real Didaxis project cb4e0112-3e45-44fe-ab29-304b0ef8f0a0 (cleaned up). Cross-company admin also succeeded (id=f901b199-..., cleaned up).",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "POST /api/course/{project_id}/save",
+        "issue": "P0 - No auth required. Anonymous request returned 200 and accepts a full course payload — can overwrite any project's entire course JSON. Verified live on the Didaxis project.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "PUT /api/projects/{project_id}/slides/{slide_id}, DELETE /api/projects/{project_id}/slides/{slide_id}, POST /api/projects/{project_id}/slides/{slide_id}/duplicate, POST /api/projects/{project_id}/normalize-dimensions, POST /api/projects/{project_id}/slides/reorder, POST/PUT/DELETE /api/projects/{project_id}/slides/{slide_id}/elements[...] , POST /api/projects/{project_id}/media, POST/DELETE/PUT /api/projects/{project_id}/global-audio[...] , POST/DELETE/PUT /api/projects/{project_id}/slides/{slide_id}/audio[...] , POST/PUT/DELETE /api/projects/{project_id}/slides/{slide_id}/annotations[...] , POST /api/projects/{project_id}/apply-design-template, POST /api/projects/{project_id}/fix-simulators, GET /api/course/{project_id}",
+        "issue": "P0 - All of these handlers in /app/backend/routes/projects.py (lines ~270, 782, 790, 832, 854, 875, 908, 971, 999, 1030, 1059, 1085, 1197, 1260, 1305, 1329, 1349, 1386, 1416, 1455, 1480, 1513, 1539) call get_project_by_id(project_id) WITHOUT Depends(require_auth) and WITHOUT _can_access_project(user, project). This defeats the multi-tenancy fix at the mutation layer: any unauthenticated caller (or any authenticated cross-company user) can fully mutate another company's project content, media, audio and annotations. Probed live: PUT /slides/{sid} returned 404 only because the slide id was fake; POST /slides succeeded.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_rbac_projects_multitenancy.py",
+    "/app/test_reports/pytest/rbac_projects_results.xml"
+  ],
+  "action_items": [
+    "P0: Apply the same require_auth + _can_access_project guard to ALL sub-resource endpoints in /app/backend/routes/projects.py (every route that takes {project_id} in the path). Suggested approach: extract a FastAPI dependency like `get_authorized_project(project_id, user = Depends(require_auth))` that does get_project_by_id + _can_access_project + raises 404, and replace the repeated `project = await get_project_by_id(project_id); if not project: raise 404` blocks. Endpoints to cover are listed in backend_issues.critical above.",
+    "P0: Secure POST /api/course/{project_id}/save and GET /api/course/{project_id} — currently anonymous and mutating. These are the most dangerous since /save replaces the entire course JSON.",
+    "Consider adding an integration test guarding against future regressions: for every route matching '/projects/{project_id}/...' assert the unauthenticated request returns 401."
+  ],
+  "critical_code_review_comments": [
+    "projects.py is 1574 lines — exceeds the 700-line guideline. It mixes listing, CRUD, PPT upload, slides, elements, media, audio, annotations, design templates and SCORM concerns. Recommend splitting into routes/projects_crud.py, routes/projects_slides.py, routes/projects_media.py, routes/projects_audio.py.",
+    "The pattern `project = await get_project_by_id(...); if not project: raise 404` is duplicated ~20+ times. Consolidate via a shared dependency that also enforces companyId.",
+    "Token is returned both as Set-Cookie and inside JSON body on /auth/login — fine for API clients, but make sure cookies are HttpOnly + Secure + SameSite (verified code uses set_cookie; review flags).",
+    "Legacy projects without companyId are invisible to everyone except super_admin (correct), but the back-fill associating 53 orphans to company_didaxis001 is an irreversible business decision — should be documented in /app/memory and ideally soft-tagged (e.g. companyIdSource='backfill') so it can be undone if wrongly attributed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rbac_projects_multitenancy.py (new)"
+  ],
+  "success_rate": {"backend": "100% on the 12 scenarios in scope (19/19 pytest)", "frontend": "N/A (not requested)"},
+  "test_credentials": "admin@scormify.com / admin123 ; aprovador@teste.com / aprovador123 ; admin@empresateste.com / empresa123 — all working.",
+  "seed_data_creation": "None persistent. A TEST_RBAC_* project was created by the create-project test and deleted in the same test. Two PWN_* slides were created on the Didaxis project during the P0 sub-resource probe and IMMEDIATELY DELETED via super_admin (verified: remaining PWN slides = 0).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The 12 originally-requested scenarios all pass (see /app/backend/tests/test_rbac_projects_multitenancy.py). The outstanding work is the P0 gap on sub-resource endpoints under /api/projects/{project_id}/... and /api/course/{project_id}. Once main agent applies require_auth+_can_access_project there, re-run this pytest file AND add companion tests asserting 401 on the sub-resource endpoints for anonymous callers and 404 for cross-company callers (admin@empresateste.com) against Didaxis project cb4e0112-3e45-44fe-ab29-304b0ef8f0a0.",
+  "rca of the issue": "Original bug: list_projects/get_project did not filter by companyId, exposing cross-tenant data. The main agent's fix correctly wraps the primary /projects endpoints and /agent/courses. However, /projects.py also hosts ~25 sub-resource handlers (slides/elements/media/audio/annotations) that bypass require_auth entirely — these were missed by the fix. Repro: POST {BACKEND}/api/projects/cb4e0112-3e45-44fe-ab29-304b0ef8f0a0/slides with no Authorization header and body {\"title\":\"X\",\"background\":\"#fff\"} returns 200 and persists. Mitigation: add Depends(require_auth) and _can_access_project check on every handler whose path contains {project_id}; refactor via a shared dependency."
+}
