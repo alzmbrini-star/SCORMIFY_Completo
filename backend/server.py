@@ -118,6 +118,9 @@ app.include_router(gamification_routes.router, prefix="/api")
 from routes import agent as agent_routes
 app.include_router(agent_routes.router, prefix="/api")
 
+from routes import pdf_import as pdf_import_routes
+app.include_router(pdf_import_routes.router, prefix="/api")
+
 from routes import ai_gen as ai_gen_routes
 app.include_router(ai_gen_routes.router, prefix="/api")
 
