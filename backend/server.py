@@ -134,6 +134,29 @@ app.include_router(admin_routes.router, prefix="/api")
 from routes import health as health_routes
 app.include_router(health_routes.router, prefix="/api")
 
+# ---------------------------------------------------------------------------
+# Marketing material download (admin convenience)
+# ---------------------------------------------------------------------------
+from fastapi.responses import FileResponse
+MARKETING_DIR = Path("/app/marketing")
+
+@app.get("/api/marketing/{filename}")
+async def download_marketing_asset(filename: str):
+    """Serve marketing material files (PDF, MD, ZIP). Public endpoint used
+    only to hand files to the marketing team without cloud upload."""
+    safe = Path(filename).name  # strip any path traversal
+    target = MARKETING_DIR / safe
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Arquivo nao encontrado")
+    media_types = {
+        ".pdf": "application/pdf",
+        ".md": "text/markdown",
+        ".zip": "application/zip",
+        ".png": "image/png",
+    }
+    media_type = media_types.get(target.suffix.lower(), "application/octet-stream")
+    return FileResponse(str(target), media_type=media_type, filename=safe)
+
 from routes import companies as companies_routes
 app.include_router(companies_routes.router, prefix="/api")
 
