@@ -131,6 +131,9 @@ app.include_router(ai_gen_routes.router, prefix="/api")
 from routes import admin as admin_routes
 app.include_router(admin_routes.router, prefix="/api")
 
+from routes import health as health_routes
+app.include_router(health_routes.router, prefix="/api")
+
 from routes import companies as companies_routes
 app.include_router(companies_routes.router, prefix="/api")
 

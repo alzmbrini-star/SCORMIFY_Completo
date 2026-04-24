@@ -29,10 +29,12 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Activity,
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
 import TutorDashboard from './TutorDashboard';
+import IntegrationsHealthPanel from './IntegrationsHealthPanel';
 const API_URL = getApiUrl();
 
 export default function Admin() {
@@ -419,6 +421,17 @@ export default function Admin() {
             <MessageSquare className="w-4 h-4" />
             Dashboard Tutor
           </Button>
+          {isSuperAdmin && (
+            <Button
+              variant={activeTab === 'integrations_health' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('integrations_health')}
+              className="gap-2"
+              data-testid="tab-integrations-health"
+            >
+              <Activity className="w-4 h-4" />
+              Integracoes
+            </Button>
+          )}
         </div>
 
         {/* Companies Tab */}
@@ -947,6 +960,13 @@ export default function Admin() {
       {activeTab === 'tutor_dashboard' && (
         <div className="max-w-5xl mx-auto px-4 pb-8">
           <TutorDashboard />
+        </div>
+      )}
+
+      {/* Integrations Health Tab (Super Admin only) */}
+      {activeTab === 'integrations_health' && isSuperAdmin && (
+        <div className="max-w-7xl mx-auto px-4 pb-8">
+          <IntegrationsHealthPanel />
         </div>
       )}
 
