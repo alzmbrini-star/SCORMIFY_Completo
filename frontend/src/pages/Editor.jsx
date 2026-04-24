@@ -1642,6 +1642,7 @@ export default function Editor() {
                       onUpdate={(data) => updateElement(currentSlide?.id, selectedElement.id, data)}
                       slideWidth={currentSlide?.width || 960}
                       slideHeight={currentSlide?.height || 540}
+                      projectId={currentProject?.id}
                     />
                   ) : currentSlide ? (
                     <SlideProperties

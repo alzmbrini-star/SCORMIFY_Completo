@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
-import { Maximize2, Sparkles } from 'lucide-react';
+import { Maximize2, Sparkles, Scissors } from 'lucide-react';
 import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
+import RemoveBackgroundDialog from '../dialogs/RemoveBackgroundDialog';
 
-export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540 }) {
+export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
+  const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
 
   const handleStyleChange = (key, value) => {
     const newStyle = { ...style, [key]: value };
@@ -65,6 +67,31 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
           Fullscreen
         </Button>
       </div>
+
+      {element.type === 'image' && (
+        <div className="panel-section">
+          <label>Imagem</label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBgRemoverOpen(true)}
+            className="w-full border-slate-700 text-slate-200 hover:bg-slate-800 gap-2"
+            data-testid="image-remove-bg-btn"
+          >
+            <Scissors className="w-4 h-4 text-emerald-400" />
+            Remover Fundo
+          </Button>
+          <RemoveBackgroundDialog
+            open={bgRemoverOpen}
+            imageUrl={element.src || element.content || ''}
+            projectId={projectId}
+            onApply={(newUrl) => {
+              onUpdate({ src: newUrl, content: newUrl });
+            }}
+            onClose={() => setBgRemoverOpen(false)}
+          />
+        </div>
+      )}
 
       {element.type === 'text' && (
         <div className="panel-section">
