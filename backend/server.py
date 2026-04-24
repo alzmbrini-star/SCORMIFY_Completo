@@ -236,7 +236,17 @@ async def _run_migrate_urls():
 
 @app.on_event("startup")
 async def startup_create_indexes():
-    """Create MongoDB indexes for production performance."""
+    """Create MongoDB indexes for production performance (background, non-blocking).
+
+    Index creation on large Atlas collections can take 5-30s. We run this in
+    an asyncio.create_task so the HTTP server starts accepting connections
+    immediately — nginx won't return 502s during deployment warmup.
+    """
+    asyncio.create_task(_run_create_indexes())
+    logger.info("Startup index creation: scheduled in background task")
+
+
+async def _run_create_indexes():
     try:
         # Deduplicate project_assets before creating index (handles legacy duplicates)
         pipeline = [
@@ -248,7 +258,7 @@ async def startup_create_indexes():
             ids_to_remove = dup["ids"][1:]
             if ids_to_remove:
                 await db.project_assets.delete_many({"_id": {"$in": ids_to_remove}})
-        
+
         await db.project_assets.create_index(
             [("project_id", 1), ("filename", 1)],
             unique=True,
@@ -274,7 +284,12 @@ async def startup_ensure_admin():
 
 @app.on_event("startup")
 async def startup_migrate_roles():
-    """Migrate legacy single-role 'role' field to multi-role 'roles' array."""
+    """Migrate legacy single-role 'role' field to multi-role 'roles' array (background)."""
+    asyncio.create_task(_run_migrate_roles())
+    logger.info("Startup roles migration: scheduled in background task")
+
+
+async def _run_migrate_roles():
     try:
         migrated = 0
         async for user in db.users.find({"roles": {"$exists": False}}, {"_id": 0, "user_id": 1, "role": 1}):
