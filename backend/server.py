@@ -106,8 +106,12 @@ from routes import auth as auth_routes
 auth_routes.set_db(db)
 app.include_router(auth_routes.router, prefix="/api")
 
-from routes import projects as projects_routes
-app.include_router(projects_routes.router, prefix="/api")
+from routes import projects_crud, projects_slides, projects_media, projects_audio, projects_annotations
+app.include_router(projects_crud.router, prefix="/api")
+app.include_router(projects_slides.router, prefix="/api")
+app.include_router(projects_media.router, prefix="/api")
+app.include_router(projects_audio.router, prefix="/api")
+app.include_router(projects_annotations.router, prefix="/api")
 
 from routes import export as export_routes
 app.include_router(export_routes.router, prefix="/api")
@@ -357,7 +361,7 @@ async def _recover_stalled_ppt_jobs():
                     if not job_id:
                         job_id = str(uuid.uuid4())
                     
-                    from routes.projects import process_ppt_upload, jobs
+                    from routes.projects_common import process_ppt_upload, jobs
                     jobs[job_id] = {
                         'id': job_id,
                         'status': 'pending',

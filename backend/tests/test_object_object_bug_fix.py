@@ -161,8 +161,8 @@ class TestGetProjectSanitization:
                 self.session.headers.update({"Authorization": f"Bearer {token}"})
     
     def test_sanitization_code_exists(self):
-        """Test that sanitization code exists in projects.py"""
-        with open('/app/backend/routes/projects.py', 'r') as f:
+        """Test that sanitization code exists in projects_crud.py"""
+        with open('/app/backend/routes/projects_crud.py', 'r') as f:
             code = f.read()
         
         # Verify sanitization logic
@@ -174,7 +174,7 @@ class TestGetProjectSanitization:
     
     def test_dict_htmlcontent_converted_to_html(self):
         """Test that dict htmlContent is converted to HTML paragraphs"""
-        with open('/app/backend/routes/projects.py', 'r') as f:
+        with open('/app/backend/routes/projects_crud.py', 'r') as f:
             code = f.read()
         
         # Verify dict conversion logic
