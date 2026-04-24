@@ -2752,8 +2752,15 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
 
 @router.post("/agent/courses/{project_id}/apply-improvements")
 async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply):
-    """Apply selected improvements to an existing course. Uses cached preview if previewId provided."""
+    """Apply selected improvements to an existing course. Uses cached preview if previewId provided.
+
+    Retryable-safe: the cached preview is ONLY deleted after the apply fully
+    succeeds. If any step fails midway, the preview stays in MongoDB so the
+    user can click "Confirmar e Aplicar" again without re-generating the AI
+    analysis (which can take 30-60s).
+    """
     import copy
+    import traceback
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(404, "Project not found")
@@ -2772,26 +2779,42 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         upsert=True,
     )
 
-    # Use cached AI result if preview was done, otherwise call AI fresh
+    # Use cached AI result if preview was done, otherwise call AI fresh.
+    # IMPORTANT: do NOT delete the preview here. We delete it at the very end
+    # (after the apply succeeds) so failures are retryable.
     if data.previewId:
-        preview = await db.improvement_previews.find_one({"id": data.previewId, "projectId": project_id}, {"_id": 0})
+        preview = await db.improvement_previews.find_one(
+            {"id": data.previewId, "projectId": project_id},
+            {"_id": 0}
+        )
         if preview:
             result = preview["aiResult"]
-            await db.improvement_previews.delete_one({"id": data.previewId})
         else:
             raise HTTPException(400, "Preview expired or not found. Please preview again.")
     else:
         session_id = project.get("agentSessionId") or str(uuid.uuid4())
         from services.ai_agent import apply_course_improvements
-        result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
+        try:
+            result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
+        except Exception as e:
+            logger.error(
+                f"[apply-improvements] AI call failed for project {project_id}: {e}\n{traceback.format_exc()}"
+            )
+            raise HTTPException(500, f"Falha ao chamar a IA: {str(e)[:180]}")
 
-    slides = project.get("course", {}).get("slides", [])
-    new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
+    try:
+        slides = project.get("course", {}).get("slides", [])
+        new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
 
-    # Save
-    course = project.get("course", {})
-    course["slides"] = slides
-    await update_project(project_id, {"course": course})
+        # Save
+        course = project.get("course", {})
+        course["slides"] = slides
+        await update_project(project_id, {"course": course})
+    except Exception as e:
+        logger.error(
+            f"[apply-improvements] Failed to apply AI result to slides for project {project_id}: {e}\n{traceback.format_exc()}"
+        )
+        raise HTTPException(500, f"Falha ao aplicar as melhorias ao curso: {str(e)[:180]}")
 
     # Post-process: Generate real scenarios for any scenario-type slides
     scenarios_generated = 0
@@ -3013,6 +3036,15 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         ).start()
         avatar_generation_started = True
         logger.info(f"Avatar scene generation triggered for {len(avatar_scene_pending)} scenes in project {project_id}")
+
+    # All critical work succeeded. Safe to delete the cached preview now —
+    # if anything above had failed, we would have raised earlier and the
+    # preview would still be available for retry.
+    if data.previewId:
+        try:
+            await db.improvement_previews.delete_one({"id": data.previewId})
+        except Exception as _del_err:
+            logger.warning(f"[apply-improvements] Failed to clean up preview {data.previewId}: {_del_err}")
 
     return {
         "status": "ok",

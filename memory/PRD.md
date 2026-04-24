@@ -87,6 +87,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-24: FIX (P1 BUG) - "Erro ao aplicar melhorias" no Agente IA em producao. Root cause: o cache `improvement_previews` era deletado IMEDIATAMENTE apos ser lido em apply-improvements (linha 2780 do agente). Se o passo seguinte de aplicacao falhasse (Leonardo AI, scenario gen, avatar scene, etc), o preview ja nao existia mais e o retry do usuario resultava em 400 "Preview expired or not found". Fix: mover o `delete_one` para DEPOIS de todo o trabalho critico concluir com sucesso (antes do `return`). Se qualquer passo falhar, o preview permanece e o usuario pode reclicar "Confirmar e Aplicar" sem refazer a analise da IA. Tambem adicionado try/except com traceback em `apply_course_improvements` e `_apply_ai_result_to_slides` para surfacer a causa real de falhas futuras no log em vez de 500 opaco. Validado por /app/backend/tests/test_apply_improvements_retry.py (3 casos) + teste E2E manual com aiResult malformado provando que o preview fica preservado pos-falha.
 - 2026-04-24: REFACTOR - Quebrado routes/projects.py (1502 linhas monoliticas) em 6 modulos focados:
   - routes/projects_common.py (199 linhas) - helpers compartilhados: can_access_project, load_authorized_project, process_ppt_upload
   - routes/projects_crud.py (651 linhas) - Project CRUD, Course get/save, Job status, PPT upload (init/chunk/complete/legacy), apply-design-template, fix-simulators
