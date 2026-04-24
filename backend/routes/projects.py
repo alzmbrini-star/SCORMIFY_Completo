@@ -48,6 +48,21 @@ def _can_access_project(user: dict, project: dict) -> bool:
     return user_company == proj_company
 
 
+async def _load_authorized_project(project_id: str, user: dict) -> dict:
+    """Load a project by id and raise 404 if it doesn't exist OR the current
+    user cannot access it.
+
+    Always prefer this over calling get_project_by_id + manual checks — it
+    guarantees both guards are applied and makes it impossible to forget
+    the companyId check (which already caused one regression).
+    """
+    project = await get_project_by_id(project_id)
+    if not project or not _can_access_project(user, project):
+        # 404 (not 403) so callers can't enumerate projects across tenants.
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
 def process_ppt_upload(job_id: str, file_path: str, project_id: str):
     """Process uploaded PPT file in background using high-fidelity parser"""
     from pymongo import MongoClient
@@ -230,13 +245,7 @@ async def create_project(data: ProjectCreate, user: dict = Depends(require_auth)
 @router.get("/projects/{project_id}", response_model=dict)
 async def get_project(project_id: str, user: dict = Depends(require_auth)):
     """Get project by ID. Enforces per-company access isolation."""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if not _can_access_project(user, project):
-        # 404 (not 403) to avoid leaking project existence to other tenants
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
 
     # Sanitize any non-string htmlContent (from previous AI bugs)
     needs_fix = False
@@ -272,12 +281,7 @@ async def fix_simulators(project_id: str, user: dict = Depends(require_auth)):
     """Detect and fix static simulators in a course by adding JavaScript interactivity."""
     import re as _re
 
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
-
+    project = await _load_authorized_project(project_id, user)
     slides = project.get("course", {}).get("slides", [])
     fixed_count = 0
 
@@ -427,12 +431,7 @@ def _build_crate_simulator(capacity: int, crate_values: list) -> str:
 @router.put("/projects/{project_id}", response_model=dict)
 async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: dict = Depends(require_auth)):
     """Update project. Enforces per-company access isolation."""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
-    
+    await _load_authorized_project(project_id, user)
     update_data = data.model_dump(exclude_unset=True)
     
     # If project name is being updated, also update course metadata title
@@ -446,12 +445,7 @@ async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: di
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: str, user: dict = Depends(require_auth)):
     """Delete project. Enforces per-company access isolation."""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
-    
+    await _load_authorized_project(project_id, user)
     await db.projects.delete_one({"id": project_id})
     
     # Delete project files
@@ -784,22 +778,13 @@ async def get_job_status(job_id: str):
 @router.get("/course/{project_id}")
 async def get_course(project_id: str, user: dict = Depends(require_auth)):
     """Get course data for a project"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     return project.get('course', {})
 
 @router.post("/course/{project_id}/save")
 async def save_course(project_id: str, course_data: dict, user: dict = Depends(require_auth)):
     """Save course data"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    await _load_authorized_project(project_id, user)
     await update_project(project_id, {"course": course_data})
     return {"message": "Course saved"}
 
@@ -808,12 +793,7 @@ async def save_course(project_id: str, course_data: dict, user: dict = Depends(r
 @router.post("/projects/{project_id}/slides")
 async def create_slide(project_id: str, data: SlideCreate, user: dict = Depends(require_auth)):
     """Add a new slide to the project"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -840,12 +820,7 @@ async def create_slide(project_id: str, data: SlideCreate, user: dict = Depends(
 @router.put("/projects/{project_id}/slides/{slide_id}")
 async def update_slide(project_id: str, slide_id: str, data: SlideUpdate, user: dict = Depends(require_auth)):
     """Update a slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -864,12 +839,7 @@ async def update_slide(project_id: str, slide_id: str, data: SlideUpdate, user: 
 @router.delete("/projects/{project_id}/slides/{slide_id}")
 async def delete_slide(project_id: str, slide_id: str, user: dict = Depends(require_auth)):
     """Delete a slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -887,12 +857,7 @@ async def delete_slide(project_id: str, slide_id: str, user: dict = Depends(requ
 @router.post("/projects/{project_id}/slides/{slide_id}/duplicate")
 async def duplicate_slide(project_id: str, slide_id: str, user: dict = Depends(require_auth)):
     """Duplicate a slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -922,12 +887,7 @@ async def duplicate_slide(project_id: str, slide_id: str, user: dict = Depends(r
 @router.post("/projects/{project_id}/normalize-dimensions")
 async def normalize_slide_dimensions(project_id: str, target_width: int = 1536, target_height: int = 864, user: dict = Depends(require_auth)):
     """Normalize all slides to the same dimensions, scaling elements proportionally"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -987,12 +947,7 @@ async def normalize_slide_dimensions(project_id: str, target_width: int = 1536, 
 @router.post("/projects/{project_id}/slides/reorder")
 async def reorder_slides(project_id: str, data: ReorderSlidesRequest, user: dict = Depends(require_auth)):
     """Reorder slides"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1017,12 +972,7 @@ async def reorder_slides(project_id: str, data: ReorderSlidesRequest, user: dict
 @router.post("/projects/{project_id}/slides/{slide_id}/elements")
 async def add_element(project_id: str, slide_id: str, data: ElementCreate, user: dict = Depends(require_auth)):
     """Add element to slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1050,12 +1000,7 @@ async def add_element(project_id: str, slide_id: str, data: ElementCreate, user:
 @router.put("/projects/{project_id}/slides/{slide_id}/elements/{element_id}")
 async def update_element(project_id: str, slide_id: str, element_id: str, data: ElementUpdate, user: dict = Depends(require_auth)):
     """Update element"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1081,12 +1026,7 @@ async def update_element(project_id: str, slide_id: str, element_id: str, data: 
 @router.delete("/projects/{project_id}/slides/{slide_id}/elements/{element_id}")
 async def delete_element(project_id: str, slide_id: str, element_id: str, user: dict = Depends(require_auth)):
     """Delete element"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1109,12 +1049,7 @@ async def delete_element(project_id: str, slide_id: str, element_id: str, user: 
 @router.post("/projects/{project_id}/media")
 async def upload_media(project_id: str, file: UploadFile = File(...), user: dict = Depends(require_auth)):
     """Upload media file (image, audio, video) with automatic image optimization"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    await _load_authorized_project(project_id, user)
     # Validate file type
     allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp3', '.wav', '.ogg', '.mp4', '.webm'}
     ext = Path(file.filename).suffix.lower()
@@ -1228,12 +1163,7 @@ async def upload_slide_audio(
     audio_type: str = Form("narration")
 , user: dict = Depends(require_auth)):
     """Upload audio for a slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     # Validate
     if not file.filename.lower().endswith(('.mp3', '.wav', '.ogg', '.webm')):
         raise HTTPException(status_code=400, detail="Invalid audio format")
@@ -1288,12 +1218,7 @@ async def upload_slide_audio(
 @router.post("/projects/{project_id}/global-audio")
 async def set_global_audio(project_id: str, file: UploadFile = File(...), user: dict = Depends(require_auth)):
     """Set global soundtrack for the course"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     if not file.filename.lower().endswith(('.mp3', '.wav', '.ogg')):
         raise HTTPException(status_code=400, detail="Invalid audio format")
     
@@ -1335,12 +1260,7 @@ async def set_global_audio(project_id: str, file: UploadFile = File(...), user: 
 @router.delete("/projects/{project_id}/global-audio")
 async def remove_global_audio(project_id: str, user: dict = Depends(require_auth)):
     """Remove global audio from project"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     
     # Remove global audio file if exists
@@ -1361,12 +1281,7 @@ async def remove_global_audio(project_id: str, user: dict = Depends(require_auth
 @router.put("/projects/{project_id}/global-audio/volume")
 async def update_global_audio_volume(project_id: str, volume: float, user: dict = Depends(require_auth)):
     """Update global audio volume"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     if not course.get('globalAudio'):
         raise HTTPException(status_code=404, detail="No global audio set")
@@ -1383,12 +1298,7 @@ async def update_global_audio_volume(project_id: str, volume: float, user: dict 
 @router.delete("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}")
 async def remove_slide_audio(project_id: str, slide_id: str, audio_id: str, user: dict = Depends(require_auth)):
     """Remove audio from slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1422,12 +1332,7 @@ async def remove_slide_audio(project_id: str, slide_id: str, audio_id: str, user
 @router.put("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}/volume")
 async def update_slide_audio_volume(project_id: str, slide_id: str, audio_id: str, volume: float, user: dict = Depends(require_auth)):
     """Update slide audio volume"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1454,12 +1359,7 @@ async def update_slide_audio_volume(project_id: str, slide_id: str, audio_id: st
 @router.put("/projects/{project_id}/slides/{slide_id}/audio/{audio_id}/timing")
 async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: str, data: dict, user: dict = Depends(require_auth)):
     """Update slide audio timing (startTime and duration for trimming)"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1495,12 +1395,7 @@ async def update_slide_audio_timing(project_id: str, slide_id: str, audio_id: st
 @router.post("/projects/{project_id}/slides/{slide_id}/annotations")
 async def add_annotation(project_id: str, slide_id: str, data: AnnotationCreate, user: dict = Depends(require_auth)):
     """Add annotation to slide"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1524,12 +1419,7 @@ async def update_annotation(project_id: str, slide_id: str, annotation_id: str, 
     """Update annotation (for timeline settings)"""
     from models import AnnotationUpdate
     
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
-    
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1557,12 +1447,7 @@ async def update_annotation(project_id: str, slide_id: str, annotation_id: str, 
 @router.delete("/projects/{project_id}/slides/{slide_id}/annotations/{annotation_id}")
 async def delete_annotation(project_id: str, slide_id: str, annotation_id: str, user: dict = Depends(require_auth)):
     """Delete annotation"""
-    project = await get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if not _can_access_project(user, project):
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
     
@@ -1590,11 +1475,7 @@ async def apply_design_template_to_project(project_id: str, data: dict, user: di
     if not design_template_id:
         raise HTTPException(400, "designTemplateId is required")
 
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if not _can_access_project(user, project):
-        raise HTTPException(404, "Project not found")
+    project = await _load_authorized_project(project_id, user)
 
     from services.ai_agent import get_design_template_by_id
     design_token = get_design_template_by_id(design_template_id)
