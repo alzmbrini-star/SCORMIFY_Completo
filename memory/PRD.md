@@ -87,6 +87,8 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-24: REFACTOR - Rotas de PDF extraidas de routes/agent.py para novo routes/pdf_import.py. agent.py reduzido de 4842 -> 4067 linhas (-16%). Movidas: upload-chunk, pdf-preview (GET/POST), repair-pdf-images, generate-faithful-course, faithful-status + helpers (_PDF_EXTRACTION_TASKS, _background_pdf_extraction, _background_faithful_render, _page_hint_from_filename). Mesmos paths, mesmo contrato. Testado 100% backend (12/12 iteration_107) - 5 endpoints PDF + smoke tests de auth/projects/agent.
+- 2026-04-24: FEATURE - "Remover Fundo" no Editor. Novo dialog RemoveBackgroundDialog com color-key 100% em browser (canvas): auto-deteccao da cor de fundo nos 4 cantos, eye-dropper pick, tolerancia + suavidade (feathering), upload do PNG transparente resultante via /api/projects/{id}/media. Botao aparece no painel de propriedades quando elemento tipo "image" esta selecionado.
 - 2026-04-23: FEATURE - Modo Fiel (PDF → Slides): cada pagina do PDF vira 1 slide preservando layout/cores/imagens/logos originais. Pula IA e LLM completamente. Estrategia final apos varias iteracoes de performance:
   - Upload em chunks de 4MB (bypass limite Cloudflare)
   - Extracao automatica de imagens DESABILITADA (inconstante em producao com Tesseract + 520 timeouts)
