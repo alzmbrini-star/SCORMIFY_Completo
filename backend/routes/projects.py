@@ -1527,6 +1527,8 @@ async def update_annotation(project_id: str, slide_id: str, annotation_id: str, 
     project = await get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    if not _can_access_project(user, project):
+        raise HTTPException(status_code=404, detail="Project not found")
     
     course = project.get('course', {})
     slides = course.get('slides', [])

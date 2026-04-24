@@ -1,0 +1,26 @@
+{
+  "summary": "Final re-test after main agent applied the missing _can_access_project guard in update_annotation (/app/backend/routes/projects.py lines 1530-1531). 73/73 backend RBAC tests PASSING. Direct live probe confirms cross-company PUT /api/projects/{pid}/slides/{sid}/annotations/{anid} now returns 404 (previously leaked 200) and anonymous returns 401. The P0 security leak flagged in iteration_109 is fully closed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_rbac_subresources.py",
+    "/app/backend/tests/test_rbac_projects_multitenancy.py",
+    "/app/test_reports/pytest/rbac_retest_iter110.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Bug fully resolved but architectural debt remains: 28 handlers now duplicate the same 4-line project-fetch+_can_access_project block. This exact duplication is what caused the original miss. Strongly recommend extracting a shared FastAPI dependency such as `async def authorized_project(project_id: str, user: dict = Depends(require_auth)) -> dict: project = await get_project_by_id(project_id); if not project or not _can_access_project(user, project): raise HTTPException(404, 'Project not found'); return project`. This would eliminate ~80 lines and remove the class of bug entirely.",
+    "projects.py is now 1622 lines — splitting into projects_crud.py / projects_slides.py / projects_media.py / projects_audio.py / projects_annotations.py is increasingly overdue (already flagged in iteration_108 and iteration_109)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (73/73 tests)", "frontend": "N/A (not requested)"},
+  "test_credentials": "admin@scormify.com / admin123 (super_admin); aprovador@teste.com / aprovador123 (aprovador @ company_didaxis001); admin@empresateste.com / empresa123 (company_admin @ company_d9dec773d063) — all valid.",
+  "seed_data_creation": "None persistent. TEST_RETEST_* slides created by TestAprovadorCanMutate / TestSuperAdminCanMutate / TestUpdateAnnotationGuard on the Didaxis project (cb4e0112-3e45-44fe-ab29-304b0ef8f0a0) and deleted in-test. TestCleanupVerification::test_no_leftover_test_slides PASSED, confirming zero leftover test data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The multi-tenancy RBAC hardening initiative (iterations 108-110) is complete. All 24 sub-resource endpoints (get_course, save_course, create/update/delete_slide, duplicate_slide, normalize_dims, reorder_slides, add/update/delete_element, upload_media, add/remove/update_slide_audio_* and _global_audio_*, add/update/delete_annotation, apply_design_template, fix_simulators) now correctly return 401 for anonymous requests and 404 for cross-company authenticated requests. Plus the 19 project-level regression tests in test_rbac_projects_multitenancy.py all remain green. Future additions to /app/backend/routes/projects.py should follow the same require_auth + _can_access_project pattern (or better: adopt the suggested shared dependency). The parametric test structure in test_rbac_subresources.py (ENDPOINTS list) makes it trivial to add coverage for new endpoints — just append a tuple and both anon-401 and cross-company-404 variants are auto-generated.",
+  "rca of the issue": "RCA (closed): Original cause was that main agent applied the guard to 24 handlers via regex script + 2 manually, but update_annotation was one of the manual targets and the companyId follow-up line was forgotten (only the project-null check was present). Fix applied at /app/backend/routes/projects.py lines 1530-1531: `if not _can_access_project(user, project): raise HTTPException(status_code=404, detail='Project not found')`. Verification: (a) pytest backend/tests/test_rbac_subresources.py::TestUpdateAnnotationGuard::test_cross_company_update_annotation_returns_404 PASSED, (b) live probe with admin@empresateste.com PUT against Didaxis project returns 404, (c) anonymous PUT returns 401, (d) all 73 tests in the combined RBAC suite pass."
+}
