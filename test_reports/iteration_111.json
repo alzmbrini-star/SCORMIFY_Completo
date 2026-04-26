@@ -1,0 +1,24 @@
+{
+  "summary": "P2 backend re-test: RBAC validation on the 11 sub-resource agent endpoints + smoke of the new agent_approvals.py module. 43/43 new tests PASS in test_agent_rbac_p2.py and 76/76 regression tests PASS (test_rbac_subresources.py + test_rbac_projects_multitenancy.py + test_apply_improvements_retry.py). All anonymous calls -> 401, all cross-company calls -> 404, same-company aprovador passes RBAC (returns 200 or domain validation, never 401/404), clear-stuck-caches gates 401/403/200 correctly, fake approval IDs return 404. Refactor of agent_approvals.py works end-to-end (queue endpoint returns lists for both aprovador and super_admin without 500). The lazy `from routes.agent import _apply_ai_result_to_slides` import did not cause any circular-import regression.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_agent_rbac_p2.py",
+    "/app/test_reports/pytest/agent_rbac_p2_iter111.xml",
+    "/app/test_reports/pytest/rbac_regression_iter111.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note vs review_request: the request listed heygen-status / generate-narration / narration-status under /agent/courses/{id}/* but they are actually registered under /agent/projects/{id}/* in routes/agent.py (lines 2082, 2170, 2308). The refactor only uses the /projects/ prefix for these three — test was adjusted to match real registration. Main agent should update the doc/PR description to reflect actual paths.",
+    "agent.py is still 3753 lines after extracting agent_approvals.py — further splitting is overdue (suggested: agent_sessions.py, agent_storyboard.py, agent_narration.py, agent_avatar.py).",
+    "Same architectural debt called out in iter_110 still applies: the 11 newly-guarded handlers still duplicate `project = await load_authorized_project(project_id, user)` per function. A FastAPI dependency `Depends(authorized_project)` would eliminate ~22 lines of duplication and prevent future RBAC misses."
+  ],
+  "updated_files": ["/app/backend/tests/test_agent_rbac_p2.py (new)"],
+  "success_rate": {"backend": "100% (43/43 P2 + 76/76 regression = 119/119)", "frontend": "N/A (not requested)"},
+  "test_credentials": "admin@scormify.com/admin123 (super_admin), aprovador@teste.com/aprovador123 (aprovador @ company_didaxis001), admin@empresateste.com/empresa123 (company_admin @ company_d9dec773d063) — all valid.",
+  "seed_data_creation": "None. Tests are read-only or call POST endpoints that fail validation/early-return before persisting (no improvement_approvals docs created with fake previewIds).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 111 closes the P2 backlog: (a) 11 sub-resource agent endpoints (analyze, preview-improvements, apply-improvements, undo-improvements, projects/heygen-status, projects/generate-narration, projects/narration-status, projects/avatar-settings GET+PUT, projects/avatar-generation-status) all enforce require_auth + load_authorized_project correctly. (b) routes/agent_approvals.py (5 endpoints) is registered, working, and reachable; lazy import of _apply_ai_result_to_slides from routes.agent works without circular issues. The new test_agent_rbac_p2.py is parametric and can be extended by appending tuples to SUBRESOURCE_ENDPOINTS. NOTE: the review-request path /agent/courses/{id}/heygen-status (and the two narration endpoints) is wrong in the brief — actual registration is under /agent/projects/{id}/. Total RBAC-related tests now: 119 (43 new + 73 from iter_110 + 3 apply-retry). All green. Backend ready for next backlog item.",
+  "rca of the issue": "N/A — no bug found in this iteration. Re-test confirmed both the security-hardening and the routes/agent_approvals.py extraction landed correctly."
+}

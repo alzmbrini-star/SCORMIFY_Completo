@@ -19,6 +19,7 @@ from routes.deps import (
     HEYGEN_BASE_URL, HEYGEN_HEADERS
 )
 from routes.auth import require_agent_access, require_auth, get_current_user, has_role
+from routes.projects_common import load_authorized_project
 
 logger = logging.getLogger("server")
 
@@ -2079,11 +2080,9 @@ async def _trigger_heygen_videos(project_id: str, pending_list: list):
 
 
 @router.get("/agent/projects/{project_id}/heygen-status")
-async def agent_heygen_status(project_id: str):
+async def agent_heygen_status(project_id: str, user: dict = Depends(require_auth)):
     """Check HeyGen video generation status for a project."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "heygenPending": 1})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
     pending = project.get("heygenPending", [])
     if not pending:
         return {"status": "no_heygen", "videos": []}
@@ -2169,11 +2168,9 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
 
 
 @router.post("/agent/projects/{project_id}/generate-narration")
-async def agent_generate_narration(project_id: str, background_tasks: BackgroundTasks):
+async def agent_generate_narration(project_id: str, background_tasks: BackgroundTasks, user: dict = Depends(require_auth)):
     """Trigger narration generation for all content slides of a project."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
 
     # Get narration config from the agent session
     session_id = project.get("agentSessionId", "")
@@ -2309,11 +2306,9 @@ async def _generate_narrations(project_id: str, tasks: list, voice_id: str):
 
 
 @router.get("/agent/projects/{project_id}/narration-status")
-async def agent_narration_status(project_id: str):
+async def agent_narration_status(project_id: str, user: dict = Depends(require_auth)):
     """Check narration generation status for a project."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "narrationPending": 1})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
     pending = project.get("narrationPending", [])
     if not pending:
         return {"status": "no_narration", "slides": []}
@@ -2574,11 +2569,9 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> in
 
 
 @router.post("/agent/courses/{project_id}/analyze")
-async def agent_analyze_course(project_id: str, request: Request):
+async def agent_analyze_course(project_id: str, request: Request, user: dict = Depends(require_auth)):
     """Analyze an existing course and suggest improvements (async to avoid 504 timeout)."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
 
     cache_key = f"course_analysis_{project_id}"
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
@@ -2648,12 +2641,10 @@ async def agent_analyze_course(project_id: str, request: Request):
 
 
 @router.post("/agent/courses/{project_id}/preview-improvements")
-async def agent_preview_improvements(project_id: str, data: AgentImprovementsApply):
+async def agent_preview_improvements(project_id: str, data: AgentImprovementsApply, user: dict = Depends(require_auth)):
     """Preview improvements without saving. Returns before/after slide data."""
     import copy
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
 
     session_id = project.get("agentSessionId") or str(uuid.uuid4())
     from services.ai_agent import apply_course_improvements
@@ -2751,7 +2742,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
 
 
 @router.post("/agent/courses/{project_id}/apply-improvements")
-async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply):
+async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply, user: dict = Depends(require_auth)):
     """Apply selected improvements to an existing course. Uses cached preview if previewId provided.
 
     Retryable-safe: the cached preview is ONLY deleted after the apply fully
@@ -2761,9 +2752,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     """
     import copy
     import traceback
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
 
     from models import generate_id
 
@@ -3068,8 +3057,9 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
 
 
 @router.post("/agent/courses/{project_id}/undo-improvements")
-async def agent_undo_improvements(project_id: str):
+async def agent_undo_improvements(project_id: str, user: dict = Depends(require_auth)):
     """Undo the last applied improvements by restoring the saved snapshot."""
+    await load_authorized_project(project_id, user)
     snapshot = await db.course_snapshots.find_one({"projectId": project_id}, {"_id": 0})
     if not snapshot:
         raise HTTPException(404, "Nenhum snapshot encontrado para desfazer.")
@@ -3096,21 +3086,17 @@ class AvatarSceneSettings(BaseModel):
 
 
 @router.get("/agent/projects/{project_id}/avatar-settings")
-async def get_avatar_settings(project_id: str):
+async def get_avatar_settings(project_id: str, user: dict = Depends(require_auth)):
     """Get avatar scene settings for a project."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "avatarSceneSettings": 1})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
     settings = project.get("avatarSceneSettings", {"maxScenes": 3, "defaultAvatarId": None, "defaultVoiceId": None})
     return settings
 
 
 @router.put("/agent/projects/{project_id}/avatar-settings")
-async def update_avatar_settings(project_id: str, settings: AvatarSceneSettings):
+async def update_avatar_settings(project_id: str, settings: AvatarSceneSettings, user: dict = Depends(require_auth)):
     """Update avatar scene settings for a project."""
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1})
-    if not project:
-        raise HTTPException(404, "Project not found")
+    await load_authorized_project(project_id, user)
     await db.projects.update_one(
         {"id": project_id},
         {"$set": {
@@ -3122,14 +3108,9 @@ async def update_avatar_settings(project_id: str, settings: AvatarSceneSettings)
 
 
 @router.get("/agent/projects/{project_id}/avatar-generation-status")
-async def get_avatar_generation_status(project_id: str):
+async def get_avatar_generation_status(project_id: str, user: dict = Depends(require_auth)):
     """Get status of avatar scene generation (background image and HeyGen video)."""
-    project = await db.projects.find_one(
-        {"id": project_id},
-        {"_id": 0, "avatarScenePending": 1, "id": 1}
-    )
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = await load_authorized_project(project_id, user)
     pending = project.get("avatarScenePending", [])
     if not pending:
         return {"status": "no_pending", "scenes": []}
@@ -3770,351 +3751,3 @@ async def resume_from_approval(session_id: str, request: Request, user: dict = D
     return {"status": "ok", "step": "storyboarded"}
 
 
-@router.get("/agent/approval-queue")
-async def get_approval_queue(request: Request, user: dict = Depends(require_auth)):
-    """Get storyboard sessions in the approval pipeline.
-    - Aprovador: sees ONLY pending_approval sessions targeted at their company
-    - Super Admin: sees ALL pending_approval + approved sessions
-    - Company Admin: sees pending_approval + approved targeted at their company
-    """
-    role = user.get("role")
-    company_id = user.get("companyId")
-
-    if role == "aprovador":
-        if not company_id:
-            raise HTTPException(403, "Aprovador must belong to a company")
-        query = {"step": "pending_approval", "targetCompanyId": company_id}
-    elif role == "super_admin":
-        query = {"step": {"$in": ["pending_approval", "approved"]}}
-    elif role == "company_admin":
-        if not company_id:
-            raise HTTPException(403, "Company admin must belong to a company")
-        query = {"step": {"$in": ["pending_approval", "approved"]}, "targetCompanyId": company_id}
-    else:
-        raise HTTPException(403, "Acesso negado")
-
-    sessions = await db.agent_sessions.find(
-        query,
-        {"_id": 0, "contentText": 0}
-    ).sort("updatedAt", -1).to_list(100)
-
-    # Enrich with user names
-    for s in sessions:
-        uid = s.get("userId")
-        if uid:
-            u = await db.users.find_one({"user_id": uid}, {"_id": 0, "name": 1, "email": 1})
-            if u:
-                s["userName"] = u.get("name", u.get("email", ""))
-
-    # Also fetch improvement approvals
-    if role == "aprovador":
-        imp_query = {"status": "pending", "targetCompanyId": company_id}
-    elif role == "super_admin":
-        imp_query = {"status": {"$in": ["pending", "approved", "rejected"]}}
-    elif role == "company_admin":
-        imp_query = {"status": {"$in": ["pending", "approved", "rejected"]}, "targetCompanyId": company_id}
-    else:
-        imp_query = {}
-
-    improvement_approvals = await db.improvement_approvals.find(
-        imp_query,
-        {"_id": 0}
-    ).sort("submittedAt", -1).to_list(100)
-
-    # Enrich improvement approvals with submitter names and project info
-    for ia in improvement_approvals:
-        uid = ia.get("submittedBy")
-        if uid:
-            u = await db.users.find_one({"user_id": uid}, {"_id": 0, "name": 1, "email": 1})
-            if u:
-                ia["submitterName"] = u.get("name", u.get("email", ""))
-        ia["_type"] = "improvement"
-
-    # Mark sessions as storyboard type
-    for s in sessions:
-        s["_type"] = "storyboard"
-
-    # Combine and sort by date
-    combined = sessions + improvement_approvals
-    combined.sort(key=lambda x: x.get("updatedAt") or x.get("submittedAt") or "", reverse=True)
-
-    return combined
-
-
-@router.post("/agent/courses/{project_id}/submit-improvements-for-approval")
-async def submit_improvements_for_approval(project_id: str, request: Request, user: dict = Depends(require_auth)):
-    """Submit improvement preview for approval by a company's aprovador."""
-    body = await request.json()
-    preview_id = body.get("previewId")
-    target_company_id = body.get("targetCompanyId")
-    improvements = body.get("improvements", [])
-    selected_new_slides = body.get("selectedNewSlides")
-
-    if not preview_id:
-        raise HTTPException(400, "previewId is required")
-    if not target_company_id:
-        raise HTTPException(400, "targetCompanyId is required")
-
-    # Verify project exists
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0, "id": 1, "title": 1, "course": 1})
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    # Verify company exists
-    company = await db.companies.find_one({"id": target_company_id}, {"_id": 0, "name": 1, "id": 1})
-    if not company:
-        raise HTTPException(404, "Company not found")
-
-    # Verify preview exists
-    preview = await db.improvement_previews.find_one({"id": preview_id}, {"_id": 0})
-    if not preview:
-        raise HTTPException(404, "Preview not found - generate a preview first")
-
-    # Build comparisons with HTML for visual rendering
-    import copy
-    from models import generate_id
-
-    original_slides = project.get("course", {}).get("slides", [])
-    ai_result = preview.get("aiResult", {})
-
-    after_slides = copy.deepcopy(original_slides)
-    _apply_ai_result_to_slides(after_slides, ai_result, generate_id)
-
-    affected_indices = set()
-    for upd in ai_result.get("updatedSlides", []):
-        idx = upd.get("slideIndex")
-        if idx is not None and 0 <= idx < len(original_slides):
-            affected_indices.add(idx)
-
-    def _extract_html_for_approval(slide):
-        htmls = []
-        for el in slide.get("elements", []):
-            c = el.get("htmlContent") or el.get("content") or ""
-            if c and isinstance(c, str):
-                htmls.append(c)
-        return htmls
-
-    comparisons = []
-    for idx in sorted(affected_indices):
-        comparisons.append({
-            "slideIndex": idx,
-            "title": {
-                "before": original_slides[idx].get("title", ""),
-                "after": after_slides[idx].get("title", ""),
-            },
-            "htmlBefore": _extract_html_for_approval(original_slides[idx]),
-            "htmlAfter": _extract_html_for_approval(after_slides[idx]),
-        })
-
-    new_slide_previews = []
-    for ns in ai_result.get("newSlides", []):
-        new_slide_previews.append({
-            "afterIndex": ns.get("afterIndex", 0),
-            "title": ns.get("title", "Novo Slide"),
-            "html": [e.get("content", "") for e in ns.get("elements", []) if e.get("content")],
-        })
-
-    approval_id = str(uuid.uuid4())
-    await db.improvement_approvals.insert_one({
-        "id": approval_id,
-        "projectId": project_id,
-        "projectTitle": project.get("title", "Sem titulo"),
-        "previewId": preview_id,
-        "targetCompanyId": target_company_id,
-        "targetCompanyName": company.get("name", ""),
-        "improvements": improvements,
-        "selectedNewSlides": selected_new_slides,
-        "comparisons": comparisons,
-        "newSlides": new_slide_previews,
-        "updatedCount": len(comparisons),
-        "newCount": len(new_slide_previews),
-        "status": "pending",
-        "submittedBy": user.get("user_id"),
-        "submittedAt": datetime.now(timezone.utc).isoformat(),
-        "updatedAt": datetime.now(timezone.utc).isoformat(),
-    })
-
-    # Send email to aprovadors (fire-and-forget)
-    try:
-        from services.email_service import notify_approval_submitted
-        import asyncio as _aio
-        aprovadors = await db.users.find(
-            {"companyId": target_company_id, "roles": {"$in": ["aprovador", "company_admin"]}},
-            {"_id": 0, "email": 1}
-        ).to_list(20)
-        course_title = project.get("title", "Sem titulo")
-        author_name = user.get("name", "Usuario")
-        for apr in aprovadors:
-            if apr.get("email"):
-                _aio.create_task(notify_approval_submitted(apr["email"], author_name, course_title, approval_id))
-    except Exception as e:
-        logger.warning(f"Failed to send improvement approval notification: {e}")
-
-    return {
-        "status": "ok",
-        "approvalId": approval_id,
-        "targetCompany": company.get("name", ""),
-        "updatedCount": len(comparisons),
-        "newCount": len(new_slide_previews),
-    }
-
-
-@router.post("/agent/improvement-approvals/{approval_id}/approve")
-async def approve_improvement(approval_id: str, request: Request, user: dict = Depends(require_auth)):
-    """Approve an improvement - automatically applies changes to the course."""
-    doc = await db.improvement_approvals.find_one({"id": approval_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(404, "Improvement approval not found")
-    if doc.get("status") != "pending":
-        raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
-
-    from routes.auth import has_any_role, has_role
-    role = user.get("role")
-    company_id = user.get("companyId")
-    if not has_any_role(user, "aprovador", "company_admin", "super_admin"):
-        raise HTTPException(403, "Only aprovadores can approve improvements")
-    if has_role(user, "aprovador") and not has_any_role(user, "super_admin", "company_admin") and company_id != doc.get("targetCompanyId"):
-        raise HTTPException(403, "You can only approve improvements targeted to your company")
-
-    # Apply the improvements to the course
-    project_id = doc.get("projectId")
-    preview_id = doc.get("previewId")
-
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    preview = await db.improvement_previews.find_one({"id": preview_id}, {"_id": 0})
-    if not preview:
-        raise HTTPException(404, "Preview data not found - cannot apply improvements")
-
-    import copy
-    from models import generate_id
-
-    ai_result = preview.get("aiResult", {})
-    original_course = copy.deepcopy(project.get("course", {}))
-    slides = project.get("course", {}).get("slides", [])
-
-    _apply_ai_result_to_slides(slides, ai_result, generate_id)
-
-    # Handle new slides
-    new_slides_data = ai_result.get("newSlides", [])
-    new_slides_added = 0
-    if new_slides_data:
-        for ns in sorted(new_slides_data, key=lambda x: x.get("afterIndex", 0), reverse=True):
-            insert_idx = ns.get("afterIndex", len(slides) - 1) + 1
-            new_slide = {
-                "id": generate_id(),
-                "title": ns.get("title", "Novo Slide"),
-                "elements": ns.get("elements", []),
-                "backgroundImage": "",
-                "backgroundColor": "",
-            }
-            slides.insert(insert_idx, new_slide)
-            new_slides_added += 1
-
-    await db.projects.update_one(
-        {"id": project_id},
-        {"$set": {
-            "course.slides": slides,
-            "course._preApprovalBackup": original_course.get("slides"),
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
-        }}
-    )
-
-    await db.improvement_approvals.update_one(
-        {"id": approval_id},
-        {"$set": {
-            "status": "approved",
-            "approvedBy": user.get("user_id"),
-            "approvedAt": datetime.now(timezone.utc).isoformat(),
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
-        }}
-    )
-
-    # Notify author of approval
-    try:
-        from services.email_service import notify_approval_approved
-        import asyncio as _aio
-        author_id = doc.get("submittedBy")
-        if author_id:
-            author = await db.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1})
-            if author and author.get("email"):
-                _aio.create_task(notify_approval_approved(author["email"], user.get("name", "Aprovador"), doc.get("projectTitle", "Curso")))
-    except Exception as e:
-        logger.warning(f"Failed to send improvement approved notification: {e}")
-
-    return {
-        "status": "approved",
-        "projectId": project_id,
-        "appliedSlides": len(ai_result.get("updatedSlides", [])),
-        "newSlides": new_slides_added,
-    }
-
-
-@router.post("/agent/improvement-approvals/{approval_id}/reject")
-async def reject_improvement(approval_id: str, request: Request, user: dict = Depends(require_auth)):
-    """Reject an improvement approval."""
-    doc = await db.improvement_approvals.find_one({"id": approval_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(404, "Improvement approval not found")
-    if doc.get("status") != "pending":
-        raise HTTPException(400, f"Approval must be pending, current: {doc['status']}")
-
-    from routes.auth import has_any_role, has_role
-    company_id = user.get("companyId")
-    if not has_any_role(user, "aprovador", "company_admin", "super_admin"):
-        raise HTTPException(403, "Only aprovadores can reject improvements")
-    if has_role(user, "aprovador") and not has_any_role(user, "super_admin", "company_admin") and company_id != doc.get("targetCompanyId"):
-        raise HTTPException(403, "You can only reject improvements targeted to your company")
-
-    body = await request.json()
-    reason = body.get("reason", "")
-
-    await db.improvement_approvals.update_one(
-        {"id": approval_id},
-        {"$set": {
-            "status": "rejected",
-            "rejectedBy": user.get("user_id"),
-            "rejectedAt": datetime.now(timezone.utc).isoformat(),
-            "rejectionReason": reason,
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
-        }}
-    )
-
-    # Notify author of rejection
-    try:
-        from services.email_service import notify_approval_rejected
-        import asyncio as _aio
-        author_id = doc.get("submittedBy")
-        if author_id:
-            author = await db.users.find_one({"user_id": author_id}, {"_id": 0, "email": 1})
-            if author and author.get("email"):
-                _aio.create_task(notify_approval_rejected(author["email"], user.get("name", "Aprovador"), doc.get("projectTitle", "Curso"), reason))
-    except Exception as e:
-        logger.warning(f"Failed to send improvement rejected notification: {e}")
-
-    return {"status": "rejected", "reason": reason}
-
-
-
-@router.post("/agent/clear-stuck-caches")
-async def clear_stuck_caches(user: dict = Depends(require_auth)):
-    """Admin endpoint to clear stuck analysis caches and sessions."""
-    if user.get("role") != "super_admin":
-        raise HTTPException(403, "Only super_admin can clear caches")
-
-    # Clear all analysis_cache entries
-    cache_result = await db.analysis_cache.delete_many({})
-
-    # Reset stuck sessions (analyzing/structuring for > 5 min)
-    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
-    stuck_result = await db.agent_sessions.update_many(
-        {"step": {"$in": ["analyzing", "structuring"]}, "updatedAt": {"$lt": cutoff}},
-        {"$set": {"step": "uploaded", "error": "Reset by admin"}}
-    )
-
-    return {
-        "cachesCleared": cache_result.deleted_count,
-        "stuckSessionsReset": stuck_result.modified_count,
-    }
