@@ -87,6 +87,9 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-27: FEATURE - Filtros visuais por categoria nas sugestoes de melhoria + reforco do prompt da IA para imagens.
+  - FRONTEND: chips coloridos com icone+contagem para cada categoria (content, structure, quiz, narration, visual, simulator, avatar_scene, scenario, visual_summary, reinforcement, imagem_premium) no painel de preview de melhorias. Botao "Todas (N)" + um chip por categoria detectada. Filtra a lista em tempo real. Cores dedicadas por tipo.
+  - BACKEND: prompt do `analyze_existing_course` agora detecta slides "text-heavy" (>350 chars de texto sem imagem) e PASSA a lista para o LLM com instrucao OBRIGATORIA de sugerir uma `imagem_premium` por slide nesse estado. Calcula textLength + isTextHeavy + hasImage no slides_summary. Reforcada a regra de imagem_premium: imagens devem ILUSTRAR o conteudo (nao decorar), com prompts de 15-30 palavras incluindo sujeito+ambiente+iluminacao+estilo. 57/57 testes passando.
 - 2026-04-25: P2 - RBAC + refatoracao agent.py
   - SECURITY: 11 endpoints de /api/agent/courses/{id}/* e /api/agent/projects/{id}/* agora exigem `require_auth + load_authorized_project`. Antes: anonimo podia chamar /analyze, /preview-improvements, /apply-improvements, /undo-improvements, /heygen-status, /generate-narration, /narration-status, /avatar-settings GET+PUT, /avatar-generation-status. Agora: anonimo -> 401, cross-company -> 404. Validado por 43 novos testes em test_agent_rbac_p2.py.
   - REFACTOR: extraidas 5 rotas de approval (get_approval_queue, submit_improvements_for_approval, approve_improvement, reject_improvement, clear_stuck_caches) de routes/agent.py para novo routes/agent_approvals.py (446 linhas focadas no fluxo aprovador/company_admin -> aprovacao). agent.py reduziu de 4099 -> 3753 linhas (-346). Lazy import de `_apply_ai_result_to_slides` evita ciclo. server.py registra novo router.

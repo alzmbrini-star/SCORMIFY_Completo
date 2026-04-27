@@ -363,6 +363,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   const [heygenVoices, setHeygenVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
   const [loadingVoices, setLoadingVoices] = useState(false);
+  // Filter chips: 'all' or one of the improvement type keys
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   const handleTypeChange = (impIndex, newType) => {
     setTypeOverrides(prev => ({ ...prev, [impIndex]: newType }));
@@ -676,10 +678,67 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
           {/* Improvements */}
           {analysis.improvements?.length > 0 && (() => {
             const avatarCount = analysis.improvements.filter(imp => imp.type === 'avatar_scene').length;
+            // Build category counts (using type AFTER user overrides)
+            const categoryCounts = analysis.improvements.reduce((acc, imp, i) => {
+              const t = getEffectiveType(imp, i);
+              acc[t] = (acc[t] || 0) + 1;
+              return acc;
+            }, {});
+            const categoryColors = {
+              content: 'bg-slate-700 text-slate-200 border-slate-600',
+              structure: 'bg-blue-900/40 text-blue-300 border-blue-700/50',
+              quiz: 'bg-purple-900/40 text-purple-300 border-purple-700/50',
+              narration: 'bg-sky-900/40 text-sky-300 border-sky-700/50',
+              visual: 'bg-pink-900/40 text-pink-300 border-pink-700/50',
+              simulator: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50',
+              avatar_scene: 'bg-violet-900/40 text-violet-300 border-violet-700/50',
+              scenario: 'bg-cyan-900/40 text-cyan-300 border-cyan-700/50',
+              visual_summary: 'bg-amber-900/40 text-amber-300 border-amber-700/50',
+              reinforcement: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
+              imagem_premium: 'bg-fuchsia-900/40 text-fuchsia-300 border-fuchsia-700/50',
+            };
+            const filtered = analysis.improvements
+              .map((imp, i) => ({ imp, i }))
+              .filter(({ imp, i }) => categoryFilter === 'all' || getEffectiveType(imp, i) === categoryFilter);
             return (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-slate-300">Melhorias Sugeridas ({analysis.improvements.length})</h3>
               <p className="text-xs text-slate-400">Selecione as melhorias que deseja aplicar:</p>
+              {/* Category filter chips */}
+              <div className="flex flex-wrap gap-1.5 py-1" data-testid="improvement-category-filters">
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('all')}
+                  className={`text-[10px] px-2 py-1 rounded-full border transition-all ${
+                    categoryFilter === 'all'
+                      ? 'bg-emerald-900/50 text-emerald-200 border-emerald-700 font-semibold'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700 hover:border-slate-600'
+                  }`}
+                  data-testid="filter-chip-all"
+                >
+                  Todas ({analysis.improvements.length})
+                </button>
+                {Object.entries(categoryCounts).sort(([, a], [, b]) => b - a).map(([type, count]) => {
+                  const Icon = typeIcons[type] || Lightbulb;
+                  const active = categoryFilter === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setCategoryFilter(type)}
+                      className={`text-[10px] px-2 py-1 rounded-full border transition-all flex items-center gap-1 ${
+                        active
+                          ? `${categoryColors[type] || 'bg-slate-700 text-slate-100 border-slate-500'} font-semibold ring-1 ring-white/20`
+                          : 'bg-slate-800/40 text-slate-400 border-slate-700 hover:border-slate-600'
+                      }`}
+                      data-testid={`filter-chip-${type}`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {typeLabels[type] || type} ({count})
+                    </button>
+                  );
+                })}
+              </div>
               {avatarCount > 0 && (
                 <div className="flex items-center gap-2 p-2 rounded-md bg-violet-950/20 border border-violet-800/20">
                   <Video className="w-4 h-4 text-violet-400" />
@@ -688,8 +747,13 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                   </span>
                 </div>
               )}
+              {filtered.length === 0 && categoryFilter !== 'all' && (
+                <div className="text-xs text-slate-500 italic py-3 text-center">
+                  Nenhuma melhoria desta categoria. Clique em "Todas" para ver tudo.
+                </div>
+              )}
               <div className="space-y-2">
-                {analysis.improvements.map((imp, i) => {
+                {filtered.map(({ imp, i }) => {
                   const isSelected = selectedImprovements.find(s => s.description === imp.description);
                   const effectiveType = getEffectiveType(imp, i);
                   const isAvatarScene = imp.type === 'avatar_scene';

@@ -1927,22 +1927,43 @@ async def analyze_existing_course(session_id: str, project: dict) -> dict:
     slides_summary = []
     has_avatar = False
     has_narration_count = 0
+    text_heavy_slides = []  # slides with lots of text but no image
     for i, s in enumerate(slides):
         texts = []
+        has_image_element = False
         for el in s.get("elements", []):
             c = el.get("htmlContent") or el.get("content") or ""
             if c and isinstance(c, str):
                 texts.append(c[:200])
             if el.get("type") == "video":
                 has_avatar = True
+            if el.get("type") == "image" and el.get("src"):
+                has_image_element = True
+        # Also count background image as visual support
+        if s.get("backgroundImage"):
+            has_image_element = True
         if s.get("audio") or s.get("librasScript"):
             has_narration_count += 1
+        # Heuristic: a slide is "text-heavy" when its raw text length is > 350
+        # chars AND it has NO image elements/background. These are prime
+        # candidates for a Leonardo image to soften the reading.
+        full_text = " ".join(texts)
+        # Strip HTML tags for a fair length measurement
+        import re as _re
+        clean_text = _re.sub(r'<[^>]+>', '', full_text)
+        text_length = len(clean_text)
+        is_text_heavy = text_length > 350 and not has_image_element
+        if is_text_heavy:
+            text_heavy_slides.append(i)
         slides_summary.append({
             "index": i,
             "title": s.get("title", f"Slide {i+1}"),
             "hasAudio": bool(s.get("audio")),
             "hasNarration": bool(s.get("librasScript")),
             "hasVideo": any(el.get("type") == "video" for el in s.get("elements", [])),
+            "hasImage": has_image_element,
+            "textLength": text_length,
+            "isTextHeavy": is_text_heavy,
             "elementCount": len(s.get("elements", [])),
             "textPreview": " | ".join(texts)[:300],
         })
@@ -1958,6 +1979,7 @@ DESCRIÇÃO: {project.get('description', '')}
 TOTAL DE SLIDES: {len(slides)}
 JÁ TEM AVATAR: {"Sim" if has_avatar else "Não"}
 SLIDES COM NARRAÇÃO: {has_narration_count}/{len(slides)}
+SLIDES TEXTUAIS SEM IMAGEM: {text_heavy_slides if text_heavy_slides else "nenhum"} (>350 chars de texto e SEM imagem)
 
 RESUMO DOS SLIDES:
 {json.dumps(slides_summary, ensure_ascii=False)[:6000]}
@@ -2009,13 +2031,15 @@ REGRAS PARA REINFORCEMENT:
 - Tipos: flashcard, destaque de conceito, caixa "Sabia que?", dica prática, exemplo real, analogia, case study
 - Para cada sugestão, inclua "reinforcementType": tipo de reforço sugerido
 
-REGRAS PARA IMAGEM_PREMIUM (Leonardo AI):
-- Sugira quando um slide de conteúdo ficaria significativamente melhor com uma imagem profissional de alta qualidade
-- Exemplos: fotos fotorrealistas, ilustrações artísticas, cenas cinematográficas, arte digital
+REGRAS PARA IMAGEM_PREMIUM (Leonardo AI) — PRIORIDADE ALTA:
+- 🔴 OBRIGATÓRIO: para CADA slide listado em "SLIDES TEXTUAIS SEM IMAGEM" acima, sugira UMA `imagem_premium` com priority="alta". Isso NÃO é opcional — slides com >350 chars de texto e sem imagem produzem fadiga visual e queda na retenção.
+- O objetivo da imagem é ILUSTRAR o conteúdo do slide, ajudar a SUAVIZAR a leitura e facilitar a compreensão. NÃO é decoração — é apoio pedagógico.
+- A imagem deve representar diretamente o tema/conceito principal do slide (ex: slide sobre liderança → equipe diversa em reunião colaborativa; slide sobre saúde mental → pessoa em ambiente sereno).
 - Para cada sugestão, inclua campos extras:
-  - "imagePrompt": Prompt DETALHADO em INGLÊS para gerar a imagem (ex: "Modern corporate meeting room with diverse team, glass walls, city skyline view, warm lighting, photorealistic")
-  - "imageStyle": Estilo sugerido: "CINEMATIC", "ILLUSTRATION", "PHOTOGRAPHY", "DIGITAL_ART", "RENDER_3D" ou null para automático
-- Sugira 1-3 imagens premium por curso, priorizando slides de capa, abertura de módulo ou conteúdo-chave
+  - "imagePrompt": Prompt DETALHADO em INGLÊS descrevendo a cena que ilustra o conteúdo (ex: "Diverse corporate team collaborating in modern meeting room, warm natural lighting, photorealistic, professional atmosphere"). Use 15-30 palavras incluindo: sujeito principal + ambiente + iluminação + estilo visual.
+  - "imageStyle": Estilo apropriado ao tema: "PHOTOGRAPHY" (cenas reais de pessoas/locais), "ILLUSTRATION" (conceitos abstratos), "CINEMATIC" (cenas dramáticas/emocionais), "DIGITAL_ART" (tecnologia/futurista), "RENDER_3D" (produtos/objetos), ou null para automático.
+  - "description": Em português, explique POR QUE a imagem ajuda (ex: "Slide tem 480 chars de texto sobre comunicação assertiva — uma imagem de pessoas dialogando suavizará a leitura").
+- Além dos slides obrigatórios acima, sugira mais 1-2 imagens premium em slides estratégicos (capa, abertura de módulo) se o curso tiver mais que 8 slides.
 
 Retorne JSON:
 ```json
