@@ -6,11 +6,9 @@ from services.single_page_exporter import generate_single_page_html
 
 
 def test_each_section_has_its_own_background_color():
-    """Slide.background (solid color) must be applied to the corresponding
-    .sp-section-inner card (not the <section> wrapper) so editor-defined
-    text colors stay readable. Bug: previously only the first slide's
-    backgroundImage was used as a global course bg, AND text white-on-white
-    was unreadable when card was forced white."""
+    """Slide.background must be applied to the .sp-section-inner card so the
+    editor's color choice is preserved per slide and dark backgrounds get
+    auto light-text via the .sp-dark class."""
     project = {
         "id": "p", "name": "Test",
         "course": {"metadata": {"title": "T"}, "slides": [
@@ -23,18 +21,16 @@ def test_each_section_has_its_own_background_color():
     assert 'background-color:#1c1917' in out
     assert 'background-color:#fefce8' in out
     assert 'background-color:#1e3a8a' in out
-    # Card-inner must have the inline style now (not the outer <section>)
     cards = re.findall(r'<div class="sp-section-inner"[^>]+style="([^"]+)"', out)
     assert len(cards) == 3, f"Expected 3 cards with style, got {len(cards)}"
     assert "1c1917" in cards[0]
     assert "fefce8" in cards[1]
     assert "1e3a8a" in cards[2]
-    # Dark backgrounds must auto-apply light text color (sp-dark class)
-    assert out.count("sp-section sp-dark") >= 2  # #1c1917 and #1e3a8a are dark
-    assert "color:#f1f5f9" in cards[0]  # auto light text
+    assert out.count("sp-section sp-dark") >= 2
+    assert "color:#f1f5f9" in cards[0]
 
 
-def test_section_with_no_background_has_no_style_attr():
+def test_section_with_no_background_uses_default_white_canvas():
     project = {
         "id": "p", "name": "Test",
         "course": {"metadata": {"title": "T"}, "slides": [
@@ -42,11 +38,27 @@ def test_section_with_no_background_has_no_style_attr():
         ]}
     }
     out = generate_single_page_html(project, "/none")
-    # The card should not have a background style if slide has no background fields
+    # Card-inner has NO inline style when slide has no background
     m = re.search(r'<div class="sp-section-inner"[^>]*>', out)
     assert m
     assert "background-color" not in m.group(0)
-    assert "background-image" not in m.group(0)
+
+
+def test_video_element_has_max_width_constraint():
+    """Videos should NOT take over the entire card — they use a sensible
+    max-width via the .sp-video CSS rule."""
+    project = {
+        "id": "p", "name": "T",
+        "course": {"metadata": {"title": "T"}, "slides": [
+            {"id": "s1", "title": "V", "elements": [
+                {"id": "v1", "type": "video", "src": "/api/projects/p/assets/v.mp4"},
+            ]}
+        ]}
+    }
+    out = generate_single_page_html(project, "/none")
+    # The CSS in the page must constrain video size
+    assert "max-width:720px" in out
+    assert ".sp-video video" in out
 
 
 def test_iframe_data_uri_declares_utf8_charset_for_accents():

@@ -114,67 +114,94 @@ def _inline_assets_in_html(html_str: str, project_id: str, assets_dir: str, base
     return pattern.sub(repl, html_str)
 
 
+def _kebab(name: str) -> str:
+    return re.sub(r"([A-Z])", r"-\1", name).lower()
+
+
+def _safe_text_html(s: str) -> str:
+    """Allow line breaks but escape everything else for safety."""
+    if s is None:
+        return ""
+    return re.sub(r"\r?\n", "<br>", _esc(s))
+
+
 # --------------------------------------------------------------------------- element renderers
 
 
-def _render_text_element(el: dict) -> str:
+
+def _render_element(el: dict, project_id: str, assets_dir: str, base_url: str,
+                     slide_idx: int, el_idx: int, questions_lookup: Dict[str, dict]) -> str:
+    """Render a single element as a flow-block (no absolute positioning).
+    Each element type has its own max-width to avoid videos/avatars taking
+    over the entire card."""
+    etype = (el.get("type") or "text").lower()
+    if etype == "text":
+        return _render_text_element_inner(el)
+    if etype == "image":
+        return _render_image_element_inner(el, project_id, assets_dir, base_url)
+    if etype == "audio":
+        return _render_audio_element_inner(el, project_id, assets_dir, base_url, el_idx)
+    if etype == "video":
+        return _render_video_element_inner(el, project_id, assets_dir, base_url, el_idx)
+    if etype == "avatar":
+        return _render_avatar_element_inner(el, project_id, assets_dir, base_url, el_idx)
+    if etype == "html":
+        return _render_html_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
+    if etype == "quiz":
+        return _render_quiz_element_inner(el, slide_idx, el_idx, questions_lookup)
+    if etype == "scenario":
+        return _render_scenario_element_inner(el, slide_idx, el_idx)
+    if etype == "simulator":
+        return _render_simulator_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
+    return ""
+
+
+# --------------------------------------------------------------------------- inner renderers
+def _render_text_element_inner(el: dict) -> str:
     content = el.get("content") or ""
     style = el.get("style") or {}
     css_parts = []
     for k, v in style.items():
         if v in (None, ""):
             continue
+        # Skip absolute positioning fields if any leaked into style
+        if k in ("position", "top", "left", "right", "bottom"):
+            continue
         css_parts.append(f"{_kebab(k)}:{_esc(v)}")
     style_attr = ";".join(css_parts)
-    return (
-        f'<div class="sp-text" style="{style_attr}">'
-        f'{_safe_text_html(content)}'
-        f'</div>'
-    )
+    return f'<div class="sp-text" style="{style_attr}">{_safe_text_html(content)}</div>'
 
 
-def _kebab(name: str) -> str:
-    return re.sub(r"([A-Z])", r"-\1", name).lower()
-
-
-def _safe_text_html(s: str) -> str:
-    """Allow <br> and basic inline tags but escape everything else."""
-    if s is None:
-        return ""
-    # Basic line-break preservation
-    return re.sub(r"\r?\n", "<br>", _esc(s))
-
-
-def _render_image_element(el: dict, project_id: str, assets_dir: str, base_url: str) -> str:
+def _render_image_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str) -> str:
     src = el.get("src") or el.get("content") or ""
     src = _resolve_asset_url(src, project_id, assets_dir, base_url)
     alt = _esc(el.get("alt", ""))
     style = el.get("style") or {}
     radius = style.get("borderRadius", "8px")
     return (
-        f'<figure class="sp-image">'
+        f'<figure class="sp-image" style="margin:0;display:flex;justify-content:center">'
         f'<img src="{_esc(src)}" alt="{alt}" loading="lazy" '
-        f'style="border-radius:{_esc(radius)};max-width:100%;height:auto" />'
+        f'style="max-width:100%;height:auto;border-radius:{_esc(radius)};box-shadow:0 6px 20px rgba(0,0,0,.18)" />'
         f'</figure>'
     )
 
 
-def _render_audio_element(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
+def _render_audio_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
     src = el.get("src") or el.get("audioUrl") or el.get("content") or ""
     src = _resolve_asset_url(src, project_id, assets_dir, base_url)
     title = _esc(el.get("title", "Áudio"))
     return (
         f'<div class="sp-audio sp-interactive" data-interactive="audio" data-required="true" '
         f'data-interactive-id="audio-{idx}">'
-        f'<div class="sp-audio-label">{title}</div>'
+        f'<div class="sp-audio-label">🎧 {title}</div>'
         f'<audio controls preload="metadata" src="{_esc(src)}" '
-        f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></audio>'
+        f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))" style="width:100%"></audio>'
         f'<div class="sp-audio-hint">▶ Reproduza para liberar a próxima seção</div>'
         f'</div>'
     )
 
 
-def _render_video_element(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
+def _render_video_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
     src = el.get("src") or el.get("videoUrl") or el.get("content") or ""
     src = _resolve_asset_url(src, project_id, assets_dir, base_url)
     poster = el.get("poster", "")
@@ -191,23 +218,43 @@ def _render_video_element(el: dict, project_id: str, assets_dir: str, base_url: 
     )
 
 
-def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: str) -> str:
+def _render_avatar_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
+    """Avatar = video player se houver videoUrl, senão imagem estática."""
+    video_url = el.get("videoUrl") or el.get("avatarVideoUrl") or ""
+    image_url = el.get("avatarImage") or el.get("imageUrl") or el.get("src") or ""
+    if video_url:
+        video_url = _resolve_asset_url(video_url, project_id, assets_dir, base_url)
+        return (
+            f'<div class="sp-video sp-interactive" data-interactive="video" data-required="true" '
+            f'data-interactive-id="avatar-{idx}">'
+            f'<div class="sp-video-label">🎬 Avatar</div>'
+            f'<video controls preload="metadata" src="{_esc(video_url)}" '
+            f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></video>'
+            f'<div class="sp-video-hint">▶ Assista para liberar a próxima seção</div>'
+            f'</div>'
+        )
+    if image_url:
+        image_url = _resolve_asset_url(image_url, project_id, assets_dir, base_url)
+        return (
+            f'<figure class="sp-image" style="margin:0;display:flex;justify-content:center">'
+            f'<img src="{_esc(image_url)}" alt="Avatar" loading="lazy" '
+            f'style="max-width:320px;height:auto;border-radius:8px" />'
+            f'</figure>'
+        )
+    return ''
+
+
+def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
+                                 slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
-    # If the HTML contains <style>, <script>, <body>, or <html> tags, those would
-    # leak into the course CSS scope and break the page layout (eg a simulator's
-    # `body{display:flex;width:960px}` would shrink the whole single-page body).
-    # Sandbox such complex HTML inside an iframe via srcdoc.
     has_global_styles = bool(re.search(r"<\s*(style|script|body|html|head)\b", raw, re.IGNORECASE))
     if has_global_styles:
-        # Ensure inner HTML declares UTF-8 — without this, data: URI iframes
-        # interpret the bytes as Latin-1 and break Portuguese accents/emojis.
         if "<meta" not in raw.lower() and "charset" not in raw.lower():
             raw_with_meta = '<meta charset="utf-8">\n' + raw
         else:
             raw_with_meta = raw
         b64 = base64.b64encode(raw_with_meta.encode("utf-8")).decode("ascii")
-        # data: URI MUST declare charset=utf-8 explicitly
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
@@ -220,8 +267,6 @@ def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: s
             f'</button>'
             f'</div>'
         )
-    # Heuristic: if the html contains a <button>, <details>, or [onclick] we mark
-    # the whole block as an interactive that must be clicked at least once.
     is_interactive = bool(re.search(r"<button|<details|onclick=", raw, re.IGNORECASE))
     if is_interactive:
         return (
@@ -234,13 +279,10 @@ def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: s
     return f'<div class="sp-html">{raw}</div>'
 
 
-def _render_quiz_element(el: dict, slide_idx: int, el_idx: int, questions_lookup: Dict[str, dict]) -> str:
+def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_lookup: Dict[str, dict]) -> str:
     cfg = el.get("quizConfig") or {}
     qids = cfg.get("questionIds") or []
     title = _esc(cfg.get("title", "Quiz"))
-    # Normalize each question into the shape expected by the embedded JS:
-    #   { id, text, options: [{ text, correct }] }
-    # The DB schema uses 'alternatives' with 'isCorrect' — translate it here.
     questions = []
     for qid in qids:
         q = questions_lookup.get(qid)
@@ -263,7 +305,6 @@ def _render_quiz_element(el: dict, slide_idx: int, el_idx: int, questions_lookup
             "options": normalized_options,
         })
     qjson = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
-    # Escape for HTML attribute (handles ', ", &, <, > safely)
     qjson_attr = html.escape(qjson, quote=True)
     return (
         f'<div class="sp-quiz sp-interactive" data-interactive="quiz" data-required="true" '
@@ -279,28 +320,44 @@ def _render_quiz_element(el: dict, slide_idx: int, el_idx: int, questions_lookup
     )
 
 
-def _render_scenario_element(el: dict, slide_idx: int, el_idx: int) -> str:
+def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str:
     sd = el.get("scenarioData") or {}
     title = _esc(sd.get("title", "Cenário interativo"))
     desc = _esc(sd.get("description", ""))
+    context = _esc(sd.get("context", ""))
+    characters = sd.get("characters", []) or []
+    chars_html = ""
+    if characters:
+        chars_html = '<div class="sp-scenario-chars" style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;justify-content:center">'
+        for ch in characters[:4]:
+            ch_name = _esc(ch.get("name", ""))
+            ch_role = _esc(ch.get("role", ""))
+            chars_html += (
+                f'<div style="background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;font-size:12px;text-align:center;min-width:120px">'
+                f'<div style="font-weight:700">{ch_name}</div>'
+                f'<div style="opacity:.85;font-size:11px">{ch_role}</div>'
+                f'</div>'
+            )
+        chars_html += '</div>'
     return (
         f'<div class="sp-scenario sp-interactive" data-interactive="scenario" data-required="true" '
-        f'data-interactive-id="scenario-{slide_idx}-{el_idx}" '
-        f'onclick="window.SP&&SP.markClicked(this)">'
+        f'data-interactive-id="scenario-{slide_idx}-{el_idx}">'
         f'<div class="sp-scenario-icon">🎯</div>'
         f'<h3>{title}</h3>'
         f'<p>{desc}</p>'
-        f'<button type="button" class="sp-btn sp-btn-primary">Iniciar Cenário</button>'
+        + (f'<p style="font-size:13px;opacity:.78;font-style:italic;margin-top:8px"><strong>📋 Contexto:</strong> {context}</p>' if context else '')
+        + chars_html +
+        f'<button type="button" class="sp-btn sp-btn-primary" '
+        f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-scenario\'))">'
+        f'Marcar como concluído ✓'
+        f'</button>'
         f'</div>'
     )
 
 
-def _render_simulator_element(el: dict, project_id: str, assets_dir: str, base_url: str, slide_idx: int, el_idx: int) -> str:
-    """Simulators are rendered inline in an iframe/srcdoc. Sandbox blocks click
-    bubbling, so we add an explicit 'concluí' button below the iframe."""
+def _render_simulator_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, slide_idx: int, el_idx: int) -> str:
     sim_html = el.get("htmlContent") or el.get("content") or ""
     sim_html = _inline_assets_in_html(sim_html, project_id, assets_dir, base_url)
-    # Force UTF-8 charset so accented/emoji chars render correctly inside the iframe
     if "<meta" not in sim_html.lower() and "charset" not in sim_html.lower():
         sim_html = '<meta charset="utf-8">\n' + sim_html
     sim_html_b64 = base64.b64encode(sim_html.encode("utf-8")).decode("ascii") if sim_html else ""
@@ -318,29 +375,6 @@ def _render_simulator_element(el: dict, project_id: str, assets_dir: str, base_u
         f'</button>'
         f'</div>'
     )
-
-
-def _render_element(el: dict, project_id: str, assets_dir: str, base_url: str,
-                     slide_idx: int, el_idx: int, questions_lookup: Dict[str, dict]) -> str:
-    etype = (el.get("type") or "text").lower()
-    if etype == "text":
-        return _render_text_element(el)
-    if etype == "image":
-        return _render_image_element(el, project_id, assets_dir, base_url)
-    if etype == "audio":
-        return _render_audio_element(el, project_id, assets_dir, base_url, el_idx)
-    if etype == "video":
-        return _render_video_element(el, project_id, assets_dir, base_url, el_idx)
-    if etype == "html":
-        return _render_html_element(el, project_id, assets_dir, base_url)
-    if etype == "quiz":
-        return _render_quiz_element(el, slide_idx, el_idx, questions_lookup)
-    if etype == "scenario":
-        return _render_scenario_element(el, slide_idx, el_idx)
-    if etype == "simulator":
-        return _render_simulator_element(el, project_id, assets_dir, base_url, slide_idx, el_idx)
-    # fallback: ignore unknown
-    return ""
 
 
 # --------------------------------------------------------------------------- main
@@ -392,10 +426,6 @@ def generate_single_page_html(
                 continue
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
 
-        # Per-slide background: applied to the INNER CARD (not the section wrapper).
-        # This is critical because the editor lets authors set white/light font
-        # colors on slides with dark backgrounds — keeping the card white would
-        # render those texts invisible. So the card adopts the slide's color.
         bg_color = (slide.get("background") or "").strip()
         bg_image_url = slide.get("backgroundImage") or ""
         if bg_image_url:
@@ -405,7 +435,6 @@ def generate_single_page_html(
         if bg_color:
             card_styles.append(f"background-color:{_esc(bg_color)}")
             if _is_dark_color(bg_color):
-                # Dark bg → light default text; the editor's white text becomes visible
                 card_styles.append("color:#f1f5f9")
                 section_class += " sp-dark"
         if bg_image_url:
@@ -561,51 +590,52 @@ body{position:relative;overflow-x:hidden}
 .sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1;text-align:center}
 .sp-section.sp-dark .sp-section-title{color:#fde047}
 .sp-section.sp-dark .sp-section-body{color:inherit}
-.sp-section-body{display:flex;flex-direction:column;gap:24px;color:#0f172a;font-size:15px;line-height:1.7}
+.sp-section-body{display:flex;flex-direction:column;gap:24px;color:#0f172a;font-size:15px;line-height:1.7;align-items:center}
+.sp-section-body > *{width:100%;max-width:880px}
 
-/* element styles */
-.sp-text{font-size:15px;line-height:1.7;color:#0f172a}
+/* Element styles (flow blocks; no absolute positioning) */
+.sp-text{font-size:15px;line-height:1.7;color:inherit}
 .sp-image{margin:0;display:flex;justify-content:center}
-.sp-image img{box-shadow:0 6px 20px rgba(0,0,0,.18)}
-.sp-html{font-size:15px;line-height:1.7;color:#0f172a}
+.sp-image img{box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:540px}
+.sp-html{font-size:15px;line-height:1.7;color:inherit}
 .sp-html *{max-width:100%}
 .sp-html img{max-width:100%;height:auto;border-radius:8px}
 
-.sp-interactive{position:relative;background:#fef9c3;border-radius:12px;padding:22px;border:3px solid #facc15;transition:all .3s;box-shadow:0 4px 16px rgba(250,204,21,.25);animation:sp-attention 2.5s ease-in-out infinite}
-.sp-interactive[data-completed="true"]{border-color:#84cc16;background:#f7fee7;animation:none;box-shadow:0 2px 8px rgba(132,204,22,.2)}
-.sp-interactive[data-completed="true"]::after{content:"✓";position:absolute;top:10px;right:14px;color:#fff;background:#84cc16;font-weight:700;font-size:18px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(132,204,22,.4)}
-.sp-interactive::before{content:"";position:absolute;top:-3px;left:-3px;right:-3px;bottom:-3px;border-radius:14px;border:3px solid #facc15;opacity:.6;pointer-events:none}
-.sp-interactive[data-completed="true"]::before{display:none}
-@keyframes sp-attention{0%,100%{box-shadow:0 4px 16px rgba(250,204,21,.25)}50%{box-shadow:0 6px 24px rgba(250,204,21,.55)}}
+/* Video / Avatar — keep within reasonable bounds (max 720px wide on desktop) */
+.sp-video,.sp-audio{display:flex;flex-direction:column;gap:8px;max-width:720px;margin:0 auto}
+.sp-video video{width:100%;max-width:720px;max-height:480px;border-radius:8px;background:#000;display:block}
+.sp-audio audio{width:100%;border-radius:8px;background:#0f172a}
+.sp-video-label,.sp-audio-label{font-weight:700;color:#0a2540;font-size:14px}
+.sp-section.sp-dark .sp-video-label,
+.sp-section.sp-dark .sp-audio-label{color:#facc15}
 
-.sp-audio,.sp-video{display:flex;flex-direction:column;gap:10px}
-.sp-audio audio,.sp-video video{width:100%;border-radius:8px;background:#0f172a}
-.sp-audio-label,.sp-video-label{font-weight:700;color:#0a2540;font-size:15px;display:flex;align-items:center;gap:8px}
-.sp-audio-label::before{content:"🎧";font-size:20px}
-.sp-audio-hint,.sp-video-hint,.sp-html-hint{display:inline-block;background:#0a2540;color:#facc15;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;align-self:flex-start;margin-top:4px;animation:sp-pulse-hint 2s ease-in-out infinite}
-@keyframes sp-pulse-hint{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.sp-interactive{position:relative;background:#fef9c3;border-radius:12px;padding:18px;border:3px solid #facc15;transition:all .3s;box-shadow:0 4px 16px rgba(250,204,21,.25)}
+.sp-interactive[data-completed="true"]:not(.sp-quiz):not(.sp-scenario){border-color:#84cc16;background:#f7fee7;box-shadow:0 2px 8px rgba(132,204,22,.2)}
+.sp-interactive[data-completed="true"]::after{content:"✓";position:absolute;top:8px;right:12px;color:#fff;background:#84cc16;font-weight:700;font-size:16px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 6px rgba(132,204,22,.4)}
+
+.sp-audio-hint,.sp-video-hint,.sp-html-hint{display:inline-block;background:#0a2540;color:#facc15;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;align-self:flex-start;margin-top:4px}
 .sp-interactive[data-completed="true"] .sp-audio-hint,
 .sp-interactive[data-completed="true"] .sp-video-hint,
 .sp-interactive[data-completed="true"] .sp-html-hint{display:none}
 
-.sp-quiz{text-align:center;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);color:#fff;border-color:#3b82f6}
-.sp-quiz[data-completed="true"]{background:#0f5132;border-color:#84cc16;color:#dcfce7}
+.sp-quiz{text-align:center;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%)!important;color:#fff!important;border-color:#3b82f6!important;padding:24px}
+.sp-quiz[data-completed="true"]{background:#0f5132!important;border-color:#84cc16!important;color:#dcfce7!important}
 .sp-quiz-icon{font-size:42px;margin-bottom:10px}
-.sp-quiz-title{font-size:20px;margin-bottom:6px}
-.sp-quiz-meta{font-size:13px;opacity:.85;margin-bottom:14px}
+.sp-quiz-title{font-size:20px;margin-bottom:6px;color:inherit}
+.sp-quiz-meta{font-size:13px;opacity:.85;margin-bottom:14px;color:inherit}
 .sp-quiz-body{margin-top:18px;text-align:left;background:#fff;color:#0f172a;border-radius:8px;padding:18px}
 .sp-quiz-body[hidden]{display:none}
 .sp-quiz-opt:hover{border-color:#2563eb!important;background:#eff6ff}
-.sp-quiz-opt input:checked + *,
-.sp-quiz-opt:has(input:checked){border-color:#2563eb!important;background:#dbeafe}
 
-.sp-scenario{background:linear-gradient(135deg,#7c2d12 0%,#ea580c 100%);color:#fff;text-align:center;border-color:#fb923c}
-.sp-scenario h3{margin:8px 0;font-size:20px}
-.sp-scenario p{font-size:13px;opacity:.92;margin-bottom:12px}
+.sp-scenario{text-align:center;background:linear-gradient(135deg,#7c2d12 0%,#ea580c 100%)!important;color:#fff!important;border-color:#fb923c!important;padding:24px}
+.sp-scenario[data-completed="true"]{background:linear-gradient(135deg,#14532d 0%,#16a34a 100%)!important;border-color:#84cc16!important;color:#dcfce7!important}
+.sp-scenario h3,.sp-scenario p{color:inherit;margin:8px 0}
+.sp-scenario h3{font-size:20px}
+.sp-scenario p{font-size:13px;opacity:.92}
 .sp-scenario-icon{font-size:42px}
 
-.sp-simulator{padding:8px}
-.sp-simulator-label{font-weight:600;color:#1e3a8a;font-size:14px;margin-bottom:8px}
+.sp-simulator{padding:8px;background:#fff;border-color:#cbd5e1}
+.sp-simulator-label{font-weight:700;color:#1e3a8a;font-size:14px;margin-bottom:8px}
 
 .sp-btn{display:inline-block;padding:10px 28px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:14px;transition:transform .15s,box-shadow .15s}
 .sp-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.2)}
@@ -989,9 +1019,7 @@ _JS = """
     updateProgress();
     updateNextButton();
     window.addEventListener('scroll', detectActiveSection, {passive:true});
-    // Also re-check next button after any user interaction (covers click-reveal accordions etc.)
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
-    // SCORM finish on unload
     if (SCORM_MODE && window.SCORM) {
       window.addEventListener('beforeunload', function(){
         try { window.SCORM.finish(); } catch(e){}

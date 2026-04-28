@@ -87,7 +87,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-28: FIX (P0 BUG VISUAL) — Mojibake nos iframes + texto branco invisível em fundo escuro.
+- 2026-04-28: REVERT — Volta ao layout de scrollytelling (card branco/colorido + flex column).
+  - **Decisão do usuário**: o canvas absoluto preservava layout pixel-perfect do editor, mas ficou inconsistente para Página Única (que é vertical-scroll, não slide-by-slide). Preferência foi voltar ao look A4 com elementos empilhados.
+  - **Mantido**: bg per-slide com auto `_is_dark_color` (texto auto-claro em fundos escuros), feedback colorido nos quizzes, charset utf-8 nos iframes, botão "✓ Concluí" para iframes sandbox, render rico de scenarios (título + contexto + personagens), normalização de quiz options.
+  - **Constraints novos para evitar elementos gigantes**:
+    - `.sp-video, .sp-audio { max-width: 720px; margin: 0 auto }` — vídeo/áudio centralizado e limitado a 720px de largura
+    - `.sp-video video { max-height: 480px }` — vídeo cabe sem dominar a tela
+    - `.sp-image img { max-height: 540px }` — imagens grandes do editor agora são limitadas
+    - `.sp-section-body > * { max-width: 880px }` — todos os blocos respeitam largura máxima legível
+    - Elementos `avatar` com `videoUrl` viram player; com `imageUrl` vira figure de até 320px
+  - **Validado**: 40/40 testes (1 novo `test_video_element_has_max_width_constraint`).
+
+
   - **Bug 1 (mojibake)**: iframes sandbox geravam URL `data:text/html;base64,...` sem declarar charset. Browsers caem em Latin-1 por default → `Inspeção` virava `InspeÃ§Ã£o`, `✅` virava `âœ…`, etc. **Fix**: `data:text/html;charset=utf-8;base64,...` + `<meta charset="utf-8">` injetado no início do htmlContent quando ausente.
   - **Bug 2 (texto branco em card branco)**: o editor permite ao autor definir `color: #fff` em textos de slides com fundo escuro. No Página Única, eu colocava o `slide.background` na `<section>` (apenas margens externas) e mantinha o card sempre branco → textos brancos do editor ficavam invisíveis sobre o card. **Fix**: a cor `slide.background` agora é aplicada ao **`.sp-section-inner`** (o card central), não na `<section>`. Função utilitária `_is_dark_color()` (luminância WCAG) adiciona classe `sp-dark` quando o BG é escuro, que troca cor padrão de texto para `#f1f5f9` e título para `#fde047` (amarelo). Slides claros mantêm o look A4 branco padrão.
   - **Validado**: 39/39 testes (1 novo `test_iframe_data_uri_declares_utf8_charset_for_accents`). Visual confirmado em 2 viewports — capa NR35 escura com texto amarelo/branco perfeitamente legível, slides claros mantêm card branco, todos os acentos `á è ã í` e emojis `✅ ❌ 🔎` renderizam corretamente.
