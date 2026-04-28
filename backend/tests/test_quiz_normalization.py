@@ -68,9 +68,10 @@ def quiz_html():
 def test_quiz_data_questions_attribute_uses_options_key(quiz_html):
     """The data-questions JSON in the DOM must use 'options' (what the JS expects),
     not 'alternatives' (what the DB has)."""
-    m = re.search(r"data-questions='(\[.*?\])'", quiz_html)
+    import html as _html
+    m = re.search(r'data-questions="([^"]*)"', quiz_html)
     assert m, "data-questions attribute not found in generated quiz block"
-    data = json.loads(m.group(1))
+    data = json.loads(_html.unescape(m.group(1)))
     assert len(data) == 2, f"Expected 2 questions, got {len(data)}"
     for q in data:
         assert "options" in q, f"Question {q.get('id')} missing 'options' key (still using 'alternatives'?)"
@@ -82,9 +83,9 @@ def test_quiz_data_questions_attribute_uses_options_key(quiz_html):
 
 
 def test_correct_answer_marked_from_isCorrect(quiz_html):
-    m = re.search(r"data-questions='(\[.*?\])'", quiz_html)
-    data = json.loads(m.group(1))
-    # Question 1: 3rd option (2,00 metros) is correct
+    import html as _html
+    m = re.search(r'data-questions="([^"]*)"', quiz_html)
+    data = json.loads(_html.unescape(m.group(1)))
     correct_idx = [i for i, o in enumerate(data[0]["options"]) if o["correct"]]
     assert correct_idx == [2], f"Expected correct option at index 2, got {correct_idx}"
     assert data[0]["options"][2]["text"] == "2,00 metros"
@@ -108,11 +109,61 @@ def test_quiz_with_string_alternatives_normalized():
         ]}
     }
     questions = [{"id": "x1", "text": "?", "alternatives": ["A", "B", "C"]}]
-    html = generate_single_page_html(project, "/none", questions=questions)
-    m = re.search(r"data-questions='(\[.*?\])'", html)
-    data = json.loads(m.group(1))
+    out = generate_single_page_html(project, "/none", questions=questions)
+    import html as _html
+    m = re.search(r'data-questions="([^"]*)"', out)
+    data = json.loads(_html.unescape(m.group(1)))
     assert data[0]["options"] == [
         {"text": "A", "correct": False},
         {"text": "B", "correct": False},
         {"text": "C", "correct": False},
     ]
+
+
+def test_quiz_with_apostrophes_in_text_does_not_break_attribute():
+    """Regression: questions with apostrophes ('EPI completo') broke the
+    data-questions=' delimiter and caused JSON.parse Unterminated string error."""
+    from services.single_page_exporter import generate_single_page_html
+    project = {
+        "id": "p", "name": "p",
+        "course": {"metadata": {"title": "t"}, "slides": [
+            {"id": "s1", "title": "Q", "elements": [
+                {"id": "q1", "type": "quiz", "quizConfig": {"title": "Q", "questionIds": ["x1"]}}
+            ]}
+        ]}
+    }
+    questions = [{
+        "id": "x1",
+        "text": "É necessário usar 'EPI completo' antes de iniciar o trabalho?",
+        "alternatives": [
+            {"text": "Sim, sempre", "isCorrect": True},
+            {"text": "Não, apenas em situações de risco", "isCorrect": False},
+        ]
+    }]
+    out = generate_single_page_html(project, "/none", questions=questions)
+    import html as _html
+    m = re.search(r'data-questions="([^"]*)"', out)
+    assert m, "data-questions not found"
+    decoded = _html.unescape(m.group(1))
+    parsed = json.loads(decoded)  # must not raise
+    assert "EPI completo" in parsed[0]["text"]
+
+
+def test_simulator_and_iframe_html_have_explicit_done_button():
+    """When htmlContent contains <style>/<script>, it's sandboxed in an iframe
+    that blocks click bubbling — so we add an explicit Concluí button to mark
+    the section as completed."""
+    from services.single_page_exporter import generate_single_page_html
+    project = {
+        "id": "p", "name": "p",
+        "course": {"metadata": {"title": "t"}, "slides": [
+            {"id": "s1", "title": "S", "elements": [
+                {"id": "h1", "type": "html", "htmlContent": "<style>body{background:red}</style><div>iframe content</div>"},
+                {"id": "sm1", "type": "simulator", "htmlContent": "<button>Click me</button>"},
+            ]}
+        ]}
+    }
+    out = generate_single_page_html(project, "/none")
+    # Both elements must produce an iframe + an explicit done button
+    assert out.count("sp-iframe-done") >= 2
+    assert "Concluí" in out

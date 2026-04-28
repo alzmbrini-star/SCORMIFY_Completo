@@ -184,13 +184,19 @@ def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: s
     if has_global_styles:
         b64 = base64.b64encode(raw.encode("utf-8")).decode("ascii")
         # Pick a reasonable height — most legacy simulators target 540px
+        # Iframe sandbox blocks click-bubbling to the parent, so we add an
+        # explicit "Concluí esta interação" button OUTSIDE the iframe that the
+        # user clicks after exploring the panel.
         return (
-            f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true" '
-            f'onclick="window.SP&&SP.markClicked(this)">'
+            f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
             f'src="data:text/html;base64,{b64}" '
             f'style="width:100%;min-height:540px;border:0;border-radius:8px;background:#fff;display:block"></iframe>'
-            f'<div class="sp-html-hint">👆 Interaja com o conteúdo acima para liberar a próxima seção</div>'
+            f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
+            f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
+            f'style="margin-top:12px;width:100%">'
+            f'✓ Concluí a interação acima — liberar próxima seção'
+            f'</button>'
             f'</div>'
         )
     # Heuristic: if the html contains a <button>, <details>, or [onclick] we mark
@@ -236,10 +242,12 @@ def _render_quiz_element(el: dict, slide_idx: int, el_idx: int, questions_lookup
             "options": normalized_options,
         })
     qjson = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
+    # Escape for HTML attribute (handles ', ", &, <, > safely)
+    qjson_attr = html.escape(qjson, quote=True)
     return (
         f'<div class="sp-quiz sp-interactive" data-interactive="quiz" data-required="true" '
         f'data-interactive-id="quiz-{slide_idx}-{el_idx}" '
-        f'data-questions=\'{qjson}\'>'
+        f'data-questions="{qjson_attr}">'
         f'<div class="sp-quiz-icon">📝</div>'
         f'<h3 class="sp-quiz-title">{title}</h3>'
         f'<p class="sp-quiz-meta">{len(questions)} questões</p>'
@@ -267,19 +275,23 @@ def _render_scenario_element(el: dict, slide_idx: int, el_idx: int) -> str:
 
 
 def _render_simulator_element(el: dict, project_id: str, assets_dir: str, base_url: str, slide_idx: int, el_idx: int) -> str:
-    """Simulators are rendered inline in an iframe/srcdoc and the user must
-    interact with them at least once (we mark on iframe load + first click)."""
+    """Simulators are rendered inline in an iframe/srcdoc. Sandbox blocks click
+    bubbling, so we add an explicit 'concluí' button below the iframe."""
     sim_html = el.get("htmlContent") or el.get("content") or ""
     sim_html = _inline_assets_in_html(sim_html, project_id, assets_dir, base_url)
     sim_html_b64 = base64.b64encode(sim_html.encode("utf-8")).decode("ascii") if sim_html else ""
     return (
         f'<div class="sp-simulator sp-interactive" data-interactive="simulator" data-required="true" '
-        f'data-interactive-id="simulator-{slide_idx}-{el_idx}" '
-        f'onclick="window.SP&&SP.markClicked(this)">'
-        f'<div class="sp-simulator-label">Simulador interativo</div>'
-        f'<iframe sandbox="allow-scripts allow-same-origin" loading="lazy" '
+        f'data-interactive-id="simulator-{slide_idx}-{el_idx}">'
+        f'<div class="sp-simulator-label">🎮 Simulador interativo</div>'
+        f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
         f'src="data:text/html;base64,{sim_html_b64}" '
         f'style="width:100%;height:520px;border:0;border-radius:12px;background:#0f172a"></iframe>'
+        f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
+        f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
+        f'style="margin-top:12px;width:100%">'
+        f'✓ Concluí o simulador — liberar próxima seção'
+        f'</button>'
         f'</div>'
     )
 
