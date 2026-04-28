@@ -1,4 +1,5 @@
 import React from 'react';
+import axios from 'axios';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '../../../components/ui/dialog';
@@ -80,11 +81,8 @@ export function ExportDialog({
                   key={`vlibras-${currentProject?.enableVlibras}`}
                   defaultChecked={currentProject?.enableVlibras !== false}
                   onCheckedChange={(newVal) => {
-                    fetch(`${getApiUrl()}/api/projects/${currentProject.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ enableVlibras: newVal })
-                    }).then(() => fetchProject(currentProject.id))
+                    axios.put(`${getApiUrl()}/api/projects/${currentProject.id}`, { enableVlibras: newVal })
+                      .then(() => fetchProject(currentProject.id))
                       .catch(err => console.error('VLibras toggle error:', err));
                   }}
                 />
@@ -102,11 +100,8 @@ export function ExportDialog({
                   data-testid="single-page-toggle"
                   checked={!!currentProject?.singlePageMode}
                   onCheckedChange={(newVal) => {
-                    fetch(`${getApiUrl()}/api/projects/${currentProject.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ singlePageMode: newVal })
-                    }).then(() => fetchProject(currentProject.id))
+                    axios.put(`${getApiUrl()}/api/projects/${currentProject.id}`, { singlePageMode: newVal })
+                      .then(() => fetchProject(currentProject.id))
                       .catch(err => console.error('SinglePage toggle error:', err));
                   }}
                 />
