@@ -87,7 +87,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-28: REVERT — Volta ao layout de scrollytelling (card branco/colorido + flex column).
+- 2026-04-28: FEATURE — Cenários de Aprendizagem agora rodam de forma interativa no Página Única.
+  - **Bug do usuário**: cenários (gerados pelo "Criador de Cenários de Aprendizagem" via IA) só mostravam título/descrição/personagens com botão genérico "Marcar como concluído". A estrutura rica de `nodes[]` com `choices[]`, `feedback`, `is_optimal`, `points`, `next_node_id` (Choose Your Own Adventure educacional) era ignorada.
+  - **Fix**:
+    - `_render_scenario_element_inner` serializa `nodes`, `choices`, `feedback`, `is_optimal`, `points`, `next_node_id`, `is_ending`, `ending_type`, `score`, `character_speaking` em `data-scenario` (HTML-escaped JSON).
+    - Renderização inicial mostra título + descrição + contexto + personagens + botão **"▶ Iniciar Cenário Interativo"**.
+    - Novo `SP.startScenario(scenarioEl)` no JS runtime: navega o grafo de nós, renderiza narrativa + character_speaking + choices clicáveis numeradas, processa feedback colorido (verde para `is_optimal`, vermelho para sub-óptimas), aplica points, e segue `next_node_id`. Ao chegar em `is_ending`, mostra banner final colorido (verde/vermelho/azul conforme `ending_type`) com score `(pts/maxPts %)` e botão para liberar próxima seção.
+    - Cenários SEM `nodes` mantêm fallback "Marcar como concluído ✓".
+    - Score do cenário entra no `quizScores` interno e é reportado via SCORM `cmi.core.score` agregado.
+  - **Bug colateral corrigido**: aspas simples literais dentro do JS template (`closest('.sp-scenario')`) quebravam parsing. Trocado por `&quot;` HTML-encoded (browser decodifica antes do parse).
+  - **Validado**: 40/40 testes (5 novos `test_scenario_interactive.py`). Visual confirmado via Playwright em curso real "Liderança de Impacto" — 3 cenários rodando, choices clicáveis, feedback exibido com pontos, navegação entre nós funcionando.
+
+
   - **Decisão do usuário**: o canvas absoluto preservava layout pixel-perfect do editor, mas ficou inconsistente para Página Única (que é vertical-scroll, não slide-by-slide). Preferência foi voltar ao look A4 com elementos empilhados.
   - **Mantido**: bg per-slide com auto `_is_dark_color` (texto auto-claro em fundos escuros), feedback colorido nos quizzes, charset utf-8 nos iframes, botão "✓ Concluí" para iframes sandbox, render rico de scenarios (título + contexto + personagens), normalização de quiz options.
   - **Constraints novos para evitar elementos gigantes**:

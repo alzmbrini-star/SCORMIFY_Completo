@@ -326,6 +326,41 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
     desc = _esc(sd.get("description", ""))
     context = _esc(sd.get("context", ""))
     characters = sd.get("characters", []) or []
+    nodes = sd.get("nodes", []) or []
+
+    # Serialize the scenario state for the JS runtime
+    scenario_payload = {
+        "characters": [
+            {"name": c.get("name", ""), "role": c.get("role", "")}
+            for c in characters
+        ],
+        "nodes": [
+            {
+                "id": n.get("id", ""),
+                "title": n.get("title", ""),
+                "narrative": n.get("narrative", ""),
+                "character_speaking": n.get("character_speaking", ""),
+                "is_ending": bool(n.get("is_ending", False)),
+                "ending_type": n.get("ending_type"),
+                "score": n.get("score"),
+                "choices": [
+                    {
+                        "id": ch.get("id", ""),
+                        "text": ch.get("text", ""),
+                        "next_node_id": ch.get("next_node_id"),
+                        "feedback": ch.get("feedback", ""),
+                        "is_optimal": bool(ch.get("is_optimal", False)),
+                        "points": ch.get("points", 0),
+                    }
+                    for ch in (n.get("choices") or [])
+                ],
+            }
+            for n in nodes
+        ],
+    }
+    scenario_json = json.dumps(scenario_payload, ensure_ascii=False).replace("</", "<\\/")
+    scenario_attr = html.escape(scenario_json, quote=True)
+
     chars_html = ""
     if characters:
         chars_html = '<div class="sp-scenario-chars" style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;justify-content:center">'
@@ -339,18 +374,36 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
                 f'</div>'
             )
         chars_html += '</div>'
+
+    has_interactive_nodes = len(nodes) > 0
+    if has_interactive_nodes:
+        # Interactive scenario: button starts the journey through nodes
+        cta_button = (
+            f'<button type="button" class="sp-btn sp-btn-primary" '
+            f'onclick="window.SP&&SP.startScenario(this.closest(\'.sp-scenario\'))">'
+            f'▶ Iniciar Cenário Interativo</button>'
+        )
+    else:
+        # Fallback: simple "mark as done" button
+        cta_button = (
+            f'<button type="button" class="sp-btn sp-btn-primary" '
+            f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-scenario\'))">'
+            f'Marcar como concluído ✓</button>'
+        )
+
     return (
         f'<div class="sp-scenario sp-interactive" data-interactive="scenario" data-required="true" '
-        f'data-interactive-id="scenario-{slide_idx}-{el_idx}">'
+        f'data-interactive-id="scenario-{slide_idx}-{el_idx}" '
+        f'data-scenario="{scenario_attr}">'
+        f'<div class="sp-scenario-intro">'
         f'<div class="sp-scenario-icon">🎯</div>'
         f'<h3>{title}</h3>'
         f'<p>{desc}</p>'
         + (f'<p style="font-size:13px;opacity:.78;font-style:italic;margin-top:8px"><strong>📋 Contexto:</strong> {context}</p>' if context else '')
         + chars_html +
-        f'<button type="button" class="sp-btn sp-btn-primary" '
-        f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-scenario\'))">'
-        f'Marcar como concluído ✓'
-        f'</button>'
+        f'{cta_button}'
+        f'</div>'
+        f'<div class="sp-scenario-play" hidden></div>'
         f'</div>'
     )
 
@@ -919,6 +972,139 @@ _JS = """
       var nextOpen = (typeof force === 'boolean') ? force : !isOpen;
       d.dataset.open = nextOpen ? 'true' : 'false';
       d.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
+    },
+    startScenario: function(scenarioEl){
+      try {
+        var data = JSON.parse(scenarioEl.dataset.scenario || '{}');
+      } catch(e) { return; }
+      var nodes = data.nodes || [];
+      if (!nodes.length) { SP.markClicked(scenarioEl); return; }
+      var nodeMap = {};
+      nodes.forEach(function(n){ nodeMap[n.id] = n; });
+      // Hide intro, show play area
+      var intro = scenarioEl.querySelector('.sp-scenario-intro');
+      if (intro) intro.hidden = true;
+      var play = scenarioEl.querySelector('.sp-scenario-play');
+      if (!play) return;
+      play.hidden = false;
+      play.style.background = '#fff';
+      play.style.color = '#0f172a';
+      play.style.borderRadius = '8px';
+      play.style.padding = '20px';
+      play.style.textAlign = 'left';
+      var totalPoints = 0;
+      var maxPoints = 0;
+      var optimalChoices = 0;
+      var totalChoices = 0;
+      // Compute max possible points (assume optimal at every node)
+      nodes.forEach(function(n){
+        if (n.choices && n.choices.length) {
+          var maxP = Math.max.apply(null, n.choices.map(function(c){ return c.points || 0; }));
+          maxPoints += maxP;
+        }
+      });
+      function renderNode(nodeId){
+        var n = nodeMap[nodeId];
+        if (!n) return;
+        var html = '';
+        if (n.title) {
+          html += '<h4 style="margin:0 0 10px 0;font-size:18px;color:#1e3a8a">' + escapeHtml(n.title) + '</h4>';
+        }
+        if (n.character_speaking) {
+          html += '<div style="font-size:12px;font-weight:700;color:#7c2d12;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">💬 ' + escapeHtml(n.character_speaking) + '</div>';
+        }
+        if (n.narrative) {
+          html += '<div style="font-size:14px;line-height:1.6;margin-bottom:16px;white-space:pre-wrap">' + escapeHtml(n.narrative) + '</div>';
+        }
+        if (n.is_ending) {
+          var endLabel = n.ending_type === 'positive' ? '🎉 Final Positivo' : (n.ending_type === 'negative' ? '⚠️ Final com Aprendizado' : '🏁 Final');
+          var endColor = n.ending_type === 'positive' ? '#16a34a' : (n.ending_type === 'negative' ? '#dc2626' : '#2563eb');
+          var pct = maxPoints > 0 ? Math.round((totalPoints/maxPoints)*100) : 100;
+          html += '<div style="background:' + endColor + ';color:#fff;padding:14px;border-radius:8px;text-align:center;font-weight:700;margin-bottom:10px">'
+                + endLabel + ' • Score: ' + totalPoints + '/' + maxPoints + ' (' + pct + '%)'
+                + '</div>';
+          if (n.score) {
+            html += '<div style="font-size:13px;color:#64748b;text-align:center">Avaliação do nó: ' + escapeHtml(String(n.score)) + '</div>';
+          }
+          html += '<button type="button" class="sp-btn sp-btn-primary" style="margin-top:14px;width:100%" '
+                + 'onclick="window.SP.markClicked(this.closest(&quot;.sp-scenario&quot;))">'
+                + '✓ Concluir cenário e liberar próxima seção</button>';
+          play.innerHTML = html;
+          // Track scenario completion stats for SCORM
+          state.quizScores[scenarioEl.dataset.interactiveId] = {
+            correct: optimalChoices, total: totalChoices, pct: pct
+          };
+          scormUpdateScore();
+          scormSaveState();
+        } else if (n.choices && n.choices.length) {
+          html += '<div style="font-weight:600;font-size:13px;color:#475569;margin-bottom:10px">Qual sua decisão?</div>';
+          html += '<div class="sp-scenario-choices" style="display:flex;flex-direction:column;gap:10px">';
+          n.choices.forEach(function(ch, ci){
+            html += '<button type="button" class="sp-scenario-choice" data-choice-idx="' + ci + '" '
+                  + 'style="text-align:left;padding:14px 16px;border:2px solid #cbd5e1;background:#f8fafc;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.5;color:#0f172a;transition:all .15s">'
+                  + '<span style="display:inline-block;background:#1e3a8a;color:#fff;width:22px;height:22px;border-radius:50%;text-align:center;font-weight:700;margin-right:8px;font-size:11px;line-height:22px">' + (ci+1) + '</span>'
+                  + escapeHtml(ch.text)
+                  + '</button>';
+          });
+          html += '</div>';
+          play.innerHTML = html;
+          play.querySelectorAll('.sp-scenario-choice').forEach(function(btn, ci){
+            btn.addEventListener('mouseenter', function(){ btn.style.borderColor='#2563eb'; btn.style.background='#eff6ff'; });
+            btn.addEventListener('mouseleave', function(){ btn.style.borderColor='#cbd5e1'; btn.style.background='#f8fafc'; });
+            btn.addEventListener('click', function(){
+              var ch = n.choices[ci];
+              totalChoices++;
+              if (ch.is_optimal) optimalChoices++;
+              totalPoints += (ch.points || 0);
+              showFeedback(ch, n);
+            });
+          });
+        } else {
+          // Node has no choices and no ending — fallback
+          html += '<button type="button" class="sp-btn sp-btn-primary" '
+                + 'onclick="window.SP.markClicked(this.closest(&quot;.sp-scenario&quot;))">Encerrar cenário</button>';
+          play.innerHTML = html;
+        }
+      }
+      function showFeedback(choice, fromNode){
+        var bgColor = choice.is_optimal ? '#dcfce7' : '#fef2f2';
+        var borderColor = choice.is_optimal ? '#16a34a' : '#dc2626';
+        var textColor = choice.is_optimal ? '#15803d' : '#991b1b';
+        var icon = choice.is_optimal ? '✅' : '⚠️';
+        var label = choice.is_optimal ? 'Excelente escolha!' : 'Pense bem nas consequências:';
+        var html = '<div style="background:' + bgColor + ';border:2px solid ' + borderColor + ';color:' + textColor + ';padding:16px;border-radius:8px;margin-bottom:14px">'
+                 + '<div style="font-weight:700;margin-bottom:6px">' + icon + ' ' + label + ' (+' + (choice.points||0) + ' pts)</div>'
+                 + '<div style="font-size:13px;line-height:1.5">' + escapeHtml(choice.feedback || '') + '</div>'
+                 + '</div>';
+        var nextId = choice.next_node_id;
+        if (nextId && nodeMap[nextId]) {
+          html += '<button type="button" class="sp-btn sp-btn-primary" style="width:100%" id="sp-scenario-continue">Continuar →</button>';
+          play.innerHTML = html;
+          play.querySelector('#sp-scenario-continue').addEventListener('click', function(){
+            renderNode(nextId);
+            play.scrollIntoView({behavior:'smooth', block:'nearest'});
+          });
+        } else {
+          // No next node — treat as ending
+          var pct = maxPoints > 0 ? Math.round((totalPoints/maxPoints)*100) : 100;
+          html += '<div style="background:#2563eb;color:#fff;padding:14px;border-radius:8px;text-align:center;font-weight:700;margin-bottom:10px">'
+                + '🏁 Cenário concluído • Score: ' + totalPoints + '/' + maxPoints + ' (' + pct + '%)'
+                + '</div>';
+          html += '<button type="button" class="sp-btn sp-btn-primary" style="width:100%" '
+                + 'onclick="window.SP.markClicked(this.closest(&quot;.sp-scenario&quot;))">'
+                + '✓ Liberar próxima seção</button>';
+          play.innerHTML = html;
+          state.quizScores[scenarioEl.dataset.interactiveId] = { correct: optimalChoices, total: totalChoices, pct: pct };
+          scormUpdateScore();
+          scormSaveState();
+        }
+      }
+      function escapeHtml(s){
+        return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+      // Start at the first node
+      renderNode(nodes[0].id);
+      play.scrollIntoView({behavior:'smooth', block:'nearest'});
     },
     startQuiz: function(quizEl){
       var qs = JSON.parse(quizEl.dataset.questions || '[]');
