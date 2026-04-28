@@ -39,9 +39,14 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
   const handleExportHTML = async () => {
     try {
       setExportLoading(true);
-      const response = await axios.post(`${API_URL}/api/course/${currentProject.id}/export-html`);
+      const singlePage = !!currentProject?.singlePageMode;
+      const response = await axios.post(
+        `${API_URL}/api/course/${currentProject.id}/export-html`,
+        { singlePage },
+      );
       setDownloadUrl(`${API_URL}${response.data.downloadUrl}`);
-      toast.success('HTML file ready!');
+      const modeLabel = response.data?.mode === 'single_page' ? 'Página Única' : 'Tradicional';
+      toast.success(`HTML (${modeLabel}) pronto!`);
     } catch (err) {
       console.error('HTML export error:', err);
       toast.error('Export failed: ' + (err.response?.data?.detail || err.message));

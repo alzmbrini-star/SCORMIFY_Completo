@@ -230,6 +230,9 @@ class Project(BaseModel):
     
     # Accessibility settings
     enableVlibras: bool = True  # Enable VLibras LIBRAS plugin in exports
+
+    # Presentation mode: 'traditional' (slide-by-slide) or 'single_page' (vertical scroll w/ gated progression)
+    singlePageMode: bool = False
     
     createdAt: datetime = Field(default_factory=now_utc)
     updatedAt: datetime = Field(default_factory=now_utc)
@@ -243,6 +246,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     enableVlibras: Optional[bool] = None
+    singlePageMode: Optional[bool] = None
 
 class SlideCreate(BaseModel):
     title: str = "New Slide"

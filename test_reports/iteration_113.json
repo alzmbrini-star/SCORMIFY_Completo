@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 113 — Validated PHASE 1 of the Single-Page (Página Única) HTML export. Backend: 19/19 tests pass (5 baseline test_single_page_export.py + 14 new test_single_page_export_extended.py). Verified Project.singlePageMode persistence (PUT/GET roundtrip), the 3-level override hierarchy (body singlePage true/false beats project setting; empty body falls back to project), filename _singlepage_ marker, mode='single_page' vs 'traditional', preview=1 inline serving (text/html, no attachment) vs forced download, full HTML structure (header + sp-menu-btn SVG hamburger + sp-progress-fill + sp-drawer aside + first section unlocked / others data-locked='true' / end-card data-locked='true' data-final='true' / sp-next-btn initially hidden / window.SP runtime + element-gating attributes data-interactive=audio|video|html|quiz|scenario|simulator with data-required='true' and proper SP.markPlayed/SP.markClicked wiring). Runtime E2E in real browser confirmed: linear-strict navigation rejects locked drawer clicks (sec stays locked), advance() correctly unlocks next section + flips drawer item to .unlocked, markClicked sets data-completed=true, progress bar updates (2% after first advance). Frontend: ExportDialog renders the 'Página Única (scroll vertical)' card with data-testid='single-page-toggle' between VLibras and SCORM; clicking the toggle issues PUT /api/projects/{id} with body {singlePageMode:true} → 200 OK and the value is persisted (verified via GET roundtrip). Visual check matches user reference: black header, italic uppercase title right, hamburger left, white A4-style card on dark blue networked background, yellow chevron pulsing bottom-right.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_single_page_export.py",
+    "/app/backend/tests/test_single_page_export_extended.py",
+    "/app/test_reports/pytest/single_page_full_iter113.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "single_page_exporter.py is 741 lines (CSS+JS+Python all in one render fn). Once SCORM single-page Phase 2 lands and adds ~200+ lines of cmi tracking JS, plan to split: services/single_page/css.py, services/single_page/js_runtime.py, services/single_page/sections.py — keeps each file <400 lines.",
+    "ExportDialog.jsx PUT /api/projects/{id} for the singlePageMode toggle (line 106) and the VLibras toggle (line 83) both use raw fetch() WITHOUT Authorization: Bearer header. They currently work in this environment because session/cookie auth is accepted, but the project has Bearer-token tests elsewhere. Recommend wrapping both in an apiFetch helper that injects the token, for consistency and resilience to backend auth-tightening.",
+    "Switch in ExportDialog.jsx uses key={`singlepage-${currentProject?.singlePageMode}`} + defaultChecked which forces a remount on every server roundtrip — works but causes the brief detach observed in our Playwright test on rapid double-click. Consider switching to a controlled `checked={!!currentProject?.singlePageMode}` to avoid the remount.",
+    "Drawer 'active' indicator is updated by buildDrawer() but the sp-drawer-list li does not expose a stable data-testid for individual items beyond data-testid='sp-drawer-item-<idx>' (good — already wired in single_page_exporter.py:559). Worth confirming this same pattern survives Phase 2 SCORM build.",
+    "isSectionComplete() for a section with ZERO required interactives returns true → next-btn shows immediately on cover slide. Intentional and correct for a cover slide, but if you later treat 'cover' as a non-progressable splash, gate it explicitly.",
+    "The end-card section is locked initially AND counts toward total_sections in the locked-section assertion — confirmed correct via test_first_section_unlocked_others_locked + test_end_card_section_is_locked_and_final."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_single_page_export_extended.py (NEW — 14 tests, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 — 5 baseline + 14 extended)",
+    "frontend": "100% — single-page-toggle present, click triggers PUT 200, state persists, dialog visual matches user reference; runtime SP.advance / SP.markClicked / linear-strict drawer rejection all verified in real browser."
+  },
+  "test_credentials": "admin@scormify.com / admin123 (super_admin) — valid.",
+  "seed_data_creation": "Tests toggle Project.singlePageMode true/false on an existing project and reset to false in finally blocks. No new docs created. Multiple _singlepage_*.html files generated under /app/exports during testing.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 1 (HTML single-page) is fully covered by /app/backend/tests/test_single_page_export.py + test_single_page_export_extended.py (19 tests, all green). Frontend integration validated via live browser (ExportDialog single-page-toggle → PUT /api/projects/{id} → 200; toggle persists and re-fetches via fetchProject). The window.SP JS runtime is the canonical hook for Phase 2 E2E — drive directly via window.SP.markPlayed(el) / markClicked(el) / advance() / gotoSection(idx) / toggleDrawer() to avoid real audio/video playback. Phase 2 will add SCORM 1.2 single-page mode with cmi.completion_status — when built, extend test_single_page_export_extended.py to assert cmi.* runtime presence and use the same isSectionComplete() gating as the HTML build. Pre-existing failing tests in test_html_export.py reference a stale filename (SCORMIFY_20260204_202429.html) — DO NOT report as regressions per main agent's note.",
+  "rca of the issue": "N/A — no bugs found. Phase 1 implementation matches the spec exactly: project model field + persistence, override hierarchy, filename marker, mode response, preview-vs-download routing, HTML markup (header/drawer/sections/end-card/next-btn with proper data-testids), JS runtime surface (window.SP.advance/gotoSection/toggleDrawer/markPlayed/markClicked/startQuiz/checkSectionCompletion), element gating via data-interactive + data-required + data-completed flow, linear-strict drawer (locked items reject clicks), and a clean ExportDialog frontend toggle wired to the project setting via PUT."
+}

@@ -279,10 +279,25 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
 
 @router.post("/course/{project_id}/export-html")
 async def export_html(project_id: str, request: Request, background_tasks: BackgroundTasks):
-    """Export project as standalone HTML file"""
+    """Export project as standalone HTML file.
+
+    Body (optional JSON):
+      {"singlePage": true|false}  # overrides project.singlePageMode
+    """
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Decide presentation mode (request body > project setting > default false)
+    single_page_override: Optional[bool] = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict) and "singlePage" in body:
+            single_page_override = bool(body["singlePage"])
+    except Exception:
+        pass
+    use_single_page = single_page_override if single_page_override is not None \
+        else bool(project_doc.get("singlePageMode", False))
     
     try:
         from services.html_exporter import generate_standalone_html
@@ -380,21 +395,32 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         except Exception as e:
             logger.warning(f"Tutor settings load for HTML export failed (non-fatal): {e}")
         
-        # Generate HTML with questions and tutor
-        html_content = await generate_standalone_html(
-            project_doc,
-            assets_dir,
-            base_url,
-            questions=questions,
-            backend_url=base_url,
-            tutor_config=tutor_settings
-        )
+        # Generate HTML — use single-page renderer if requested, otherwise standard player
+        if use_single_page:
+            from services.single_page_exporter import generate_single_page_html
+            html_content = generate_single_page_html(
+                project_doc,
+                assets_dir,
+                base_url,
+                questions=questions,
+                tutor_config=tutor_settings,
+            )
+        else:
+            html_content = await generate_standalone_html(
+                project_doc,
+                assets_dir,
+                base_url,
+                questions=questions,
+                backend_url=base_url,
+                tutor_config=tutor_settings
+            )
         
         # Save HTML file
         project_name = project_doc.get('name', 'course')
         safe_name = re.sub(r'[^\w\s-]', '', project_name).replace(' ', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{safe_name}_{timestamp}.html"
+        suffix = "_singlepage" if use_single_page else ""
+        filename = f"{safe_name}{suffix}_{timestamp}.html"
         
         html_path = EXPORTS_DIR / filename
         with open(html_path, 'w', encoding='utf-8') as f:
@@ -407,7 +433,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         try:
             await db.export_logs.insert_one({
                 "projectId": project_id,
-                "type": "html",
+                "type": "html_singlepage" if use_single_page else "html",
                 "filename": filename,
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             })
@@ -417,6 +443,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         return {
             "downloadUrl": f"/api/exports/{filename}",
             "filename": filename,
+            "mode": "single_page" if use_single_page else "traditional",
             "message": "HTML standalone file generated successfully"
         }
         
@@ -1194,16 +1221,18 @@ async def asset_diagnostic_project(project_id: str):
 
 @router.get("/exports/{filename}")
 async def serve_export(filename: str, preview: str = None):
-    """Serve exported files (SCORM zip or HTML) with forced download.
+    """Serve exported files (SCORM zip or HTML).
+    By default forces download. Pass ?preview=1 to render inline (used for
+    in-browser testing of HTML exports).
     Falls back to MongoDB GridFS if the file is not on local disk."""
     file_path = EXPORTS_DIR / filename
-    
+
     # If not on local disk, try to restore from GridFS
     if not file_path.exists():
         restored = await get_export_from_gridfs(filename, str(file_path))
         if not restored:
             raise HTTPException(status_code=404, detail="File not found")
-    
+
     # Determine media type based on file extension
     if filename.endswith('.html'):
         media_type = 'text/html'
@@ -1215,5 +1244,8 @@ async def serve_export(filename: str, preview: str = None):
         media_type = 'video/webm'
     else:
         media_type = 'application/octet-stream'
-    
+
+    # preview=1 → inline (renders in-browser); otherwise → forced download
+    if preview:
+        return FileResponse(file_path, media_type=media_type)
     return FileResponse(file_path, filename=filename, media_type=media_type)
