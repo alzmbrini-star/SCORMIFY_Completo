@@ -730,11 +730,13 @@ export const ProjectProvider = ({ children }) => {
     }
   }, [currentProject]);
 
-  const exportScorm = useCallback(async () => {
+  const exportScorm = useCallback(async (options = {}) => {
     if (!currentProject) return;
     try {
       setLoading(true);
-      const response = await axios.post(`${API_URL}/course/${currentProject.id}/export-scorm`);
+      const body = {};
+      if (typeof options.singlePage === 'boolean') body.singlePage = options.singlePage;
+      const response = await axios.post(`${API_URL}/course/${currentProject.id}/export-scorm`, body);
       return response.data;
     } catch (err) {
       setError(err.message);

@@ -100,8 +100,7 @@ export function ExportDialog({
                 </div>
                 <Switch
                   data-testid="single-page-toggle"
-                  key={`singlepage-${currentProject?.singlePageMode}`}
-                  defaultChecked={!!currentProject?.singlePageMode}
+                  checked={!!currentProject?.singlePageMode}
                   onCheckedChange={(newVal) => {
                     fetch(`${getApiUrl()}/api/projects/${currentProject.id}`, {
                       method: 'PUT',

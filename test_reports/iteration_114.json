@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 114 — Validated PHASE 2 SCORM 1.2 single-page export end-to-end. Wrote /app/backend/tests/test_scorm_singlepage_api.py (9 new API/contract tests) and extended /app/backend/tests/test_scorm_singlepage_e2e.py with one additional real-browser E2E test for end-card completion. Combined run: 15/15 passing in 19s. Coverage: (a) override hierarchy — body.singlePage=true → mode='single_page' + filename contains _singlepage_, body.singlePage=false → mode='traditional' even when project.singlePageMode=true, empty body falls back to project.singlePageMode (both true and false branches verified); (b) ZIP contents — all 7 required files present (imsmanifest.xml, index.html, scorm-api.js, adlcp_rootv1p2.xsd, ims_xml.xsd, imscp_rootv1p1p2.xsd, imsmd_rootv1p2p1.xsd); (c) imsmanifest.xml declares scormtype=sco, schemaversion 1.2, references index.html + scorm-api.js, includes adlcp namespace; (d) index.html has SCORM_MODE=true + script tag for scorm-api.js + all 5 helpers (scormSaveState/Report/UpdateScore/MarkComplete/RestoreState); (e) scorm-api.js exposes all 9 required methods (init, setLocation, saveSuspend, getSuspend, recordInteraction, setScore, complete, commit, finish) + findAPI walker; (f) regression test for the advance() ordering bug: regex inspection asserts state.currentIndex assignment appears BEFORE unlockSection() inside advance(); (g) E2E in real chromium with mock LMS confirms — SCORM.init() sets cmi.core.lesson_status='incomplete', SP.advance() updates cmi.core.lesson_location='1' AND cmi.suspend_data with currentIndex=1 + unlocked={0,1}, reload restores unlocked sections 0..2 from suspend_data, advancing past last section calls window.SCORM.complete() and LMS receives lesson_status in (passed|completed). Frontend wiring confirmed by code inspection: ProjectContext.exportScorm(options={singlePage}) forwards in POST body, useEditorExport.handleExport reads currentProject.singlePageMode. ExportDialog single-page-toggle was already validated live in iteration_113. ENV NOTE: MongoDB hit a WT_PANIC No-space-left mid-iteration because the /app 9.8G ext4 partition (which also hosts /data/db) filled from accumulated SCORM ZIPs + 502M node_modules/.cache + 849M /app/.git; freed disk + supervisorctl restart mongodb (recovered cleanly via WAL replay, no data loss).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "infra: /app partition (9.8G ext4) hosting /data/db + storage/exports", "issue": "MongoDB WT_PANIC No-space-left during heavy export testing. _cleanup_old_exports keeps 24h which fills disk faster than retention under sustained testing. Recommend tighter retention or moving exports to overlay (84G free)."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_scorm_singlepage_api.py",
+    "/app/backend/tests/test_scorm_singlepage_e2e.py",
+    "/app/test_reports/pytest/scorm_singlepage_full_iter114.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Tighten /app/backend/storage/exports retention or move to /data overlay (84G free vs /app's 9.8G) to avoid future Mongo WT_PANIC.",
+    "OPTIONAL (from iter 113): split single_page_exporter.py (~853 lines) into services/single_page/{css,js_runtime,sections,scorm_helpers}.py before Phase 3."
+  ],
+  "critical_code_review_comments": [
+    "scorm_single_page_exporter.py + single_page_exporter.py share zero duplicated logic — clean inheritance via the scorm_mode boolean, good DRY.",
+    "advance() ordering fix (state.currentIndex BEFORE unlockSection) is structurally correct and now regression-protected by both a static regex test and a real-browser E2E test.",
+    "scormMarkComplete uses Object.keys(state.unlocked).length >= (SECTIONS.length + 1) which correctly counts the end-card. Quiz pass-mark hardcoded to 80% — plumb through if user-config exists for mastery threshold.",
+    "Mock LMS fixture is intentionally minimal (no LMSGetLastError state machine). Sufficient for SP→API contract testing; full SCORM 1.2 conformance must be validated in SCORM Cloud or Moodle.",
+    "Frontend ProjectContext.exportScorm + useEditorExport.handleExport correctly forward singlePage from project setting via fetch body. data-testid='single-page-toggle' is shared between SCORM and HTML — clean."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scorm_singlepage_api.py (NEW — 9 API/contract tests)",
+    "/app/backend/tests/test_scorm_singlepage_e2e.py (extended +1 test: test_e2e_advance_to_end_card_marks_completion)"
+  ],
+  "success_rate": {"backend": "100% (15/15 — 9 API + 6 E2E)", "frontend": "100% — code inspection confirms exportScorm({singlePage}) wiring; UI toggle validated live in iter 113"},
+  "test_credentials": "admin@scormify.com / admin123 (super_admin) — valid.",
+  "seed_data_creation": "Tests toggle Project.singlePageMode true/false on existing project 0bc5a90c-0128-46ee-bd4d-86756f712725 inside try/finally and reset to false on exit. Multiple _singlepage_*.zip generated in /app/backend/storage/exports during testing then pruned to free disk.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 SCORM single-page fully covered by test_scorm_singlepage_api.py (9 tests) + test_scorm_singlepage_e2e.py (6 tests). When running both pass -p no:cacheprovider OR keep /app disk usage <95% to avoid OSError 28 on .pytest_cache. The mock LMS fixture extracts the LATEST *_singlepage_*.zip in /app/backend/storage/exports — run any test in test_scorm_singlepage_api.py first to seed a fresh ZIP if running E2E in isolation. To extend coverage to cmi.interactions.{n}.*, seed a project carrying quiz elements with question banks loaded — current test project 0bc5a90c... covers advance/lesson_location/lesson_status/score but not the quiz interaction path.",
+  "rca of the issue": "N/A on the SCORM feature — all 15 assertions pass. Only env hiccup was a transient MongoDB WT_PANIC because /app partition (9.8G ext4) hit 100% from accumulated SCORM ZIPs + 502M frontend node_modules/.cache + 849M .git. Mitigation in-session: rm -rf old exports + pdfimport_* + node_modules/.cache + __pycache__; supervisorctl restart mongodb."
+}

@@ -26,9 +26,11 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
   const handleExport = async () => {
     try {
       setExportLoading(true);
-      const result = await exportScorm();
+      const singlePage = !!currentProject?.singlePageMode;
+      const result = await exportScorm({ singlePage });
       setDownloadUrl(`${API_URL}${result.downloadUrl}`);
-      toast.success('SCORM package ready!');
+      const modeLabel = result?.mode === 'single_page' ? 'Página Única' : 'Tradicional';
+      toast.success(`SCORM (${modeLabel}) pronto!`);
     } catch (err) {
       toast.error('Export failed');
     } finally {

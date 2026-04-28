@@ -123,10 +123,25 @@ async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
 
 @router.post("/course/{project_id}/export-scorm")
 async def export_scorm(project_id: str, request: Request, background_tasks: BackgroundTasks):
-    """Export project as SCORM 1.2 package"""
+    """Export project as SCORM 1.2 package.
+
+    Body (optional JSON):
+      {"singlePage": true|false}  # overrides project.singlePageMode
+    """
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Decide presentation mode (request body > project setting > default false)
+    single_page_override: Optional[bool] = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict) and "singlePage" in body:
+            single_page_override = bool(body["singlePage"])
+    except Exception:
+        pass
+    use_single_page = single_page_override if single_page_override is not None \
+        else bool(project_doc.get("singlePageMode", False))
     
     # Create job
     job_id = str(uuid.uuid4())
@@ -211,25 +226,37 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         except Exception as e:
             logger.warning(f"Gamification settings load failed (non-fatal): {e}")
 
-        # Generate package with questions
+        # Generate package — use single-page renderer if requested, otherwise legacy slide-by-slide
         # Run in thread pool to avoid blocking the async event loop
-        # (export_scorm_package is a CPU+IO intensive synchronous function)
-        from services.scorm_exporter import export_scorm_package
+        # (export functions are CPU+IO intensive synchronous)
         import asyncio
-        
+
         # Use reliable external URL for VLibras proxy
         scorm_backend_url = _get_external_url(request)
-        
-        zip_path = await asyncio.to_thread(
-            export_scorm_package,
-            project,
-            str(PROJECTS_DIR),
-            str(EXPORTS_DIR),
-            questions=questions,
-            tutor_config=tutor_settings,
-            backend_url=scorm_backend_url,
-            gamification_config=gamification_settings
-        )
+
+        if use_single_page:
+            from services.scorm_single_page_exporter import export_single_page_scorm_package
+            zip_path = await asyncio.to_thread(
+                export_single_page_scorm_package,
+                project_doc,
+                str(PROJECTS_DIR),
+                str(EXPORTS_DIR),
+                questions=questions,
+                tutor_config=tutor_settings,
+                backend_url=scorm_backend_url,
+            )
+        else:
+            from services.scorm_exporter import export_scorm_package
+            zip_path = await asyncio.to_thread(
+                export_scorm_package,
+                project,
+                str(PROJECTS_DIR),
+                str(EXPORTS_DIR),
+                questions=questions,
+                tutor_config=tutor_settings,
+                backend_url=scorm_backend_url,
+                gamification_config=gamification_settings
+            )
         
         # Clean up old exports to prevent disk space exhaustion (keep last 24h)
         try:
@@ -253,7 +280,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         try:
             await db.export_logs.insert_one({
                 "projectId": project_id,
-                "type": "scorm",
+                "type": "scorm_singlepage" if use_single_page else "scorm",
                 "filename": export_filename,
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             })
@@ -262,7 +289,8 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         
         return {
             "jobId": job_id,
-            "downloadUrl": f"/api/exports/{export_filename}"
+            "downloadUrl": f"/api/exports/{export_filename}",
+            "mode": "single_page" if use_single_page else "traditional"
         }
         
     except Exception as e:

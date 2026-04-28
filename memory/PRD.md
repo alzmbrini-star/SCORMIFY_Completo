@@ -87,7 +87,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-28: FIX (P0) - Conclusao do refactor async de POST /api/agent/courses/{project_id}/apply-improvements.
+- 2026-04-28: FEATURE (P0) — Modo "Página Única" (scroll vertical / scrollytelling) para export HTML.
+  - Inspirado em Articulate Rise: header preto fixo + título à direita + hambúrguer à esquerda + barra de progresso amarela; cards brancos A4 sobre fundo azul-rede; botão amarelo redondo no canto inferior direito que SÓ aparece quando todos os elementos clicáveis da seção atual foram concluídos (gating pedagógico).
+  - **Backend** (`services/single_page_exporter.py` 741 linhas): renderer auto-contido (HTML+CSS+JS); detecta interativos (audio onplay, video onplay, html-com-onclick, quiz, scenario, simulator); cada slide vira `<section data-locked="true">` com unlock progressivo; drawer linear-estrito.
+  - **Endpoint**: `POST /api/course/{id}/export-html` aceita body `{singlePage: bool}` que sobrescreve `project.singlePageMode`. Retorna `{mode, filename}`.
+  - **Preview inline**: `GET /api/exports/{filename}?preview=1` agora serve `text/html` sem `Content-Disposition: attachment`.
+  - **Project model**: `singlePageMode: bool = False` + `ProjectUpdate.singlePageMode`.
+  - **Frontend**: novo Switch controlado `single-page-toggle` no `ExportDialog`; `useEditorExport.handleExportHTML` envia `{singlePage}`.
+  - **Validado**: 19/19 testes (5 baseline + 14 extended) iteration_113.
+  - **Próxima fase (P1)**: SCORM 1.2 single-page com `cmi.completion_status` e `cmi.location` resume.
+
+- 2026-04-28: FIX (P0) — Conclusão do refactor async de POST /api/agent/courses/{project_id}/apply-improvements (timeout 502). Removidas 340 linhas de código órfão (SyntaxError). Endpoint retorna 202 + applyJobId; novo GET /apply-status/{job_id}; worker daemon com event loop dedicado; idempotência (mesmo jobId em clique duplo); preview preservado em falha; TTL index 24h em apply_jobs. Frontend faz polling 3s c/ progress bar violet→fuchsia. 13/13 testes passando (iteration_112).
+
+
   - PROBLEMA: aplicar melhorias do Agente IA executava sincronamente (Leonardo + Gemini + cenarios + avatares = 1-5min) e batia em timeout de 60s do Nginx, retornando 502 Bad Gateway. Refactor anterior havia comecado a converter para background mas foi interrompido mid-edit, deixando 340 linhas de codigo orfao com SyntaxError ('await outside async function' linha 3298). Backend so estava de pe porque uvicorn iniciou antes do save corrompido.
   - FIX BACKEND:
     - Removido codigo orfao (linhas 3288-3626) de routes/agent.py

@@ -276,8 +276,18 @@ def generate_single_page_html(
     base_url: str = "",
     questions: Optional[List[dict]] = None,
     tutor_config: Optional[dict] = None,
+    scorm_mode: bool = False,
 ) -> str:
-    """Generate a complete standalone single-page HTML for the given project."""
+    """Generate a complete standalone single-page HTML for the given project.
+
+    When scorm_mode=True, injects SCORM 1.2 runtime hooks (window.SCORM):
+      - lesson_location for resume
+      - suspend_data for completed interactives + quiz scores
+      - cmi.interactions for quiz answer tracking
+      - cmi.core.score for the running score
+      - lesson_status="completed" + success_status="passed" when all sections
+        are unlocked AND all quizzes passed mastery (>=80% by default)
+    """
     project_id = project_doc.get("id", "")
     name = project_doc.get("name", "Curso")
     course = project_doc.get("course", {}) or {}
@@ -336,6 +346,7 @@ def generate_single_page_html(
         sections_html="\n".join(sections_html),
         sections_index_json=sections_index_json,
         total_sections=len(sections_html),
+        scorm_mode=scorm_mode,
     )
 
 
@@ -345,9 +356,12 @@ def _BUILD_PAGE(
     sections_html: str,
     sections_index_json: str,
     total_sections: int,
+    scorm_mode: bool = False,
 ) -> str:
     css = _CSS
-    js = _JS.replace("__SECTIONS_INDEX__", sections_index_json)
+    js = _JS.replace("__SECTIONS_INDEX__", sections_index_json) \
+            .replace("__SCORM_MODE__", "true" if scorm_mode else "false")
+    scorm_script = '<script src="scorm-api.js"></script>' if scorm_mode else ''
     bg_layer = (
         f'<div class="sp-bg-image" style="background-image:url({_esc(bg_image)})"></div>'
         if bg_image else
@@ -360,6 +374,7 @@ def _BUILD_PAGE(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_esc(title)}</title>
 <style>{css}</style>
+{scorm_script}
 </head>
 <body>
 {bg_layer}
@@ -530,15 +545,94 @@ body{position:relative;overflow-x:hidden}
 _JS = """
 (function(){
   var SECTIONS = __SECTIONS_INDEX__;
+  var SCORM_MODE = __SCORM_MODE__;
   var state = {
     currentIndex: 0,
     unlocked: {0: true},
     completed: {},
     quizScores: {},
+    interactionIdx: 0,
   };
 
   function $(sel, root){ return (root||document).querySelector(sel); }
   function $$(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+
+  // --- SCORM helpers (no-op when SCORM_MODE=false or window.SCORM missing) ---
+  function scormSaveState(){
+    if (!SCORM_MODE || !window.SCORM || !window.SCORM.api) return;
+    try {
+      window.SCORM.saveSuspend({
+        unlocked: state.unlocked,
+        completed: state.completed,
+        quizScores: state.quizScores,
+        currentIndex: state.currentIndex,
+      });
+      window.SCORM.setLocation(String(state.currentIndex));
+      window.SCORM.commit();
+    } catch (e) {}
+  }
+  function scormReportQuiz(quizId, response, correct, qIdx, qText){
+    if (!SCORM_MODE || !window.SCORM || !window.SCORM.api) return;
+    try {
+      window.SCORM.recordInteraction(quizId + ':q' + qIdx, qText, response, correct);
+    } catch (e) {}
+  }
+  function scormUpdateScore(){
+    if (!SCORM_MODE || !window.SCORM || !window.SCORM.api) return;
+    var totalCorrect = 0, totalQuestions = 0;
+    Object.keys(state.quizScores).forEach(function(k){
+      totalCorrect += state.quizScores[k].correct;
+      totalQuestions += state.quizScores[k].total;
+    });
+    var raw = totalQuestions > 0 ? Math.round((totalCorrect/totalQuestions)*100) : 0;
+    try { window.SCORM.setScore(raw, 100, 0); } catch (e) {}
+  }
+  function scormMarkComplete(){
+    if (!SCORM_MODE || !window.SCORM || !window.SCORM.api) return;
+    var allUnlocked = Object.keys(state.unlocked).length >= (SECTIONS.length + 1);
+    var quizzesPassed = Object.keys(state.quizScores).every(function(k){
+      return state.quizScores[k].pct >= 80;
+    });
+    var passed = allUnlocked && (Object.keys(state.quizScores).length === 0 || quizzesPassed);
+    try {
+      window.SCORM.complete(passed);
+      window.SCORM.commit();
+    } catch (e) {}
+  }
+  function scormRestoreState(){
+    if (!SCORM_MODE || !window.SCORM || !window.SCORM.api) return false;
+    try {
+      var data = window.SCORM.getSuspend();
+      if (!data) return false;
+      Object.keys(data.unlocked || {}).forEach(function(k){
+        var idx = parseInt(k, 10);
+        if (!isNaN(idx)) {
+          state.unlocked[idx] = true;
+          var sec = $('.sp-section[data-index="'+idx+'"]');
+          if (sec) { sec.removeAttribute('data-locked'); sec.classList.add('unlocked'); }
+        }
+      });
+      state.completed = data.completed || {};
+      state.quizScores = data.quizScores || {};
+      // Mark interactives data-completed=true based on sections that were completed
+      Object.keys(state.completed).forEach(function(k){
+        var sec = $('.sp-section[data-index="'+k+'"]');
+        if (!sec) return;
+        $$('.sp-interactive[data-required="true"]', sec).forEach(function(el){
+          el.dataset.completed = 'true';
+        });
+      });
+      var resumeIdx = data.currentIndex != null ? parseInt(data.currentIndex, 10) : 0;
+      if (!isNaN(resumeIdx) && state.unlocked[resumeIdx]) {
+        state.currentIndex = resumeIdx;
+        setTimeout(function(){
+          var sec = $('.sp-section[data-index="'+resumeIdx+'"]');
+          if (sec) sec.scrollIntoView({behavior:'instant', block:'start'});
+        }, 100);
+      }
+      return true;
+    } catch (e) { return false; }
+  }
 
   function updateProgress(){
     var unlockedCount = Object.keys(state.unlocked).length;
@@ -578,6 +672,7 @@ _JS = """
     }
     buildDrawer();
     updateProgress();
+    scormSaveState();
   }
 
   function getCurrentSection(){
@@ -644,6 +739,7 @@ _JS = """
         state.completed[idx] = true;
         buildDrawer();
         updateNextButton();
+        scormSaveState();
       }
     },
     advance: function(){
@@ -651,12 +747,13 @@ _JS = """
       var nextIdx = idx + 1;
       // If end-card section
       if (nextIdx > SECTIONS.length){ return; }
+      state.currentIndex = nextIdx;          // update BEFORE unlockSection so SCORM saves the new location
       unlockSection(nextIdx);
-      state.currentIndex = nextIdx;
       var nextSec = $('.sp-section[data-index="'+nextIdx+'"]');
       if (nextSec){ nextSec.scrollIntoView({behavior:'smooth', block:'start'}); }
-      // when reaching end card, dispatch course-completed
+      // when reaching end card, dispatch course-completed + mark SCORM completed
       if (nextIdx >= SECTIONS.length){
+        scormMarkComplete();
         try {
           window.dispatchEvent(new CustomEvent('sp:course-completed', {
             detail: { quizScores: state.quizScores }
@@ -717,24 +814,39 @@ _JS = """
           var isCorrect = (typeof opt === 'object' && opt && opt.correct) || idx === q.correctAnswer || idx === q.correctIndex;
           if (isCorrect) correct++;
           answers[q.id||qi] = { selected: idx, correct: isCorrect };
+          // SCORM cmi.interactions tracking per question
+          var qText = (q.text || q.question || '').substring(0, 250);
+          scormReportQuiz(quizEl.dataset.interactiveId, String(idx), isCorrect, qi, qText);
         });
         var total = qs.length || 1;
         var pct = Math.round((correct/total)*100);
         state.quizScores[quizEl.dataset.interactiveId] = { correct: correct, total: total, pct: pct };
         result.textContent = 'Você acertou ' + correct + ' de ' + total + ' ('+pct+'%)';
         SP.markClicked(quizEl);
+        scormUpdateScore();
+        scormSaveState();
         submit.disabled = true;
       });
     }
   };
 
   document.addEventListener('DOMContentLoaded', function(){
+    if (SCORM_MODE && window.SCORM) {
+      try { window.SCORM.init(); } catch(e) {}
+      scormRestoreState();
+    }
     buildDrawer();
     updateProgress();
     updateNextButton();
     window.addEventListener('scroll', detectActiveSection, {passive:true});
     // Also re-check next button after any user interaction (covers click-reveal accordions etc.)
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
+    // SCORM finish on unload
+    if (SCORM_MODE && window.SCORM) {
+      window.addEventListener('beforeunload', function(){
+        try { window.SCORM.finish(); } catch(e){}
+      });
+    }
   });
 })();
 """
