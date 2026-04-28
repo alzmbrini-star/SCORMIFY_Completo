@@ -211,7 +211,30 @@ def _render_quiz_element(el: dict, slide_idx: int, el_idx: int, questions_lookup
     cfg = el.get("quizConfig") or {}
     qids = cfg.get("questionIds") or []
     title = _esc(cfg.get("title", "Quiz"))
-    questions = [questions_lookup[q] for q in qids if q in questions_lookup]
+    # Normalize each question into the shape expected by the embedded JS:
+    #   { id, text, options: [{ text, correct }] }
+    # The DB schema uses 'alternatives' with 'isCorrect' — translate it here.
+    questions = []
+    for qid in qids:
+        q = questions_lookup.get(qid)
+        if not q:
+            continue
+        alts = q.get("alternatives") or q.get("options") or []
+        normalized_options = []
+        for a in alts:
+            if isinstance(a, str):
+                normalized_options.append({"text": a, "correct": False})
+            elif isinstance(a, dict):
+                normalized_options.append({
+                    "text": a.get("text") or a.get("label") or a.get("answer") or "",
+                    "correct": bool(a.get("isCorrect") or a.get("correct") or a.get("right")),
+                })
+        questions.append({
+            "id": q.get("id"),
+            "text": q.get("text") or q.get("question") or "",
+            "explanation": q.get("explanation") or "",
+            "options": normalized_options,
+        })
     qjson = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
     return (
         f'<div class="sp-quiz sp-interactive" data-interactive="quiz" data-required="true" '
