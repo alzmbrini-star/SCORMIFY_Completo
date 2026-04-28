@@ -151,7 +151,7 @@ def _render_audio_element(el: dict, project_id: str, assets_dir: str, base_url: 
         f'<div class="sp-audio-label">{title}</div>'
         f'<audio controls preload="metadata" src="{_esc(src)}" '
         f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></audio>'
-        f'<div class="sp-audio-hint">▶ Reproduza para continuar</div>'
+        f'<div class="sp-audio-hint">▶ Reproduza para liberar a próxima seção</div>'
         f'</div>'
     )
 
@@ -168,7 +168,7 @@ def _render_video_element(el: dict, project_id: str, assets_dir: str, base_url: 
         f'data-interactive-id="video-{idx}">'
         f'<video controls preload="metadata" src="{_esc(src)}"{poster_attr} '
         f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></video>'
-        f'<div class="sp-video-hint">▶ Reproduza para continuar</div>'
+        f'<div class="sp-video-hint">▶ Assista para liberar a próxima seção</div>'
         f'</div>'
     )
 
@@ -176,6 +176,23 @@ def _render_video_element(el: dict, project_id: str, assets_dir: str, base_url: 
 def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: str) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
+    # If the HTML contains <style>, <script>, <body>, or <html> tags, those would
+    # leak into the course CSS scope and break the page layout (eg a simulator's
+    # `body{display:flex;width:960px}` would shrink the whole single-page body).
+    # Sandbox such complex HTML inside an iframe via srcdoc.
+    has_global_styles = bool(re.search(r"<\s*(style|script|body|html|head)\b", raw, re.IGNORECASE))
+    if has_global_styles:
+        b64 = base64.b64encode(raw.encode("utf-8")).decode("ascii")
+        # Pick a reasonable height — most legacy simulators target 540px
+        return (
+            f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true" '
+            f'onclick="window.SP&&SP.markClicked(this)">'
+            f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
+            f'src="data:text/html;base64,{b64}" '
+            f'style="width:100%;min-height:540px;border:0;border-radius:8px;background:#fff;display:block"></iframe>'
+            f'<div class="sp-html-hint">👆 Interaja com o conteúdo acima para liberar a próxima seção</div>'
+            f'</div>'
+        )
     # Heuristic: if the html contains a <button>, <details>, or [onclick] we mark
     # the whole block as an interactive that must be clicked at least once.
     is_interactive = bool(re.search(r"<button|<details|onclick=", raw, re.IGNORECASE))
@@ -184,7 +201,7 @@ def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: s
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true" '
             f'onclick="window.SP&&SP.markClicked(this)">'
             f'{raw}'
-            f'<div class="sp-html-hint">👆 Interaja para continuar</div>'
+            f'<div class="sp-html-hint">👆 Clique aqui para liberar a próxima seção</div>'
             f'</div>'
         )
     return f'<div class="sp-html">{raw}</div>'
@@ -455,13 +472,14 @@ body{position:relative;overflow-x:hidden}
 .sp-drawer-list li.unlocked:not(.completed):not(.locked)::before{content:"▶";color:#facc15;font-size:11px}
 
 /* ---- main + sections ---- */
-.sp-main{padding:54px 0 80px;display:flex;flex-direction:column;gap:0}
-.sp-section{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:50px 12px;position:relative}
+.sp-main{padding:54px 0 80px;display:flex;flex-direction:column;gap:0;width:100%;max-width:none}
+.sp-section{min-height:100vh;padding:50px 16px;position:relative;width:100%;box-sizing:border-box}
 .sp-section[data-locked="true"]{display:none}
-.sp-section.unlocked{display:flex;animation:sp-fade-in .6s ease}
+.sp-section.unlocked,
+.sp-section:first-of-type:not([data-locked]){display:block;animation:sp-fade-in .6s ease}
 @keyframes sp-fade-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.sp-section-inner{width:100%;max-width:920px;background:#fff;border-radius:14px;padding:48px 56px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
-.sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1}
+.sp-section-inner{width:100%;max-width:1080px;margin:0 auto;background:#fff;border-radius:14px;padding:48px 56px;box-shadow:0 20px 60px rgba(0,0,0,.35);box-sizing:border-box}
+.sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1;text-align:center}
 .sp-section-body{display:flex;flex-direction:column;gap:24px;color:#0f172a;font-size:15px;line-height:1.7}
 
 /* element styles */
@@ -472,14 +490,19 @@ body{position:relative;overflow-x:hidden}
 .sp-html *{max-width:100%}
 .sp-html img{max-width:100%;height:auto;border-radius:8px}
 
-.sp-interactive{position:relative;background:#f1f5f9;border-radius:12px;padding:18px;border:2px dashed #94a3b8;transition:border-color .3s,background .3s}
-.sp-interactive[data-completed="true"]{border-color:#84cc16;background:#f7fee7}
-.sp-interactive[data-completed="true"]::after{content:"✓";position:absolute;top:8px;right:12px;color:#84cc16;font-weight:700;font-size:18px}
+.sp-interactive{position:relative;background:#fef9c3;border-radius:12px;padding:22px;border:3px solid #facc15;transition:all .3s;box-shadow:0 4px 16px rgba(250,204,21,.25);animation:sp-attention 2.5s ease-in-out infinite}
+.sp-interactive[data-completed="true"]{border-color:#84cc16;background:#f7fee7;animation:none;box-shadow:0 2px 8px rgba(132,204,22,.2)}
+.sp-interactive[data-completed="true"]::after{content:"✓";position:absolute;top:10px;right:14px;color:#fff;background:#84cc16;font-weight:700;font-size:18px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(132,204,22,.4)}
+.sp-interactive::before{content:"";position:absolute;top:-3px;left:-3px;right:-3px;bottom:-3px;border-radius:14px;border:3px solid #facc15;opacity:.6;pointer-events:none}
+.sp-interactive[data-completed="true"]::before{display:none}
+@keyframes sp-attention{0%,100%{box-shadow:0 4px 16px rgba(250,204,21,.25)}50%{box-shadow:0 6px 24px rgba(250,204,21,.55)}}
 
-.sp-audio,.sp-video{display:flex;flex-direction:column;gap:8px}
+.sp-audio,.sp-video{display:flex;flex-direction:column;gap:10px}
 .sp-audio audio,.sp-video video{width:100%;border-radius:8px;background:#0f172a}
-.sp-audio-label,.sp-video-label{font-weight:600;color:#1e3a8a;font-size:14px}
-.sp-audio-hint,.sp-video-hint,.sp-html-hint{font-size:12px;color:#64748b;text-align:right;font-style:italic}
+.sp-audio-label,.sp-video-label{font-weight:700;color:#0a2540;font-size:15px;display:flex;align-items:center;gap:8px}
+.sp-audio-label::before{content:"🎧";font-size:20px}
+.sp-audio-hint,.sp-video-hint,.sp-html-hint{display:inline-block;background:#0a2540;color:#facc15;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;align-self:flex-start;margin-top:4px;animation:sp-pulse-hint 2s ease-in-out infinite}
+@keyframes sp-pulse-hint{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
 .sp-interactive[data-completed="true"] .sp-audio-hint,
 .sp-interactive[data-completed="true"] .sp-video-hint,
 .sp-interactive[data-completed="true"] .sp-html-hint{display:none}
@@ -533,10 +556,15 @@ body{position:relative;overflow-x:hidden}
 /* ---- responsive ---- */
 @media (max-width: 640px){
   .sp-section{padding:30px 8px}
-  .sp-section-inner{padding:30px 22px}
+  .sp-section-inner{padding:30px 22px;border-radius:10px}
   .sp-section-title{font-size:24px;margin-bottom:18px}
   .sp-title{font-size:11px}
   .sp-next-btn{right:12px;bottom:16px;width:48px;height:48px}
+  .sp-interactive{padding:16px}
+  .sp-section-body{font-size:14px}
+}
+@media (min-width: 1600px){
+  .sp-section-inner{max-width:1180px}
 }
 """
 

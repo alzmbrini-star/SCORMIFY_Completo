@@ -87,7 +87,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-28: FIX (P0 BUG VISUAL) — Página Única descentralizada e interativos pouco visíveis no LMS.
+  - **Causa raiz**: Os simuladores/scenarios (campo `htmlContent`) trazem `<style>body{display:flex;width:960px;height:540px;...}</style>` próprio. Como o renderer single-page injetava esses HTMLs DIRETAMENTE no DOM da página, os 7+ blocos `<style>` faziam **vazamento de CSS global** — o `<body>` do curso herdava `display:flex; width:960px`, encolhendo tudo para a esquerda.
+  - **Fix**: (1) `_render_html_element` detecta tags globais (`<style>`, `<script>`, `<body>`, `<html>`, `<head>`) no `htmlContent` e renderiza em `<iframe sandbox>` via data-URI; (2) `.sp-section-inner` com `margin: 0 auto` (mais resiliente que flex parent); (3) interativos com borda amarela 3px + box-shadow pulsante + badge "▶ ASSISTA/CLIQUE PARA LIBERAR" muito visível; (4) max-width aumentado para 1080-1180px; (5) title centralizado.
+  - **Validado** em 1920px e 1280px via Playwright: card centralizado (370px e 100px de espaço respectivamente). 30/30 testes.
+
+- 2026-04-28: FIX (P0 BUG INFRA) — Erro 500 ao exportar SCORM Página Única (No space left on device).
+  - **Causa raiz**: GridFS `exports.chunks` acumulou 4.65 GB de exports antigos (165 arquivos de 24h+). Disco em 100%.
+  - **Fix**: limpeza imediata via mongosh `compact` (4.3 GB liberados) + nova função `cleanup_old_gridfs_exports(24h)` chamada em background a cada export para prevenir recorrência.
+
 - 2026-04-28: FIX (P0 BUG) — SCORM Página Única rejeitado por LMS estritos (Canvas/Blackboard/SCORM Cloud).
+  - **Causa raiz**: Identifier com hífens, `scorm-api.js` na raiz (não em `scripts/`), title sem escape de aspas/apóstrofo.
+  - **Fix**: identifier sanitizado (hífens → underscore), `scripts/scorm-api.js` (convenção do tradicional), title escapa `& < > " '`.
+
+
   - **Causa raiz**: ZIP single-page tinha 3 problemas estruturais que o LMS tradicional aceita mas LMS estritos rejeitam:
     1. **`identifier="SCORM_SP_<uuid>"`** com hífens — alguns LMS exigem XML NCName estrito (`[A-Za-z_][A-Za-z0-9._]*`)
     2. **`scorm-api.js` na raiz** ao invés de `scripts/scorm-api.js` (convenção do exporter tradicional, esperada por LMS antigos)
