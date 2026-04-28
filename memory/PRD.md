@@ -87,6 +87,21 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-28: FEATURE (P1) — Modo "Página Única" para SCORM 1.2 (Fase 2 de 2).
+  - Novo módulo `services/scorm_single_page_exporter.py`: empacota o HTML single-page (Fase 1) num ZIP SCORM 1.2 com manifest + 4 XSDs + scorm-api.js.
+  - **`scorm-api.js`** (bridge para LMS): `findAPI` walker até 500 levels; expõe `window.SCORM` com init, setLocation, saveSuspend, getSuspend, recordInteraction, setScore, complete, commit, finish.
+  - **JS runtime atualizado**: `scorm_mode=true` injeta hooks que disparam em pontos chave:
+    - **Avanço de seção** → `cmi.core.lesson_location` + `cmi.suspend_data` (JSON com unlocked + completed + quizScores + currentIndex) + `LMSCommit`
+    - **Quiz respondido** → `cmi.interactions.{n}.id/type/student_response/result/description/time` + `cmi.core.score.raw/max/min` (running pct)
+    - **End-card alcançado** → `cmi.core.lesson_status="passed"` se todos clicáveis OK + quizzes ≥80%, senão `"completed"`
+    - **beforeunload** → `LMSCommit + LMSFinish`
+  - **Resume**: ao carregar, lê `cmi.suspend_data`, restaura unlocked sections + completed interactives + quiz scores + scrolla para `lesson_location`.
+  - **Endpoint `/api/course/{id}/export-scorm`** aceita `{singlePage: bool}` no body, sobrescreve `project.singlePageMode`. Retorna `{mode, downloadUrl, jobId}`.
+  - **Frontend**: `ProjectContext.exportScorm({singlePage})` + `useEditorExport.handleExport` lê `currentProject.singlePageMode`. Toast indica modo.
+  - **Bug corrigido durante implementação**: `SP.advance()` chamava `unlockSection()` ANTES de atualizar `state.currentIndex`, fazendo o SCORM salvar a localização ANTIGA. Reordenado: `state.currentIndex = nextIdx` PRIMEIRO. Regressão coberta por `test_e2e_lms_initialize_and_lesson_status`.
+  - **Robustez**: `_cleanup_old_exports` agora aplica DUPLA política — idade (24h) + cap de tamanho total (5GB) — para evitar disco cheio em produção.
+  - **Validado**: 15/15 testes (9 API + 6 E2E real-browser com mock LMS) iteration_114. 23/23 testes single-page total (HTML + SCORM + apply-improvements).
+
 - 2026-04-28: FEATURE (P0) — Modo "Página Única" (scroll vertical / scrollytelling) para export HTML.
   - Inspirado em Articulate Rise: header preto fixo + título à direita + hambúrguer à esquerda + barra de progresso amarela; cards brancos A4 sobre fundo azul-rede; botão amarelo redondo no canto inferior direito que SÓ aparece quando todos os elementos clicáveis da seção atual foram concluídos (gating pedagógico).
   - **Backend** (`services/single_page_exporter.py` 741 linhas): renderer auto-contido (HTML+CSS+JS); detecta interativos (audio onplay, video onplay, html-com-onclick, quiz, scenario, simulator); cada slide vira `<section data-locked="true">` com unlock progressivo; drawer linear-estrito.

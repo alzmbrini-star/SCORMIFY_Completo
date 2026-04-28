@@ -69,20 +69,47 @@ def _get_external_url(request: Request = None) -> str:
     return os.environ.get('BASE_URL', '') or os.environ.get('REACT_APP_BACKEND_URL', '')
 
 
-def _cleanup_old_exports(exports_dir: str, max_age_hours: int = 24):
+def _cleanup_old_exports(exports_dir: str, max_age_hours: int = 24, max_total_bytes: int = 5 * 1024 * 1024 * 1024):
+    """Cleanup exports by BOTH age (default 24h) and total size cap (default 5GB).
+    Files restored on demand from GridFS so deletion is safe."""
     import time
     exports_path = Path(exports_dir)
     if not exports_path.exists():
         return
     cutoff = time.time() - max_age_hours * 3600
-    removed = 0
+
+    # Collect all regular files (skip subdirs like scorm_test_pkg/)
+    files = []
     for f in exports_path.iterdir():
-        if f.is_file() and f.stat().st_mtime < cutoff:
+        if f.is_file():
+            try:
+                files.append((f, f.stat()))
+            except FileNotFoundError:
+                continue
+
+    # Pass 1: age-based cleanup
+    removed = 0
+    for f, st in files[:]:
+        if st.st_mtime < cutoff:
             try:
                 f.unlink()
                 removed += 1
+                files.remove((f, st))
             except Exception:
                 pass
+
+    # Pass 2: size-cap cleanup (oldest first)
+    files.sort(key=lambda x: x[1].st_mtime)
+    total = sum(st.st_size for _, st in files)
+    while total > max_total_bytes and files:
+        f, st = files.pop(0)
+        try:
+            f.unlink()
+            removed += 1
+            total -= st.st_size
+        except Exception:
+            pass
+
     if removed:
         logger.info(f"Cleaned up {removed} old export files from {exports_dir}")
 
