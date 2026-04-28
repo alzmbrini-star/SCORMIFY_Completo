@@ -219,26 +219,30 @@ def _render_video_element_inner(el: dict, project_id: str, assets_dir: str, base
 
 
 def _render_avatar_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
-    """Avatar = video player se houver videoUrl, senão imagem estática."""
+    """Avatar = video player com fundo TRANSPARENTE (avatares HeyGen .webm têm alpha
+    channel; ao remover bg do container, o avatar se mistura com o cenário/slide background.
+    Sem yellow border do .sp-interactive — apenas tracking 'video required' sutil."""
     video_url = el.get("videoUrl") or el.get("avatarVideoUrl") or ""
     image_url = el.get("avatarImage") or el.get("imageUrl") or el.get("src") or ""
     if video_url:
         video_url = _resolve_asset_url(video_url, project_id, assets_dir, base_url)
         return (
-            f'<div class="sp-video sp-interactive" data-interactive="video" data-required="true" '
-            f'data-interactive-id="avatar-{idx}">'
-            f'<div class="sp-video-label">🎬 Avatar</div>'
+            f'<div class="sp-avatar-wrap" data-interactive="video" data-required="true" '
+            f'data-interactive-id="avatar-{idx}" '
+            f'style="display:flex;flex-direction:column;align-items:center;gap:8px;background:transparent;border:0;padding:0;max-width:480px;margin:0 auto">'
             f'<video controls preload="metadata" src="{_esc(video_url)}" '
-            f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></video>'
-            f'<div class="sp-video-hint">▶ Assista para liberar a próxima seção</div>'
+            f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-avatar-wrap\'))" '
+            f'style="width:100%;max-width:480px;max-height:540px;background:transparent;border:0;border-radius:8px;display:block" '
+            f'playsinline></video>'
+            f'<div class="sp-avatar-hint" style="font-size:11px;color:inherit;opacity:.7;font-style:italic">▶ Avatar — reproduza para liberar próxima seção</div>'
             f'</div>'
         )
     if image_url:
         image_url = _resolve_asset_url(image_url, project_id, assets_dir, base_url)
         return (
-            f'<figure class="sp-image" style="margin:0;display:flex;justify-content:center">'
+            f'<figure class="sp-avatar-img" style="margin:0;display:flex;justify-content:center;background:transparent">'
             f'<img src="{_esc(image_url)}" alt="Avatar" loading="lazy" '
-            f'style="max-width:320px;height:auto;border-radius:8px" />'
+            f'style="max-width:320px;max-height:480px;height:auto;background:transparent;display:block" />'
             f'</figure>'
         )
     return ''
