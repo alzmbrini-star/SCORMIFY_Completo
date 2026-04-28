@@ -468,8 +468,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
 
   if (!course) return null;
   const priorityColors = { alta: 'text-red-400 border-red-800/40', media: 'text-amber-400 border-amber-800/40', baixa: 'text-blue-400 border-blue-800/40' };
-  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_premium: 'Imagem Premium' };
-  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_premium: ImagePlus };
+  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_simples: 'Imagem (econômica)', imagem_premium: 'Imagem Premium' };
+  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_simples: Image, imagem_premium: ImagePlus };
 
   return (
     <div className="space-y-4" data-testid="course-review-panel">
@@ -695,6 +695,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
               scenario: 'bg-cyan-900/40 text-cyan-300 border-cyan-700/50',
               visual_summary: 'bg-amber-900/40 text-amber-300 border-amber-700/50',
               reinforcement: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
+              imagem_simples: 'bg-pink-900/40 text-pink-300 border-pink-700/50',
               imagem_premium: 'bg-fuchsia-900/40 text-fuchsia-300 border-fuchsia-700/50',
             };
             const filtered = analysis.improvements
@@ -783,6 +784,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                                 effectiveType === 'visual_summary' ? 'border-amber-600/50 text-amber-300 bg-amber-500/10' :
                                 effectiveType === 'reinforcement' ? 'border-rose-600/50 text-rose-300 bg-rose-500/10' :
                                 effectiveType === 'simulator' ? 'border-emerald-600/50 text-emerald-300 bg-emerald-500/10' :
+                                effectiveType === 'imagem_simples' ? 'border-pink-600/50 text-pink-300 bg-pink-500/10' :
                                 effectiveType === 'imagem_premium' ? 'border-fuchsia-600/50 text-fuchsia-300 bg-fuchsia-500/10' :
                                 'border-slate-600'
                               }`}>
@@ -812,11 +814,36 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             {imp.reinforcementType && (
                               <Badge className="text-[9px] bg-rose-900/30 text-rose-300 border-rose-700/30 mt-1.5">{imp.reinforcementType}</Badge>
                             )}
-                            {imp.imagePrompt && (
-                              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                <Badge className="text-[9px] bg-fuchsia-900/30 text-fuchsia-300 border-fuchsia-700/30">Leonardo AI</Badge>
-                                {imp.imageStyle && <Badge className="text-[9px] bg-slate-800 text-slate-300">{imp.imageStyle}</Badge>}
-                                <p className="text-[10px] text-fuchsia-400/60 w-full mt-1 italic">{imp.imagePrompt}</p>
+                            {imp.imagePrompt && (effectiveType === 'imagem_simples' || effectiveType === 'imagem_premium') && (
+                              <div className="mt-1.5 space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {effectiveType === 'imagem_premium' ? (
+                                    <Badge className="text-[9px] bg-fuchsia-900/30 text-fuchsia-300 border-fuchsia-700/30">
+                                      Leonardo AI · Premium
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="text-[9px] bg-pink-900/30 text-pink-300 border-pink-700/30">
+                                      Gemini Nano Banana · Econômica
+                                    </Badge>
+                                  )}
+                                  {imp.imageStyle && <Badge className="text-[9px] bg-slate-800 text-slate-300">{imp.imageStyle}</Badge>}
+                                  {/* Toggle: switch between simples ↔ premium */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTypeOverrides(prev => ({
+                                        ...prev,
+                                        [i]: effectiveType === 'imagem_premium' ? 'imagem_simples' : 'imagem_premium',
+                                      }));
+                                    }}
+                                    className="text-[9px] px-2 py-0.5 rounded-full border border-slate-600 text-slate-300 hover:border-slate-400 hover:text-white transition"
+                                    data-testid={`toggle-image-type-${i}`}
+                                  >
+                                    {effectiveType === 'imagem_premium' ? '↓ Trocar por econômica' : '↑ Trocar por premium'}
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-slate-400/70 italic">{imp.imagePrompt}</p>
                               </div>
                             )}
                           </div>
@@ -838,7 +865,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             )}
                             {wasConverted && (
                               <div className="text-xs text-amber-300/80 bg-amber-950/20 rounded-md p-2 border border-amber-800/20">
-                                A IA vai gerar {effectiveType === 'content' ? 'conteúdo textual rico' : effectiveType === 'simulator' ? 'um simulador interativo' : effectiveType === 'game' ? 'um jogo educativo' : effectiveType === 'quiz' ? 'um quiz' : effectiveType === 'scenario' ? 'um cenário interativo de decisão' : effectiveType === 'visual_summary' ? 'um quadro de resumo visual' : effectiveType === 'reinforcement' ? 'um reforço de aprendizagem' : effectiveType === 'imagem_premium' ? 'uma imagem premium via Leonardo AI' : 'este conteúdo'} ao invés de uma cena com avatar.
+                                A IA vai gerar {effectiveType === 'content' ? 'conteúdo textual rico' : effectiveType === 'simulator' ? 'um simulador interativo' : effectiveType === 'game' ? 'um jogo educativo' : effectiveType === 'quiz' ? 'um quiz' : effectiveType === 'scenario' ? 'um cenário interativo de decisão' : effectiveType === 'visual_summary' ? 'um quadro de resumo visual' : effectiveType === 'reinforcement' ? 'um reforço de aprendizagem' : effectiveType === 'imagem_simples' ? 'uma imagem econômica via Gemini Nano Banana' : effectiveType === 'imagem_premium' ? 'uma imagem premium via Leonardo AI' : 'este conteúdo'} ao invés de uma cena com avatar.
                               </div>
                             )}
                             <SlideTypeSwitcher

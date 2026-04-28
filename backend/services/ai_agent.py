@@ -1995,7 +1995,8 @@ TIPOS DE MELHORIA DISPONÍVEIS:
 - "scenario": Adicionar cenário de decisão interativo (árvore de decisões com múltiplos caminhos e consequências). Cenários são excelentes para treinar tomada de decisão, liderança, atendimento ao cliente, ética.
 - "visual_summary": Adicionar quadro de resumo visual (infográfico, mapa mental, timeline, diagrama) para sintetizar informações densas de forma visual e memorável
 - "reinforcement": Adicionar reforço de aprendizagem (flashcards, destaque de conceito-chave, caixa "Sabia que?", dica prática, exemplo real, case study) para fixar o conteúdo sem poluir com mais texto
-- "imagem_premium": Gerar imagem profissional de alta qualidade via Leonardo AI para enriquecer visualmente o slide. Use quando o slide precisa de uma imagem impactante, fotorrealista ou artística que elevará a qualidade visual do curso
+- "imagem_simples": Adicionar imagem ILUSTRATIVA gerada via Gemini Nano Banana para suavizar a leitura de slides textuais. Custo BAIXO. Use para a maioria dos slides text-heavy onde uma imagem genérica/ilustrativa já cumpre o papel de quebrar o texto.
+- "imagem_premium": Gerar imagem profissional de ALTA QUALIDADE via Leonardo AI. Custo ALTO. Use APENAS em slides estratégicos: capa do curso, abertura de módulo, conteúdo emblemático ou onde a qualidade fotorrealista/artística faz diferença pedagógica real.
 
 PRINCÍPIOS PEDAGÓGICOS IMPORTANTES:
 - Slides com muito texto são INEFICAZES. Priorize sugestões que REDUZAM texto e AUMENTEM engajamento
@@ -2031,15 +2032,28 @@ REGRAS PARA REINFORCEMENT:
 - Tipos: flashcard, destaque de conceito, caixa "Sabia que?", dica prática, exemplo real, analogia, case study
 - Para cada sugestão, inclua "reinforcementType": tipo de reforço sugerido
 
-REGRAS PARA IMAGEM_PREMIUM (Leonardo AI) — PRIORIDADE ALTA:
-- 🔴 OBRIGATÓRIO: para CADA slide listado em "SLIDES TEXTUAIS SEM IMAGEM" acima, sugira UMA `imagem_premium` com priority="alta". Isso NÃO é opcional — slides com >350 chars de texto e sem imagem produzem fadiga visual e queda na retenção.
+REGRAS PARA SUGESTÃO DE IMAGEM EM SLIDES TEXTUAIS — PRIORIDADE ALTA:
+- 🔴 OBRIGATÓRIO: para CADA slide listado em "SLIDES TEXTUAIS SEM IMAGEM" acima, sugira UMA imagem (use `imagem_simples` por padrão). Isso NÃO é opcional — slides com >350 chars de texto e sem imagem produzem fadiga visual e queda na retenção.
 - O objetivo da imagem é ILUSTRAR o conteúdo do slide, ajudar a SUAVIZAR a leitura e facilitar a compreensão. NÃO é decoração — é apoio pedagógico.
 - A imagem deve representar diretamente o tema/conceito principal do slide (ex: slide sobre liderança → equipe diversa em reunião colaborativa; slide sobre saúde mental → pessoa em ambiente sereno).
-- Para cada sugestão, inclua campos extras:
-  - "imagePrompt": Prompt DETALHADO em INGLÊS descrevendo a cena que ilustra o conteúdo (ex: "Diverse corporate team collaborating in modern meeting room, warm natural lighting, photorealistic, professional atmosphere"). Use 15-30 palavras incluindo: sujeito principal + ambiente + iluminação + estilo visual.
-  - "imageStyle": Estilo apropriado ao tema: "PHOTOGRAPHY" (cenas reais de pessoas/locais), "ILLUSTRATION" (conceitos abstratos), "CINEMATIC" (cenas dramáticas/emocionais), "DIGITAL_ART" (tecnologia/futurista), "RENDER_3D" (produtos/objetos), ou null para automático.
-  - "description": Em português, explique POR QUE a imagem ajuda (ex: "Slide tem 480 chars de texto sobre comunicação assertiva — uma imagem de pessoas dialogando suavizará a leitura").
-- Além dos slides obrigatórios acima, sugira mais 1-2 imagens premium em slides estratégicos (capa, abertura de módulo) se o curso tiver mais que 8 slides.
+
+QUANDO usar `imagem_simples` (BAIXO custo, padrão recomendado):
+- Slides de conteúdo regular onde uma imagem ilustrativa genérica já quebra o texto suficiente
+- Conceitos universais (trabalho em equipe, comunicação, processos, ferramentas)
+- A maioria dos slides text-heavy deve usar este tipo
+
+QUANDO usar `imagem_premium` (ALTO custo, somente quando faz diferença):
+- Slide de capa do curso ou abertura de módulo
+- Slides emblemáticos onde uma imagem fotorrealista/cinematográfica eleva muito o impacto
+- Cenas complexas que exigem composição artística fina
+- Limite máximo: 1-3 imagens premium em todo o curso
+
+CAMPOS PARA AMBOS OS TIPOS (imagem_simples e imagem_premium):
+- "imagePrompt": Prompt DETALHADO em INGLÊS descrevendo a cena que ilustra o conteúdo (ex: "Diverse corporate team collaborating in modern meeting room, warm natural lighting, photorealistic, professional atmosphere"). Use 15-30 palavras incluindo: sujeito principal + ambiente + iluminação + estilo visual.
+- "imageStyle": Estilo: "PHOTOGRAPHY" (cenas reais), "ILLUSTRATION" (conceitos abstratos), "CINEMATIC" (cenas dramáticas), "DIGITAL_ART" (tecnologia/futurista), "RENDER_3D" (produtos), ou null para automático.
+- "description": Em português, explique POR QUE a imagem ajuda (ex: "Slide tem 480 chars sobre comunicação assertiva — imagem de pessoas dialogando suavizará a leitura").
+
+IMPORTANTE: o usuário poderá ESCOLHER entre imagem simples e premium para cada sugestão, mas sua sugestão padrão deve seguir as regras acima (simples para text-heavy, premium só em estratégicos).
 
 Retorne JSON:
 ```json
@@ -2049,7 +2063,7 @@ Retorne JSON:
   "improvements": [
     {{
       "slideIndex": 0,
-      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_premium",
+      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_simples|imagem_premium",
       "priority": "alta|media|baixa",
       "description": "descrição da melhoria",
       "suggestion": "sugestão concreta"
@@ -2138,6 +2152,7 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     has_visual_summaries = any(imp.get("type") == "visual_summary" for imp in selected_improvements)
     has_reinforcements = any(imp.get("type") == "reinforcement" for imp in selected_improvements)
     has_imagem_premium = any(imp.get("type") == "imagem_premium" for imp in selected_improvements)
+    has_imagem_simples = any(imp.get("type") == "imagem_simples" for imp in selected_improvements)
     
     # Get current slide content for context
     slides_content = []
@@ -2241,6 +2256,19 @@ REGRA PARA IMAGEM PREMIUM (type "imagem_premium"):
 - Exemplo de updatedSlide com imagem premium:
   {{"slideIndex":0,"title":"Título","elements":[{{"type":"text","content":"<h2>Título</h2><p>Conteúdo</p>","width":1050,"height":700,"x":60,"y":60}}],"_leonardoImage":{{"prompt":"Modern corporate training room with digital screens and professionals","style":"CINEMATIC"}}}}
 """
+
+    imagem_simples_instructions = ""
+    if has_imagem_simples:
+        imagem_simples_instructions = """
+REGRA PARA IMAGEM SIMPLES (type "imagem_simples"):
+- Para melhorias do tipo "imagem_simples", inclua o campo "_geminiImage" no updatedSlide:
+  - "_geminiImage": {{"prompt": "prompt detalhado em inglês para Gemini Nano Banana"}}
+- O prompt deve ser claro e descritivo (em inglês), adequado ao tema do slide. Custo BAIXO — sem campo "style".
+- A imagem será gerada automaticamente via Gemini Nano Banana e inserida como elemento do slide
+- Ao atualizar o slide, reorganize os elementos existentes para acomodar a imagem (layout duas colunas: texto à esquerda, imagem à direita)
+- Exemplo de updatedSlide com imagem simples:
+  {{"slideIndex":0,"title":"Título","elements":[{{"type":"text","content":"<h2>Título</h2><p>Conteúdo</p>","width":1050,"height":700,"x":60,"y":60}}],"_geminiImage":{{"prompt":"Diverse corporate team collaborating in modern meeting room, warm lighting, illustrative style"}}}}
+"""
     
     prompt = f"""Aplique as seguintes melhorias ao curso. Gere o conteúdo atualizado para cada slide afetado.
 
@@ -2276,6 +2304,7 @@ REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculador
 {visual_summary_instructions}
 {reinforcement_instructions}
 {imagem_premium_instructions}
+{imagem_simples_instructions}
 Retorne JSON com os slides a atualizar:
 ```json
 {{

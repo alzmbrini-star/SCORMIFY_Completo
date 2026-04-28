@@ -2957,6 +2957,95 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         await update_project(project_id, {"course": course})
         logger.info(f"Applied {leonardo_images_generated} Leonardo premium images to project {project_id}")
 
+    # Post-process: Generate Gemini Nano Banana images for slides with _geminiImage
+    # (cheaper alternative to Leonardo for "imagem_simples" improvements)
+    gemini_images_generated = 0
+    gemini_tasks = []
+    for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
+        gem_img = upd.get("_geminiImage")
+        if gem_img and isinstance(gem_img, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                gemini_tasks.append((idx, gem_img))
+    for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
+        gem_img = ns.get("_geminiImage")
+        if gem_img and isinstance(gem_img, dict):
+            ns_title = ns.get("title", "")
+            for si, s in enumerate(slides):
+                if s.get("title") == ns_title:
+                    gemini_tasks.append((si, gem_img))
+                    break
+
+    if gemini_tasks:
+        from services.gemini_image import generate_simple_image
+        from services.asset_store import store_asset_async
+        import uuid as _gem_uuid
+        for slide_idx, gem_cfg in gemini_tasks:
+            try:
+                gem_prompt = gem_cfg.get("prompt", "professional corporate training illustration")
+                jpeg_bytes = await generate_simple_image(gem_prompt)
+                if not jpeg_bytes:
+                    continue
+                fname = f"gemini_{_gem_uuid.uuid4().hex[:10]}.jpg"
+                assets_dir = PROJECTS_DIR / project_id / "assets"
+                assets_dir.mkdir(parents=True, exist_ok=True)
+                dest_path = assets_dir / fname
+                dest_path.write_bytes(jpeg_bytes)
+                # Persist to MongoDB so the image survives pod restarts.
+                try:
+                    if not await store_asset_async(db, project_id, fname, str(dest_path)):
+                        logger.error(f"Gemini image {fname} failed to persist in MongoDB")
+                        continue
+                except Exception as persist_err:
+                    logger.error(f"Gemini MongoDB persist error for {fname}: {persist_err}")
+                    continue
+
+                img_url = f"/api/projects/{project_id}/assets/{fname}"
+                slide = slides[slide_idx]
+                # Update existing image element OR add a new one (two-column layout)
+                img_found = False
+                for el in slide.get("elements", []):
+                    if el.get("type") == "image":
+                        el["src"] = img_url
+                        el["content"] = img_url
+                        img_found = True
+                        break
+                if not img_found:
+                    slide.setdefault("elements", [])
+                    slide["elements"].append({
+                        "id": generate_id(), "type": "image",
+                        "x": 1160, "y": 90, "width": 700, "height": 440,
+                        "src": img_url, "content": img_url,
+                        "style": {"borderRadius": "12px"}, "startTime": 0,
+                        "animations": [{"id": generate_id(), "type": "entrance",
+                                        "effect": "fade", "trigger": "withPrevious",
+                                        "duration": 0.5, "delay": 0.3}],
+                    })
+                    # Resize text to two-column layout
+                    for el in slide.get("elements", []):
+                        if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                            el["width"] = 1050
+                            el["x"] = 60
+                gemini_images_generated += 1
+                logger.info(f"Gemini simple image generated for slide {slide_idx}: {img_url}")
+                # Auto-save to gallery (best-effort)
+                try:
+                    from routes.gallery import auto_save_to_gallery
+                    await auto_save_to_gallery(img_url, f"gemini: {gem_prompt}", project_id, "", "", "")
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.error(f"Gemini image generation failed for slide {slide_idx}: {e}")
+
+    if gemini_images_generated > 0:
+        course["slides"] = slides
+        await update_project(project_id, {"course": course})
+        logger.info(f"Applied {gemini_images_generated} Gemini simple images to project {project_id}")
+
     # Detect avatar scenes and trigger background generation
     avatar_scene_pending = []
     for ns in result.get("newSlides", []):
@@ -3051,6 +3140,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         "canUndo": True,
         "scenariosGenerated": scenarios_generated,
         "leonardoImagesGenerated": leonardo_images_generated,
+        "geminiImagesGenerated": gemini_images_generated,
         "avatarScenesTriggered": len(avatar_scene_pending),
         "avatarGenerationStarted": avatar_generation_started,
     }
