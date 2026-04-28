@@ -183,18 +183,15 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
     await create_job(job_id, job_data)
     
     try:
-        # Convert dict to Project model
-        project = Project(**project_doc)
-        
-        # Collect all question IDs from quiz elements in the course
+        # Collect all question IDs from quiz elements (works on the raw dict, no Pydantic parse needed)
         question_ids = set()
-        for slide in project.course.slides:
-            for element in slide.elements:
-                if element.type == 'quiz' and hasattr(element, 'quizConfig'):
-                    quiz_config = element.quizConfig
-                    if quiz_config and isinstance(quiz_config, dict):
-                        question_ids.update(quiz_config.get('questionIds', []))
-        
+        for slide in (project_doc.get("course") or {}).get("slides", []) or []:
+            for element in slide.get("elements", []) or []:
+                if element.get("type") == "quiz":
+                    qc = element.get("quizConfig") or {}
+                    if isinstance(qc, dict):
+                        question_ids.update(qc.get("questionIds", []) or [])
+
         # Load questions from database if there are quiz elements
         questions = []
         if question_ids:
@@ -204,7 +201,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             ).to_list(500)
             questions = question_docs
             logger.info(f"Loaded {len(questions)} questions for SCORM export")
-        
+
         # Load tutor settings
         tutor_settings = None
         try:
@@ -212,14 +209,14 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             if settings_doc and settings_doc.get("enabled"):
                 # Always use current environment URL to avoid stale URLs from previous forks
                 backend_url = _get_external_url(request) or settings_doc.get('apiUrl', '').strip()
-                
                 tutor_settings = {
                     'enabled': True,
                     'apiUrl': backend_url,
                     'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
-                    'courseTopic': project.course.metadata.title or project.name
+                    'courseTopic': (project_doc.get("course") or {}).get("metadata", {}).get("title")
+                                    or project_doc.get("name", "")
                 }
         except Exception as e:
             logger.warning(f"Tutor settings load failed (non-fatal): {e}")
@@ -273,6 +270,9 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 backend_url=scorm_backend_url,
             )
         else:
+            # Legacy slide-by-slide exporter requires a strict Project Pydantic model.
+            # The model now accepts numeric strings with units (e.g. "24px") via field validators.
+            project = Project(**project_doc)
             from services.scorm_exporter import export_scorm_package
             zip_path = await asyncio.to_thread(
                 export_scorm_package,

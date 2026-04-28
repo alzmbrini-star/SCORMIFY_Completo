@@ -87,6 +87,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-28: FIX (P0 BUG) — Erro 500 ao exportar SCORM Página Única em projetos com `fontSize: "24px"` (string com unidade CSS).
+  - **Causa raiz**: O endpoint `/api/course/{id}/export-scorm` (e o auto-save do editor via `PUT /api/projects/{id}/slides/{id}/elements/{id}`) parseava o documento via `Project(**project_doc)`. O `ElementStyle.fontSize` era declarado como `Optional[float]` mas o frontend enviava strings tipo `"24px"`, `"1.5rem"` (CSS-style values), causando `pydantic_core._pydantic_core.ValidationError: Input should be a valid number`. Erros 500 em cascata: ProjectContext.jsx mostrava "AxiosError" no console F12, e o usuário não conseguia exportar.
+  - **Fix**: estendido `ElementStyle.parse_numeric_with_unit` (`@field_validator(mode='before')`) para `fontSize`, `strokeWidth`, `borderRadius` — extrai o número via regex `^\s*([+-]?[\d.]+)` e descarta a unidade. Resolve o problema na RAIZ (todos os endpoints que parseiam Project agora aceitam strings com unidade).
+  - **Refactor preventivo**: `/export-scorm` agora coleta `question_ids` direto do dict cru (sem precisar parsear Project) e só constrói `Project(**project_doc)` no caminho legacy slide-by-slide. O caminho single-page nunca usa Project Pydantic — usa o dict puro.
+  - **Validado**: 10/10 testes em `test_element_style_units.py` (fontSize px/rem/pt/negativo/empty/invalid + ElementUpdate + full Project parse com o cenário exato do bug). Curl E2E confirmou os 3 cenários funcionando no projeto NR35 (id `6e5e065d-22f0-4322-b35b-8aa7ca70f05f`) que tinha o bug: SCORM single-page ✓, SCORM tradicional ✓, HTML single-page ✓.
+  - **Bônus**: corrigido bug pré-existente onde o tradicional SCORM crashava na mesma condição.
+
 - 2026-04-28: FEATURE (P1) — Modo "Página Única" para SCORM 1.2 (Fase 2 de 2).
   - Novo módulo `services/scorm_single_page_exporter.py`: empacota o HTML single-page (Fase 1) num ZIP SCORM 1.2 com manifest + 4 XSDs + scorm-api.js.
   - **`scorm-api.js`** (bridge para LMS): `findAPI` walker até 500 levels; expõe `window.SCORM` com init, setLocation, saveSuspend, getSuspend, recordInteraction, setScore, complete, commit, finish.

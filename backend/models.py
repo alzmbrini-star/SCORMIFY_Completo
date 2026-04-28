@@ -27,15 +27,17 @@ class ElementStyle(BaseModel):
     shadow: Optional[Dict[str, Any]] = None
     borderRadius: Optional[float] = None
 
-    @field_validator('borderRadius', mode='before')
+    @field_validator('borderRadius', 'fontSize', 'strokeWidth', mode='before')
     @classmethod
-    def parse_border_radius(cls, v):
-        if v is None:
+    def parse_numeric_with_unit(cls, v):
+        """Accept '24px', '1.5rem', '50%', etc. by stripping the unit suffix.
+        Returns None for empty/invalid values."""
+        if v is None or v == "":
             return None
         if isinstance(v, (int, float)):
             return float(v)
         if isinstance(v, str):
-            m = re.match(r'^([\d.]+)', v)
+            m = re.match(r'^\s*([+-]?[\d.]+)', v)
             return float(m.group(1)) if m else None
         return None
 
