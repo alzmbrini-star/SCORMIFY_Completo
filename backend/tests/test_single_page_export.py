@@ -73,11 +73,12 @@ def test_export_html_singlepage_explicit_true(super_token, project_id):
     assert 'data-testid="sp-menu-btn"' in text
     assert 'data-testid="sp-progress-fill"' in text
     assert "sp-end-card" in text
-    # All sections (both normal sp-section and end-card) — only the first must be unlocked
-    section_count = text.count('class="sp-section"') + text.count('"sp-end-card sp-section"')
-    locked_section_pattern = re.findall(r'<section[^>]+class="(?:sp-end-card )?sp-section"[^>]+data-locked="true"', text)
-    assert len(locked_section_pattern) == section_count - 1, \
-        f"expected {section_count-1} locked sections, got {len(locked_section_pattern)} (total {section_count})"
+    # All sections (both normal sp-section variants and end-card) — only the first must be unlocked.
+    # The section class can include modifiers (e.g. "sp-section sp-dark", "sp-end-card sp-section").
+    all_sections = re.findall(r'<section[^>]+class="(?:sp-end-card\s+)?sp-section\b[^"]*"[^>]*>', text)
+    locked_sections = re.findall(r'<section[^>]+class="(?:sp-end-card\s+)?sp-section\b[^"]*"[^>]+data-locked="true"', text)
+    assert len(locked_sections) == len(all_sections) - 1, \
+        f"expected {len(all_sections)-1} locked sections, got {len(locked_sections)} (total {len(all_sections)})"
 
 
 def test_export_html_singlepage_explicit_false(super_token, project_id):

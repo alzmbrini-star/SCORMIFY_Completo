@@ -75,6 +75,24 @@ def _resolve_asset_url(url: str, project_id: str, assets_dir: str, base_url: str
     return url
 
 
+def _is_dark_color(hex_color: str) -> bool:
+    """Return True if the given #RRGGBB color is dark enough to need light text."""
+    if not hex_color or not hex_color.startswith("#"):
+        return False
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) != 6:
+        return False
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        return False
+    # Perceived luminance (WCAG-ish formula)
+    lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return lum < 0.5
+
+
 def _esc(s: Any) -> str:
     if s is None:
         return ""
@@ -182,15 +200,18 @@ def _render_html_element(el: dict, project_id: str, assets_dir: str, base_url: s
     # Sandbox such complex HTML inside an iframe via srcdoc.
     has_global_styles = bool(re.search(r"<\s*(style|script|body|html|head)\b", raw, re.IGNORECASE))
     if has_global_styles:
-        b64 = base64.b64encode(raw.encode("utf-8")).decode("ascii")
-        # Pick a reasonable height — most legacy simulators target 540px
-        # Iframe sandbox blocks click-bubbling to the parent, so we add an
-        # explicit "Concluí esta interação" button OUTSIDE the iframe that the
-        # user clicks after exploring the panel.
+        # Ensure inner HTML declares UTF-8 — without this, data: URI iframes
+        # interpret the bytes as Latin-1 and break Portuguese accents/emojis.
+        if "<meta" not in raw.lower() and "charset" not in raw.lower():
+            raw_with_meta = '<meta charset="utf-8">\n' + raw
+        else:
+            raw_with_meta = raw
+        b64 = base64.b64encode(raw_with_meta.encode("utf-8")).decode("ascii")
+        # data: URI MUST declare charset=utf-8 explicitly
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
-            f'src="data:text/html;base64,{b64}" '
+            f'src="data:text/html;charset=utf-8;base64,{b64}" '
             f'style="width:100%;min-height:540px;border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
             f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
@@ -279,13 +300,16 @@ def _render_simulator_element(el: dict, project_id: str, assets_dir: str, base_u
     bubbling, so we add an explicit 'concluí' button below the iframe."""
     sim_html = el.get("htmlContent") or el.get("content") or ""
     sim_html = _inline_assets_in_html(sim_html, project_id, assets_dir, base_url)
+    # Force UTF-8 charset so accented/emoji chars render correctly inside the iframe
+    if "<meta" not in sim_html.lower() and "charset" not in sim_html.lower():
+        sim_html = '<meta charset="utf-8">\n' + sim_html
     sim_html_b64 = base64.b64encode(sim_html.encode("utf-8")).decode("ascii") if sim_html else ""
     return (
         f'<div class="sp-simulator sp-interactive" data-interactive="simulator" data-required="true" '
         f'data-interactive-id="simulator-{slide_idx}-{el_idx}">'
         f'<div class="sp-simulator-label">🎮 Simulador interativo</div>'
         f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
-        f'src="data:text/html;base64,{sim_html_b64}" '
+        f'src="data:text/html;charset=utf-8;base64,{sim_html_b64}" '
         f'style="width:100%;height:520px;border:0;border-radius:12px;background:#0f172a"></iframe>'
         f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
         f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
@@ -368,25 +392,34 @@ def generate_single_page_html(
                 continue
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
 
-        # Per-slide background: solid color (slide.background) and/or image (slide.backgroundImage)
-        bg_color = slide.get("background") or ""
+        # Per-slide background: applied to the INNER CARD (not the section wrapper).
+        # This is critical because the editor lets authors set white/light font
+        # colors on slides with dark backgrounds — keeping the card white would
+        # render those texts invisible. So the card adopts the slide's color.
+        bg_color = (slide.get("background") or "").strip()
         bg_image_url = slide.get("backgroundImage") or ""
         if bg_image_url:
             bg_image_url = _resolve_asset_url(bg_image_url, project_id, assets_dir, base_url)
-        bg_styles = []
+        card_styles = []
+        section_class = "sp-section"
         if bg_color:
-            bg_styles.append(f"background-color:{_esc(bg_color)}")
+            card_styles.append(f"background-color:{_esc(bg_color)}")
+            if _is_dark_color(bg_color):
+                # Dark bg → light default text; the editor's white text becomes visible
+                card_styles.append("color:#f1f5f9")
+                section_class += " sp-dark"
         if bg_image_url:
-            bg_styles.append(f"background-image:url({_esc(bg_image_url)})")
-            bg_styles.append("background-size:cover")
-            bg_styles.append("background-position:center")
-        section_style = f' style="{";".join(bg_styles)}"' if bg_styles else ''
+            card_styles.append(f"background-image:url({_esc(bg_image_url)})")
+            card_styles.append("background-size:cover")
+            card_styles.append("background-position:center")
+            section_class += " sp-has-bg-image"
+        card_style = f' style="{";".join(card_styles)}"' if card_styles else ''
 
         section = (
-            f'<section class="sp-section" data-index="{s_idx}" '
+            f'<section class="{section_class}" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
-            f'{locked_attr}{section_style}>\n'
-            f'  <div class="sp-section-inner">\n'
+            f'{locked_attr}>\n'
+            f'  <div class="sp-section-inner"{card_style}>\n'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'
             f'    <div class="sp-section-body">\n'
             f'      {chr(10).join(rendered_elements)}\n'
@@ -526,6 +559,8 @@ body{position:relative;overflow-x:hidden}
 @keyframes sp-fade-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .sp-section-inner{width:100%;max-width:1080px;margin:0 auto;background:#fff;border-radius:14px;padding:48px 56px;box-shadow:0 20px 60px rgba(0,0,0,.35);box-sizing:border-box}
 .sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1;text-align:center}
+.sp-section.sp-dark .sp-section-title{color:#fde047}
+.sp-section.sp-dark .sp-section-body{color:inherit}
 .sp-section-body{display:flex;flex-direction:column;gap:24px;color:#0f172a;font-size:15px;line-height:1.7}
 
 /* element styles */
