@@ -2743,67 +2743,547 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
 
 @router.post("/agent/courses/{project_id}/apply-improvements")
 async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply, user: dict = Depends(require_auth)):
-    """Apply selected improvements to an existing course. Uses cached preview if previewId provided.
+    """Start background apply of improvements. Returns immediately with an
+    applyJobId so the frontend can poll /apply-status without timing out at
+    the proxy/Cloudflare layer (Gemini/Leonardo/scenario generation can take
+    1-5 minutes total).
+
+    Idempotency: if there's already a `processing` job for this project, we
+    return THE SAME jobId — clicking "Apply" twice never starts duplicate
+    work.
 
     Retryable-safe: the cached preview is ONLY deleted after the apply fully
-    succeeds. If any step fails midway, the preview stays in MongoDB so the
-    user can click "Confirmar e Aplicar" again without re-generating the AI
-    analysis (which can take 30-60s).
+    succeeds (inside the background task). If anything fails midway, the
+    preview stays in MongoDB so the user can retry without re-generating
+    the AI analysis.
     """
-    import copy
-    import traceback
     project = await load_authorized_project(project_id, user)
 
-    from models import generate_id
-
-    # Save snapshot for undo
-    original_course = copy.deepcopy(project.get("course", {}))
-    await db.course_snapshots.update_one(
-        {"projectId": project_id},
-        {"$set": {
-            "projectId": project_id,
-            "course": original_course,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
-    )
-
-    # Use cached AI result if preview was done, otherwise call AI fresh.
-    # IMPORTANT: do NOT delete the preview here. We delete it at the very end
-    # (after the apply succeeds) so failures are retryable.
+    # Validate previewId now (so we fail-fast with 400 instead of running)
     if data.previewId:
         preview = await db.improvement_previews.find_one(
             {"id": data.previewId, "projectId": project_id},
-            {"_id": 0}
+            {"_id": 0, "id": 1},
         )
-        if preview:
-            result = preview["aiResult"]
-        else:
+        if not preview:
             raise HTTPException(400, "Preview expired or not found. Please preview again.")
-    else:
-        session_id = project.get("agentSessionId") or str(uuid.uuid4())
-        from services.ai_agent import apply_course_improvements
+
+    # Idempotency: reuse an in-flight job if user clicks twice
+    existing = await db.apply_jobs.find_one(
+        {"projectId": project_id, "status": "processing"},
+        {"_id": 0, "id": 1, "startedAt": 1},
+    )
+    if existing:
+        return {
+            "status": "processing",
+            "applyJobId": existing["id"],
+            "message": "Aplicacao ja em andamento. Use applyJobId para acompanhar o progresso.",
+            "startedAt": existing.get("startedAt"),
+        }
+
+    job_id = str(uuid.uuid4())
+    started_at = datetime.now(timezone.utc).isoformat()
+    await db.apply_jobs.insert_one({
+        "id": job_id,
+        "projectId": project_id,
+        "userId": user.get("user_id"),
+        "status": "processing",
+        "progress": 0,
+        "message": "Iniciando aplicacao das melhorias...",
+        "startedAt": started_at,
+    })
+
+    # Run the actual work in a background thread with its own event loop so it
+    # doesn't compete with the main uvicorn loop AND so HTTP request lifetime
+    # doesn't matter anymore.
+    import threading as _threading
+    user_snapshot = {
+        "user_id": user.get("user_id"),
+        "companyId": user.get("companyId"),
+        "name": user.get("name", ""),
+        "email": user.get("email", ""),
+    }
+
+    def _runner():
         try:
-            result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
-        except Exception as e:
-            logger.error(
-                f"[apply-improvements] AI call failed for project {project_id}: {e}\n{traceback.format_exc()}"
+            os.nice(10)
+        except Exception:
+            pass
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                _run_apply_improvements_bg(project_id, job_id, user_snapshot, data)
             )
-            raise HTTPException(500, f"Falha ao chamar a IA: {str(e)[:180]}")
+        except Exception as bg_err:
+            logger.error(f"[apply-improvements bg] {project_id} thread crashed: {bg_err}", exc_info=True)
+        finally:
+            loop.close()
+
+    _threading.Thread(target=_runner, daemon=True, name=f"apply-{job_id[:8]}").start()
+
+    return {
+        "status": "processing",
+        "applyJobId": job_id,
+        "message": "Melhorias sendo aplicadas em segundo plano.",
+        "startedAt": started_at,
+    }
+
+
+@router.get("/agent/courses/{project_id}/apply-status/{job_id}")
+async def agent_apply_status(project_id: str, job_id: str, user: dict = Depends(require_auth)):
+    """Polling endpoint for the background apply task.
+
+    Returns one of:
+      - {"status":"processing","progress":N,"message":"..."}
+      - {"status":"done", ...same fields the old apply returned...}
+      - {"status":"error","error":"..."}
+    """
+    await load_authorized_project(project_id, user)
+    job = await db.apply_jobs.find_one(
+        {"id": job_id, "projectId": project_id},
+        {"_id": 0},
+    )
+    if not job:
+        raise HTTPException(404, "Apply job not found")
+    return job
+
+
+async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, data):
+    """Background worker for apply-improvements.
+
+    Runs in its OWN event loop (started by a daemon thread), so we use a
+    dedicated Motor client tied to that loop.
+    """
+    from motor.motor_asyncio import AsyncIOMotorClient
+    local_client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+    local_db = local_client[os.environ["DB_NAME"]]
+
+    async def _set_status(**fields):
+        try:
+            await local_db.apply_jobs.update_one(
+                {"id": job_id},
+                {"$set": {**fields, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+            )
+        except Exception as e:
+            logger.warning(f"[apply bg {job_id}] status update failed: {e}")
 
     try:
-        slides = project.get("course", {}).get("slides", [])
-        new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
+        import copy
+        import traceback
+        from models import generate_id
 
-        # Save
-        course = project.get("course", {})
-        course["slides"] = slides
-        await update_project(project_id, {"course": course})
-    except Exception as e:
-        logger.error(
-            f"[apply-improvements] Failed to apply AI result to slides for project {project_id}: {e}\n{traceback.format_exc()}"
+        project = await local_db.projects.find_one({"id": project_id}, {"_id": 0})
+        if not project:
+            await _set_status(status="error", error="Project not found")
+            return
+
+        await _set_status(progress=5, message="Salvando snapshot para desfazer...")
+
+        # Save snapshot for undo
+        original_course = copy.deepcopy(project.get("course", {}))
+        await local_db.course_snapshots.update_one(
+            {"projectId": project_id},
+            {"$set": {
+                "projectId": project_id,
+                "course": original_course,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
         )
-        raise HTTPException(500, f"Falha ao aplicar as melhorias ao curso: {str(e)[:180]}")
+
+        await _set_status(progress=10, message="Carregando preview da IA...")
+
+        # Use cached preview if available — leave it in DB until the very end
+        if data.previewId:
+            preview = await local_db.improvement_previews.find_one(
+                {"id": data.previewId, "projectId": project_id},
+                {"_id": 0},
+            )
+            if preview:
+                result = preview["aiResult"]
+            else:
+                await _set_status(status="error", error="Preview expirou. Gere novamente.")
+                return
+        else:
+            session_id = project.get("agentSessionId") or str(uuid.uuid4())
+            from services.ai_agent import apply_course_improvements
+            try:
+                result = await apply_course_improvements(
+                    session_id, project, data.improvements, data.selectedNewSlides,
+                )
+            except Exception as e:
+                logger.error(
+                    f"[apply bg {job_id}] AI call failed: {e}\n{traceback.format_exc()}"
+                )
+                await _set_status(status="error", error=f"Falha ao chamar a IA: {str(e)[:180]}")
+                return
+
+        await _set_status(progress=20, message="Aplicando melhorias aos slides...")
+
+        try:
+            slides = project.get("course", {}).get("slides", [])
+            new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
+            course = project.get("course", {})
+            course["slides"] = slides
+            await local_db.projects.update_one(
+                {"id": project_id},
+                {"$set": {"course": course, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+            )
+        except Exception as e:
+            logger.error(f"[apply bg {job_id}] apply to slides failed: {e}\n{traceback.format_exc()}")
+            await _set_status(status="error", error=f"Falha ao aplicar melhorias: {str(e)[:180]}")
+            return
+
+        await _set_status(progress=35, message="Gerando cenarios interativos...")
+        scenarios_generated = await _process_scenarios(local_db, project_id, result, slides, generate_id)
+        await local_db.projects.update_one(
+            {"id": project_id},
+            {"$set": {"course": {**course, "slides": slides}}},
+        )
+
+        await _set_status(progress=55, message="Gerando imagens premium (Leonardo AI)...")
+        leonardo_images_generated = await _process_leonardo_images(local_db, project_id, result, slides, generate_id)
+        if leonardo_images_generated > 0:
+            await local_db.projects.update_one(
+                {"id": project_id},
+                {"$set": {"course": {**course, "slides": slides}}},
+            )
+
+        await _set_status(progress=75, message="Gerando imagens economicas (Gemini)...")
+        gemini_images_generated = await _process_gemini_images(local_db, project_id, result, slides, generate_id)
+        if gemini_images_generated > 0:
+            await local_db.projects.update_one(
+                {"id": project_id},
+                {"$set": {"course": {**course, "slides": slides}}},
+            )
+
+        await _set_status(progress=90, message="Disparando geracao de avatares...")
+        avatar_scene_pending = _collect_avatar_scenes(result, slides)
+        avatar_generation_started = False
+        if avatar_scene_pending:
+            await local_db.projects.update_one(
+                {"id": project_id},
+                {"$set": {"avatarScenePending": avatar_scene_pending}},
+            )
+            import threading
+            threading.Thread(
+                target=lambda: asyncio.run(_trigger_avatar_scene_generation(project_id, avatar_scene_pending)),
+                daemon=True,
+            ).start()
+            avatar_generation_started = True
+
+        # Delete the cached preview only AFTER everything succeeded
+        if data.previewId:
+            try:
+                await local_db.improvement_previews.delete_one({"id": data.previewId})
+            except Exception as _del_err:
+                logger.warning(f"[apply bg {job_id}] preview cleanup failed: {_del_err}")
+
+        await _set_status(
+            status="done",
+            progress=100,
+            message="Melhorias aplicadas com sucesso!",
+            updatedSlides=len(result.get("updatedSlides", [])),
+            newSlides=new_slides_added,
+            totalSlides=len(slides),
+            canUndo=True,
+            scenariosGenerated=scenarios_generated,
+            leonardoImagesGenerated=leonardo_images_generated,
+            geminiImagesGenerated=gemini_images_generated,
+            avatarScenesTriggered=len(avatar_scene_pending),
+            avatarGenerationStarted=avatar_generation_started,
+            finishedAt=datetime.now(timezone.utc).isoformat(),
+        )
+        logger.info(
+            f"[apply bg {job_id}] DONE project {project_id}: "
+            f"updated={len(result.get('updatedSlides', []))} new={new_slides_added} "
+            f"scenarios={scenarios_generated} leonardo={leonardo_images_generated} "
+            f"gemini={gemini_images_generated} avatars={len(avatar_scene_pending)}"
+        )
+    except Exception as e:
+        import traceback as _tb
+        logger.error(f"[apply bg {job_id}] unexpected error: {e}\n{_tb.format_exc()}")
+        await _set_status(status="error", error=f"Erro inesperado: {str(e)[:180]}")
+    finally:
+        try:
+            local_client.close()
+        except Exception:
+            pass
+
+
+async def _process_scenarios(_db, project_id: str, result: dict, slides: list, generate_id):
+    """Generate real scenarios for any scenario-type slides (uses provided db)."""
+    scenarios_generated = 0
+    for slide in slides:
+        scenario_config = slide.pop("_scenarioConfig", None)
+        scenario_title = slide.pop("_scenarioTitle", None)
+        if not scenario_config:
+            continue
+
+        try:
+            from services.scenario_service import generate_scenario_with_ai
+            scenario_data = await generate_scenario_with_ai({
+                "theme": scenario_config.get("theme", scenario_title or "Cenário interativo"),
+                "objectives": scenario_config.get("objectives", ""),
+                "audience": scenario_config.get("audience", ""),
+                "complexity": scenario_config.get("complexity", "intermediate"),
+                "industry": scenario_config.get("industry", ""),
+                "duration_minutes": scenario_config.get("duration_minutes", 10),
+                "language": "pt-BR",
+            })
+
+            scenario_id = generate_id()
+            now_str = datetime.now(timezone.utc).isoformat()
+            scenario_doc = {
+                "id": scenario_id,
+                "project_id": project_id,
+                "title": scenario_data.get("title", scenario_title or "Cenário"),
+                "description": scenario_data.get("description", ""),
+                "context": scenario_data.get("context", ""),
+                "characters": scenario_data.get("characters", []),
+                "learning_objectives": scenario_data.get("learning_objectives", []),
+                "competencies_evaluated": scenario_data.get("competencies_evaluated", []),
+                "nodes": scenario_data.get("nodes", []),
+                "start_node_id": scenario_data["nodes"][0]["id"] if scenario_data.get("nodes") else None,
+                "config": scenario_config,
+                "created_at": now_str,
+                "updated_at": now_str,
+            }
+            await _db.scenarios.insert_one(scenario_doc)
+            scenario_doc.pop("_id", None)
+
+            slide["elements"] = [{
+                "id": generate_id(),
+                "type": "scenario",
+                "x": 0, "y": 0, "width": 1920, "height": 820,
+                "content": scenario_id,
+                "scenarioData": scenario_doc,
+                "style": {}, "startTime": 0, "animations": [],
+            }]
+            slide["notes"] = f"Cenário interativo: {scenario_doc['title']}"
+            slide["title"] = scenario_doc["title"]
+            scenarios_generated += 1
+            logger.info(
+                f"Scenario generated for slide {slide['id']}: {scenario_doc['title']} "
+                f"({len(scenario_data.get('nodes', []))} nodes)"
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate scenario for slide {slide.get('id')}: {e}")
+            slide["notes"] = f"Cenário pendente (erro na geração): {str(e)}"
+    return scenarios_generated
+
+
+async def _process_leonardo_images(_db, project_id: str, result: dict, slides: list, generate_id):
+    """Generate Leonardo premium images and apply them to slides."""
+    leonardo_images_generated = 0
+    leonardo_tasks = []
+    for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
+        leo_img = upd.get("_leonardoImage")
+        if leo_img and isinstance(leo_img, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                leonardo_tasks.append((idx, leo_img))
+    for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
+        leo_img = ns.get("_leonardoImage")
+        if leo_img and isinstance(leo_img, dict):
+            ns_title = ns.get("title", "")
+            for si, s in enumerate(slides):
+                if s.get("title") == ns_title:
+                    leonardo_tasks.append((si, leo_img))
+                    break
+
+    if not leonardo_tasks:
+        return 0
+
+    from services.leonardo_ai import generate_and_wait, download_image_to_disk
+    from services.asset_store import store_asset_async
+    import uuid as _leo_uuid
+    for slide_idx, leo_cfg in leonardo_tasks:
+        try:
+            leo_prompt = leo_cfg.get("prompt", "professional corporate training")
+            leo_style = leo_cfg.get("style")
+            leo_urls = await generate_and_wait(prompt=leo_prompt, width=1024, height=576, num_images=1, style=leo_style)
+            if not leo_urls:
+                continue
+            fname = f"leonardo_{_leo_uuid.uuid4().hex[:10]}.png"
+            assets_dir = PROJECTS_DIR / project_id / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            dest = str(assets_dir / fname)
+            ok = await download_image_to_disk(leo_urls[0], dest)
+            if ok:
+                try:
+                    if not await store_asset_async(_db, project_id, fname, dest):
+                        logger.error(f"Leonardo image {fname} failed to persist in MongoDB")
+                        ok = False
+                except Exception as persist_err:
+                    logger.error(f"Leonardo MongoDB persist error for {fname}: {persist_err}")
+                    ok = False
+            if ok:
+                img_url = f"/api/projects/{project_id}/assets/{fname}"
+                slide = slides[slide_idx]
+                _attach_image_to_slide(slide, img_url, generate_id)
+                leonardo_images_generated += 1
+                logger.info(f"Leonardo premium image generated for slide {slide_idx}: {img_url}")
+                try:
+                    from routes.gallery import auto_save_to_gallery
+                    await auto_save_to_gallery(img_url, f"leonardo: {leo_prompt}", project_id, "", "", "")
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Leonardo image generation failed for slide {slide_idx}: {e}")
+    return leonardo_images_generated
+
+
+async def _process_gemini_images(_db, project_id: str, result: dict, slides: list, generate_id):
+    """Generate Gemini Nano Banana economy images and apply them to slides."""
+    gemini_images_generated = 0
+    gemini_tasks = []
+    for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
+        gem_img = upd.get("_geminiImage")
+        if gem_img and isinstance(gem_img, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                gemini_tasks.append((idx, gem_img))
+    for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
+        gem_img = ns.get("_geminiImage")
+        if gem_img and isinstance(gem_img, dict):
+            ns_title = ns.get("title", "")
+            for si, s in enumerate(slides):
+                if s.get("title") == ns_title:
+                    gemini_tasks.append((si, gem_img))
+                    break
+
+    if not gemini_tasks:
+        return 0
+
+    from services.gemini_image import generate_simple_image
+    from services.asset_store import store_asset_async
+    import uuid as _gem_uuid
+    for slide_idx, gem_cfg in gemini_tasks:
+        try:
+            gem_prompt = gem_cfg.get("prompt", "professional corporate training illustration")
+            jpeg_bytes = await generate_simple_image(gem_prompt)
+            if not jpeg_bytes:
+                continue
+            fname = f"gemini_{_gem_uuid.uuid4().hex[:10]}.jpg"
+            assets_dir = PROJECTS_DIR / project_id / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            dest_path = assets_dir / fname
+            dest_path.write_bytes(jpeg_bytes)
+            try:
+                if not await store_asset_async(_db, project_id, fname, str(dest_path)):
+                    logger.error(f"Gemini image {fname} failed to persist in MongoDB")
+                    continue
+            except Exception as persist_err:
+                logger.error(f"Gemini MongoDB persist error for {fname}: {persist_err}")
+                continue
+
+            img_url = f"/api/projects/{project_id}/assets/{fname}"
+            slide = slides[slide_idx]
+            _attach_image_to_slide(slide, img_url, generate_id)
+            gemini_images_generated += 1
+            logger.info(f"Gemini simple image generated for slide {slide_idx}: {img_url}")
+            try:
+                from routes.gallery import auto_save_to_gallery
+                await auto_save_to_gallery(img_url, f"gemini: {gem_prompt}", project_id, "", "", "")
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Gemini image generation failed for slide {slide_idx}: {e}")
+    return gemini_images_generated
+
+
+def _attach_image_to_slide(slide: dict, img_url: str, generate_id):
+    """Update existing image element OR add a new one (two-column layout)."""
+    img_found = False
+    for el in slide.get("elements", []):
+        if el.get("type") == "image":
+            el["src"] = img_url
+            el["content"] = img_url
+            img_found = True
+            break
+    if not img_found:
+        slide.setdefault("elements", [])
+        slide["elements"].append({
+            "id": generate_id(), "type": "image",
+            "x": 1160, "y": 90, "width": 700, "height": 440,
+            "src": img_url, "content": img_url,
+            "style": {"borderRadius": "12px"}, "startTime": 0,
+            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade",
+                           "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+        })
+        for el in slide.get("elements", []):
+            if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
+                el["width"] = 1050
+                el["x"] = 60
+
+
+def _collect_avatar_scenes(result: dict, slides: list) -> list:
+    """Collect avatar scene metadata from updatedSlides + newSlides."""
+    scenes = []
+    for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
+        avatar_scene = ns.get("avatarScene")
+        if avatar_scene and isinstance(avatar_scene, dict):
+            ns_title = ns.get("title", "")
+            target_slide_id = None
+            for s in slides:
+                if s.get("title") == ns_title:
+                    target_slide_id = s.get("id")
+                    break
+            if not target_slide_id:
+                after_idx = ns.get("afterIndex", 0)
+                insert_at = min(after_idx + 1, len(slides) - 1)
+                if 0 <= insert_at < len(slides):
+                    target_slide_id = slides[insert_at].get("id")
+            if target_slide_id:
+                scenes.append({
+                    "slideId": target_slide_id,
+                    "slideTitle": ns.get("title", "Avatar Scene"),
+                    "narrationScript": avatar_scene.get("narrationScript", ""),
+                    "backgroundPrompt": avatar_scene.get("backgroundPrompt", ""),
+                    "avatarPosition": avatar_scene.get("avatarPosition", "left"),
+                    "avatarId": "",
+                    "voiceId": "",
+                    "bgStatus": "pending",
+                    "audioStatus": "pending",
+                    "heygenStatus": "pending",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                })
+
+    for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
+        avatar_scene = upd.get("avatarScene")
+        if avatar_scene and isinstance(avatar_scene, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                target_slide_id = slides[idx].get("id")
+                if target_slide_id:
+                    scenes.append({
+                        "slideId": target_slide_id,
+                        "slideTitle": upd.get("title", f"Slide {idx + 1}"),
+                        "narrationScript": avatar_scene.get("narrationScript", ""),
+                        "backgroundPrompt": avatar_scene.get("backgroundPrompt", ""),
+                        "avatarPosition": avatar_scene.get("avatarPosition", "left"),
+                        "avatarId": "",
+                        "voiceId": "",
+                        "bgStatus": "pending",
+                        "audioStatus": "pending",
+                        "heygenStatus": "pending",
+                        "createdAt": datetime.now(timezone.utc).isoformat(),
+                    })
+    return scenes
 
     # Post-process: Generate real scenarios for any scenario-type slides
     scenarios_generated = 0
