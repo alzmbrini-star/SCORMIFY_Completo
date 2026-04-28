@@ -43,18 +43,18 @@ def db():
 
 
 def test_preview_not_deleted_on_find(db, super_token):
-    """Direct DB check: after apply-improvements reads the preview, the doc
-    must still be present until the apply completes successfully. We can't
-    easily catch the mid-flight state via HTTP, but we CAN verify that a
-    find-but-failing-apply scenario leaves the preview untouched by
-    manually inserting a preview with malformed aiResult and watching
-    what happens."""
-    # Find any project owned by super_admin
+    """Direct DB check: after apply-improvements starts, the preview must
+    still exist until the background apply completes successfully. With the
+    new async flow, the endpoint returns 202 immediately with an applyJobId
+    and we must poll /apply-status/{job_id} until done. The preview should
+    remain in MongoDB throughout 'processing' and only be deleted once the
+    job reaches status='done'.
+    """
+    import time
     project = db.projects.find_one({}, {"_id": 0, "id": 1, "companyId": 1})
     assert project, "Need at least one project to run this test"
     project_id = project["id"]
 
-    # Insert a fake preview with malformed aiResult that _apply_ai_result_to_slides can handle safely
     fake_preview_id = str(uuid.uuid4())
     db.improvement_previews.insert_one({
         "id": fake_preview_id,
@@ -64,31 +64,92 @@ def test_preview_not_deleted_on_find(db, super_token):
     })
 
     try:
-        # Call apply-improvements with this previewId — should succeed and delete the preview
         r = requests.post(
             f"{BASE_URL}/api/agent/courses/{project_id}/apply-improvements",
             headers={"Authorization": f"Bearer {super_token}", "Content-Type": "application/json"},
             json={"improvements": [], "selectedNewSlides": None, "previewId": fake_preview_id},
             timeout=30,
         )
-        # Could be 200 (success) or other depending on project state
-        # After a SUCCESSFUL apply, the preview should be deleted
-        if r.status_code == 200:
-            remaining = db.improvement_previews.find_one({"id": fake_preview_id})
-            assert remaining is None, "Preview should be deleted after successful apply"
+        assert r.status_code == 200, f"Apply trigger failed: {r.status_code} {r.text}"
+        body = r.json()
+        assert body.get("status") == "processing", f"Expected 'processing', got {body}"
+        job_id = body["applyJobId"]
+        assert job_id, "Missing applyJobId"
 
-            # Second attempt with same previewId must return 400
-            r2 = requests.post(
-                f"{BASE_URL}/api/agent/courses/{project_id}/apply-improvements",
-                headers={"Authorization": f"Bearer {super_token}", "Content-Type": "application/json"},
-                json={"improvements": [], "selectedNewSlides": None, "previewId": fake_preview_id},
-                timeout=30,
+        # Poll until done (or timeout 30s)
+        deadline = time.time() + 30
+        final_status = None
+        while time.time() < deadline:
+            sr = requests.get(
+                f"{BASE_URL}/api/agent/courses/{project_id}/apply-status/{job_id}",
+                headers={"Authorization": f"Bearer {super_token}"},
+                timeout=10,
             )
-            assert r2.status_code == 400, f"Expected 400 (preview already used), got {r2.status_code}: {r2.text}"
-            assert "Preview expired" in r2.text or "not found" in r2.text
+            assert sr.status_code == 200
+            job = sr.json()
+            if job["status"] in ("done", "error"):
+                final_status = job["status"]
+                break
+            time.sleep(0.5)
+        assert final_status == "done", f"Background job did not finish (last status: {final_status})"
+
+        # After SUCCESSFUL apply, the preview should be deleted
+        remaining = db.improvement_previews.find_one({"id": fake_preview_id})
+        assert remaining is None, "Preview should be deleted after successful apply"
+
+        # Second attempt with same previewId must return 400 (preview already gone)
+        r2 = requests.post(
+            f"{BASE_URL}/api/agent/courses/{project_id}/apply-improvements",
+            headers={"Authorization": f"Bearer {super_token}", "Content-Type": "application/json"},
+            json={"improvements": [], "selectedNewSlides": None, "previewId": fake_preview_id},
+            timeout=30,
+        )
+        assert r2.status_code == 400, f"Expected 400 (preview already used), got {r2.status_code}: {r2.text}"
+        assert "Preview expired" in r2.text or "not found" in r2.text
     finally:
-        # Cleanup
         db.improvement_previews.delete_one({"id": fake_preview_id})
+
+
+def test_apply_returns_202_processing_with_jobid(db, super_token):
+    """Async flow contract: apply-improvements never blocks > 1s and always
+    returns {status: processing, applyJobId} when given a valid preview."""
+    import time
+    project = db.projects.find_one({}, {"_id": 0, "id": 1})
+    assert project, "Need at least one project"
+    project_id = project["id"]
+
+    pid = str(uuid.uuid4())
+    db.improvement_previews.insert_one({
+        "id": pid,
+        "projectId": project_id,
+        "aiResult": {"updatedSlides": [], "newSlides": []},
+        "createdAt": "2026-04-24T12:00:00+00:00",
+    })
+    try:
+        t0 = time.time()
+        r = requests.post(
+            f"{BASE_URL}/api/agent/courses/{project_id}/apply-improvements",
+            headers={"Authorization": f"Bearer {super_token}", "Content-Type": "application/json"},
+            json={"improvements": [], "selectedNewSlides": None, "previewId": pid},
+            timeout=10,
+        )
+        elapsed = time.time() - t0
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body.get("status") == "processing"
+        assert body.get("applyJobId")
+        assert elapsed < 5.0, f"apply-improvements took {elapsed:.1f}s (should be <5s for async)"
+    finally:
+        db.improvement_previews.delete_one({"id": pid})
+
+
+def test_apply_status_unauthorized_returns_401(super_token):
+    """The /apply-status endpoint must require auth."""
+    r = requests.get(
+        f"{BASE_URL}/api/agent/courses/some-id/apply-status/some-job",
+        timeout=10,
+    )
+    assert r.status_code == 401
 
 
 def test_apply_with_missing_preview_returns_400(super_token):

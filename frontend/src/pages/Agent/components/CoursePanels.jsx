@@ -1094,7 +1094,7 @@ function StatusBadge({ label, status }) {
 }
 
 
-export function PreviewPanel({ preview, loading, onConfirm, onCancel, onSubmitForApproval, companies }) {
+export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCancel, onSubmitForApproval, companies }) {
   const [activeTab, setActiveTab] = useState('changes');
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
@@ -1265,6 +1265,30 @@ export function PreviewPanel({ preview, loading, onConfirm, onCancel, onSubmitFo
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Async progress (visible while applying in background) */}
+      {applyProgress && (
+        <div className="bg-violet-950/40 border border-violet-700/40 rounded-xl p-4 space-y-2" data-testid="apply-progress-panel">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 text-violet-200 font-medium">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {applyProgress.message || 'Processando...'}
+            </span>
+            <span className="text-violet-300 font-mono" data-testid="apply-progress-percent">
+              {applyProgress.progress ?? 0}%
+            </span>
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-500"
+              style={{ width: `${Math.max(2, applyProgress.progress ?? 0)}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-violet-300/70">
+            A geração de imagens e cenários pode levar alguns minutos. Você pode aguardar nesta tela.
+          </p>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-3 pt-2">

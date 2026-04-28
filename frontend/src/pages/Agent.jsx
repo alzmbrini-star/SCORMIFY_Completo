@@ -157,6 +157,7 @@ export default function Agent() {
   const [selectedNewSlides, setSelectedNewSlides] = useState([]);
   const [editResult, setEditResult] = useState(null);
   const [previewData, setPreviewData] = useState(null);
+  const [applyProgress, setApplyProgress] = useState(null); // { progress, message } during async apply
 
   // Chat
   const [chatMessages, setChatMessages] = useState([
@@ -923,27 +924,79 @@ export default function Agent() {
   const handleConfirmImprovements = async () => {
     if (!previewData?.previewId) return;
     setLoading(true);
-    addChatMsg('agent', 'Aplicando melhorias ao curso...');
+    setApplyProgress({ progress: 0, message: 'Iniciando aplicação...' });
+    addChatMsg('agent', 'Aplicando melhorias ao curso (isso pode levar alguns minutos)...');
     try {
+      // Step 1: Trigger background apply (returns 202 immediately with applyJobId)
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/apply-improvements`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null, previewId: previewData.previewId }),
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setEditResult(data);
-      setCurrentStep(3);
-      let msg = `Melhorias aplicadas! ${data.updatedSlides} slides atualizados, ${data.newSlides} novos slides. Total: ${data.totalSlides} slides.`;
-      if (data.scenariosGenerated > 0) {
-        msg += ` ${data.scenariosGenerated} cenário(s) interativo(s) gerado(s) com IA.`;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Falha ao iniciar aplicação');
       }
-      if (data.avatarScenesTriggered > 0) {
-        msg += ` ${data.avatarScenesTriggered} cena(s) com avatar estão sendo geradas em segundo plano.`;
+      const startData = await res.json();
+
+      // Backwards-compat: if backend ever returns synchronous result, use it directly
+      if (startData.status !== 'processing' || !startData.applyJobId) {
+        setApplyProgress(null);
+        setEditResult(startData);
+        setCurrentStep(3);
+        toast.success('Melhorias aplicadas com sucesso!');
+        return;
       }
-      addChatMsg('agent', msg);
-      toast.success('Melhorias aplicadas com sucesso!');
-    } catch { toast.error('Erro ao aplicar melhorias'); addChatMsg('agent', 'Erro ao aplicar as melhorias.'); }
-    finally { setLoading(false); }
+
+      // Step 2: Poll /apply-status until done or error
+      const jobId = startData.applyJobId;
+      const startTime = Date.now();
+      const MAX_WAIT_MS = 10 * 60 * 1000; // 10 minutes
+      const POLL_INTERVAL_MS = 3000;
+
+      while (true) {
+        if (Date.now() - startTime > MAX_WAIT_MS) {
+          throw new Error('Tempo limite excedido. As melhorias podem ainda estar sendo aplicadas em segundo plano.');
+        }
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+        const statusRes = await fetchRetry(
+          `${API}/api/agent/courses/${selectedCourse.id}/apply-status/${jobId}`,
+          { headers: authHeaders() },
+        );
+        if (!statusRes.ok) continue; // transient errors during polling — keep trying
+        const job = await statusRes.json();
+
+        setApplyProgress({
+          progress: job.progress ?? 0,
+          message: job.message || 'Processando...',
+        });
+
+        if (job.status === 'done') {
+          setApplyProgress(null);
+          setEditResult(job);
+          setCurrentStep(3);
+          let msg = `Melhorias aplicadas! ${job.updatedSlides} slides atualizados, ${job.newSlides} novos slides. Total: ${job.totalSlides} slides.`;
+          if (job.scenariosGenerated > 0) msg += ` ${job.scenariosGenerated} cenário(s) interativo(s) gerado(s).`;
+          if (job.leonardoImagesGenerated > 0) msg += ` ${job.leonardoImagesGenerated} imagem(ns) premium (Leonardo).`;
+          if (job.geminiImagesGenerated > 0) msg += ` ${job.geminiImagesGenerated} imagem(ns) econômica(s) (Gemini).`;
+          if (job.avatarScenesTriggered > 0) msg += ` ${job.avatarScenesTriggered} cena(s) com avatar gerando em segundo plano.`;
+          addChatMsg('agent', msg);
+          toast.success('Melhorias aplicadas com sucesso!');
+          return;
+        }
+        if (job.status === 'error') {
+          throw new Error(job.error || 'Falha ao aplicar melhorias');
+        }
+        // status === 'processing' → keep polling
+      }
+    } catch (err) {
+      setApplyProgress(null);
+      const msg = err?.message || 'Erro ao aplicar melhorias';
+      toast.error(msg);
+      addChatMsg('agent', `Erro ao aplicar as melhorias: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleUndoImprovements = async () => {
@@ -1148,7 +1201,7 @@ export default function Agent() {
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
               {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
-              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} />}
+              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>
           </ScrollArea>
