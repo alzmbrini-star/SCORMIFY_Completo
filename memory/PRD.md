@@ -87,7 +87,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-27: FEATURE - Imagem economica + premium na sugestao de melhorias do Agente IA.
+- 2026-04-28: FIX (P0) - Conclusao do refactor async de POST /api/agent/courses/{project_id}/apply-improvements.
+  - PROBLEMA: aplicar melhorias do Agente IA executava sincronamente (Leonardo + Gemini + cenarios + avatares = 1-5min) e batia em timeout de 60s do Nginx, retornando 502 Bad Gateway. Refactor anterior havia comecado a converter para background mas foi interrompido mid-edit, deixando 340 linhas de codigo orfao com SyntaxError ('await outside async function' linha 3298). Backend so estava de pe porque uvicorn iniciou antes do save corrompido.
+  - FIX BACKEND:
+    - Removido codigo orfao (linhas 3288-3626) de routes/agent.py
+    - Endpoint POST /apply-improvements agora retorna 202 imediatamente com {status: 'processing', applyJobId, startedAt} em <2s
+    - Novo endpoint GET /api/agent/courses/{project_id}/apply-status/{job_id} para polling do progresso
+    - Worker em thread daemon com event loop proprio + AsyncIOMotorClient dedicado executa _run_apply_improvements_bg (atualiza apply_jobs collection com progresso 0-100% + mensagem por etapa: snapshot → AI → slides → cenarios → Leonardo → Gemini → avatares)
+    - Helper functions extraidas: _process_scenarios, _process_leonardo_images, _process_gemini_images, _attach_image_to_slide, _collect_avatar_scenes
+    - Idempotencia: clicar Aplicar 2x retorna o MESMO applyJobId (busca processing job em andamento)
+    - Retry-safe: preview so e deletado ao concluir com sucesso (preserva no MongoDB se algum passo falhar)
+    - TTL index em apply_jobs.createdAtDate (auto-delete jobs apos 24h)
+    - Index secundario em apply_jobs (projectId, status) para acelerar lookup de idempotencia
+  - FIX FRONTEND:
+    - handleConfirmImprovements (Agent.jsx) agora faz polling em /apply-status a cada 3s (max 10min)
+    - Trata 401/403/404 como terminal (evita loop infinito em token expirado)
+    - Novo estado applyProgress: {progress, message} renderizado como barra de progresso violet→fuchsia em PreviewPanel
+    - Mensagem de chat enriquecida com counts de scenarios, Leonardo, Gemini, avatares
+  - Validado: 13/13 testes (5 retry + 8 novos async-flow) iteration_112. Curl E2E confirmou POST <30ms, GET status retorna progresso ate done com canUndo=true.
+
+
   - PROBLEMA: a regra anterior obrigava `imagem_premium` (Leonardo, custo alto) para todo slide textual. O usuario reportou que nem sempre vale a pena pagar Leonardo — para a maioria dos slides uma imagem ilustrativa simples e mais barata ja resolve.
   - BACKEND: novo tipo `imagem_simples` (gerado via Gemini Nano Banana, parte do Emergent LLM Key — custo BAIXO). O prompt da IA agora prioriza `imagem_simples` para slides textuais comuns (>350 chars sem imagem) e reserva `imagem_premium` apenas para slides estrategicos (capa, abertura de modulo, conteudo emblematico).
   - Novo helper compartilhado /app/backend/services/gemini_image.py para gerar imagens via Gemini Nano Banana (extraido para reuso entre /api/ai/generate-image manual e o pipeline de improvements).

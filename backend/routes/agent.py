@@ -2782,7 +2782,8 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         }
 
     job_id = str(uuid.uuid4())
-    started_at = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    started_at = now.isoformat()
     await db.apply_jobs.insert_one({
         "id": job_id,
         "projectId": project_id,
@@ -2791,6 +2792,7 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
         "progress": 0,
         "message": "Iniciando aplicacao das melhorias...",
         "startedAt": started_at,
+        "createdAtDate": now,  # BSON Date for TTL index (auto-delete after 24h)
     })
 
     # Run the actual work in a background thread with its own event loop so it
@@ -2842,7 +2844,7 @@ async def agent_apply_status(project_id: str, job_id: str, user: dict = Depends(
     await load_authorized_project(project_id, user)
     job = await db.apply_jobs.find_one(
         {"id": job_id, "projectId": project_id},
-        {"_id": 0},
+        {"_id": 0, "createdAtDate": 0},  # exclude BSON Date (not JSON serializable)
     )
     if not job:
         raise HTTPException(404, "Apply job not found")

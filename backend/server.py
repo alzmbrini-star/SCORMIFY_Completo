@@ -295,6 +295,13 @@ async def _run_create_indexes():
         )
         await db.image_gallery.create_index([("companyId", 1), ("createdAt", -1)], background=True)
         await db.agent_sessions.create_index([("id", 1)], unique=True, background=True)
+        # apply_jobs: TTL on createdAtDate (auto-delete done/error jobs after 24h)
+        await db.apply_jobs.create_index(
+            "createdAtDate",
+            expireAfterSeconds=24 * 60 * 60,
+            background=True,
+        )
+        await db.apply_jobs.create_index([("projectId", 1), ("status", 1)], background=True)
         logger.info("MongoDB indexes ensured")
     except Exception as e:
         logger.warning(f"Index creation failed (non-fatal): {e}")

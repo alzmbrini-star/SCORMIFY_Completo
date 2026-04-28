@@ -963,7 +963,11 @@ export default function Agent() {
           `${API}/api/agent/courses/${selectedCourse.id}/apply-status/${jobId}`,
           { headers: authHeaders() },
         );
-        if (!statusRes.ok) continue; // transient errors during polling — keep trying
+        // Auth/RBAC failures are terminal — break out instead of looping forever
+        if (statusRes.status === 401 || statusRes.status === 403 || statusRes.status === 404) {
+          throw new Error('Sessão expirada ou acesso negado. Faça login novamente.');
+        }
+        if (!statusRes.ok) continue; // other transient 5xx — keep trying
         const job = await statusRes.json();
 
         setApplyProgress({
