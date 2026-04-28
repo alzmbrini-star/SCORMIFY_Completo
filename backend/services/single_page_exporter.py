@@ -425,7 +425,7 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
         f'data-scenario="{scenario_attr}">'
         f'<div class="sp-scenario-intro">'
         f'<div class="sp-scenario-icon">🎯</div>'
-        f'<h3>{title}</h3>'
+        f'<h3 class="sp-scenario-title">{title}</h3>'
         f'<p>{desc}</p>'
         + (f'<p style="font-size:13px;opacity:.78;font-style:italic;margin-top:8px"><strong>📋 Contexto:</strong> {context}</p>' if context else '')
         + chars_html +
@@ -468,6 +468,7 @@ def generate_single_page_html(
     questions: Optional[List[dict]] = None,
     tutor_config: Optional[dict] = None,
     scorm_mode: bool = False,
+    gamification_config: Optional[dict] = None,
 ) -> str:
     """Generate a complete standalone single-page HTML for the given project.
 
@@ -478,6 +479,10 @@ def generate_single_page_html(
       - cmi.core.score for the running score
       - lesson_status="completed" + success_status="passed" when all sections
         are unlocked AND all quizzes passed mastery (>=80% by default)
+
+    When gamification_config is provided AND has enabled=true, injects the
+    Gamification engine + hooks at quiz/scenario/course completion points
+    (badges, feedback modals, final summary).
     """
     project_id = project_doc.get("id", "")
     name = project_doc.get("name", "Curso")
@@ -553,6 +558,7 @@ def generate_single_page_html(
         sections_index_json=sections_index_json,
         total_sections=len(sections_html),
         scorm_mode=scorm_mode,
+        gamification_config=gamification_config,
     )
 
 
@@ -563,11 +569,31 @@ def _BUILD_PAGE(
     sections_index_json: str,
     total_sections: int,
     scorm_mode: bool = False,
+    gamification_config: Optional[dict] = None,
 ) -> str:
     css = _CSS
     js = _JS.replace("__SECTIONS_INDEX__", sections_index_json) \
             .replace("__SCORM_MODE__", "true" if scorm_mode else "false")
     scorm_script = '<script src="scorm-api.js"></script>' if scorm_mode else ''
+
+    # Gamification: inject engine + config when enabled
+    gamification_script = ""
+    if gamification_config and gamification_config.get("enabled"):
+        try:
+            engine_path = Path(__file__).parent / "export_assets" / "gamification.js"
+            engine_js = engine_path.read_text(encoding="utf-8")
+            config_json = json.dumps(gamification_config, ensure_ascii=False).replace("</", "<\\/")
+            gamification_script = (
+                f'<script>{engine_js}</script>\n'
+                f'<script>'
+                f'window.GAMIFICATION_CONFIG = {config_json};'
+                f'document.addEventListener("DOMContentLoaded", function(){{'
+                f'  if (window.Gamification) {{ Gamification.init(window.GAMIFICATION_CONFIG); }}'
+                f'}});'
+                f'</script>'
+            )
+        except Exception:
+            gamification_script = ""
     bg_layer = (
         f'<div class="sp-bg-image" style="background-image:url({_esc(bg_image)})"></div>'
         if bg_image else
@@ -621,6 +647,7 @@ def _BUILD_PAGE(
 </button>
 
 <script>{js}</script>
+{gamification_script}
 </body>
 </html>
 """
@@ -988,6 +1015,12 @@ _JS = """
             detail: { quizScores: state.quizScores }
           }));
         } catch(e){}
+        // Gamification: trigger course completion badges + final summary
+        try {
+          if (window.Gamification && typeof Gamification.onCourseComplete === 'function') {
+            Gamification.onCourseComplete();
+          }
+        } catch(e){}
       }
     },
     gotoSection: function(idx){
@@ -1070,6 +1103,13 @@ _JS = """
           };
           scormUpdateScore();
           scormSaveState();
+          // Gamification: trigger scenario badges + feedback modal
+          try {
+            if (window.Gamification && typeof Gamification.onScenarioComplete === 'function') {
+              var scenarioTitle = (scenarioEl.querySelector('.sp-scenario-title') || {}).textContent || 'Cenário';
+              Gamification.onScenarioComplete(pct, scenarioTitle);
+            }
+          } catch(e){}
         } else if (n.choices && n.choices.length) {
           html += '<div style="font-weight:600;font-size:13px;color:#475569;margin-bottom:10px">Qual sua decisão?</div>';
           html += '<div class="sp-scenario-choices" style="display:flex;flex-direction:column;gap:10px">';
@@ -1131,6 +1171,13 @@ _JS = """
           state.quizScores[scenarioEl.dataset.interactiveId] = { correct: optimalChoices, total: totalChoices, pct: pct };
           scormUpdateScore();
           scormSaveState();
+          // Gamification: trigger scenario badges + feedback modal (fallback ending — no next_node_id)
+          try {
+            if (window.Gamification && typeof Gamification.onScenarioComplete === 'function') {
+              var scenarioTitle = (scenarioEl.querySelector('.sp-scenario-title') || {}).textContent || 'Cenário';
+              Gamification.onScenarioComplete(pct, scenarioTitle);
+            }
+          } catch(e){}
         }
       }
       function escapeHtml(s){
@@ -1224,6 +1271,12 @@ _JS = """
         SP.markClicked(quizEl);
         scormUpdateScore();
         scormSaveState();
+        // Gamification: trigger quiz badges + feedback modal
+        try {
+          if (window.Gamification && typeof Gamification.onQuizComplete === 'function') {
+            Gamification.onQuizComplete(pct, total, correct);
+          }
+        } catch(e){}
         submit.disabled = true;
         submit.style.display = 'none';
       });

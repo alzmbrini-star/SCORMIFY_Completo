@@ -206,6 +206,7 @@ def export_single_page_scorm_package(
     questions: Optional[list] = None,
     tutor_config: Optional[dict] = None,
     backend_url: str = "",
+    gamification_config: Optional[dict] = None,
 ) -> str:
     """Build a SCORM 1.2 zip for the project's single-page mode and return
     the absolute path to the generated zip.
@@ -230,6 +231,7 @@ def export_single_page_scorm_package(
         questions=questions,
         tutor_config=tutor_config,
         scorm_mode=True,
+        gamification_config=gamification_config,
     ).replace('<script src="scorm-api.js"></script>', '<script src="scripts/scorm-api.js"></script>')
 
     # Build package in a temp dir

@@ -293,6 +293,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 questions=questions,
                 tutor_config=tutor_settings,
                 backend_url=scorm_backend_url,
+                gamification_config=gamification_settings,
             )
         else:
             # Legacy slide-by-slide exporter requires a strict Project Pydantic model.
@@ -480,6 +481,34 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         
         # Generate HTML — use single-page renderer if requested, otherwise standard player
         if use_single_page:
+            # Load gamification config for HTML single-page (mirrors SCORM logic)
+            gamification_settings_html = None
+            try:
+                gam_doc = await db.projects.find_one({"id": project_id}, {"_id": 0, "gamification": 1})
+                if gam_doc and gam_doc.get("gamification"):
+                    gamification_settings_html = gam_doc["gamification"]
+                else:
+                    from models import DEFAULT_BADGES, DEFAULT_QUIZ_FEEDBACK, DEFAULT_SCENARIO_FEEDBACK
+                    gamification_settings_html = {
+                        "enabled": True,
+                        "showBadgesAfterQuiz": True,
+                        "showBadgesAfterScenario": True,
+                        "showFinalSummary": True,
+                        "badges": [b.model_dump() for b in DEFAULT_BADGES],
+                        "quizFeedbackRanges": [f.model_dump() for f in DEFAULT_QUIZ_FEEDBACK],
+                        "scenarioFeedbackRanges": [f.model_dump() for f in DEFAULT_SCENARIO_FEEDBACK],
+                        "completionFeedback": {
+                            "id": "completion_default",
+                            "minScore": 0,
+                            "maxScore": 100,
+                            "title": "Curso Concluído!",
+                            "message": "Parabéns por completar o curso!",
+                            "emoji": "🎓",
+                        },
+                    }
+            except Exception as e:
+                logger.warning(f"Gamification load for HTML single-page failed (non-fatal): {e}")
+
             from services.single_page_exporter import generate_single_page_html
             html_content = generate_single_page_html(
                 project_doc,
@@ -487,6 +516,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                 base_url,
                 questions=questions,
                 tutor_config=tutor_settings,
+                gamification_config=gamification_settings_html,
             )
         else:
             html_content = await generate_standalone_html(

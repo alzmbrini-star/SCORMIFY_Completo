@@ -87,6 +87,22 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-28: FIX (P0) — Gamificação não disparava em Single Page export (HTML + SCORM).
+  - **Causa raiz**: `routes/export.py` carregava `gamification_settings` mas só passava para o exporter SCORM tradicional. O SCORM single-page e o HTML single-page recebiam os dados mas NUNCA os repassavam para `generate_single_page_html()` ou `export_single_page_scorm_package()`. O `gamification.js` engine + `Gamification.init()` simplesmente não eram injetados no HTML resultante. Resultado: toggles "Mostrar após Quiz", "Mostrar após Cenário", "Resumo Final" e badges configurados no painel de Gamificação ficavam invisíveis ao aluno.
+  - **Fix**:
+    - `generate_single_page_html()` ganhou parâmetro `gamification_config: Optional[dict]`. Quando enabled=true, injeta inline o conteúdo de `services/export_assets/gamification.js` + `window.GAMIFICATION_CONFIG = {...}` + `Gamification.init(...)` em DOMContentLoaded.
+    - 3 hooks adicionados ao JS runtime do single page (com feature-detection `if (window.Gamification)`):
+      1. `onQuizComplete(pct, total, correct)` chamado depois do submit do quiz (`SP.markClicked` no fim de `submit.click()`).
+      2. `onScenarioComplete(pct, scenarioTitle)` chamado nos 2 caminhos de fim de cenário (ending node oficial + fallback sem next_node_id). Título capturado via `.sp-scenario-title` (classe nova adicionada ao `<h3>` do scenario intro).
+      3. `onCourseComplete()` chamado em `SP.advance()` quando alcança end-card (junto com `scormMarkComplete`).
+    - `export_single_page_scorm_package()` repassa `gamification_config` para o gerador HTML.
+    - `routes/export.py` (rota HTML single-page) agora carrega o config (mesmo fallback `DEFAULT_BADGES`/`DEFAULT_QUIZ_FEEDBACK`/`DEFAULT_SCENARIO_FEEDBACK` do SCORM) e passa para o gerador.
+    - `routes/export.py` (rota SCORM single-page) passa `gamification_config=gamification_settings` que já era carregado.
+  - **Validado**: 59/59 testes (8 novos `test_singlepage_gamification.py` cobrindo: engine inline quando enabled, hooks presentes mesmo sem engine, NÃO injetado quando disabled/None, SCORM ZIP contém engine, badges JSON serializado). Visual confirmado via Playwright em "Imagens_WideScreen": 
+    - `Gamification.onQuizComplete(100, 5, 5)` → modal "🎉 Excelente! 100%" + 2 badges (Mestre dos Quizzes + Perfeição Total).
+    - `Gamification.onScenarioComplete(85, "...")` → modal de feedback do cenário.
+    - `Gamification.onCourseComplete()` → modal "🎓 Curso Concluído!" + badge "Curso Concluído".
+
 - 2026-04-28: FIX (P0 visual) — Avatares HeyGen com fundo transparente no Single Page export.
   - **Causa raiz**: `_render_video_element_inner` aplicava `class="sp-video sp-interactive"` para QUALQUER vídeo, independente da origem. CSS `.sp-video video { background:#000 }` + `.sp-interactive { background:#fef9c3 }` (card amarelo) faziam o avatar HeyGen aparecer dentro de uma caixa amarela com fundo preto — destoando do fundo do slide. A função `_render_avatar_element_inner` (criada com tratamento transparente) era código morto: nenhum projeto tem `type=avatar` — todos os HeyGens entram como `type=video` com `src` apontando para `heygen.ai`.
   - **Fix**:
