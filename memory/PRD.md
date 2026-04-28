@@ -87,6 +87,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-28: FIX (P0 visual) — Avatares HeyGen com fundo transparente no Single Page export.
+  - **Causa raiz**: `_render_video_element_inner` aplicava `class="sp-video sp-interactive"` para QUALQUER vídeo, independente da origem. CSS `.sp-video video { background:#000 }` + `.sp-interactive { background:#fef9c3 }` (card amarelo) faziam o avatar HeyGen aparecer dentro de uma caixa amarela com fundo preto — destoando do fundo do slide. A função `_render_avatar_element_inner` (criada com tratamento transparente) era código morto: nenhum projeto tem `type=avatar` — todos os HeyGens entram como `type=video` com `src` apontando para `heygen.ai`.
+  - **Fix**:
+    - Novo helper `_is_heygen_avatar_url(url)` detecta URLs contendo `heygen` (case-insensitive).
+    - `_render_video_element_inner` agora roteia URLs HeyGen para `<div class="sp-avatar-wrap">` (sem classe `sp-interactive`, com `background:transparent` inline + CSS dedicada `.sp-avatar-wrap video{background:transparent !important}`).
+    - Vídeos NÃO-HeyGen (YouTube, MP4 customizados, etc.) mantêm o card amarelo `.sp-video sp-interactive` original — o gating pedagógico continua funcionando.
+    - Seletor de gating mudou de `.sp-interactive[data-required="true"]` para `[data-required="true"]` — assim o `.sp-avatar-wrap` (que NÃO usa `sp-interactive`) ainda bloqueia o avanço da seção até o usuário reproduzir o vídeo. `markPlayed` e `data-completed="true"` continuam funcionando em ambos os casos.
+    - CSS adicional para `.sp-avatar-wrap[data-completed="true"]::after` exibe checkmark verde quando avatar é assistido (mesmo padrão visual do `.sp-interactive`).
+  - **Validado**: 51/51 testes (5 novos `test_singlepage_avatar_transparency.py` cobrindo: detecção HeyGen, render como avatar-wrap, fallback para vídeos não-HeyGen, CSS transparency presente no export, gating selector relaxado). Visual confirmado via Playwright em projeto real "Imagens_WideScreen" (5 avatares HeyGen): `wrap bg: rgba(0,0,0,0)`, `video bg: rgba(0,0,0,0)`, avatar misturando perfeitamente com slide background image laranja.
+
 - 2026-04-28: FEATURE — Cenários de Aprendizagem agora rodam de forma interativa no Página Única.
   - **Bug do usuário**: cenários (gerados pelo "Criador de Cenários de Aprendizagem" via IA) só mostravam título/descrição/personagens com botão genérico "Marcar como concluído". A estrutura rica de `nodes[]` com `choices[]`, `feedback`, `is_optimal`, `points`, `next_node_id` (Choose Your Own Adventure educacional) era ignorada.
   - **Fix**:

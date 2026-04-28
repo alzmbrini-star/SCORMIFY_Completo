@@ -201,9 +201,33 @@ def _render_audio_element_inner(el: dict, project_id: str, assets_dir: str, base
     )
 
 
+def _is_heygen_avatar_url(url: str) -> bool:
+    """HeyGen avatar videos têm URL contendo 'heygen' (heygen.ai, resourceN.heygen.ai etc.)
+    e são entregues como WebM com canal alpha (fundo transparente).
+    Quando detectamos esse padrão, renderizamos sem o card amarelo .sp-interactive
+    e sem `background:#000` no <video>, para que o avatar se misture com o background
+    da slide."""
+    if not url:
+        return False
+    return "heygen" in url.lower()
+
+
 def _render_video_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
     src = el.get("src") or el.get("videoUrl") or el.get("content") or ""
     src = _resolve_asset_url(src, project_id, assets_dir, base_url)
+    # Avatar HeyGen detectado via URL → fundo transparente, sem card amarelo
+    if _is_heygen_avatar_url(src):
+        return (
+            f'<div class="sp-avatar-wrap" data-interactive="video" data-required="true" '
+            f'data-interactive-id="video-{idx}" '
+            f'style="display:flex;flex-direction:column;align-items:center;gap:8px;background:transparent;border:0;padding:0;max-width:480px;margin:0 auto">'
+            f'<video controls preload="metadata" src="{_esc(src)}" '
+            f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-avatar-wrap\'))" '
+            f'style="width:100%;max-width:480px;max-height:540px;background:transparent;border:0;border-radius:8px;display:block" '
+            f'playsinline></video>'
+            f'<div class="sp-avatar-hint" style="font-size:11px;color:inherit;opacity:.7;font-style:italic">▶ Avatar — reproduza para liberar próxima seção</div>'
+            f'</div>'
+        )
     poster = el.get("poster", "")
     if poster:
         poster = _resolve_asset_url(poster, project_id, assets_dir, base_url)
@@ -675,6 +699,12 @@ body{position:relative;overflow-x:hidden}
 .sp-interactive[data-completed="true"] .sp-video-hint,
 .sp-interactive[data-completed="true"] .sp-html-hint{display:none}
 
+/* Avatar HeyGen — sem card amarelo, fundo transparente para misturar com o background da slide */
+.sp-avatar-wrap{position:relative}
+.sp-avatar-wrap[data-completed="true"]::after{content:"✓";position:absolute;top:0;right:8px;color:#fff;background:#84cc16;font-weight:700;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 6px rgba(132,204,22,.4)}
+.sp-avatar-wrap[data-completed="true"] .sp-avatar-hint{display:none}
+.sp-avatar-wrap video{background:transparent !important}
+
 .sp-quiz{text-align:center;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%)!important;color:#fff!important;border-color:#3b82f6!important;padding:24px}
 .sp-quiz[data-completed="true"]{background:#0f5132!important;border-color:#84cc16!important;color:#dcfce7!important}
 .sp-quiz-icon{font-size:42px;margin-bottom:10px}
@@ -817,7 +847,7 @@ _JS = """
       Object.keys(state.completed).forEach(function(k){
         var sec = $('.sp-section[data-index="'+k+'"]');
         if (!sec) return;
-        $$('.sp-interactive[data-required="true"]', sec).forEach(function(el){
+        $$('[data-required="true"]', sec).forEach(function(el){
           el.dataset.completed = 'true';
         });
       });
@@ -881,7 +911,7 @@ _JS = """
   function isSectionComplete(idx){
     var sec = $('.sp-section[data-index="'+idx+'"]');
     if (!sec) return false;
-    var pending = $$('.sp-interactive[data-required="true"]', sec).filter(function(el){
+    var pending = $$('[data-required="true"]', sec).filter(function(el){
       return el.dataset.completed !== 'true';
     });
     return pending.length === 0;
