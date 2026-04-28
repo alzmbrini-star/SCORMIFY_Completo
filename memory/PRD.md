@@ -87,7 +87,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-28: FIX (P0 BUG VISUAL) — Página Única descentralizada e interativos pouco visíveis no LMS.
+- 2026-04-28: FEATURE — Feedback colorido nos quizzes + backgrounds per-slide.
+  - **Quiz visual feedback** após submit: cada opção muda de cor — **verde** marca a correta com badge "✓ Correta"; **vermelho** marca a opção errada do aluno com "✗ Sua resposta". Explicações exibidas em caixa azul "💡 Explicação" abaixo de cada questão. Banner final: 🎉 verde se ≥80%, vermelho se <80%.
+  - **Backgrounds per-slide**: cada `<section>` recebe `style="background-color"` ou `background-image` da slide individual (`slide.background` + `slide.backgroundImage`). Antes só o primeiro slide.backgroundImage era usado como BG global.
+  - **Painel interativo iframe**: botão explícito "✓ Concluí o simulador" abaixo de cada iframe sandbox (clicks dentro do iframe não fazem bubbling).
+  - **Quiz JSON escape**: `data-questions` com `"` + `html.escape(quote=True)` para suportar apóstrofes nas perguntas.
+  - **Validado**: 38/38 testes (3 novos `test_singlepage_bg_and_quiz_feedback.py`).
+
+- 2026-04-28: FIX (P0 BUG VISUAL) — Página Única descentralizada (body=960px) por vazamento de CSS.
+  - **Causa**: Simuladores/scenarios injetam `<style>body{display:flex;width:960px}` que vazava para o body do curso single-page.
+  - **Fix**: `_render_html_element` detecta `<style>/<script>/<body>/<html>/<head>` e renderiza em iframe sandbox isolado. `.sp-section-inner` com `margin: 0 auto` e `max-width: 1080-1180px`. Interativos com borda amarela 3px + box-shadow pulsante + badges grandes destacados.
+
+
   - **Causa raiz**: Os simuladores/scenarios (campo `htmlContent`) trazem `<style>body{display:flex;width:960px;height:540px;...}</style>` próprio. Como o renderer single-page injetava esses HTMLs DIRETAMENTE no DOM da página, os 7+ blocos `<style>` faziam **vazamento de CSS global** — o `<body>` do curso herdava `display:flex; width:960px`, encolhendo tudo para a esquerda.
   - **Fix**: (1) `_render_html_element` detecta tags globais (`<style>`, `<script>`, `<body>`, `<html>`, `<head>`) no `htmlContent` e renderiza em `<iframe sandbox>` via data-URI; (2) `.sp-section-inner` com `margin: 0 auto` (mais resiliente que flex parent); (3) interativos com borda amarela 3px + box-shadow pulsante + badge "▶ ASSISTA/CLIQUE PARA LIBERAR" muito visível; (4) max-width aumentado para 1080-1180px; (5) title centralizado.
   - **Validado** em 1920px e 1280px via Playwright: card centralizado (370px e 100px de espaço respectivamente). 30/30 testes.

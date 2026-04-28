@@ -367,10 +367,25 @@ def generate_single_page_html(
             except Exception:
                 continue
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
+
+        # Per-slide background: solid color (slide.background) and/or image (slide.backgroundImage)
+        bg_color = slide.get("background") or ""
+        bg_image_url = slide.get("backgroundImage") or ""
+        if bg_image_url:
+            bg_image_url = _resolve_asset_url(bg_image_url, project_id, assets_dir, base_url)
+        bg_styles = []
+        if bg_color:
+            bg_styles.append(f"background-color:{_esc(bg_color)}")
+        if bg_image_url:
+            bg_styles.append(f"background-image:url({_esc(bg_image_url)})")
+            bg_styles.append("background-size:cover")
+            bg_styles.append("background-position:center")
+        section_style = f' style="{";".join(bg_styles)}"' if bg_styles else ''
+
         section = (
             f'<section class="sp-section" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
-            f'{locked_attr}>\n'
+            f'{locked_attr}{section_style}>\n'
             f'  <div class="sp-section-inner">\n'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'
             f'    <div class="sp-section-body">\n'
@@ -382,14 +397,10 @@ def generate_single_page_html(
         sections_html.append(section)
         sections_index.append({"index": s_idx, "title": slide_title})
 
-    # Course intro background — try first slide's backgroundImage if any
-    bg_image = ""
-    if slides:
-        first_bg = slides[0].get("backgroundImage") or ""
-        if first_bg:
-            bg_image = _resolve_asset_url(first_bg, project_id, assets_dir, base_url)
-
     sections_index_json = json.dumps(sections_index, ensure_ascii=False).replace("</", "<\\/")
+
+    # Use the global course-level background only as fallback (default network pattern)
+    bg_image = ""
 
     # ---------- HTML
     return _BUILD_PAGE(
@@ -549,6 +560,9 @@ body{position:relative;overflow-x:hidden}
 .sp-quiz-meta{font-size:13px;opacity:.85;margin-bottom:14px}
 .sp-quiz-body{margin-top:18px;text-align:left;background:#fff;color:#0f172a;border-radius:8px;padding:18px}
 .sp-quiz-body[hidden]{display:none}
+.sp-quiz-opt:hover{border-color:#2563eb!important;background:#eff6ff}
+.sp-quiz-opt input:checked + *,
+.sp-quiz-opt:has(input:checked){border-color:#2563eb!important;background:#dbeafe}
 
 .sp-scenario{background:linear-gradient(135deg,#7c2d12 0%,#ea580c 100%);color:#fff;text-align:center;border-color:#fb923c}
 .sp-scenario h3{margin:8px 0;font-size:20px}
@@ -848,21 +862,23 @@ _JS = """
       if (startBtn) startBtn.style.display = 'none';
       if (!body) return;
       body.hidden = false;
-      var answers = {};
       var html = '<form class="sp-quiz-form">';
       qs.forEach(function(q, qi){
-        html += '<fieldset style="margin-bottom:16px;border:0;padding:0">';
-        html += '<legend style="font-weight:600;margin-bottom:8px">'+(qi+1)+'. '+(q.text||q.question||'')+'</legend>';
+        html += '<fieldset class="sp-quiz-question" data-q-idx="'+qi+'" style="margin-bottom:18px;border:0;padding:0">';
+        html += '<legend style="font-weight:600;margin-bottom:10px;font-size:15px">'+(qi+1)+'. '+(q.text||q.question||'')+'</legend>';
         (q.options||[]).forEach(function(opt, oi){
           var optText = (typeof opt === 'string') ? opt : (opt.text || opt.label || '');
-          html += '<label style="display:block;padding:6px 0;cursor:pointer">'
-                + '<input type="radio" name="q'+qi+'" value="'+oi+'"> '+optText
+          html += '<label class="sp-quiz-opt" data-opt-idx="'+oi+'" style="display:block;padding:8px 12px;margin:4px 0;cursor:pointer;border:2px solid #e2e8f0;border-radius:6px;transition:all .15s">'
+                + '<input type="radio" name="q'+qi+'" value="'+oi+'" style="margin-right:8px"> '+optText
                 + '</label>';
         });
+        if (q.explanation) {
+          html += '<div class="sp-quiz-explanation" hidden style="margin-top:8px;padding:10px 14px;border-left:4px solid #2563eb;background:#eff6ff;font-size:13px;color:#1e3a8a"><strong>💡 Explicação:</strong> '+q.explanation+'</div>';
+        }
         html += '</fieldset>';
       });
       html += '<button type="button" class="sp-btn sp-btn-primary sp-quiz-submit">Enviar Respostas</button>';
-      html += '<div class="sp-quiz-result" style="margin-top:14px;font-weight:700"></div>';
+      html += '<div class="sp-quiz-result" style="margin-top:14px;padding:14px;border-radius:8px;font-weight:700;font-size:16px;text-align:center"></div>';
       html += '</form>';
       body.innerHTML = html;
       var submit = body.querySelector('.sp-quiz-submit');
@@ -870,25 +886,61 @@ _JS = """
       submit.addEventListener('click', function(){
         var correct = 0;
         qs.forEach(function(q, qi){
-          var sel = body.querySelector('input[name="q'+qi+'"]:checked');
-          if (!sel) return;
-          var idx = parseInt(sel.value, 10);
-          var opt = (q.options||[])[idx];
-          var isCorrect = (typeof opt === 'object' && opt && opt.correct) || idx === q.correctAnswer || idx === q.correctIndex;
+          var selRadio = body.querySelector('input[name="q'+qi+'"]:checked');
+          var fieldset = body.querySelector('.sp-quiz-question[data-q-idx="'+qi+'"]');
+          var labels = fieldset.querySelectorAll('.sp-quiz-opt');
+          var pickedIdx = selRadio ? parseInt(selRadio.value, 10) : -1;
+          var qCorrectIdx = -1;
+          (q.options||[]).forEach(function(opt, oi){
+            var isThisCorrect = (typeof opt === 'object' && opt && opt.correct) || oi === q.correctAnswer || oi === q.correctIndex;
+            if (isThisCorrect) qCorrectIdx = oi;
+          });
+          // Visual feedback per option
+          labels.forEach(function(lbl, oi){
+            lbl.style.cursor = 'default';
+            var input = lbl.querySelector('input');
+            if (input) input.disabled = true;
+            if (oi === qCorrectIdx) {
+              // The correct answer — always green
+              lbl.style.borderColor = '#16a34a';
+              lbl.style.background = '#f0fdf4';
+              lbl.style.color = '#15803d';
+              lbl.style.fontWeight = '600';
+              lbl.innerHTML += ' <span style="color:#16a34a;font-weight:700;margin-left:6px">✓ Correta</span>';
+            } else if (oi === pickedIdx) {
+              // Picked but wrong — red
+              lbl.style.borderColor = '#dc2626';
+              lbl.style.background = '#fef2f2';
+              lbl.style.color = '#991b1b';
+              lbl.innerHTML += ' <span style="color:#dc2626;font-weight:700;margin-left:6px">✗ Sua resposta</span>';
+            } else {
+              lbl.style.opacity = '0.55';
+            }
+          });
+          // Show explanation if available
+          var exp = fieldset.querySelector('.sp-quiz-explanation');
+          if (exp) exp.hidden = false;
+          var isCorrect = (pickedIdx === qCorrectIdx);
           if (isCorrect) correct++;
-          answers[q.id||qi] = { selected: idx, correct: isCorrect };
           // SCORM cmi.interactions tracking per question
           var qText = (q.text || q.question || '').substring(0, 250);
-          scormReportQuiz(quizEl.dataset.interactiveId, String(idx), isCorrect, qi, qText);
+          scormReportQuiz(quizEl.dataset.interactiveId, String(pickedIdx), isCorrect, qi, qText);
         });
         var total = qs.length || 1;
         var pct = Math.round((correct/total)*100);
         state.quizScores[quizEl.dataset.interactiveId] = { correct: correct, total: total, pct: pct };
-        result.textContent = 'Você acertou ' + correct + ' de ' + total + ' ('+pct+'%)';
+        // Final result banner
+        var passed = pct >= 80;
+        result.textContent = 'Você acertou ' + correct + ' de ' + total + ' (' + pct + '%) — ' +
+          (passed ? '🎉 Aprovado!' : 'Revise as questões em vermelho');
+        result.style.background = passed ? '#dcfce7' : '#fef2f2';
+        result.style.color = passed ? '#15803d' : '#991b1b';
+        result.style.border = '2px solid ' + (passed ? '#16a34a' : '#dc2626');
         SP.markClicked(quizEl);
         scormUpdateScore();
         scormSaveState();
         submit.disabled = true;
+        submit.style.display = 'none';
       });
     }
   };
