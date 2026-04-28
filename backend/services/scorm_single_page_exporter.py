@@ -158,7 +158,8 @@ _SCORM_API_JS = r"""// scorm-api.js — SCORM 1.2 runtime bridge for single-page
 })();
 """
 
-# ----- Manifest template (SCORM 1.2)
+# ----- Manifest template (SCORM 1.2) — declares ALL files in <resource> for
+# strict LMS compatibility (Canvas, Blackboard, SCORM Cloud).
 _MANIFEST = """<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="{identifier}" version="1.0"
     xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
@@ -183,7 +184,7 @@ _MANIFEST = """<?xml version="1.0" encoding="UTF-8"?>
     <resources>
         <resource identifier="resource1" type="webcontent" adlcp:scormtype="sco" href="index.html">
             <file href="index.html"/>
-            <file href="scorm-api.js"/>
+            <file href="scripts/scorm-api.js"/>
         </resource>
     </resources>
 </manifest>
@@ -221,6 +222,7 @@ def export_single_page_scorm_package(
         assets_dir = os.path.join(storage_dir, project_id)
 
     # Generate single-page HTML in SCORM mode (injects scorm-api hooks)
+    # The HTML's <script src="scorm-api.js"> reference is rewritten to scripts/scorm-api.js for LMS folder convention
     html_content = generate_single_page_html(
         project_doc,
         assets_dir,
@@ -228,17 +230,22 @@ def export_single_page_scorm_package(
         questions=questions,
         tutor_config=tutor_config,
         scorm_mode=True,
-    )
+    ).replace('<script src="scorm-api.js"></script>', '<script src="scripts/scorm-api.js"></script>')
 
     # Build package in a temp dir
     package_dir = Path(tempfile.mkdtemp(prefix="scorm_sp_"))
     try:
         (package_dir / "index.html").write_text(html_content, encoding="utf-8")
-        (package_dir / "scorm-api.js").write_text(_SCORM_API_JS, encoding="utf-8")
+        # SCORM convention: scripts under scripts/ folder
+        scripts_dir = package_dir / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        (scripts_dir / "scorm-api.js").write_text(_SCORM_API_JS, encoding="utf-8")
 
+        # Identifier must match XML NCName: [A-Za-z_][A-Za-z0-9._-]* — strip hyphens for max LMS compatibility
+        safe_identifier = "SCORM_SP_" + re.sub(r"[^A-Za-z0-9_]", "_", project_id)
         manifest = _MANIFEST.format(
-            identifier=f"SCORM_SP_{project_id}",
-            title=clean_title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"),
+            identifier=safe_identifier,
+            title=clean_title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&apos;"),
         )
         (package_dir / "imsmanifest.xml").write_text(manifest, encoding="utf-8")
 

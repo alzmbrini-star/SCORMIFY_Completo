@@ -55,7 +55,7 @@ def http_server(scorm_pkg):
 
 
 def test_scorm_api_js_exposes_required_methods(scorm_pkg):
-    api_js = (scorm_pkg / "scorm-api.js").read_text()
+    api_js = (scorm_pkg / "scripts" / "scorm-api.js").read_text()
     for method in ("init", "setLocation", "saveSuspend", "getSuspend",
                    "recordInteraction", "setScore", "complete", "commit", "finish"):
         assert f"{method}:" in api_js, f"scorm-api.js missing {method}"
@@ -64,7 +64,7 @@ def test_scorm_api_js_exposes_required_methods(scorm_pkg):
 
 def test_index_html_has_scorm_mode_true(scorm_pkg):
     idx = (scorm_pkg / "index.html").read_text()
-    assert 'src="scorm-api.js"' in idx
+    assert 'src="scripts/scorm-api.js"' in idx
     assert "SCORM_MODE = true" in idx
     assert "scormSaveState" in idx
     assert "scormReportQuiz" in idx
@@ -77,8 +77,13 @@ def test_imsmanifest_lists_scorm_resources(scorm_pkg):
     manifest = (scorm_pkg / "imsmanifest.xml").read_text()
     assert 'scormtype="sco"' in manifest
     assert 'href="index.html"' in manifest
-    assert 'href="scorm-api.js"' in manifest
+    assert 'href="scripts/scorm-api.js"' in manifest
     assert "1.2" in manifest
+    # Identifier must be NCName-safe (no hyphens for max LMS compatibility)
+    import re as _re
+    m = _re.search(r'identifier="([^"]+)"', manifest)
+    assert m, "Missing identifier"
+    assert "-" not in m.group(1), f"Identifier contains hyphens (some LMS reject these): {m.group(1)}"
 
 
 def test_e2e_lms_initialize_and_lesson_status(http_server):

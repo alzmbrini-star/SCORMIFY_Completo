@@ -127,6 +127,31 @@ async def save_export_to_gridfs(file_path: str, filename: str):
         logger.warning(f"GridFS save failed (non-fatal): {e}")
 
 
+async def cleanup_old_gridfs_exports(max_age_hours: int = 24):
+    """Periodic cleanup of GridFS export entries older than max_age_hours.
+    Without this, exports accumulate indefinitely and fill the data volume
+    (we hit a No-space-left-on-device with 4.6 GB of stale exports).
+    """
+    from datetime import timedelta
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        old_files = await db['exports.files'].find(
+            {'uploadDate': {'$lt': cutoff}},
+            {'_id': 1}
+        ).to_list(10000)
+        if not old_files:
+            return
+        ids = [f['_id'] for f in old_files]
+        chunk_res = await db['exports.chunks'].delete_many({'files_id': {'$in': ids}})
+        file_res = await db['exports.files'].delete_many({'_id': {'$in': ids}})
+        logger.info(
+            f"GridFS cleanup: removed {file_res.deleted_count} export files "
+            f"+ {chunk_res.deleted_count} chunks older than {max_age_hours}h"
+        )
+    except Exception as e:
+        logger.warning(f"GridFS cleanup failed (non-fatal): {e}")
+
+
 async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
     try:
         cursor = exports_bucket.find({"filename": filename}, limit=1).sort("uploadDate", -1)
@@ -290,6 +315,9 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             await asyncio.to_thread(_cleanup_old_exports, str(EXPORTS_DIR))
         except Exception as cleanup_err:
             logger.warning(f"Export cleanup failed (non-fatal): {cleanup_err}")
+
+        # Periodic GridFS cleanup to keep the data volume from filling up
+        background_tasks.add_task(cleanup_old_gridfs_exports, 24)
         
         # Persist to GridFS in background (don't block the response)
         export_filename = Path(zip_path).name
@@ -483,6 +511,8 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         
         # Persist to GridFS in background (don't block the response)
         background_tasks.add_task(save_export_to_gridfs, str(html_path), filename)
+        # Also clean up old GridFS exports (24h+) to keep data volume from filling up
+        background_tasks.add_task(cleanup_old_gridfs_exports, 24)
         
         # Log export for metrics
         try:

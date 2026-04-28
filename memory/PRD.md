@@ -87,7 +87,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-04-28: FIX (P0 BUG) — Erro 500 ao exportar SCORM Página Única em projetos com `fontSize: "24px"` (string com unidade CSS).
+- 2026-04-28: FIX (P0 BUG) — SCORM Página Única rejeitado por LMS estritos (Canvas/Blackboard/SCORM Cloud).
+  - **Causa raiz**: ZIP single-page tinha 3 problemas estruturais que o LMS tradicional aceita mas LMS estritos rejeitam:
+    1. **`identifier="SCORM_SP_<uuid>"`** com hífens — alguns LMS exigem XML NCName estrito (`[A-Za-z_][A-Za-z0-9._]*`)
+    2. **`scorm-api.js` na raiz** ao invés de `scripts/scorm-api.js` (convenção do exporter tradicional, esperada por LMS antigos)
+    3. **Title sem escape de aspas/apóstrofo** (`&quot;`/`&apos;`) — quebra o XML em projetos com nomes contendo `"` ou `'`
+  - **Fix**:
+    1. `safe_identifier = "SCORM_SP_" + re.sub(r"[^A-Za-z0-9_]", "_", project_id)` — substitui hífens por underscore
+    2. `scorm-api.js` movido para `scripts/scorm-api.js`; `<script src>` no HTML ajustado
+    3. Title escapa `&`, `<`, `>`, `"`, `'` para `&amp;`/`&lt;`/`&gt;`/`&quot;`/`&apos;`
+  - **Validado**: 43/43 testes (9 estruturais novos `test_scorm_singlepage_structure.py` + 6 E2E + 5 single-page HTML + 5 retry + 8 async + 10 element units). Estrutura agora alinha-se ao tradicional que o LMS aceita.
+
+- 2026-04-28: FIX (P0 BUG) — Toggle "Página Única" não persistia.
+  - **Causa raiz**: `ExportDialog.jsx` usava `fetch()` direto que NÃO passa pelo `axios.interceptors` que injeta `Authorization: Bearer`. PUT retornava 401/403, `fetchProject()` falhava silenciosamente, toggle voltava ao default.
+  - **Fix**: trocado `fetch()` por `axios.put()` em ambos os toggles (Página Única + VLibras).
+
+- 2026-04-28: FIX (P0 BUG) — Erro 500 ao exportar SCORM em projetos com `fontSize: "24px"` (string com unidade CSS).
+  - **Causa raiz**: `ElementStyle.fontSize` declarado como `Optional[float]` rejeitava strings tipo `"24px"`.
+  - **Fix**: `parse_numeric_with_unit` (`@field_validator(mode='before')`) aceita CSS units.
+
+- 2026-04-28: FEATURE (P1) — Modo "Página Única" para SCORM 1.2 (Fase 2 de 2).
   - **Causa raiz**: O endpoint `/api/course/{id}/export-scorm` (e o auto-save do editor via `PUT /api/projects/{id}/slides/{id}/elements/{id}`) parseava o documento via `Project(**project_doc)`. O `ElementStyle.fontSize` era declarado como `Optional[float]` mas o frontend enviava strings tipo `"24px"`, `"1.5rem"` (CSS-style values), causando `pydantic_core._pydantic_core.ValidationError: Input should be a valid number`. Erros 500 em cascata: ProjectContext.jsx mostrava "AxiosError" no console F12, e o usuário não conseguia exportar.
   - **Fix**: estendido `ElementStyle.parse_numeric_with_unit` (`@field_validator(mode='before')`) para `fontSize`, `strokeWidth`, `borderRadius` — extrai o número via regex `^\s*([+-]?[\d.]+)` e descarta a unidade. Resolve o problema na RAIZ (todos os endpoints que parseiam Project agora aceitam strings com unidade).
   - **Refactor preventivo**: `/export-scorm` agora coleta `question_ids` direto do dict cru (sem precisar parsear Project) e só constrói `Project(**project_doc)` no caminho legacy slide-by-slide. O caminho single-page nunca usa Project Pydantic — usa o dict puro.
