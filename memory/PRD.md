@@ -45,6 +45,7 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 - ElevenLabs - Audio narration for regular slides only (user API key)
 - ConvertAPI - PPT import (user API key)
 - Leonardo AI - Premium image generation (user API key: 59495cbf-a332-4a84-b6ab-a4d6f45a9ab2)
+- Krea AI - Image generation across 40+ models — 11 curated (Flux, Imagen 4, Nano Banana, ChatGPT Image, Ideogram, Seedream) — user API key format `api_id:api_secret`
 - Resend - Email notifications (API key in .env, free tier 100/day)
 
 ## Code Architecture
@@ -87,6 +88,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FEATURE (P0) — Integração completa **Krea AI** para geração de imagens (40+ modelos via 11 curados).
+  - **Por que?** O usuário solicitou acesso à Krea AI tanto para geração manual de imagens no Editor (tab/botão ao lado do Leonardo AI) quanto dentro do AI Aesthetic Analyzer (CTA para regerar imagens com base na análise estética).
+  - **Backend**: implementado `services/krea_ai.py` com catálogo curado de 11 modelos (Krea-1 flagship, Flux 1 Dev/Pro/Kontext, Imagen 4/Ultra, Nano Banana 2/Pro, ChatGPT Image, Seedream 5 Lite, Ideogram 3.0) — cada um com `path`, `label`, `description`, `maxWidth/Height`, `defaultSteps`, `approxCostUSD`, `approxTimeSeconds`, `tier` (standard/premium). Helpers `submit_generation`, `get_job`, `download_image_bytes`. Auth `Bearer api_id:api_secret`. Chave env `KREA_API_KEY`.
+  - **5 endpoints REST** em `routes/krea.py`:
+    - `GET /api/krea/status` → `{configured, models}` — usado pela UI para condicionalmente mostrar o botão Krea.
+    - `GET /api/krea/models` → lista completa com metadados.
+    - `POST /api/krea/generate` → submete job; valida `modelId` + `prompt`; insere doc em `db.krea_generations` para tracking.
+    - `GET /api/krea/jobs/{id}` → polling; atualiza `db.krea_generations` com status + URLs.
+    - `POST /api/krea/jobs/{id}/save` → baixa a imagem completed + salva em `PROJECTS_DIR/{projectId}/assets/{uuid}.png`; retorna public URL.
+  - **Health check**: `_check_krea()` em `routes/health.py` usa `GET /jobs/health-check` — 404 "not found" = auth OK; 500 = chave inválida; 401/403 = expirada. Retorna `balance.modelsAvailable`. Integrado em `/api/admin/integrations-health`.
+  - **Frontend Editor** (`pages/Agent/components/KreaPanel.jsx` — novo): dropdown de 11 modelos com badge `⭐ premium` / `⚡ standard` + custo/tempo estimado, textarea de prompt, inputs de largura/altura, 4 presets de aspect ratio (16:9/4:3/1:1/9:16), botão gradient pink→violet `Gerar com Krea AI`. Polling a cada 2.5s até 60 tentativas (2.5min máx). Resultados em grid 2 colunas com hover overlay `Usar no Curso` (chama `/save`) + `Abrir` (preview externo). Estado vazio amigável se `KREA_API_KEY` não configurada.
+  - **Editor.jsx**: novo botão `krea-ai-btn` na toolbar (ícone Sparkles rosa, ao lado do Leonardo) + Dialog renderizando KreaPanel. `onImageSaved` insere `<image>` no slide atual (centralizado, 80% do canvas).
+  - **AestheticsPanel.jsx**: novo botão `aesthetics-krea-regenerate` após os resultados da análise. Ao clicar, abre KreaPanel em Dialog pré-preenchido com prompt contextualizado — extrai `result.summary` + primeira issue de `contraste`/`harmonizacao`/`legibilidade_html` para gerar prompt do tipo "Imagem ilustrativa educacional de alta qualidade, estilo profissional, paleta harmônica. Contexto: {descrição da issue}".
+  - **IntegrationsHealthPanel.jsx**: `krea` adicionado ao `INTEGRATION_META` (ImageIcon, "Geracao de imagens (40+ modelos)") + `formatBalance` mostra "11 modelos de imagem disponiveis".
+  - **Validado E2E pelo testing_agent_v3_fork** (iteration_115):
+    - Backend 100%: 22/22 pytest passing (unit + integração live) + job real flux-1-dev concluído em ~8s, imagem salva com sucesso no projeto.
+    - Frontend 100%: todos os `data-testid` detectados (krea-ai-btn, krea-panel, krea-model-select, krea-generate-btn, krea-save-0, aesthetics-krea-regenerate, integration-card-krea). Fluxo E2E completo validado: gerar → polling → completed → "Usar no Curso" → imagem aparece no slide com toast pt-BR.
+    - Admin Integrations Health: card Krea renderiza com badge "Online" + "11 modelos de imagem disponiveis" via super_admin.
+
+
 - 2026-04-29: FIX (P0 deployment) — Build do deploy falhando com "connect() failed (111: Connection refused)" no upstream backend.
   - **Bug do usuário (logs nginx)**: nginx em produção `backend-startup.cluster-1.deploy.emergentcf.cloud` retornava 111 Connection Refused tentando conectar em `127.0.0.1:8001` para `/api/agent/projects/.../avatar-settings`, `/api/agent/courses/.../analyze` e `/api/agent/courses`. Isso significa que o **backend FastAPI nem chegou a iniciar** no container Kubernetes (caso contrário responderia algum status HTTP, mesmo 5xx).
   - **Causa raiz #1 (BLOCKER)**: `.gitignore` linhas 116-118 ignoravam `.env`, `.env.*` e `*.env`. O sistema de deploy Emergent precisa que `backend/.env` e `frontend/.env` estejam **versionados** no repo para auto-popular com valores de produção (Atlas MongoDB URL, REACT_APP_BACKEND_URL prod). Sem esses arquivos no commit, o backend iniciava SEM `MONGO_URL` → `os.environ['MONGO_URL']` lançava `KeyError` na importação → backend crashava → nginx ficava sem upstream.
