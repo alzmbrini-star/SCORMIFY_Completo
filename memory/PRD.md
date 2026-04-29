@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FEATURE (P1) — **Krea AI na Galeria de Imagens** + novo tipo `imagem_krea` no pipeline do Agente IA (40+ modelos curados por slide).
+  - **Parte A — Galeria**: imagens geradas via Krea (tanto pelo botão `Usar no Curso` do `KreaPanel` quanto pelo pipeline do Agente IA) agora:
+    1. Persistem no MongoDB via `store_asset_async` (sobrevivem restart de pod K8s — antes podiam sumir em produção).
+    2. Auto-salvam em `db.image_gallery` via `routes.gallery.auto_save_to_gallery` com keywords enriquecidas `krea {modelId}: {prompt}` — aparecem imediatamente na Galeria de Imagens do Editor.
+  - **Parte B — Agente IA**: novo tipo de melhoria `imagem_krea` disponível ao lado de `imagem_simples` (Gemini) e `imagem_premium` (Leonardo):
+    - **Backend**: `_process_krea_images(db, projectId, result, slides, generate_id, user)` em `routes/agent.py` lê `_kreaImage: {prompt, modelId, width, height}` das updatedSlides/newSlides, submete para Krea, faz polling (max 3 min × 90 tentativas × 2s), baixa, persiste e anexa ao slide. Contagem `kreaImagesGenerated` exposta no payload DONE.
+    - **LLM prompt** (`services/ai_agent.py`): bloco `imagem_krea_instructions` instrui o LLM a emitir `_kreaImage` preservando o `modelId` escolhido pelo usuário (sem alterar).
+    - **Frontend** (`pages/Agent/components/CoursePanels.jsx`): seletor de 3 vias em cada sugestão com imagem — botões `Econômica` / `Premium` / `Krea AI`. Clicar em Krea revela um dropdown `krea-model-picker-{i}` com os 11 modelos (label + custo + tempo). Estado `kreaModelOverrides` por sugestão.
+    - **Frontend** (`Agent.jsx`): `handleTypeOverride(impIndex, newType, {kreaModelId})` propaga o modelo escolhido e anexa `_kreaImage: {prompt, modelId, width, height}` ao improvement antes de enviar para `/preview-improvements` e `/apply-improvements`.
+  - **Bug crítico corrigido durante testes (iteration_116)**: `auto_save_to_gallery` usava `db` do módulo (main event loop) — background workers em thread separada (Leonardo/Gemini/Krea no pipeline do Agente) sofriam `"Future attached to a different loop"` e **nenhuma imagem gerada via Agente aparecia na galeria há tempos**. Fix: helper agora aceita `db_override=None` kwarg; as 3 call sites em `agent.py` injetam `_db` (Motor client loop-correto do worker). Bare `except Exception: pass` substituído por `logger.warning/exception` para visibilidade futura.
+  - **Validado E2E (iteration_117 → 100% backend)**: 29/29 pytest passando + 2 E2E live (test_krea_agent_e2e.py). Pipeline do Agente com `imagem_krea`/`flux-1-dev` gerou imagem em 13s e apareceu na galeria. Direct save flow (KreaPanel) não afetado. Leonardo e Gemini também beneficiados pela correção.
+
 - 2026-04-29: FEATURE (P0) — Integração completa **Krea AI** para geração de imagens (40+ modelos via 11 curados).
   - **Por que?** O usuário solicitou acesso à Krea AI tanto para geração manual de imagens no Editor (tab/botão ao lado do Leonardo AI) quanto dentro do AI Aesthetic Analyzer (CTA para regerar imagens com base na análise estética).
   - **Backend**: implementado `services/krea_ai.py` com catálogo curado de 11 modelos (Krea-1 flagship, Flux 1 Dev/Pro/Kontext, Imagen 4/Ultra, Nano Banana 2/Pro, ChatGPT Image, Seedream 5 Lite, Ideogram 3.0) — cada um com `path`, `label`, `description`, `maxWidth/Height`, `defaultSteps`, `approxCostUSD`, `approxTimeSeconds`, `tier` (standard/premium). Helpers `submit_generation`, `get_job`, `download_image_bytes`. Auth `Bearer api_id:api_secret`. Chave env `KREA_API_KEY`.
