@@ -87,6 +87,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 visual follow-up 3) — Heurística "header bar" auto-detecta cabeçalhos oversized em Quizzes/Cenários/etc.
+  - **Bug do usuário (screenshot)**: na slide "Checkpoint: Impactos Estruturais" (que contém Quiz), o autor criou um elemento HTML cabeçalho gradient com texto "QUIZ - CULTURA DE ATUALIZAÇÃO..." mas dimensionou para `h=700` (para cobrir a área do slide canvas no editor). No Single Page, isso renderizava como um bloco gigante violeta-rosa de ~700px com o texto perdido no meio. Mesmo problema afetava Cenários, abertura de seções, etc.
+  - **Causa**: o fix anterior usava `el.height` do banco. Quando o autor oversize'a um header (700px), respeitamos a altura — mas o conteúdo é estruturalmente um header thin.
+  - **Fix**: novo helper `_looks_like_header_bar(html)` aplica heurística em 3 etapas — só dispara se TODAS forem verdadeiras:
+    1. Plain text < 200 chars (após strip de tags) — header bars são curtos
+    2. `align-items:center` em algum estilo (típico de header flex)
+    3. **Sem** tags hierárquicas: `<h1>-<h6>`, `<p>`, `<ul>`, `<ol>`, `<li>`, `<table>` — esses indicam body content
+  - Quando a heurística retorna True, força `h = 60` independente do `el.height` autoral. Aplica naturalmente o left-justify override (já existente para `h<100`).
+  - **Por que safe?**: o filtro de tags hierárquicas garante que body content com h2/p/ul (ex: "O Conceito de Recálculo Automático" com h=700) NÃO é detectado como header — preserva 700px. Texto longo (>200 chars) também escapa da heurística.
+  - **Validado**: 54/54 testes (3 novos: `test_oversized_header_detected_and_capped_to_60`, `test_real_body_content_NOT_detected_as_header`, `test_header_with_long_text_NOT_capped`). Visual via Playwright em "Checkpoint: Impactos Estruturais": iframe header agora mostra `w=838 h=60` com texto "QUIZ - CULTURA DE ATUALIZAÇÃO E IMPACTOS ESTRUTURAIS" alinhado à esquerda e visível na íntegra. Antes era um bloco de 700px.
+
 - 2026-04-29: FIX (P0 visual follow-up 2) — Texto cortado em headers thin (60px) por causa de `margin-left:auto` autoral.
   - **Bug do usuário (screenshot)**: o texto "Cultura de Atualização e Impactos Estruturais" aparecia como "Cultura de Atualização e Impactos Estrutur..." — cortado pela direita. Causa: o HTML autoral usava `margin-left:auto` em um `<span>` para alinhar à direita do **slide canvas original**, mas o iframe Single Page é mais estreito que esse canvas, então o texto estourava o lado direito. Como agora temos `overflow:hidden` (do fix anterior), o estouro = corte invisível.
   - **Fix**: para iframes thin (`0 < h < 100`, tipicamente headers de 60px), `_render_html_element_inner` agora injeta CSS adicional que:

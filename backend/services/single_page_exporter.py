@@ -272,6 +272,33 @@ def _render_avatar_element_inner(el: dict, project_id: str, assets_dir: str, bas
     return ''
 
 
+def _looks_like_header_bar(html: str) -> bool:
+    """Heuristic: returns True if the HTML content is structurally a "thin header
+    bar" (gradient or solid background, short text, single flex row) regardless
+    of the author-set height.
+
+    We use this to override the authored height for elements where the CONTENT
+    is a header even though the author oversized the element (e.g. h=700) to
+    cover the full slide canvas in the editor. In Single Page, that would
+    render a giant near-empty colored block.
+
+    Heuristic checks (must satisfy all):
+      1. Plain text length < 200 chars (after stripping tags) — header bars are short
+      2. Has flex layout with `align-items:center` (typical header pattern)
+      3. NO hierarchical content tags: h1-h6, p, ul, ol, li, table
+    """
+    if not html:
+        return False
+    text = re.sub(r"<[^>]+>", "", html).strip()
+    if len(text) > 200:
+        return False
+    if not re.search(r"align-items\s*:\s*center", html, re.IGNORECASE):
+        return False
+    if re.search(r"<\s*(h[1-6]|ul|ol|li|p|table)\b", html, re.IGNORECASE):
+        return False
+    return True
+
+
 def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
                                  slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
@@ -285,6 +312,11 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         h = float(raw_h) if raw_h is not None else 0
     except (TypeError, ValueError):
         h = 0
+    # Override: structurally-detected header bars get capped at 60px regardless
+    # of authored height (handles authors who sized header HTML at h=700 to
+    # "fill the slide" — which renders as a giant near-empty block in Single Page).
+    if _looks_like_header_bar(raw):
+        h = 60
     # Clamp to sensible bounds: 60px minimum (visible), 720px maximum (avoids giant scrolls)
     if h <= 0:
         iframe_height_css = "min-height:540px"
