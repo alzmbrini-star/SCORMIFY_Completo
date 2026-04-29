@@ -60,3 +60,21 @@ def test_zero_height_falls_back():
     el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": 0}
     out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
     assert "min-height:540px" in out
+
+
+def test_iframe_reset_css_injected_to_kill_scrollbars():
+    """Regression: iframe must inject `body{margin:0;overflow:hidden}` reset
+    CSS into the base64 payload so default body margin (8px) doesn't push
+    content past a thin iframe (e.g. 60px header) and force scrollbars."""
+    import base64
+    el = {"type": "html", "htmlContent": "<style>body{background:red}</style><div>X</div>", "height": 60}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    # Extract base64 payload from data: URI
+    import re
+    m = re.search(r"base64,([A-Za-z0-9+/=]+)", out)
+    assert m, "iframe should have base64 src"
+    payload = base64.b64decode(m.group(1)).decode("utf-8")
+    # Reset CSS must be present
+    assert "html,body{margin:0 !important" in payload
+    assert "overflow:hidden" in payload
+    assert "box-sizing:border-box" in payload

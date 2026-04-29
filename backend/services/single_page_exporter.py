@@ -294,10 +294,19 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
     else:
         iframe_height_css = f"height:{int(min(h, 720))}px"
     if has_global_styles:
+        # Reset body margin + hide overflow so the iframe doesn't show scrollbars
+        # when the authored content fills exactly the iframe height (e.g. 60px header bar).
+        # The default body margin:8px would push content past the iframe edges and
+        # force a vertical scrollbar that bleeds into a horizontal one too.
+        reset_css = (
+            '<style>html,body{margin:0 !important;padding:0 !important;'
+            'height:100%;overflow:hidden;box-sizing:border-box}'
+            '*{box-sizing:border-box}</style>'
+        )
         if "<meta" not in raw.lower() and "charset" not in raw.lower():
-            raw_with_meta = '<meta charset="utf-8">\n' + raw
+            raw_with_meta = '<meta charset="utf-8">\n' + reset_css + raw
         else:
-            raw_with_meta = raw
+            raw_with_meta = reset_css + raw
         b64 = base64.b64encode(raw_with_meta.encode("utf-8")).decode("ascii")
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'

@@ -87,6 +87,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 visual follow-up) — Iframes thin (60px) ainda mostravam scrollbar dentro do iframe.
+  - **Bug**: depois do fix de altura autoral, o iframe respeitava 60px corretamente, mas o `<body>` dentro do iframe tinha `margin:8px` default do navegador. Conteúdo `height:100%` + 8px de margem extrapolava os 60px → scrollbar horizontal/vertical apareciam consumindo metade do espaço útil.
+  - **Fix**: `_render_html_element_inner` agora prepende `<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;box-sizing:border-box}*{box-sizing:border-box}</style>` antes do conteúdo do usuário (apenas para iframes com global styles, base64 payload). Reset universal sem perturbar o conteúdo autoral.
+  - **Validado**: 49/49 testes (1 novo `test_iframe_reset_css_injected_to_kill_scrollbars`). Visual via Playwright em "Gestão de Progresso" — header gradient agora aparece como **uma linha limpa de 60px sem scrollbar**.
+
 - 2026-04-29: FIX (P0 visual) — Iframes HTML do tipo "header" não respeitavam altura autoral, virando blocos gigantes no Single Page export.
   - **Bug do usuário (screenshot)**: o usuário criou um elemento HTML de **50px** de altura (barra horizontal de gradient violeta-rosa) no editor para servir de cabeçalho da slide. No export Single Page, essa mesma barra renderizava como um **bloco de ~700px** sem nenhum motivo, ocupando toda a viewport e empurrando o conteúdo real para baixo.
   - **Causa raiz**: `_render_html_element_inner` em `single_page_exporter.py` (linha 290) tinha `style="...min-height:540px..."` **hardcoded** para TODOS os iframes, ignorando completamente `el.get("height")` salvo no documento do elemento (que vai de 8px a 864px nos projetos reais).
