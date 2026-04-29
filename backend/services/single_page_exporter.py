@@ -559,6 +559,7 @@ def generate_single_page_html(
         total_sections=len(sections_html),
         scorm_mode=scorm_mode,
         gamification_config=gamification_config,
+        tutor_config=tutor_config,
     )
 
 
@@ -570,6 +571,7 @@ def _BUILD_PAGE(
     total_sections: int,
     scorm_mode: bool = False,
     gamification_config: Optional[dict] = None,
+    tutor_config: Optional[dict] = None,
 ) -> str:
     css = _CSS
     js = _JS.replace("__SECTIONS_INDEX__", sections_index_json) \
@@ -594,6 +596,32 @@ def _BUILD_PAGE(
             )
         except Exception:
             gamification_script = ""
+
+    # AI Tutor: inject inline CSS + JS + config when admin toggled enabled
+    tutor_script = ""
+    tutor_style = ""
+    if tutor_config and tutor_config.get("enabled"):
+        try:
+            assets_root = Path(__file__).parent / "export_assets"
+            tutor_css = (assets_root / "tutor.css").read_text(encoding="utf-8")
+            tutor_js = (assets_root / "tutor.js").read_text(encoding="utf-8")
+            # Force cssInlined=true so the widget skips fetching styles/tutor.css (which doesn't exist in single-page)
+            tutor_cfg = dict(tutor_config)
+            tutor_cfg["cssInlined"] = True
+            tutor_cfg_json = json.dumps(tutor_cfg, ensure_ascii=False).replace("</", "<\\/")
+            tutor_style = f'<style data-tutor-css="1">{tutor_css}</style>'
+            tutor_script = (
+                f'<script>{tutor_js}</script>\n'
+                f'<script>'
+                f'window.TUTOR_CONFIG = {tutor_cfg_json};'
+                f'document.addEventListener("DOMContentLoaded", function(){{'
+                f'  if (window.AiTutor) {{ AiTutor.init(window.TUTOR_CONFIG); }}'
+                f'}});'
+                f'</script>'
+            )
+        except Exception:
+            tutor_script = ""
+            tutor_style = ""
     bg_layer = (
         f'<div class="sp-bg-image" style="background-image:url({_esc(bg_image)})"></div>'
         if bg_image else
@@ -606,6 +634,7 @@ def _BUILD_PAGE(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_esc(title)}</title>
 <style>{css}</style>
+{tutor_style}
 {scorm_script}
 </head>
 <body>
@@ -648,6 +677,7 @@ def _BUILD_PAGE(
 
 <script>{js}</script>
 {gamification_script}
+{tutor_script}
 </body>
 </html>
 """
@@ -1121,7 +1151,32 @@ _JS = """
                   + '</button>';
           });
           html += '</div>';
+          // Tutor IA hint button — only when AiTutor is loaded (admin toggled enabled)
+          if (window.AiTutor) {
+            html += '<button type="button" class="sp-scenario-hint" '
+                  + 'style="margin-top:14px;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(99,102,241,.12);color:#4f46e5;border:1px dashed #818cf8;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer">'
+                  + '💡 Pedir dica do Tutor IA</button>';
+          }
           play.innerHTML = html;
+          // Wire hint button (contextualized prompt for current node)
+          var hintBtn = play.querySelector('.sp-scenario-hint');
+          if (hintBtn) {
+            hintBtn.addEventListener('click', function(){
+              try {
+                var nodeTitle = n.title || '';
+                var narrative = (n.narrative || '').substring(0, 400);
+                var choicesText = (n.choices || []).map(function(c, i){ return (i+1) + ') ' + (c.text || ''); }).join(' | ');
+                var prompt = 'Estou em um cenário interativo "' + (scenarioEl.querySelector('.sp-scenario-title') || {}).textContent + '"'
+                           + (nodeTitle ? ', no nó "' + nodeTitle + '"' : '')
+                           + '. Contexto: ' + narrative
+                           + '. Minhas opções são: ' + choicesText
+                           + '. Pode me ajudar a refletir sobre o que considerar antes de escolher? (não me dê a resposta direta)';
+                if (typeof AiTutor.toggle === 'function') AiTutor.toggle();
+                var input = document.getElementById('tutor-input');
+                if (input) { input.value = prompt; input.focus(); }
+              } catch(e) {}
+            });
+          }
           play.querySelectorAll('.sp-scenario-choice').forEach(function(btn, ci){
             btn.addEventListener('mouseenter', function(){ btn.style.borderColor='#2563eb'; btn.style.background='#eff6ff'; });
             btn.addEventListener('mouseleave', function(){ btn.style.borderColor='#cbd5e1'; btn.style.background='#f8fafc'; });
@@ -1150,10 +1205,18 @@ _JS = """
                  + '<div style="font-weight:700;margin-bottom:6px">' + icon + ' ' + label + ' (+' + (choice.points||0) + ' pts)</div>'
                  + '<div style="font-size:13px;line-height:1.5">' + escapeHtml(choice.feedback || '') + '</div>'
                  + '</div>';
+        // Proactive Tutor IA button after sub-optimal choice (only if AiTutor loaded)
+        var showTutorRescue = !choice.is_optimal && window.AiTutor;
+        if (showTutorRescue) {
+          html += '<button type="button" class="sp-scenario-rescue" '
+                + 'style="width:100%;margin-bottom:12px;padding:10px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">'
+                + '🤖 Quer entender melhor por quê?</button>';
+        }
         var nextId = choice.next_node_id;
         if (nextId && nodeMap[nextId]) {
           html += '<button type="button" class="sp-btn sp-btn-primary" style="width:100%" id="sp-scenario-continue">Continuar →</button>';
           play.innerHTML = html;
+          wireRescueBtn(choice);
           play.querySelector('#sp-scenario-continue').addEventListener('click', function(){
             renderNode(nextId);
             play.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -1168,6 +1231,7 @@ _JS = """
                 + 'onclick="window.SP.markClicked(this.closest(&quot;.sp-scenario&quot;))">'
                 + '✓ Liberar próxima seção</button>';
           play.innerHTML = html;
+          wireRescueBtn(choice);
           state.quizScores[scenarioEl.dataset.interactiveId] = { correct: optimalChoices, total: totalChoices, pct: pct };
           scormUpdateScore();
           scormSaveState();
@@ -1182,6 +1246,22 @@ _JS = """
       }
       function escapeHtml(s){
         return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+      function wireRescueBtn(choice){
+        var btn = play.querySelector('.sp-scenario-rescue');
+        if (!btn) return;
+        btn.addEventListener('click', function(){
+          try {
+            var scTitle = (scenarioEl.querySelector('.sp-scenario-title') || {}).textContent || 'cenário';
+            var prompt = 'Em um cenário sobre "' + scTitle + '", eu escolhi: "' + (choice.text || '') + '". '
+                       + 'O sistema disse que essa não é a melhor escolha. '
+                       + (choice.feedback ? 'O feedback foi: "' + choice.feedback + '". ' : '')
+                       + 'Pode me ajudar a entender por que essa decisão é problemática e quais princípios eu deveria considerar para escolher melhor da próxima vez?';
+            if (typeof AiTutor.toggle === 'function') AiTutor.toggle();
+            var input = document.getElementById('tutor-input');
+            if (input) { input.value = prompt; input.focus(); }
+          } catch(e){}
+        });
       }
       // Start at the first node
       renderNode(nodes[0].id);

@@ -64,6 +64,12 @@ var ScenarioController = (function() {
                 html += '<span style="flex:1;">' + (choice.text || '') + '</span>';
                 html += '<span style="color:#475569;font-size:16px;">›</span></button>';
             });
+            // Tutor IA hint button — only when AiTutor is loaded (admin toggled enabled)
+            if (typeof window !== 'undefined' && window.AiTutor) {
+                html += '<button onclick="ScenarioController.askTutor(\'' + elementId + '\',\'hint\',\'' + sc.currentNodeId + '\')" '
+                      + 'style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px dashed #6366f1;border-radius:999px;font-size:' + (fs*0.75) + 'px;font-weight:600;cursor:pointer;">'
+                      + '💡 Pedir dica do Tutor IA</button>';
+            }
         }
         html += '</div></div>';
         sc.container.innerHTML = html;
@@ -103,6 +109,12 @@ var ScenarioController = (function() {
         if (choice.points > 0) html += '<span style="margin-left:auto;font-size:' + (fs*0.75) + 'px;color:#fbbf24;">+' + choice.points + ' pts</span>';
         html += '</div>';
         html += '<p style="font-size:' + (fs*0.875) + 'px;color:#cbd5e1;line-height:1.5;">' + (choice.feedback || '') + '</p></div>';
+        // Proactive Tutor IA button after sub-optimal choice (only if AiTutor loaded)
+        if (!choice.is_optimal && typeof window !== 'undefined' && window.AiTutor) {
+            html += '<button onclick="ScenarioController.askTutor(\'' + elementId + '\',\'rescue\',\'' + sc.currentNodeId + '\',\'' + (choice.id || '') + '\')" '
+                  + 'style="width:100%;margin-bottom:12px;padding:10px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:0;border-radius:8px;font-size:' + (fs*0.875) + 'px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">'
+                  + '🤖 Quer entender melhor por quê?</button>';
+        }
         html += '<button onclick="ScenarioController.proceed(\'' + elementId + '\',\'' + (choice.next_node_id || '') + '\')" style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#0891b2,#2563eb);color:#fff;border:none;border-radius:8px;font-size:' + fs + 'px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">Continuar →</button>';
         html += '</div>';
         sc.container.innerHTML = html;
@@ -172,9 +184,43 @@ var ScenarioController = (function() {
         }
     }
 
+    function askTutor(elementId, mode, nodeId, choiceId) {
+        if (typeof window === 'undefined' || !window.AiTutor) return;
+        var sc = scenarios[elementId];
+        if (!sc) return;
+        var node = sc.nodesMap[nodeId];
+        if (!node) return;
+        var scTitle = sc.data.title || 'cenário';
+        var prompt = '';
+        if (mode === 'hint') {
+            var nodeTitle = node.title || '';
+            var narrative = (node.narrative || '').substring(0, 400);
+            var choicesText = (node.choices || []).map(function(c, i){ return (i+1) + ') ' + (c.text || ''); }).join(' | ');
+            prompt = 'Estou em um cenário interativo "' + scTitle + '"'
+                   + (nodeTitle ? ', no nó "' + nodeTitle + '"' : '')
+                   + '. Contexto: ' + narrative
+                   + '. Minhas opções são: ' + choicesText
+                   + '. Pode me ajudar a refletir sobre o que considerar antes de escolher? (não me dê a resposta direta)';
+        } else if (mode === 'rescue') {
+            var choice = (node.choices || []).find(function(c){ return c.id === choiceId; });
+            if (choice) {
+                prompt = 'Em um cenário sobre "' + scTitle + '", eu escolhi: "' + (choice.text || '') + '". '
+                       + 'O sistema disse que essa não é a melhor escolha. '
+                       + (choice.feedback ? 'O feedback foi: "' + choice.feedback + '". ' : '')
+                       + 'Pode me ajudar a entender por que essa decisão é problemática e quais princípios eu deveria considerar para escolher melhor da próxima vez?';
+            }
+        }
+        try {
+            if (typeof AiTutor.toggle === 'function') AiTutor.toggle();
+            var input = document.getElementById('tutor-input');
+            if (input) { input.value = prompt; input.focus(); }
+        } catch(e) {}
+    }
+
     return {
         startScenario: startScenario,
         selectChoice: selectChoice,
-        proceed: proceed
+        proceed: proceed,
+        askTutor: askTutor
     };
 })();

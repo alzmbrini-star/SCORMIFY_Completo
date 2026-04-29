@@ -87,6 +87,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FEATURE (P1) — Integração do Tutor IA dentro dos Cenários de Aprendizagem (Single Page + Tradicional).
+  - **Bug do usuário**: cenários CYOA no export Single Page não tinham conexão com o Tutor IA. Mesmo o widget de tutor (FAB+chat) sequer era carregado no Single Page (parâmetro `tutor_config` existia em `generate_single_page_html` mas era ignorado).
+  - **Fix — Etapa 1: Tutor IA wired no Single Page**:
+    - `_BUILD_PAGE` agora aceita `tutor_config` e, quando `enabled=true`, injeta inline `tutor.css` (`<style data-tutor-css="1">`), `tutor.js` (engine) + `window.TUTOR_CONFIG = {...}` + `AiTutor.init(...)` em DOMContentLoaded. Força `cssInlined=true` para o widget não tentar buscar `styles/tutor.css` (que não existe no Single Page standalone).
+    - `routes/export.py` (rota HTML) já carregava `tutor_settings` do admin → agora repassa para `generate_single_page_html(tutor_config=tutor_settings)`. Mesma lógica para SCORM.
+  - **Fix — Etapa 2: Botão "💡 Pedir dica" em cada nó do cenário (Single Page)**:
+    - JS engine de cenário (`renderNode → choices`) renderiza condicionalmente `<button class="sp-scenario-hint">` se `window.AiTutor` existe.
+    - Click → abre o tutor (`AiTutor.toggle()`) e pré-preenche o input com prompt contextual: título do cenário, título do nó, narrativa truncada (400 chars), opções enumeradas. Termina com `(não me dê a resposta direta)` — preserva o aprendizado pedagógico.
+  - **Fix — Etapa 3: Botão proativo "🤖 Quer entender melhor?" após escolha sub-ótima**:
+    - `showFeedback(choice)` injeta `<button class="sp-scenario-rescue">` somente quando `!choice.is_optimal && window.AiTutor`.
+    - Helper `wireRescueBtn(choice)` chamado nos 2 caminhos (próximo nó existe + ending fallback).
+    - Click → abre tutor e pré-preenche prompt explicando o erro: "escolhi X, sistema disse que não é a melhor escolha, feedback foi Y, pode me ajudar a entender por que essa decisão é problemática e quais princípios eu deveria considerar para escolher melhor?".
+  - **Fix — Etapa 4: Mesma integração no export Tradicional**:
+    - `scenario-controller.js` ganhou função pública `askTutor(elementId, mode, nodeId, choiceId)` (modo `hint` ou `rescue`).
+    - Botão "💡 Pedir dica" adicionado em `renderNode` após as choices.
+    - Botão "🤖 Quer entender melhor?" em `renderFeedback` quando `!choice.is_optimal`.
+  - **Toggle opcional**: integração inteira respeita o admin toggle `settings.tutor.enabled`. Quando o admin desativa o tutor: (1) `tutor_settings` retorna `None` em `routes/export.py`, (2) engine `tutor.js` não é injetado, (3) os botões hint/rescue dependem de `window.AiTutor` (conditional), então simplesmente NÃO renderizam — sem código quebrado, sem UI fantasma.
+  - **Validado**: 68/68 testes (9 novos `test_singlepage_tutor_in_scenarios.py` cobrindo: tutor inline quando enabled, NÃO injetado quando disabled/None, botão hint condicional em window.AiTutor, botão rescue só em sub-ótimas, prompt serializado com contexto do nó, traditional scenario-controller também tem os botões + askTutor exposto). Visual confirmado via Playwright em projeto "Slides manuais" (cenário "A Jornada da Universidade Corporativa Digital"): botão "💡 Pedir dica do Tutor IA" aparece, click abre painel do tutor com input pré-preenchido com prompt contextual completo do nó "O Desafio Inicial: Digitalizando a UC".
+
 - 2026-04-28: FIX (P0) — Gamificação não disparava em Single Page export (HTML + SCORM).
   - **Causa raiz**: `routes/export.py` carregava `gamification_settings` mas só passava para o exporter SCORM tradicional. O SCORM single-page e o HTML single-page recebiam os dados mas NUNCA os repassavam para `generate_single_page_html()` ou `export_single_page_scorm_package()`. O `gamification.js` engine + `Gamification.init()` simplesmente não eram injetados no HTML resultante. Resultado: toggles "Mostrar após Quiz", "Mostrar após Cenário", "Resumo Final" e badges configurados no painel de Gamificação ficavam invisíveis ao aluno.
   - **Fix**:
