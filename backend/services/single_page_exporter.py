@@ -303,6 +303,18 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             'height:100%;overflow:hidden;box-sizing:border-box}'
             '*{box-sizing:border-box}</style>'
         )
+        # For thin headers (< 100px) authors often use `margin-left:auto` to push text
+        # to the right edge of the slide. In Single Page the iframe is narrower than
+        # the original slide canvas, so right-aligned text gets clipped at the edge.
+        # Force everything to flex-start / left-align to keep the full text visible.
+        if 0 < h < 100:
+            reset_css += (
+                '<style>'
+                'body>div,body{justify-content:flex-start !important;text-align:left !important}'
+                '[style*="margin-left:auto"],[style*="margin-left: auto"]{margin-left:0 !important}'
+                'span,div,p{white-space:nowrap;overflow:visible}'
+                '</style>'
+            )
         if "<meta" not in raw.lower() and "charset" not in raw.lower():
             raw_with_meta = '<meta charset="utf-8">\n' + reset_css + raw
         else:

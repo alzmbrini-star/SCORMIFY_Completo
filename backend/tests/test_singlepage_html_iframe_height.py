@@ -78,3 +78,34 @@ def test_iframe_reset_css_injected_to_kill_scrollbars():
     assert "html,body{margin:0 !important" in payload
     assert "overflow:hidden" in payload
     assert "box-sizing:border-box" in payload
+
+
+def test_thin_header_left_justify_override():
+    """Thin headers (<100px) often use `margin-left:auto` to push text to the
+    right edge of the slide canvas. In Single Page the iframe is narrower than
+    the slide, so right-aligned text is clipped. Force left-align."""
+    import base64, re
+    el = {"type": "html", "htmlContent": "<style>span{font-size:16px}</style><div style='display:flex'><span></span><span style='margin-left:auto'>Long text that would be clipped on the right</span></div>", "height": 60}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    m = re.search(r"base64,([A-Za-z0-9+/=]+)", out)
+    payload = base64.b64decode(m.group(1)).decode("utf-8")
+    # Override applied for thin iframes
+    assert "justify-content:flex-start !important" in payload
+    assert "text-align:left !important" in payload
+    assert 'margin-left:0 !important' in payload
+
+
+def test_normal_height_iframe_does_NOT_left_align_override():
+    """The left-align override should ONLY apply to thin headers (<100px).
+    Normal-sized iframes (e.g. body content with intentional right-aligned
+    elements) must preserve the author's layout."""
+    import base64, re
+    el = {"type": "html", "htmlContent": "<style>body{}</style><div>x</div>", "height": 400}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    m = re.search(r"base64,([A-Za-z0-9+/=]+)", out)
+    payload = base64.b64decode(m.group(1)).decode("utf-8")
+    # Reset CSS still present
+    assert "overflow:hidden" in payload
+    # But left-align override is NOT
+    assert "justify-content:flex-start" not in payload
+    assert "text-align:left !important" not in payload

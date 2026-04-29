@@ -87,6 +87,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 visual follow-up 2) — Texto cortado em headers thin (60px) por causa de `margin-left:auto` autoral.
+  - **Bug do usuário (screenshot)**: o texto "Cultura de Atualização e Impactos Estruturais" aparecia como "Cultura de Atualização e Impactos Estrutur..." — cortado pela direita. Causa: o HTML autoral usava `margin-left:auto` em um `<span>` para alinhar à direita do **slide canvas original**, mas o iframe Single Page é mais estreito que esse canvas, então o texto estourava o lado direito. Como agora temos `overflow:hidden` (do fix anterior), o estouro = corte invisível.
+  - **Fix**: para iframes thin (`0 < h < 100`, tipicamente headers de 60px), `_render_html_element_inner` agora injeta CSS adicional que:
+    - `body>div, body { justify-content:flex-start !important; text-align:left !important }` (força flex-row a iniciar à esquerda)
+    - `[style*="margin-left:auto"], [style*="margin-left: auto"] { margin-left:0 !important }` (neutraliza inline `margin-left:auto`)
+    - `span,div,p { white-space:nowrap; overflow:visible }` (texto não quebra em multi-linha dentro do header thin)
+  - **Por que só thin?**: o reset agressivo de `margin-left:auto` quebraria layouts intencionais (e.g. paginação justificada à direita, badges). Aplicar só para `h < 100` preserva intenção autoral em conteúdos médios/grandes.
+  - **Validado**: 51/51 testes (2 novos: `test_thin_header_left_justify_override` confirma override em h=60, `test_normal_height_iframe_does_NOT_left_align_override` confirma que h=400 NÃO recebe override). Visual via Playwright em "Gestão de Progresso": header gradient agora mostra "Cultura de Atualização e Impactos Estruturais" **completo**, alinhado à esquerda, sem corte.
+
 - 2026-04-29: FIX (P0 visual follow-up) — Iframes thin (60px) ainda mostravam scrollbar dentro do iframe.
   - **Bug**: depois do fix de altura autoral, o iframe respeitava 60px corretamente, mas o `<body>` dentro do iframe tinha `margin:8px` default do navegador. Conteúdo `height:100%` + 8px de margem extrapolava os 60px → scrollbar horizontal/vertical apareciam consumindo metade do espaço útil.
   - **Fix**: `_render_html_element_inner` agora prepende `<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;box-sizing:border-box}*{box-sizing:border-box}</style>` antes do conteúdo do usuário (apenas para iframes com global styles, base64 payload). Reset universal sem perturbar o conteúdo autoral.
