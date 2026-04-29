@@ -153,9 +153,96 @@ def _render_element(el: dict, project_id: str, assets_dir: str, base_url: str,
         rendered = _render_scenario_element_inner(el, slide_idx, el_idx)
     elif etype == "simulator":
         rendered = _render_simulator_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
+    elif etype == "button":
+        rendered = _render_button_element_inner(el, slide_idx, el_idx)
+    elif etype == "shape":
+        rendered = _render_shape_element_inner(el)
     else:
         return ""
     return _maybe_wrap_with_timeline(rendered, el)
+
+
+def _render_button_element_inner(el: dict, slide_idx: int, el_idx: int) -> str:
+    """Render a button element. Buttons typically link to external resources
+    (PDFs, downloads, websites). When `buttonUrl` is set we render an <a> tag;
+    otherwise a passive <button>. The button is treated as an interactive
+    that gates section progression — clicking marks it as completed."""
+    text = _esc(el.get("buttonText") or el.get("content") or "Botão")
+    url = el.get("buttonUrl") or ""
+    new_tab = ' target="_blank" rel="noopener noreferrer"' if el.get("openInNewTab", True) else ""
+    style_palette = el.get("buttonStyle") or "primary"
+    palette_map = {
+        "primary": "background:#2563eb;color:#fff;border:0",
+        "secondary": "background:#6b7280;color:#fff;border:0",
+        "outline": "background:transparent;color:#2563eb;border:2px solid #2563eb",
+        "ghost": "background:transparent;color:#2563eb;border:0",
+        "destructive": "background:#dc2626;color:#fff;border:0",
+        "success": "background:#16a34a;color:#fff;border:0",
+    }
+    palette = palette_map.get(style_palette, palette_map["primary"])
+    style_obj = el.get("style") or {}
+    extra_style = []
+    fs = style_obj.get("fontSize")
+    if fs:
+        extra_style.append(f"font-size:{fs}px" if isinstance(fs, (int, float)) else f"font-size:{fs}")
+    fw = style_obj.get("fontWeight")
+    if fw:
+        extra_style.append(f"font-weight:{fw}")
+    br = style_obj.get("borderRadius")
+    if br is not None:
+        extra_style.append(f"border-radius:{br}px" if isinstance(br, (int, float)) else f"border-radius:{br}")
+    extra = ";".join(extra_style)
+    common_style = (
+        "display:inline-flex;align-items:center;justify-content:center;gap:8px;"
+        f"padding:12px 24px;{palette};{extra};"
+        "cursor:pointer;text-decoration:none;font-weight:600;"
+        "transition:transform .15s ease,box-shadow .15s ease;"
+        "box-shadow:0 2px 6px rgba(0,0,0,.1)"
+    )
+    interactive_attrs = (
+        f'class="sp-button sp-interactive" data-interactive="button" '
+        f'data-required="true" data-interactive-id="button-{slide_idx}-{el_idx}"'
+    )
+    if url:
+        return (
+            f'<div {interactive_attrs} style="display:flex;justify-content:center;padding:8px">'
+            f'<a href="{_esc(url)}"{new_tab} '
+            f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
+            f'style="{common_style}">{text}</a>'
+            f'</div>'
+        )
+    return (
+        f'<div {interactive_attrs} style="display:flex;justify-content:center;padding:8px">'
+        f'<button type="button" '
+        f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
+        f'style="{common_style}">{text}</button>'
+        f'</div>'
+    )
+
+
+def _render_shape_element_inner(el: dict) -> str:
+    """Render a basic shape element (rectangle/circle/arrow). Decorative —
+    no required interactive."""
+    style_obj = el.get("style") or {}
+    fill = style_obj.get("fill") or "#94a3b8"
+    stroke = style_obj.get("stroke")
+    stroke_width = style_obj.get("strokeWidth") or 0
+    border = f"border:{stroke_width}px solid {stroke}" if stroke and stroke_width else "border:0"
+    shape_type = (el.get("shapeType") or "rectangle").lower()
+    radius = "border-radius:50%" if shape_type == "circle" else "border-radius:8px"
+    width = el.get("width") or 100
+    height = el.get("height") or 60
+    try:
+        w_str = f"{int(float(width))}px"
+        h_str = f"{int(float(height))}px"
+    except (TypeError, ValueError):
+        w_str = "100px"
+        h_str = "60px"
+    return (
+        f'<div class="sp-shape" style="display:flex;justify-content:center;padding:4px">'
+        f'<div style="width:{w_str};height:{h_str};background:{fill};{border};{radius}"></div>'
+        f'</div>'
+    )
 
 
 def _maybe_wrap_with_timeline(rendered_html: str, el: dict) -> str:
@@ -1566,8 +1653,11 @@ _JS = """
       var et = parseFloat(el.dataset.endTime || '0') || 0;
       // Reveal at startTime (or immediately if 0)
       setTimeout(function(){ el.classList.add('sp-revealed'); }, Math.max(0, st * 1000));
-      // Hide at endTime if defined
-      if (et > 0 && et > st) {
+      // Hide at endTime ONLY if defined AND the inner element is NOT a required
+      // interactive (otherwise the student can't click to complete the section).
+      // Required interactives: buttons, quizzes, scenarios, videos with required play.
+      var hasRequiredInside = !!el.querySelector('[data-required="true"]');
+      if (et > 0 && et > st && !hasRequiredInside) {
         setTimeout(function(){ el.classList.add('sp-hidden'); }, et * 1000);
       }
     });

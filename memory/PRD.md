@@ -87,6 +87,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0) — Botão com timeline (startTime/endTime) não aparecia no Single Page export.
+  - **Bug do usuário (screenshot)**: na slide "Cenário: Atendimento e Suporte" o autor configurou um botão "Clique aqui" (link para PDF) com `startTime=3.48` / `endTime=5` para aparecer 3.5s depois do início da timeline. No Single Page export o botão simplesmente nunca aparecia.
+  - **Causa raiz #1**: o dispatcher `_render_element` em `single_page_exporter.py` não tinha case para `type='button'` nem para `type='shape'` — caía no `return ""` (string vazia). Idem para `shape`. Esses elementos eram silenciosamente descartados.
+  - **Fix #1**: novos renderers `_render_button_element_inner` (renderiza `<a target="_blank">` com palette primary/secondary/outline/ghost/destructive/success se `buttonUrl`, ou `<button>` passive caso contrário; sempre marcado `data-required="true"` para gating) e `_render_shape_element_inner` (rectangle/circle decorativo, sem gating).
+  - **Causa raiz #2**: mesmo após renderizar o botão, a timeline forçava `endTime=5s` → o botão aparecia em 3.48s (fade-in 0.5s) e desaparecia em 5s (fade-out 0.5s). Janela útil: ~1s — impossível de o aluno clicar. Pior: como o botão é `data-required="true"`, escondê-lo trava o gating da seção (aluno fica preso).
+  - **Fix #2**: o JS engine de timeline agora checa `el.querySelector('[data-required="true"]')` antes de agendar o `setTimeout(hide)`. Required interactives (botões, quizzes, cenários, vídeos required) NUNCA são escondidos pelo `endTime` — só elementos decorativos (texto, imagem, shape) podem sumir. Garante que o aluno sempre consegue interagir.
+  - **Validado**: 72/72 testes (8 novos `test_singlepage_button_element.py` cobrindo URL/sem URL, palettes, escape XSS, dispatch, timeline wrap, shape; 1 novo `test_timeline_does_NOT_hide_required_interactives`). Visual via Playwright em "Cenário: Atendimento e Suporte": botão azul "Clique aqui" agora aparece 3.5s após início da timeline e PERMANECE visível depois (`opacity:1`), aluno consegue clicar e completar a seção.
+
 - 2026-04-29: FEATURE (P1) — Timeline (auto-play sequencial) no Single Page export.
   - **Resposta à pergunta do usuário**: antes, o Single Page **ignorava completamente** `startTime`/`endTime`/`animations` — todos os elementos apareciam simultaneamente quando o aluno chegava na seção.
   - **Implementado opção (a) Auto-play sequencial**:

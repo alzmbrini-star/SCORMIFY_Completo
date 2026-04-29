@@ -106,6 +106,26 @@ def test_unlock_triggers_timeline_kickoff():
     assert "startSectionTimeline(sec)" in html
 
 
+def test_timeline_does_NOT_hide_required_interactives():
+    """Critical UX rule: an element marked `data-required="true"` (button, quiz,
+    scenario, video required for gating) must NEVER be hidden by the timeline
+    even if its endTime fires — otherwise the student can't click to complete
+    the section. The endTime applies only to decorative elements (text, image)."""
+    project = {
+        "id": "p1", "name": "Test",
+        "course": {"slides": [{"id": "s1", "title": "x", "elements": [
+            # Button with startTime + endTime (the buggy case from real user)
+            {"type": "button", "buttonText": "Clique", "buttonUrl": "https://x.com",
+             "startTime": 3.48, "endTime": 5.0},
+        ]}]},
+    }
+    html = generate_single_page_html(project, "/tmp", "")
+    # JS engine must check for required interactives before scheduling hide
+    assert "hasRequiredInside" in html
+    assert 'el.querySelector(\'[data-required="true"]\')' in html
+    assert "!hasRequiredInside" in html
+
+
 def test_timeline_gate_css_present():
     """Gate must have visible progress bar + transition CSS for fade in/out."""
     project = {
@@ -117,3 +137,4 @@ def test_timeline_gate_css_present():
     assert ".sp-element-timed.sp-revealed" in html
     assert ".sp-element-timed.sp-hidden" in html
     assert ".sp-timeline-progress-bar" in html
+
