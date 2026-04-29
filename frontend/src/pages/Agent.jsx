@@ -880,12 +880,28 @@ export default function Agent() {
     });
   };
 
-  const handleTypeOverride = (impIndex, newType) => {
+  const handleTypeOverride = (impIndex, newType, extras = {}) => {
     // Update the type in selectedImprovements if it was selected
     setSelectedImprovements(prev => prev.map(imp => {
       const original = courseAnalysis?.improvements?.[impIndex];
       if (original && imp.description === original.description) {
-        return { ...imp, type: newType };
+        const updated = { ...imp, type: newType };
+        // Krea: attach selected model + build the _kreaImage hint the backend pipeline reads.
+        if (newType === 'imagem_krea') {
+          const kreaModelId = extras.kreaModelId || 'flux-1-dev';
+          updated.kreaModelId = kreaModelId;
+          updated._kreaImage = {
+            prompt: imp.imagePrompt || imp.description || '',
+            modelId: kreaModelId,
+            width: 1024,
+            height: 576,
+          };
+        } else {
+          // Switching away from Krea — clean up Krea-specific fields
+          delete updated.kreaModelId;
+          delete updated._kreaImage;
+        }
+        return updated;
       }
       return imp;
     }));

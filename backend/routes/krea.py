@@ -7,7 +7,9 @@ Endpoints:
   GET  /api/krea/jobs/{job_id}          → poll job status + result URLs
   POST /api/krea/jobs/{job_id}/save     → download a generated image into the
                                            project's assets folder (for use
-                                           as slide background / image element).
+                                           as slide background / image element),
+                                           persist to MongoDB, and auto-save
+                                           to the Image Gallery.
 """
 from __future__ import annotations
 
@@ -24,6 +26,7 @@ from routes.deps import db, PROJECTS_DIR
 from routes.auth import require_auth
 from routes.projects_common import load_authorized_project
 from services import krea_ai
+from services.asset_store import store_asset_async
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -126,6 +129,8 @@ async def krea_poll(job_id: str, user: dict = Depends(require_auth)):
 @router.post("/krea/jobs/{job_id}/save")
 async def krea_save_to_project(job_id: str, request: Request, user: dict = Depends(require_auth)):
     """Download a generated image and save it into the project's assets folder.
+    Persists to MongoDB (so the asset survives K8s pod restarts) and auto-saves
+    to the AI Image Gallery so the user can reuse it across slides/courses.
 
     Body: { projectId: str, urlIndex?: int = 0 }
     Returns: { url: "/api/projects/{pid}/assets/{filename}", assetId, filename }
@@ -137,7 +142,7 @@ async def krea_save_to_project(job_id: str, request: Request, user: dict = Depen
     if not project_id:
         raise HTTPException(400, "projectId is required")
     # Authorize (raises 404/403 if user can't access)
-    await load_authorized_project(project_id, user)
+    project = await load_authorized_project(project_id, user)
     # Fetch job
     data = await krea_ai.get_job(job_id)
     if data.get("status") != "completed":
@@ -154,10 +159,48 @@ async def krea_save_to_project(job_id: str, request: Request, user: dict = Depen
     assets_dir.mkdir(parents=True, exist_ok=True)
     asset_id = str(uuid.uuid4())
     filename = f"{asset_id}.png"
-    (assets_dir / filename).write_bytes(image_bytes)
-    # Compute public URL (matches existing asset URL pattern)
-    backend_url = os.environ.get("BASE_URL", "").rstrip("/")
-    public_url = f"{backend_url}/api/projects/{project_id}/assets/{filename}" if backend_url else f"/api/projects/{project_id}/assets/{filename}"
+    dest_path = assets_dir / filename
+    dest_path.write_bytes(image_bytes)
+
+    # Persist to MongoDB — required for production K8s ephemeral storage.
+    # If the persistence fails, clean up the orphaned local file so no slide
+    # points at a volatile asset that will vanish on the next pod restart.
+    try:
+        stored = await store_asset_async(db, project_id, filename, str(dest_path))
+    except Exception as persist_err:
+        logger.error(f"Failed to persist Krea image to MongoDB: {persist_err}")
+        stored = False
+    if not stored:
+        try:
+            dest_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(500, "Falha ao persistir imagem Krea no armazenamento permanente.")
+
+    # Public URL (relative, matches the pattern used by other asset endpoints)
+    public_url = f"/api/projects/{project_id}/assets/{filename}"
+
+    # Recover prompt + modelId from our tracking doc so the gallery card is
+    # meaningful ("krea flux-1-dev: modern training room..." instead of bare URL).
+    track_doc = await db.krea_generations.find_one({"job_id": job_id}, {"_id": 0})
+    prompt_text = (track_doc or {}).get("prompt") or ""
+    model_id = (track_doc or {}).get("modelId") or ""
+    keywords = f"krea {model_id}: {prompt_text}".strip() if (prompt_text or model_id) else "krea ai"
+
+    # Auto-save into the Image Gallery (non-fatal if it fails)
+    try:
+        from routes.gallery import auto_save_to_gallery
+        await auto_save_to_gallery(
+            image_url=public_url,
+            keywords=keywords,
+            project_id=project_id,
+            project_name=(project or {}).get("name", "") if isinstance(project, dict) else "",
+            user_id=user.get("user_id") or user.get("id") or "",
+            company_id=user.get("companyId") or "",
+        )
+    except Exception as gal_err:
+        logger.warning(f"Failed to auto-save Krea image to gallery: {gal_err}")
+
     return {
         "url": public_url,
         "assetId": asset_id,

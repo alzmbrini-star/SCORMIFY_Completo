@@ -357,6 +357,9 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   const [scriptOverrides, setScriptOverrides] = useState({});
   const [bgOverrides, setBgOverrides] = useState({});
   const [positionOverrides, setPositionOverrides] = useState({});
+  // Krea AI: per-improvement selected model (only when type=imagem_krea)
+  const [kreaModelOverrides, setKreaModelOverrides] = useState({});
+  const [kreaModels, setKreaModels] = useState([]);
   const [defaultAvatarId, setDefaultAvatarId] = useState('');
   const [defaultVoiceId, setDefaultVoiceId] = useState('');
   const [heygenAvatars, setHeygenAvatars] = useState([]);
@@ -370,6 +373,35 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
     setTypeOverrides(prev => ({ ...prev, [impIndex]: newType }));
     if (onTypeOverride) onTypeOverride(impIndex, newType);
   };
+
+  // Krea-specific: picking a model triggers a "type override" to imagem_krea
+  // plus a kreaModelId override that the Agent passes to the backend pipeline.
+  const handleKreaModelChange = (impIndex, modelId) => {
+    setKreaModelOverrides(prev => ({ ...prev, [impIndex]: modelId }));
+    setTypeOverrides(prev => ({ ...prev, [impIndex]: 'imagem_krea' }));
+    if (onTypeOverride) onTypeOverride(impIndex, 'imagem_krea', { kreaModelId: modelId });
+  };
+
+  // Fetch Krea models once — populates the dropdown for imagem_krea overrides.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const API = getApiUrl();
+        const res = await fetch(`${API}/api/krea/status`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const status = await res.json();
+        if (!status.configured) return;
+        const modelsRes = await fetch(`${API}/api/krea/models`, { headers: authHeaders() });
+        if (!modelsRes.ok) return;
+        const data = await modelsRes.json();
+        if (!cancelled) setKreaModels(data.models || []);
+      } catch {
+        // Non-fatal — Krea just won't be offered
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleScriptChange = (impIndex, newScript) => {
     setScriptOverrides(prev => ({ ...prev, [impIndex]: newScript }));
@@ -468,8 +500,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
 
   if (!course) return null;
   const priorityColors = { alta: 'text-red-400 border-red-800/40', media: 'text-amber-400 border-amber-800/40', baixa: 'text-blue-400 border-blue-800/40' };
-  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_simples: 'Imagem (econômica)', imagem_premium: 'Imagem Premium' };
-  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_simples: Image, imagem_premium: ImagePlus };
+  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_simples: 'Imagem (econômica)', imagem_premium: 'Imagem Premium', imagem_krea: 'Imagem Krea AI' };
+  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_simples: Image, imagem_premium: ImagePlus, imagem_krea: Sparkles };
 
   return (
     <div className="space-y-4" data-testid="course-review-panel">
@@ -697,6 +729,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
               reinforcement: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
               imagem_simples: 'bg-pink-900/40 text-pink-300 border-pink-700/50',
               imagem_premium: 'bg-fuchsia-900/40 text-fuchsia-300 border-fuchsia-700/50',
+              imagem_krea: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
             };
             const filtered = analysis.improvements
               .map((imp, i) => ({ imp, i }))
@@ -786,6 +819,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                                 effectiveType === 'simulator' ? 'border-emerald-600/50 text-emerald-300 bg-emerald-500/10' :
                                 effectiveType === 'imagem_simples' ? 'border-pink-600/50 text-pink-300 bg-pink-500/10' :
                                 effectiveType === 'imagem_premium' ? 'border-fuchsia-600/50 text-fuchsia-300 bg-fuchsia-500/10' :
+                                effectiveType === 'imagem_krea' ? 'border-rose-600/50 text-rose-300 bg-rose-500/10' :
                                 'border-slate-600'
                               }`}>
                                 <TypeIcon className="w-2.5 h-2.5 mr-1" />
@@ -814,35 +848,93 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             {imp.reinforcementType && (
                               <Badge className="text-[9px] bg-rose-900/30 text-rose-300 border-rose-700/30 mt-1.5">{imp.reinforcementType}</Badge>
                             )}
-                            {imp.imagePrompt && (effectiveType === 'imagem_simples' || effectiveType === 'imagem_premium') && (
+                            {imp.imagePrompt && (effectiveType === 'imagem_simples' || effectiveType === 'imagem_premium' || effectiveType === 'imagem_krea') && (
                               <div className="mt-1.5 space-y-1.5">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  {effectiveType === 'imagem_premium' ? (
+                                  {effectiveType === 'imagem_premium' && (
                                     <Badge className="text-[9px] bg-fuchsia-900/30 text-fuchsia-300 border-fuchsia-700/30">
                                       Leonardo AI · Premium
                                     </Badge>
-                                  ) : (
+                                  )}
+                                  {effectiveType === 'imagem_simples' && (
                                     <Badge className="text-[9px] bg-pink-900/30 text-pink-300 border-pink-700/30">
                                       Gemini Nano Banana · Econômica
                                     </Badge>
                                   )}
-                                  {imp.imageStyle && <Badge className="text-[9px] bg-slate-800 text-slate-300">{imp.imageStyle}</Badge>}
-                                  {/* Toggle: switch between simples ↔ premium */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setTypeOverrides(prev => ({
-                                        ...prev,
-                                        [i]: effectiveType === 'imagem_premium' ? 'imagem_simples' : 'imagem_premium',
-                                      }));
-                                    }}
-                                    className="text-[9px] px-2 py-0.5 rounded-full border border-slate-600 text-slate-300 hover:border-slate-400 hover:text-white transition"
-                                    data-testid={`toggle-image-type-${i}`}
-                                  >
-                                    {effectiveType === 'imagem_premium' ? '↓ Trocar por econômica' : '↑ Trocar por premium'}
-                                  </button>
+                                  {effectiveType === 'imagem_krea' && (
+                                    <Badge className="text-[9px] bg-rose-900/30 text-rose-300 border-rose-700/30">
+                                      Krea AI · {kreaModels.find(m => m.id === (kreaModelOverrides[i] || 'flux-1-dev'))?.label || 'Modelo'}
+                                    </Badge>
+                                  )}
+                                  {imp.imageStyle && effectiveType !== 'imagem_krea' && (
+                                    <Badge className="text-[9px] bg-slate-800 text-slate-300">{imp.imageStyle}</Badge>
+                                  )}
+                                  {/* 3-way picker: Econômica / Premium / Krea */}
+                                  <div className="flex items-center gap-1" data-testid={`image-provider-picker-${i}`}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleTypeChange(i, 'imagem_simples'); }}
+                                      className={`text-[9px] px-2 py-0.5 rounded-full border transition ${
+                                        effectiveType === 'imagem_simples'
+                                          ? 'bg-pink-600 text-white border-pink-500'
+                                          : 'border-slate-600 text-slate-300 hover:border-slate-400 hover:text-white'
+                                      }`}
+                                      data-testid={`pick-simples-${i}`}
+                                    >
+                                      Econômica
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleTypeChange(i, 'imagem_premium'); }}
+                                      className={`text-[9px] px-2 py-0.5 rounded-full border transition ${
+                                        effectiveType === 'imagem_premium'
+                                          ? 'bg-fuchsia-600 text-white border-fuchsia-500'
+                                          : 'border-slate-600 text-slate-300 hover:border-slate-400 hover:text-white'
+                                      }`}
+                                      data-testid={`pick-premium-${i}`}
+                                    >
+                                      Premium
+                                    </button>
+                                    {kreaModels.length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const modelId = kreaModelOverrides[i] || 'flux-1-dev';
+                                          handleKreaModelChange(i, modelId);
+                                        }}
+                                        className={`text-[9px] px-2 py-0.5 rounded-full border transition ${
+                                          effectiveType === 'imagem_krea'
+                                            ? 'bg-rose-600 text-white border-rose-500'
+                                            : 'border-slate-600 text-slate-300 hover:border-slate-400 hover:text-white'
+                                        }`}
+                                        data-testid={`pick-krea-${i}`}
+                                      >
+                                        Krea AI
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
+
+                                {/* Krea model dropdown (only shows when user chose Krea) */}
+                                {effectiveType === 'imagem_krea' && kreaModels.length > 0 && (
+                                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <span className="text-[10px] text-slate-500">Modelo Krea:</span>
+                                    <select
+                                      value={kreaModelOverrides[i] || 'flux-1-dev'}
+                                      onChange={(e) => handleKreaModelChange(i, e.target.value)}
+                                      className="flex-1 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none focus:border-rose-500"
+                                      data-testid={`krea-model-picker-${i}`}
+                                    >
+                                      {kreaModels.map(m => (
+                                        <option key={m.id} value={m.id}>
+                                          {m.label} {m.tier === 'premium' ? '⭐' : '⚡'} · ${m.approxCostUSD} · {m.approxTimeSeconds}s
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+
                                 <p className="text-[10px] text-slate-400/70 italic">{imp.imagePrompt}</p>
                               </div>
                             )}

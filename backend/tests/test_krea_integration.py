@@ -266,3 +266,100 @@ def test_health_check_krea_unit_bad_format(monkeypatch):
     result = asyncio.run(health_mod._check_krea())
     assert result["status"] == "error"
     assert "format" in result["error"].lower() or "api_id" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# New: Gallery auto-save + Agent pipeline integration
+# ---------------------------------------------------------------------------
+
+def test_krea_route_imports_store_asset_and_gallery():
+    """Regression: the save endpoint must persist to MongoDB (store_asset_async)
+    AND auto-save to the image gallery. If either import is removed, images
+    would vanish on pod restart or not appear in the gallery."""
+    src = open("/app/backend/routes/krea.py").read()
+    assert "from services.asset_store import store_asset_async" in src
+    assert "from routes.gallery import auto_save_to_gallery" in src
+    # And both functions must be called in the save handler
+    assert "store_asset_async(db, project_id, filename" in src
+    assert "auto_save_to_gallery(" in src
+
+
+def test_agent_pipeline_has_process_krea_images():
+    """Regression: the agent apply pipeline must wire _process_krea_images and
+    pass the `user` dict (so the image gets attributed to the right company in
+    the gallery auto-save)."""
+    src = open("/app/backend/routes/agent.py").read()
+    assert "async def _process_krea_images(" in src
+    assert "_process_krea_images(local_db, project_id, result, slides, generate_id, user)" in src
+    # The pipeline must auto-save Krea images to the gallery
+    assert 'from routes.gallery import auto_save_to_gallery' in src
+    # kreaImagesGenerated must be in the DONE status payload
+    assert "kreaImagesGenerated=krea_images_generated" in src
+
+
+def test_ai_agent_prompt_has_imagem_krea_type():
+    """Regression: the LLM prompt must list imagem_krea as a valid improvement
+    type and include instructions for emitting _kreaImage with modelId."""
+    src = open("/app/backend/services/ai_agent.py").read()
+    # Type enum
+    assert "imagem_krea" in src
+    # Detection flag
+    assert "has_imagem_krea" in src
+    # Instructions for LLM
+    assert "_kreaImage" in src
+    # The instruction must preserve the user-selected modelId
+    assert "modelId" in src and "NÃO altere o modelId" in src
+
+
+def test_process_krea_images_skips_when_not_configured(monkeypatch, tmp_path):
+    """If KREA_API_KEY is empty, the pipeline must no-op gracefully (return 0)
+    — not crash the apply-improvements worker."""
+    import asyncio
+    monkeypatch.setenv("KREA_API_KEY", "")
+    from routes import agent as agent_mod
+
+    fake_result = {
+        "updatedSlides": [{"slideIndex": 0, "_kreaImage": {"prompt": "x", "modelId": "flux-1-dev"}}],
+        "newSlides": [],
+    }
+    fake_slides = [{"id": "s1", "title": "t", "elements": []}]
+
+    class _FakeDb:
+        def __getattr__(self, _):
+            return self
+        def __getitem__(self, _):
+            return self
+        async def insert_one(self, *a, **k):
+            return None
+        async def update_one(self, *a, **k):
+            return None
+        async def find_one(self, *a, **k):
+            return None
+
+    def _gen_id():
+        return "fake-id"
+
+    user = {"user_id": "u1", "companyId": "c1"}
+    count = asyncio.run(
+        agent_mod._process_krea_images(_FakeDb(), "proj1", fake_result, fake_slides, _gen_id, user)
+    )
+    assert count == 0
+
+
+def test_process_krea_images_empty_when_no_kreaImage_fields():
+    """If no updatedSlide carries _kreaImage, the pipeline returns 0 without
+    hitting Krea (skips even the is_configured check)."""
+    import asyncio
+    from routes import agent as agent_mod
+
+    fake_result = {"updatedSlides": [{"slideIndex": 0}], "newSlides": []}
+    fake_slides = [{"id": "s1", "title": "t", "elements": []}]
+
+    class _FakeDb:
+        def __getattr__(self, _):
+            return self
+    user = {"user_id": "u1", "companyId": "c1"}
+    count = asyncio.run(
+        agent_mod._process_krea_images(_FakeDb(), "proj1", fake_result, fake_slides, lambda: "x", user)
+    )
+    assert count == 0

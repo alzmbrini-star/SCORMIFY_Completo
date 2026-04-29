@@ -2063,7 +2063,7 @@ Retorne JSON:
   "improvements": [
     {{
       "slideIndex": 0,
-      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_simples|imagem_premium",
+      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_simples|imagem_premium|imagem_krea",
       "priority": "alta|media|baixa",
       "description": "descrição da melhoria",
       "suggestion": "sugestão concreta"
@@ -2153,6 +2153,7 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     has_reinforcements = any(imp.get("type") == "reinforcement" for imp in selected_improvements)
     has_imagem_premium = any(imp.get("type") == "imagem_premium" for imp in selected_improvements)
     has_imagem_simples = any(imp.get("type") == "imagem_simples" for imp in selected_improvements)
+    has_imagem_krea = any(imp.get("type") == "imagem_krea" for imp in selected_improvements)
     
     # Get current slide content for context
     slides_content = []
@@ -2269,6 +2270,20 @@ REGRA PARA IMAGEM SIMPLES (type "imagem_simples"):
 - Exemplo de updatedSlide com imagem simples:
   {{"slideIndex":0,"title":"Título","elements":[{{"type":"text","content":"<h2>Título</h2><p>Conteúdo</p>","width":1050,"height":700,"x":60,"y":60}}],"_geminiImage":{{"prompt":"Diverse corporate team collaborating in modern meeting room, warm lighting, illustrative style"}}}}
 """
+
+    imagem_krea_instructions = ""
+    if has_imagem_krea:
+        imagem_krea_instructions = """
+REGRA PARA IMAGEM KREA AI (type "imagem_krea"):
+- Para melhorias do tipo "imagem_krea", inclua o campo "_kreaImage" no updatedSlide:
+  - "_kreaImage": {{"prompt": "prompt detalhado em inglês para Krea AI", "modelId": "flux-1-dev", "width": 1024, "height": 576}}
+- Campos obrigatórios: prompt (em inglês, 15-30 palavras descritivas) e modelId.
+- O campo "modelId" virá da seleção do usuário no frontend (ex: "flux-1-dev", "flux-1.1-pro", "imagen-4", "krea-1", "nano-banana-2", "ideogram-3.0"). NÃO altere o modelId indicado pelo usuário.
+- width/height default: 1024x576 (16:9). Campos opcionais — se omitidos, backend usa 1024x576.
+- A imagem será gerada via Krea AI (REST API com 40+ modelos) e inserida no slide em layout duas colunas.
+- Exemplo de updatedSlide com imagem Krea:
+  {{"slideIndex":0,"title":"Título","elements":[{{"type":"text","content":"<h2>Título</h2><p>Conteúdo</p>","width":1050,"height":700,"x":60,"y":60}}],"_kreaImage":{{"prompt":"Professional leadership workshop with diverse team collaborating, cinematic lighting, photorealistic","modelId":"flux-1.1-pro"}}}}
+"""
     
     prompt = f"""Aplique as seguintes melhorias ao curso. Gere o conteúdo atualizado para cada slide afetado.
 
@@ -2305,6 +2320,7 @@ REGRA PARA SIMULADORES/INTERATIVOS: Se a melhoria pedir um simulador, calculador
 {reinforcement_instructions}
 {imagem_premium_instructions}
 {imagem_simples_instructions}
+{imagem_krea_instructions}
 Retorne JSON com os slides a atualizar:
 ```json
 {{

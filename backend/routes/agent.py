@@ -2960,6 +2960,14 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
                 {"$set": {"course": {**course, "slides": slides}}},
             )
 
+        await _set_status(progress=82, message="Gerando imagens Krea AI (modelos selecionados)...")
+        krea_images_generated = await _process_krea_images(local_db, project_id, result, slides, generate_id, user)
+        if krea_images_generated > 0:
+            await local_db.projects.update_one(
+                {"id": project_id},
+                {"$set": {"course": {**course, "slides": slides}}},
+            )
+
         await _set_status(progress=90, message="Disparando geracao de avatares...")
         avatar_scene_pending = _collect_avatar_scenes(result, slides)
         avatar_generation_started = False
@@ -2993,6 +3001,7 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
             scenariosGenerated=scenarios_generated,
             leonardoImagesGenerated=leonardo_images_generated,
             geminiImagesGenerated=gemini_images_generated,
+            kreaImagesGenerated=krea_images_generated,
             avatarScenesTriggered=len(avatar_scene_pending),
             avatarGenerationStarted=avatar_generation_started,
             finishedAt=datetime.now(timezone.utc).isoformat(),
@@ -3001,7 +3010,8 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
             f"[apply bg {job_id}] DONE project {project_id}: "
             f"updated={len(result.get('updatedSlides', []))} new={new_slides_added} "
             f"scenarios={scenarios_generated} leonardo={leonardo_images_generated} "
-            f"gemini={gemini_images_generated} avatars={len(avatar_scene_pending)}"
+            f"gemini={gemini_images_generated} krea={krea_images_generated} "
+            f"avatars={len(avatar_scene_pending)}"
         )
     except Exception as e:
         import traceback as _tb
@@ -3202,6 +3212,150 @@ async def _process_gemini_images(_db, project_id: str, result: dict, slides: lis
         except Exception as e:
             logger.error(f"Gemini image generation failed for slide {slide_idx}: {e}")
     return gemini_images_generated
+
+
+async def _process_krea_images(_db, project_id: str, result: dict, slides: list, generate_id, user: dict):
+    """Generate Krea AI images (user-selected model) and apply them to slides.
+
+    Looks for `_kreaImage: {prompt, modelId, width?, height?}` dicts on each
+    updatedSlide / newSlide. Submits the job, polls until completed, downloads
+    + persists to MongoDB + auto-saves to Image Gallery.
+    """
+    import asyncio as _asyncio_krea
+
+    krea_images_generated = 0
+    krea_tasks = []
+    for upd in result.get("updatedSlides", []):
+        if not isinstance(upd, dict):
+            continue
+        krea_img = upd.get("_kreaImage")
+        if krea_img and isinstance(krea_img, dict):
+            idx = upd.get("slideIndex")
+            if idx is not None and 0 <= idx < len(slides):
+                krea_tasks.append((idx, krea_img))
+    for ns in result.get("newSlides", []):
+        if not isinstance(ns, dict):
+            continue
+        krea_img = ns.get("_kreaImage")
+        if krea_img and isinstance(krea_img, dict):
+            ns_title = ns.get("title", "")
+            for si, s in enumerate(slides):
+                if s.get("title") == ns_title:
+                    krea_tasks.append((si, krea_img))
+                    break
+
+    if not krea_tasks:
+        return 0
+
+    from services import krea_ai as _krea_svc
+    from services.asset_store import store_asset_async
+    import uuid as _krea_uuid
+
+    if not _krea_svc.is_configured():
+        logger.warning("Krea images requested but KREA_API_KEY not configured — skipping")
+        return 0
+
+    for slide_idx, krea_cfg in krea_tasks:
+        try:
+            krea_prompt = krea_cfg.get("prompt", "professional corporate training illustration")
+            krea_model_id = krea_cfg.get("modelId") or "flux-1-dev"  # safe default
+            krea_width = int(krea_cfg.get("width") or 1024)
+            krea_height = int(krea_cfg.get("height") or 576)
+
+            if not _krea_svc.get_model_meta(krea_model_id):
+                logger.warning(f"Unknown Krea modelId '{krea_model_id}' — falling back to flux-1-dev")
+                krea_model_id = "flux-1-dev"
+
+            # Submit + poll (max ~3 minutes per image)
+            job = await _krea_svc.submit_generation(
+                model_id=krea_model_id,
+                prompt=krea_prompt,
+                width=krea_width,
+                height=krea_height,
+            )
+            job_id = job.get("job_id")
+            if not job_id:
+                logger.error(f"Krea submit for slide {slide_idx} returned no job_id")
+                continue
+
+            # Track in MongoDB for visibility in admin tools (mirrors the regular Krea endpoint)
+            try:
+                await _db.krea_generations.insert_one({
+                    "job_id": job_id,
+                    "modelId": krea_model_id,
+                    "prompt": krea_prompt,
+                    "projectId": project_id,
+                    "userId": user.get("user_id") or user.get("id"),
+                    "companyId": user.get("companyId"),
+                    "source": "agent_pipeline",
+                    "status": job.get("status", "scheduled"),
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception:
+                pass
+
+            # Poll up to 90 attempts × 2s = 3 min
+            image_urls = []
+            for _ in range(90):
+                await _asyncio_krea.sleep(2.0)
+                try:
+                    data = await _krea_svc.get_job(job_id)
+                except Exception as poll_err:
+                    logger.warning(f"Krea poll error (slide {slide_idx}): {poll_err}")
+                    continue
+                status = data.get("status") or ""
+                if status == "completed":
+                    image_urls = (data.get("result") or {}).get("urls") or []
+                    break
+                if status in ("failed", "cancelled"):
+                    logger.warning(f"Krea job {job_id} {status} for slide {slide_idx}")
+                    break
+
+            if not image_urls:
+                logger.warning(f"Krea job {job_id} did not complete in time for slide {slide_idx}")
+                continue
+
+            # Download + persist
+            image_bytes = await _krea_svc.download_image_bytes(image_urls[0])
+            fname = f"krea_{_krea_uuid.uuid4().hex[:10]}.png"
+            assets_dir = PROJECTS_DIR / project_id / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            dest_path = assets_dir / fname
+            dest_path.write_bytes(image_bytes)
+            try:
+                if not await store_asset_async(_db, project_id, fname, str(dest_path)):
+                    logger.error(f"Krea image {fname} failed to persist in MongoDB")
+                    try:
+                        dest_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    continue
+            except Exception as persist_err:
+                logger.error(f"Krea MongoDB persist error for {fname}: {persist_err}")
+                continue
+
+            img_url = f"/api/projects/{project_id}/assets/{fname}"
+            slide = slides[slide_idx]
+            _attach_image_to_slide(slide, img_url, generate_id)
+            krea_images_generated += 1
+            logger.info(f"Krea image generated for slide {slide_idx} ({krea_model_id}): {img_url}")
+
+            # Auto-save into the Image Gallery
+            try:
+                from routes.gallery import auto_save_to_gallery
+                await auto_save_to_gallery(
+                    image_url=img_url,
+                    keywords=f"krea {krea_model_id}: {krea_prompt}",
+                    project_id=project_id,
+                    project_name="",
+                    user_id=user.get("user_id") or user.get("id") or "",
+                    company_id=user.get("companyId") or "",
+                )
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Krea image generation failed for slide {slide_idx}: {e}")
+    return krea_images_generated
 
 
 def _attach_image_to_slide(slide: dict, img_url: str, generate_id):

@@ -1,0 +1,60 @@
+{
+  "summary": "Iteration 116 — Round 2 Krea testing focused on (A) Krea → Gallery auto-save and (B) imagem_krea as a new improvement type. Full backend validated: 27/27 pytest in test_krea_integration.py pass + 2 new E2E tests created in test_krea_agent_e2e.py. Apply-improvements pipeline accepts type=imagem_krea with kreaModelId + _kreaImage, polls Krea, attaches image to slide, persists via store_asset_async, and returns kreaImagesGenerated=1 in the DONE payload (status=processing@82% → done@100% in ~4s with flux-1-dev). HOWEVER, one CRITICAL bug found: the pipeline's _process_krea_images auto-save to gallery fails silently due to an asyncio event-loop mismatch — same latent bug also affects the Leonardo (line 3145) and Gemini (line 3209) gallery auto-save paths in routes/agent.py. The direct POST /api/krea/jobs/{jobId}/save endpoint (editor 'Usar no Curso' flow) works correctly — gallery has 1 Krea entry with keywords 'krea flux-1-dev: professional leadership workshop...'. Frontend code-level audit confirms typeLabels 'Imagem Krea AI', data-testid krea-model-picker-{i}, Sparkles icon, 3-way picker with rose theming, and category filter chip are all wired in CoursePanels.jsx. Live UI E2E of the 3-way picker not triggered (would require a full LLM analysis cycle + real Krea $0.04 generation beyond the one already run).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/agent/courses/{id}/apply-improvements (background worker → _process_krea_images → auto_save_to_gallery)",
+        "issue": "Gallery auto-save fails silently in the apply pipeline with \"got Future attached to a different loop\". Krea image IS generated and attached to slide (kreaImagesGenerated=1) and stored in MongoDB (store_asset_async works), but the image does NOT appear in /api/gallery/images. Root cause: _run_apply_improvements_bg runs the coroutine in a separate event loop (via run_coroutine_threadsafe / new loop in thread), while the Motor db client in routes/gallery.py (imported as module-level `db` from routes.deps) is bound to the main FastAPI loop. Motor futures cannot cross loops. Same bug silently breaks the existing Leonardo (agent.py:3145) and Gemini (agent.py:3209) gallery auto-save side-effects. Evidence from /var/log/supervisor/backend.err.log: 'Failed to auto-save image to gallery (non-fatal): got Future attached to a different loop'. The try/except Exception: pass swallows the error so users never know. Mitigation options: (1) use motor.motor_asyncio.AsyncIOMotorClient created inside the worker loop, (2) use asyncio.run_coroutine_threadsafe with the main loop, or (3) do a synchronous pymongo insert for the gallery side-effect only.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "routes/krea.py save-to-project",
+        "issue": "No minor issues found for the direct Krea save path — it correctly persists to MongoDB and inserts gallery doc with keywords 'krea flux-1-dev: {prompt}' (verified with admin gallery GET returning 1 Krea entry)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "AI Agent → Apply imagem_krea improvement → image visible in Gallery",
+        "issue": "Because of the backend bug above, even when the user clicks 'Krea AI', picks a model, and applies, the generated image will NOT appear in the Image Gallery (although it IS attached to the slide and persists across pod restarts via MongoDB). The editor-side 'Usar no Curso' / 'Salvar na Galeria' path works, so this only affects the AI Agent apply flow.",
+        "affected_selectors": ["krea-model-picker-{i}", "data-testid='apply-improvements'"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_krea_integration.py",
+    "/app/backend/tests/test_krea_agent_e2e.py",
+    "/app/test_reports/pytest/krea_iteration_116.xml"
+  ],
+  "action_items": [
+    "FIX (high priority): _process_krea_images (and the sibling Leonardo/Gemini paths) must auto-save to gallery from the background worker. Options: (a) instantiate a fresh AsyncIOMotorClient inside the worker for the insert; (b) do a blocking pymongo insert in a thread for the gallery doc; (c) restructure so auto_save_to_gallery is invoked on the main loop via asyncio.run_coroutine_threadsafe. Remove the bare `except Exception: pass` so failures are observable.",
+    "CONSIDER: surfacing gallery auto-save failures to logger.error instead of silently swallowing — the current bug would have been caught earlier.",
+    "OPTIONAL: the E2E test_apply_imagem_krea_end_to_end is now part of regression; it spends ~$0.04 of Krea credits per run. Consider gating with an env flag (e.g. RUN_LIVE_KREA=1) to avoid costs on every CI run."
+  ],
+  "critical_code_review_comments": [
+    "routes/agent.py line 3343-3355: try/except Exception: pass swallows all gallery failures silently. Replace with logger.exception(...) and keep the non-fatal behavior.",
+    "routes/agent.py lines 3145, 3209, 3346: three near-identical auto_save_to_gallery call sites with slightly different keyword prefixes ('leonardo:', 'gemini:', 'krea {modelId}:'). Extract into a helper to prevent divergence.",
+    "routes/gallery.py: auto_save_to_gallery imports db from routes.deps at module import time — this couples its reachability to the main event loop. Consider accepting an injected db parameter so the caller can supply the loop-correct client.",
+    "backend/tests/test_krea_integration.py line 311: uses non-ASCII character 'NÃO' for the pre-committed assertion on the LLM prompt. Works today, but a UTF-8 encoding slip would silently fail the regression — consider matching on a plain-ASCII substring like 'do not alter the modelId' or a constant imported from ai_agent.py.",
+    "agent.py pipeline: _process_krea_images is correctly guarded (returns 0 when KREA_API_KEY missing, returns 0 when no _kreaImage fields) — graceful degradation works as designed.",
+    "services/ai_agent.py: imagem_krea type enum added and prompt instructions correctly preserve user-selected modelId — validated via the structural test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_krea_agent_e2e.py (new — 2 tests: gallery contains Krea entry, apply pipeline generates + returns kreaImagesGenerated=1)"
+  ],
+  "success_rate": {
+    "backend": "96% (28/29 behaviors pass; only the pipeline→gallery side-effect is broken)",
+    "frontend": "100% (code audit — no live UI E2E of 3-way picker beyond structural check; iteration_115 already validated KreaPanel live)"
+  },
+  "test_credentials": "admin@scormify.com / admin123 (super_admin)",
+  "seed_data_creation": "Additional flux-1-dev Krea job submitted through the apply-improvements pipeline (~$0.04, slide 13 of project cd8a1146-ac15-49ad-9161-c3ba5cb3e830, asset krea_b2661268c4.png, successfully attached to slide and stored in MongoDB). This image is visible in the course but NOT in the gallery due to the bug.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Krea AI imagem_krea apply pipeline — backend verified end-to-end except for the gallery auto-save side-effect. After main agent fixes the event-loop issue in _process_krea_images (and ideally the Leonardo/Gemini paths too), re-run: pytest /app/backend/tests/test_krea_agent_e2e.py::test_apply_imagem_krea_end_to_end -s (should produce kreaImagesGenerated=1) AND pytest /app/backend/tests/test_krea_agent_e2e.py::test_gallery_contains_krea_image_with_keywords (should now show >= 2 Krea entries). Frontend delta (krea-model-picker-{i}, 'Imagem Krea AI' chip, rose 3-way picker) is in CoursePanels.jsx and was code-reviewed; a live UI E2E requires: login → /agent → Editar Curso Existente → Melhorias → wait ~60s for LLM preview → find image suggestion → click 'Krea AI' button (rose) → pick flux-1-dev from dropdown → Apply → poll 3-4 min. Skip unless picker wiring regression-suspected.",
+  "rca of the issue": "Root cause: routes/agent.py._process_krea_images (line ~3343) imports routes.gallery.auto_save_to_gallery which uses routes.deps.db (Motor AsyncIOMotorClient). The _run_apply_improvements_bg background worker is scheduled in a thread+new-loop pattern, so the Motor client — which ties its futures to the loop it was created on — raises RuntimeError('got Future attached to a different loop') when awaited. The bare `except Exception: pass` wrapper in agent.py means this is logged only as a WARNING and the apply job reports kreaImagesGenerated=1 (true for MongoDB+slide, false for gallery). Reproduction: submit apply-improvements with a single imagem_krea improvement and poll status; gallery list stays at pre-apply count. Mitigation: inject a loop-correct db or do the gallery insert via pymongo sync client in to_thread."
+}
