@@ -87,6 +87,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FEATURE (P1) — Botão "🤖 Pedir explicação detalhada ao Tutor IA" no Quiz após resposta errada (Single Page + Tradicional).
+  - **Bug do usuário**: a integração Tutor IA + Cenários estava completa, mas o aluno errar no Quiz NÃO oferecia ajuda do tutor — gap de paridade pedagógica.
+  - **Fix Single Page**: dentro do callback de submit do quiz (em `single_page_exporter.py` `_JS`), após calcular `isCorrect` por questão, se `!isCorrect && window.AiTutor`: cria botão `.sp-quiz-tutor` violeta (gradient) anexado ao `<fieldset>`. Click → abre o tutor + pré-preenche prompt contextual: "Em um quiz, a pergunta foi: '...'. Eu respondi: '...' (errei). A resposta correta era: '...'. A explicação curta diz: '...'. Pode me explicar de forma mais detalhada por que minha resposta está incorreta e o raciocínio para chegar na resposta certa?". Suporta `q.options` como string OU `{text, correct}` object.
+  - **Fix Tradicional**: `quiz-controller.js` ganhou função pública `QuizController.askTutor(elementId, questionId)` exposta no return. Botão renderizado no `renderQuestion → showingFeedback` quando `!wasCorrect && window.AiTutor`. Mesma lógica de prompt usando `question.alternatives` (estrutura do quiz tradicional).
+  - **Decisão UX**: NÃO foi adicionado botão "💡 Pedir dica" ANTES do submit do quiz — isso seria essencialmente "me dê a resposta" (fraude pedagógica). Diferente dos cenários que são reflexivos/CYOA, o quiz é avaliativo: ajuda só faz sentido após erro.
+  - **Toggle opcional**: respeita admin `settings.tutor.enabled`. Sem tutor → botão simplesmente não renderiza (conditional `window.AiTutor`).
+  - **Validado**: 72/72 testes (2 novos: `test_quiz_wrong_answer_offers_tutor_explanation` + `test_traditional_quiz_controller_has_tutor_button`). Visual via Playwright em curso "Como Combater o Assédio" (15 questões): aluno marca tudo errado → 13 botões violetas de "Pedir explicação detalhada ao Tutor IA" aparecem (apenas nas erradas, as 2 corretas não), click abre painel do tutor com prompt completo serializado (pergunta + minha resposta + correta + explicação curta).
+
 - 2026-04-29: FIX (P0 visual) — FAB do Tutor IA colidia com o chevron de avanço no Single Page export.
   - **Bug do usuário (screenshot)**: o FAB violeta do Tutor IA (`.tutor-fab`, `right:24px`) caía exatamente sobre o chevron amarelo `.sp-next-btn` (também `right:18px`), tornando impossível clicar no avanço sem clicar acidentalmente no tutor.
   - **Fix**: dentro do bloco `tutor_style` em `_BUILD_PAGE` (só injetado quando `tutor_config.enabled=true`), adicionada CSS override que move o FAB para o canto inferior **esquerdo** em Single Page: `.tutor-fab{left:24px !important;right:auto !important}` + mesmo para `.tutor-panel`. Mobile (≤480px) usa `left:16px` e o painel ocupa fullscreen.

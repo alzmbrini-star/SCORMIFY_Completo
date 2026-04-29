@@ -142,3 +142,30 @@ def test_tutor_position_override_NOT_present_when_disabled():
     html = generate_single_page_html(_PROJECT, "/tmp", "", tutor_config={"enabled": False})
     assert ".tutor-fab" not in html
     assert ".tutor-panel" not in html
+
+
+def test_quiz_wrong_answer_offers_tutor_explanation():
+    """When student picks a wrong quiz answer AND AiTutor is loaded, a
+    "🤖 Pedir explicação detalhada ao Tutor IA" button must appear per question.
+    Logic encoded in JS runtime — verified by string presence."""
+    html = generate_single_page_html(_PROJECT, "/tmp", "", tutor_config=_TUTOR_ENABLED)
+    # Per-question tutor button HTML markup is in the JS
+    assert "sp-quiz-tutor" in html
+    assert "🤖 Pedir explicação detalhada ao Tutor IA" in html
+    # Conditional on wrong + tutor loaded
+    assert "if (!isCorrect && window.AiTutor)" in html
+    # Prompt template captures question + picked answer + correct answer
+    assert "Em um quiz, a pergunta foi:" in html
+    assert "Eu respondi:" in html
+    assert "A resposta correta era:" in html
+
+
+def test_traditional_quiz_controller_has_tutor_button():
+    """Same integration must exist in the traditional export's quiz-controller.js."""
+    from pathlib import Path
+    js = (Path(__file__).parent.parent / "services" / "export_assets" / "quiz-controller.js").read_text()
+    assert "🤖 Pedir explicação detalhada ao Tutor IA" in js
+    assert "QuizController.askTutor" in js
+    assert "askTutor: function(elementId, questionId)" in js
+    # Conditional: only when wrong + AiTutor loaded
+    assert "!wasCorrect && typeof window !== 'undefined' && window.AiTutor" in js

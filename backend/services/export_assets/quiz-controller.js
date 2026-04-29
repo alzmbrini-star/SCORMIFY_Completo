@@ -175,6 +175,12 @@ var QuizController = (function() {
                 if (!wasCorrect && correctAlt) {
                     html += '<p style="color:#94a3b8;margin-top:4px;font-size:' + Math.round(baseFontSize * 0.625) + 'px;">Correta: <span style="color:#22c55e;font-weight:500;">' + correctAlt.text + '</span></p>';
                 }
+                // Tutor IA rescue: only when wrong AND tutor is enabled
+                if (!wasCorrect && typeof window !== 'undefined' && window.AiTutor) {
+                    html += '<button onclick="QuizController.askTutor(\'' + elementId + '\',\'' + question.id + '\')" '
+                          + 'style="margin-top:8px;padding:8px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:0;border-radius:6px;font-size:' + smallFontSize + 'px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">'
+                          + '🤖 Pedir explicação detalhada ao Tutor IA</button>';
+                }
                 html += '</div>';
             }
             
@@ -369,6 +375,29 @@ var QuizController = (function() {
             }
             
             this.renderQuestion(elementId);
+        },
+        
+        askTutor: function(elementId, questionId) {
+            if (typeof window === 'undefined' || !window.AiTutor) return;
+            var quiz = quizzes[elementId];
+            if (!quiz) return;
+            var question = (quiz.questions || []).find(function(q){ return q.id === questionId; });
+            if (!question) return;
+            var selectedAlt = (question.alternatives || []).find(function(a){ return a.id === quiz.selectedAnswer; });
+            var correctAlt = (question.alternatives || []).find(function(a){ return a.isCorrect; });
+            var qText = (question.text || question.question || '').substring(0, 400);
+            var pickedText = selectedAlt ? selectedAlt.text : '(em branco)';
+            var correctText = correctAlt ? correctAlt.text : '';
+            var prompt = 'Em um quiz, a pergunta foi: "' + qText + '". '
+                       + 'Eu respondi: "' + pickedText + '" (errei). '
+                       + 'A resposta correta era: "' + correctText + '". '
+                       + (question.explanation ? 'A explicação curta diz: "' + question.explanation + '". ' : '')
+                       + 'Pode me explicar de forma mais detalhada por que minha resposta está incorreta e o raciocínio para chegar na resposta certa?';
+            try {
+                if (typeof AiTutor.toggle === 'function') AiTutor.toggle();
+                var input = document.getElementById('tutor-input');
+                if (input) { input.value = prompt; input.focus(); }
+            } catch(e) {}
         }
     };
 })();

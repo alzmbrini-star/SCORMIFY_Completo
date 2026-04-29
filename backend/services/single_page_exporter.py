@@ -1344,6 +1344,30 @@ _JS = """
           if (exp) exp.hidden = false;
           var isCorrect = (pickedIdx === qCorrectIdx);
           if (isCorrect) correct++;
+          // Tutor IA rescue: if wrong answer + AiTutor loaded, offer detailed explanation per question
+          if (!isCorrect && window.AiTutor) {
+            var tutorBtn = document.createElement('button');
+            tutorBtn.type = 'button';
+            tutorBtn.className = 'sp-quiz-tutor';
+            tutorBtn.innerHTML = '🤖 Pedir explicação detalhada ao Tutor IA';
+            tutorBtn.style.cssText = 'margin-top:10px;padding:8px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px';
+            tutorBtn.addEventListener('click', function(){
+              try {
+                var qLabel = (q.text || q.question || '').substring(0, 400);
+                var pickedText = (q.options && q.options[pickedIdx]) ? (typeof q.options[pickedIdx] === 'object' ? q.options[pickedIdx].text : q.options[pickedIdx]) : '(em branco)';
+                var correctText = (q.options && q.options[qCorrectIdx]) ? (typeof q.options[qCorrectIdx] === 'object' ? q.options[qCorrectIdx].text : q.options[qCorrectIdx]) : '';
+                var prompt = 'Em um quiz, a pergunta foi: "' + qLabel + '". '
+                           + 'Eu respondi: "' + pickedText + '" (errei). '
+                           + 'A resposta correta era: "' + correctText + '". '
+                           + (q.explanation ? 'A explicação curta diz: "' + q.explanation + '". ' : '')
+                           + 'Pode me explicar de forma mais detalhada por que minha resposta está incorreta e o raciocínio para chegar na resposta certa?';
+                if (typeof AiTutor.toggle === 'function') AiTutor.toggle();
+                var input = document.getElementById('tutor-input');
+                if (input) { input.value = prompt; input.focus(); }
+              } catch(e){}
+            });
+            fieldset.appendChild(tutorBtn);
+          }
           // SCORM cmi.interactions tracking per question
           var qText = (q.text || q.question || '').substring(0, 250);
           scormReportQuiz(quizEl.dataset.interactiveId, String(pickedIdx), isCorrect, qi, qText);
