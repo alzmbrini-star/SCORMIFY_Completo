@@ -87,6 +87,12 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 visual) — FAB do Tutor IA colidia com o chevron de avanço no Single Page export.
+  - **Bug do usuário (screenshot)**: o FAB violeta do Tutor IA (`.tutor-fab`, `right:24px`) caía exatamente sobre o chevron amarelo `.sp-next-btn` (também `right:18px`), tornando impossível clicar no avanço sem clicar acidentalmente no tutor.
+  - **Fix**: dentro do bloco `tutor_style` em `_BUILD_PAGE` (só injetado quando `tutor_config.enabled=true`), adicionada CSS override que move o FAB para o canto inferior **esquerdo** em Single Page: `.tutor-fab{left:24px !important;right:auto !important}` + mesmo para `.tutor-panel`. Mobile (≤480px) usa `left:16px` e o painel ocupa fullscreen.
+  - **Por que dentro do tutor_style e não no CSS principal?**: cursos exportados sem tutor não devem ter referências a `.tutor-fab` no DOM/CSS (mantém o output limpo + faz os testes de "tutor desabilitado" continuarem válidos).
+  - **Validado**: 52/52 testes (2 novos: `test_tutor_fab_position_override_when_enabled` + `test_tutor_position_override_NOT_present_when_disabled`). Visual via Playwright: FAB x=24, NEXT x=1846 — sem colisão.
+
 - 2026-04-29: FEATURE (P1) — Integração do Tutor IA dentro dos Cenários de Aprendizagem (Single Page + Tradicional).
   - **Bug do usuário**: cenários CYOA no export Single Page não tinham conexão com o Tutor IA. Mesmo o widget de tutor (FAB+chat) sequer era carregado no Single Page (parâmetro `tutor_config` existia em `generate_single_page_html` mas era ignorado).
   - **Fix — Etapa 1: Tutor IA wired no Single Page**:

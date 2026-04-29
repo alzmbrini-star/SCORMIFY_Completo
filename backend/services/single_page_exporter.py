@@ -609,7 +609,17 @@ def _BUILD_PAGE(
             tutor_cfg = dict(tutor_config)
             tutor_cfg["cssInlined"] = True
             tutor_cfg_json = json.dumps(tutor_cfg, ensure_ascii=False).replace("</", "<\\/")
-            tutor_style = f'<style data-tutor-css="1">{tutor_css}</style>'
+            tutor_style = (
+                f'<style data-tutor-css="1">{tutor_css}\n'
+                f'/* Single Page positioning override — Tutor FAB on the LEFT to avoid collision with .sp-next-btn (right). */\n'
+                f'.tutor-fab{{left:24px !important;right:auto !important}}\n'
+                f'.tutor-panel{{left:24px !important;right:auto !important}}\n'
+                f'@media (max-width: 480px){{\n'
+                f'  .tutor-fab{{left:16px !important;right:auto !important;bottom:16px}}\n'
+                f'  .tutor-panel{{left:0 !important;right:0 !important}}\n'
+                f'}}\n'
+                f'</style>'
+            )
             tutor_script = (
                 f'<script>{tutor_js}</script>\n'
                 f'<script>'

@@ -122,3 +122,23 @@ def test_rescue_prompt_serializes_choice_feedback():
     html = generate_single_page_html(_PROJECT, "/tmp", "", tutor_config=_TUTOR_ENABLED)
     assert "O sistema disse que essa não é a melhor escolha" in html
     assert "por que essa decisão é problemática" in html
+
+
+def test_tutor_fab_position_override_when_enabled():
+    """Regression: Tutor FAB must be on the LEFT in Single Page mode (the
+    default tutor.css puts it on the right, where .sp-next-btn lives — they collide).
+    The override is `left:24px !important; right:auto !important` and is only
+    injected when tutor is enabled (so test_tutor_NOT_injected_* still pass)."""
+    html = generate_single_page_html(_PROJECT, "/tmp", "", tutor_config=_TUTOR_ENABLED)
+    assert ".tutor-fab{left:24px !important;right:auto !important}" in html
+    assert ".tutor-panel{left:24px !important;right:auto !important}" in html
+    # Mobile media query also overrides
+    assert ".tutor-fab{left:16px !important;right:auto !important;bottom:16px}" in html
+
+
+def test_tutor_position_override_NOT_present_when_disabled():
+    """The position override CSS must NOT leak into HTML when tutor is off
+    (otherwise `.tutor-fab` references would appear in the output)."""
+    html = generate_single_page_html(_PROJECT, "/tmp", "", tutor_config={"enabled": False})
+    assert ".tutor-fab" not in html
+    assert ".tutor-panel" not in html
