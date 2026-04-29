@@ -38,15 +38,50 @@ async def list_projects(user: dict = Depends(require_auth)):
     - super_admin: sees ALL projects (including legacy ones without companyId)
     - any other role (company_admin, editor, aprovador, ...): sees only
       projects where companyId == user.companyId.
+
+    Returns a LIGHT projection (only metadata + first slide for thumbnail) so
+    the response stays small enough to fit through the production gateway.
+    Companies with many heavy projects (slides+inlined media) were hitting
+    520 Bad Gateway because the full-document response could exceed
+    50+ MB. Frontend (Dashboard.jsx) only needs first slide for the
+    SlideMinPreview thumbnail and a slide count.
     """
-    if has_role(user, "super_admin"):
-        query = {}
-    else:
+    pipeline = []
+    if not has_role(user, "super_admin"):
         user_company = user.get("companyId")
         if not user_company:
             return []
-        query = {"companyId": user_company}
-    projects = await db.projects.find(query, {"_id": 0}).sort("createdAt", -1).to_list(500)
+        pipeline.append({"$match": {"companyId": user_company}})
+    pipeline.extend([
+        {"$sort": {"createdAt": -1}},
+        {"$limit": 500},
+        {"$project": {
+            "_id": 0,
+            "id": 1,
+            "name": 1,
+            "title": 1,
+            "description": 1,
+            "tags": 1,
+            "createdAt": 1,
+            "updatedAt": 1,
+            "userId": 1,
+            "companyId": 1,
+            "source": 1,
+            "agentSessionId": 1,
+            "createdByAgent": 1,
+            "singlePageMode": 1,
+            "vlibras": 1,
+            "approvalStatus": 1,
+            "course": {
+                "metadata": "$course.metadata",
+                # Only first slide for the thumbnail preview
+                "slides": {"$slice": [{"$ifNull": ["$course.slides", []]}, 1]},
+                # Total slide count for the badge
+                "slidesCount": {"$size": {"$ifNull": ["$course.slides", []]}},
+            },
+        }},
+    ])
+    projects = await db.projects.aggregate(pipeline).to_list(500)
     return projects
 
 

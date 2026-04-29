@@ -560,7 +560,7 @@ export default function Dashboard() {
                     )}
                     {/* Slide count badge */}
                     <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                      {project.course?.slides?.length || 0} slides
+                      {project.course?.slidesCount ?? project.course?.slides?.length ?? 0} slides
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">

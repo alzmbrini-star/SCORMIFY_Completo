@@ -87,6 +87,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 produção) — Cadeia de 520/502 em produção causados por listagem `/api/projects` enviando todo o conteúdo dos projetos.
+  - **Bug do usuário (screenshot)**: console floodada com `Failed to load resource: status 520`/`502` em `/api/projects`, `/api/agent/courses`, `/api/agent/courses/{id}/analyze`, `/api/agent/projects/{id}/avatar-settings`, mais `net::ERR_HTTP2_PROTOCOL_ERROR` em loads de imagens. Cloudflare 520 = "origin returned empty/error" → tipicamente backend retornou resposta muito grande ou demorou demais.
+  - **Causa raiz**: `GET /api/projects` (Dashboard listing) executava `db.projects.find(query, {"_id": 0}).to_list(500)` — retornava o **projeto inteiro** (slides, htmlContent, assets inline em base64) para CADA projeto. Para companies com muitos cursos pesados, a resposta podia exceder 50+ MB e estourar o limite do gateway emergent.host → 520. A falha desse endpoint causava cascata: o Dashboard sem dados disparava re-renders que causavam outros 502s/HTTP2 errors em endpoints adjacentes.
+  - **Fix**: `list_projects` agora usa aggregation pipeline com `$project`/`$slice` retornando APENAS:
+    - Metadata leve: `id`, `name`, `description`, `tags`, `createdAt`, `updatedAt`, `userId`, `companyId`, `source`, `agentSessionId`, `createdByAgent`, `singlePageMode`, `vlibras`, `approvalStatus`
+    - `course.metadata` (título/descrição)
+    - `course.slides` com `$slice: 1` (apenas o primeiro slide para o thumbnail do `SlideMinPreview`)
+    - `course.slidesCount` (contagem total via `$size`)
+  - **Compatibilidade frontend**: `Dashboard.jsx` ajustado para usar `project.course?.slidesCount ?? project.course?.slides?.length` no badge — fallback mantém retrocompatibilidade. Outros usos (thumbnail do primeiro slide, `SlideMinPreview`) continuam funcionando idênticos.
+  - **Endpoint de detalhe NÃO afetado**: `GET /api/projects/{id}` continua retornando o projeto inteiro (necessário para o Editor). Apenas a LISTAGEM ficou leve.
+  - **Validado**: 78/78 testes (4 novos `test_list_projects_lightweight.py`: cobertura de payload max 1 slide por projeto, `slidesCount` presente, response < 5MB, detalhe full document preservado). Curl: response caiu de 2.7MB → **236KB** no preview (10x menor); em produção com cursos maiores e mais conteúdo, a redução proporcional será gigante (>50MB → ~5MB típico).
+
 - 2026-04-29: FIX (P0 produção) — Toggle "Página Única" retornando 502 Bad Gateway em produção.
   - **Bug do usuário (screenshot)**: ao ativar o switch de "Página Única" no `ExportDialog` em produção (`backend-startup.emergent.host`), o frontend recebia `PUT /api/projects/{id}` → **502 Bad Gateway** ("AxiosError: Request failed with status code 502" + "ERR_BAD_RESPONSE"). No preview funcionava normalmente.
   - **Causa raiz**: o endpoint `PUT /api/projects/{project_id}` em `routes/projects_crud.py` retornava `await get_project_by_id(project_id)` — o **projeto inteiro**. Para projetos com muitas slides + `htmlContent` extenso + media inline (base64), o JSON de resposta podia ultrapassar vários MB. Em produção (atrás do proxy/CDN da emergent.host), isso atingia o limite de tamanho/timeout do gateway → 502. No preview funcionava porque o limite é mais permissivo.
