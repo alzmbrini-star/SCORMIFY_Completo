@@ -363,3 +363,33 @@ def test_process_krea_images_empty_when_no_kreaImage_fields():
         agent_mod._process_krea_images(_FakeDb(), "proj1", fake_result, fake_slides, lambda: "x", user)
     )
     assert count == 0
+
+
+def test_gallery_auto_save_accepts_db_override():
+    """Regression: the gallery auto-save helper must accept a db_override kwarg
+    so the background apply-improvements worker (which runs in a separate
+    event loop + Motor client) can inject its own loop-correct db. Without
+    this, the gallery insert silently fails with a 'Future attached to a
+    different loop' error and Krea/Leonardo/Gemini images generated via the
+    AI Agent pipeline never show up in the gallery."""
+    import inspect
+    from routes.gallery import auto_save_to_gallery
+    sig = inspect.signature(auto_save_to_gallery)
+    assert "db_override" in sig.parameters, (
+        "auto_save_to_gallery must accept `db_override=None` so background "
+        "workers can inject their own Motor client. See iteration_116 RCA."
+    )
+
+
+def test_agent_pipeline_passes_db_override_for_all_three_providers():
+    """The three image-generation call sites in routes/agent.py
+    (Leonardo, Gemini, Krea) must each pass `db_override=_db` to
+    auto_save_to_gallery — otherwise the background-worker gallery insert
+    crashes with the event-loop mismatch noted in iteration_116."""
+    src = open("/app/backend/routes/agent.py").read()
+    # Count occurrences of the paired helper+db_override — must be >= 3
+    occurrences = src.count("db_override=_db")
+    assert occurrences >= 3, (
+        f"Expected at least 3 `db_override=_db` calls to auto_save_to_gallery "
+        f"(Leonardo + Gemini + Krea), found {occurrences}."
+    )

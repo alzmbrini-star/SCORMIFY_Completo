@@ -205,11 +205,20 @@ async def gallery_cleanup(request: Request):
 
 
 
-async def auto_save_to_gallery(image_url: str, keywords: str, project_id: str, project_name: str, user_id: str, company_id: str):
-    """Auto-save a generated image to the gallery (called from other routes)."""
+async def auto_save_to_gallery(image_url: str, keywords: str, project_id: str, project_name: str, user_id: str, company_id: str, db_override=None):
+    """Auto-save a generated image to the gallery (called from other routes).
+
+    ``db_override`` lets a background worker pass its own loop-correct Motor
+    client. Background workers in routes/agent.py run in a separate thread +
+    event loop and therefore cannot safely use the module-level ``db`` (which
+    is bound to the main uvicorn loop — reusing it raises
+    "Future attached to a different loop"). When ``db_override`` is provided
+    we use it; otherwise we fall back to the module-level ``db``.
+    """
+    _db = db_override if db_override is not None else db
     try:
         # Check if image already exists in gallery
-        existing = await db.image_gallery.find_one({"imageUrl": image_url})
+        existing = await _db.image_gallery.find_one({"imageUrl": image_url})
         if existing:
             return
 
@@ -224,7 +233,9 @@ async def auto_save_to_gallery(image_url: str, keywords: str, project_id: str, p
             "companyId": company_id,
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
-        await db.image_gallery.insert_one({**image_doc, "_id": image_doc["id"]})
+        await _db.image_gallery.insert_one({**image_doc, "_id": image_doc["id"]})
         logger.info(f"Image auto-saved to gallery: {image_url}")
     except Exception as e:
-        logger.warning(f"Failed to auto-save image to gallery (non-fatal): {e}")
+        # Surface to logger.exception so the traceback is visible — the previous
+        # `warning` message made it easy to miss loop-mismatch bugs.
+        logger.exception(f"Failed to auto-save image to gallery: {image_url} — {e}")

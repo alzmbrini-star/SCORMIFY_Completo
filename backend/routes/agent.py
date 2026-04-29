@@ -3143,9 +3143,12 @@ async def _process_leonardo_images(_db, project_id: str, result: dict, slides: l
                 logger.info(f"Leonardo premium image generated for slide {slide_idx}: {img_url}")
                 try:
                     from routes.gallery import auto_save_to_gallery
-                    await auto_save_to_gallery(img_url, f"leonardo: {leo_prompt}", project_id, "", "", "")
-                except Exception:
-                    pass
+                    await auto_save_to_gallery(
+                        img_url, f"leonardo: {leo_prompt}", project_id, "", "", "",
+                        db_override=_db,
+                    )
+                except Exception as gal_err:
+                    logger.warning(f"Leonardo gallery auto-save failed (non-fatal): {gal_err}")
         except Exception as e:
             logger.error(f"Leonardo image generation failed for slide {slide_idx}: {e}")
     return leonardo_images_generated
@@ -3206,9 +3209,12 @@ async def _process_gemini_images(_db, project_id: str, result: dict, slides: lis
             logger.info(f"Gemini simple image generated for slide {slide_idx}: {img_url}")
             try:
                 from routes.gallery import auto_save_to_gallery
-                await auto_save_to_gallery(img_url, f"gemini: {gem_prompt}", project_id, "", "", "")
-            except Exception:
-                pass
+                await auto_save_to_gallery(
+                    img_url, f"gemini: {gem_prompt}", project_id, "", "", "",
+                    db_override=_db,
+                )
+            except Exception as gal_err:
+                logger.warning(f"Gemini gallery auto-save failed (non-fatal): {gal_err}")
         except Exception as e:
             logger.error(f"Gemini image generation failed for slide {slide_idx}: {e}")
     return gemini_images_generated
@@ -3350,9 +3356,10 @@ async def _process_krea_images(_db, project_id: str, result: dict, slides: list,
                     project_name="",
                     user_id=user.get("user_id") or user.get("id") or "",
                     company_id=user.get("companyId") or "",
+                    db_override=_db,
                 )
-            except Exception:
-                pass
+            except Exception as gal_err:
+                logger.warning(f"Krea gallery auto-save failed (non-fatal): {gal_err}")
         except Exception as e:
             logger.error(f"Krea image generation failed for slide {slide_idx}: {e}")
     return krea_images_generated

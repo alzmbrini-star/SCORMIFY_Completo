@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 117 — Retest of iteration_116's CRITICAL gallery auto-save bug fix. The asyncio event-loop mismatch in the AI Agent apply-improvements pipeline (Krea/Leonardo/Gemini auto-save to gallery from background worker) is FIXED. Verified: (1) routes/gallery.py auto_save_to_gallery accepts db_override kwarg; (2) routes/agent.py passes db_override=_db at all 3 sites (counted exactly 3 occurrences); (3) bare except blocks now use logger.exception; (4) full pytest suite 29/29 PASS including 2 new regression guards; (5) live E2E apply-improvements with imagem_krea/flux-1-dev returned kreaImagesGenerated=1 in 13s and the new image now appears in /api/gallery/images (Krea entries went from 1→2 after the run). Backend logs confirm 'INFO - Image auto-saved to gallery: ... krea_9272a93176.png' (no more 'got Future attached to a different loop'). Direct save flow (POST /api/krea/jobs/{jobId}/save) unaffected — pre-existing entry intact. Fix is fully validated and production-ready.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_krea_integration.py",
+    "/app/backend/tests/test_krea_agent_e2e.py",
+    "/app/test_reports/pytest/krea_iteration_117.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is clean: db_override kwarg with sensible fallback to module-level db preserves backward compatibility for callers that don't pass it.",
+    "logger.exception replacement is appropriate — gives full traceback while keeping non-fatal behavior (caller doesn't crash).",
+    "OPTIONAL hardening (low priority): the three near-identical auto_save_to_gallery call sites in agent.py (Leonardo line ~3148, Gemini ~3214, Krea ~3359) could still be DRYed into a helper to prevent future divergence; not blocking.",
+    "OPTIONAL: consider gating the live E2E test_apply_imagem_krea_end_to_end behind RUN_LIVE_KREA=1 env flag — each run costs ~$0.04 of Krea credits."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (29/29 pytest + 2/2 live E2E)",
+    "frontend": "not tested (per request)"
+  },
+  "test_credentials": "admin@scormify.com / admin123 (super_admin)",
+  "seed_data_creation": "Live apply-improvements run on project cd8a1146-ac15-49ad-9161-c3ba5cb3e830 produced asset krea_9272a93176.png (~$0.04 Krea spend). Gallery now has 2 Krea entries with keywords prefix 'krea flux-1-dev:'.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration_116 critical bug (asyncio event-loop mismatch causing silent gallery auto-save failures in agent.py background worker for Krea/Leonardo/Gemini providers) is RESOLVED. db_override pattern confirmed working in production. No regressions. If retesting in future, the gallery test_gallery_contains_krea_image_with_keywords expects >=1 Krea entry — should now show >=2. Live E2E test took 13s end-to-end (status: processing@10 → processing@82 → done@100 with kreaImagesGenerated=1).",
+  "rca of the issue": "RESOLVED. Original RCA: routes.gallery.auto_save_to_gallery used a Motor client bound to the main uvicorn loop while _run_apply_improvements_bg created its own thread+loop, causing 'got Future attached to a different loop' errors silently swallowed by bare except. Fix verified: gallery.py now accepts db_override; agent.py passes db_override=_db (the worker's loop-correct Motor client) at all three image-provider sites. Backend logs show 18:28:24 entry 'INFO - Image auto-saved to gallery: ... krea_9272a93176.png' immediately after the live E2E run, contrasted with pre-fix 18:17/18:21 entries showing 'got Future attached to a different loop' warnings."
+}
