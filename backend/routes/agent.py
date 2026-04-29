@@ -3366,27 +3366,55 @@ async def _process_krea_images(_db, project_id: str, result: dict, slides: list,
 
 
 def _attach_image_to_slide(slide: dict, img_url: str, generate_id):
-    """Update existing image element OR add a new one (two-column layout)."""
+    """Update existing image element OR add a new one (two-column layout).
+
+    Defensive: if the existing image element is malformed (missing id / position /
+    size — common in PPT-imported slides), we *normalize* those fields so the
+    frontend can safely select and resize the image. Before this guard, clicking
+    the inserted image threw "Missing slideId or elementId" in ProjectContext.
+    """
+    # Slide dimensions — fallback to 1920x820 when the slide has them as None
+    slide_w = slide.get("width") or 1920
+    slide_h = slide.get("height") or 820
+    # Default two-column image position (right side, 60% width, centered vertically)
+    def_x = int(slide_w * 0.55)
+    def_y = int(slide_h * 0.10)
+    def_w = int(slide_w * 0.40)
+    def_h = int(slide_h * 0.75)
+
     img_found = False
     for el in slide.get("elements", []):
         if el.get("type") == "image":
             el["src"] = img_url
             el["content"] = img_url
+            # Normalize critical fields so the frontend can select/resize.
+            if not el.get("id"):
+                el["id"] = generate_id()
+            if el.get("x") is None:
+                el["x"] = def_x
+            if el.get("y") is None:
+                el["y"] = def_y
+            if not el.get("width"):
+                el["width"] = def_w
+            if not el.get("height"):
+                el["height"] = def_h
+            if not isinstance(el.get("style"), dict):
+                el["style"] = {"borderRadius": "12px"}
             img_found = True
             break
     if not img_found:
         slide.setdefault("elements", [])
         slide["elements"].append({
             "id": generate_id(), "type": "image",
-            "x": 1160, "y": 90, "width": 700, "height": 440,
+            "x": def_x, "y": def_y, "width": def_w, "height": def_h,
             "src": img_url, "content": img_url,
             "style": {"borderRadius": "12px"}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade",
                            "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
         })
         for el in slide.get("elements", []):
-            if el.get("type") in ("html", "text") and el.get("width", 0) > 1200:
-                el["width"] = 1050
+            if el.get("type") in ("html", "text") and (el.get("width") or 0) > 1200:
+                el["width"] = int(slide_w * 0.55) - 20
                 el["x"] = 60
 
 

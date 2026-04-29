@@ -88,6 +88,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **BUGFIX (P0)** — Erro "Missing slideId or elementId" ao editar imagens inseridas pelo Agente IA.
+  - **Sintoma**: usuário reportou print onde imagem Krea foi inserida MINÚSCULA no canto superior do slide, e qualquer tentativa de redimensionar/mover disparava `Uncaught runtime error: Missing slideId or elementId`.
+  - **Causa raiz**: `_attach_image_to_slide` em `routes/agent.py` preservava element existente quando achava `type=image`, apenas trocando `src`. Se o element original (vindo de import PPT) tinha `id=None, x=None, y=None, width=None, height=None`, a quebra era herdada. Frontend exibia o element com dimensões default minúsculas, e ao tentar editar, `updateElement(slideId, undefined, ...)` lançava throw.
+  - **Fix 1 (raiz)**: `_attach_image_to_slide` agora normaliza todos os campos críticos (id, x, y, width, height, style) do element existente antes de atualizar o src. Coordenadas passam a ser relativas às dimensões reais do slide (`slide.width`/`slide.height`) com fallback 1920x820 — antes eram hardcoded 1160/90/700/440 que quebravam em slides 960x540.
+  - **Fix 2 (defensivo)**: `updateElement` em `ProjectContext.jsx` não mais lança `throw new Error`; apenas loga no console + retorna silenciosamente. Evita o "Uncaught runtime error" scary overlay em casos edge.
+  - **Fix 3 (migração)**: script one-off corrigiu 2 projetos com slides já quebrados (ids None, positions None, dimensões None) — preencheu defaults razoáveis.
+  - Aplica-se também aos caminhos Leonardo/Gemini (mesma função `_attach_image_to_slide`).
+
 - 2026-04-29: FEATURE (P1) — **Krea AI na Galeria de Imagens** + novo tipo `imagem_krea` no pipeline do Agente IA (40+ modelos curados por slide).
   - **Parte A — Galeria**: imagens geradas via Krea (tanto pelo botão `Usar no Curso` do `KreaPanel` quanto pelo pipeline do Agente IA) agora:
     1. Persistem no MongoDB via `store_asset_async` (sobrevivem restart de pod K8s — antes podiam sumir em produção).
