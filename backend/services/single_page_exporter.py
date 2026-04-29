@@ -136,24 +136,51 @@ def _render_element(el: dict, project_id: str, assets_dir: str, base_url: str,
     over the entire card."""
     etype = (el.get("type") or "text").lower()
     if etype == "text":
-        return _render_text_element_inner(el)
-    if etype == "image":
-        return _render_image_element_inner(el, project_id, assets_dir, base_url)
-    if etype == "audio":
-        return _render_audio_element_inner(el, project_id, assets_dir, base_url, el_idx)
-    if etype == "video":
-        return _render_video_element_inner(el, project_id, assets_dir, base_url, el_idx)
-    if etype == "avatar":
-        return _render_avatar_element_inner(el, project_id, assets_dir, base_url, el_idx)
-    if etype == "html":
-        return _render_html_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
-    if etype == "quiz":
-        return _render_quiz_element_inner(el, slide_idx, el_idx, questions_lookup)
-    if etype == "scenario":
-        return _render_scenario_element_inner(el, slide_idx, el_idx)
-    if etype == "simulator":
-        return _render_simulator_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
-    return ""
+        rendered = _render_text_element_inner(el)
+    elif etype == "image":
+        rendered = _render_image_element_inner(el, project_id, assets_dir, base_url)
+    elif etype == "audio":
+        rendered = _render_audio_element_inner(el, project_id, assets_dir, base_url, el_idx)
+    elif etype == "video":
+        rendered = _render_video_element_inner(el, project_id, assets_dir, base_url, el_idx)
+    elif etype == "avatar":
+        rendered = _render_avatar_element_inner(el, project_id, assets_dir, base_url, el_idx)
+    elif etype == "html":
+        rendered = _render_html_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
+    elif etype == "quiz":
+        rendered = _render_quiz_element_inner(el, slide_idx, el_idx, questions_lookup)
+    elif etype == "scenario":
+        rendered = _render_scenario_element_inner(el, slide_idx, el_idx)
+    elif etype == "simulator":
+        rendered = _render_simulator_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
+    else:
+        return ""
+    return _maybe_wrap_with_timeline(rendered, el)
+
+
+def _maybe_wrap_with_timeline(rendered_html: str, el: dict) -> str:
+    """If the element has a startTime > 0 or endTime > 0 timeline, wrap it in
+    a `.sp-element-timed` div that the JS runtime will reveal/hide on schedule.
+    Without wrapping, all elements render simultaneously (legacy behavior)."""
+    if not rendered_html:
+        return rendered_html
+    try:
+        start = float(el.get("startTime") or 0)
+    except (TypeError, ValueError):
+        start = 0.0
+    try:
+        end_raw = el.get("endTime")
+        end = float(end_raw) if end_raw is not None else 0.0
+    except (TypeError, ValueError):
+        end = 0.0
+    if start <= 0 and end <= 0:
+        return rendered_html
+    attrs = []
+    if start > 0:
+        attrs.append(f'data-start-time="{start}"')
+    if end > 0:
+        attrs.append(f'data-end-time="{end}"')
+    return f'<div class="sp-element-timed" {" ".join(attrs)}>{rendered_html}</div>'
 
 
 # --------------------------------------------------------------------------- inner renderers
@@ -571,6 +598,19 @@ def generate_single_page_html(
         slide_title = slide.get("title") or f"Seção {s_idx + 1}"
         elements = slide.get("elements", []) or []
         rendered_elements: List[str] = []
+        # Detect timeline: any element with startTime > 0 or endTime > 0
+        section_max_end_time = 0.0
+        for el_for_timing in elements:
+            try:
+                st = float(el_for_timing.get("startTime") or 0)
+            except (TypeError, ValueError):
+                st = 0.0
+            try:
+                et_raw = el_for_timing.get("endTime")
+                et = float(et_raw) if et_raw is not None else 0.0
+            except (TypeError, ValueError):
+                et = 0.0
+            section_max_end_time = max(section_max_end_time, st, et)
         for e_idx, el in enumerate(elements):
             try:
                 html_part = _render_element(el, project_id, assets_dir, base_url,
@@ -579,6 +619,22 @@ def generate_single_page_html(
                     rendered_elements.append(html_part)
             except Exception:
                 continue
+
+        # Append synthetic timeline gate when section has a timeline (>0).
+        # This turns the timeline auto-play into a "required interactive" — section
+        # only unlocks after the JS runtime fires SP.markClicked on this gate.
+        if section_max_end_time > 0:
+            rendered_elements.append(
+                f'<div class="sp-timeline-gate sp-interactive" '
+                f'data-interactive="timeline" data-required="true" '
+                f'data-interactive-id="timeline-{s_idx}" '
+                f'data-section-duration="{section_max_end_time}">'
+                f'<div class="sp-timeline-progress">'
+                f'<div class="sp-timeline-progress-bar"></div>'
+                f'</div>'
+                f'<div class="sp-timeline-hint">⏱ Reproduzindo sequência temporal — aguarde o fim para liberar a próxima seção</div>'
+                f'</div>'
+            )
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
 
         bg_color = (slide.get("background") or "").strip()
@@ -841,6 +897,18 @@ body{position:relative;overflow-x:hidden}
 .sp-avatar-wrap[data-completed="true"] .sp-avatar-hint{display:none}
 .sp-avatar-wrap video{background:transparent !important}
 
+/* Timeline (auto-play sequencial: respeita startTime/endTime de cada elemento) */
+.sp-element-timed{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease;will-change:opacity,transform}
+.sp-element-timed.sp-revealed{opacity:1;transform:translateY(0)}
+.sp-element-timed.sp-hidden{opacity:0;transform:translateY(-10px);pointer-events:none}
+.sp-timeline-gate{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 18px}
+.sp-timeline-progress{width:100%;height:6px;background:rgba(0,0,0,.08);border-radius:999px;overflow:hidden}
+.sp-timeline-progress-bar{height:100%;background:linear-gradient(90deg,#6366f1,#ec4899);width:0%;transition:width .15s linear;border-radius:999px}
+.sp-timeline-hint{font-size:11px;color:inherit;opacity:.7;font-style:italic}
+.sp-timeline-gate[data-completed="true"]{background:#dcfce7 !important;border-color:#84cc16 !important}
+.sp-timeline-gate[data-completed="true"] .sp-timeline-hint{color:#15803d;opacity:1;font-style:normal;font-weight:600}
+.sp-timeline-gate[data-completed="true"] .sp-timeline-hint::before{content:"✓ "}
+
 .sp-quiz{text-align:center;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%)!important;color:#fff!important;border-color:#3b82f6!important;padding:24px}
 .sp-quiz[data-completed="true"]{background:#0f5132!important;border-color:#84cc16!important;color:#dcfce7!important}
 .sp-quiz-icon{font-size:42px;margin-bottom:10px}
@@ -1034,6 +1102,12 @@ _JS = """
     if (sec){
       sec.removeAttribute('data-locked');
       sec.classList.add('unlocked');
+      // If this section has a timeline, start it now (it might already be in
+      // viewport and the IntersectionObserver may not re-fire since intersectionRatio
+      // didn't change — only data-locked did).
+      if (sec.querySelector('.sp-timeline-gate')) {
+        setTimeout(function(){ startSectionTimeline(sec); }, 200);
+      }
     }
     buildDrawer();
     updateProgress();
@@ -1466,6 +1540,70 @@ _JS = """
     }
   };
 
+  // ----- Timeline engine: respects per-element startTime/endTime -----
+  // When a section enters viewport, we play through the timeline:
+  // each .sp-element-timed gets `.sp-revealed` at its startTime (fade-in)
+  // and optionally `.sp-hidden` at its endTime. The synthetic .sp-timeline-gate
+  // updates a progress bar and is auto-completed when the timeline finishes.
+  var timelinePlayed = {};
+  function startSectionTimeline(sec){
+    var idx = sec.dataset.index;
+    if (timelinePlayed[idx]) return;
+    var gate = sec.querySelector('.sp-timeline-gate');
+    if (!gate) return;
+    timelinePlayed[idx] = true;
+    var timed = Array.from(sec.querySelectorAll('.sp-element-timed'));
+    if (!timed.length) {
+      // Section was marked as having timeline but no timed elements survived render.
+      // Just mark the gate as completed.
+      SP.markClicked(gate);
+      return;
+    }
+    var totalDuration = parseFloat(gate.dataset.sectionDuration || '0') || 0;
+    var startedAt = Date.now();
+    timed.forEach(function(el){
+      var st = parseFloat(el.dataset.startTime || '0') || 0;
+      var et = parseFloat(el.dataset.endTime || '0') || 0;
+      // Reveal at startTime (or immediately if 0)
+      setTimeout(function(){ el.classList.add('sp-revealed'); }, Math.max(0, st * 1000));
+      // Hide at endTime if defined
+      if (et > 0 && et > st) {
+        setTimeout(function(){ el.classList.add('sp-hidden'); }, et * 1000);
+      }
+    });
+    // Update progress bar every 100ms until end
+    var bar = gate.querySelector('.sp-timeline-progress-bar');
+    var progressTimer = setInterval(function(){
+      var elapsed = (Date.now() - startedAt) / 1000;
+      var pct = totalDuration > 0 ? Math.min(100, (elapsed / totalDuration) * 100) : 100;
+      if (bar) bar.style.width = pct.toFixed(1) + '%';
+      if (elapsed >= totalDuration) {
+        clearInterval(progressTimer);
+        if (bar) bar.style.width = '100%';
+        SP.markClicked(gate);
+      }
+    }, 100);
+  }
+
+  function observeTimelines(){
+    var sectionsWithTimeline = $$('.sp-section').filter(function(sec){
+      return sec.querySelector('.sp-timeline-gate');
+    });
+    if (!sectionsWithTimeline.length || typeof IntersectionObserver === 'undefined') return;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
+          var sec = entry.target;
+          // Only play once unlocked (so the locked overlay doesn't trigger it)
+          if (!sec.hasAttribute('data-locked')) {
+            startSectionTimeline(sec);
+          }
+        }
+      });
+    }, { threshold: [0.4] });
+    sectionsWithTimeline.forEach(function(sec){ io.observe(sec); });
+  }
+
   document.addEventListener('DOMContentLoaded', function(){
     if (SCORM_MODE && window.SCORM) {
       try { window.SCORM.init(); } catch(e) {}
@@ -1474,6 +1612,7 @@ _JS = """
     buildDrawer();
     updateProgress();
     updateNextButton();
+    observeTimelines();
     window.addEventListener('scroll', detectActiveSection, {passive:true});
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
     if (SCORM_MODE && window.SCORM) {

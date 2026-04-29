@@ -87,6 +87,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FEATURE (P1) — Timeline (auto-play sequencial) no Single Page export.
+  - **Resposta à pergunta do usuário**: antes, o Single Page **ignorava completamente** `startTime`/`endTime`/`animations` — todos os elementos apareciam simultaneamente quando o aluno chegava na seção.
+  - **Implementado opção (a) Auto-play sequencial**:
+    - Helper Python `_maybe_wrap_with_timeline(rendered_html, el)`: se elemento tem `startTime > 0` ou `endTime > 0`, embrulha o HTML em `<div class="sp-element-timed" data-start-time="X" data-end-time="Y">`.
+    - Renderer principal `_render_element` agora passa todo elemento por esse wrapper.
+    - Quando seção contém algum elemento timed, injeta um interactive sintético `.sp-timeline-gate` com `data-required="true"` + barra de progresso visual + mensagem "⏱ Reproduzindo sequência temporal — aguarde o fim para liberar a próxima seção". `data-section-duration` armazena `max(start,end)` de todos os elementos.
+    - CSS: `.sp-element-timed{opacity:0;transform:translateY(20px)}` → ao receber `.sp-revealed` faz fade-in suave 0.5s. `.sp-hidden` para sair.
+    - JS engine (`startSectionTimeline`, `observeTimelines`):
+      - IntersectionObserver detecta seção entrando em viewport (40% threshold) e dispara timeline.
+      - `setTimeout(reveal, startTime*1000)` agenda fade-in de cada elemento.
+      - `setTimeout(hide, endTime*1000)` se `endTime > startTime`.
+      - Loop a cada 100ms atualiza barra de progresso.
+      - Ao atingir `sectionDuration`, chama `SP.markClicked(gate)` → libera próxima seção.
+    - `unlockSection` também kickstart a timeline (caso IntersectionObserver não re-fire quando o `data-locked` é removido com a seção já em viewport).
+  - **Comportamento legado preservado**: elementos sem `startTime`/`endTime` (ou com 0) renderizam imediatamente como antes — zero impacto em cursos sem timeline. Detectado em 31 elementos timed em 7 projetos reais (0.3% dos elementos totais).
+  - **Validado**: 63/63 testes (9 novos `test_singlepage_timeline.py`). Visual via Playwright em "Reporte por cursos & trilhas" (3 elementos com startTime 18.81/20.85s + endTime 40s): seção entra em viewport → barra de progresso rodando (1.5% → 14% após 5s, consistente com 40s totais), gate amarelo de gating visível, chevron de avanço oculto até timeline terminar.
+
 - 2026-04-29: FIX (P0 visual follow-up 3) — Heurística "header bar" auto-detecta cabeçalhos oversized em Quizzes/Cenários/etc.
   - **Bug do usuário (screenshot)**: na slide "Checkpoint: Impactos Estruturais" (que contém Quiz), o autor criou um elemento HTML cabeçalho gradient com texto "QUIZ - CULTURA DE ATUALIZAÇÃO..." mas dimensionou para `h=700` (para cobrir a área do slide canvas no editor). No Single Page, isso renderizava como um bloco gigante violeta-rosa de ~700px com o texto perdido no meio. Mesmo problema afetava Cenários, abertura de seções, etc.
   - **Causa**: o fix anterior usava `el.height` do banco. Quando o autor oversize'a um header (700px), respeitamos a altura — mas o conteúdo é estruturalmente um header thin.
