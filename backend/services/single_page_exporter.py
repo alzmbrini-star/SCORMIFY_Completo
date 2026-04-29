@@ -277,6 +277,22 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
     raw = el.get("htmlContent") or el.get("content") or ""
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
     has_global_styles = bool(re.search(r"<\s*(style|script|body|html|head)\b", raw, re.IGNORECASE))
+    # Respect the element's authored height when available — keeps thin headers
+    # (e.g. 60px gradient bars) from ballooning to 540px in Single Page export.
+    # Falls back to 540px when height is missing/zero/too small to be meaningful.
+    raw_h = el.get("height")
+    try:
+        h = float(raw_h) if raw_h is not None else 0
+    except (TypeError, ValueError):
+        h = 0
+    # Clamp to sensible bounds: 60px minimum (visible), 720px maximum (avoids giant scrolls)
+    if h <= 0:
+        iframe_height_css = "min-height:540px"
+    elif h < 60:
+        # Author's height is tiny (header bar) — honor it but ensure at least 60px so it remains clickable/visible
+        iframe_height_css = f"height:{int(max(h, 60))}px"
+    else:
+        iframe_height_css = f"height:{int(min(h, 720))}px"
     if has_global_styles:
         if "<meta" not in raw.lower() and "charset" not in raw.lower():
             raw_with_meta = '<meta charset="utf-8">\n' + raw
@@ -287,7 +303,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
             f'src="data:text/html;charset=utf-8;base64,{b64}" '
-            f'style="width:100%;min-height:540px;border:0;border-radius:8px;background:#fff;display:block"></iframe>'
+            f'style="width:100%;{iframe_height_css};border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
             f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
             f'style="margin-top:12px;width:100%">'

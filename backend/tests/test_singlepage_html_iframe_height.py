@@ -1,0 +1,62 @@
+"""Regression: HTML iframe heights in Single Page export must respect the
+element's authored height — header-style HTML elements (e.g. a 60px gradient
+bar in the editor) must NOT balloon to 540px in the export.
+
+Bug context (2026-04-29 user report): a thin header HTML element appeared as a
+huge ~700px gradient block in the Single Page output because `min-height:540px`
+was hardcoded for ALL iframes regardless of authored size.
+"""
+from services.single_page_exporter import _render_html_element_inner
+
+
+_HTML_WITH_STYLES = '<style>body{background:linear-gradient(90deg,#7c3aed,#ec4899)}</style>' \
+                    '<div>Cultura de Atualização e Impactos Estruturais</div>'
+
+
+def test_thin_header_uses_authored_height():
+    """Element authored as 60px-tall header should render iframe at 60px,
+    not 540px."""
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": 60}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "height:60px" in out
+    assert "min-height:540px" not in out
+
+
+def test_very_short_header_clamps_to_60():
+    """If author set height to 8px (mistakenly tiny) clamp UP to 60px so the
+    iframe remains visible/clickable."""
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": 8}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "height:60px" in out
+
+
+def test_tall_html_clamps_to_720():
+    """Author asked for 1080px — clamp DOWN to 720px to avoid giant scrolls."""
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": 1080}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "height:720px" in out
+    assert "height:1080" not in out
+
+
+def test_normal_height_passed_through():
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": 400}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "height:400px" in out
+
+
+def test_missing_height_falls_back_to_540():
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "min-height:540px" in out
+
+
+def test_invalid_height_falls_back():
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": "broken"}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "min-height:540px" in out
+
+
+def test_zero_height_falls_back():
+    el = {"type": "html", "htmlContent": _HTML_WITH_STYLES, "height": 0}
+    out = _render_html_element_inner(el, "p1", "/tmp", "", 0, 0)
+    assert "min-height:540px" in out

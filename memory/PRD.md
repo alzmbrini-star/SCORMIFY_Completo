@@ -87,6 +87,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 visual) — Iframes HTML do tipo "header" não respeitavam altura autoral, virando blocos gigantes no Single Page export.
+  - **Bug do usuário (screenshot)**: o usuário criou um elemento HTML de **50px** de altura (barra horizontal de gradient violeta-rosa) no editor para servir de cabeçalho da slide. No export Single Page, essa mesma barra renderizava como um **bloco de ~700px** sem nenhum motivo, ocupando toda a viewport e empurrando o conteúdo real para baixo.
+  - **Causa raiz**: `_render_html_element_inner` em `single_page_exporter.py` (linha 290) tinha `style="...min-height:540px..."` **hardcoded** para TODOS os iframes, ignorando completamente `el.get("height")` salvo no documento do elemento (que vai de 8px a 864px nos projetos reais).
+  - **Fix**: agora a função lê `el.height` e gera `height:Npx` (não `min-height`) com clamping seguro:
+    - `height >= 60` → usa o valor literal (até teto de 720px para evitar scrolls gigantes).
+    - `0 < height < 60` → eleva para 60px (visibilidade/clicabilidade mínima).
+    - `height <= 0` ou ausente/inválido → fallback `min-height:540px` (comportamento original).
+  - **Validado**: 79/79 testes (7 novos `test_singlepage_html_iframe_height.py` cobrindo: thin header 60px, clamp UP de tiny→60, clamp DOWN de 1080→720, height normal pass-through, fallback quando ausente/zero/inválido). Visual confirmado via Playwright em "Gestão de Progresso" (slide "O Conceito de Recálculo Automático"): iframe header bounding box `w=838 h=60` — exatamente uma linha de cabeçalho. Outros iframes do mesmo projeto: 60px (3 headers), 700px (4 corpos), 720px (1 clamped do 1080).
+
 - 2026-04-29: FEATURE (P1) — Botão "🤖 Pedir explicação detalhada ao Tutor IA" no Quiz após resposta errada (Single Page + Tradicional).
   - **Bug do usuário**: a integração Tutor IA + Cenários estava completa, mas o aluno errar no Quiz NÃO oferecia ajuda do tutor — gap de paridade pedagógica.
   - **Fix Single Page**: dentro do callback de submit do quiz (em `single_page_exporter.py` `_JS`), após calcular `isCorrect` por questão, se `!isCorrect && window.AiTutor`: cria botão `.sp-quiz-tutor` violeta (gradient) anexado ao `<fieldset>`. Click → abre o tutor + pré-preenche prompt contextual: "Em um quiz, a pergunta foi: '...'. Eu respondi: '...' (errei). A resposta correta era: '...'. A explicação curta diz: '...'. Pode me explicar de forma mais detalhada por que minha resposta está incorreta e o raciocínio para chegar na resposta certa?". Suporta `q.options` como string OU `{text, correct}` object.
