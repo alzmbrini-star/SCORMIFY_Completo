@@ -26,6 +26,7 @@ const INTEGRATION_META = {
   mongodb: { label: 'MongoDB', icon: Database, description: 'Banco de dados principal' },
   emergent_llm: { label: 'Emergent LLM (OpenAI/Gemini/Claude)', icon: Sparkles, description: 'Geracao de texto e IA' },
   leonardo: { label: 'Leonardo AI', icon: ImageIcon, description: 'Geracao de imagens' },
+  krea: { label: 'Krea AI', icon: ImageIcon, description: 'Geracao de imagens (40+ modelos)' },
   heygen: { label: 'HeyGen', icon: Video, description: 'Geracao de videos com avatar' },
   elevenlabs: { label: 'ElevenLabs', icon: Mic, description: 'Text-to-speech' },
   resend: { label: 'Resend', icon: Mail, description: 'Envio de emails transacionais' },
@@ -57,6 +58,10 @@ function formatBalance(name, balance) {
   }
   if (name === 'convertapi') {
     return `${balance.secondsLeft?.toLocaleString('pt-BR') ?? '?'} segundos restantes`;
+  }
+  if (name === 'krea') {
+    if (balance.modelsAvailable != null) return `${balance.modelsAvailable} modelos de imagem disponiveis`;
+    return null;
   }
   return null;
 }

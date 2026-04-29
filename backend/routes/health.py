@@ -264,6 +264,59 @@ async def _check_convertapi() -> dict:
         return {"status": "error", "error": str(e)[:200]}
 
 
+async def _check_krea() -> dict:
+    """Validate Krea AI credentials. Uses GET /jobs/<dummy-id>:
+    - 404 "Job not found or unauthorized" => auth OK, key valid
+    - 500 "Internal Error" => invalid key format
+    - 401/403 => invalid key
+    """
+    key = os.environ.get("KREA_API_KEY", "").strip()
+    if not key:
+        return {"status": "not_configured", "error": "KREA_API_KEY not set"}
+    if ":" not in key:
+        return {"status": "error", "error": "KREA_API_KEY must be 'api_id:api_secret' format"}
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://api.krea.ai/jobs/scormify-health-check-ping",
+                headers={"Authorization": f"Bearer {key}"},
+            )
+        latency = int((time.monotonic() - t0) * 1000)
+        # 404 with "Job not found" is the happy path — auth succeeded
+        if resp.status_code == 404 and "not found" in resp.text.lower():
+            # Try to count curated models from our service catalog
+            try:
+                from services import krea_ai
+                models_count = len(krea_ai.KREA_IMAGE_MODELS)
+            except Exception:
+                models_count = None
+            return {
+                "status": "ok",
+                "latencyMs": latency,
+                "balance": {"modelsAvailable": models_count} if models_count else None,
+            }
+        if resp.status_code in (401, 403):
+            return {
+                "status": "error",
+                "error": "Chave Krea invalida ou expirada. Verifique em krea.ai/api.",
+                "latencyMs": latency,
+            }
+        if resp.status_code == 500:
+            return {
+                "status": "error",
+                "error": "Formato da chave invalido (esperado 'api_id:api_secret').",
+                "latencyMs": latency,
+            }
+        return {
+            "status": "error",
+            "error": f"HTTP {resp.status_code}: {resp.text[:150]}",
+            "latencyMs": latency,
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:200]}
+
+
 @router.get("/admin/integrations-health")
 async def integrations_health(user: dict = Depends(require_auth)):
     """Return the health status of every third-party integration used by Scormify.
@@ -291,6 +344,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
         _check_elevenlabs(),
         _check_resend(),
         _check_convertapi(),
+        _check_krea(),
         return_exceptions=True,
     )
 
@@ -309,6 +363,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
             "elevenlabs": _norm(results[4]),
             "resend": _norm(results[5]),
             "convertapi": _norm(results[6]),
+            "krea": _norm(results[7]),
         },
         "cached": False,
     }

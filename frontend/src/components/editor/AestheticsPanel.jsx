@@ -6,11 +6,13 @@ import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { ScrollArea } from '../../components/ui/scroll-area';
 import { Checkbox } from '../../components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { toast } from 'sonner';
 import {
   Sparkles, Loader2, Check, AlertTriangle, Eye, Paintbrush,
-  Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp,
+  Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp, Wand2,
 } from 'lucide-react';
+import KreaPanel from '../../pages/Agent/components/KreaPanel';
 
 const API = getApiUrl();
 
@@ -64,6 +66,8 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
   const [selectedFixes, setSelectedFixes] = useState(new Set());
   const [applying, setApplying] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [showKrea, setShowKrea] = useState(false);
+  const [kreaInitialPrompt, setKreaInitialPrompt] = useState('');
 
   const handleAnalyze = useCallback(async () => {
     if (!projectId) return;
@@ -310,9 +314,48 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
             >
               <Eye className="w-3 h-3 mr-1" /> Re-analisar
             </Button>
+            {/* Krea AI: regenerate images based on aesthetic analysis */}
+            <Button
+              onClick={() => {
+                // Build a context-aware default prompt from the summary + first image-related issue
+                const imgIssue = result.issues?.find(i =>
+                  i.category === 'contraste' || i.category === 'harmonizacao' || i.category === 'legibilidade_html'
+                );
+                const contextHint = imgIssue?.description || result.summary || '';
+                const defaultPrompt = contextHint
+                  ? `Imagem ilustrativa educacional de alta qualidade, estilo profissional, paleta de cores harmônica com boa legibilidade. Contexto: ${contextHint.slice(0, 250)}`
+                  : 'Imagem ilustrativa educacional de alta qualidade, estilo profissional, paleta harmônica';
+                setKreaInitialPrompt(defaultPrompt);
+                setShowKrea(true);
+              }}
+              variant="outline"
+              className="w-full text-xs h-9 border-pink-700/50 text-pink-300 hover:bg-pink-900/20 bg-gradient-to-r from-pink-900/10 to-rose-900/10"
+              data-testid="aesthetics-krea-regenerate"
+            >
+              <Wand2 className="w-3 h-3 mr-1" /> Regerar imagens com Krea AI
+            </Button>
           </div>
         </>
       )}
+
+      {/* Krea AI dialog — opens pre-filled with context-aware prompt */}
+      <Dialog open={showKrea} onOpenChange={setShowKrea}>
+        <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 p-0 max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Krea AI — Regeração estética</DialogTitle>
+          </DialogHeader>
+          <KreaPanel
+            projectId={projectId}
+            initialPrompt={kreaInitialPrompt}
+            onClose={() => setShowKrea(false)}
+            onImageSaved={() => {
+              toast.success('Imagem Krea salva! Adicione manualmente ao slide no editor.');
+              setShowKrea(false);
+              if (onFixApplied) onFixApplied();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

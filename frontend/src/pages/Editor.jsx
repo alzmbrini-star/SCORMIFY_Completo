@@ -127,6 +127,7 @@ import QuizGenerator from '../components/quiz/QuizGenerator';
 import ScenarioCreator from '../components/scenario/ScenarioCreator';
 import GamificationPanel from '../components/editor/GamificationPanel';
 import LeonardoPanel from './Agent/components/LeonardoPanel';
+import KreaPanel from './Agent/components/KreaPanel';
 import AestheticsPanel from '../components/editor/AestheticsPanel';
 
 // Extracted components and hooks
@@ -313,6 +314,7 @@ export default function Editor() {
   const [copiedElement, setCopiedElement] = useState(null);
   const [fixingSimulators, setFixingSimulators] = useState(false);
   const [showLeonardoPanel, setShowLeonardoPanel] = useState(false);
+  const [showKreaPanel, setShowKreaPanel] = useState(false);
   const [showAestheticsPanel, setShowAestheticsPanel] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -1401,6 +1403,21 @@ export default function Editor() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-pink-500/10 to-rose-500/10 hover:from-pink-500/20 hover:to-rose-500/20"
+                    onClick={() => setShowKreaPanel(true)}
+                    data-testid="krea-ai-btn"
+                  >
+                    <Sparkles className="w-4 h-4 text-pink-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Krea AI (11 modelos: Flux, Imagen 4, Nano Banana…)</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 bg-gradient-to-r from-pink-500/10 to-violet-500/10 hover:from-pink-500/20 hover:to-violet-500/20"
                     onClick={() => setShowAestheticsPanel(!showAestheticsPanel)}
                     data-testid="aesthetics-btn"
@@ -2168,6 +2185,39 @@ export default function Editor() {
                 });
                 setShowLeonardoPanel(false);
                 toast.success('Imagem Leonardo AI adicionada ao slide!');
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Krea AI Panel Dialog */}
+        <Dialog open={showKreaPanel} onOpenChange={setShowKreaPanel}>
+          <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 p-0 max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Krea AI</DialogTitle>
+            </DialogHeader>
+            <KreaPanel
+              projectId={currentProject?.id}
+              onClose={() => setShowKreaPanel(false)}
+              onImageSaved={(url) => {
+                if (!currentSlide) {
+                  toast.error('Selecione um slide primeiro');
+                  return;
+                }
+                const slideWidth = currentSlide?.width || 960;
+                const slideHeight = currentSlide?.height || 540;
+                addElement(currentSlide.id, {
+                  type: 'image',
+                  x: Math.round(slideWidth * 0.1),
+                  y: Math.round(slideHeight * 0.1),
+                  width: Math.round(slideWidth * 0.8),
+                  height: Math.round(slideHeight * 0.8),
+                  src: url,
+                  objectFit: 'contain',
+                  style: { borderRadius: '8px' },
+                });
+                setShowKreaPanel(false);
+                toast.success('Imagem Krea AI adicionada ao slide!');
               }}
             />
           </DialogContent>
