@@ -113,10 +113,12 @@ frontend/node_modules/.cache/default-development/26.pack
 frontend/node_modules/.cache/default-development/27.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
+# Keeping them ignored caused production to start without MONGO_URL/DB_NAME →
+# backend crashed at startup → "connect() failed (111: Connection refused)".
 credentials.json
 *.pem
 *.key
 .credentials
+frontend/node_modules/.cache/default-development/4.pack
