@@ -30,7 +30,10 @@ def project_id(super_token):
 
 
 def test_project_singlepagemode_field_persists(super_token, project_id):
-    """PUT /api/projects/{id} must accept and persist singlePageMode."""
+    """PUT /api/projects/{id} must accept singlePageMode and persist it.
+    Note: the PUT endpoint returns a lightweight ack (not the full project)
+    to avoid 502 Bad Gateway on large projects in production. We verify
+    persistence via a follow-up GET."""
     # Set true
     r = requests.put(
         f"{BASE_URL}/api/projects/{project_id}",
@@ -39,7 +42,17 @@ def test_project_singlepagemode_field_persists(super_token, project_id):
         timeout=10,
     )
     assert r.status_code == 200
-    assert r.json().get("singlePageMode") is True
+    body = r.json()
+    assert body.get("success") is True
+    assert "singlePageMode" in body.get("updated", [])
+    # Verify persistence via GET
+    g = requests.get(
+        f"{BASE_URL}/api/projects/{project_id}",
+        headers={"Authorization": f"Bearer {super_token}"},
+        timeout=10,
+    )
+    assert g.status_code == 200
+    assert g.json().get("singlePageMode") is True
 
     # Set false (cleanup)
     r2 = requests.put(
@@ -49,7 +62,13 @@ def test_project_singlepagemode_field_persists(super_token, project_id):
         timeout=10,
     )
     assert r2.status_code == 200
-    assert r2.json().get("singlePageMode") is False
+    assert r2.json().get("success") is True
+    g2 = requests.get(
+        f"{BASE_URL}/api/projects/{project_id}",
+        headers={"Authorization": f"Bearer {super_token}"},
+        timeout=10,
+    )
+    assert g2.json().get("singlePageMode") is False
 
 
 def test_export_html_singlepage_explicit_true(super_token, project_id):

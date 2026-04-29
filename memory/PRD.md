@@ -87,6 +87,12 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: FIX (P0 produção) — Toggle "Página Única" retornando 502 Bad Gateway em produção.
+  - **Bug do usuário (screenshot)**: ao ativar o switch de "Página Única" no `ExportDialog` em produção (`backend-startup.emergent.host`), o frontend recebia `PUT /api/projects/{id}` → **502 Bad Gateway** ("AxiosError: Request failed with status code 502" + "ERR_BAD_RESPONSE"). No preview funcionava normalmente.
+  - **Causa raiz**: o endpoint `PUT /api/projects/{project_id}` em `routes/projects_crud.py` retornava `await get_project_by_id(project_id)` — o **projeto inteiro**. Para projetos com muitas slides + `htmlContent` extenso + media inline (base64), o JSON de resposta podia ultrapassar vários MB. Em produção (atrás do proxy/CDN da emergent.host), isso atingia o limite de tamanho/timeout do gateway → 502. No preview funcionava porque o limite é mais permissivo.
+  - **Fix**: o endpoint agora retorna apenas `{success: true, id: project_id, updated: ["singlePageMode", "updatedAt"]}` (~100 bytes). O frontend (`ExportDialog.jsx`) já chama `fetchProject()` em `.then()` para re-buscar o estado fresco — então não há perda funcional, apenas overhead removido. Mesma proteção beneficia o toggle de VLibras (único outro consumer desse endpoint).
+  - **Validado**: 74/74 testes (2 novos `test_put_project_lightweight.py` cobrindo: response shape correto, payload < 200 bytes, função não chama mais `get_project_by_id`). E2E via curl: response medida em **101 bytes**. Teste regressão `test_project_singlepagemode_field_persists` atualizado para verificar persistência via GET separado (espelha o fluxo real do frontend).
+
 - 2026-04-29: FIX (P0) — Botão com timeline (startTime/endTime) não aparecia no Single Page export.
   - **Bug do usuário (screenshot)**: na slide "Cenário: Atendimento e Suporte" o autor configurou um botão "Clique aqui" (link para PDF) com `startTime=3.48` / `endTime=5` para aparecer 3.5s depois do início da timeline. No Single Page export o botão simplesmente nunca aparecia.
   - **Causa raiz #1**: o dispatcher `_render_element` em `single_page_exporter.py` não tinha case para `type='button'` nem para `type='shape'` — caía no `return ""` (string vazia). Idem para `shape`. Esses elementos eram silenciosamente descartados.

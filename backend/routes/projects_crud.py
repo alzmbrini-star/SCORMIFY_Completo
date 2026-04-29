@@ -110,7 +110,14 @@ async def get_project(project_id: str, user: dict = Depends(require_auth)):
 
 @router.put("/projects/{project_id}", response_model=dict)
 async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: dict = Depends(require_auth)):
-    """Update project. Enforces per-company access isolation."""
+    """Update project. Enforces per-company access isolation.
+
+    Returns a lightweight ack instead of the full project document — projects
+    can grow to many MB (slides + base64-inlined media + htmlContent), and
+    serialising the whole thing here was causing 502 Bad Gateway in production
+    (proxy timeout / response too large). Frontend re-fetches via GET when it
+    needs the fresh state.
+    """
     await load_authorized_project(project_id, user)
     update_data = data.model_dump(exclude_unset=True)
 
@@ -119,7 +126,7 @@ async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: di
 
     await update_project(project_id, update_data)
 
-    return await get_project_by_id(project_id)
+    return {"success": True, "id": project_id, "updated": list(update_data.keys())}
 
 
 @router.delete("/projects/{project_id}")
