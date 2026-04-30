@@ -315,6 +315,64 @@ def _render_audio_element_inner(el: dict, project_id: str, assets_dir: str, base
     )
 
 
+def _render_slide_narration(slide: dict, slide_idx: int, project_id: str, assets_dir: str, base_url: str) -> str:
+    """Render slide-level narration audio (uploaded via TTS / ElevenLabs).
+
+    Reads `slide.audio[]` (populated by /projects/{pid}/slides/{sid}/audio
+    upload — the same path used by the Editor's ElevenLabs TTS dialog and
+    the Agent's narration pipeline). Renders ONE compact player per
+    narration entry. The narration auto-plays when the section becomes
+    active (handled in JS) and is NON-BLOCKING (does not require play to
+    unlock next section), since narration is supportive content.
+    """
+    audios = slide.get("audio") or []
+    if not isinstance(audios, list) or not audios:
+        return ""
+    # Filter to narration only (skip sfx / background-music for now — those
+    # would have type="sfx" or "background")
+    narrations = [a for a in audios if isinstance(a, dict)
+                  and (a.get("type", "narration") == "narration")
+                  and (a.get("src") or a.get("audioUrl") or a.get("content"))]
+    if not narrations:
+        return ""
+    # Build narration block — one <audio> per entry, with a minimal player UI.
+    parts: List[str] = []
+    parts.append(
+        f'<div class="sp-narration" data-narration-section="{slide_idx}" '
+        f'data-testid="sp-narration-{slide_idx}">'
+    )
+    for n_idx, n in enumerate(narrations):
+        src_raw = n.get("src") or n.get("audioUrl") or n.get("content") or ""
+        src = _resolve_asset_url(src_raw, project_id, assets_dir, base_url)
+        try:
+            volume = float(n.get("volume", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            volume = 1.0
+        volume = max(0.0, min(1.0, volume))
+        parts.append(
+            f'<audio class="sp-narration-audio" preload="metadata" '
+            f'src="{_esc(src)}" data-volume="{volume}" '
+            f'data-narration-id="narr-{slide_idx}-{n_idx}" '
+            f'data-testid="sp-narration-audio-{slide_idx}-{n_idx}"></audio>'
+        )
+    # Compact controls: play/pause + mute (per section). Global mute lives in the
+    # top progress bar (rendered by _BUILD_PAGE).
+    parts.append(
+        f'<div class="sp-narration-controls" role="group" aria-label="Controles de narração">'
+        f'<button type="button" class="sp-narration-btn" data-narration-action="toggle" '
+        f'data-testid="sp-narration-toggle-{slide_idx}" aria-label="Reproduzir/pausar narração">'
+        f'<span class="sp-narration-icon-play">▶</span>'
+        f'<span class="sp-narration-icon-pause">⏸</span>'
+        f'</button>'
+        f'<button type="button" class="sp-narration-btn" data-narration-action="restart" '
+        f'data-testid="sp-narration-restart-{slide_idx}" aria-label="Reiniciar narração">↻</button>'
+        f'<span class="sp-narration-label">🎧 Narração</span>'
+        f'</div>'
+        f'</div>'
+    )
+    return "".join(parts)
+
+
 def _is_heygen_avatar_url(url: str) -> bool:
     """HeyGen avatar videos têm URL contendo 'heygen' (heygen.ai, resourceN.heygen.ai etc.)
     e são entregues como WebM com canal alpha (fundo transparente).
@@ -722,6 +780,13 @@ def generate_single_page_html(
                 f'<div class="sp-timeline-hint">⏱ Reproduzindo sequência temporal — aguarde o fim para liberar a próxima seção</div>'
                 f'</div>'
             )
+
+        # Render slide-level narration (slide.audio[]) — auto-plays when section
+        # becomes active; non-blocking. Appended at the END of section body so
+        # it doesn't compete with primary content for vertical real estate.
+        narration_html = _render_slide_narration(slide, s_idx, project_id, assets_dir, base_url)
+        if narration_html:
+            rendered_elements.append(narration_html)
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
 
         bg_color = (slide.get("background") or "").strip()
@@ -968,6 +1033,31 @@ body{position:relative;overflow-x:hidden}
 .sp-video-label,.sp-audio-label{font-weight:700;color:#0a2540;font-size:14px}
 .sp-section.sp-dark .sp-video-label,
 .sp-section.sp-dark .sp-audio-label{color:#facc15}
+
+/* Slide-level narration (ElevenLabs TTS) — auto-plays when section is active.
+   Renders as a discreet pill at the bottom of each section, NOT as a blocking
+   interactive. The audio element itself is hidden; only the play/pause/restart
+   pill is visible, plus a global mute toggle in the top progress bar. */
+.sp-narration{display:flex;justify-content:center;margin:16px auto 0;max-width:720px}
+.sp-narration-audio{display:none}
+.sp-narration-controls{display:inline-flex;align-items:center;gap:8px;background:rgba(10,37,64,.92);color:#facc15;padding:6px 14px 6px 8px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sp-narration-label{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.sp-narration-btn{appearance:none;border:0;background:rgba(250,204,21,.18);color:#facc15;width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;line-height:1;transition:transform .15s ease,background .15s ease}
+.sp-narration-btn:hover{background:rgba(250,204,21,.32);transform:scale(1.06)}
+.sp-narration-btn:focus-visible{outline:2px solid #facc15;outline-offset:2px}
+.sp-narration[data-playing="true"] .sp-narration-icon-play{display:none}
+.sp-narration:not([data-playing="true"]) .sp-narration-icon-pause{display:none}
+
+/* Global narration mute toggle — sits in the top header next to the progress.
+   Hidden when the page has no narration audio at all (added by JS). */
+.sp-narration-mute-toggle{appearance:none;border:0;background:rgba(15,23,42,.7);color:#facc15;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;display:none;align-items:center;gap:6px;letter-spacing:.5px}
+.sp-narration-mute-toggle.sp-visible{display:inline-flex}
+.sp-narration-mute-toggle:hover{background:rgba(250,204,21,.18)}
+.sp-narration-mute-toggle[data-muted="true"]{background:rgba(248,113,113,.18);color:#fca5a5}
+
+@media (prefers-reduced-motion: reduce){
+  .sp-narration-btn{transition:none}
+}
 
 .sp-interactive{position:relative;background:#fef9c3;border-radius:12px;padding:18px;border:3px solid #facc15;transition:all .3s;box-shadow:0 4px 16px rgba(250,204,21,.25)}
 .sp-interactive[data-completed="true"]:not(.sp-quiz):not(.sp-scenario){border-color:#84cc16;background:#f7fee7;box-shadow:0 2px 8px rgba(132,204,22,.2)}
@@ -1694,6 +1784,131 @@ _JS = """
     sectionsWithTimeline.forEach(function(sec){ io.observe(sec); });
   }
 
+  // ---------- Narration (slide.audio[]) — ElevenLabs TTS auto-play ----------
+  // Auto-plays the section's narration when the section becomes active (>=40%
+  // visible). Pauses all other narrations on transition. Honors a global mute
+  // toggle persisted in sessionStorage. NEVER blocks progression — narration
+  // is supportive, not gated like the audio interactive elements.
+  var NARRATION_MUTE_KEY = 'sp:narration:muted';
+  function isNarrationMuted(){
+    try { return sessionStorage.getItem(NARRATION_MUTE_KEY) === '1'; } catch(e){ return false; }
+  }
+  function setNarrationMuted(v){
+    try { sessionStorage.setItem(NARRATION_MUTE_KEY, v ? '1' : '0'); } catch(e){}
+  }
+  function pauseAllNarrations(except){
+    $$('.sp-narration').forEach(function(n){
+      if (n === except) return;
+      n.removeAttribute('data-playing');
+      var audios = n.querySelectorAll('.sp-narration-audio');
+      audios.forEach(function(a){ try { a.pause(); a.currentTime = 0; } catch(e){} });
+    });
+  }
+  function playNarration(narration){
+    if (!narration) return;
+    var audios = narration.querySelectorAll('.sp-narration-audio');
+    if (!audios.length) return;
+    pauseAllNarrations(narration);
+    if (isNarrationMuted()) {
+      narration.removeAttribute('data-playing');
+      return;
+    }
+    narration.setAttribute('data-playing', 'true');
+    // Play the first audio entry; if multiple, chain them sequentially.
+    var queue = Array.prototype.slice.call(audios);
+    function playNext(){
+      var current = queue.shift();
+      if (!current) {
+        narration.removeAttribute('data-playing');
+        return;
+      }
+      try {
+        var vol = parseFloat(current.dataset.volume || '1');
+        if (!isNaN(vol)) current.volume = Math.max(0, Math.min(1, vol));
+      } catch(e){}
+      current.onended = playNext;
+      var p = current.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(function(){
+          // Browser autoplay blocked — leave the play button visible so the
+          // user can press it manually. Keep data-playing="false".
+          narration.removeAttribute('data-playing');
+        });
+      }
+    }
+    playNext();
+  }
+  function observeNarrations(){
+    var narrations = $$('.sp-narration');
+    if (!narrations.length || typeof IntersectionObserver === 'undefined') return;
+    // Inject mute toggle into the header (only when at least one narration exists).
+    var headerEl = $('.sp-progress-bar') || $('header');
+    if (headerEl && !$('.sp-narration-mute-toggle')) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sp-narration-mute-toggle sp-visible';
+      btn.setAttribute('data-testid', 'sp-narration-mute');
+      btn.dataset.muted = isNarrationMuted() ? 'true' : 'false';
+      btn.innerHTML = '<span class="sp-mute-icon">'+(isNarrationMuted()?'🔇':'🔊')+'</span><span>Narração</span>';
+      btn.addEventListener('click', function(){
+        var nowMuted = !isNarrationMuted();
+        setNarrationMuted(nowMuted);
+        btn.dataset.muted = nowMuted ? 'true' : 'false';
+        btn.querySelector('.sp-mute-icon').textContent = nowMuted ? '🔇' : '🔊';
+        if (nowMuted) {
+          pauseAllNarrations(null);
+        } else {
+          // Re-trigger current section's narration if any
+          var currentNarration = $('.sp-section[data-index="'+state.currentIndex+'"] .sp-narration');
+          if (currentNarration) playNarration(currentNarration);
+        }
+      });
+      // Insert at the end of the header (after progress fill)
+      headerEl.appendChild(btn);
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
+          var sec = entry.target.closest('.sp-section');
+          if (sec && !sec.hasAttribute('data-locked')) {
+            playNarration(entry.target);
+          }
+        } else if (!entry.isIntersecting) {
+          // Section scrolled away — pause its narration
+          var n = entry.target;
+          if (n.hasAttribute('data-playing')) {
+            n.removeAttribute('data-playing');
+            var audios = n.querySelectorAll('.sp-narration-audio');
+            audios.forEach(function(a){ try { a.pause(); } catch(e){} });
+          }
+        }
+      });
+    }, { threshold: [0.4] });
+    narrations.forEach(function(n){ io.observe(n); });
+    // Wire per-section play/restart buttons (manual fallback when autoplay is blocked).
+    $$('.sp-narration-btn').forEach(function(btn){
+      btn.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        var narration = btn.closest('.sp-narration');
+        if (!narration) return;
+        var action = btn.dataset.narrationAction;
+        var audios = narration.querySelectorAll('.sp-narration-audio');
+        if (action === 'restart') {
+          audios.forEach(function(a){ try { a.pause(); a.currentTime = 0; } catch(e){} });
+          playNarration(narration);
+        } else if (action === 'toggle') {
+          if (narration.hasAttribute('data-playing')) {
+            audios.forEach(function(a){ try { a.pause(); } catch(e){} });
+            narration.removeAttribute('data-playing');
+          } else {
+            playNarration(narration);
+          }
+        }
+      });
+    });
+  }
+  // ---------- end narration runtime ----------
+
   document.addEventListener('DOMContentLoaded', function(){
     if (SCORM_MODE && window.SCORM) {
       try { window.SCORM.init(); } catch(e) {}
@@ -1703,6 +1918,7 @@ _JS = """
     updateProgress();
     updateNextButton();
     observeTimelines();
+    observeNarrations();
     window.addEventListener('scroll', detectActiveSection, {passive:true});
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
     if (SCORM_MODE && window.SCORM) {

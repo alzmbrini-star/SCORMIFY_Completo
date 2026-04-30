@@ -88,6 +88,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P0)** — Áudios da ElevenLabs integrados na exportação **Página Única** (Single Page).
+  - **O que foi feito**: o exportador `services/single_page_exporter.py` agora renderiza `slide.audio[]` (populado via Editor TTS dialog → ElevenLabs `/api/elevenlabs/generate-speech` → upload em `/api/projects/{pid}/slides/{sid}/audio`).
+  - **Comportamento UX**:
+    - Auto-play da narração quando a seção fica ativa (≥40% visível) — via `IntersectionObserver`.
+    - Pausa automaticamente narrações de outras seções ao rolar.
+    - Múltiplas narrações por slide tocam em sequência (chained playback).
+    - **Não bloqueia progressão** (narração é suporte, não interativo gated) — diferente do antigo `<audio>` element que tinha `data-required="true"`.
+    - Pill compacta com ▶/⏸ + ↻ (reiniciar) por seção como fallback quando navegador bloqueia autoplay.
+    - **Toggle global de mudo** no header da página, persistido em `sessionStorage` (`sp:narration:muted`) — quando mudo ativo, todas as narrações pausam imediatamente.
+  - **Inlining (standalone)**: `_resolve_asset_url` converte arquivos MP3 locais em **data URI base64** — o HTML exportado funciona offline 100% sem servidor (validado E2E: 1.66 MB com áudio 67 kB embutido).
+  - **Dark mode automático**: CSS `.sp-narration-controls` usa fundo escuro com glassmorphism que combina com seções `.sp-section.sp-dark`.
+  - **Acessibilidade**: `aria-label`, `role="group"`, suporte a `prefers-reduced-motion`, foco visível.
+  - **Validação E2E**: 14/14 pytest passando + curl confirmou 27 ocorrências de `sp-narration` + audio base64 + JS runtime no HTML exportado real do projeto "Mastering Problem Solving".
+
 - 2026-04-29: **BUGFIX (P0)** — Erro "Missing slideId or elementId" ao editar imagens inseridas pelo Agente IA.
   - **Sintoma**: usuário reportou print onde imagem Krea foi inserida MINÚSCULA no canto superior do slide, e qualquer tentativa de redimensionar/mover disparava `Uncaught runtime error: Missing slideId or elementId`.
   - **Causa raiz**: `_attach_image_to_slide` em `routes/agent.py` preservava element existente quando achava `type=image`, apenas trocando `src`. Se o element original (vindo de import PPT) tinha `id=None, x=None, y=None, width=None, height=None`, a quebra era herdada. Frontend exibia o element com dimensões default minúsculas, e ao tentar editar, `updateElement(slideId, undefined, ...)` lançava throw.
