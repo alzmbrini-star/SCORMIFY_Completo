@@ -950,6 +950,16 @@ def generate_single_page_html(
         bg_image_url = slide.get("backgroundImage") or ""
         if bg_image_url:
             bg_image_url = _resolve_asset_url(bg_image_url, project_id, assets_dir, base_url)
+        # Slide canvas dimensions (PPT-imported slides carry the original
+        # PowerPoint frame size — typically 1280×720 / 1920×1080). We use
+        # this to lock the section card to the slide's aspect ratio so the
+        # PPT-imported background renders at full size instead of being
+        # squashed into a thin banner.
+        try:
+            slide_w_for_card = float(slide.get("width") or 0)
+            slide_h_for_card = float(slide.get("height") or 0)
+        except (TypeError, ValueError):
+            slide_w_for_card = slide_h_for_card = 0
         card_styles = []
         section_class = "sp-section"
         if bg_color:
@@ -961,7 +971,17 @@ def generate_single_page_html(
             card_styles.append(f"background-image:url({_esc(bg_image_url)})")
             card_styles.append("background-size:cover")
             card_styles.append("background-position:center")
+            card_styles.append("background-repeat:no-repeat")
             section_class += " sp-has-bg-image"
+            # Preserve slide aspect-ratio so PPT-imported slides render full size
+            # (mat the section's max-width 1080px → height ~607px for 16:9).
+            # Only set when both dims are sane to avoid math errors.
+            if slide_w_for_card > 0 and slide_h_for_card > 0:
+                # Express as integer ratio (CSS prefers `1280/720` style)
+                card_styles.append(f"aspect-ratio:{int(slide_w_for_card)}/{int(slide_h_for_card)}")
+                # Ensure a sensible minimum height on small viewports too
+                card_styles.append("min-height:520px")
+                section_class += " sp-aspect-locked"
         card_style = f' style="{";".join(card_styles)}"' if card_styles else ''
 
         section = (
@@ -1169,6 +1189,20 @@ body{position:relative;overflow-x:hidden}
 .sp-section:first-of-type:not([data-locked]){display:block;animation:sp-fade-in .6s ease}
 @keyframes sp-fade-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .sp-section-inner{width:100%;max-width:1080px;margin:0 auto;background:#fff;border-radius:14px;padding:48px 56px;box-shadow:0 20px 60px rgba(0,0,0,.35);box-sizing:border-box}
+/* PPT-imported slides: the section card is locked to the slide's aspect
+   ratio (e.g. 16/9) and uses a wider max-width + thinner padding so the
+   slide background fills the viewport properly. Without this, PPT slides
+   render as tiny banners floating in a sea of empty space. */
+.sp-section.sp-aspect-locked .sp-section-inner{max-width:min(95vw,1600px);padding:18px 22px;border-radius:18px}
+.sp-section.sp-aspect-locked .sp-section-title{position:absolute;top:18px;left:24px;right:24px;font-size:18px;margin:0;text-align:left;background:rgba(10,37,64,.55);color:#facc15;padding:6px 14px;border-radius:8px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:5}
+.sp-section.sp-aspect-locked .sp-section-body{position:absolute;left:0;right:0;bottom:0;padding:18px 22px 24px;gap:12px;background:linear-gradient(to top,rgba(10,37,64,.85) 0%,rgba(10,37,64,.0) 100%);max-height:55%;overflow-y:auto}
+.sp-section.sp-aspect-locked .sp-section-inner{position:relative;overflow:hidden}
+.sp-section.sp-aspect-locked .sp-section-body > *{max-width:100%}
+@media (max-width: 768px){
+  .sp-section.sp-aspect-locked .sp-section-inner{aspect-ratio:auto !important;min-height:420px}
+  .sp-section.sp-aspect-locked .sp-section-title{position:static;margin-bottom:14px}
+  .sp-section.sp-aspect-locked .sp-section-body{position:static;background:transparent;max-height:none}
+}
 .sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1;text-align:center}
 .sp-section.sp-dark .sp-section-title{color:#fde047}
 .sp-section.sp-dark .sp-section-body{color:inherit}

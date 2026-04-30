@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **BUGFIX (P0)** — Slides importados de PPT renderizavam como **banner mínimo** no SCORM Single Page export.
+  - **Sintoma**: usuário enviou screenshot mostrando slide PPT (1280×720) renderizado como banner horizontal estreito flutuando sobre uma área escura imensa — o conteúdo da slide ocupava ~30% da viewport.
+  - **Causa raiz**: o exportador aplicava `background-image: url(...)` + `background-size: cover` no `.sp-section-inner` SEM nenhuma restrição de altura. Como o card só tinha o título h2 dentro (poucos elementos no body), a altura ficava determinada pelo título + padding (~480px), enquanto a section forçava `min-height: 100vh` (1080px+) — gerando a "banda" no topo e o vazio escuro abaixo.
+  - **Fix**: quando o slide tem `backgroundImage` E `width`/`height` válidos (típico de PPT-imported), o exportador agora:
+    1. Adiciona classe `sp-aspect-locked` à section.
+    2. Define `aspect-ratio: {slide_w}/{slide_h}` no card → preserva proporção (16:9, 4:3, etc.).
+    3. CSS dedicado `.sp-section.sp-aspect-locked .sp-section-inner` com `max-width: min(95vw, 1600px)` + `padding: 18px 22px` (em vez de 1080px max + 48px 56px).
+    4. Title flutuante com glassmorphism no canto superior + body em camada inferior com gradient overlay — para não cobrir o conteúdo da slide.
+    5. Mobile fallback `@media (max-width: 768px)`: aspect-ratio é desligado, title volta ao fluxo normal (evita slides quadrados/microscópicos em portrait).
+  - **Não afeta** slides nativos do Editor (sem `backgroundImage`) — eles continuam com o card layout original (1080px max-width, conteúdo flow vertical).
+  - **Validado**: 10 testes pytest novos (`tests/test_singlepage_ppt_aspect.py` — todas resoluções: 1280×720, 1920×1080, 960×720) + E2E real no projeto "0 - Apresentacao - A trilha do vendedor" → HTML gerado com 17 ocorrências de `sp-aspect-locked` + `aspect-ratio:1280/720`. Sem regressão (44/44 testes passando).
+
 - 2026-04-29: **BUGFIX (P0)** — Avatar HeyGen agora é sobreposto à imagem de cenário no Single Page export (em vez de aparecer empilhado verticalmente).
   - **Sintoma**: usuário enviou screenshot mostrando o avatar HeyGen (vídeo .webm transparente) renderizado COMO BLOCO SEPARADO acima da imagem de cenário, em vez de ficar dentro/sobre o cenário como definido no Editor.
   - **Causa raiz**: o exportador `single_page_exporter.py` renderizava cada element individualmente como bloco vertical (`<div>...</div><div>...</div>`), perdendo o posicionamento absoluto que o autor configurou no Editor.
