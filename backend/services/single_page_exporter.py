@@ -577,6 +577,68 @@ def _render_avatar_stage(scene_el: dict, avatar_el: dict, project_id: str,
     )
 
 
+def _find_avatar_for_bg_scene(elements: List[dict]) -> Optional[Dict[str, Any]]:
+    """Find a HeyGen avatar element on a slide whose scene comes from
+    `slide.backgroundImage` (PPT-imported or aspect-locked slides). Returns
+    {avatar_idx, avatar_el} or None.
+    """
+    for i, el in enumerate(elements):
+        if _is_heygen_or_transparent_avatar(el):
+            return {"avatar_idx": i, "avatar_el": el}
+    return None
+
+
+def _render_avatar_overlay_for_bg(avatar_el: dict, slide: dict, project_id: str,
+                                    assets_dir: str, base_url: str, slide_idx: int) -> str:
+    """Render JUST the avatar as an absolute overlay positioned relative to
+    the slide's frame (slide.width × slide.height). Designed to be appended
+    INSIDE the section-inner card (which already has the slide bg-image and
+    aspect-ratio locked) — the avatar floats over the bg.
+    """
+    avatar_src = (avatar_el.get("src") or avatar_el.get("videoUrl")
+                  or avatar_el.get("avatarVideoUrl") or avatar_el.get("content") or "")
+    avatar_src = _resolve_asset_url(avatar_src, project_id, assets_dir, base_url)
+    if not avatar_src:
+        return ""
+    try:
+        slide_w = float(slide.get("width") or 0)
+        slide_h = float(slide.get("height") or 0)
+        ax = float(avatar_el.get("x") or 0)
+        ay = float(avatar_el.get("y") or 0)
+        aw = float(avatar_el.get("width") or 0)
+        ah = float(avatar_el.get("height") or 0)
+    except (TypeError, ValueError):
+        slide_w = slide_h = ax = ay = aw = ah = 0
+
+    if slide_w > 0 and slide_h > 0 and aw > 0 and ah > 0:
+        left_pct = max(0.0, min(100.0, (ax / slide_w) * 100.0))
+        top_pct = max(0.0, min(100.0, (ay / slide_h) * 100.0))
+        width_pct = max(5.0, min(100.0, (aw / slide_w) * 100.0))
+        height_pct = max(5.0, min(100.0, (ah / slide_h) * 100.0))
+        overlay_style = (
+            f"position:absolute;left:{left_pct:.2f}%;top:{top_pct:.2f}%;"
+            f"width:{width_pct:.2f}%;height:{height_pct:.2f}%;"
+            f"display:flex;align-items:center;justify-content:center;background:transparent;z-index:4"
+        )
+    else:
+        overlay_style = (
+            "position:absolute;left:50%;bottom:0;transform:translateX(-50%);"
+            "width:38%;height:75%;display:flex;align-items:flex-end;justify-content:center;"
+            "background:transparent;z-index:4"
+        )
+
+    return (
+        f'<div class="sp-avatar-overlay sp-avatar-wrap" data-interactive="video" data-required="true" '
+        f'data-interactive-id="avatar-bg-{slide_idx}" '
+        f'data-testid="sp-avatar-overlay-{slide_idx}" style="{overlay_style}">'
+        f'<video controls preload="metadata" src="{_esc(avatar_src)}" '
+        f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-avatar-wrap\'))" '
+        f'playsinline '
+        f'style="width:100%;height:100%;object-fit:contain;background:transparent;border:0;display:block"></video>'
+        f'</div>'
+    )
+
+
 def _looks_like_header_bar(html: str) -> bool:
     """Heuristic: returns True if the HTML content is structurally a "thin header
     bar" (gradient or solid background, short text, single flex row) regardless
@@ -899,6 +961,17 @@ def generate_single_page_html(
         if avatar_pair:
             composed_indices = {avatar_pair["avatar_idx"], avatar_pair["scene_idx"]}
 
+        # ALSO handle the case where the scene is the slide's `backgroundImage`
+        # (PPT-imported aspect-locked slides). The pair-finder above only
+        # matches an actual <image> element, but PPT slides have the scene
+        # baked into slide.backgroundImage. In that case, find a lone avatar
+        # and overlay it on the bg via aspect-locked positioning.
+        bg_avatar = None
+        if not avatar_pair and slide.get("backgroundImage"):
+            bg_avatar = _find_avatar_for_bg_scene(elements)
+            if bg_avatar:
+                composed_indices.add(bg_avatar["avatar_idx"])
+
         for e_idx, el in enumerate(elements):
             # Skip elements that will be composed into the avatar-stage block
             if e_idx in composed_indices:
@@ -984,6 +1057,15 @@ def generate_single_page_html(
                 section_class += " sp-aspect-locked"
         card_style = f' style="{";".join(card_styles)}"' if card_styles else ''
 
+        # Compose avatar overlay INSIDE the section-inner (over the bg-image)
+        # — only when slide has bg-image AND a HeyGen avatar that we removed
+        # from the regular elements pass above.
+        bg_avatar_html = ""
+        if bg_avatar:
+            bg_avatar_html = _render_avatar_overlay_for_bg(
+                bg_avatar["avatar_el"], slide, project_id, assets_dir, base_url, s_idx,
+            )
+
         section = (
             f'<section class="{section_class}" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
@@ -993,6 +1075,7 @@ def generate_single_page_html(
             f'    <div class="sp-section-body">\n'
             f'      {chr(10).join(rendered_elements)}\n'
             f'    </div>\n'
+            f'    {bg_avatar_html}\n'
             f'  </div>\n'
             f'</section>\n'
         )
@@ -1235,14 +1318,22 @@ body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,11
    ratio (e.g. 16/9) and uses a wider max-width + thinner padding so the
    slide background fills the viewport properly. Without this, PPT slides
    render as tiny banners floating in a sea of empty space. */
-.sp-section.sp-aspect-locked .sp-section-inner{max-width:min(95vw,1600px);padding:18px 22px;border-radius:18px}
-.sp-section.sp-aspect-locked .sp-section-title{position:absolute;top:18px;left:24px;right:24px;font-size:18px;margin:0;text-align:left;background:rgba(10,37,64,.55);color:#facc15;padding:6px 14px;border-radius:8px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:5}
-.sp-section.sp-aspect-locked .sp-section-body{position:absolute;left:0;right:0;bottom:0;padding:18px 22px 24px;gap:12px;background:linear-gradient(to top,rgba(10,37,64,.85) 0%,rgba(10,37,64,.0) 100%);max-height:55%;overflow-y:auto}
-.sp-section.sp-aspect-locked .sp-section-inner{position:relative;overflow:hidden}
+.sp-section.sp-aspect-locked .sp-section-inner{max-width:min(95vw,1600px);padding:18px 22px;border-radius:18px;position:relative;overflow:hidden}
+.sp-section.sp-aspect-locked .sp-section-title{position:absolute;top:18px;left:24px;right:24px;font-size:18px;margin:0;text-align:left;background:rgba(10,37,64,.55);color:#facc15;padding:6px 14px;border-radius:8px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:5;pointer-events:none}
+/* Body sits at the bottom as an overlay strip (not full overflow). When the
+   slide has only background-image + (optional) avatar overlay, the body
+   shrinks to its content height to avoid clipping the scene. */
+.sp-section.sp-aspect-locked .sp-section-body{position:absolute;left:0;right:0;bottom:0;padding:14px 22px 20px;gap:10px;background:linear-gradient(to top,rgba(10,37,64,.85) 0%,rgba(10,37,64,0) 100%);max-height:50%;overflow:visible;z-index:3}
+/* When there's an avatar overlay AND no extra body content, hide the body
+   strip so the scene+avatar own the full card. The body becomes empty when
+   the only `composed_indices` element was the avatar (header/buttons still
+   show as separate elements, so this only triggers on truly avatar-only
+   slides). */
+.sp-section.sp-aspect-locked .sp-section-body:empty{display:none}
 .sp-section.sp-aspect-locked .sp-section-body > *{max-width:100%}
 @media (max-width: 768px){
   .sp-section.sp-aspect-locked .sp-section-inner{aspect-ratio:auto !important;min-height:420px}
-  .sp-section.sp-aspect-locked .sp-section-title{position:static;margin-bottom:14px}
+  .sp-section.sp-aspect-locked .sp-section-title{position:static;margin-bottom:14px;pointer-events:auto}
   .sp-section.sp-aspect-locked .sp-section-body{position:static;background:transparent;max-height:none}
 }
 .sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1;text-align:center}

@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **BUGFIX (P0)** — Avatar HeyGen sobre `slide.backgroundImage` (PPT-imported) + scrollbar do aspect-locked.
+  - **Sintoma**: usuário enviou screenshot mostrando avatar HeyGen aparecendo abaixo do cenário (não dentro), com uma faixa amarela no meio cortando + scrollbar vertical lateral.
+  - **Causas**:
+    1. O detector `_find_avatar_scene_pair` só matcha quando a "cena" é um `<image>` element. Em slides PPT-imported, a cena vem como `slide.backgroundImage` (CSS background) — então o pair-finder retornava None e o avatar caía no fluxo vertical normal.
+    2. CSS do aspect-locked `.sp-section-body` tinha `overflow-y:auto` + `max-height:55%` → quando o iframe HTML (header bar + botão "Concluí a interação") era maior que 50% do card, surgia scrollbar.
+    3. A faixa amarela era o botão "✓ Concluí a interação acima" do iframe — comportamento legítimo, mas atrapalhava visualmente quando o body era muito alto.
+  - **Fix 1 — Avatar over bg-image**: novos helpers `_find_avatar_for_bg_scene` + `_render_avatar_overlay_for_bg`. Quando slide tem `backgroundImage` E HeyGen avatar element, o avatar é removido do fluxo normal e renderizado como `<div class="sp-avatar-overlay sp-avatar-wrap" style="position:absolute;...">` DENTRO do `.sp-section-inner` aspect-locked. Coordenadas convertidas de pixels do Editor → porcentagens relativas a `slide.width`/`slide.height` (preserva a posição autoral). `data-required="true"` mantido para gating de play.
+  - **Fix 2 — Scrollbar**: CSS do `.sp-section.sp-aspect-locked .sp-section-body` agora usa `overflow:visible` (sem scrollbar) + `max-height:50%` reduzido para 50%, padding mais discreto. Body é absoluto na parte inferior do card com gradient overlay sutil. `:empty{display:none}` esconde o body strip quando o avatar consumiu o único element relevante.
+  - **Validado**: 7 testes pytest novos cobrem o caso bg-image + avatar (cobertura: avatar overlay positioning, gating preservado, regressão para slides sem avatar, scrollbar removido, body :empty hide). 58/58 testes passando + E2E real no projeto "Liderança de Impacto" (1920×820 com `backgroundImage` + avatar HeyGen) gerou HTML com `sp-avatar-overlay-0` corretamente posicionado.
+
 - 2026-04-29: **FEATURE (P1)** — Modo **Tela Cheia / Kiosk** no Single Page export.
   - **O que faz**: botão dedicado no header (com ícones expand/shrink dinâmicos) que ativa modo cinema imersivo:
     - Browser Fullscreen API (`document.documentElement.requestFullscreen()`) com fallbacks `webkit/moz/ms`.

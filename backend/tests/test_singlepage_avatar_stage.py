@@ -268,3 +268,138 @@ def test_singlepage_html_no_regression_when_no_avatar():
     html = generate_single_page_html(project, "/tmp/no-such-dir", "")
     assert 'data-testid="sp-avatar-stage-0"' not in html
     assert "scene.png" in html
+
+
+# ---------------------------------------------------------------------------
+# Avatar over slide.backgroundImage (PPT-imported slides)
+# ---------------------------------------------------------------------------
+
+def _ppt_slide_with_bg_and_avatar():
+    return {
+        "id": "p-ppt-avatar",
+        "name": "Curso PPT com Avatar",
+        "course": {
+            "metadata": {"title": "Curso"},
+            "slides": [{
+                "id": "s1", "title": "Boas-vindas",
+                "width": 1280, "height": 720,
+                "backgroundImage": "/api/projects/p-ppt-avatar/assets/cenario.png",
+                "background": "#0a2540",
+                "elements": [
+                    {"type": "video", "id": "v-avatar", "src": HEYGEN_URL,
+                     "x": 380, "y": 200, "width": 520, "height": 520},
+                ],
+            }]
+        }
+    }
+
+
+def test_avatar_overlays_on_slide_background_image():
+    """When the scene comes from `slide.backgroundImage` (PPT-imported) and
+    a HeyGen avatar is on the same slide, the avatar must be rendered as an
+    absolute overlay INSIDE the section card — not as a separate stacked
+    block below the card."""
+    html = generate_single_page_html(_ppt_slide_with_bg_and_avatar(), "/tmp/no-such-dir", "")
+    # The new bg-overlay testid is present
+    assert 'data-testid="sp-avatar-overlay-0"' in html
+    # Aspect-locked card is present (the bg-image-aware container)
+    assert "sp-aspect-locked" in html
+    # Avatar coords translated to percentages relative to slide.width
+    # 380/1280 ≈ 29.69%, 200/720 ≈ 27.78%, 520/1280 ≈ 40.62%, 520/720 ≈ 72.22%
+    assert "left:29.69%" in html
+    assert "top:27.78%" in html
+    assert "width:40.62%" in html
+
+
+def test_avatar_overlay_keeps_video_play_gating():
+    """The avatar overlay must still gate progression — overlay carries
+    data-required='true' + data-interactive='video' + class 'sp-avatar-wrap'
+    so SP.markPlayed continues to fire on play."""
+    html = generate_single_page_html(_ppt_slide_with_bg_and_avatar(), "/tmp/no-such-dir", "")
+    # Find the overlay region
+    needle = 'data-testid="sp-avatar-overlay-0"'
+    assert needle in html
+    idx = html.index(needle)
+    region = html[idx - 400:idx + 400]
+    assert "sp-avatar-wrap" in region
+    assert 'data-required="true"' in region
+    assert "SP.markPlayed" in region
+
+
+def test_avatar_overlay_is_inside_section_inner():
+    """Regression check: the overlay must be a child of `.sp-section-inner`,
+    not of `.sp-section-body` — otherwise the body's gradient overlay
+    (max-height:50%) would clip it."""
+    html = generate_single_page_html(_ppt_slide_with_bg_and_avatar(), "/tmp/no-such-dir", "")
+    # The overlay must appear AFTER the body's closing div, but before the
+    # section-inner closing div. Easiest assertion: between body close and
+    # section-inner close.
+    body_close = html.find("</div>\n    <div class=\"sp-avatar-overlay")
+    # Either pattern works — body closes then overlay div opens
+    assert ('</div>\n    <div class="sp-avatar-overlay' in html
+            or '</div>\n    <div class="sp-avatar-overlay sp-avatar-wrap' in html)
+
+
+def test_no_avatar_overlay_when_no_bg_image():
+    """If the slide has a HeyGen avatar but NO backgroundImage, the existing
+    pair-finder must handle it (looking for an <image> element). The new
+    bg-overlay codepath should NOT also kick in."""
+    project = {
+        "id": "p", "name": "C",
+        "course": {"slides": [{
+            "id": "s", "title": "T",
+            "width": 1920, "height": 820,
+            "elements": [
+                {"type": "video", "id": "v", "src": HEYGEN_URL,
+                 "x": 100, "y": 100, "width": 400, "height": 540},
+                # No backgroundImage on the slide and no scene <image> el either
+            ],
+        }]}
+    }
+    html = generate_single_page_html(project, "/tmp/no-such-dir", "")
+    # No bg-overlay (no bg image to overlay onto)
+    assert 'data-testid="sp-avatar-overlay-0"' not in html
+    # Existing avatar pair compose also does not trigger (no scene image)
+    assert 'data-testid="sp-avatar-stage-0"' not in html
+
+
+def test_avatar_overlay_skips_non_heygen_video():
+    """Non-HeyGen videos (e.g. a YouTube embed) must NOT be repositioned as
+    an avatar — they should render as a regular video element."""
+    project = {
+        "id": "p", "name": "C",
+        "course": {"slides": [{
+            "id": "s", "title": "T",
+            "width": 1280, "height": 720,
+            "backgroundImage": "/scene.png",
+            "elements": [
+                {"type": "video", "id": "v", "src": NON_HEYGEN_URL,
+                 "x": 100, "y": 100, "width": 400, "height": 300},
+            ],
+        }]}
+    }
+    html = generate_single_page_html(project, "/tmp/no-such-dir", "")
+    assert 'data-testid="sp-avatar-overlay-0"' not in html
+
+
+def test_aspect_locked_body_no_scrollbar():
+    """The CSS for aspect-locked body must use `overflow:visible` (not auto)
+    — the scrollbar in the user's screenshot was caused by overflow-y:auto
+    when the body content (large iframe) overflowed the 50% max-height."""
+    html = generate_single_page_html(_ppt_slide_with_bg_and_avatar(), "/tmp/no-such-dir", "")
+    # The body uses overflow:visible
+    assert ".sp-section.sp-aspect-locked .sp-section-body{position:absolute" in html
+    assert "overflow:visible" in html
+    # And NOT overflow-y:auto in the aspect-locked body rule
+    body_rule_start = html.index(".sp-section.sp-aspect-locked .sp-section-body{")
+    body_rule_end = html.index("}", body_rule_start)
+    body_rule = html[body_rule_start:body_rule_end]
+    assert "overflow-y:auto" not in body_rule
+
+
+def test_aspect_locked_body_hides_when_empty():
+    """When the avatar consumes the only meaningful element on the slide,
+    the body becomes empty — the CSS must hide it via `:empty` so the
+    bottom gradient strip doesn't show as a useless dark band."""
+    html = generate_single_page_html(_ppt_slide_with_bg_and_avatar(), "/tmp/no-such-dir", "")
+    assert ".sp-section.sp-aspect-locked .sp-section-body:empty{display:none}" in html
