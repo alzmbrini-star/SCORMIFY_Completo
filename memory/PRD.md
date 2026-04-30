@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P1)** — Modo **Tela Cheia / Kiosk** no Single Page export.
+  - **O que faz**: botão dedicado no header (com ícones expand/shrink dinâmicos) que ativa modo cinema imersivo:
+    - Browser Fullscreen API (`document.documentElement.requestFullscreen()`) com fallbacks `webkit/moz/ms`.
+    - Header colapsa de 54px → 36px com glassmorphism + auto-hide após 2.5s de inatividade do mouse (cinema feel).
+    - Section ativa expande para `100vh × 100vw`; PPT slides com `sp-aspect-locked` reaproveitam aspect-ratio mas ocupam até 96vw × `100vh - 60px`.
+    - Drawer lateral é ocultado.
+    - Botão exit-fullscreen flutuante no canto superior direito sempre visível (mesmo com header oculto).
+  - **Atalhos**: F11 ou tecla "f" toggle (com guarda anti-INPUT/TEXTAREA/SELECT). Esc é tratado nativamente pelo browser + sincronizado com flag interno via `fullscreenchange` event.
+  - **Persistência**: estado em `sessionStorage` (`sp:fullscreen`) — sobrevive refresh da mesma session, mas não auto-aciona Fullscreen API (browser exige user gesture).
+  - **Mobile**: `@media (max-width: 768px)` ajusta o aspect-locked para `height: calc(100vh - 60px)` evitando squish em portrait.
+  - **Testado**: 7 pytest novos (`tests/test_singlepage_fullscreen.py`) cobrindo botão, CSS, JS runtime, atalhos, persistência, sync com Esc.
+
 - 2026-04-29: **BUGFIX (P0)** — Slides importados de PPT renderizavam como **banner mínimo** no SCORM Single Page export.
   - **Sintoma**: usuário enviou screenshot mostrando slide PPT (1280×720) renderizado como banner horizontal estreito flutuando sobre uma área escura imensa — o conteúdo da slide ocupava ~30% da viewport.
   - **Causa raiz**: o exportador aplicava `background-image: url(...)` + `background-size: cover` no `.sp-section-inner` SEM nenhuma restrição de altura. Como o card só tinha o título h2 dentro (poucos elementos no body), a altura ficava determinada pelo título + padding (~480px), enquanto a section forçava `min-height: 100vh` (1080px+) — gerando a "banda" no topo e o vazio escuro abaixo.

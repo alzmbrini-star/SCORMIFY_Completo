@@ -1114,6 +1114,19 @@ def _BUILD_PAGE(
   <div class="sp-progress" aria-label="Progresso">
     <div class="sp-progress-fill" data-testid="sp-progress-fill"></div>
   </div>
+  <button type="button" class="sp-fullscreen-btn" data-testid="sp-fullscreen-btn"
+          aria-label="Modo Tela Cheia" title="Modo Tela Cheia (F11)">
+    <svg class="sp-icon-expand" viewBox="0 0 24 24" width="20" height="20" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+      <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+    </svg>
+    <svg class="sp-icon-shrink" viewBox="0 0 24 24" width="20" height="20" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/>
+      <path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
+    </svg>
+  </button>
 </header>
 
 <aside class="sp-drawer" data-testid="sp-drawer" aria-hidden="true">
@@ -1163,6 +1176,35 @@ body{position:relative;overflow-x:hidden}
 
 /* ---- top header ---- */
 .sp-header{position:fixed;top:0;left:0;right:0;z-index:50;height:54px;background:#000;color:#fff;display:flex;align-items:center;padding:0 18px;gap:14px}
+
+/* Fullscreen / kiosk mode toggle button (sits in the header next to progress).
+   Becomes the primary control once active — header collapses, sections expand
+   to 100vh × 100vw, drawer hides, exit button overlays in top-right. */
+.sp-fullscreen-btn{appearance:none;background:rgba(255,255,255,.08);border:0;color:#fff;width:36px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s ease,transform .15s ease}
+.sp-fullscreen-btn:hover{background:rgba(250,204,21,.18);transform:scale(1.05)}
+.sp-fullscreen-btn:focus-visible{outline:2px solid #facc15;outline-offset:2px}
+.sp-fullscreen-btn .sp-icon-shrink{display:none}
+body[data-fullscreen="true"] .sp-fullscreen-btn .sp-icon-expand{display:none}
+body[data-fullscreen="true"] .sp-fullscreen-btn .sp-icon-shrink{display:inline-block}
+
+/* Kiosk / fullscreen mode — page-wide layout takeover when the user enters
+   fullscreen. The header collapses to a thin bar that auto-hides; the
+   active section fills the viewport. */
+body[data-fullscreen="true"]{background:#000;overflow:hidden}
+body[data-fullscreen="true"] .sp-header{height:36px;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);transition:opacity .3s ease}
+body[data-fullscreen="true"] .sp-header.sp-header-hidden{opacity:0;pointer-events:none}
+body[data-fullscreen="true"] .sp-title{font-size:13px;opacity:.7}
+body[data-fullscreen="true"] .sp-main{padding:36px 0 0}
+body[data-fullscreen="true"] .sp-section{min-height:calc(100vh - 36px);padding:8px;display:flex;align-items:center;justify-content:center}
+body[data-fullscreen="true"] .sp-section.sp-aspect-locked .sp-section-inner{max-width:96vw;max-height:calc(100vh - 60px);width:auto;margin:0 auto}
+body[data-fullscreen="true"] .sp-section-inner{box-shadow:0 0 60px rgba(0,0,0,.6)}
+body[data-fullscreen="true"] .sp-drawer{display:none}
+/* Floating exit-fullscreen button in top-right corner — always visible in kiosk */
+body[data-fullscreen="true"] .sp-fullscreen-btn{position:fixed;top:8px;right:14px;z-index:60;background:rgba(15,23,42,.7);width:40px;height:40px;border-radius:50%}
+body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,113,.4)}
+@media (max-width: 768px){
+  body[data-fullscreen="true"] .sp-section.sp-aspect-locked .sp-section-inner{max-height:none;height:calc(100vh - 60px)}
+}
 .sp-menu-btn{background:transparent;color:#fff;border:0;padding:8px;cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:center}
 .sp-menu-btn:hover{background:#ffffff14}
 .sp-title{flex:1;text-align:right;font-style:italic;font-weight:500;font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:#e2e8f0}
@@ -2111,6 +2153,100 @@ _JS = """
   }
   // ---------- end narration runtime ----------
 
+  // ---------- Fullscreen / kiosk mode ----------
+  // Press F11 or click the fullscreen button to toggle. State persists in
+  // sessionStorage so the user keeps kiosk mode across in-page navigation.
+  // The header auto-hides after 2.5s of mouse inactivity for true cinema feel.
+  var FULLSCREEN_KEY = 'sp:fullscreen';
+  var headerIdleTimer = null;
+  function isInBrowserFullscreen(){
+    return !!(document.fullscreenElement || document.webkitFullscreenElement
+              || document.mozFullScreenElement || document.msFullscreenElement);
+  }
+  function requestBrowserFullscreen(){
+    var el = document.documentElement;
+    var fn = el.requestFullscreen || el.webkitRequestFullscreen
+             || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (fn) {
+      try { fn.call(el); } catch(e){}
+    }
+  }
+  function exitBrowserFullscreen(){
+    var fn = document.exitFullscreen || document.webkitExitFullscreen
+             || document.mozCancelFullScreen || document.msExitFullscreen;
+    if (fn) {
+      try { fn.call(document); } catch(e){}
+    }
+  }
+  function setFullscreenMode(active){
+    document.body.dataset.fullscreen = active ? 'true' : 'false';
+    try { sessionStorage.setItem(FULLSCREEN_KEY, active ? '1' : '0'); } catch(e){}
+    if (active) {
+      requestBrowserFullscreen();
+      scheduleHeaderAutoHide();
+    } else {
+      if (isInBrowserFullscreen()) exitBrowserFullscreen();
+      var hdr = $('.sp-header');
+      if (hdr) hdr.classList.remove('sp-header-hidden');
+      if (headerIdleTimer) { clearTimeout(headerIdleTimer); headerIdleTimer = null; }
+    }
+  }
+  function scheduleHeaderAutoHide(){
+    if (headerIdleTimer) clearTimeout(headerIdleTimer);
+    var hdr = $('.sp-header');
+    if (!hdr) return;
+    hdr.classList.remove('sp-header-hidden');
+    headerIdleTimer = setTimeout(function(){
+      if (document.body.dataset.fullscreen === 'true') {
+        hdr.classList.add('sp-header-hidden');
+      }
+    }, 2500);
+  }
+  function setupFullscreen(){
+    var btn = $('.sp-fullscreen-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      var nowActive = document.body.dataset.fullscreen !== 'true';
+      setFullscreenMode(nowActive);
+    });
+    // Keyboard: F11 or "f" toggles. Esc is already handled by the browser.
+    document.addEventListener('keydown', function(ev){
+      if (ev.key === 'F11' || (ev.key === 'f' && !ev.ctrlKey && !ev.metaKey
+                                && !ev.altKey && !/INPUT|TEXTAREA|SELECT/.test(ev.target.tagName||''))) {
+        ev.preventDefault();
+        var nowActive = document.body.dataset.fullscreen !== 'true';
+        setFullscreenMode(nowActive);
+      }
+    });
+    // Sync our flag when user exits fullscreen via Esc / browser chrome
+    ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange']
+      .forEach(function(ev){
+        document.addEventListener(ev, function(){
+          if (!isInBrowserFullscreen() && document.body.dataset.fullscreen === 'true') {
+            // User pressed Esc — sync our internal flag too
+            document.body.dataset.fullscreen = 'false';
+            try { sessionStorage.setItem(FULLSCREEN_KEY, '0'); } catch(e){}
+            var hdr = $('.sp-header');
+            if (hdr) hdr.classList.remove('sp-header-hidden');
+            if (headerIdleTimer) { clearTimeout(headerIdleTimer); headerIdleTimer = null; }
+          }
+        });
+      });
+    // Show header again on mouse movement; reschedule auto-hide
+    document.addEventListener('mousemove', function(){
+      if (document.body.dataset.fullscreen === 'true') scheduleHeaderAutoHide();
+    });
+    // Restore state if user already had kiosk mode active (only auto-toggle
+    // CSS — we cannot programmatically request fullscreen without a user
+    // gesture, so we wait for the user to click again)
+    try {
+      if (sessionStorage.getItem(FULLSCREEN_KEY) === '1') {
+        document.body.dataset.fullscreen = 'true';
+      }
+    } catch(e){}
+  }
+  // ---------- end fullscreen runtime ----------
+
   document.addEventListener('DOMContentLoaded', function(){
     if (SCORM_MODE && window.SCORM) {
       try { window.SCORM.init(); } catch(e) {}
@@ -2121,6 +2257,7 @@ _JS = """
     updateNextButton();
     observeTimelines();
     observeNarrations();
+    setupFullscreen();
     window.addEventListener('scroll', detectActiveSection, {passive:true});
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
     if (SCORM_MODE && window.SCORM) {
