@@ -444,6 +444,139 @@ def _render_avatar_element_inner(el: dict, project_id: str, assets_dir: str, bas
     return ''
 
 
+def _is_heygen_or_transparent_avatar(el: dict) -> bool:
+    """Returns True if `el` is a HeyGen avatar (transparent .webm) — the only
+    case where we should overlay it on the slide's scene image."""
+    etype = (el.get("type") or "").lower()
+    if etype not in ("video", "avatar"):
+        return False
+    src = (el.get("src") or el.get("videoUrl")
+           or el.get("avatarVideoUrl") or el.get("content") or "")
+    return _is_heygen_avatar_url(src)
+
+
+def _looks_like_scene_image(el: dict, slide_w: int) -> bool:
+    """Heuristic: an image element is a "scene/background image" when it
+    occupies most of the slide width (>=55%). The Editor positions the
+    cenário-fundo as a large image, while logos/icons stay small (<40%)."""
+    if (el.get("type") or "").lower() != "image":
+        return False
+    try:
+        w = float(el.get("width") or 0)
+    except (TypeError, ValueError):
+        return False
+    if slide_w <= 0:
+        return False
+    return (w / slide_w) >= 0.55
+
+
+def _find_avatar_scene_pair(elements: List[dict], slide_w: int) -> Optional[Dict[str, Any]]:
+    """Locate the HeyGen avatar + scene-image pair on the same slide. Returns
+    a dict {avatar_idx, scene_idx, avatar_el, scene_el} or None.
+
+    Picks the FIRST avatar and the LARGEST scene image (in case the slide
+    has multiple images — pickin one stops accidental overlay onto a logo)."""
+    avatar_idx = None
+    avatar_el = None
+    for i, el in enumerate(elements):
+        if _is_heygen_or_transparent_avatar(el):
+            avatar_idx = i
+            avatar_el = el
+            break
+    if avatar_idx is None:
+        return None
+    scene_idx = None
+    scene_el = None
+    best_w = 0.0
+    for i, el in enumerate(elements):
+        if i == avatar_idx:
+            continue
+        if not _looks_like_scene_image(el, slide_w):
+            continue
+        try:
+            w = float(el.get("width") or 0)
+        except (TypeError, ValueError):
+            w = 0
+        if w > best_w:
+            best_w = w
+            scene_idx = i
+            scene_el = el
+    if scene_idx is None:
+        return None
+    return {"avatar_idx": avatar_idx, "scene_idx": scene_idx,
+            "avatar_el": avatar_el, "scene_el": scene_el}
+
+
+def _render_avatar_stage(scene_el: dict, avatar_el: dict, project_id: str,
+                          assets_dir: str, base_url: str, slide_idx: int) -> str:
+    """Compose a single block where the avatar (transparent video) is
+    absolutely positioned over the scene image. The avatar's editor x/y/width
+    are translated to percentages of the scene image, so the layout the user
+    set in the Editor is honored.
+
+    Falls back to centered-bottom positioning when the avatar element has no
+    coordinates (e.g. legacy slides)."""
+    scene_src = scene_el.get("src") or scene_el.get("content") or ""
+    scene_src = _resolve_asset_url(scene_src, project_id, assets_dir, base_url)
+    avatar_src = (avatar_el.get("src") or avatar_el.get("videoUrl")
+                  or avatar_el.get("avatarVideoUrl") or "")
+    avatar_src = _resolve_asset_url(avatar_src, project_id, assets_dir, base_url)
+    if not scene_src or not avatar_src:
+        return ""
+
+    # Compute overlay positioning as percentages relative to the scene image's
+    # editor coordinates. Editor canvas defaults to slide.width / slide.height.
+    try:
+        sx = float(scene_el.get("x") or 0)
+        sy = float(scene_el.get("y") or 0)
+        sw = float(scene_el.get("width") or 0)
+        sh = float(scene_el.get("height") or 0)
+        ax = float(avatar_el.get("x") or 0)
+        ay = float(avatar_el.get("y") or 0)
+        aw = float(avatar_el.get("width") or 0)
+        ah = float(avatar_el.get("height") or 0)
+    except (TypeError, ValueError):
+        sx = sy = sw = sh = ax = ay = aw = ah = 0
+
+    if sw > 0 and sh > 0 and aw > 0 and ah > 0:
+        left_pct = max(0.0, min(100.0, ((ax - sx) / sw) * 100.0))
+        top_pct = max(0.0, min(100.0, ((ay - sy) / sh) * 100.0))
+        width_pct = max(5.0, min(100.0, (aw / sw) * 100.0))
+        height_pct = max(5.0, min(100.0, (ah / sh) * 100.0))
+        overlay_style = (
+            f"position:absolute;left:{left_pct:.2f}%;top:{top_pct:.2f}%;"
+            f"width:{width_pct:.2f}%;height:{height_pct:.2f}%;"
+            f"display:flex;align-items:center;justify-content:center;"
+            f"background:transparent"
+        )
+    else:
+        # Fallback: bottom-center, ~40% width, intrinsic height
+        overlay_style = (
+            "position:absolute;left:50%;bottom:0;transform:translateX(-50%);"
+            "width:40%;display:flex;align-items:flex-end;justify-content:center;"
+            "background:transparent"
+        )
+
+    alt = _esc(scene_el.get("alt") or "Cenário")
+    return (
+        f'<div class="sp-avatar-stage" data-testid="sp-avatar-stage-{slide_idx}" '
+        f'style="position:relative;width:100%;max-width:1024px;margin:0 auto;'
+        f'aspect-ratio:{int(sw) if sw > 0 else 16}/{int(sh) if sh > 0 else 9};'
+        f'border-radius:12px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.22);background:#000">'
+        f'<img src="{_esc(scene_src)}" alt="{alt}" loading="lazy" '
+        f'style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"/>'
+        f'<div class="sp-avatar-overlay sp-avatar-wrap" data-interactive="video" data-required="true" '
+        f'data-interactive-id="avatar-stage-{slide_idx}" style="{overlay_style}">'
+        f'<video controls preload="metadata" src="{_esc(avatar_src)}" '
+        f'onplay="window.SP&&SP.markPlayed(this.closest(\'.sp-avatar-wrap\'))" '
+        f'playsinline '
+        f'style="width:100%;height:100%;object-fit:contain;background:transparent;border:0;display:block"></video>'
+        f'</div>'
+        f'<div class="sp-avatar-stage-hint">▶ Avatar — reproduza para liberar próxima seção</div>'
+        f'</div>'
+    )
+
+
 def _looks_like_header_bar(html: str) -> bool:
     """Heuristic: returns True if the HTML content is structurally a "thin header
     bar" (gradient or solid background, short text, single flex row) regardless
@@ -756,7 +889,20 @@ def generate_single_page_html(
             except (TypeError, ValueError):
                 et = 0.0
             section_max_end_time = max(section_max_end_time, st, et)
+        # Detect avatar (HeyGen) + scene-image pair so we can compose them
+        # as a SINGLE positioned stage block — otherwise both render as
+        # separate stacked blocks and the avatar appears ABOVE the scene
+        # instead of overlaid on top of it.
+        slide_w_for_pair = int(slide.get("width") or 1920) or 1920
+        avatar_pair = _find_avatar_scene_pair(elements, slide_w_for_pair)
+        composed_indices = set()
+        if avatar_pair:
+            composed_indices = {avatar_pair["avatar_idx"], avatar_pair["scene_idx"]}
+
         for e_idx, el in enumerate(elements):
+            # Skip elements that will be composed into the avatar-stage block
+            if e_idx in composed_indices:
+                continue
             try:
                 html_part = _render_element(el, project_id, assets_dir, base_url,
                                               s_idx, e_idx, questions_lookup)
@@ -764,6 +910,17 @@ def generate_single_page_html(
                     rendered_elements.append(html_part)
             except Exception:
                 continue
+
+        # Inject the composed avatar-over-scene stage. We prepend it so the
+        # avatar+scene visual appears as the primary visual focus of the
+        # section — text/quiz elements flow naturally below it.
+        if avatar_pair:
+            stage_html = _render_avatar_stage(
+                avatar_pair["scene_el"], avatar_pair["avatar_el"],
+                project_id, assets_dir, base_url, s_idx,
+            )
+            if stage_html:
+                rendered_elements.insert(0, stage_html)
 
         # Append synthetic timeline gate when section has a timeline (>0).
         # This turns the timeline auto-play into a "required interactive" — section
@@ -1073,6 +1230,17 @@ body{position:relative;overflow-x:hidden}
 .sp-avatar-wrap[data-completed="true"]::after{content:"✓";position:absolute;top:0;right:8px;color:#fff;background:#84cc16;font-weight:700;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 6px rgba(132,204,22,.4)}
 .sp-avatar-wrap[data-completed="true"] .sp-avatar-hint{display:none}
 .sp-avatar-wrap video{background:transparent !important}
+
+/* Avatar Stage — composes a HeyGen avatar (transparent webm) over a scene
+   background image. Editor x/y/width/height are translated to percentages
+   on the overlay so the author's layout is preserved. */
+.sp-avatar-stage{position:relative}
+.sp-avatar-stage video{background:transparent !important}
+.sp-avatar-stage .sp-avatar-overlay{pointer-events:auto}
+.sp-avatar-stage[data-completed] .sp-avatar-stage-hint,
+.sp-avatar-stage:has(.sp-avatar-overlay[data-completed="true"]) .sp-avatar-stage-hint{display:none}
+.sp-avatar-stage-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(10,37,64,.85);color:#facc15;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;z-index:5;pointer-events:none}
+.sp-avatar-stage .sp-avatar-overlay[data-completed="true"]::after{content:"✓";position:absolute;top:8px;right:8px;color:#fff;background:#84cc16;font-weight:700;font-size:14px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:11;box-shadow:0 2px 6px rgba(132,204,22,.4)}
 
 /* Timeline (auto-play sequencial: respeita startTime/endTime de cada elemento) */
 .sp-element-timed{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease;will-change:opacity,transform}

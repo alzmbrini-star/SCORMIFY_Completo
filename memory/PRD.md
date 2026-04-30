@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **BUGFIX (P0)** — Avatar HeyGen agora é sobreposto à imagem de cenário no Single Page export (em vez de aparecer empilhado verticalmente).
+  - **Sintoma**: usuário enviou screenshot mostrando o avatar HeyGen (vídeo .webm transparente) renderizado COMO BLOCO SEPARADO acima da imagem de cenário, em vez de ficar dentro/sobre o cenário como definido no Editor.
+  - **Causa raiz**: o exportador `single_page_exporter.py` renderizava cada element individualmente como bloco vertical (`<div>...</div><div>...</div>`), perdendo o posicionamento absoluto que o autor configurou no Editor.
+  - **Fix**: novos helpers `_is_heygen_or_transparent_avatar`, `_looks_like_scene_image`, `_find_avatar_scene_pair` detectam o par avatar-HeyGen + imagem-de-cenário (image com >=55% da largura do slide). Quando encontrados, `_render_avatar_stage` produz UM bloco `.sp-avatar-stage` com:
+    - Imagem de cenário em camada base (`<img>` com `object-fit:cover`, `inset:0`).
+    - Vídeo do avatar em overlay absoluto, com `left/top/width/height` em **porcentagens** derivadas das coordenadas x/y/width/height do Editor (preserva a posição original do autor).
+    - Clamp 0%-100% para evitar avatar "escapar" do cenário em casos edge.
+    - Fallback bottom-center 40% para slides legados sem coordenadas.
+  - **Mantém gating**: o overlay carrega `data-required="true"` + `data-interactive="video"` + classe `sp-avatar-wrap` para que a JS runtime existente (`SP.markPlayed`) continue desbloqueando a próxima seção quando o usuário pressionar play.
+  - **Heurísticas inteligentes**: pair-finder evita combinar avatar com logo (image <55% slide width); pega a maior imagem se houver múltiplas; pega o primeiro avatar se houver múltiplos.
+  - **Validado**: 20/20 testes pytest novos (`tests/test_singlepage_avatar_stage.py`) + 43 testes anteriores sem regressão.
+
 - 2026-04-29: **FEATURE (P0)** — Áudios da ElevenLabs integrados na exportação **Página Única** (Single Page).
   - **O que foi feito**: o exportador `services/single_page_exporter.py` agora renderiza `slide.audio[]` (populado via Editor TTS dialog → ElevenLabs `/api/elevenlabs/generate-speech` → upload em `/api/projects/{pid}/slides/{sid}/audio`).
   - **Comportamento UX**:
