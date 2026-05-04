@@ -1,0 +1,246 @@
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#071122;color:#0f172a;font-family:'Segoe UI',Roboto,system-ui,-apple-system,sans-serif;
+  scroll-behavior:smooth;min-height:100vh}
+body{position:relative;overflow-x:hidden}
+
+/* ---- background ---- */
+.sp-bg-image,.sp-bg-pattern{position:fixed;inset:0;z-index:-1;background-color:#0a2540;background-size:cover;background-position:center}
+.sp-bg-pattern{
+  background:#0a2540 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><g stroke='%23ffffff14' stroke-width='1'><circle cx='40' cy='80' r='2' fill='%23ffffff20'/><circle cx='350' cy='120' r='2' fill='%23ffffff20'/><circle cx='200' cy='250' r='2' fill='%23ffffff20'/><circle cx='90' cy='320' r='2' fill='%23ffffff20'/><line x1='40' y1='80' x2='350' y2='120'/><line x1='40' y1='80' x2='200' y2='250'/><line x1='350' y1='120' x2='200' y2='250'/><line x1='200' y1='250' x2='90' y2='320'/></g></svg>") repeat
+}
+
+/* ---- top header ---- */
+.sp-header{position:fixed;top:0;left:0;right:0;z-index:50;height:54px;background:#000;color:#fff;display:flex;align-items:center;padding:0 18px;gap:14px}
+
+/* SFX / Sound Effects (hidden, one-shot on section enter) */
+.sp-sfx{display:none}
+/* Background music toggle button (in header) */
+.sp-bg-music-toggle{appearance:none;background:rgba(255,255,255,.08);border:0;color:#fff;width:36px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:background .15s ease,transform .15s ease}
+.sp-bg-music-toggle:hover{background:rgba(250,204,21,.18);transform:scale(1.05)}
+.sp-bg-music-toggle[data-muted="true"]{background:rgba(248,113,113,.18);color:#fca5a5}
+.sp-bg-music-toggle[data-muted="true"] .sp-bg-music-icon{opacity:.4}
+.sp-bg-music{display:none}
+
+/* Fullscreen / kiosk mode toggle button (sits in the header next to progress).
+   Becomes the primary control once active — header collapses, sections expand
+   to 100vh × 100vw, drawer hides, exit button overlays in top-right. */
+.sp-fullscreen-btn{appearance:none;background:rgba(255,255,255,.08);border:0;color:#fff;width:36px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s ease,transform .15s ease}
+.sp-fullscreen-btn:hover{background:rgba(250,204,21,.18);transform:scale(1.05)}
+.sp-fullscreen-btn:focus-visible{outline:2px solid #facc15;outline-offset:2px}
+.sp-fullscreen-btn .sp-icon-shrink{display:none}
+body[data-fullscreen="true"] .sp-fullscreen-btn .sp-icon-expand{display:none}
+body[data-fullscreen="true"] .sp-fullscreen-btn .sp-icon-shrink{display:inline-block}
+
+/* Kiosk / fullscreen mode — page-wide layout takeover when the user enters
+   fullscreen. The header collapses to a thin bar that auto-hides; the
+   active section fills the viewport. */
+body[data-fullscreen="true"]{background:#000;overflow:hidden}
+body[data-fullscreen="true"] .sp-header{height:36px;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);transition:opacity .3s ease}
+body[data-fullscreen="true"] .sp-header.sp-header-hidden{opacity:0;pointer-events:none}
+body[data-fullscreen="true"] .sp-title{font-size:13px;opacity:.7}
+body[data-fullscreen="true"] .sp-main{padding:36px 0 0}
+body[data-fullscreen="true"] .sp-section{min-height:calc(100vh - 36px);padding:8px;display:flex;align-items:center;justify-content:center}
+body[data-fullscreen="true"] .sp-section.sp-aspect-locked .sp-section-inner{max-width:96vw;max-height:calc(100vh - 60px);width:auto;margin:0 auto}
+body[data-fullscreen="true"] .sp-section-inner{box-shadow:0 0 60px rgba(0,0,0,.6)}
+body[data-fullscreen="true"] .sp-drawer{display:none}
+/* Floating exit-fullscreen button in top-right corner — always visible in kiosk */
+body[data-fullscreen="true"] .sp-fullscreen-btn{position:fixed;top:8px;right:14px;z-index:60;background:rgba(15,23,42,.7);width:40px;height:40px;border-radius:50%}
+body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,113,.4)}
+@media (max-width: 768px){
+  body[data-fullscreen="true"] .sp-section.sp-aspect-locked .sp-section-inner{max-height:none;height:calc(100vh - 60px)}
+}
+.sp-menu-btn{background:transparent;color:#fff;border:0;padding:8px;cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.sp-menu-btn:hover{background:#ffffff14}
+.sp-title{flex:1;text-align:right;font-style:italic;font-weight:500;font-size:14px;letter-spacing:.6px;text-transform:uppercase;color:#e2e8f0}
+.sp-progress{position:absolute;left:0;right:0;bottom:0;height:4px;background:#1e293b}
+.sp-progress-fill{width:0%;height:100%;background:linear-gradient(90deg,#facc15,#84cc16);transition:width .4s ease}
+
+/* ---- drawer ---- */
+.sp-drawer{position:fixed;top:54px;left:0;width:300px;max-width:85vw;height:calc(100vh - 54px);background:#0a1424;color:#e2e8f0;transform:translateX(-100%);transition:transform .3s ease;z-index:40;overflow-y:auto;padding:14px;border-right:1px solid #1e293b;box-shadow:6px 0 24px rgba(0,0,0,.4)}
+.sp-drawer[data-open="true"]{transform:translateX(0)}
+.sp-drawer-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+.sp-drawer-list li{padding:10px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:10px;transition:background .2s}
+.sp-drawer-list li.unlocked:hover{background:#1e293b;border-color:#334155}
+.sp-drawer-list li.locked{opacity:.45;cursor:not-allowed}
+.sp-drawer-list li.active{background:#1e3a5f;border-color:#2563eb}
+.sp-drawer-list li.completed::before{content:"✓";color:#84cc16;font-weight:700;font-size:14px}
+.sp-drawer-list li.locked::before{content:"🔒";font-size:13px}
+.sp-drawer-list li.unlocked:not(.completed):not(.locked)::before{content:"▶";color:#facc15;font-size:11px}
+
+/* ---- main + sections ---- */
+.sp-main{padding:54px 0 80px;display:flex;flex-direction:column;gap:0;width:100%;max-width:none}
+.sp-section{min-height:100vh;padding:50px 16px;position:relative;width:100%;box-sizing:border-box}
+.sp-section[data-locked="true"]{display:none}
+.sp-section.unlocked,
+.sp-section:first-of-type:not([data-locked]){display:block;animation:sp-fade-in .6s ease}
+@keyframes sp-fade-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.sp-section-inner{width:100%;max-width:1080px;margin:0 auto;background:#fff;border-radius:14px;padding:48px 56px;box-shadow:0 20px 60px rgba(0,0,0,.35);box-sizing:border-box}
+/* PPT-imported slides: the section card is locked to the slide's aspect
+   ratio (e.g. 16/9) and uses a wider max-width + thinner padding so the
+   slide background fills the viewport properly. Without this, PPT slides
+   render as tiny banners floating in a sea of empty space. */
+.sp-section.sp-aspect-locked .sp-section-inner{max-width:min(95vw,1600px);padding:18px 22px;border-radius:18px;position:relative;overflow:hidden}
+.sp-section.sp-aspect-locked .sp-section-title{position:absolute;top:18px;left:24px;right:24px;font-size:18px;margin:0;text-align:left;background:rgba(10,37,64,.55);color:#facc15;padding:6px 14px;border-radius:8px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:5;pointer-events:none}
+/* Body sits at the bottom as an overlay strip (not full overflow). When the
+   slide has only background-image + (optional) avatar overlay, the body
+   shrinks to its content height to avoid clipping the scene. */
+.sp-section.sp-aspect-locked .sp-section-body{position:absolute;left:0;right:0;bottom:0;padding:14px 22px 20px;gap:10px;background:linear-gradient(to top,rgba(10,37,64,.85) 0%,rgba(10,37,64,0) 100%);max-height:50%;overflow:visible;z-index:3}
+/* When there's an avatar overlay AND no extra body content, hide the body
+   strip so the scene+avatar own the full card. The body becomes empty when
+   the only `composed_indices` element was the avatar (header/buttons still
+   show as separate elements, so this only triggers on truly avatar-only
+   slides). */
+.sp-section.sp-aspect-locked .sp-section-body:empty{display:none}
+.sp-section.sp-aspect-locked .sp-section-body > *{max-width:100%}
+@media (max-width: 768px){
+  .sp-section.sp-aspect-locked .sp-section-inner{aspect-ratio:auto !important;min-height:420px}
+  .sp-section.sp-aspect-locked .sp-section-title{position:static;margin-bottom:14px;pointer-events:auto}
+  .sp-section.sp-aspect-locked .sp-section-body{position:static;background:transparent;max-height:none}
+}
+.sp-section-title{font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#1e3a8a;font-size:34px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;margin-bottom:28px;line-height:1.1;text-align:center}
+.sp-section.sp-dark .sp-section-title{color:#fde047}
+.sp-section.sp-dark .sp-section-body{color:inherit}
+.sp-section-body{display:flex;flex-direction:column;gap:24px;color:#0f172a;font-size:15px;line-height:1.7;align-items:center}
+.sp-section-body > *{width:100%;max-width:880px}
+
+/* Element styles (flow blocks; no absolute positioning) */
+.sp-text{font-size:15px;line-height:1.7;color:inherit}
+.sp-image{margin:0;display:flex;justify-content:center}
+.sp-image img{box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:540px}
+.sp-html{font-size:15px;line-height:1.7;color:inherit}
+.sp-html *{max-width:100%}
+.sp-html img{max-width:100%;height:auto;border-radius:8px}
+
+/* Video / Avatar — keep within reasonable bounds (max 720px wide on desktop) */
+.sp-video,.sp-audio{display:flex;flex-direction:column;gap:8px;max-width:720px;margin:0 auto}
+.sp-video video{width:100%;max-width:720px;max-height:480px;border-radius:8px;background:#000;display:block}
+.sp-audio audio{width:100%;border-radius:8px;background:#0f172a}
+.sp-video-label,.sp-audio-label{font-weight:700;color:#0a2540;font-size:14px}
+.sp-section.sp-dark .sp-video-label,
+.sp-section.sp-dark .sp-audio-label{color:#facc15}
+
+/* Slide-level narration (ElevenLabs TTS) — auto-plays when section is active.
+   Renders as a discreet pill at the bottom of each section, NOT as a blocking
+   interactive. The audio element itself is hidden; only the play/pause/restart
+   pill is visible, plus a global mute toggle in the top progress bar. */
+.sp-narration{display:flex;justify-content:center;margin:16px auto 0;max-width:720px}
+.sp-narration-audio{display:none}
+.sp-narration-controls{display:inline-flex;align-items:center;gap:8px;background:rgba(10,37,64,.92);color:#facc15;padding:6px 14px 6px 8px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sp-narration-label{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.sp-narration-btn{appearance:none;border:0;background:rgba(250,204,21,.18);color:#facc15;width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;line-height:1;transition:transform .15s ease,background .15s ease}
+.sp-narration-btn:hover{background:rgba(250,204,21,.32);transform:scale(1.06)}
+.sp-narration-btn:focus-visible{outline:2px solid #facc15;outline-offset:2px}
+.sp-narration[data-playing="true"] .sp-narration-icon-play{display:none}
+.sp-narration:not([data-playing="true"]) .sp-narration-icon-pause{display:none}
+
+/* Global narration mute toggle — sits in the top header next to the progress.
+   Hidden when the page has no narration audio at all (added by JS). */
+.sp-narration-mute-toggle{appearance:none;border:0;background:rgba(15,23,42,.7);color:#facc15;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;display:none;align-items:center;gap:6px;letter-spacing:.5px}
+.sp-narration-mute-toggle.sp-visible{display:inline-flex}
+.sp-narration-mute-toggle:hover{background:rgba(250,204,21,.18)}
+.sp-narration-mute-toggle[data-muted="true"]{background:rgba(248,113,113,.18);color:#fca5a5}
+
+@media (prefers-reduced-motion: reduce){
+  .sp-narration-btn{transition:none}
+}
+
+.sp-interactive{position:relative;background:#fef9c3;border-radius:12px;padding:18px;border:3px solid #facc15;transition:all .3s;box-shadow:0 4px 16px rgba(250,204,21,.25)}
+.sp-interactive[data-completed="true"]:not(.sp-quiz):not(.sp-scenario){border-color:#84cc16;background:#f7fee7;box-shadow:0 2px 8px rgba(132,204,22,.2)}
+.sp-interactive[data-completed="true"]::after{content:"✓";position:absolute;top:8px;right:12px;color:#fff;background:#84cc16;font-weight:700;font-size:16px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 6px rgba(132,204,22,.4)}
+
+.sp-audio-hint,.sp-video-hint,.sp-html-hint{display:inline-block;background:#0a2540;color:#facc15;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;align-self:flex-start;margin-top:4px}
+.sp-interactive[data-completed="true"] .sp-audio-hint,
+.sp-interactive[data-completed="true"] .sp-video-hint,
+.sp-interactive[data-completed="true"] .sp-html-hint{display:none}
+
+/* Avatar HeyGen — sem card amarelo, fundo transparente para misturar com o background da slide */
+.sp-avatar-wrap{position:relative}
+.sp-avatar-wrap[data-completed="true"]::after{content:"✓";position:absolute;top:0;right:8px;color:#fff;background:#84cc16;font-weight:700;font-size:14px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 6px rgba(132,204,22,.4)}
+.sp-avatar-wrap[data-completed="true"] .sp-avatar-hint{display:none}
+.sp-avatar-wrap video{background:transparent !important}
+
+/* Avatar Stage — composes a HeyGen avatar (transparent webm) over a scene
+   background image. Editor x/y/width/height are translated to percentages
+   on the overlay so the author's layout is preserved. */
+.sp-avatar-stage{position:relative}
+.sp-avatar-stage video{background:transparent !important}
+.sp-avatar-stage .sp-avatar-overlay{pointer-events:auto}
+.sp-avatar-stage[data-completed] .sp-avatar-stage-hint,
+.sp-avatar-stage:has(.sp-avatar-overlay[data-completed="true"]) .sp-avatar-stage-hint{display:none}
+.sp-avatar-stage-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(10,37,64,.85);color:#facc15;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;z-index:5;pointer-events:none}
+.sp-avatar-stage .sp-avatar-overlay[data-completed="true"]::after{content:"✓";position:absolute;top:8px;right:8px;color:#fff;background:#84cc16;font-weight:700;font-size:14px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:11;box-shadow:0 2px 6px rgba(132,204,22,.4)}
+
+/* Timeline (auto-play sequencial: respeita startTime/endTime de cada elemento) */
+.sp-element-timed{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease;will-change:opacity,transform}
+.sp-element-timed.sp-revealed{opacity:1;transform:translateY(0)}
+.sp-element-timed.sp-hidden{opacity:0;transform:translateY(-10px);pointer-events:none}
+.sp-timeline-gate{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 18px}
+.sp-timeline-progress{width:100%;height:6px;background:rgba(0,0,0,.08);border-radius:999px;overflow:hidden}
+.sp-timeline-progress-bar{height:100%;background:linear-gradient(90deg,#6366f1,#ec4899);width:0%;transition:width .15s linear;border-radius:999px}
+.sp-timeline-hint{font-size:11px;color:inherit;opacity:.7;font-style:italic}
+.sp-timeline-gate[data-completed="true"]{background:#dcfce7 !important;border-color:#84cc16 !important}
+.sp-timeline-gate[data-completed="true"] .sp-timeline-hint{color:#15803d;opacity:1;font-style:normal;font-weight:600}
+.sp-timeline-gate[data-completed="true"] .sp-timeline-hint::before{content:"✓ "}
+
+.sp-quiz{text-align:center;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%)!important;color:#fff!important;border-color:#3b82f6!important;padding:24px}
+.sp-quiz[data-completed="true"]{background:#0f5132!important;border-color:#84cc16!important;color:#dcfce7!important}
+.sp-quiz-icon{font-size:42px;margin-bottom:10px}
+.sp-quiz-title{font-size:20px;margin-bottom:6px;color:inherit}
+.sp-quiz-meta{font-size:13px;opacity:.85;margin-bottom:14px;color:inherit}
+.sp-quiz-body{margin-top:18px;text-align:left;background:#fff;color:#0f172a;border-radius:8px;padding:18px}
+.sp-quiz-body[hidden]{display:none}
+.sp-quiz-opt:hover{border-color:#2563eb!important;background:#eff6ff}
+
+.sp-scenario{text-align:center;background:linear-gradient(135deg,#7c2d12 0%,#ea580c 100%)!important;color:#fff!important;border-color:#fb923c!important;padding:24px}
+.sp-scenario[data-completed="true"]{background:linear-gradient(135deg,#14532d 0%,#16a34a 100%)!important;border-color:#84cc16!important;color:#dcfce7!important}
+.sp-scenario h3,.sp-scenario p{color:inherit;margin:8px 0}
+.sp-scenario h3{font-size:20px}
+.sp-scenario p{font-size:13px;opacity:.92}
+.sp-scenario-icon{font-size:42px}
+
+.sp-simulator{padding:8px;background:#fff;border-color:#cbd5e1}
+.sp-simulator-label{font-weight:700;color:#1e3a8a;font-size:14px;margin-bottom:8px}
+
+.sp-btn{display:inline-block;padding:10px 28px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:14px;transition:transform .15s,box-shadow .15s}
+.sp-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.2)}
+.sp-btn-primary{background:#facc15;color:#0a2540}
+.sp-btn-primary:hover{background:#fbbf24}
+.sp-btn-ghost{background:transparent;color:#fff;border:2px solid #fff}
+
+/* ---- next chevron ---- */
+.sp-next-btn{
+  position:fixed;right:18px;bottom:24px;z-index:60;
+  width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;
+  background:#facc15;color:#0a2540;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
+}
+.sp-next-btn::before{
+  content:"";position:absolute;inset:-4px;border-radius:50%;
+  background:transparent;border:3px solid rgba(250,204,21,.5);
+  animation:sp-pulse-ring 2s ease-in-out infinite;pointer-events:none;
+}
+.sp-next-btn:hover{background:#fbbf24;transform:scale(1.06)}
+.sp-next-btn[hidden]{display:none}
+@keyframes sp-pulse-ring{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.18);opacity:0}}
+
+/* ---- end card ---- */
+.sp-end-card .sp-section-inner{background:linear-gradient(135deg,#16a34a,#84cc16);color:#fff;text-align:center;padding:60px 40px}
+.sp-end-icon{font-size:72px;margin-bottom:12px}
+.sp-end-card h2{font-size:32px;margin-bottom:8px}
+.sp-end-card p{font-size:15px;opacity:.95}
+.sp-end-inner{align-items:center;text-align:center}
+
+/* ---- responsive ---- */
+@media (max-width: 640px){
+  .sp-section{padding:30px 8px}
+  .sp-section-inner{padding:30px 22px;border-radius:10px}
+  .sp-section-title{font-size:24px;margin-bottom:18px}
+  .sp-title{font-size:11px}
+  .sp-next-btn{right:12px;bottom:16px;width:48px;height:48px}
+  .sp-interactive{padding:16px}
+  .sp-section-body{font-size:14px}
+}
+@media (min-width: 1600px){
+  .sp-section-inner{max-width:1180px}
+}

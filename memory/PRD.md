@@ -88,6 +88,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P2) + REFACTOR (P3)** — 3 melhorias simultâneas no Single Page export.
+
+  ### 🎯 Smart Avatar Positioning (P2)
+  Novo helper `_smart_avatar_position(scene_image_path)` analisa a terça inferior da imagem de cenário (via Pillow), divide em 3 colunas (esquerda/centro/direita) e pega a coluna **mais escura** (provavelmente chão/mesa/sombra) para colocar o avatar. Tamanho: 32% × 55% ancorado no rodapé. Opt-in via:
+    - `slide.smartAvatar = True` (flag explícita), OU
+    - Avatar sem coords (x=0, y=0) — auto-triggered.
+  Respeita coords explícitas do Editor por default (não regride cursos existentes). Data-attribute `data-smart-column="0|1|2"` injetado para debug.
+
+  ### 🎵 SFX + Background Music (P2)
+  `slide.audio[]` agora aceita 3 tipos:
+    - `type="narration"` (existente) — auto-play ao entrar na seção, pill visível, mudo global.
+    - `type="sfx"` (novo) — hidden `<audio>` one-shot disparado ao entrar na seção; volume default 0.6; sem UI; não bloqueia progressão; guard anti-replay via `Set` em memória.
+    - `type="background"` (novo) — o PRIMEIRO encontrado torna-se a ambient loop do curso inteiro; `<audio loop>` no body com botão 🎵/🔇 no header. Respeita autoplay policy do browser (aguarda primeiro click/keydown/touchstart). Persistência em sessionStorage (`sp:bgmusic:muted`); volume default 0.2.
+
+  ### 🧹 Refactor Single Page Exporter (P3)
+  Arquivo reduzido de **2656 → 1452 linhas** (-45%). JS runtime (958 linhas) extraído para `services/sp_runtime/runtime.js` + CSS (246 linhas) para `services/sp_runtime/styles.css`. Python loader com `Path(__file__).parent / 'sp_runtime'` → `.read_text(encoding='utf-8')`. Vantagens: syntax highlighting real para JS/CSS durante edição, LOC Python gerenciável, ainda zero configuração (arquivos carregados no import).
+
+  ### Validação
+  **27 testes pytest novos** (`tests/test_singlepage_audio_smart.py`) cobrindo SFX/bg-music discovery/rendering + smart avatar (image analysis sintética com imagens 300×300 de coluna escura controlada + trigger flags). **124/124 testes Single Page totais passando** + E2E real no projeto "Liderança de Impacto" (1.2MB standalone com 3 SFX + 8 bg-music markers + 10 fullscreen buttons + avatar corretamente posicionado).
+
 - 2026-04-29: **BUGFIX (P0)** — Avatar HeyGen sobre `slide.backgroundImage` (PPT-imported) + scrollbar do aspect-locked.
   - **Sintoma**: usuário enviou screenshot mostrando avatar HeyGen aparecendo abaixo do cenário (não dentro), com uma faixa amarela no meio cortando + scrollbar vertical lateral.
   - **Causas**:
