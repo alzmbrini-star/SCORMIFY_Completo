@@ -269,6 +269,7 @@ class SlideUpdate(BaseModel):
     notes: Optional[str] = None
     librasScript: Optional[str] = None
     duration: Optional[float] = None
+    smartAvatar: Optional[bool] = None  # Enables Single Page smart-positioning on the exported HTML
 
 class ElementCreate(BaseModel):
     model_config = ConfigDict(extra="allow")

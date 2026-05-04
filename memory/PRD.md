@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P2)** — UIs no Editor para SFX/background-music + Smart Avatar Positioning.
+  - **Audio Type Picker** (dialog de upload): quando `audioTarget=slide`, 3 cards grid mostram os tipos com ícones e hints contextuais:
+    - 🎙️ **Narração** (default): auto-play quando slide fica ativo, com controles pausa/reiniciar.
+    - 💥 **Efeito (SFX)**: som curto, toca UMA vez ao entrar no slide, sem controles visuais.
+    - 🎵 **Ambiente**: loop ambient do curso inteiro (primeiro vence), volume recomendado baixo.
+  - `useEditorAudio` agora expõe `audioType`/`setAudioType`; `handleAudioUpload` passa o tipo selecionado para `uploadSlideAudio(slideId, file, audioType)` em vez do hardcoded 'background'. Toast contextual por tipo ("Narração adicionada ao slide!").
+  - **Smart Avatar Toggle** (`SlideProperties.jsx`): nova seção "Posicionamento Inteligente" aparece **APENAS** quando o slide tem avatar HeyGen (video/avatar com URL heygen/transparent/.webm) E cenário (backgroundImage OU imagem ≥800px). Switch toggle liga/desliga `slide.smartAvatar=true` via `updateSlide`. Hint explica que coords manuais serão ignoradas. Feedback verde "✓ Ativo" quando ligado.
+  - **Backend model**: `SlideUpdate` em `models.py` ganhou campo explícito `smartAvatar: Optional[bool]` (já tinha `extra="allow"`, mas agora documentado + tipado).
+  - **Validação**: E2E curl testou `PUT /slides/{id}` com `{"smartAvatar":true}` → persistido corretamente; `POST /slides/{id}/audio` com `audio_type=sfx` → persistido com `type:sfx`. 114/114 testes pytest sem regressão. Smoke screenshot no Editor confirma UI carrega sem erros.
+
 - 2026-04-29: **FEATURE (P2) + REFACTOR (P3)** — 3 melhorias simultâneas no Single Page export.
 
   ### 🎯 Smart Avatar Positioning (P2)

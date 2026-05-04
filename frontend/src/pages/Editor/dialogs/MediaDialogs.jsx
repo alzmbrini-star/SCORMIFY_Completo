@@ -56,12 +56,13 @@ export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleA
 export function AudioDialog({
   open, onOpenChange,
   audioFile, setAudioFile, audioTarget, setAudioTarget,
+  audioType = 'narration', setAudioType,
   handleAudioUpload,
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => {
       onOpenChange(o);
-      if (!o) { setAudioFile(null); setAudioTarget('slide'); }
+      if (!o) { setAudioFile(null); setAudioTarget('slide'); if (setAudioType) setAudioType('narration'); }
     }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Adicionar Áudio</DialogTitle></DialogHeader>
@@ -85,9 +86,41 @@ export function AudioDialog({
             </div>
             <p className="text-xs text-muted-foreground">{audioTarget === 'slide' ? 'O áudio será reproduzido apenas neste slide.' : 'O áudio será a trilha sonora de fundo para todo o curso.'}</p>
           </div>
+
+          {/* Per-slide audio type picker — only when target is "slide" */}
+          {audioTarget === 'slide' && setAudioType && (
+            <div className="space-y-2" data-testid="audio-type-picker">
+              <label className="text-sm font-medium">Tipo de áudio:</label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button type="button" variant={audioType === 'narration' ? 'default' : 'outline'}
+                  className="h-auto py-2.5 flex flex-col gap-1" onClick={() => setAudioType('narration')}
+                  data-testid="audio-type-narration">
+                  <Mic className="w-4 h-4" />
+                  <span className="text-[11px] font-semibold">Narração</span>
+                </Button>
+                <Button type="button" variant={audioType === 'sfx' ? 'default' : 'outline'}
+                  className="h-auto py-2.5 flex flex-col gap-1" onClick={() => setAudioType('sfx')}
+                  data-testid="audio-type-sfx">
+                  <span className="text-lg leading-none">💥</span>
+                  <span className="text-[11px] font-semibold">Efeito (SFX)</span>
+                </Button>
+                <Button type="button" variant={audioType === 'background' ? 'default' : 'outline'}
+                  className="h-auto py-2.5 flex flex-col gap-1" onClick={() => setAudioType('background')}
+                  data-testid="audio-type-background">
+                  <Music className="w-4 h-4" />
+                  <span className="text-[11px] font-semibold">Ambiente</span>
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground" data-testid="audio-type-hint">
+                {audioType === 'narration' && '🎙️ Auto-play quando o slide ficar ativo, com controles (pausa/reiniciar). Ideal para voiceovers.'}
+                {audioType === 'sfx' && '💥 Som curto, toca UMA vez ao entrar no slide. Sem controles visuais. Ex: ding de conquista, whoosh de transição.'}
+                {audioType === 'background' && '🎵 Música ambiente que toca em LOOP durante o curso inteiro (o primeiro áudio deste tipo vence). Volume recomendado: baixo.'}
+              </p>
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setAudioFile(null); setAudioTarget('slide'); }}>Cancelar</Button>
+          <Button variant="outline" onClick={() => { onOpenChange(false); setAudioFile(null); setAudioTarget('slide'); if (setAudioType) setAudioType('narration'); }}>Cancelar</Button>
           <Button onClick={handleAudioUpload} disabled={!audioFile} data-testid="confirm-audio-upload">Adicionar Áudio</Button>
         </DialogFooter>
       </DialogContent>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Input } from '../../../components/ui/input';
+import { Switch } from '../../../components/ui/switch';
 
 export function SlideProperties({ slide, onUpdate }) {
   const extractSlideText = () => {
@@ -25,6 +26,19 @@ export function SlideProperties({ slide, onUpdate }) {
   };
 
   const slideText = extractSlideText();
+
+  // Smart Avatar toggle is only relevant when the slide has a HeyGen (or
+  // transparent) avatar video element AND a scene background image.
+  const hasAvatar = (slide.elements || []).some((el) => {
+    if (!el) return false;
+    const etype = (el.type || '').toLowerCase();
+    if (etype !== 'video' && etype !== 'avatar') return false;
+    const src = (el.src || el.videoUrl || el.avatarVideoUrl || el.content || '').toLowerCase();
+    return src.includes('heygen') || src.includes('-transparent') || src.endsWith('.webm');
+  });
+  const hasSceneBg = !!slide.backgroundImage
+    || (slide.elements || []).some(el => (el?.type === 'image') && (el.width || 0) >= 800);
+  const showSmartAvatarToggle = hasAvatar && hasSceneBg;
 
   return (
     <div className="p-4 space-y-4">
@@ -83,6 +97,36 @@ export function SlideProperties({ slide, onUpdate }) {
           onChange={(e) => onUpdate({ notes: e.target.value })}
         />
       </div>
+
+      {showSmartAvatarToggle && (
+        <div className="panel-section" data-testid="smart-avatar-section">
+          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+            </svg>
+            Posicionamento Inteligente
+          </h4>
+          <div className="flex items-start justify-between gap-3 p-3 bg-muted/50 rounded-lg border">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground">Smart Avatar Position</p>
+              <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                Na exportação Single Page, analisa o cenário e posiciona o avatar automaticamente
+                na área mais escura (chão/mesa/sombra). Ignora as coordenadas manuais deste slide.
+              </p>
+            </div>
+            <Switch
+              data-testid="smart-avatar-toggle"
+              checked={!!slide.smartAvatar}
+              onCheckedChange={(v) => onUpdate({ smartAvatar: v })}
+            />
+          </div>
+          {slide.smartAvatar && (
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1.5">
+              ✓ Ativo — coords manuais serão ignoradas na exportação.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="panel-section">
         <h4 className="text-sm font-medium mb-3 flex items-center gap-2">

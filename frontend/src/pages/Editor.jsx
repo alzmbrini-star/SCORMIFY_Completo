@@ -253,6 +253,7 @@ export default function Editor() {
     isRecording, recordingTime,
     showAudioDialog, setShowAudioDialog,
     audioFile, setAudioFile, audioTarget, setAudioTarget,
+    audioType, setAudioType,
     playingAudioId, globalAudioVolume, slideAudioVolumes,
     getAudioUrl, playAudio, stopAudio,
     handleStartRecording, handleStopRecording,
@@ -2011,6 +2012,7 @@ export default function Editor() {
           open={showAudioDialog} onOpenChange={setShowAudioDialog}
           audioFile={audioFile} setAudioFile={setAudioFile}
           audioTarget={audioTarget} setAudioTarget={setAudioTarget}
+          audioType={audioType} setAudioType={setAudioType}
           handleAudioUpload={handleAudioUpload}
         />
 

@@ -12,6 +12,11 @@ export function useEditorAudio({
   const [showAudioDialog, setShowAudioDialog] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [audioTarget, setAudioTarget] = useState('slide');
+  // Slide-scoped audio type: narration | sfx | background
+  // - narration: auto-plays when section is active (default for voiceovers)
+  // - sfx: one-shot sound effect fired on section enter
+  // - background: course-wide ambient loop (first `background` audio wins)
+  const [audioType, setAudioType] = useState('narration');
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [globalAudioVolume, setGlobalAudioVolumeState] = useState(0.5);
   const [slideAudioVolumes, setSlideAudioVolumes] = useState({});
@@ -137,12 +142,17 @@ export function useEditorAudio({
         await setGlobalAudio(audioFile);
         toast.success('Trilha sonora global adicionada!');
       } else {
-        await uploadSlideAudio(currentSlide.id, audioFile, 'background');
-        toast.success('Audio adicionado ao slide!');
+        // Slide-scoped upload uses the user-selected audio type
+        // (narration / sfx / background) so the Single Page export can
+        // render it correctly.
+        await uploadSlideAudio(currentSlide.id, audioFile, audioType);
+        const typeLabels = { narration: 'Narração', sfx: 'Efeito sonoro (SFX)', background: 'Música ambiente' };
+        toast.success(`${typeLabels[audioType] || 'Áudio'} adicionado ao slide!`);
       }
       setShowAudioDialog(false);
       setAudioFile(null);
       setAudioTarget('slide');
+      setAudioType('narration');
     } catch (err) { toast.error('Erro ao fazer upload do audio'); }
   };
 
@@ -187,6 +197,7 @@ export function useEditorAudio({
     isRecording, recordingTime,
     showAudioDialog, setShowAudioDialog,
     audioFile, setAudioFile, audioTarget, setAudioTarget,
+    audioType, setAudioType,
     playingAudioId, globalAudioVolume, slideAudioVolumes,
     getAudioUrl, playAudio, stopAudio,
     handleStartRecording, handleStopRecording,
