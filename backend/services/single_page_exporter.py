@@ -1140,10 +1140,41 @@ def generate_single_page_html(
             if bg_avatar:
                 composed_indices.add(bg_avatar["avatar_idx"])
 
+        # When the slide has a backgroundImage (PPT-imported or similar), the
+        # bg image ALREADY contains the slide's visual content (title, body
+        # text, images baked into the PPT export). Text/html/image elements
+        # in `slide.elements` are typically PPT parser extractions kept for
+        # accessibility — rendering them on top of the bg produces visual
+        # duplication that bleeds around the avatar overlay.
+        # → Skip visual-only elements on bg-image slides. KEEP text/html
+        #   elements that contain genuinely interactive HTML (iframes,
+        #   buttons, links, forms added by the author on top of the PPT).
+        skip_visual_duplicates = bool(slide.get("backgroundImage"))
+        _PURE_VISUAL_TYPES = {"text", "shape", "line", "image"}
+        _INTERACTIVE_HTML_SIGNALS = ("<iframe", "<button", "<a href", "<form",
+                                      "<input", "<select", "onclick=")
+
+        def _is_interactive_html(el: dict) -> bool:
+            """Return True if an html-type element contains author-added
+            interactive markup (iframe/button/link/form). Keep these — skip
+            plain text/h1/h2/p-only htmlContent on bg-image slides."""
+            if el.get("interactive") or el.get("requiresClick"):
+                return True
+            content = (el.get("htmlContent") or el.get("content") or "").lower()
+            return any(sig in content for sig in _INTERACTIVE_HTML_SIGNALS)
+
         for e_idx, el in enumerate(elements):
             # Skip elements that will be composed into the avatar-stage block
             if e_idx in composed_indices:
                 continue
+            if skip_visual_duplicates:
+                etype = (el.get("type") or "").lower()
+                if etype in _PURE_VISUAL_TYPES:
+                    # text / shape / line / image → always skip on bg slides
+                    continue
+                if etype == "html" and not _is_interactive_html(el):
+                    # html without interactive markup = duplicate text
+                    continue
             try:
                 html_part = _render_element(el, project_id, assets_dir, base_url,
                                               s_idx, e_idx, questions_lookup)

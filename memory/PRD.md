@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **BUGFIX (P0)** — Texto duplicado no Single Page de slides PPT-imported atrás do avatar.
+  - **Sintoma**: usuário enviou screenshot mostrando o avatar HeyGen (smart positioning funcionando, na coluna esquerda escura) MAS com texto "A TRILHA DO VENDEDOR" gigante atrás do avatar — duplicação visual feia.
+  - **Causa raiz**: o PPT parser extrai o conteúdo textual da slide para `slide.elements` (text/html/shape/line elements) com fins de acessibilidade/busca. O exportador renderizava esses elements no `.sp-section-body` SOBRE a `slide.backgroundImage`, gerando duplicação porque o conteúdo já estava baked-in no PNG do slide.
+  - **Fix — dedup heurístico em `single_page_exporter.py`**: quando slide tem `backgroundImage`, pula:
+    - Tipos puramente visuais: `text`, `shape`, `line`, `image`.
+    - HTML elements SEM markup interativo (sem `<iframe`, `<button`, `<a href`, `<form`, `<input`, `<select`, `onclick=`).
+    - Excessões: `interactive: true` ou `requiresClick: true` força a manutenção.
+  - **Mantém**: quizzes, scenarios, vídeos não-HeyGen, áudios (narration/sfx/background), avatares, e qualquer HTML autorado pelo usuário com markup interativo (embeds YouTube, mapas, formulários, links).
+  - **Não afeta** slides Editor-native (sem `backgroundImage`) — eles continuam renderizando todos os elements.
+  - **Validado**: 12 testes pytest novos (`tests/test_singlepage_visual_dedup.py`) cobrindo cada categoria + integração final (avatar overlay + duplicatas removidas). 97/97 testes Single Page passando + E2E real no projeto "Liderança de Impacto" gerou HTML 1.2MB com 0 duplicatas e 1 avatar overlay limpo.
+
 - 2026-04-29: **FEATURE (P2)** — UIs no Editor para SFX/background-music + Smart Avatar Positioning.
   - **Audio Type Picker** (dialog de upload): quando `audioTarget=slide`, 3 cards grid mostram os tipos com ícones e hints contextuais:
     - 🎙️ **Narração** (default): auto-play quando slide fica ativo, com controles pausa/reiniciar.
