@@ -92,6 +92,18 @@ body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,11
    slides). */
 .sp-section.sp-aspect-locked .sp-section-body:empty{display:none}
 .sp-section.sp-aspect-locked .sp-section-body > *{max-width:100%}
+/* Absolute-positioned elements over the bg-image (preserves Editor coords).
+   Each direct child of .sp-bg-element is sized to fill its slot so the
+   text/html/image element scales naturally to the percentage box. */
+.sp-section.sp-aspect-locked .sp-bg-element{box-sizing:border-box}
+.sp-section.sp-aspect-locked .sp-bg-element > *{width:100%;height:100%;max-width:100%;box-sizing:border-box}
+/* Some _render_*_element_inner outputs use inline styles like
+   margin:0 auto / max-width:720px (audio/video). Inside a sp-bg-element
+   we override to fill so the layout matches the editor's slot. */
+.sp-section.sp-aspect-locked .sp-bg-element .sp-html-block,
+.sp-section.sp-aspect-locked .sp-bg-element .sp-text-block{padding:0}
+.sp-section.sp-aspect-locked .sp-bg-element img,
+.sp-section.sp-aspect-locked .sp-bg-element video{width:100%;height:100%;object-fit:contain;max-width:none;max-height:none}
 @media (max-width: 768px){
   .sp-section.sp-aspect-locked .sp-section-inner{aspect-ratio:auto !important;min-height:420px}
   .sp-section.sp-aspect-locked .sp-section-title{position:static;margin-bottom:14px;pointer-events:auto}

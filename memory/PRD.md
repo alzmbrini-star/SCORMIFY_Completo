@@ -88,6 +88,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **BUGFIX (P0)** — Texto INTENCIONAL desaparecendo no Single Page (correção do dedup agressivo anterior).
+  - **Sintoma**: usuário comparou Editor vs Single Page export — no Editor, slide tem "A TRILHA DO VENDEDOR" + "Transforme sua abordagem..." + botão "INICIAR JORNADA" sobre cenário; no export, esses textos sumiram (apenas avatar visível).
+  - **Causa**: o fix anterior ("skip visual duplicates on bg-image slides") era heurístico demais — funcionou para PPT-imported slides com texto baked-in MAS quebrou slides com cenário-clean + texto autoral intencional.
+  - **Fix correto — absolute positioning**: quando slide tem `backgroundImage`, cada element (text/html/image/quiz/etc.) é renderizado como **`<div class="sp-bg-element">` absolute-positioned** dentro de `.sp-section-inner`, com `left/top/width/height` em **porcentagens** convertidas das coords do Editor relativas a `slide.width` × `slide.height`. Isso preserva o layout autoral exatamente como o autor desenhou no Editor — texto fica onde foi posicionado, sobre o cenário.
+  - **CSS dedicado**: `.sp-bg-element` com `box-sizing:border-box`; filhos diretos com `width:100%; height:100%`. Img/video filhos usam `object-fit:contain` para escalar bem ao slot.
+  - **Fallback**: elements sem coords válidas (width/height ≤ 0) caem no body flow legado — sem crash.
+  - **Editor-native slides** (sem backgroundImage) **não afetados** — continuam usando o body flow.
+  - **Validado**: 9 testes pytest novos (`tests/test_singlepage_bg_absolute.py` — substituiu o antigo `test_singlepage_visual_dedup.py`) cobrindo positioning, clamping, integração avatar+texto, fallback. 94/94 testes Single Page passando + E2E real no projeto "Trilha do Vendedor": 4 bg-elements absolutos + texto "TRILHA" + botão "INICIAR JORNADA" todos presentes corretamente posicionados.
+
 - 2026-04-29: **BUGFIX (P0)** — Texto duplicado no Single Page de slides PPT-imported atrás do avatar.
   - **Sintoma**: usuário enviou screenshot mostrando o avatar HeyGen (smart positioning funcionando, na coluna esquerda escura) MAS com texto "A TRILHA DO VENDEDOR" gigante atrás do avatar — duplicação visual feia.
   - **Causa raiz**: o PPT parser extrai o conteúdo textual da slide para `slide.elements` (text/html/shape/line elements) com fins de acessibilidade/busca. O exportador renderizava esses elements no `.sp-section-body` SOBRE a `slide.backgroundImage`, gerando duplicação porque o conteúdo já estava baked-in no PNG do slide.

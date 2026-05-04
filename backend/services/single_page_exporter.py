@@ -1140,46 +1140,55 @@ def generate_single_page_html(
             if bg_avatar:
                 composed_indices.add(bg_avatar["avatar_idx"])
 
-        # When the slide has a backgroundImage (PPT-imported or similar), the
-        # bg image ALREADY contains the slide's visual content (title, body
-        # text, images baked into the PPT export). Text/html/image elements
-        # in `slide.elements` are typically PPT parser extractions kept for
-        # accessibility — rendering them on top of the bg produces visual
-        # duplication that bleeds around the avatar overlay.
-        # → Skip visual-only elements on bg-image slides. KEEP text/html
-        #   elements that contain genuinely interactive HTML (iframes,
-        #   buttons, links, forms added by the author on top of the PPT).
-        skip_visual_duplicates = bool(slide.get("backgroundImage"))
-        _PURE_VISUAL_TYPES = {"text", "shape", "line", "image"}
-        _INTERACTIVE_HTML_SIGNALS = ("<iframe", "<button", "<a href", "<form",
-                                      "<input", "<select", "onclick=")
-
-        def _is_interactive_html(el: dict) -> bool:
-            """Return True if an html-type element contains author-added
-            interactive markup (iframe/button/link/form). Keep these — skip
-            plain text/h1/h2/p-only htmlContent on bg-image slides."""
-            if el.get("interactive") or el.get("requiresClick"):
-                return True
-            content = (el.get("htmlContent") or el.get("content") or "").lower()
-            return any(sig in content for sig in _INTERACTIVE_HTML_SIGNALS)
+        # When the slide has a backgroundImage (PPT-imported or author-set
+        # scene), elements should be rendered at their EDITOR positions
+        # (x/y/width/height converted to percentages of slide.width × slide.height)
+        # as absolute-positioned overlays inside the section-inner card.
+        # This honors the layout the author crafted in the Editor — text
+        # boxes, buttons, links all appear exactly where they were placed
+        # ON TOP of the scene image. Without this, elements fall into the
+        # body strip at the bottom and lose their original positioning.
+        use_absolute_positioning = bool(slide.get("backgroundImage"))
+        absolute_elements: List[str] = []
+        try:
+            slide_canvas_w = float(slide.get("width") or 0)
+            slide_canvas_h = float(slide.get("height") or 0)
+        except (TypeError, ValueError):
+            slide_canvas_w = slide_canvas_h = 0
 
         for e_idx, el in enumerate(elements):
             # Skip elements that will be composed into the avatar-stage block
             if e_idx in composed_indices:
                 continue
-            if skip_visual_duplicates:
-                etype = (el.get("type") or "").lower()
-                if etype in _PURE_VISUAL_TYPES:
-                    # text / shape / line / image → always skip on bg slides
-                    continue
-                if etype == "html" and not _is_interactive_html(el):
-                    # html without interactive markup = duplicate text
-                    continue
             try:
                 html_part = _render_element(el, project_id, assets_dir, base_url,
                                               s_idx, e_idx, questions_lookup)
-                if html_part:
-                    rendered_elements.append(html_part)
+                if not html_part:
+                    continue
+                # Try absolute positioning for bg-image slides
+                if use_absolute_positioning and slide_canvas_w > 0 and slide_canvas_h > 0:
+                    try:
+                        ex = float(el.get("x") or 0)
+                        ey = float(el.get("y") or 0)
+                        ew = float(el.get("width") or 0)
+                        eh = float(el.get("height") or 0)
+                    except (TypeError, ValueError):
+                        ex = ey = ew = eh = 0
+                    if ew > 0 and eh > 0:
+                        left_pct = max(0.0, min(100.0, (ex / slide_canvas_w) * 100.0))
+                        top_pct = max(0.0, min(100.0, (ey / slide_canvas_h) * 100.0))
+                        width_pct = max(1.0, min(100.0, (ew / slide_canvas_w) * 100.0))
+                        height_pct = max(1.0, min(100.0, (eh / slide_canvas_h) * 100.0))
+                        wrapped = (
+                            f'<div class="sp-bg-element" style="position:absolute;'
+                            f'left:{left_pct:.2f}%;top:{top_pct:.2f}%;'
+                            f'width:{width_pct:.2f}%;height:{height_pct:.2f}%;'
+                            f'z-index:2;overflow:visible">{html_part}</div>'
+                        )
+                        absolute_elements.append(wrapped)
+                        continue
+                # Fallback: append to body flow (legacy behavior)
+                rendered_elements.append(html_part)
             except Exception:
                 continue
 
@@ -1270,12 +1279,19 @@ def generate_single_page_html(
                 bg_avatar["avatar_el"], slide, project_id, assets_dir, base_url, s_idx,
             )
 
+        # Absolute-positioned elements (when slide has bg-image) live as
+        # direct children of section-inner so their %-coords map to the
+        # whole card area (where the bg-image is). Body elements (audio
+        # narration, sfx, fallback non-positioned) stay in the body strip.
+        absolute_elements_html = "\n      ".join(absolute_elements) if absolute_elements else ""
+
         section = (
             f'<section class="{section_class}" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
             f'{locked_attr}>\n'
             f'  <div class="sp-section-inner"{card_style}>\n'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'
+            f'    {absolute_elements_html}\n'
             f'    <div class="sp-section-body">\n'
             f'      {chr(10).join(rendered_elements)}\n'
             f'    </div>\n'
