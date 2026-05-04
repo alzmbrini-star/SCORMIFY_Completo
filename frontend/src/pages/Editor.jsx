@@ -128,6 +128,7 @@ import ScenarioCreator from '../components/scenario/ScenarioCreator';
 import GamificationPanel from '../components/editor/GamificationPanel';
 import LeonardoPanel from './Agent/components/LeonardoPanel';
 import KreaPanel from './Agent/components/KreaPanel';
+import SinglePagePreviewDialog from './Editor/dialogs/SinglePagePreviewDialog';
 import AestheticsPanel from '../components/editor/AestheticsPanel';
 
 // Extracted components and hooks
@@ -317,6 +318,7 @@ export default function Editor() {
   const [showLeonardoPanel, setShowLeonardoPanel] = useState(false);
   const [showKreaPanel, setShowKreaPanel] = useState(false);
   const [showAestheticsPanel, setShowAestheticsPanel] = useState(false);
+  const [showSinglePagePreview, setShowSinglePagePreview] = useState(false);
 
   const fileInputRef = useRef(null);
   const API_URL = getApiUrl();
@@ -1429,6 +1431,22 @@ export default function Editor() {
                 <TooltipContent>Analisador de Estetica</TooltipContent>
               </Tooltip>
 
+              {/* Live Preview do Single Page export */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20"
+                    onClick={() => setShowSinglePagePreview(true)}
+                    data-testid="singlepage-preview-btn"
+                  >
+                    <Eye className="w-4 h-4 text-amber-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Preview Página Única</TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -2191,6 +2209,14 @@ export default function Editor() {
             />
           </DialogContent>
         </Dialog>
+
+        {/* Single Page Live Preview Dialog */}
+        <SinglePagePreviewDialog
+          open={showSinglePagePreview}
+          onOpenChange={setShowSinglePagePreview}
+          projectId={currentProject?.id}
+          projectName={currentProject?.name}
+        />
 
         {/* Krea AI Panel Dialog */}
         <Dialog open={showKreaPanel} onOpenChange={setShowKreaPanel}>

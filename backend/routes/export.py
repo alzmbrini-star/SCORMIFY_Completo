@@ -1,6 +1,6 @@
 """Export routes (SCORM, HTML, Video) and asset serving"""
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks, Depends
+from fastapi.responses import FileResponse, Response
 from typing import Optional
 from pathlib import Path
 from datetime import datetime, timezone
@@ -16,6 +16,7 @@ from routes.deps import (
     PROJECTS_DIR, STORAGE_DIR, EXPORTS_DIR, exports_bucket, jobs,
     create_job, update_job, get_job
 )
+from routes.auth import require_auth
 from models import Project
 
 logger = logging.getLogger("server")
@@ -565,6 +566,87 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
     except Exception as e:
         logger.error(f"HTML export error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/projects/{project_id}/preview-singlepage")
+async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)):
+    """Live Preview of the Single Page export — returns the generated HTML
+    inline (text/html) so the Editor can render it in an iframe via Blob URL.
+
+    Why a dedicated endpoint instead of /export-html?
+    - No file write to disk (preview is ephemeral, fast).
+    - Forces singlePage=true (preview is always single-page mode).
+    - Consistent auth via require_auth + load_authorized_project (the same
+      helper used by the rest of the project routes — handles super_admin /
+      cross-company / legacy companyId edge cases consistently).
+    """
+    from routes.projects_common import load_authorized_project
+    project_doc = await load_authorized_project(project_id, user)
+    proj_id = project_doc.get("id", project_id)
+    assets_dir = str(PROJECTS_DIR / proj_id / "assets")
+    base_url = os.environ.get("BASE_URL", "").rstrip("/")
+
+    # Load questions, tutor config, gamification — same as export-html path
+    course = project_doc.get("course", {})
+    questions = []
+    try:
+        course_id_for_questions = course.get("id") or proj_id
+        questions_cursor = db.questions.find({"courseId": course_id_for_questions}, {"_id": 0})
+        questions = await questions_cursor.to_list(length=None)
+    except Exception:
+        pass
+
+    tutor_settings = None
+    try:
+        tutor_doc = await db.tutor_settings.find_one({"projectId": proj_id}, {"_id": 0})
+        if tutor_doc and tutor_doc.get("enabled"):
+            tutor_settings = tutor_doc
+    except Exception:
+        pass
+
+    gamification_settings_html = None
+    try:
+        gam = await db.gamification_settings.find_one({"projectId": proj_id}, {"_id": 0})
+        if gam and gam.get("enabled"):
+            gamification_settings_html = {
+                "enabled": True,
+                "modules": gam.get("modules", {}),
+                "points": gam.get("points", {}),
+                "badges": gam.get("badges", []),
+                "streaks": gam.get("streaks", {}),
+                "course": {
+                    "id": proj_id,
+                    "title": course.get("metadata", {}).get("title", "Curso"),
+                    "emoji": "🎓",
+                },
+            }
+    except Exception:
+        pass
+
+    try:
+        from services.single_page_exporter import generate_single_page_html
+        html_content = generate_single_page_html(
+            project_doc,
+            assets_dir,
+            base_url,
+            questions=questions,
+            tutor_config=tutor_settings,
+            gamification_config=gamification_settings_html,
+        )
+    except Exception as e:
+        logger.error(f"Single Page preview generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {e}")
+
+    # Return raw HTML — frontend wraps it in a Blob URL for iframe srcdoc.
+    return Response(
+        content=html_content,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "X-Frame-Options": "SAMEORIGIN",
+        },
+    )
+
 
 # Video Export - Client-Side Approach (generates slide images, frontend creates video)
 

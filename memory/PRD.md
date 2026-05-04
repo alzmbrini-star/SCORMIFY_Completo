@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P2)** — **Live Preview do Single Page** dentro do Editor.
+  - **Backend**: novo endpoint `GET /api/projects/{id}/preview-singlepage` em `routes/export.py`. Auth via `require_auth` + `load_authorized_project` (mesma helper canônica do resto das rotas — bloqueia super_admin/cross-company/legacy edge cases consistentemente). Retorna HTML inline (text/html, no-store cache). Reaproveita `generate_single_page_html` com gamification + tutor + questions carregados.
+  - **Frontend**: novo dialog `SinglePagePreviewDialog.jsx` (95vw × 95vh) com:
+    - Botão na toolbar (ícone Eye âmbar gradient, `data-testid="singlepage-preview-btn"`).
+    - Fetch via authHeaders → Blob URL → iframe sandboxed (allow-scripts, allow-same-origin, allow-forms, allow-popups).
+    - **Viewport switcher** Desktop/Tablet/Mobile (414/820/100% width) — autores conseguem testar responsividade sem ferramentas externas.
+    - Botão "Atualizar" (`preview-refresh-btn`) — re-fetch do HTML após qualquer edit no Editor.
+    - Botão "Nova aba" (`preview-open-newtab-btn`) — abre o blob URL em nova janela para teste fullscreen real.
+    - Estados loading/error com retry button.
+    - Cleanup automático do Blob URL ao fechar (evita memory leak).
+  - **Validado**: 4/4 testes pytest novos (`tests/test_singlepage_preview_endpoint.py`) — auth required, 404 para projeto inexistente, HTML válido para projeto real, **cross-company access bloqueado**. Smoke screenshot E2E mostra dialog renderizando perfeitamente o curso "Trilha do Vendedor" com avatar smart-positioned + texto + botão "INICIAR JORNADA". 127/127 testes Single Page totais sem regressão.
+
 - 2026-04-29: **BUGFIX (P0)** — Texto INTENCIONAL desaparecendo no Single Page (correção do dedup agressivo anterior).
   - **Sintoma**: usuário comparou Editor vs Single Page export — no Editor, slide tem "A TRILHA DO VENDEDOR" + "Transforme sua abordagem..." + botão "INICIAR JORNADA" sobre cenário; no export, esses textos sumiram (apenas avatar visível).
   - **Causa**: o fix anterior ("skip visual duplicates on bg-image slides") era heurístico demais — funcionou para PPT-imported slides com texto baked-in MAS quebrou slides com cenário-clean + texto autoral intencional.
