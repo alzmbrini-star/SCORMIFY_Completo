@@ -71,10 +71,12 @@ export const ProjectProvider = ({ children }) => {
     }
   }, []);
 
-  const createProject = useCallback(async (name, description = '') => {
+  const createProject = useCallback(async (name, description = '', companyId = null) => {
     try {
       setLoading(true);
-      const response = await axios.post(`${API_URL}/projects`, { name, description });
+      const payload = { name, description };
+      if (companyId) payload.companyId = companyId;
+      const response = await axios.post(`${API_URL}/projects`, payload);
       setProjects(prev => [response.data, ...prev]);
       return response.data;
     } catch (err) {
@@ -112,7 +114,7 @@ export const ProjectProvider = ({ children }) => {
     }
   }, [currentProject]);
 
-  const uploadPPT = useCallback(async (file, projectName) => {
+  const uploadPPT = useCallback(async (file, projectName, companyId = null) => {
     try {
       setLoading(true);
       const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
@@ -122,16 +124,18 @@ export const ProjectProvider = ({ children }) => {
         const formData = new FormData();
         formData.append('file', file);
         if (projectName) formData.append('project_name', projectName);
+        if (companyId) formData.append('company_id', companyId);
         const response = await axios.post(`${API_URL}/ppt/upload`, formData);
         return response.data;
       }
       
       // For large files, use chunked upload with retry
       const doChunkedUpload = async (retryCount = 0) => {
-        // Step 1: Init
+        // Step 1: Init (passes companyId for super_admin company override)
         const initRes = await axios.post(`${API_URL}/ppt/upload/init`, {
           filename: file.name,
           totalSize: file.size,
+          ...(companyId ? { companyId } : {}),
         });
         const uploadId = initRes.data.uploadId;
         

@@ -17,7 +17,7 @@ from routes.deps import (
     PROJECTS_DIR, UPLOADS_DIR, jobs, create_job, get_job
 )
 from routes.auth import require_auth, has_role
-from routes.projects_common import load_authorized_project, process_ppt_upload
+from routes.projects_common import load_authorized_project, process_ppt_upload, resolve_company_id_for_creation, can_change_project_company
 from models import (
     Project, ProjectCreate, ProjectUpdate, Slide, JobStatus
 )
@@ -88,7 +88,12 @@ async def list_projects(user: dict = Depends(require_auth)):
 @router.post("/projects", response_model=dict)
 async def create_project(data: ProjectCreate, user: dict = Depends(require_auth)):
     """Create a new project. Automatically tags it with the creator's
-    userId and companyId so per-company isolation works downstream."""
+    userId and companyId so per-company isolation works downstream.
+
+    Super_admins may pass `companyId` in the body to attribute the project
+    to a specific client company (used when service-providers manage
+    multiple companies and need cost reporting per company).
+    """
     project = Project(name=data.name, description=data.description)
     project.course.metadata.title = data.name
     project.course.slides = [Slide(title="Slide 1", order=0, background="#FFFFFF")]
@@ -100,7 +105,7 @@ async def create_project(data: ProjectCreate, user: dict = Depends(require_auth)
     project_dict['course']['updatedAt'] = project.course.updatedAt.isoformat()
     project_dict['source'] = 'manual'
     project_dict['userId'] = user.get('user_id')
-    project_dict['companyId'] = user.get('companyId')
+    project_dict['companyId'] = await resolve_company_id_for_creation(user, data.companyId)
 
     await db.projects.insert_one(project_dict)
 
@@ -152,9 +157,24 @@ async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: di
     serialising the whole thing here was causing 502 Bad Gateway in production
     (proxy timeout / response too large). Frontend re-fetches via GET when it
     needs the fresh state.
+
+    `companyId` in the body re-assigns the project to a different company.
+    Only super_admin may use this — other roles have it silently dropped.
     """
     await load_authorized_project(project_id, user)
     update_data = data.model_dump(exclude_unset=True)
+
+    # Company re-assignment guard
+    if 'companyId' in update_data:
+        new_company_id = update_data.get('companyId')
+        if not can_change_project_company(user):
+            # Silently drop — non-super-admins cannot reattribute projects
+            update_data.pop('companyId', None)
+        elif new_company_id:
+            # Validate target company exists
+            company = await db.companies.find_one({"id": new_company_id}, {"_id": 0, "id": 1})
+            if not company:
+                raise HTTPException(status_code=400, detail=f"Company '{new_company_id}' not found")
 
     if 'name' in update_data:
         update_data['course.metadata.title'] = update_data['name']
@@ -371,6 +391,7 @@ async def init_chunked_upload(request: Request, user: dict = Depends(require_aut
     body = await request.json()
     filename = body.get('filename', 'upload.pptx')
     total_size = body.get('totalSize', 0)
+    requested_company_id = body.get('companyId')
 
     if not filename.lower().endswith(('.ppt', '.pptx')):
         raise HTTPException(status_code=400, detail="Tipo de arquivo invalido. Apenas PPT/PPTX sao permitidos.")
@@ -389,7 +410,7 @@ async def init_chunked_upload(request: Request, user: dict = Depends(require_aut
         'chunkCount': 0,
         'path': str(upload_path),
         'userId': user.get('user_id'),
-        'companyId': user.get('companyId'),
+        'companyId': await resolve_company_id_for_creation(user, requested_company_id),
     }
 
     # Store in memory AND MongoDB (survives restarts/deploys)
@@ -565,9 +586,12 @@ async def upload_ppt(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     project_name: Optional[str] = None,
+    company_id: Optional[str] = None,
     user: dict = Depends(require_auth),
 ):
-    """Upload and process a PPT/PPTX file (legacy non-chunked flow)"""
+    """Upload and process a PPT/PPTX file (legacy non-chunked flow).
+    `company_id` (super_admin only) attributes the project to a specific
+    client company; ignored for regular users."""
     logger.info(f"PPT upload received: filename={file.filename}, content_type={file.content_type}, size_hint={file.size}")
 
     if not file.filename.lower().endswith(('.ppt', '.pptx')):
@@ -589,7 +613,7 @@ async def upload_ppt(
     project_dict['status'] = 'processing'
     project_dict['source'] = 'ppt'
     project_dict['userId'] = user.get('user_id')
-    project_dict['companyId'] = user.get('companyId')
+    project_dict['companyId'] = await resolve_company_id_for_creation(user, company_id)
 
     await db.projects.insert_one(project_dict)
 

@@ -43,6 +43,7 @@ async def leonardo_generate(request: Request, user: dict = Depends(require_auth)
             "prompt": prompt,
             "projectId": project_id,
             "userId": user.get("user_id"),
+            "companyId": user.get("companyId"),
             "width": width,
             "height": height,
             "status": "pending",

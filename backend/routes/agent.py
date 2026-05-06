@@ -77,9 +77,14 @@ async def _get_bg_motor_db():
     return _bg_motor_db
 
 class AgentSessionCreate(BaseModel):
-    """Create agent session - optionally with initial text content"""
+    """Create agent session - optionally with initial text content.
+
+    `companyId` (super_admin only) attributes the resulting course to a
+    specific client company; ignored for regular users.
+    """
     contentText: Optional[str] = None
     fileName: Optional[str] = None
+    companyId: Optional[str] = None
 
 class GenerateHtmlRequest(BaseModel):
     prompt: str
@@ -308,6 +313,7 @@ async def check_agent_access(request: Request):
 @router.post("/agent/sessions")
 async def create_agent_session(data: AgentSessionCreate, request: Request, user: dict = Depends(require_agent_access)):
     """Create a new AI agent session."""
+    from routes.projects_common import resolve_company_id_for_creation
     session_id = str(uuid.uuid4())
     session = {
         "id": session_id,
@@ -321,7 +327,7 @@ async def create_agent_session(data: AgentSessionCreate, request: Request, user:
         "projectId": None,
         "chatHistory": [],
         "userId": user.get("user_id"),
-        "companyId": user.get("companyId"),
+        "companyId": await resolve_company_id_for_creation(user, data.companyId),
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }

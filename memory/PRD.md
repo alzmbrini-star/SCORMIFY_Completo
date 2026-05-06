@@ -88,6 +88,22 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P1)** — Atribuição de cursos a empresas + Relatório de Custos por Empresa.
+  - **Caso de uso**: prestador de serviço usa Scormify para criar cursos para múltiplas empresas clientes — precisa atribuir cada curso à empresa correta para depois identificar custos no faturamento.
+  - **Backend**:
+    - Novo helper `resolve_company_id_for_creation(user, requested_company_id)` em `routes/projects_common.py` — super_admin pode passar QUALQUER companyId; outros usuários têm o parâmetro silenciosamente ignorado (defesa em profundidade).
+    - Novo helper `can_change_project_company(user)` — só super_admin pode reatribuir.
+    - **5 pontos de criação** aceitam `companyId` opcional: `POST /api/projects` (manual), `POST /api/agent/sessions` (Agente IA — propaga para o curso final), `POST /api/ppt/upload` (legacy), `POST /api/ppt/upload/init` (chunked).
+    - **Edição**: `PUT /api/projects/{id}` agora aceita `companyId` no body — super_admin reatribui, outros têm campo dropado silenciosamente. Valida que a empresa target existe (400 se não).
+    - **Cost report**: novo `routes/cost_report.py` com `GET /api/admin/cost-report?from=YYYY-MM-DD&to=YYYY-MM-DD` (super_admin only). Agrega via MongoDB pipelines: projetos por companyId+source, krea_generations, leonardo_generations (companyId direto), tutor_logs, elevenlabs_generations, heygen_jobs (com fallback de JOIN via projectId quando companyId não está no doc).
+    - Leonardo agora tagga `companyId` em `db.leonardo_generations` (antes só projectId).
+  - **Frontend**:
+    - Novo componente `CompanySelector.jsx` reutilizável: dropdown que aparece APENAS para super_admin, lista todas as empresas do `/api/companies`, default = empresa do usuário logado (evita atribuição acidental), badge "(sua empresa)" para identificação. Ocultado completamente para admins comuns.
+    - **Dashboard** → New Project dialog + Upload PPT dialog + Edit Project dialog (renomeado de "Renomear" para "Editar Projeto") agora mostram o seletor.
+    - **Agente IA** → `UploadPanel` mostra o seletor antes do upload de conteúdo; passa `companyId` para `POST /agent/sessions` que propaga para o curso final.
+    - **Admin** → nova tab "Custos por Empresa" com `CostReportPanel.jsx`: filtros de data (De/Até), 6 totais agregados em cards coloridos (Cursos / Krea / Leonardo / Tutor / ElevenLabs / HeyGen), tabela "Por Empresa" com breakdown por source (manual / agent / ppt) e contagens por integração.
+  - **Validado**: 10/10 testes pytest novos (`tests/test_company_override.py`) cobrindo: super_admin atribuição cross-company, validação de empresa inexistente (400), regular admin tem campo dropado silenciosamente, super_admin reassign via PUT, regular admin não pode reassign, agent session aceita companyId, cost report retorna estrutura correta, filtros de data funcionam, super_admin only. E2E real: screenshot do Cost Report no Admin mostra 4 empresas + 57 cursos agregados + breakdown source manual/ppt corretamente.
+
 - 2026-04-29: **FEATURE (P2)** — **Live Preview do Single Page** dentro do Editor.
   - **Backend**: novo endpoint `GET /api/projects/{id}/preview-singlepage` em `routes/export.py`. Auth via `require_auth` + `load_authorized_project` (mesma helper canônica do resto das rotas — bloqueia super_admin/cross-company/legacy edge cases consistentemente). Retorna HTML inline (text/html, no-store cache). Reaproveita `generate_single_page_html` com gamification + tutor + questions carregados.
   - **Frontend**: novo dialog `SinglePagePreviewDialog.jsx` (95vw × 95vh) com:

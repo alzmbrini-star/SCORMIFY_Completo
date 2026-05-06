@@ -57,6 +57,7 @@ import GeneratedPanel from './Agent/components/GeneratedPanel';
 import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
 import { CourseReviewPanel, EditResultPanel, PreviewPanel } from './Agent/components/CoursePanels';
 import PdfPreviewPanel from './Agent/components/PdfPreviewPanel';
+import CompanySelector from '../components/CompanySelector';
 
 
 // ===== CREATE MODE STEPS =====
@@ -248,12 +249,15 @@ export default function Agent() {
       .catch(() => {});
   }, []);
 
+  const [agentCompanyId, setAgentCompanyId] = useState('');
+
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
     try {
+      const body = agentCompanyId ? { companyId: agentCompanyId } : {};
       const res = await fetchRetry(`${API}/api/agent/sessions`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       setSessionId(data.id);
@@ -262,7 +266,7 @@ export default function Agent() {
       toast.error('Erro ao criar sessão');
       return null;
     }
-  }, [sessionId]);
+  }, [sessionId, agentCompanyId]);
 
   // ===== CREATE MODE HANDLERS =====
   const handleFileUpload = async (e) => {
@@ -1207,7 +1211,7 @@ export default function Agent() {
               {mode === 'approval' && <ApprovalQueuePanel onResumeSession={handleResumeApprovedSession} />}
 
               {/* CREATE MODE */}
-              {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} />}
+              {mode === 'create' && currentStep === 0 && <UploadPanel contentText={contentText} setContentText={setContentText} contentUrl={contentUrl} setContentUrl={setContentUrl} fileName={fileName} fileInputRef={fileInputRef} handleFileUpload={handleFileUpload} handleTextSubmit={handleTextSubmit} handleUrlSubmit={handleUrlSubmit} loading={loading} agentCompanyId={agentCompanyId} setAgentCompanyId={setAgentCompanyId} />}
               {mode === 'create' && currentStep === 1 && <AnalyzePanel analysis={analysis} loading={loading} onAnalyze={handleAnalyze} sessionId={sessionId} apiBase={API} />}
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
@@ -1391,7 +1395,7 @@ function ModeSelector({ onSelect, showApprovalQueue, isAprovadorOnly }) {
   );
 }
 
-function UploadPanel({ contentText, setContentText, contentUrl, setContentUrl, fileName, fileInputRef, handleFileUpload, handleTextSubmit, handleUrlSubmit, loading }) {
+function UploadPanel({ contentText, setContentText, contentUrl, setContentUrl, fileName, fileInputRef, handleFileUpload, handleTextSubmit, handleUrlSubmit, loading, agentCompanyId, setAgentCompanyId }) {
   return (
     <div className="space-y-6" data-testid="upload-panel">
       <div className="text-center space-y-2">
@@ -1399,6 +1403,14 @@ function UploadPanel({ contentText, setContentText, contentUrl, setContentUrl, f
         <p className="text-slate-400 text-sm max-w-lg mx-auto">
           Faça upload de um arquivo, cole o texto ou insira um link.
         </p>
+      </div>
+      {/* Company picker (super_admin only — hidden for everyone else) */}
+      <div className="max-w-md mx-auto">
+        <CompanySelector
+          value={agentCompanyId}
+          onChange={setAgentCompanyId}
+          testIdPrefix="agent-company"
+        />
       </div>
       <div className="grid md:grid-cols-3 gap-4">
         {/* File Upload */}

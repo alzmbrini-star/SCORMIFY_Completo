@@ -243,12 +243,19 @@ class Project(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     description: str = ""
+    # Optional company override — only super_admins may set this to a value
+    # different from their own companyId (used by service-providers managing
+    # multiple client companies). Regular users have this silently ignored.
+    companyId: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     enableVlibras: Optional[bool] = None
     singlePageMode: Optional[bool] = None
+    # Re-assignment to another company (super_admin only — regular admins
+    # have this field silently ignored at the route level).
+    companyId: Optional[str] = None
 
 class SlideCreate(BaseModel):
     title: str = "New Slide"

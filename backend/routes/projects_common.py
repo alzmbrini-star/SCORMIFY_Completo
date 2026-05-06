@@ -19,6 +19,44 @@ from routes.auth import has_role
 logger = logging.getLogger("server")
 
 
+async def resolve_company_id_for_creation(user: dict, requested_company_id: str = None) -> str:
+    """Pick the right companyId when creating/updating a project.
+
+    Rules:
+      - super_admin: may pass ANY valid companyId in `requested_company_id`
+        (used by service-providers who manage multiple client companies).
+        If none provided, falls back to user's own companyId.
+      - regular admin / user: ALWAYS uses their own companyId — any
+        `requested_company_id` from the request body is silently ignored
+        (defense in depth — even if the frontend has a tampered payload,
+        users can't reattribute projects to other companies).
+      - legacy users without companyId: returns None (legacy projects).
+
+    Validates the company exists when super_admin specifies a different one.
+    Raises HTTPException(400) if the requested company doesn't exist.
+    """
+    user_company = user.get("companyId")
+    if not has_role(user, "super_admin"):
+        return user_company
+    # super_admin path
+    if not requested_company_id:
+        return user_company
+    if requested_company_id == user_company:
+        return user_company
+    # Validate the target company exists
+    company = await db.companies.find_one({"id": requested_company_id}, {"_id": 0, "id": 1})
+    if not company:
+        raise HTTPException(status_code=400, detail=f"Company '{requested_company_id}' not found")
+    return requested_company_id
+
+
+def can_change_project_company(user: dict) -> bool:
+    """Only super_admin can re-assign a project to a different company.
+    Used by the PUT/PATCH project endpoint when the body contains a
+    `companyId` change."""
+    return has_role(user, "super_admin")
+
+
 def can_access_project(user: dict, project: dict) -> bool:
     """Return True if the user can access this project.
 
@@ -188,6 +226,8 @@ def process_ppt_upload(job_id: str, file_path: str, project_id: str):
 __all__ = [
     "can_access_project",
     "load_authorized_project",
+    "resolve_company_id_for_creation",
+    "can_change_project_company",
     "process_ppt_upload",
     "db",
     "now_utc",

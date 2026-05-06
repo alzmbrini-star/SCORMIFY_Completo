@@ -25,6 +25,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
+import CompanySelector from '../components/CompanySelector';
 import {
   Plus,
   Upload,
@@ -69,8 +70,11 @@ export default function Dashboard() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectCompanyId, setNewProjectCompanyId] = useState('');
+  const [uploadCompanyId, setUploadCompanyId] = useState('');
   const [renameProjectId, setRenameProjectId] = useState(null);
   const [renameProjectName, setRenameProjectName] = useState('');
+  const [renameProjectCompanyId, setRenameProjectCompanyId] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingJobId, setProcessingJobId] = useState(null);
   const [processingStatus, setProcessingStatus] = useState('');
@@ -139,9 +143,10 @@ export default function Dashboard() {
       return;
     }
     try {
-      const project = await createProject(newProjectName.trim());
+      const project = await createProject(newProjectName.trim(), '', newProjectCompanyId || null);
       setShowNewProjectDialog(false);
       setNewProjectName('');
+      setNewProjectCompanyId('');
       toast.success('Project created!');
       navigate(`/editor/${project.id}`);
     } catch (err) {
@@ -161,7 +166,7 @@ export default function Dashboard() {
     try {
       setUploadProgress(10);
       setProcessingStatus('Uploading file...');
-      const result = await uploadPPT(file);
+      const result = await uploadPPT(file, undefined, uploadCompanyId || null);
       setProcessingJobId(result.jobId);
       setUploadProgress(30);
       setProcessingStatus('Processing PowerPoint...');
@@ -196,6 +201,7 @@ export default function Dashboard() {
     e.stopPropagation();
     setRenameProjectId(project.id);
     setRenameProjectName(project.name);
+    setRenameProjectCompanyId(project.companyId || '');
     setShowRenameDialog(true);
   };
 
@@ -205,13 +211,20 @@ export default function Dashboard() {
       return;
     }
     try {
-      await updateProject(renameProjectId, { name: renameProjectName.trim() });
+      const payload = { name: renameProjectName.trim() };
+      // Only super_admin can change companyId — backend silently drops it for others.
+      // We send only when changed to avoid noisy PUTs.
+      if (isSuperAdmin && renameProjectCompanyId) {
+        payload.companyId = renameProjectCompanyId;
+      }
+      await updateProject(renameProjectId, payload);
       setShowRenameDialog(false);
       setRenameProjectId(null);
       setRenameProjectName('');
-      toast.success('Projeto renomeado com sucesso!');
+      setRenameProjectCompanyId('');
+      toast.success('Projeto atualizado com sucesso!');
     } catch (err) {
-      toast.error('Erro ao renomear projeto');
+      toast.error('Erro ao atualizar projeto');
     }
   };
 
@@ -352,13 +365,18 @@ export default function Dashboard() {
                   <DialogTitle>Create New Project</DialogTitle>
                   <DialogDescription>Crie um novo projeto em branco para comecar a editar.</DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
+                <div className="py-4 space-y-4">
                   <Input
                     placeholder="Project name"
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
                     data-testid="project-name-input"
+                  />
+                  <CompanySelector
+                    value={newProjectCompanyId}
+                    onChange={setNewProjectCompanyId}
+                    testIdPrefix="new-project-company"
                   />
                 </div>
                 <DialogFooter>
@@ -407,25 +425,32 @@ export default function Dashboard() {
                       <Progress value={uploadProgress} className="h-2" />
                     </div>
                   ) : (
-                    <div
-                      className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground mb-2">
-                        Drag & drop or click to upload
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Supports .ppt and .pptx files
-                      </p>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".ppt,.pptx"
-                        className="hidden"
-                        onChange={handleFileUpload}
-                        data-testid="file-input"
+                    <div className="space-y-4">
+                      <CompanySelector
+                        value={uploadCompanyId}
+                        onChange={setUploadCompanyId}
+                        testIdPrefix="upload-company"
                       />
+                      <div
+                        className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground mb-2">
+                          Drag & drop or click to upload
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Supports .ppt and .pptx files
+                        </p>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".ppt,.pptx"
+                          className="hidden"
+                          onChange={handleFileUpload}
+                          data-testid="file-input"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -434,14 +459,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rename Project Dialog */}
+        {/* Rename / Edit Project Dialog */}
         <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Renomear Projeto</DialogTitle>
-              <DialogDescription>Insira o novo nome para o projeto.</DialogDescription>
+              <DialogTitle>Editar Projeto</DialogTitle>
+              <DialogDescription>Atualize o nome do projeto e (super-admin) reatribua a empresa cliente.</DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 space-y-4">
               <Input
                 placeholder="Nome do projeto"
                 value={renameProjectName}
@@ -450,13 +475,19 @@ export default function Dashboard() {
                 data-testid="rename-project-input"
                 autoFocus
               />
+              <CompanySelector
+                value={renameProjectCompanyId}
+                onChange={setRenameProjectCompanyId}
+                label="Reatribuir a empresa"
+                testIdPrefix="rename-company"
+              />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowRenameDialog(false)}>
                 Cancelar
               </Button>
               <Button onClick={handleRenameProject} data-testid="confirm-rename-btn">
-                Renomear
+                Salvar
               </Button>
             </DialogFooter>
           </DialogContent>

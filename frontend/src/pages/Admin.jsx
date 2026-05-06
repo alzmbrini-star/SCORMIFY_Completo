@@ -35,6 +35,7 @@ import {
 import { getApiUrl } from '../utils/apiUrl';
 import TutorDashboard from './TutorDashboard';
 import IntegrationsHealthPanel from './IntegrationsHealthPanel';
+import CostReportPanel from '../components/admin/CostReportPanel';
 const API_URL = getApiUrl();
 
 export default function Admin() {
@@ -432,7 +433,21 @@ export default function Admin() {
               Integracoes
             </Button>
           )}
+          {isSuperAdmin && (
+            <Button
+              variant={activeTab === 'cost_report' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('cost_report')}
+              className="gap-2"
+              data-testid="tab-cost-report"
+            >
+              <DollarSign className="w-4 h-4" />
+              Custos por Empresa
+            </Button>
+          )}
         </div>
+
+        {/* Cost Report Tab */}
+        {activeTab === 'cost_report' && isSuperAdmin && <CostReportPanel />}
 
         {/* Companies Tab */}
         {activeTab === 'companies' && isSuperAdmin && (
