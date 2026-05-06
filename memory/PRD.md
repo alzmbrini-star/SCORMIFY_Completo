@@ -88,6 +88,28 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-04-29: **FEATURE (P3)** — Estimativa de **custo monetário (USD/BRL)** no Cost Report.
+  - **Backend**:
+    - Tabela de preços default em `routes/cost_report.py`:
+      - Krea: per-model do catálogo `KREA_IMAGE_MODELS` (Krea-1: $0.08, Flux 1.1 Pro: $0.06, Flux 1 Dev: $0.04, etc.)
+      - Leonardo: $0.02/imagem · Tutor: $0.005/msg · ElevenLabs: $0.05/geração · HeyGen: $0.50/vídeo
+      - Cotação USD→BRL: 5.0
+    - **CRUD de pricing** em MongoDB (`db.cost_pricing._id="active"`):
+      - `GET /api/admin/cost-pricing` — retorna rates + usdToBrl + kreaOverrides + kreaCatalog (snapshot do catálogo Krea com `default`/`override`/`effective`) + defaults para reference.
+      - `PUT /api/admin/cost-pricing` — super_admin atualiza qualquer subset; rejeita valores negativos/zero (400); preserva campos não enviados.
+      - Helper `_price_per_krea_model()` resolve preço por modelo: override > catálogo > fallback.
+    - Cost report agora retorna **`totalUsd`/`totalBrl` por empresa** + `usd`/`brl` por integração + `pricing` snapshot na resposta.
+  - **Frontend**: `CostReportPanel.jsx` reescrito:
+    - Toggle **BRL ↔ USD** no header (preferência local).
+    - Card "Custo total estimado" gradient verde com valor agregado em destaque + cotação aplicada.
+    - Tabela "Por Empresa" agora mostra contagens **+ custo abaixo** (R$ 0,07 em destaque pequeno) + nova coluna "Total BRL/USD" em verde grande.
+    - Botão "Tabela de preços" abre modal com:
+      - 5 campos editáveis para rates default
+      - Input para cotação USD→BRL
+      - Lista dos 11 modelos Krea cada um com input override + valor catálogo abaixo
+      - Validação básica (placeholder com o default, blank = usar catálogo).
+  - **Validado**: 9 testes pytest novos (`tests/test_cost_pricing.py`) cobrindo GET/PUT, validação negativa, bloqueio non-super-admin, BRL=USD×rate, override afeta totals em ratio. **19/19 testes total** (cost-pricing + company-override) passando. E2E real: screenshot mostra "R$ 0,27" total agregado + tabela Didaxis "R$ 0,20" + Pricing Dialog com 11 modelos Krea editáveis.
+
 - 2026-04-29: **FEATURE (P1)** — Atribuição de cursos a empresas + Relatório de Custos por Empresa.
   - **Caso de uso**: prestador de serviço usa Scormify para criar cursos para múltiplas empresas clientes — precisa atribuir cada curso à empresa correta para depois identificar custos no faturamento.
   - **Backend**:
