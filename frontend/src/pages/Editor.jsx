@@ -318,6 +318,7 @@ export default function Editor() {
   const [showLeonardoPanel, setShowLeonardoPanel] = useState(false);
   const [showKreaPanel, setShowKreaPanel] = useState(false);
   const [showAestheticsPanel, setShowAestheticsPanel] = useState(false);
+  const [aestheticsExpanded, setAestheticsExpanded] = useState(false);
   const [showSinglePagePreview, setShowSinglePagePreview] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -2251,15 +2252,21 @@ export default function Editor() {
           </DialogContent>
         </Dialog>
 
-        {/* Aesthetics Panel - Side Sheet */}
-        <Sheet open={showAestheticsPanel} onOpenChange={setShowAestheticsPanel}>
-          <SheetContent side="right" className="w-[380px] bg-slate-950 border-slate-800 p-4 overflow-y-auto" aria-describedby={undefined}>
+        {/* Aesthetics Panel - Side Sheet (resizes when expanded) */}
+        <Sheet open={showAestheticsPanel} onOpenChange={(o) => { setShowAestheticsPanel(o); if (!o) setAestheticsExpanded(false); }}>
+          <SheetContent
+            side="right"
+            className={`${aestheticsExpanded ? 'w-[95vw] max-w-[1400px]' : 'w-[380px]'} bg-slate-950 border-slate-800 p-4 overflow-y-auto transition-[width,max-width] duration-300`}
+            aria-describedby={undefined}
+          >
             <SheetHeader className="sr-only">
               <SheetTitle>Analisador de Estetica</SheetTitle>
             </SheetHeader>
             <AestheticsPanel
               projectId={currentProject?.id}
-              onClose={() => setShowAestheticsPanel(false)}
+              expanded={aestheticsExpanded}
+              onToggleExpand={() => setAestheticsExpanded((v) => !v)}
+              onClose={() => { setShowAestheticsPanel(false); setAestheticsExpanded(false); }}
               onFixApplied={() => {
                 fetchProject(currentProject?.id);
                 toast.success('Projeto atualizado com correcoes esteticas!');

@@ -88,6 +88,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FEATURE (P1)** — Analisador de Estética: **expandir tela** + **fontes inteligentes por tipo de slide** + **preservação da harmonia HTML**.
+  - **UX expansão**: novo botão `[Maximize2]` no header do `AestheticsPanel` (`data-testid="aesthetics-toggle-expand"`). Editor.jsx mantém estado `aestheticsExpanded` que ajusta a largura do Sheet de `380px` para `95vw max-w-1400px` (transição suave 300ms). Layout interno troca para grid 2-colunas + textos `text-sm` quando expandido — autores conseguem ver todas as issues lado a lado em vez de scrollar uma coluna estreita.
+  - **Classificação de slides** (`_classify_slide`): cada slide agora é rotulado como `CAPA` (primeiro slide ou poucos elementos com palavras-chave de abertura), `CONTEUDO` (regular) ou `HTML-PESADO` (>50% HTML ou um HTML cobrindo ≥55% da área). O rótulo aparece no contexto enviado ao LLM (`SLIDE 4 [HTML-PESADO]: ...`) para guiar sugestões específicas.
+  - **Prompt revisto**: regras tipográficas por role:
+     - CAPA → titulo principal **48-72px**, subtitulo 22-28px (hierarquia que respira)
+     - CONTEUDO → h1 32-40px, h2 24-28px, body 16-20px
+     - HTML-PESADO → **PROIBIDO impor px**: usar somente `em`/`%`/`rem` e cores. Foco apenas em contraste critico — preservar a tipografia interna do simulador (que o Agente IA construiu intencionalmente). Limite de 1 issue por slide HTML-pesado para reduzir ruido.
+  - **Proteção determinística** em `_strengthen_css_injection(preserve_html_typography=True)`:
+     - `font-size:Npx` em css de slide HTML-PESADO → convertido automaticamente para `1.05em` (preserva hierarquia interna)
+     - `padding`/`margin`/`line-height` → **stripados** antes da injeção (o simulador ja tem tipografia intencional)
+     - Apenas `color`/`background-color` passam intactos (correções de contraste)
+  - **Validado**: 19 testes pytest novos (`tests/test_aesthetics_classification.py`) cobrindo classificação capa/conteudo/html_heavy + preservação tipografica + label correto no contexto. **60/60 testes Aesthetic + 160/160 Single Page sem regressão**.
+
+
 - 2026-05-07: **FEATURE (P0)** — **Analisador de Estética com impacto visual real**: WCAG enforcement + plates automáticos + scrim de slide + injeção HTML agressiva.
   - **Bug crítico revelado durante a investigação**: o exporter Single Page (`_render_text_element_inner`) traduzia `fontColor` → `font-color` (CSS inválido, **silenciosamente ignorado pelo browser**). Logo, NENHUM fix de cor de fonte sugerido pelo Analisador era visível no export real. Único fix: mapear `fontColor` → `color` via `_STYLE_KEY_MAP` em `single_page_exporter.py`.
   - **Helper WCAG** (`services/wcag.py`): `parse_hex`, `relative_luminance`, `contrast_ratio` (WCAG 2.1), `enforce_min_contrast(fg,bg,4.5)` que substitui qualquer cor que falhe AA por preto puro `#0f172a` ou branco puro `#f8fafc` (depending on bg luminance). `pick_plate_color` retorna plate semi-transparente que contrasta com a cor do texto.

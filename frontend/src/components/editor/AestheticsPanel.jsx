@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import {
   Sparkles, Loader2, Check, AlertTriangle, Eye, Paintbrush,
   Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp, Wand2,
+  Maximize2, Minimize2,
 } from 'lucide-react';
 import KreaPanel from '../../pages/Agent/components/KreaPanel';
 
@@ -60,7 +61,7 @@ function ScoreRing({ score }) {
   );
 }
 
-export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
+export default function AestheticsPanel({ projectId, onFixApplied, onClose, expanded = false, onToggleExpand }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
   const [selectedFixes, setSelectedFixes] = useState(new Set());
@@ -159,11 +160,25 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
           <Sparkles className="w-5 h-5 text-violet-400" />
           <h3 className="text-sm font-semibold text-white">Analisador de Estetica</h3>
         </div>
-        {onClose && (
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0">
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          {onToggleExpand && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleExpand}
+              className="h-7 w-7 p-0 text-slate-400 hover:text-violet-300"
+              title={expanded ? 'Colapsar painel' : 'Expandir para tela cheia'}
+              data-testid="aesthetics-toggle-expand"
+            >
+              {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </Button>
+          )}
+          {onClose && (
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0">
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {!result && (
@@ -215,11 +230,11 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
           </Card>
 
           {/* Issues by category */}
-          <ScrollArea className="max-h-[45vh]">
-            <div className="space-y-2 pr-2">
+          <ScrollArea className={expanded ? 'max-h-[68vh]' : 'max-h-[45vh]'}>
+            <div className={expanded ? 'grid grid-cols-2 gap-3 pr-2' : 'space-y-2 pr-2'}>
               {Object.entries(groupedIssues).map(([cat, items]) => {
                 const Icon = CATEGORY_ICONS[cat] || AlertTriangle;
-                const expanded = expandedCategories.has(cat);
+                const expandedCat = expandedCategories.has(cat);
                 return (
                   <div key={cat} className="border border-slate-700 rounded-lg overflow-hidden">
                     <button
@@ -229,17 +244,17 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose }) {
                     >
                       <div className="flex items-center gap-2">
                         <Icon className="w-4 h-4 text-slate-300" />
-                        <span className="text-xs font-medium text-slate-200">{CATEGORY_LABELS[cat] || cat}</span>
+                        <span className={`font-medium text-slate-200 ${expanded ? 'text-sm' : 'text-xs'}`}>{CATEGORY_LABELS[cat] || cat}</span>
                         <Badge className="text-[9px] bg-slate-700 text-slate-300">{items.length}</Badge>
                       </div>
-                      {expanded ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
+                      {expandedCat ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
                     </button>
-                    {expanded && (
+                    {expandedCat && (
                       <div className="p-2 space-y-1.5">
                         {items.map(issue => (
                           <div
                             key={issue.id}
-                            className={`flex items-start gap-2 p-2 rounded border text-xs ${SEVERITY_STYLES[issue.severity] || SEVERITY_STYLES.baixa}`}
+                            className={`flex items-start gap-2 p-2 rounded border ${expanded ? 'text-sm' : 'text-xs'} ${SEVERITY_STYLES[issue.severity] || SEVERITY_STYLES.baixa}`}
                             data-testid={`aesthetics-issue-${issue.id}`}
                           >
                             <Checkbox

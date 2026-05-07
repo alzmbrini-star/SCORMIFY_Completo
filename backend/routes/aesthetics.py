@@ -39,7 +39,52 @@ def _extract_json(text: str):
         return None
 
 
-def _build_slide_context(slide: dict, slide_idx: int) -> str:
+def _classify_slide(slide: dict, idx: int, total: int) -> str:
+    """Classify slide role to drive font-size suggestions:
+      - 'capa'       — first slide / cover with few elements + big title
+      - 'html_heavy' — slide where the dominant/only element is HTML
+                       (simulators/scenarios/quizzes built by the AI Agent).
+                       These have internal typography that MUST be preserved
+                       — we only touch critical contrast.
+      - 'conteudo'   — regular content slide (text + image + maybe small html).
+    """
+    elements = slide.get("elements") or []
+    if not elements:
+        return "capa" if idx == 0 else "conteudo"
+
+    # html-heavy: more than 50% of elements are HTML, OR a single HTML covers
+    # most of the slide area (likely a full-bleed simulator).
+    html_count = sum(1 for e in elements if (e.get("type") == "html"))
+    if html_count and html_count / max(1, len(elements)) >= 0.5:
+        return "html_heavy"
+    slide_w = float(slide.get("width") or 1920) or 1920
+    slide_h = float(slide.get("height") or 820) or 820
+    slide_area = slide_w * slide_h
+    for e in elements:
+        if e.get("type") != "html":
+            continue
+        try:
+            w = float(e.get("width") or 0)
+            h = float(e.get("height") or 0)
+        except (TypeError, ValueError):
+            continue
+        if w * h >= slide_area * 0.55:
+            return "html_heavy"
+
+    # capa: first slide, OR slide with few elements + a title-shaped text
+    if idx == 0 and len(elements) <= 4:
+        return "capa"
+    text_count = sum(1 for e in elements if e.get("type") == "text")
+    if len(elements) <= 3 and text_count >= 1:
+        # short slides feel like covers/section dividers
+        title_lower = (slide.get("title") or "").lower()
+        if any(kw in title_lower for kw in ("capa", "cover", "intro", "apresenta", "bem-vindo", "welcome", "boas-vindas")):
+            return "capa"
+
+    return "conteudo"
+
+
+def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
     """Extract visual properties from a slide for analysis."""
     bg = slide.get("background", "#FFFFFF")
     bg_img = slide.get("backgroundImage")
@@ -48,8 +93,10 @@ def _build_slide_context(slide: dict, slide_idx: int) -> str:
     elements = slide.get("elements", [])
     width = slide.get("width", 1920)
     height = slide.get("height", 820)
+    role = _classify_slide(slide, slide_idx, total)
+    role_label = {"capa": "CAPA", "html_heavy": "HTML-PESADO", "conteudo": "CONTEUDO"}[role]
 
-    lines = [f"SLIDE {slide_idx + 1}: \"{title}\" ({width}x{height})"]
+    lines = [f"SLIDE {slide_idx + 1} [{role_label}]: \"{title}\" ({width}x{height})"]
     lines.append(f"  Background: {bg}" + (f" + image (opacity {bg_opacity}) — multicolored, contrast unpredictable" if bg_img else ""))
 
     for i, el in enumerate(elements):
@@ -100,41 +147,48 @@ def _build_slide_context(slide: dict, slide_idx: int) -> str:
     return "\n".join(lines)
 
 
-ANALYSIS_PROMPT = """Voce e um especialista em Design Visual e UX para cursos e-learning. Sua missao e identificar problemas SEVEROS de legibilidade e propor correcoes AGRESSIVAS que produzam mudancas visuais significativas.
+ANALYSIS_PROMPT = """Voce e um especialista em Design Visual e UX para cursos e-learning. Sua missao e identificar problemas SEVEROS de legibilidade e propor correcoes AGRESSIVAS que produzam mudancas visuais significativas SEM destruir a harmonia visual existente.
+
+## Tipos de slide (importante!)
+Cada slide vem rotulado entre colchetes:
+- `[CAPA]` — capas / divisorias de modulo / aberturas. Hierarquia tipografica MAIOR: titulo principal **48-72px** (bold), subtitulo 22-28px, body 18-20px. Uma capa minimalista com pouco texto e MUITO espaco e sinal de qualidade — NAO encha de elementos.
+- `[CONTEUDO]` — slide de conteudo regular. Hierarquia padrao: titulo h1 **32-40px**, h2 24-28px, corpo de texto **16-20px**, legenda 13-14px.
+- `[HTML-PESADO]` — slide cujo conteudo principal e um simulador / cenario / quiz / jogo construido em HTML pelo Agente IA. Esses elementos tem **identidade visual propria, com tipografia interna intencional**. **NAO imponha tamanhos de fonte absolutos em px** — isso QUEBRA a harmonia que o Agente construiu. Voce so deve corrigir:
+   - Contraste critico (texto invisivel),
+   - Use SOMENTE unidades RELATIVAS `em`/`%` ou cores. Ex: `body{{color:#fff !important}} h1,h2,h3{{color:#fff !important}}`. **NUNCA escreva `font-size: 18px` em html_style** — se precisar ajustar tamanho, use `font-size: 1.05em !important` (5% maior).
+   - Se o simulador tem fundo claro `#f0f2f5` em curso dark, troque para `background:#0f172a` ou cor neutra escura — mas mantenha a tipografia interna do simulador intacta.
 
 ## Foco na deteccao
-1. **CONTRASTE WCAG AA**: contraste minimo 4.5:1 entre texto e fundo. Quando o slide tem `+ image (multicolored)` no background, SEMPRE proponha plate (textBackgroundColor) - o fundo e imprevisivel.
-2. **HARMONIZACAO VISUAL**: paleta inconsistente, cores que brigam.
-3. **TAMANHO DE FONTES**: corpo <16px, titulos <24px sao inaceitaveis.
-4. **LEGIBILIDADE EM HTML**: simuladores/cenarios/quizzes com texto invisivel sobre fundos escuros do slide.
-5. **LAYOUT**: sobreposicao, elementos cortados, falta de margem.
+1. **CONTRASTE WCAG AA**: contraste minimo 4.5:1 entre texto e fundo. Quando o slide tem `+ image (multicolored)`, SEMPRE proponha plate (textBackgroundColor) — o fundo e imprevisivel.
+2. **HARMONIZACAO VISUAL**: cores que brigam entre si. Mas NAO troque cores de simuladores HTML — eles seguem identidade propria.
+3. **TAMANHO DE FONTES**: aplicar regras de hierarquia ACIMA segundo o tipo de slide. Para HTML-PESADO so atue se a fonte estiver visivelmente apequenada (ex: <12px hardcoded).
+4. **LEGIBILIDADE EM HTML**: simuladores com texto invisivel.
+5. **LAYOUT**: sobreposicao, elementos cortados.
 
 DADOS DOS SLIDES (com WCAG calculado quando aplicavel):
 {slides_data}
 
 ## Tipos de fix disponiveis
 - `style` — muda propriedades do elemento. Use para: fontColor, fontSize, fontFamily, fontWeight, textBackgroundColor (plate), padding, borderRadius, textShadow, opacity.
-- `text_plate` — adiciona backdrop semi-transparente atras de texto (preferencial quando slide tem backgroundImage). Sem campos extras: o servidor escolhe a cor do plate automaticamente baseado no fontColor.
-- `slide_overlay` — adiciona scrim escuro/claro sobre `backgroundImage` do slide inteiro. Use para slides PPT com texto sobre cenario complexo. `changes: {{"overlay": "dark"}}` ou `"light"`.
+- `text_plate` — adiciona backdrop semi-transparente atras de texto.
+- `slide_overlay` — adiciona scrim escuro/claro sobre `backgroundImage`. `changes: {{"overlay": "dark"}}` ou `"light"`.
 - `position` — muda x, y, width, height.
-- `background` — muda background do slide. `changes: {{"background": "#FFFFFF"}}`.
-- `html_style` — injeta CSS em htmlContent. SEMPRE use `!important`. Inclua tambem reset de inline styles via `[style*="color"]{{color:X !important}}`. Ex: `cssInjection: "body,body *{{color:#fff !important;font-size:16px !important}} [style*=color]{{color:#fff !important}}"`.
+- `background` — muda background do slide.
+- `html_style` — injeta CSS em htmlContent. APLIQUE estas regras OBRIGATORIAS para slides HTML-PESADO:
+   - SEMPRE com `!important`
+   - SEMPRE em unidades relativas (`em`, `%`, `rem`) para font-size, NUNCA em px
+   - Inclua reset de inline color via `[style*="color"]{{color:X !important}}`
+   - Foque em color/background-color — nao em font-size, padding, margin (esses pertencem a tipografia interna do simulador)
 
-## Regras CRITICAS para gerar fixes
-- Cores: prefira preto puro `#0f172a` ou branco puro `#f8fafc` (contraste maximo). NAO use cinza `#888` — falha WCAG.
-- Quando ha `+ image` no background do slide:
-   - Para CADA texto exposto, adicione `text_plate` (backdrop) E ajuste `fontColor` para branco se nao for.
-   - Considere adicionar `slide_overlay: dark` ao slide para escurecer a imagem inteira.
-- Para HTML elements (simuladores/cenarios), `html_style` DEVE conter:
-   - `body,body * {{color:X !important}}` para forcar cor do texto
-   - `[style*="color"] {{color:X !important}}` para neutralizar styles inline
-   - `font-size` minimo 16px com !important
-- Para fontes: corpo 16-18px, subtitulos 24-28px, titulos 32-40px.
-- Cada fix deve produzir uma mudanca PERCEPTIVEL. Evite micro-ajustes (e.g. 14px -> 15px).
+## Regras CRITICAS
+- Prefira preto puro `#0f172a` ou branco puro `#f8fafc` — NUNCA cinza intermediario.
+- Em slides com `+ image`: para CADA texto exposto, adicione `text_plate` E ajuste `fontColor`. Considere `slide_overlay: dark`.
+- Cada fix deve produzir mudanca PERCEPTIVEL. Evite micro-ajustes (14px -> 15px).
+- Para slides HTML-PESADO, **emita NO MAXIMO 1 issue por slide** — nao gere ruido sobre simuladores que ja funcionam visualmente bem.
 
 ## Severidade
-- alta: WCAG fail, texto invisivel, fonte <12px, sobreposicao critica
-- media: WCAG borderline (3-4.5:1), fonte 12-14px corpo
+- alta: WCAG fail, texto invisivel, fonte <12px corpo, sobreposicao critica, capa sem hierarquia
+- media: WCAG borderline (3-4.5:1), fonte 12-14px corpo, capa com titulo <40px
 - baixa: harmonizacao, microajustes de espacamento
 
 ## Categorias
@@ -161,24 +215,24 @@ DADOS DOS SLIDES (com WCAG calculado quando aplicavel):
     {{
       "id": "issue_2",
       "slideIndex": 0,
-      "elementIndex": 3,
       "severity": "alta",
-      "category": "legibilidade_html",
-      "description": "Simulador com texto cinza sobre fundo escuro do slide",
+      "category": "fonte",
+      "description": "Capa com titulo 24px - hierarquia insuficiente, deveria ser 48-64px",
       "fix": {{
-        "type": "html_style",
-        "cssInjection": "body,body *{{color:#f8fafc !important;font-size:16px !important}} [style*=\\"color\\"]{{color:#f8fafc !important}}"
+        "type": "style",
+        "changes": {{"fontSize": 56, "fontWeight": "bold"}}
       }}
     }},
     {{
       "id": "issue_3",
-      "slideIndex": 1,
-      "severity": "media",
-      "category": "contraste",
-      "description": "Slide com cenario complexo, varios textos sobrepostos",
+      "slideIndex": 4,
+      "elementIndex": 0,
+      "severity": "alta",
+      "category": "legibilidade_html",
+      "description": "Simulador com background claro em curso dark mode",
       "fix": {{
-        "type": "slide_overlay",
-        "changes": {{"overlay": "dark"}}
+        "type": "html_style",
+        "cssInjection": "body{{background:#0f172a !important;color:#f8fafc !important}} body *{{color:inherit}} [style*=\\"color\\"]:not([style*=\\"background\\"]){{color:#f8fafc !important}}"
       }}
     }}
   ],
@@ -200,7 +254,7 @@ async def analyze_aesthetics(project_id: str, request: Request, user: dict = Dep
         raise HTTPException(400, "No slides to analyze")
 
     # Build context for AI
-    slides_data = "\n\n".join(_build_slide_context(s, i) for i, s in enumerate(slides))
+    slides_data = "\n\n".join(_build_slide_context(s, i, len(slides)) for i, s in enumerate(slides))
 
     # Call AI
     prompt = ANALYSIS_PROMPT.format(slides_data=slides_data)
@@ -338,15 +392,46 @@ def _apply_slide_overlay(slide: dict, changes: dict) -> bool:
 _INLINE_COLOR_RE = re.compile(r"""style\s*=\s*(['"])([^'"]*)\1""", re.IGNORECASE)
 
 
-def _strengthen_css_injection(css: str, target_text_color: str = None) -> str:
+def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_html_typography: bool = False) -> str:
     """Wrap LLM-provided CSS with !important and aggressive selectors so
     inline styles inside the HTML element cannot win specificity.
 
     If `target_text_color` is provided, append a universal color override.
+
+    When `preserve_html_typography=True` (used for HTML-heavy slides with
+    simulators built by the AI Agent), absolute pixel font-size declarations
+    are converted to relative `em` units so the simulator's internal
+    typography hierarchy is preserved. This prevents the analyzer from
+    flattening intentional design language with imposed pixel sizes.
     """
     css = (css or "").strip()
+
+    # When preserving typography, convert `font-size: Npx` into a tiny
+    # relative bump (1.05em) — keeps the simulator's hierarchy but nudges
+    # for borderline cases. If the value is already em/rem/%, leave it.
+    if preserve_html_typography and css:
+        def _scale_font_size(m):
+            val = m.group(2).strip().lower()
+            if val.endswith(("em", "rem", "%")):
+                return m.group(0)
+            return f"{m.group(1)}: 1.05em"
+        css = re.sub(
+            r"(font-size)\s*:\s*([\d.]+\s*[a-z%]*)",
+            _scale_font_size,
+            css,
+            flags=re.IGNORECASE,
+        )
+        # Strip padding/margin/line-height directives — these belong to the
+        # simulator's design language. The analyzer should never touch them.
+        css = re.sub(
+            r"\b(padding|margin|line-height)\s*:\s*[^;{}]+;?",
+            "",
+            css,
+            flags=re.IGNORECASE,
+        )
+
     parts = []
-    if css:
+    if css.strip():
         # Naive but effective: ensure every declaration ends with !important.
         # Don't double-add when already present.
         def _add_important(m):
@@ -370,18 +455,26 @@ def _strengthen_css_injection(css: str, target_text_color: str = None) -> str:
     return " ".join(parts)
 
 
-def _apply_html_style_fix(element: dict, css: str, target_color: str = None) -> bool:
+def _apply_html_style_fix(element: dict, css: str, target_color: str = None, preserve_html_typography: bool = False) -> bool:
     """Inject CSS into an HTML element's htmlContent with maximum specificity.
 
     Strategy: wrap the CSS with !important on every declaration and append a
     universal color override that defeats inline styles. Insert as the
     LAST <style> tag so it wins over earlier <style> blocks.
+
+    When `preserve_html_typography=True`, refuses to inject px-based
+    font-size / padding / margin rules — these would break the simulator's
+    internal design language built by the AI Agent.
     """
     html = element.get("htmlContent") or ""
     if not html or not (css or target_color):
         return False
 
-    final_css = _strengthen_css_injection(css, target_text_color=target_color)
+    final_css = _strengthen_css_injection(
+        css,
+        target_text_color=target_color,
+        preserve_html_typography=preserve_html_typography,
+    )
     if not final_css:
         return False
 
@@ -484,7 +577,16 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                 m = re.search(r"color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))", css or "")
                 if m:
                     target_color = m.group(1)
-                if _apply_html_style_fix(element, css, target_color=target_color):
+                # For HTML-heavy slides (simulators built by the AI Agent),
+                # preserve internal typography — don't let the analyzer
+                # impose absolute pixel sizes on intentional design.
+                slide_role = _classify_slide(slide, slide_idx, len(slides))
+                preserve_typo = slide_role == "html_heavy"
+                if _apply_html_style_fix(
+                    element, css,
+                    target_color=target_color,
+                    preserve_html_typography=preserve_typo,
+                ):
                     applied += 1
 
         except Exception as e:
