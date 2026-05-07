@@ -526,6 +526,13 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
     if not to_apply:
         return {"applied": 0, "message": "No matching fixes found"}
 
+    # Snapshot the BEFORE state so the user can revert if they don't like
+    # the result. We only keep the last snapshot per project — earlier ones
+    # are overwritten. Stored as a deepcopy of `course.slides` (the only
+    # field the analyzer mutates).
+    import copy as _copy
+    snapshot_slides = _copy.deepcopy(project.get("course", {}).get("slides", []))
+
     slides = project.get("course", {}).get("slides", [])
     applied = 0
 
@@ -600,5 +607,59 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             }}
         )
+        # Persist the snapshot AFTER successful update so user can revert.
+        await db.aesthetic_snapshots.update_one(
+            {"projectId": project_id},
+            {"$set": {
+                "projectId": project_id,
+                "slidesBefore": snapshot_slides,
+                "appliedCount": applied,
+                "appliedAt": datetime.now(timezone.utc).isoformat(),
+                "userId": user.get("user_id", ""),
+            }},
+            upsert=True
+        )
 
-    return {"applied": applied, "total": len(to_apply), "message": f"{applied} correcoes aplicadas"}
+    return {"applied": applied, "total": len(to_apply), "message": f"{applied} correcoes aplicadas", "canRevert": applied > 0}
+
+
+@router.post("/aesthetics/revert/{project_id}")
+async def revert_aesthetic_fix(project_id: str, user: dict = Depends(require_auth)):
+    """Revert the last apply-fix run by restoring the snapshot saved before it."""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    snapshot = await db.aesthetic_snapshots.find_one({"projectId": project_id}, {"_id": 0})
+    if not snapshot or "slidesBefore" not in snapshot:
+        raise HTTPException(400, "Nenhum snapshot disponivel para reverter")
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": snapshot["slidesBefore"],
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    # Single-shot revert — delete the snapshot so the button disappears in UI.
+    await db.aesthetic_snapshots.delete_one({"projectId": project_id})
+
+    return {"reverted": True, "message": "Alteracoes esteticas revertidas com sucesso"}
+
+
+@router.get("/aesthetics/snapshot-status/{project_id}")
+async def aesthetic_snapshot_status(project_id: str, user: dict = Depends(require_auth)):
+    """Lightweight check: is there a revertible snapshot for this project?
+    Frontend uses this on panel mount to decide whether to show the
+    'Reverter' button (e.g., after a refresh)."""
+    snapshot = await db.aesthetic_snapshots.find_one(
+        {"projectId": project_id},
+        {"_id": 0, "appliedAt": 1, "appliedCount": 1}
+    )
+    if not snapshot:
+        return {"hasSnapshot": False}
+    return {
+        "hasSnapshot": True,
+        "appliedAt": snapshot.get("appliedAt"),
+        "appliedCount": snapshot.get("appliedCount", 0),
+    }

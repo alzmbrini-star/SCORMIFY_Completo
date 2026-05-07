@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { getApiUrl } from '../../utils/apiUrl';
 import { authHeaders } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   Sparkles, Loader2, Check, AlertTriangle, Eye, Paintbrush,
   Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp, Wand2,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Undo2,
 } from 'lucide-react';
 import KreaPanel from '../../pages/Agent/components/KreaPanel';
 
@@ -69,6 +69,50 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [showKrea, setShowKrea] = useState(false);
   const [kreaInitialPrompt, setKreaInitialPrompt] = useState('');
+  // Snapshot/revert state — populated either after apply succeeds or
+  // detected on mount (so a revert button appears even after a refresh).
+  const [canRevert, setCanRevert] = useState(false);
+  const [reverting, setReverting] = useState(false);
+
+  // Check on mount whether a revertible snapshot already exists for this project
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API}/api/aesthetics/snapshot-status/${projectId}`, {
+          headers: authHeaders(),
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setCanRevert(!!data.hasSnapshot);
+      } catch (_e) { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const handleRevert = useCallback(async () => {
+    if (!projectId) return;
+    setReverting(true);
+    try {
+      const res = await fetch(`${API}/api/aesthetics/revert/${projectId}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Erro ${res.status}`);
+      }
+      toast.success('Correções esteticas revertidas!');
+      setCanRevert(false);
+      if (onFixApplied) onFixApplied();
+    } catch (e) {
+      toast.error(e.message || 'Erro ao reverter');
+    }
+    setReverting(false);
+  }, [projectId, onFixApplied]);
 
   const handleAnalyze = useCallback(async () => {
     if (!projectId) return;
@@ -129,6 +173,7 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
       }
       const data = await res.json();
       toast.success(`${data.applied} correcoes aplicadas!`);
+      if (data.canRevert) setCanRevert(true);
       if (onFixApplied) onFixApplied();
     } catch (e) {
       toast.error(e.message || 'Erro ao aplicar correcoes');
@@ -292,7 +337,7 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
           )}
 
           {/* Action buttons */}
-          <div className="space-y-2">
+          <div className="space-y-2 pb-16">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-slate-400">{selectedFixes.size} de {result.issues?.length || 0} selecionadas</span>
               <div className="flex gap-2">
@@ -320,16 +365,25 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
                 <Check className="w-3 h-3 mr-1" /> Aplicar Todas
               </Button>
             </div>
-            <Button
-              onClick={handleAnalyze}
-              disabled={analyzing}
-              variant="ghost"
-              className="w-full text-xs h-8 text-slate-400"
-              data-testid="aesthetics-reanalyze"
-            >
-              <Eye className="w-3 h-3 mr-1" /> Re-analisar
-            </Button>
-            {/* Krea AI: regenerate images based on aesthetic analysis */}
+
+            {/* Revert button — only shown when a snapshot exists (i.e., user just
+                applied something or has a pending unconsumed snapshot). */}
+            {canRevert && (
+              <Button
+                onClick={handleRevert}
+                disabled={reverting}
+                variant="outline"
+                className="w-full text-xs h-9 border-amber-700/60 text-amber-300 hover:bg-amber-900/20 bg-amber-950/20"
+                data-testid="aesthetics-revert"
+              >
+                {reverting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Undo2 className="w-3 h-3 mr-1" />}
+                Reverter ultima aplicacao
+              </Button>
+            )}
+
+            {/* Krea AI: regenerate images based on aesthetic analysis — promoted
+                to be just below the apply buttons so it's never hidden under
+                floating watermarks/logos at the viewport bottom. */}
             <Button
               onClick={() => {
                 // Build a context-aware default prompt from the summary + first image-related issue
@@ -348,6 +402,16 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
               data-testid="aesthetics-krea-regenerate"
             >
               <Wand2 className="w-3 h-3 mr-1" /> Regerar imagens com Krea AI
+            </Button>
+
+            <Button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              variant="ghost"
+              className="w-full text-xs h-8 text-slate-400"
+              data-testid="aesthetics-reanalyze"
+            >
+              <Eye className="w-3 h-3 mr-1" /> Re-analisar
             </Button>
           </div>
         </>

@@ -88,6 +88,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FEATURE (P1)** — **Snapshot/Revert** + UX fix do botão Krea escondido pelo logo Emergent.
+  - **Snapshot/Revert pipeline (backend)**:
+    - `apply-fix` agora salva uma **deepcopy de `course.slides`** ANTES das mutações em `db.aesthetic_snapshots` (one-shot, upsert por projectId). Resposta inclui `canRevert: true` quando algo foi aplicado.
+    - `POST /api/aesthetics/revert/{project_id}` restaura o snapshot e o consome (single-shot).
+    - `GET /api/aesthetics/snapshot-status/{project_id}` retorna `{hasSnapshot, appliedAt, appliedCount}` — usado pelo frontend ao montar o painel para detectar snapshots existentes (ex: depois de refresh).
+  - **Frontend `AestheticsPanel.jsx`**:
+    - `useEffect` checa snapshot status no mount e mostra botão "Reverter ultima aplicacao" (âmbar, ícone `Undo2`) quando aplicável.
+    - Após Apply bem-sucedido, `canRevert` é setado e o botão aparece imediatamente.
+    - Botão Reverter → POST /revert → toast + onFixApplied refresh + esconde botão.
+  - **UX fix — botão Krea escondido**:
+    - O botão "Regerar imagens com Krea AI" estava sendo coberto pelo widget flutuante "Made with Emergent" no canto inferior direito da viewport (que sobrepõe Sheets full-height).
+    - Reordenado: "Regerar com Krea AI" promovido para imediatamente após "Aplicar Todas" (visível mesmo sem scroll).
+    - "Re-analisar" deslocado para baixo (uso menos frequente).
+    - Adicionado `pb-16` na div de actions garantindo que NENHUM botão fique colado no rodapé da viewport — sempre 64px de respiro mesmo quando totalmente scrollado.
+  - **Validado**: 1 pytest async novo (`tests/test_aesthetics_snapshot_revert.py`) cobrindo fluxo completo apply→snapshot→status→revert→status (passa em isolado; testes async com Motor têm conflito de event-loop quando rodados junto a sync). E2E real via curl em produção: apply (canRevert=true) → status (hasSnapshot=true) → revert (reverted=true) → status (hasSnapshot=false) → revert sem snapshot (HTTP 400). 60/60 testes pytest síncronos sem regressão.
+
+
 - 2026-05-07: **FEATURE (P1)** — Analisador de Estética: **expandir tela** + **fontes inteligentes por tipo de slide** + **preservação da harmonia HTML**.
   - **UX expansão**: novo botão `[Maximize2]` no header do `AestheticsPanel` (`data-testid="aesthetics-toggle-expand"`). Editor.jsx mantém estado `aestheticsExpanded` que ajusta a largura do Sheet de `380px` para `95vw max-w-1400px` (transição suave 300ms). Layout interno troca para grid 2-colunas + textos `text-sm` quando expandido — autores conseguem ver todas as issues lado a lado em vez de scrollar uma coluna estreita.
   - **Classificação de slides** (`_classify_slide`): cada slide agora é rotulado como `CAPA` (primeiro slide ou poucos elementos com palavras-chave de abertura), `CONTEUDO` (regular) ou `HTML-PESADO` (>50% HTML ou um HTML cobrindo ≥55% da área). O rótulo aparece no contexto enviado ao LLM (`SLIDE 4 [HTML-PESADO]: ...`) para guiar sugestões específicas.
