@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FIX (P0 produção)** — **502 Bad Gateway em export-scorm/export-html resolvido** via padrão async-job real.
+  - **Causa raiz**: endpoints `POST /api/course/{id}/export-scorm` e `/export-html` eram síncronos — esperavam 30-180s para gerar ZIP base64-embedded com áudio ElevenLabs, vídeo HeyGen, gamificação. O gateway/proxy K8s da Emergent tem timeout ~100s → **502 Bad Gateway**. Pior: com `uvicorn --workers 1`, o worker bloqueado também não respondia health checks → K8s mata o pod → deployment falha.
+  - **Solução**: refatorados ambos os endpoints para **padrão async-job verdadeiro**:
+    - POST captura `request` data sincronamente, cria `job` na collection `jobs` da DB com `status=processing`, agenda heavy work via `asyncio.create_task(_run_scorm_export_job(...))` e retorna `{jobId, statusUrl}` em **~135ms**.
+    - Heavy work (collect questions, load tutor/gamification, gerar ZIP via `asyncio.to_thread(...)`, persistir GridFS) roda em task asyncio. Atualiza job com `progress` 10/25/80/90/100 + `message` em cada etapa.
+    - Frontend (`useEditorExport.js`): novo helper `pollJobUntilDone(jobId, {onProgress})` faz GET `/api/job/{jobId}` a cada 2s; sucesso → usa `result.downloadUrl`. Tolera blips de rede (502 transientes durante deploy).
+    - Backwards-compat: se backend retornar `downloadUrl` direto sem `jobId` (resposta legada), frontend ainda funciona.
+  - **Validado E2E**: POST → 135ms (antes ~30-180s) → polling completa em ~8s → download de SCORM ZIP de 5.7MB funcionando perfeitamente. HTML export idêntico.
+  - **Impacto na deployment**: worker uvicorn agora fica livre para servir health checks K8s durante exports → pod permanece saudável → deployment passa.
+
+
 - 2026-05-07: **FEATURE (P1)** — **Snapshot/Revert** + UX fix do botão Krea escondido pelo logo Emergent.
   - **Snapshot/Revert pipeline (backend)**:
     - `apply-fix` agora salva uma **deepcopy de `course.slides`** ANTES das mutações em `db.aesthetic_snapshots` (one-shot, upsert por projectId). Resposta inclui `canRevert: true` quando algo foi aplicado.

@@ -176,7 +176,16 @@ async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
 
 @router.post("/course/{project_id}/export-scorm")
 async def export_scorm(project_id: str, request: Request, background_tasks: BackgroundTasks):
-    """Export project as SCORM 1.2 package.
+    """Export project as SCORM 1.2 package — ASYNC JOB pattern.
+
+    Returns `{jobId}` IMMEDIATELY (~100ms). The heavy ZIP/base64 work is
+    scheduled as a background task and updates the job document in MongoDB.
+    Frontend polls `GET /api/job/{jobId}` until `status='completed'`, then
+    uses `result.downloadUrl`.
+
+    This async pattern prevents K8s gateway timeouts (~100s) and frees the
+    single-worker uvicorn process to keep serving health checks while the
+    export runs in another asyncio task.
 
     Body (optional JSON):
       {"singlePage": true|false}  # overrides project.singlePageMode
@@ -195,21 +204,57 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         pass
     use_single_page = single_page_override if single_page_override is not None \
         else bool(project_doc.get("singlePageMode", False))
-    
-    # Create job
+
+    # Capture URL from the request synchronously — it cannot be derived from a
+    # background task because `request` is not valid outside the request scope.
+    external_url = _get_external_url(request)
+
+    # Create job in DB so the frontend can start polling immediately.
     job_id = str(uuid.uuid4())
     job_data = {
         'id': job_id,
+        'type': 'scorm_export',
         'status': 'processing',
         'progress': 0,
-        'message': 'Generating SCORM package...',
-        'result': None
+        'message': 'Iniciando geracao do pacote SCORM...',
+        'result': None,
     }
     jobs[job_id] = job_data
     await create_job(job_id, job_data)
-    
+
+    # Schedule the heavy work to run in the background. We use create_task so
+    # the response returns immediately (BackgroundTasks runs AFTER the
+    # response in FastAPI but its execution still ties up the worker; using
+    # create_task is asyncio-native and runs concurrently with the response
+    # being sent).
+    asyncio.create_task(
+        _run_scorm_export_job(
+            job_id=job_id,
+            project_id=project_id,
+            project_doc=project_doc,
+            use_single_page=use_single_page,
+            external_url=external_url,
+        )
+    )
+
+    return {
+        "jobId": job_id,
+        "statusUrl": f"/api/job/{job_id}",
+        "mode": "single_page" if use_single_page else "traditional",
+    }
+
+
+async def _run_scorm_export_job(
+    job_id: str,
+    project_id: str,
+    project_doc: dict,
+    use_single_page: bool,
+    external_url: str,
+):
+    """Heavy SCORM export work — runs as an asyncio task so the original
+    POST returns in ~100ms. Updates the job document throughout."""
     try:
-        # Collect all question IDs from quiz elements (works on the raw dict, no Pydantic parse needed)
+        # Collect all question IDs from quiz elements
         question_ids = set()
         for slide in (project_doc.get("course") or {}).get("slides", []) or []:
             for element in slide.get("elements", []) or []:
@@ -228,16 +273,16 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             questions = question_docs
             logger.info(f"Loaded {len(questions)} questions for SCORM export")
 
+        await update_job(job_id, {"progress": 10, "message": "Carregando configuracoes..."})
+
         # Load tutor settings
         tutor_settings = None
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                # Always use current environment URL to avoid stale URLs from previous forks
-                backend_url = _get_external_url(request) or settings_doc.get('apiUrl', '').strip()
                 tutor_settings = {
                     'enabled': True,
-                    'apiUrl': backend_url,
+                    'apiUrl': external_url or settings_doc.get('apiUrl', '').strip(),
                     'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
@@ -246,7 +291,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 }
         except Exception as e:
             logger.warning(f"Tutor settings load failed (non-fatal): {e}")
-        
+
         # Load gamification config
         gamification_settings = None
         try:
@@ -254,7 +299,6 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             if gamification_doc and gamification_doc.get("gamification"):
                 gamification_settings = gamification_doc["gamification"]
             else:
-                # Use defaults if not configured
                 from models import DEFAULT_BADGES, DEFAULT_QUIZ_FEEDBACK, DEFAULT_SCENARIO_FEEDBACK
                 gamification_settings = {
                     "enabled": True,
@@ -276,14 +320,9 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         except Exception as e:
             logger.warning(f"Gamification settings load failed (non-fatal): {e}")
 
-        # Generate package — use single-page renderer if requested, otherwise legacy slide-by-slide
-        # Run in thread pool to avoid blocking the async event loop
-        # (export functions are CPU+IO intensive synchronous)
-        import asyncio
+        await update_job(job_id, {"progress": 25, "message": "Gerando pacote SCORM..."})
 
-        # Use reliable external URL for VLibras proxy
-        scorm_backend_url = _get_external_url(request)
-
+        # Generate package — runs in a thread pool to avoid blocking the event loop
         if use_single_page:
             from services.scorm_single_page_exporter import export_single_page_scorm_package
             zip_path = await asyncio.to_thread(
@@ -293,12 +332,10 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 str(EXPORTS_DIR),
                 questions=questions,
                 tutor_config=tutor_settings,
-                backend_url=scorm_backend_url,
+                backend_url=external_url,
                 gamification_config=gamification_settings,
             )
         else:
-            # Legacy slide-by-slide exporter requires a strict Project Pydantic model.
-            # The model now accepts numeric strings with units (e.g. "24px") via field validators.
             project = Project(**project_doc)
             from services.scorm_exporter import export_scorm_package
             zip_path = await asyncio.to_thread(
@@ -308,31 +345,50 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
                 str(EXPORTS_DIR),
                 questions=questions,
                 tutor_config=tutor_settings,
-                backend_url=scorm_backend_url,
+                backend_url=external_url,
                 gamification_config=gamification_settings
             )
-        
-        # Clean up old exports to prevent disk space exhaustion (keep last 24h)
+
+        await update_job(job_id, {"progress": 80, "message": "Limpando exports antigos..."})
+
+        # Clean up old exports
         try:
             await asyncio.to_thread(_cleanup_old_exports, str(EXPORTS_DIR))
         except Exception as cleanup_err:
             logger.warning(f"Export cleanup failed (non-fatal): {cleanup_err}")
 
-        # Periodic GridFS cleanup to keep the data volume from filling up
-        background_tasks.add_task(cleanup_old_gridfs_exports, 24)
-        
-        # Persist to GridFS in background (don't block the response)
         export_filename = Path(zip_path).name
-        background_tasks.add_task(save_export_to_gridfs, zip_path, export_filename)
-        
+
+        await update_job(job_id, {"progress": 90, "message": "Persistindo no GridFS..."})
+
+        # Persist to GridFS — must complete BEFORE the user clicks the download
+        # link or they'd hit a 404 since the file might have been swept by the
+        # cleanup. With the async-job pattern, we have time to do this here.
+        try:
+            await save_export_to_gridfs(zip_path, export_filename)
+        except Exception as gfs_err:
+            logger.warning(f"GridFS persist failed (non-fatal, file still on disk): {gfs_err}")
+
+        # Schedule old GridFS cleanup as fire-and-forget
+        asyncio.create_task(cleanup_old_gridfs_exports(24))
+
+        # Mark job complete
+        result = {
+            'downloadUrl': f"/api/exports/{export_filename}",
+            'filename': export_filename,
+            'mode': 'single_page' if use_single_page else 'traditional',
+        }
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
-        jobs[job_id]['message'] = 'SCORM package ready'
-        jobs[job_id]['result'] = {
-            'downloadUrl': f"/api/exports/{export_filename}"
-        }
-        await update_job(job_id, jobs[job_id])
-        
+        jobs[job_id]['message'] = 'Pacote SCORM pronto'
+        jobs[job_id]['result'] = result
+        await update_job(job_id, {
+            'status': 'completed',
+            'progress': 100,
+            'message': 'Pacote SCORM pronto',
+            'result': result,
+        })
+
         # Log export for metrics
         try:
             await db.export_logs.insert_one({
@@ -343,37 +399,38 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
             })
         except Exception:
             pass
-        
-        return {
-            "jobId": job_id,
-            "downloadUrl": f"/api/exports/{export_filename}",
-            "mode": "single_page" if use_single_page else "traditional"
-        }
-        
+
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        logger.error(f"SCORM export error: {e}")
+        logger.error(f"SCORM export job {job_id} failed: {e}")
         logger.error(f"SCORM export traceback: {error_details}")
-        jobs[job_id]['status'] = 'failed'
-        jobs[job_id]['message'] = str(e)
-        await update_job(job_id, {'status': 'failed', 'message': str(e)})
-        raise HTTPException(status_code=500, detail=f"SCORM export failed: {str(e)}")
+        try:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['message'] = str(e)[:500]
+        except Exception:
+            pass
+        await update_job(job_id, {
+            'status': 'failed',
+            'message': str(e)[:500],
+        })
 
 # HTML Standalone Export
 
 @router.post("/course/{project_id}/export-html")
 async def export_html(project_id: str, request: Request, background_tasks: BackgroundTasks):
-    """Export project as standalone HTML file.
+    """Export project as standalone HTML — ASYNC JOB pattern.
+
+    Returns `{jobId}` IMMEDIATELY. Heavy HTML/asset embedding work runs in a
+    background task. Frontend polls `GET /api/job/{jobId}` until completed.
 
     Body (optional JSON):
-      {"singlePage": true|false}  # overrides project.singlePageMode
+      {"singlePage": true|false}
     """
     project_doc = await get_project_by_id(project_id)
     if not project_doc:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Decide presentation mode (request body > project setting > default false)
     single_page_override: Optional[bool] = None
     try:
         body = await request.json()
@@ -383,16 +440,51 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         pass
     use_single_page = single_page_override if single_page_override is not None \
         else bool(project_doc.get("singlePageMode", False))
-    
+
+    external_url = _get_external_url(request)
+
+    job_id = str(uuid.uuid4())
+    job_data = {
+        'id': job_id,
+        'type': 'html_export',
+        'status': 'processing',
+        'progress': 0,
+        'message': 'Iniciando geracao do HTML...',
+        'result': None,
+    }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
+
+    asyncio.create_task(
+        _run_html_export_job(
+            job_id=job_id,
+            project_id=project_id,
+            project_doc=project_doc,
+            use_single_page=use_single_page,
+            external_url=external_url,
+        )
+    )
+
+    return {
+        "jobId": job_id,
+        "statusUrl": f"/api/job/{job_id}",
+        "mode": "single_page" if use_single_page else "traditional",
+    }
+
+
+async def _run_html_export_job(
+    job_id: str,
+    project_id: str,
+    project_doc: dict,
+    use_single_page: bool,
+    external_url: str,
+):
+    """Heavy HTML standalone export work — runs as an asyncio task."""
     try:
         from services.html_exporter import generate_standalone_html
-        # Get assets directory
         assets_dir = str(PROJECTS_DIR / project_id / "assets")
-        
-        # Get base URL for external assets
-        base_url = _get_external_url(request)
-        
-        # Collect question IDs from quiz elements
+        base_url = external_url
+
         question_ids = set()
         course_data = project_doc.get('course', {})
         for slide in course_data.get('slides', []):
@@ -401,8 +493,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                     quiz_config = element.get('quizConfig')
                     if quiz_config and isinstance(quiz_config, dict):
                         question_ids.update(quiz_config.get('questionIds', []))
-        
-        # Load questions from database if there are quiz elements
+
         questions = []
         if question_ids:
             question_docs = await db.questions.find(
@@ -411,16 +502,14 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
             ).to_list(500)
             questions = question_docs
             logger.info(f"Loaded {len(questions)} questions for HTML export")
-        
-        # Load tutor settings for HTML export
+
+        await update_job(job_id, {"progress": 15, "message": "Carregando configuracoes..."})
+
+        # Load tutor settings (same logic as before, but extracted)
         tutor_settings = None
         try:
             settings_doc = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
             if settings_doc and settings_doc.get("enabled"):
-                # Use reliable external URL (reads directly from .env files)
-                html_backend_url = _get_external_url(request)
-                
-                # Build course context from slide content
                 course_context_parts = []
                 for slide in course_data.get('slides', []):
                     slide_title = slide.get('title', '')
@@ -444,18 +533,18 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                         parts.append(f"Narracao: {libras}")
                     if parts:
                         course_context_parts.append("\n".join(parts))
-                
+
                 tutor_settings = {
                     'enabled': True,
-                    'apiUrl': html_backend_url,
+                    'apiUrl': base_url,
                     'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
                     'courseTopic': course_data.get('metadata', {}).get('title', '') or project_doc.get('name', ''),
                     'courseContext': "\n---\n".join(course_context_parts)[:8000]
                 }
-                
-                # Build per-slide contexts for slide-aware tutoring
+
+                # Per-slide contexts
                 per_slide_contexts = []
                 for slide in course_data.get('slides', []):
                     elements_text = []
@@ -479,10 +568,11 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                 tutor_settings['slideContexts'] = per_slide_contexts
         except Exception as e:
             logger.warning(f"Tutor settings load for HTML export failed (non-fatal): {e}")
-        
-        # Generate HTML — use single-page renderer if requested, otherwise standard player
+
+        await update_job(job_id, {"progress": 35, "message": "Gerando HTML..."})
+
+        # Generate HTML — heavy work in thread pool
         if use_single_page:
-            # Load gamification config for HTML single-page (mirrors SCORM logic)
             gamification_settings_html = None
             try:
                 gam_doc = await db.projects.find_one({"id": project_id}, {"_id": 0, "gamification": 1})
@@ -511,7 +601,8 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                 logger.warning(f"Gamification load for HTML single-page failed (non-fatal): {e}")
 
             from services.single_page_exporter import generate_single_page_html
-            html_content = generate_single_page_html(
+            html_content = await asyncio.to_thread(
+                generate_single_page_html,
                 project_doc,
                 assets_dir,
                 base_url,
@@ -526,26 +617,45 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
                 base_url,
                 questions=questions,
                 backend_url=base_url,
-                tutor_config=tutor_settings
+                tutor_config=tutor_settings,
             )
-        
-        # Save HTML file
+
+        await update_job(job_id, {"progress": 80, "message": "Salvando arquivo..."})
+
         project_name = project_doc.get('name', 'course')
         safe_name = re.sub(r'[^\w\s-]', '', project_name).replace(' ', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = "_singlepage" if use_single_page else ""
         filename = f"{safe_name}{suffix}_{timestamp}.html"
-        
+
         html_path = EXPORTS_DIR / filename
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
-        # Persist to GridFS in background (don't block the response)
-        background_tasks.add_task(save_export_to_gridfs, str(html_path), filename)
-        # Also clean up old GridFS exports (24h+) to keep data volume from filling up
-        background_tasks.add_task(cleanup_old_gridfs_exports, 24)
-        
-        # Log export for metrics
+        await asyncio.to_thread(_write_html_file, str(html_path), html_content)
+
+        await update_job(job_id, {"progress": 90, "message": "Persistindo..."})
+
+        try:
+            await save_export_to_gridfs(str(html_path), filename)
+        except Exception as gfs_err:
+            logger.warning(f"GridFS persist failed (non-fatal, file still on disk): {gfs_err}")
+
+        asyncio.create_task(cleanup_old_gridfs_exports(24))
+
+        result = {
+            'downloadUrl': f"/api/exports/{filename}",
+            'filename': filename,
+            'mode': 'single_page' if use_single_page else 'traditional',
+        }
+        jobs[job_id]['status'] = 'completed'
+        jobs[job_id]['progress'] = 100
+        jobs[job_id]['message'] = 'HTML pronto'
+        jobs[job_id]['result'] = result
+        await update_job(job_id, {
+            'status': 'completed',
+            'progress': 100,
+            'message': 'HTML pronto',
+            'result': result,
+        })
+
         try:
             await db.export_logs.insert_one({
                 "projectId": project_id,
@@ -555,17 +665,27 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
             })
         except Exception:
             pass
-        
-        return {
-            "downloadUrl": f"/api/exports/{filename}",
-            "filename": filename,
-            "mode": "single_page" if use_single_page else "traditional",
-            "message": "HTML standalone file generated successfully"
-        }
-        
+
     except Exception as e:
-        logger.error(f"HTML export error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"HTML export job {job_id} failed: {e}")
+        logger.error(f"HTML export traceback: {error_details}")
+        try:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['message'] = str(e)[:500]
+        except Exception:
+            pass
+        await update_job(job_id, {
+            'status': 'failed',
+            'message': str(e)[:500],
+        })
+
+
+def _write_html_file(path: str, content: str):
+    """Sync file write helper, runs inside asyncio.to_thread."""
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
 
 
 @router.get("/projects/{project_id}/preview-singlepage")
