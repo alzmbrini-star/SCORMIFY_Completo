@@ -498,6 +498,24 @@ const SlideCanvas = ({
           draggable={false}
         />
       )}
+
+      {/* Background Image Overlay/Scrim — added by Aesthetic Analyzer to
+          improve text contrast on busy backgrounds. */}
+      {slide.backgroundImage && slide.backgroundImageOverlay && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            zIndex: 1,
+            background:
+              slide.backgroundImageOverlay === 'dark'
+                ? 'linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))'
+                : slide.backgroundImageOverlay === 'light'
+                ? 'linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.75))'
+                : slide.backgroundImageOverlay,
+          }}
+          data-testid="slide-bg-overlay"
+        />
+      )}
       
       {/* Elements */}
       {slide.elements?.filter(el => {
@@ -616,7 +634,10 @@ const SlideCanvas = ({
                       fontWeight: element.style?.fontWeight || 'normal',
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
-                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.textBackgroundColor || element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
+                      padding: element.style?.padding,
+                      borderRadius: element.style?.borderRadius,
+                      textShadow: element.style?.textShadow,
                       cursor: 'text',
                     }}
                     value={editingText}
@@ -642,7 +663,10 @@ const SlideCanvas = ({
                       fontWeight: element.style?.fontWeight || 'normal',
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
-                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.8)'),
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.textBackgroundColor || element.style?.backgroundColor || 'rgba(255,255,255,0.8)'),
+                      padding: element.style?.padding,
+                      borderRadius: element.style?.borderRadius,
+                      textShadow: element.style?.textShadow,
                     }}
                   >
                     {element.content || 'Double-click to edit'}

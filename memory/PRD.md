@@ -88,6 +88,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FEATURE (P0)** — **Analisador de Estética com impacto visual real**: WCAG enforcement + plates automáticos + scrim de slide + injeção HTML agressiva.
+  - **Bug crítico revelado durante a investigação**: o exporter Single Page (`_render_text_element_inner`) traduzia `fontColor` → `font-color` (CSS inválido, **silenciosamente ignorado pelo browser**). Logo, NENHUM fix de cor de fonte sugerido pelo Analisador era visível no export real. Único fix: mapear `fontColor` → `color` via `_STYLE_KEY_MAP` em `single_page_exporter.py`.
+  - **Helper WCAG** (`services/wcag.py`): `parse_hex`, `relative_luminance`, `contrast_ratio` (WCAG 2.1), `enforce_min_contrast(fg,bg,4.5)` que substitui qualquer cor que falhe AA por preto puro `#0f172a` ou branco puro `#f8fafc` (depending on bg luminance). `pick_plate_color` retorna plate semi-transparente que contrasta com a cor do texto.
+  - **Pipeline determinístico** em `routes/aesthetics.py`:
+    - `_apply_style_fix`: sempre passa `fontColor` por `enforce_min_contrast`. Se slide tem `backgroundImage`, força branco puro + adiciona plate (`textBackgroundColor` rgba) + `padding` + `borderRadius` automaticamente. Promove fontes <14px para 16px.
+    - `_apply_text_plate`: novo fix type que adiciona backdrop semi-transparente + textShadow.
+    - `_apply_slide_overlay`: novo fix type que define `slide.backgroundImageOverlay` (`dark`/`light`/rgba custom) — render como gradient scrim sobre a `backgroundImage`.
+    - `_apply_html_style_fix` + `_strengthen_css_injection`: agora injeta CSS com `!important` em CADA declaração + selector universal `body,body *` + neutralização de inline styles via `[style*="color"]{color:X !important}`. Tag `<style data-aesthetic-fix="1">` inserida no FINAL de `<head>` (ganha do CSS anterior).
+  - **Prompt do LLM revisto**: exige WCAG AA mandatório, prioriza plates sobre fundos com image, requer `!important` em html_style. Inclui WCAG ratio calculado no contexto enviado para o modelo (ex: `wcag=2.1:1 (FAILS-AA)`).
+  - **Renderização frontend** (`SlideCanvas.jsx`, `CoursePreview.jsx`, `SplitPreview.jsx`, `player.js`, `html_exporter.py`, `single_page_exporter.py`): todos passam a respeitar `style.textBackgroundColor` (alias de plate), `style.padding`, `style.borderRadius`, `style.textShadow`. Slide-level `backgroundImageOverlay` renderizado como scrim absoluto inset:0 sobre a bg-image em todos os contextos (Editor preview + exports HTML/SCORM/SinglePage).
+  - **Validado**: 41 testes pytest novos (`tests/test_wcag.py` 17 + `tests/test_aesthetics_pipeline.py` 24) + 160/160 testes Single Page sem regressão. E2E real com `apply-fix` em projeto produtivo aplicou 6/6 fixes; teste unit chain mostrou texto antes invisível agora renderizando como `color:#f8fafc;background-color:rgba(15,23,42,0.65);padding:10px 14px;border-radius:8px` — visualmente garantido em qualquer fundo.
+
+
 - 2026-04-29: **FEATURE (P3)** — Estimativa de **custo monetário (USD/BRL)** no Cost Report.
   - **Backend**:
     - Tabela de preços default em `routes/cost_report.py`:

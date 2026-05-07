@@ -888,6 +888,23 @@ var CoursePlayer = (function() {
                 bgImg.style.opacity = slide.backgroundImageOpacity;
             }
             container.appendChild(bgImg);
+
+            // Aesthetic Analyzer scrim/overlay over background image
+            if (slide.backgroundImageOverlay) {
+                var overlay = document.createElement('div');
+                overlay.style.position = 'absolute';
+                overlay.style.inset = '0';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.zIndex = '1';
+                if (slide.backgroundImageOverlay === 'dark') {
+                    overlay.style.background = 'linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))';
+                } else if (slide.backgroundImageOverlay === 'light') {
+                    overlay.style.background = 'linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.75))';
+                } else {
+                    overlay.style.background = slide.backgroundImageOverlay;
+                }
+                container.appendChild(overlay);
+            }
         }
         
         // Get slide duration for timeline - consider audio and video durations
@@ -1560,7 +1577,12 @@ var CoursePlayer = (function() {
         if (style.fontWeight) el.style.fontWeight = style.fontWeight;
         if (style.fontColor) el.style.color = style.fontColor;
         if (style.textAlign) el.style.textAlign = style.textAlign;
-        if (style.borderRadius) el.style.borderRadius = style.borderRadius + 'px';
+        if (style.borderRadius) el.style.borderRadius = (typeof style.borderRadius === 'number' ? style.borderRadius + 'px' : style.borderRadius);
+        // Aesthetic Analyzer additions: plate, padding, text shadow.
+        if (style.textBackgroundColor) el.style.backgroundColor = style.textBackgroundColor;
+        else if (style.backgroundColor) el.style.backgroundColor = style.backgroundColor;
+        if (style.padding) el.style.padding = (typeof style.padding === 'number' ? style.padding + 'px' : style.padding);
+        if (style.textShadow) el.style.textShadow = style.textShadow;
     }
     
     function applyShapeStyles(el, element) {

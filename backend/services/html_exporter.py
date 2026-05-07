@@ -1812,6 +1812,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         bgOpacity = slide.backgroundOpacity / 100;
                     }}
                     html += '<img class="slide-background" src="' + slide.backgroundImage + '" alt="" style="opacity:' + bgOpacity + '">';
+                    // Aesthetic Analyzer scrim/overlay for text legibility
+                    if (slide.backgroundImageOverlay) {{
+                        var ov = slide.backgroundImageOverlay;
+                        var ovBg;
+                        if (ov === 'dark') ovBg = 'linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))';
+                        else if (ov === 'light') ovBg = 'linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.75))';
+                        else ovBg = ov;
+                        html += '<div class="slide-bg-overlay" aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;z-index:1;background:' + ovBg + '"></div>';
+                    }}
                     if (slide.background && slide.background !== '#fff') {{
                         container.style.background = slide.background;
                     }}
@@ -1886,14 +1895,20 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 if (elem.style.fontColor) textStyle += 'color:' + elem.style.fontColor + ';';
                                 if (elem.style.fontWeight) textStyle += 'font-weight:' + elem.style.fontWeight + ';';
                                 if (elem.style.textAlign) textStyle += 'text-align:' + elem.style.textAlign + ';';
-                                // Apply background color (transparent or custom)
+                                // Apply background color (transparent or custom; textBackgroundColor is the
+                                // Aesthetic Analyzer plate alias and takes priority).
                                 if (elem.style.transparentBackground) {{
                                     textStyle += 'background-color:transparent;';
+                                }} else if (elem.style.textBackgroundColor) {{
+                                    textStyle += 'background-color:' + elem.style.textBackgroundColor + ';';
                                 }} else if (elem.style.backgroundColor) {{
                                     textStyle += 'background-color:' + elem.style.backgroundColor + ';';
                                 }} else {{
                                     textStyle += 'background-color:rgba(255,255,255,0.9);';
                                 }}
+                                if (elem.style.padding) textStyle += 'padding:' + elem.style.padding + ';';
+                                if (elem.style.borderRadius) textStyle += 'border-radius:' + (typeof elem.style.borderRadius === 'number' ? elem.style.borderRadius + 'px' : elem.style.borderRadius) + ';';
+                                if (elem.style.textShadow) textStyle += 'text-shadow:' + elem.style.textShadow + ';';
                             }} else {{
                                 textStyle += 'background-color:rgba(255,255,255,0.9);';
                             }}

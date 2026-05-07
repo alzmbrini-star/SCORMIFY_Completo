@@ -271,18 +271,74 @@ def _maybe_wrap_with_timeline(rendered_html: str, el: dict) -> str:
 
 
 # --------------------------------------------------------------------------- inner renderers
-def _render_text_element_inner(el: dict) -> str:
-    content = el.get("content") or ""
-    style = el.get("style") or {}
-    css_parts = []
+
+# Style-key → CSS-property mappings. Without this, _kebab() turned legacy
+# editor keys into invalid CSS that browsers silently dropped — so e.g.
+# `fontColor: '#fff'` rendered as `font-color:#fff` and the text kept its
+# default color. Map them to the canonical CSS property names instead.
+_STYLE_KEY_MAP = {
+    "fontColor": "color",
+    "color": "color",
+    "fontSize": "font-size",
+    "fontFamily": "font-family",
+    "fontWeight": "font-weight",
+    "fontStyle": "font-style",
+    "textAlign": "text-align",
+    "textDecoration": "text-decoration",
+    "lineHeight": "line-height",
+    "letterSpacing": "letter-spacing",
+    "backgroundColor": "background-color",
+    "textBackgroundColor": "background-color",   # plate alias
+    "borderRadius": "border-radius",
+    "borderColor": "border-color",
+    "borderWidth": "border-width",
+    "borderStyle": "border-style",
+    "border": "border",
+    "padding": "padding",
+    "margin": "margin",
+    "boxShadow": "box-shadow",
+    "textShadow": "text-shadow",
+    "opacity": "opacity",
+    "fill": "color",  # legacy alias
+}
+
+_STYLE_NUMERIC_PX_KEYS = {"fontSize", "borderRadius", "padding", "margin", "borderWidth", "lineHeight"}
+
+
+def _format_style_value(key: str, value) -> str:
+    """Format a style value, adding 'px' for numeric values on size keys."""
+    # line-height is special — unitless is preferred
+    if key == "lineHeight":
+        return _esc(value)
+    if isinstance(value, (int, float)) and key in _STYLE_NUMERIC_PX_KEYS:
+        return f"{value}px"
+    return _esc(value)
+
+
+def _style_dict_to_css(style: dict) -> str:
+    """Convert an editor style dict into CSS declarations. Maps known keys
+    to canonical CSS properties and skips invalid/unknown ones to avoid
+    polluting the inline style attribute with garbage like `font-color:`."""
+    if not style:
+        return ""
+    parts = []
     for k, v in style.items():
         if v in (None, ""):
             continue
-        # Skip absolute positioning fields if any leaked into style
         if k in ("position", "top", "left", "right", "bottom"):
             continue
-        css_parts.append(f"{_kebab(k)}:{_esc(v)}")
-    style_attr = ";".join(css_parts)
+        css_key = _STYLE_KEY_MAP.get(k)
+        if not css_key:
+            # Skip unknown keys silently — better than emitting invalid CSS
+            continue
+        parts.append(f"{css_key}:{_format_style_value(k, v)}")
+    return ";".join(parts)
+
+
+def _render_text_element_inner(el: dict) -> str:
+    content = el.get("content") or ""
+    style = el.get("style") or {}
+    style_attr = _style_dict_to_css(style)
     return f'<div class="sp-text" style="{style_attr}">{_safe_text_html(content)}</div>'
 
 
@@ -1270,6 +1326,24 @@ def generate_single_page_html(
                 section_class += " sp-aspect-locked"
         card_style = f' style="{";".join(card_styles)}"' if card_styles else ''
 
+        # Optional darkening/lightening scrim over the background image —
+        # set by the Aesthetic Analyzer when text needs more contrast over
+        # busy imagery. Format: rgba string OR keyword "dark"/"light".
+        bg_overlay = (slide.get("backgroundImageOverlay") or "").strip()
+        overlay_html = ""
+        if bg_overlay and bg_image_url:
+            if bg_overlay == "dark":
+                overlay_css = "background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))"
+            elif bg_overlay == "light":
+                overlay_css = "background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.75))"
+            else:
+                # Treat as raw color value (e.g. rgba(0,0,0,0.5))
+                overlay_css = f"background:{_esc(bg_overlay)}"
+            overlay_html = (
+                '<div class="sp-bg-overlay" aria-hidden="true" '
+                f'style="position:absolute;inset:0;{overlay_css};pointer-events:none;z-index:0"></div>'
+            )
+
         # Compose avatar overlay INSIDE the section-inner (over the bg-image)
         # — only when slide has bg-image AND a HeyGen avatar that we removed
         # from the regular elements pass above.
@@ -1290,6 +1364,7 @@ def generate_single_page_html(
             f'data-title="{_esc(slide_title)}" '
             f'{locked_attr}>\n'
             f'  <div class="sp-section-inner"{card_style}>\n'
+            f'    {overlay_html}\n'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'
             f'    {absolute_elements_html}\n'
             f'    <div class="sp-section-body">\n'

@@ -682,6 +682,22 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 style={{ zIndex: 0, objectFit: 'fill', opacity: currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1 }}
               />
             )}
+
+            {/* Background Image Overlay/Scrim (Aesthetic Analyzer) */}
+            {currentSlide?.backgroundImage && currentSlide?.backgroundImageOverlay && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  zIndex: 1,
+                  background:
+                    currentSlide.backgroundImageOverlay === 'dark'
+                      ? 'linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))'
+                      : currentSlide.backgroundImageOverlay === 'light'
+                      ? 'linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.75))'
+                      : currentSlide.backgroundImageOverlay,
+                }}
+              />
+            )}
             
             {/* Elements - positioned absolutely within slide dimensions */}
             {currentSlide?.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => {
@@ -724,8 +740,10 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       fontWeight: element.style?.fontWeight || 'normal',
                       color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
-                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
-                      borderRadius: 4,
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.textBackgroundColor || element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
+                      padding: element.style?.padding,
+                      borderRadius: element.style?.borderRadius || 4,
+                      textShadow: element.style?.textShadow,
                     }}
                   >
                     {element.content}

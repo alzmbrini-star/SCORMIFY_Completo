@@ -351,8 +351,10 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                       fontSize: element.style?.fontSize || 16, fontFamily: element.style?.fontFamily || 'inherit',
                       fontWeight: element.style?.fontWeight || 'normal', color: element.style?.fontColor || '#000000',
                       textAlign: element.style?.textAlign || 'left',
-                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
-                      borderRadius: 4,
+                      backgroundColor: element.style?.transparentBackground ? 'transparent' : (element.style?.textBackgroundColor || element.style?.backgroundColor || 'rgba(255,255,255,0.9)'),
+                      padding: element.style?.padding,
+                      borderRadius: element.style?.borderRadius || 4,
+                      textShadow: element.style?.textShadow,
                     }}>
                       {element.content}
                     </div>
