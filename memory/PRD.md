@@ -88,6 +88,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FIX (P0)** — Analisador de Estética: bug do **CSS overreaching destruindo simuladores HTML** resolvido (camada 2).
+  - **Reportado pelo usuário com novas screenshots**: simulador "O Grande Desafio Final" tinha botões cyan com texto preto legível ANTES. Após Apply, "Detector de Vieses Cognitivos" mostrou caixa branca vazia + botões cinza com texto branco invisível. **Mesmo padrão do bug anterior persistia** porque eu só tinha fixado o `target_color` adicionado pelo helper — mas o LLM ainda emitia `body * {color:#fff !important}` no campo `cssInjection` que passava intacto pela pipeline (só ganhava `!important` em cada decl).
+  - **Causa raiz camada 2**: simuladores reais têm múltiplos contextos visuais (body dark + cards brancos + botões coloridos). Qualquer regra `body *` ou `body{color:...}` cascateia para todos os filhos — o card branco herda texto branco, o botão cyan herda texto branco, tudo invisível. Mesmo com seletores narrow (meu fix anterior), o CSS bruto do LLM bypassava porque tinha seu próprio `body *`.
+  - **Fix (`_strip_universal_selectors`)**: novo helper que tokeniza o CSS do LLM rule por rule e **dropa qualquer regra cuja lista de seletores contenha** `*`, `body *`, `body` (bare), `html`, `[style*=color]`. Mantém apenas regras com seletores de classe (`.option-btn`), id (`#prompt`) ou tag-com-qualificador (`body label.error`).
+  - Em `preserve_html_typography=True`, esse strip roda **antes** do passo de adicionar `!important`. Resultado: se o LLM mandou só `body *{color:#fff}`, o final_css fica vazio e nada é injetado — preserva o simulador 100%. Se mandou `.dark-text{color:#fff}` (selector targeted), passa intacto e funciona.
+  - **12 novos pytests** (`tests/test_aesthetics_strip_universal.py`) cobrindo: bare/scoped universal selectors dropados, class/id/tag-qualified mantidos, mistura comma-separated com 1 dangerous descarta tudo, CSS sem braces preservado, **regression do caso exato do usuário** (simulador com `.prompt-box` + `.option-btn` recebendo `body * {color:#fff}` — confirma que o body* não chega no DOM final).
+  - **94/94 testes pytest passando** — zero regressão.
+
+
 - 2026-05-07: **FIX (P0)** — Analisador de Estética: bug do **"texto branco sobre fundo branco" em simuladores HTML resolvido**.
   - **Reportado pelo usuário com prints**: simulador "Desafio do Descomplicador" tinha card com fundo branco e texto preto legível ANTES da aplicação. DEPOIS, o título, subtítulo, prompt e contador de progresso ficaram **brancos sobre fundo branco** (totalmente invisíveis).
   - **Causa raiz**: `_strengthen_css_injection` injetava `body,body * {color:#fff !important}` independente do background **interno** do simulador. Quando o htmlContent tem `body{background:#fff}` (cards brancos sobre slide escuro), forçar texto branco torna tudo invisível.

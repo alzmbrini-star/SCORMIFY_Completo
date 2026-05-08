@@ -457,6 +457,75 @@ def _extract_dominant_html_bg(html: str):
     return None
 
 
+def _strip_universal_selectors(css: str) -> str:
+    """Remove rule blocks whose selector list contains any UNIVERSAL or
+    overreaching selector. Used in `preserve_html_typography=True` mode to
+    prevent the LLM's broad rules from destroying contrast inside nested
+    cards/buttons of HTML-pesado simulators.
+
+    Rules dropped:
+      - `* { ... }`           → universal
+      - `body * { ... }`      → ditto, scoped to body
+      - `body { ... }`        → unscoped body color/bg overrides
+      - `[style*="color"]`    → matches every inline-styled element
+      - `html, body { ... }`  → ditto
+
+    Rules kept (targeted):
+      - Class selectors: `.option-btn { ... }`
+      - ID selectors: `#prompt { ... }`
+      - Specific tags inside body: `body label { ... }`, `body p.error { ... }`
+
+    Strategy: tokenize at `}`, inspect each rule's selector list. If any
+    selector is dangerous, drop the whole rule.
+    """
+    if not css or "{" not in css:
+        return css
+
+    DANGEROUS = re.compile(
+        r"""(
+            ^\s*\*\s*$              # bare *
+            |^\s*body\s*\*\s*$      # body *
+            |^\s*body\s*$           # bare body
+            |^\s*html\s*$           # bare html
+            |^\s*html\s*,\s*body\s*$
+            |\[style\s*\*=          # any [style*=...] selector
+        )""",
+        re.IGNORECASE | re.VERBOSE,
+    )
+
+    safe_rules = []
+    # Walk through CSS one rule at a time. Use a small parser to handle
+    # potential nested braces in modern CSS (we don't expect them here, but
+    # be defensive).
+    i = 0
+    while i < len(css):
+        # Find next `{`
+        brace = css.find("{", i)
+        if brace < 0:
+            break
+        selectors = css[i:brace].strip().rstrip(",").rstrip()
+        # Find matching `}`
+        depth = 1
+        j = brace + 1
+        while j < len(css) and depth > 0:
+            if css[j] == "{":
+                depth += 1
+            elif css[j] == "}":
+                depth -= 1
+            j += 1
+        block = css[brace + 1:j - 1]
+
+        # Split selector list by comma; drop the whole rule if ANY selector
+        # is dangerous.
+        sel_list = [s.strip() for s in selectors.split(",") if s.strip()]
+        if sel_list and not any(DANGEROUS.search(sel) for sel in sel_list):
+            safe_rules.append(f"{selectors} {{{block}}}")
+
+        i = j
+
+    return " ".join(safe_rules)
+
+
 def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_html_typography: bool = False, html_bg=None) -> str:
     """Wrap LLM-provided CSS with !important and aggressive selectors so
     inline styles inside the HTML element cannot win specificity.
@@ -508,6 +577,13 @@ def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_
             css,
             flags=re.IGNORECASE,
         )
+        # CRITICAL: strip overreaching universal selectors. The LLM often
+        # emits `body * { color: #fff }` which destroys contrast in
+        # multi-context simulators (white prompt cards on dark body, cyan
+        # buttons with dark text). In preserve mode we ONLY allow targeted
+        # selectors that name a class or specific element type — universal
+        # selectors are dropped wholesale.
+        css = _strip_universal_selectors(css)
 
     parts = []
     if css.strip():
