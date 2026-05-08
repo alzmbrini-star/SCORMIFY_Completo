@@ -88,6 +88,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FIX** — **Texto final de cenário interativo desformatado** (parede de texto com email inline).
+  - **Bug reportado pelo usuário**: desfecho do cenário "Decisão em Cascata" vinha como uma parede só com:
+    - Narrativa do desfecho
+    - Email-resposta da Dra. Helena **inline entre aspas** (deveria ser um card destacado)
+    - Feedback final
+    - Tudo num único `<p>` centralizado sem quebras.
+  - **Causa raiz**: o LLM gera o `narrative` do node final como texto corrido com diálogos embutidos entre aspas, mas o renderer fazia apenas `escapeHtml(text)` + `white-space:pre-wrap`. Sem split por parágrafos e sem detecção de blocos citados.
+  - **Fix — 3 renderers atualizados com heurística comum**:
+    1. `services/sp_runtime/runtime.js` (Single Page HTML/SCORM) — nova função `formatScenarioNarrative(text)` que (a) split em blank-lines, (b) se ficar 1 mega-parágrafo, procura bloco citado `>40` chars e separa ANTES/CITACAO/DEPOIS, (c) parágrafos com wrap completo em aspas viram citações. Citações renderizam como card com `border-left:3px solid #4f46e5; background:rgba(79,70,229,0.08); font-style:italic` (visual de "email recebido").
+    2. `services/export_assets/scenario-controller.js` (SCORM tradicional) — mesma função adaptada para tema dark (`#cbd5e1` foreground, `rgba(99,102,241,0.15)` bg).
+    3. `components/scenario/ScenarioPlayer.jsx` (Editor/Preview) — componente React `ScenarioNarrative` com o mesmo algoritmo + classes Tailwind (`bg-indigo-500/10 border-l-[3px] border-indigo-500`).
+  - **Testes**: 7 novos pytests em `tests/test_scenario_narrative_format.py` reimplementam a heurística em Python e travam o comportamento (email inline extraído como quote, paragraph breaks preservados, aspas curtas NÃO extraídas, fidelidade de conteúdo).
+
+
 - 2026-05-08: **FEATURE (P1)** — **Chat conversacional expandido** para Editor do curso publicado + Media Config (step 5).
   - **Editor Chat**: novo `routes/editor_chat.py` com endpoint `POST /api/projects/{id}/editor-chat`. Recebe mensagem natural → LLM (`gemini-3-flash-preview` com fallback `openai/gpt-4o`) retorna JSON `{reply, ops}` → backend aplica atomicamente. Ops suportadas: `edit_slide_title`, `edit_element_content` (só text/shape — ignora html/quiz/scenario para não quebrar simuladores), `edit_element_style` (merge com style existente), `add_text_element` (defaults sensatos x=100, y=100, fontSize=20), `delete_element`, `change_slide_background`, `move_slide`, `delete_slide`.
   - **Snapshot auto-revertível**: cada aplicação cria snapshot em `aesthetic_snapshots` (kind=`editor_chat`), então o botão **Reverter** do AestheticsPanel já desfaz automaticamente edições feitas via chat. Reuso de infraestrutura existente.

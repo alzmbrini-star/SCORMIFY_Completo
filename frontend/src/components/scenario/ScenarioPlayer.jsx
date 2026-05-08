@@ -7,6 +7,69 @@ import {
 } from 'lucide-react';
 
 /**
+ * Format the LLM-generated scenario narrative into readable React nodes.
+ * The model often emits walls of text with embedded dialogue (email replies,
+ * quoted conversations). We split on blank lines and extract quoted blocks
+ * into highlighted cards so dialogue pops visually.
+ */
+function ScenarioNarrative({ text, fontSize = 14 }) {
+  const paragraphs = useMemo(() => {
+    if (!text) return [];
+    const t = String(text).replace(/\r\n/g, '\n').trim();
+    let list = t.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    // Single mega-paragraph: try to split around a long quoted chunk
+    if (list.length === 1) {
+      const m = list[0].match(/(['"\u2018\u2019\u201C\u201D])([^'"\u2018\u2019\u201C\u201D]{40,})\1/);
+      if (m) {
+        const before = list[0].slice(0, m.index).trim();
+        const quote = m[2].trim();
+        const after = list[0].slice(m.index + m[0].length).trim();
+        list = [];
+        if (before) list.push(before);
+        list.push({ quoted: quote });
+        if (after) list.push(after);
+      }
+    } else {
+      list = list.map(p => {
+        const f = p.charAt(0), l = p.charAt(p.length - 1);
+        if (p.length > 30 && '"\u201C\u2018\''.includes(f) && '"\u201D\u2019\''.includes(l)) {
+          return { quoted: p.slice(1, -1).trim() };
+        }
+        return p;
+      });
+    }
+    return list;
+  }, [text]);
+
+  return (
+    <div className="space-y-2">
+      {paragraphs.map((p, i) => {
+        if (typeof p === 'object' && p.quoted) {
+          return (
+            <div
+              key={i}
+              className="bg-indigo-500/10 border-l-[3px] border-indigo-500 pl-4 pr-3 py-3 rounded-r italic text-slate-300 leading-relaxed whitespace-pre-line"
+              style={{ fontSize: `${fontSize * 0.85}px` }}
+            >
+              {p.quoted}
+            </div>
+          );
+        }
+        return (
+          <p
+            key={i}
+            className="text-slate-300 leading-relaxed whitespace-pre-line"
+            style={{ fontSize: `${fontSize * 0.875}px` }}
+          >
+            {p}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * ScenarioPlayer renders an interactive decision-tree scenario.
  * Props:
  *   - scenarioData: { title, description, context, characters, nodes, start_node_id, fontSize }
@@ -104,7 +167,9 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
           <div className="flex flex-col items-center justify-center min-h-full text-center space-y-4 py-6">
             <EndingIcon className={`${endingColor}`} style={{ width: 48 * scale, height: 48 * scale }} />
             <h2 className={`font-bold ${endingColor}`} style={{ fontSize: `${fontSize * 1.25}px` }}>{finalNode.title}</h2>
-            <p className="text-slate-300 max-w-md leading-relaxed" style={{ fontSize: `${fontSize * 0.875}px` }}>{finalNode.narrative}</p>
+            <div className="max-w-md w-full">
+              <ScenarioNarrative text={finalNode.narrative} fontSize={fontSize} />
+            </div>
 
             {/* Dynamic score based on optimal decisions */}
             <div className="flex items-center gap-2 bg-slate-700/50 px-4 py-2 rounded-full">
@@ -178,7 +243,9 @@ export default function ScenarioPlayer({ scenarioData, onComplete }) {
         <h3 className="font-semibold text-white mb-2" style={{ fontSize: `${fontSize}px` }}>{currentNode.title}</h3>
 
         {/* Narrative */}
-        <p className="text-slate-300 leading-relaxed mb-4 whitespace-pre-line" style={{ fontSize: `${fontSize * 0.875}px` }}>{currentNode.narrative}</p>
+        <div className="mb-4">
+          <ScenarioNarrative text={currentNode.narrative} fontSize={fontSize} />
+        </div>
 
         {/* Choices */}
         {!showFeedback && currentNode.choices?.length > 0 && (

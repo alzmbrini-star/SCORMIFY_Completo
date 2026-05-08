@@ -286,7 +286,7 @@
           html += '<div style="font-size:12px;font-weight:700;color:#7c2d12;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">💬 ' + escapeHtml(n.character_speaking) + '</div>';
         }
         if (n.narrative) {
-          html += '<div style="font-size:14px;line-height:1.6;margin-bottom:16px;white-space:pre-wrap">' + escapeHtml(n.narrative) + '</div>';
+          html += '<div style="font-size:14px;margin-bottom:16px">' + formatScenarioNarrative(n.narrative) + '</div>';
         }
         if (n.is_ending) {
           var endLabel = n.ending_type === 'positive' ? '🎉 Final Positivo' : (n.ending_type === 'negative' ? '⚠️ Final com Aprendizado' : '🏁 Final');
@@ -421,6 +421,48 @@
       }
       function escapeHtml(s){
         return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+      function formatScenarioNarrative(text){
+        // Format LLM-generated narrative into readable HTML. The model often
+        // emits walls of text with embedded dialogue ("Prezado(a) ...", email
+        // replies) without any markup. We split into paragraphs and highlight
+        // quoted blocks as styled cards.
+        if (!text) return '';
+        var t = String(text).replace(/\r\n/g, '\n').trim();
+        var paragraphs = t.split(/\n{2,}/).map(function(p){return p.trim();}).filter(Boolean);
+        // If we got a single mega-paragraph, try to split on a big quoted chunk
+        if (paragraphs.length === 1) {
+          var m = paragraphs[0].match(/(['"\u2018\u2019\u201C\u201D])([^'"\u2018\u2019\u201C\u201D]{40,})\1/);
+          if (m) {
+            var before = paragraphs[0].slice(0, m.index).trim();
+            var quote = m[2].trim();
+            var after = paragraphs[0].slice(m.index + m[0].length).trim();
+            paragraphs = [];
+            if (before) paragraphs.push(before);
+            paragraphs.push({quoted: quote});
+            if (after) paragraphs.push(after);
+          }
+        } else {
+          // Mark paragraphs that are fully wrapped in quotes
+          paragraphs = paragraphs.map(function(p){
+            if (typeof p !== 'string') return p;
+            var f = p.charAt(0), l = p.charAt(p.length - 1);
+            if (p.length > 30 && '"\u201C\u2018\''.indexOf(f) !== -1 && '"\u201D\u2019\''.indexOf(l) !== -1) {
+              return {quoted: p.slice(1, -1).trim()};
+            }
+            return p;
+          });
+        }
+        var html = '';
+        paragraphs.forEach(function(p){
+          if (typeof p === 'object' && p.quoted) {
+            html += '<div style="background:rgba(79,70,229,0.08);border-left:3px solid #4f46e5;padding:12px 16px;margin:10px 0;border-radius:4px;font-style:italic;color:#334155;line-height:1.55">'
+                  + escapeHtml(p.quoted).replace(/\n/g, '<br>') + '</div>';
+          } else {
+            html += '<p style="margin:0 0 10px 0;line-height:1.6">' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>';
+          }
+        });
+        return html;
       }
       function wireRescueBtn(choice){
         var btn = play.querySelector('.sp-scenario-rescue');

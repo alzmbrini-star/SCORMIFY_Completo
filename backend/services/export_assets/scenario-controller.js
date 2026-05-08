@@ -5,6 +5,51 @@
 var ScenarioController = (function() {
     var scenarios = {};
 
+    function escapeHtmlSafe(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Format the LLM-generated scenario narrative into readable HTML. The
+    // model often emits walls of text with embedded dialogue (email replies,
+    // quoted conversations). We split on blank lines AND extract quoted
+    // blocks into highlighted cards so dialogue pops visually.
+    function formatNarrative(text, fs) {
+        if (!text) return '';
+        var t = String(text).replace(/\r\n/g, '\n').trim();
+        var paragraphs = t.split(/\n{2,}/).map(function(p) { return p.trim(); }).filter(Boolean);
+        // Single mega-paragraph: try to split around a long quoted chunk
+        if (paragraphs.length === 1) {
+            var m = paragraphs[0].match(/(['"\u2018\u2019\u201C\u201D])([^'"\u2018\u2019\u201C\u201D]{40,})\1/);
+            if (m) {
+                var before = paragraphs[0].slice(0, m.index).trim();
+                var quote = m[2].trim();
+                var after = paragraphs[0].slice(m.index + m[0].length).trim();
+                paragraphs = [];
+                if (before) paragraphs.push(before);
+                paragraphs.push({ quoted: quote });
+                if (after) paragraphs.push(after);
+            }
+        } else {
+            paragraphs = paragraphs.map(function(p) {
+                if (typeof p !== 'string') return p;
+                var f = p.charAt(0), l = p.charAt(p.length - 1);
+                if (p.length > 30 && '"\u201C\u2018\''.indexOf(f) !== -1 && '"\u201D\u2019\''.indexOf(l) !== -1) {
+                    return { quoted: p.slice(1, -1).trim() };
+                }
+                return p;
+            });
+        }
+        var html = '';
+        paragraphs.forEach(function(p) {
+            if (typeof p === 'object' && p.quoted) {
+                html += '<div style="background:rgba(99,102,241,0.15);border-left:3px solid #6366f1;padding:10px 14px;margin:8px 0;border-radius:4px;font-style:italic;color:#cbd5e1;line-height:1.55;font-size:' + (fs * 0.85) + 'px;text-align:left">' + escapeHtmlSafe(p.quoted).replace(/\n/g, '<br>') + '</div>';
+            } else {
+                html += '<p style="margin:0 0 10px 0;line-height:1.6;color:#cbd5e1;font-size:' + (fs * 0.875) + 'px;text-align:left">' + escapeHtmlSafe(p).replace(/\n/g, '<br>') + '</p>';
+            }
+        });
+        return html;
+    }
+
     function startScenario(elementId) {
         var container = document.querySelector('.scenario-player-container[data-element-id="' + elementId + '"]');
         if (!container) { console.warn('[ScenarioController] Container not found:', elementId); return; }
@@ -53,7 +98,7 @@ var ScenarioController = (function() {
             html += '<span style="font-size:' + (fs*0.75) + 'px;font-weight:500;color:#67e8f9;">' + node.character_speaking + '</span></div>';
         }
         html += '<h3 style="font-size:' + fs + 'px;font-weight:600;color:#fff;margin-bottom:8px;">' + (node.title || '') + '</h3>';
-        html += '<p style="font-size:' + (fs*0.875) + 'px;color:#cbd5e1;line-height:1.6;margin-bottom:16px;white-space:pre-line;">' + (node.narrative || '') + '</p>';
+        html += '<div style="margin-bottom:16px">' + formatNarrative(node.narrative || '', fs) + '</div>';
         // Choices
         if (node.choices && node.choices.length > 0) {
             html += '<p style="font-size:' + (fs*0.75) + 'px;color:#64748b;margin-bottom:8px;font-weight:500;">O que você faria?</p>';
@@ -149,7 +194,7 @@ var ScenarioController = (function() {
         var html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:linear-gradient(180deg,#0f172a,#1e293b);border-radius:12px;padding:24px;text-align:center;">';
         html += '<div style="font-size:' + (fs*3) + 'px;margin-bottom:12px;">' + endIcon + '</div>';
         html += '<h2 style="font-size:' + (fs*1.25) + 'px;font-weight:bold;color:' + endColor + ';margin-bottom:8px;">' + (node.title || 'Fim') + '</h2>';
-        html += '<p style="font-size:' + (fs*0.875) + 'px;color:#cbd5e1;max-width:400px;line-height:1.6;margin-bottom:16px;">' + (node.narrative || '') + '</p>';
+        html += '<div style="max-width:600px;margin-bottom:16px">' + formatNarrative(node.narrative || '', fs) + '</div>';
         html += '<div style="display:flex;align-items:center;gap:8px;background:rgba(51,65,85,0.5);padding:8px 16px;border-radius:999px;margin-bottom:8px;">';
         html += '<span style="color:#fbbf24;">★</span><span style="color:#fff;font-weight:600;font-size:' + fs + 'px;">Pontuação: ' + calcScore + '%</span></div>';
         html += '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:16px;">';
