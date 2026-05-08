@@ -4019,6 +4019,240 @@ async def update_storyboard_text(session_id: str, data: dict, request: Request, 
     return {"status": "ok", "editedFields": edited_count}
 
 
+@router.post("/agent/sessions/{session_id}/storyboard-chat")
+async def storyboard_chat(session_id: str, data: dict, request: Request, user: dict = Depends(require_auth)):
+    """Conversational chat for the Storyboard review step.
+
+    User sends a natural-language instruction ("reescreva a narracao do slide 3
+    num tom mais informal", "adicione um slide entre 2 e 3 sobre exemplos
+    praticos", "remova o slide final"). The LLM interprets, produces a set
+    of structured edits, and the backend applies them atomically.
+
+    Body: `{message: str, history: [{role, content}]}` — history optional.
+
+    Returns: `{reply, edits, storyboard}` where:
+      - reply: human-friendly confirmation/explanation
+      - edits: structured diff description of what changed
+      - storyboard: fresh storyboard post-edit (so frontend can re-render)
+    """
+    message = (data.get("message") or "").strip()
+    if not message:
+        raise HTTPException(400, "Mensagem vazia")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session not found")
+
+    storyboard = s.get("storyboard")
+    if not storyboard or not storyboard.get("slides"):
+        raise HTTPException(400, "Session nao tem storyboard para editar")
+
+    slides = storyboard["slides"]
+
+    # Build a compact storyboard summary for the LLM (avoid sending huge HTML)
+    slides_summary = []
+    for i, sl in enumerate(slides):
+        # Keep elements brief — the LLM only needs titles and textual content
+        elements_brief = []
+        for ei, el in enumerate((sl.get("elements") or [])[:8]):
+            t = el.get("type", "")
+            c = (el.get("content") or el.get("htmlContent") or "")[:250]
+            elements_brief.append({"i": ei, "type": t, "content": c})
+        slides_summary.append({
+            "index": i,
+            "title": sl.get("title", ""),
+            "narrationScript": (sl.get("narrationScript") or "")[:600],
+            "notes": (sl.get("notes") or "")[:200],
+            "elements": elements_brief,
+        })
+
+    history = data.get("history") or []
+    # Truncate history to last 6 turns so we don't blow the context
+    history = history[-6:]
+
+    # Build the LLM prompt — responses MUST be strict JSON
+    system_prompt = """Voce e um assistente conversacional de edicao de Storyboard de curso e-learning.
+
+O usuario te pede alteracoes em linguagem natural sobre um storyboard existente. Sua tarefa:
+1. Interpretar a intencao (editar texto, regerar narracao, adicionar/remover slides, reordenar).
+2. Gerar uma RESPOSTA amigavel em portugues explicando o que vai fazer.
+3. Gerar uma lista ESTRUTURADA de operacoes que o backend vai aplicar atomicamente.
+
+## Tipos de operacao suportados
+- `edit_title`: {index: int, title: str}
+- `edit_narration`: {index: int, narrationScript: str}
+- `edit_notes`: {index: int, notes: str}
+- `edit_element`: {slideIndex: int, elementIndex: int, content: str}
+- `add_slide`: {insertAfter: int, title: str, narrationScript: str, notes: str, elements: [{type: "text", content: str}]}
+- `delete_slide`: {index: int}
+- `move_slide`: {fromIndex: int, toIndex: int}
+
+## Regras
+- Indices sao 0-based. Quando o usuario diz "slide 3", significa index=2.
+- Se a instrucao for ambigua (ex: "melhore isso"), retorne ops=[] e peca esclarecimento no reply.
+- NAO invente slides novos a menos que o usuario peca explicitamente.
+- Narracao: tom conversacional, 40-100 palavras por slide, sem jargoes.
+- Se o usuario pedir "reescreva em tom X", mantenha a informacao mas ajuste registro.
+- Para `add_slide`, use `insertAfter: -1` para inserir no inicio.
+
+## Formato de resposta (JSON estrito)
+```json
+{
+  "reply": "Entendi! Vou reescrever a narracao do slide 3 em tom mais informal e remover o slide final. Aplicando...",
+  "ops": [
+    {"type": "edit_narration", "index": 2, "narrationScript": "..."},
+    {"type": "delete_slide", "index": 8}
+  ]
+}
+```
+Se nao entender, retorne ops=[] e um reply pedindo esclarecimento.
+"""
+
+    user_prompt = f"""STORYBOARD ATUAL (resumo):
+{json.dumps(slides_summary, ensure_ascii=False)[:8000]}
+
+CONVERSA ANTERIOR:
+{json.dumps(history, ensure_ascii=False) if history else '(primeira mensagem)'}
+
+USUARIO: {message}"""
+
+    # Call LLM
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        chat = LlmChat(
+            api_key=emergent_key,
+            session_id=f"storyboard_chat_{session_id}_{uuid.uuid4().hex[:6]}",
+            system_message=system_prompt,
+        ).with_model("gemini", "gemini-3-flash-preview")
+        raw = await chat.send_message(UserMessage(text=user_prompt))
+    except Exception as e:
+        logger.warning(f"Storyboard chat LLM error: {e}")
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+            chat = LlmChat(
+                api_key=emergent_key,
+                session_id=f"storyboard_chat_{session_id}_{uuid.uuid4().hex[:6]}",
+                system_message=system_prompt,
+            ).with_model("openai", "gpt-4o")
+            raw = await chat.send_message(UserMessage(text=user_prompt))
+        except Exception as e2:
+            raise HTTPException(500, f"Erro no LLM: {str(e2)[:100]}")
+
+    # Extract JSON from LLM response
+    parsed = None
+    m = re.search(r"```json\s*([\s\S]*?)```", raw)
+    if m:
+        try:
+            parsed = json.loads(m.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+    if parsed is None:
+        try:
+            parsed = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            parsed = {"reply": raw[:500], "ops": []}
+
+    reply = parsed.get("reply") or "Entendi sua solicitacao."
+    ops = parsed.get("ops") or []
+
+    # Apply ops atomically
+    applied = []
+    # Work on a mutable list to support inserts/deletes/reorders
+    for op in ops:
+        try:
+            op_type = op.get("type")
+            if op_type == "edit_title":
+                idx = int(op["index"])
+                if 0 <= idx < len(slides):
+                    slides[idx]["title"] = str(op.get("title", ""))
+                    applied.append({"type": op_type, "index": idx})
+            elif op_type == "edit_narration":
+                idx = int(op["index"])
+                if 0 <= idx < len(slides):
+                    slides[idx]["narrationScript"] = str(op.get("narrationScript", ""))
+                    applied.append({"type": op_type, "index": idx})
+            elif op_type == "edit_notes":
+                idx = int(op["index"])
+                if 0 <= idx < len(slides):
+                    slides[idx]["notes"] = str(op.get("notes", ""))
+                    applied.append({"type": op_type, "index": idx})
+            elif op_type == "edit_element":
+                s_idx = int(op["slideIndex"])
+                e_idx = int(op["elementIndex"])
+                if 0 <= s_idx < len(slides):
+                    els = slides[s_idx].get("elements") or []
+                    if 0 <= e_idx < len(els):
+                        els[e_idx]["content"] = str(op.get("content", ""))
+                        applied.append({"type": op_type, "slideIndex": s_idx, "elementIndex": e_idx})
+            elif op_type == "add_slide":
+                insert_after = int(op.get("insertAfter", len(slides) - 1))
+                new_slide = {
+                    "id": str(uuid.uuid4()),
+                    "title": str(op.get("title", "Novo Slide")),
+                    "narrationScript": str(op.get("narrationScript", "")),
+                    "notes": str(op.get("notes", "")),
+                    "elements": op.get("elements") or [],
+                }
+                # Normalize insert position
+                pos = max(0, min(len(slides), insert_after + 1))
+                slides.insert(pos, new_slide)
+                applied.append({"type": op_type, "insertedAt": pos})
+            elif op_type == "delete_slide":
+                idx = int(op["index"])
+                if 0 <= idx < len(slides):
+                    slides.pop(idx)
+                    applied.append({"type": op_type, "index": idx})
+            elif op_type == "move_slide":
+                f_idx = int(op["fromIndex"])
+                t_idx = int(op["toIndex"])
+                if 0 <= f_idx < len(slides) and 0 <= t_idx < len(slides):
+                    moved = slides.pop(f_idx)
+                    slides.insert(t_idx, moved)
+                    applied.append({"type": op_type, "fromIndex": f_idx, "toIndex": t_idx})
+        except (ValueError, TypeError, KeyError) as op_err:
+            logger.warning(f"storyboard_chat: skipped malformed op {op}: {op_err}")
+            continue
+
+    # Persist if any op applied
+    if applied:
+        storyboard["slides"] = slides
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {
+                "storyboard": storyboard,
+                "lastEditedBy": user.get("user_id"),
+                "lastEditedAt": datetime.now(timezone.utc).isoformat(),
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+
+    # Append to chat log for history continuity (capped at 50 entries per session)
+    try:
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$push": {
+                "storyboardChatLog": {
+                    "$each": [
+                        {"role": "user", "content": message, "at": datetime.now(timezone.utc).isoformat()},
+                        {"role": "assistant", "content": reply, "ops": applied, "at": datetime.now(timezone.utc).isoformat()},
+                    ],
+                    "$slice": -50,
+                }
+            }}
+        )
+    except Exception:
+        pass
+
+    return {
+        "reply": reply,
+        "ops": applied,
+        "opsProposed": len(ops),
+        "storyboard": storyboard,
+    }
+
+
 @router.post("/agent/sessions/{session_id}/submit-for-approval")
 async def submit_for_approval(session_id: str, request: Request, user: dict = Depends(require_auth)):
     """Submit storyboard for approval by Aprovador of a specific company."""

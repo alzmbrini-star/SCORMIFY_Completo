@@ -88,6 +88,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FEATURE (P1)** — **Chat conversacional no Storyboard** para edição via linguagem natural.
+  - **Backend**: novo endpoint `POST /api/agent/sessions/{id}/storyboard-chat` em `routes/agent.py`. Recebe `{message, history}`, envia para LLM (`gemini-3-flash-preview` com fallback `openai/gpt-4o`) um prompt que exige JSON estruturado `{reply, ops}` onde `ops` é lista de operações tipadas (`edit_title`, `edit_narration`, `edit_notes`, `edit_element`, `add_slide`, `delete_slide`, `move_slide`). Backend valida e aplica atomicamente sobre `session.storyboard.slides`, persiste em MongoDB, mantém `storyboardChatLog` cappeado em 50 entradas. Retorna `{reply, ops, storyboard}` para o frontend re-renderizar.
+  - **Frontend** (`pages/Agent/components/StoryboardChat.jsx`): componente novo de chat lateral. Header com ícone Sparkles, sugestões clicáveis na primeira mensagem, auto-scroll para última mensagem, indicadores visuais (ícones para user/assistant, badge "N operacoes aplicadas" em verde quando ops foram aplicadas, mensagem de erro em rosa). Textarea com Enter-envia/Shift+Enter-quebra-linha.
+  - **Integração** (`pages/Agent.jsx`): quando `mode==='create' && currentStep===4` (etapa Storyboard), o chat lateral direito mostra o `StoryboardChat` ao invés do chat passivo tradicional. `onStoryboardUpdate` callback sincroniza estado local assim que ops são aplicadas.
+  - **Exemplos de uso**: "reescreva a narracao do slide 3 em tom informal" / "adicione um slide de exemplos praticos depois do 2" / "remova o slide final" / "torne o titulo do slide 5 mais impactante".
+  - **Validado**: 3 pytests novos em `tests/test_storyboard_chat.py` (edit_narration + edit_title combinados, add_slide + delete_slide com reordem implícita, rejeição de mensagem vazia). Backend startup sem erros.
+
+
 - 2026-05-08: **FEATURE (preventiva)** — **Migração de dados: normalização de campos numéricos**.
   - **Problema**: projetos importados de PPT ao longo do tempo acumularam campos numéricos armazenados como strings (`"1280"`, `"1280px"`) ou floats onde ints eram esperados (`1280.5`). Além do bug do 422 no "add slide" já corrigido, isso pode causar falhas silenciosas em outros validators mais estritos no futuro.
   - **Novo módulo** `routes/admin_migrations.py`:

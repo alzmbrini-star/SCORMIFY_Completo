@@ -52,6 +52,7 @@ async function fetchRetry(url, options = {}, maxRetries = 3) {
 // Extracted sub-panels
 import ConfigPanel from './Agent/components/ConfigPanel';
 import StoryboardPanel from './Agent/components/StoryboardPanel';
+import StoryboardChat from './Agent/components/StoryboardChat';
 import MediaConfigPanel from './Agent/components/MediaConfigPanel';
 import GeneratedPanel from './Agent/components/GeneratedPanel';
 import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
@@ -1233,13 +1234,24 @@ export default function Agent() {
 
         {/* Right Panel - Chat */}
         <div className={`w-full md:w-96 lg:w-[420px] border-l border-slate-800 flex flex-col bg-slate-900/50 shrink-0 ${showChat ? 'flex' : 'hidden'}`}>
-          <div className="p-3 border-b border-slate-800 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-medium">Chat com o Agente</span>
-            <Button variant="ghost" size="icon" className="ml-auto md:hidden" onClick={() => setShowChat(false)}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
+          {/* During Storyboard review, show the conversational editor instead of
+              the passive progress log. */}
+          {mode === 'create' && currentStep === 4 && sessionId ? (
+            <StoryboardChat
+              sessionId={sessionId}
+              onStoryboardUpdate={(updated) => {
+                if (updated) setStoryboard(updated);
+              }}
+            />
+          ) : (
+            <>
+              <div className="p-3 border-b border-slate-800 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm font-medium">Chat com o Agente</span>
+                <Button variant="ghost" size="icon" className="ml-auto md:hidden" onClick={() => setShowChat(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
           <ScrollArea className="flex-1 p-3">
             <div className="space-y-3">
               {chatMessages.map((msg, i) => {
@@ -1289,6 +1301,8 @@ export default function Agent() {
               </Button>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>
