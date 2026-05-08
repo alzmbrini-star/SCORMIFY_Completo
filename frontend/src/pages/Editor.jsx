@@ -116,6 +116,7 @@ import {
   Wrench,
   Wand2,
   FileImage,
+  MessageSquare,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -130,6 +131,7 @@ import LeonardoPanel from './Agent/components/LeonardoPanel';
 import KreaPanel from './Agent/components/KreaPanel';
 import SinglePagePreviewDialog from './Editor/dialogs/SinglePagePreviewDialog';
 import AestheticsPanel from '../components/editor/AestheticsPanel';
+import EditorChat from '../components/editor/EditorChat';
 
 // Extracted components and hooks
 import { getThumbAssetUrl, formatDuration, formatDateTime, formatTime, getStatusBadge } from './Editor/utils';
@@ -319,6 +321,7 @@ export default function Editor() {
   const [showKreaPanel, setShowKreaPanel] = useState(false);
   const [showAestheticsPanel, setShowAestheticsPanel] = useState(false);
   const [aestheticsExpanded, setAestheticsExpanded] = useState(false);
+  const [showEditorChat, setShowEditorChat] = useState(false);
   const [showSinglePagePreview, setShowSinglePagePreview] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -1432,6 +1435,21 @@ export default function Editor() {
                 <TooltipContent>Analisador de Estetica</TooltipContent>
               </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-violet-500/10 to-emerald-500/10 hover:from-violet-500/20 hover:to-emerald-500/20"
+                    onClick={() => setShowEditorChat(!showEditorChat)}
+                    data-testid="editor-chat-btn"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Chat com Agente IA</TooltipContent>
+              </Tooltip>
+
               {/* Live Preview do Single Page export */}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2270,6 +2288,26 @@ export default function Editor() {
               onFixApplied={() => {
                 fetchProject(currentProject?.id);
                 toast.success('Projeto atualizado com correcoes esteticas!');
+              }}
+            />
+          </SheetContent>
+        </Sheet>
+
+        {/* Editor Chat — conversational editing of the published course */}
+        <Sheet open={showEditorChat} onOpenChange={setShowEditorChat}>
+          <SheetContent
+            side="right"
+            className="w-[400px] bg-slate-950 border-slate-800 p-0 overflow-hidden"
+            aria-describedby={undefined}
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Chat com Agente IA</SheetTitle>
+            </SheetHeader>
+            <EditorChat
+              projectId={currentProject?.id}
+              onClose={() => setShowEditorChat(false)}
+              onCourseUpdate={() => {
+                fetchProject(currentProject?.id);
               }}
             />
           </SheetContent>

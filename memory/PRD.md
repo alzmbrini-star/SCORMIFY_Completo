@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FEATURE (P1)** — **Chat conversacional expandido** para Editor do curso publicado + Media Config (step 5).
+  - **Editor Chat**: novo `routes/editor_chat.py` com endpoint `POST /api/projects/{id}/editor-chat`. Recebe mensagem natural → LLM (`gemini-3-flash-preview` com fallback `openai/gpt-4o`) retorna JSON `{reply, ops}` → backend aplica atomicamente. Ops suportadas: `edit_slide_title`, `edit_element_content` (só text/shape — ignora html/quiz/scenario para não quebrar simuladores), `edit_element_style` (merge com style existente), `add_text_element` (defaults sensatos x=100, y=100, fontSize=20), `delete_element`, `change_slide_background`, `move_slide`, `delete_slide`.
+  - **Snapshot auto-revertível**: cada aplicação cria snapshot em `aesthetic_snapshots` (kind=`editor_chat`), então o botão **Reverter** do AestheticsPanel já desfaz automaticamente edições feitas via chat. Reuso de infraestrutura existente.
+  - **Media Config Chat** (step 5 do Agente): novo endpoint `POST /api/agent/sessions/{id}/media-chat`. Ops para mutar `mediaConfig`/`bgConfig` antes de rodar a geração cara: `set_image_source` (gemini/leonardo/none), `set_image_prompt`, `set_avatar_enabled`, `set_avatar_voice_gender`, `set_narration_enabled`, `set_background_color`, `bulk_set_image_source`, `bulk_set_avatar`. NÃO dispara Leonardo/HeyGen — só altera config para quando o usuário clicar em "Gerar Midia".
+  - **Frontend**:
+    - `EditorChat.jsx` — componente reaproveitável (mesmo design do StoryboardChat). Integrado no `Editor.jsx` via botão `MessageSquare` na toolbar + Sheet lateral 400px. Ao aplicar ops, refetch do projeto atualiza o canvas.
+    - `MediaConfigChat.jsx` — integrado no `Agent.jsx` quando `currentStep === 5`, substituindo o chat passivo. `onMediaConfigUpdate` sincroniza estado local.
+  - **Testes**: 13 novos pytests em `tests/test_editor_chat.py` cobrindo `_build_course_summary` (truncate, interactive-not-editable) + `_apply_ops` (todas as 8 ops, out-of-bounds skip, malformed op skip, html/quiz protegidos).
+
+
 - 2026-05-08: **FEATURE (P1)** — **Chat conversacional no Storyboard** para edição via linguagem natural.
   - **Backend**: novo endpoint `POST /api/agent/sessions/{id}/storyboard-chat` em `routes/agent.py`. Recebe `{message, history}`, envia para LLM (`gemini-3-flash-preview` com fallback `openai/gpt-4o`) um prompt que exige JSON estruturado `{reply, ops}` onde `ops` é lista de operações tipadas (`edit_title`, `edit_narration`, `edit_notes`, `edit_element`, `add_slide`, `delete_slide`, `move_slide`). Backend valida e aplica atomicamente sobre `session.storyboard.slides`, persiste em MongoDB, mantém `storyboardChatLog` cappeado em 50 entradas. Retorna `{reply, ops, storyboard}` para o frontend re-renderizar.
   - **Frontend** (`pages/Agent/components/StoryboardChat.jsx`): componente novo de chat lateral. Header com ícone Sparkles, sugestões clicáveis na primeira mensagem, auto-scroll para última mensagem, indicadores visuais (ícones para user/assistant, badge "N operacoes aplicadas" em verde quando ops foram aplicadas, mensagem de erro em rosa). Textarea com Enter-envia/Shift+Enter-quebra-linha.

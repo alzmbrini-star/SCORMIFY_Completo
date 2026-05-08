@@ -53,6 +53,7 @@ async function fetchRetry(url, options = {}, maxRetries = 3) {
 import ConfigPanel from './Agent/components/ConfigPanel';
 import StoryboardPanel from './Agent/components/StoryboardPanel';
 import StoryboardChat from './Agent/components/StoryboardChat';
+import MediaConfigChat from './Agent/components/MediaConfigChat';
 import MediaConfigPanel from './Agent/components/MediaConfigPanel';
 import GeneratedPanel from './Agent/components/GeneratedPanel';
 import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
@@ -1241,6 +1242,14 @@ export default function Agent() {
               sessionId={sessionId}
               onStoryboardUpdate={(updated) => {
                 if (updated) setStoryboard(updated);
+              }}
+            />
+          ) : mode === 'create' && currentStep === 5 && sessionId ? (
+            <MediaConfigChat
+              sessionId={sessionId}
+              onMediaConfigUpdate={({ mediaConfig: mc, bgConfig: bc }) => {
+                if (mc) setMediaConfig(mc);
+                if (bc) setBgConfig(bc);
               }}
             />
           ) : (

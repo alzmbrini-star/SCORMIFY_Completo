@@ -873,6 +873,196 @@ async def agent_set_media_config(session_id: str, data: dict):
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 
 
+@router.post("/agent/sessions/{session_id}/media-chat")
+async def media_config_chat(session_id: str, data: dict, user: dict = Depends(require_auth)):
+    """Conversational chat for the Media Config step (step 5 of the Agent).
+
+    Lets the author tweak per-slide media choices via natural language
+    BEFORE clicking "Apply Media Changes". Only mutates `mediaConfig` /
+    `bgConfig` — does NOT trigger expensive Leonardo/HeyGen generations
+    (those happen in the dedicated endpoint).
+
+    Examples: "troca o avatar de todos os slides para mulher" /
+    "use Leonardo em vez de Gemini nos slides 3 ao 5" /
+    "desabilita narracao do slide 1".
+    """
+    message = (data.get("message") or "").strip()
+    if not message:
+        raise HTTPException(400, "Mensagem vazia")
+
+    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not s:
+        raise HTTPException(404, "Session nao encontrada")
+
+    storyboard = s.get("storyboard") or {}
+    slides = storyboard.get("slides") or []
+    if not slides:
+        raise HTTPException(400, "Session sem storyboard")
+
+    media_config = s.get("mediaConfig") or {}
+    bg_config = s.get("bgConfig") or {}
+
+    # Build a compact context for the LLM
+    slides_summary = [
+        {
+            "index": i,
+            "title": (sl.get("title") or "")[:80],
+            "media": media_config.get(str(i), {}),
+            "bg": bg_config.get(str(i), {}),
+        }
+        for i, sl in enumerate(slides[:50])
+    ]
+
+    system_prompt = """Voce e um assistente conversacional para configuracao de midias de um curso e-learning.
+
+Seu trabalho: interpretar pedidos do autor sobre a configuracao de midia POR SLIDE e retornar JSON estruturado com ops que o backend aplica.
+
+## Tipos de op
+- `set_image_source`: {slideIndex: int, source: "gemini"|"leonardo"|"none"}
+- `set_image_prompt`: {slideIndex: int, prompt: str}
+- `set_avatar_enabled`: {slideIndex: int, enabled: bool}
+- `set_avatar_voice_gender`: {slideIndex: int, gender: "male"|"female"}
+- `set_narration_enabled`: {slideIndex: int, enabled: bool}
+- `set_background_color`: {slideIndex: int, color: "#hex"}
+- `bulk_set_image_source`: {slideIndices: [int], source: str}
+- `bulk_set_avatar`: {slideIndices: [int], enabled: bool}
+
+## Regras
+- Indices 0-based. Usuario fala "slide 3", voce converte para 2.
+- "todos os slides" = `slideIndices` com TODOS os indices de 0 a N-1.
+- "slides 3 ao 5" = [2, 3, 4].
+- Se ambiguo, retorne ops=[] e peca esclarecimento.
+
+## Formato
+```json
+{
+  "reply": "Troquei a fonte de imagem de todos os slides para Leonardo.",
+  "ops": [
+    {"type": "bulk_set_image_source", "slideIndices": [0,1,2,3], "source": "leonardo"}
+  ]
+}
+```
+"""
+
+    history = (data.get("history") or [])[-6:]
+    user_prompt = (
+        f"SLIDES E MIDIA ATUAL:\n{json.dumps(slides_summary, ensure_ascii=False)[:6000]}\n\n"
+        f"CONVERSA:\n{json.dumps(history, ensure_ascii=False) if history else '(primeira mensagem)'}\n\n"
+        f"AUTOR: {message}"
+    )
+
+    # Reuse the storyboard_chat LLM caller pattern
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        llm_chat_obj = LlmChat(
+            api_key=emergent_key,
+            session_id=f"media_chat_{session_id}_{uuid.uuid4().hex[:6]}",
+            system_message=system_prompt,
+        ).with_model("gemini", "gemini-3-flash-preview")
+        raw = await llm_chat_obj.send_message(UserMessage(text=user_prompt))
+    except Exception as e:
+        logger.warning(f"media_chat LLM error: {e}")
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+            llm_chat_obj = LlmChat(
+                api_key=emergent_key,
+                session_id=f"media_chat_{session_id}_{uuid.uuid4().hex[:6]}",
+                system_message=system_prompt,
+            ).with_model("openai", "gpt-4o")
+            raw = await llm_chat_obj.send_message(UserMessage(text=user_prompt))
+        except Exception as e2:
+            raise HTTPException(500, f"LLM error: {str(e2)[:100]}")
+
+    # Parse
+    parsed = None
+    m = re.search(r"```json\s*([\s\S]*?)```", raw)
+    if m:
+        try:
+            parsed = json.loads(m.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+    if parsed is None:
+        try:
+            parsed = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            parsed = {"reply": raw[:500], "ops": []}
+
+    reply = parsed.get("reply") or "Entendi."
+    ops = parsed.get("ops") or []
+
+    applied = []
+    for op in ops:
+        try:
+            t = op.get("type")
+            if t == "set_image_source":
+                idx = str(int(op["slideIndex"]))
+                mc = media_config.setdefault(idx, {})
+                mc["type"] = str(op.get("source", "gemini"))
+                applied.append({"type": t, "slideIndex": int(idx)})
+            elif t == "set_image_prompt":
+                idx = str(int(op["slideIndex"]))
+                mc = media_config.setdefault(idx, {})
+                mc["prompt"] = str(op.get("prompt", ""))
+                applied.append({"type": t, "slideIndex": int(idx)})
+            elif t == "set_avatar_enabled":
+                idx = str(int(op["slideIndex"]))
+                mc = media_config.setdefault(idx, {})
+                mc["avatarEnabled"] = bool(op.get("enabled"))
+                applied.append({"type": t, "slideIndex": int(idx)})
+            elif t == "set_avatar_voice_gender":
+                idx = str(int(op["slideIndex"]))
+                mc = media_config.setdefault(idx, {})
+                mc["voiceGender"] = str(op.get("gender", "female"))
+                applied.append({"type": t, "slideIndex": int(idx)})
+            elif t == "set_narration_enabled":
+                idx = str(int(op["slideIndex"]))
+                mc = media_config.setdefault(idx, {})
+                mc["narrationEnabled"] = bool(op.get("enabled"))
+                applied.append({"type": t, "slideIndex": int(idx)})
+            elif t == "set_background_color":
+                idx = str(int(op["slideIndex"]))
+                bc = bg_config.setdefault(idx, {})
+                bc["color"] = str(op.get("color", "#ffffff"))
+                applied.append({"type": t, "slideIndex": int(idx)})
+            elif t == "bulk_set_image_source":
+                src = str(op.get("source", "gemini"))
+                for i in (op.get("slideIndices") or []):
+                    idx = str(int(i))
+                    mc = media_config.setdefault(idx, {})
+                    mc["type"] = src
+                applied.append({"type": t, "count": len(op.get("slideIndices") or [])})
+            elif t == "bulk_set_avatar":
+                enabled = bool(op.get("enabled"))
+                for i in (op.get("slideIndices") or []):
+                    idx = str(int(i))
+                    mc = media_config.setdefault(idx, {})
+                    mc["avatarEnabled"] = enabled
+                applied.append({"type": t, "count": len(op.get("slideIndices") or [])})
+        except (ValueError, TypeError, KeyError) as e:
+            logger.warning(f"media_chat skipped op {op}: {e}")
+            continue
+
+    if applied:
+        await db.agent_sessions.update_one(
+            {"id": session_id},
+            {"$set": {
+                "mediaConfig": media_config,
+                "bgConfig": bg_config,
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+
+    return {
+        "reply": reply,
+        "ops": applied,
+        "opsProposed": len(ops),
+        "mediaConfig": media_config,
+        "bgConfig": bg_config,
+    }
+
+
 @router.post("/agent/sessions/{session_id}/apply-media-changes")
 async def apply_media_changes(session_id: str, data: dict):
     """Apply media config changes (backgrounds, animations, text color) to an existing project.
