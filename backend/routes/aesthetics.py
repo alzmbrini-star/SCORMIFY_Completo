@@ -174,11 +174,13 @@ DADOS DOS SLIDES (com WCAG calculado quando aplicavel):
 - `slide_overlay` — adiciona scrim escuro/claro sobre `backgroundImage`. `changes: {{"overlay": "dark"}}` ou `"light"`.
 - `position` — muda x, y, width, height.
 - `background` — muda background do slide.
-- `html_style` — injeta CSS em htmlContent. APLIQUE estas regras OBRIGATORIAS para slides HTML-PESADO:
-   - SEMPRE com `!important`
-   - SEMPRE em unidades relativas (`em`, `%`, `rem`) para font-size, NUNCA em px
-   - Inclua reset de inline color via `[style*="color"]{{color:X !important}}`
-   - Foque em color/background-color — nao em font-size, padding, margin (esses pertencem a tipografia interna do simulador)
+- `html_style` — injeta CSS em htmlContent. **REGRAS RIGIDAS para slides HTML-PESADO**:
+   - **PROIBIDO seletores universais**: `*`, `body *`, `body` bare, `html`, `[style*=color]`. Se voce usar, o servidor DESCARTA a regra inteira.
+   - **OBRIGATORIO seletores targetados**: classe (`.option-btn`), id (`#prompt-box`), ou tag-com-classe (`p.error`). Sem eles, NADA e injetado e o problema permanece.
+   - SEMPRE com `!important` em cada declaracao
+   - Para font-size, USE `em`/`rem`/`%` (nunca px)
+   - NAO injete padding/margin/line-height (sao stripados)
+   - **Estrategia recomendada**: leia o htmlContent, identifique a CLASSE OU ID exata do elemento problemático, e direcione apenas ele.
 
 ## Regras CRITICAS
 - Prefira preto puro `#0f172a` ou branco puro `#f8fafc` — NUNCA cinza intermediario.
@@ -229,10 +231,10 @@ DADOS DOS SLIDES (com WCAG calculado quando aplicavel):
       "elementIndex": 0,
       "severity": "alta",
       "category": "legibilidade_html",
-      "description": "Simulador com background claro em curso dark mode",
+      "description": "Botao .option-btn com texto cinza claro sobre fundo cyan (1.8:1)",
       "fix": {{
         "type": "html_style",
-        "cssInjection": "body{{background:#0f172a !important;color:#f8fafc !important}} body *{{color:inherit}} [style*=\\"color\\"]:not([style*=\\"background\\"]){{color:#f8fafc !important}}"
+        "cssInjection": ".option-btn{{color:#0f172a !important}} .option-btn:hover{{color:#000 !important}}"
       }}
     }}
   ],
@@ -603,20 +605,18 @@ def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_
 
     if target_text_color:
         if preserve_html_typography:
-            # In preserve mode (HTML-pesado simulators), the universal
-            # `body *` selector is dangerous — multi-context UIs have nested
-            # cards/buttons with intentional contrasting colors. Use a much
-            # narrower override: only direct text-bearing tags that DON'T
-            # already have a background of their own.
-            parts.append(
-                f"body{{color:{target_text_color} !important}}"
-                f"body p:not([style*=background]),body h1:not([style*=background]),"
-                f"body h2:not([style*=background]),body h3:not([style*=background]),"
-                f"body h4:not([style*=background]),body h5:not([style*=background]),"
-                f"body h6:not([style*=background]),body li:not([style*=background]),"
-                f"body label:not([style*=background])"
-                f"{{color:{target_text_color} !important}}"
-            )
+            # In preserve mode (HTML-pesado simulators) we DO NOT inject any
+            # universal color override at all. Even narrow selectors like
+            # `body p` cascade onto <p> tags nested inside white prompt
+            # cards (where the card has the background, not the <p>) and
+            # turn the text invisible.
+            #
+            # The LLM-provided css already passed through
+            # `_strip_universal_selectors` so any safe (class/id-targeted)
+            # rules survive on their own. If the LLM only knows how to
+            # propose universal rules, NOTHING is injected — preserving
+            # the simulator's intentional contrast.
+            pass
         else:
             parts.append(
                 f"body,body *,body p,body span,body div,body li,body td,body th{{color:{target_text_color} !important}}"

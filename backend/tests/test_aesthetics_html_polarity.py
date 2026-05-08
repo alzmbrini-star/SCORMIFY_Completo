@@ -95,20 +95,27 @@ class TestPreserveModeSelectors:
     def test_preserve_mode_avoids_universal_body_star(self):
         out = _strengthen_css_injection("", target_text_color="#000", preserve_html_typography=True)
         # Universal `body *` selector must NOT appear in preserve mode
-        # (it would override intentional contrast inside nested cards)
         assert "body *" not in out
 
-    def test_preserve_mode_uses_text_tag_selectors(self):
+    def test_preserve_mode_emits_NO_color_override(self):
+        """Final fix: preserve mode DOES NOT inject any color override at all.
+        Even narrow `body p` selectors cascade onto <p> tags nested inside
+        white prompt cards and break contrast. The LLM's own targeted rules
+        (already filtered through _strip_universal_selectors) are the only
+        thing that survives."""
         out = _strengthen_css_injection("", target_text_color="#000", preserve_html_typography=True)
-        # Should target text-bearing tags only
-        assert "body p" in out
-        assert "body h1" in out
-        assert "body label" in out
+        # No color rule should be present at all when only target_text_color is given
+        assert "color:" not in out and "color :" not in out
 
-    def test_preserve_mode_skips_elements_with_background(self):
-        out = _strengthen_css_injection("", target_text_color="#000", preserve_html_typography=True)
-        # Skip elements with their own bg (intentional cards)
-        assert ":not([style*=background])" in out
+    def test_preserve_mode_keeps_targeted_llm_css(self):
+        # If the LLM provides a targeted class selector, it survives
+        out = _strengthen_css_injection(
+            ".bad-text { color: #000 }",
+            target_text_color="#000",
+            preserve_html_typography=True,
+        )
+        assert ".bad-text" in out
+        assert "#000" in out
 
     def test_normal_mode_uses_universal_selector(self):
         out = _strengthen_css_injection("", target_text_color="#000", preserve_html_typography=False)
@@ -123,7 +130,11 @@ class TestUserBugRegression:
     def test_simulator_with_white_bg_does_not_get_white_text(self):
         """User reported: card branco com texto preto legível (antes) ficou
         com tudo invisível (depois). Cause: `body * {color:#fff}` injected
-        despite the simulator having body{background:#fff} internally."""
+        despite the simulator having body{background:#fff} internally.
+
+        Final fix: in preserve mode, NO color override is injected at all
+        when only target_color is provided. The simulator is left intact.
+        """
         element = {
             "type": "html",
             "htmlContent": (
@@ -138,35 +149,33 @@ class TestUserBugRegression:
                 "</div></body></html>"
             ),
         }
-        # LLM proposes white text (which is wrong for this internally-white card)
+        original = element["htmlContent"]
+        # LLM proposes universal `body *` (which would destroy contrast).
+        # After strip, nothing safe remains.
         _apply_html_style_fix(
             element,
-            css="color:#ffffff",
+            css="body * { color: #ffffff }",
             target_color="#ffffff",
             preserve_html_typography=True,
         )
         injected_html = element["htmlContent"]
-        # The aesthetic-fix style tag should NOT contain `color:#ffffff` for body
-        # (the polarity check should have flipped it to dark)
-        # Find the injected style tag
+
+        # If anything was injected, find the style tag
         import re as re_mod
         m = re_mod.search(r'<style data-aesthetic-fix="1">([\s\S]*?)</style>', injected_html)
-        assert m is not None, "Aesthetic fix style tag must be present"
-        injected_css = m.group(1)
-        # In the injected CSS, the body color override must NOT be white
-        # (the WCAG check must have flipped it)
-        # Allow #fff or #ffffff to appear ONLY inside !important markers etc — but the body{color:...} must be dark
-        body_color = re_mod.search(r"body\s*\{\s*color\s*:\s*([^;}!]+)", injected_css)
-        assert body_color is not None
-        chosen_color = body_color.group(1).strip().lower()
-        assert chosen_color not in ("#ffffff", "#fff", "white"), (
-            f"FAIL: body color was set to {chosen_color} on a white-background simulator. "
-            "This is the exact bug the user reported."
-        )
+        if m is not None:
+            injected_css = m.group(1)
+            # No `body{color:...}` rule should be present at all in preserve
+            # mode (whether white OR dark — we don't override at all)
+            assert "body{color:" not in injected_css.replace(" ", "")
+            assert "body *" not in injected_css
 
-    def test_simulator_with_dark_bg_keeps_white_text(self):
-        """When the simulator has a DARK internal background (e.g., dark mode
-        UI), forcing white text is correct and must be kept."""
+    def test_simulator_with_dark_bg_no_universal_override(self):
+        """In preserve mode, even when the simulator has dark bg and white
+        text would be correct, we still don't inject a universal override —
+        the simulator's intentional design must drive its own contrast.
+        Only LLM-provided CSS with targeted class/id selectors goes through.
+        """
         element = {
             "type": "html",
             "htmlContent": (
@@ -175,12 +184,21 @@ class TestUserBugRegression:
                 "</style></head><body><h1>Title</h1></body></html>"
             ),
         }
+        # LLM proposes a TARGETED rule
         _apply_html_style_fix(
             element,
-            css="color:#ffffff",
+            css=".faded-text { color: #ffffff }",
             target_color="#ffffff",
             preserve_html_typography=True,
         )
         injected_html = element["htmlContent"]
-        # Must keep white because contrast is good
-        assert "#ffffff" in injected_html
+        # Targeted selector survives
+        assert ".faded-text" in injected_html
+        # But NO body universal/narrow override
+        assert "body *" not in injected_html
+        # And no `body{color:...}` rule from our helper
+        import re as re_mod
+        m = re_mod.search(r'<style data-aesthetic-fix="1">([\s\S]*?)</style>', injected_html)
+        if m:
+            injected_css = m.group(1).replace(" ", "")
+            assert "body{color:" not in injected_css

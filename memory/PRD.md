@@ -88,6 +88,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FIX (P0 final)** — Analisador de Estética: bug do branco-sobre-branco em simuladores HTML **definitivamente resolvido**.
+  - **Camada que ainda faltava**: mesmo o seletor "narrow" `body p:not([style*=background])` ainda atinge `<p>` aninhado dentro de cards brancos (o `<p>` em si não tem inline `style="background:..."` — o card pai tem). Inheritance + cascade + múltiplos contextos visuais não podem ser sobrescritos com qualquer seletor amplo de tag.
+  - **Fix definitivo em `_strengthen_css_injection(preserve_html_typography=True)`**: NÃO injetar QUALQUER override de cor universal (nem `body *`, nem `body p`, nem `body label`, nada). Apenas o CSS do LLM (já filtrado de seletores universais via `_strip_universal_selectors`) passa intacto. Se o LLM só sabe sugerir regras amplas → final_css fica vazio → nada é injetado → simulador 100% preservado.
+  - **Prompt do LLM atualizado**: `html_style` agora exige seletores **classe/id/tag-com-classe** e proíbe explicitamente `*`, `body *`, `body` bare, `[style*=color]`. Exemplo no prompt mostra `.option-btn{color:#0f172a !important}` ao invés de regras universais.
+  - **Tests atualizados**: 94/94 passando incluindo regression test exato dos casos reportados pelo usuário (simulador "Desafio do Descomplicador" + "Detector de Vieses Cognitivos") — confirma que `body{color:...}` NUNCA é injetado em preserve mode.
+
+
 - 2026-05-07: **FIX (P0)** — Analisador de Estética: bug do **CSS overreaching destruindo simuladores HTML** resolvido (camada 2).
   - **Reportado pelo usuário com novas screenshots**: simulador "O Grande Desafio Final" tinha botões cyan com texto preto legível ANTES. Após Apply, "Detector de Vieses Cognitivos" mostrou caixa branca vazia + botões cinza com texto branco invisível. **Mesmo padrão do bug anterior persistia** porque eu só tinha fixado o `target_color` adicionado pelo helper — mas o LLM ainda emitia `body * {color:#fff !important}` no campo `cssInjection` que passava intacto pela pipeline (só ganhava `!important` em cada decl).
   - **Causa raiz camada 2**: simuladores reais têm múltiplos contextos visuais (body dark + cards brancos + botões coloridos). Qualquer regra `body *` ou `body{color:...}` cascateia para todos os filhos — o card branco herda texto branco, o botão cyan herda texto branco, tudo invisível. Mesmo com seletores narrow (meu fix anterior), o CSS bruto do LLM bypassava porque tinha seu próprio `body *`.
