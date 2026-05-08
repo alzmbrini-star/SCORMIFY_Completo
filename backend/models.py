@@ -263,6 +263,28 @@ class SlideCreate(BaseModel):
     width: int = 1920  # 21:9 aspect ratio for better mobile landscape viewing
     height: int = 820
 
+    @field_validator('width', 'height', mode='before')
+    @classmethod
+    def _coerce_dim(cls, v):
+        """Coerce width/height to int — tolerates strings ('1280', '1280px'),
+        floats (1280.0), and bad inputs (None, NaN). Production databases
+        sometimes contain PPT-imported projects whose existing slide
+        dimensions are stored as strings, which the frontend then echoes
+        back when adding a new slide. Without this, those projects 422'd
+        on every "add slide" call."""
+        if v is None:
+            return 1920
+        if isinstance(v, (int, float)):
+            try:
+                ival = int(v)
+                return ival if ival > 0 else 1920
+            except (TypeError, ValueError, OverflowError):
+                return 1920
+        if isinstance(v, str):
+            m = re.search(r"\d+", v)
+            return int(m.group()) if m else 1920
+        return 1920
+
 class SlideUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
     

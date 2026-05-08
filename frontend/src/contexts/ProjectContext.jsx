@@ -199,18 +199,24 @@ export const ProjectProvider = ({ children }) => {
   const addSlide = useCallback(async (slideData = {}) => {
     if (!currentProject) return;
     try {
-      // Get dimensions from first slide to maintain consistency
+      // Read first-slide dimensions; PPT-imported projects sometimes have
+      // these as strings or floats which the backend's strict int field
+      // would reject — coerce defensively to a clean positive integer.
       const firstSlide = currentProject.course?.slides?.[0];
-      const defaultWidth = firstSlide?.width || 1280;
-      const defaultHeight = firstSlide?.height || 720;
-      
+      const toInt = (v, fallback) => {
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) && n > 0 ? n : fallback;
+      };
+      const defaultWidth = toInt(firstSlide?.width, 1280);
+      const defaultHeight = toInt(firstSlide?.height, 720);
+
       const response = await axios.post(
         `${API_URL}/projects/${currentProject.id}/slides`,
-        { 
-          title: slideData.title || 'New Slide', 
+        {
+          title: slideData.title || 'New Slide',
           background: slideData.background || '#FFFFFF',
-          width: slideData.width || defaultWidth,
-          height: slideData.height || defaultHeight
+          width: toInt(slideData.width, defaultWidth),
+          height: toInt(slideData.height, defaultHeight),
         }
       );
       setCurrentProject(prev => ({

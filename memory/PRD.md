@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FIX (P0 produção)** — **422 Unprocessable Content ao adicionar slide** em projetos importados de PPT.
+  - **Causa raiz**: `models.SlideCreate` tinha `width: int` e `height: int` strict. Quando o usuário adicionava slide num projeto cujo primeiro slide foi importado de PPT (com dimensões armazenadas como string `"1280"` ou float `1280.5` no banco), o frontend lia `firstSlide?.width || 1280` e enviava o valor não-int para o backend → Pydantic v2 rejeitava → 422.
+  - **Fix backend** (`models.py`): adicionado `field_validator` em `SlideCreate.width/height` que coage qualquer valor para int positivo seguro:
+    - `int`/`float` → `int(v)` (cai em fallback se ≤0)
+    - `str` → extrai primeiro grupo de dígitos via regex (`"1280px"` → 1280)
+    - `None` ou inválido → fallback `1920`
+  - **Fix frontend** (`ProjectContext.jsx::addSlide`): helper `toInt(v, fallback)` defensivo. Lê `firstSlide?.width` e força `parseInt`. Se NaN ou ≤0 → fallback. Defesa em profundidade — frontend e backend agora ambos toleram dados sujos.
+  - **Validado E2E real**: 4 cenários testados (int, string `"1280"`, float `1280.5`, null) — todos retornam slide criado com dimensões inteiras corretas. **9 pytests novos** em `test_slide_create_coercion.py`.
+
+
 - 2026-05-08: **FIX (P0)** — **Imagens Leonardo não persistiam em produção** (causa raiz encontrada).
   - **Bug**: o callsite em `services/ai_agent.py:1530-1546` (geração paralela de imagens IA pelo Agente IA) baixava a imagem do Leonardo para disco local mas **NÃO chamava `store_asset_async`**. Em produção K8s, o disco local é efêmero — quando o pod reinicia (ou faz rolling deploy), as imagens desaparecem.
   - **Por que outros locais funcionavam**: `routes/leonardo.py` (rota `/leonardo/save-to-project` chamada pelo painel manual) E `routes/agent.py` (3 outros callsites) JÁ chamavam `store_asset_async` corretamente. Apenas o callsite do batch paralelo do Agente IA (5 imagens concorrentes via semaphore) não persistia.
