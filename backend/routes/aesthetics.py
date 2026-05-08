@@ -392,19 +392,98 @@ def _apply_slide_overlay(slide: dict, changes: dict) -> bool:
 _INLINE_COLOR_RE = re.compile(r"""style\s*=\s*(['"])([^'"]*)\1""", re.IGNORECASE)
 
 
-def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_html_typography: bool = False) -> str:
+def _extract_dominant_html_bg(html: str):
+    """Inspect the htmlContent of a simulator/quiz/scenario to detect the
+    DOMINANT background color the user actually sees. Returns a CSS color
+    string (`#fff`, `rgb(...)`, etc.) or None when undetectable.
+
+    Strategy (in priority order):
+      1. body { background[-color]: ... } in any <style> block
+      2. <body style="background[-color]: ..."> inline
+      3. The first inline `background[-color]` on a top-level container
+         (.container, main, .wrapper, .card, .game-container, etc.) — these
+         are the visible "page" of the simulator.
+      4. None.
+
+    Why this matters:
+        Earlier the Analyzer injected `body,body * {color:#fff !important}`
+        regardless of the simulator's INTERNAL background. Simulators built
+        by the AI Agent often use `body{background:#fff}` so they look like
+        clean white cards on top of the dark slide. Forcing white text on
+        white background made everything invisible.
+    """
+    if not html:
+        return None
+
+    # 1. <style>...body { background: X }...</style>
+    for m in re.finditer(r"<style[^>]*>([\s\S]*?)</style>", html, re.IGNORECASE):
+        block = m.group(1)
+        bg_match = re.search(
+            r"\bbody\s*\{[^}]*?\bbackground(?:-color)?\s*:\s*([^;}]+)",
+            block,
+            re.IGNORECASE,
+        )
+        if bg_match:
+            val = bg_match.group(1).strip().rstrip(';').strip()
+            if val and "gradient" not in val.lower() and "url(" not in val.lower():
+                return val
+
+    # 2. <body style="background: X">
+    body_inline = re.search(r"<body[^>]*\bstyle\s*=\s*[\"']([^\"']*)[\"']", html, re.IGNORECASE)
+    if body_inline:
+        bg_match = re.search(
+            r"\bbackground(?:-color)?\s*:\s*([^;]+)",
+            body_inline.group(1),
+            re.IGNORECASE,
+        )
+        if bg_match:
+            val = bg_match.group(1).strip()
+            if val and "gradient" not in val.lower() and "url(" not in val.lower():
+                return val
+
+    # 3. First top-level container with inline bg
+    m = re.search(
+        r"<(?:div|main|section|article)\b[^>]*class\s*=\s*[\"'][^\"']*(?:container|wrapper|card|game|app|main|content)[^\"']*[\"'][^>]*\bstyle\s*=\s*[\"']([^\"']*)[\"']",
+        html,
+        re.IGNORECASE,
+    )
+    if m:
+        bg_match = re.search(r"\bbackground(?:-color)?\s*:\s*([^;]+)", m.group(1), re.IGNORECASE)
+        if bg_match:
+            val = bg_match.group(1).strip()
+            if val and "gradient" not in val.lower() and "url(" not in val.lower():
+                return val
+
+    return None
+
+
+def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_html_typography: bool = False, html_bg=None) -> str:
     """Wrap LLM-provided CSS with !important and aggressive selectors so
     inline styles inside the HTML element cannot win specificity.
 
-    If `target_text_color` is provided, append a universal color override.
+    If `target_text_color` is provided, append a universal color override —
+    BUT FIRST we validate that the color makes sense against `html_bg` (the
+    simulator's internal background). If `target_text_color` would make text
+    INVISIBLE (contrast < 4.5:1), we flip it to the opposite polarity. This
+    is what fixes the "all text turned invisible" bug.
 
     When `preserve_html_typography=True` (used for HTML-heavy slides with
     simulators built by the AI Agent), absolute pixel font-size declarations
     are converted to relative `em` units so the simulator's internal
-    typography hierarchy is preserved. This prevents the analyzer from
-    flattening intentional design language with imposed pixel sizes.
+    typography hierarchy is preserved. We also use a NARROWER selector that
+    skips elements with their own background (intentional cards/buttons).
     """
     css = (css or "").strip()
+
+    # Sanity-check the proposed text color against the simulator's actual
+    # background. If contrast fails AA, swap to the opposite polarity.
+    if target_text_color and html_bg:
+        try:
+            ratio = wcag.contrast_ratio(target_text_color, html_bg)
+            if ratio < 4.5:
+                target_text_color = wcag.pick_high_contrast_color(html_bg)
+        except Exception:
+            pass
 
     # When preserving typography, convert `font-size: Npx` into a tiny
     # relative bump (1.05em) — keeps the simulator's hierarchy but nudges
@@ -447,13 +526,28 @@ def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_
         parts.append(css_with_important)
 
     if target_text_color:
-        parts.append(
-            f"body,body *,body p,body span,body div,body li,body td,body th{{color:{target_text_color} !important}}"
-            f"[style*=\"color\"]{{color:{target_text_color} !important}}"
-        )
+        if preserve_html_typography:
+            # In preserve mode (HTML-pesado simulators), the universal
+            # `body *` selector is dangerous — multi-context UIs have nested
+            # cards/buttons with intentional contrasting colors. Use a much
+            # narrower override: only direct text-bearing tags that DON'T
+            # already have a background of their own.
+            parts.append(
+                f"body{{color:{target_text_color} !important}}"
+                f"body p:not([style*=background]),body h1:not([style*=background]),"
+                f"body h2:not([style*=background]),body h3:not([style*=background]),"
+                f"body h4:not([style*=background]),body h5:not([style*=background]),"
+                f"body h6:not([style*=background]),body li:not([style*=background]),"
+                f"body label:not([style*=background])"
+                f"{{color:{target_text_color} !important}}"
+            )
+        else:
+            parts.append(
+                f"body,body *,body p,body span,body div,body li,body td,body th{{color:{target_text_color} !important}}"
+                f"[style*=\"color\"]{{color:{target_text_color} !important}}"
+            )
 
     return " ".join(parts)
-
 
 def _apply_html_style_fix(element: dict, css: str, target_color: str = None, preserve_html_typography: bool = False) -> bool:
     """Inject CSS into an HTML element's htmlContent with maximum specificity.
@@ -465,15 +559,25 @@ def _apply_html_style_fix(element: dict, css: str, target_color: str = None, pre
     When `preserve_html_typography=True`, refuses to inject px-based
     font-size / padding / margin rules — these would break the simulator's
     internal design language built by the AI Agent.
+
+    The simulator's INTERNAL background is detected from htmlContent via
+    `_extract_dominant_html_bg` and used to validate `target_color`. If the
+    LLM proposes a color that fails WCAG against that background, we flip
+    polarity so text never becomes invisible.
     """
     html = element.get("htmlContent") or ""
     if not html or not (css or target_color):
         return False
 
+    # Detect the simulator's actual visible background — this is what
+    # determines whether `target_color` should be light or dark.
+    html_bg = _extract_dominant_html_bg(html)
+
     final_css = _strengthen_css_injection(
         css,
         target_text_color=target_color,
         preserve_html_typography=preserve_html_typography,
+        html_bg=html_bg,
     )
     if not final_css:
         return False

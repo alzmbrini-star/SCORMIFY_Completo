@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-07: **FIX (P0)** — Analisador de Estética: bug do **"texto branco sobre fundo branco" em simuladores HTML resolvido**.
+  - **Reportado pelo usuário com prints**: simulador "Desafio do Descomplicador" tinha card com fundo branco e texto preto legível ANTES da aplicação. DEPOIS, o título, subtítulo, prompt e contador de progresso ficaram **brancos sobre fundo branco** (totalmente invisíveis).
+  - **Causa raiz**: `_strengthen_css_injection` injetava `body,body * {color:#fff !important}` independente do background **interno** do simulador. Quando o htmlContent tem `body{background:#fff}` (cards brancos sobre slide escuro), forçar texto branco torna tudo invisível.
+  - **Fixes**:
+    - Novo helper `_extract_dominant_html_bg(html)`: parse `<style>body{background:...}` + `<body style="background:...">` + containers top-level com classe `container/wrapper/card/game/app/main/content` para detectar o background visível do simulador. Rejeita gradients/url() (não são WCAG-comparáveis).
+    - `_strengthen_css_injection` agora aceita `html_bg` e **valida `target_text_color` via WCAG** contra ele. Se contraste falha (<4.5:1), automaticamente inverte para a polaridade oposta (`pick_high_contrast_color`).
+    - Em `preserve_html_typography=True` (slides HTML-pesado): troca o universal `body *` por seletores narrow (`body p:not([style*=background]), body h1:not(...), body label:not(...)`). Preserva contraste intencional em cards aninhados (botões com fundo próprio mantêm sua cor original).
+    - `_apply_html_style_fix` extrai `html_bg` automaticamente e propaga.
+  - **18 novos pytests** (`tests/test_aesthetics_html_polarity.py`) cobrindo: extração de bg em todas as variantes, polarity flip white↔dark, preserve mode selectors narrow + skip de bg-elements, e regression específico do caso reportado pelo usuário (card branco com h1/label/p — verifica que `body{color:...}` injetado NÃO é branco). 78/78 testes pytest sem regressão.
+
+
 - 2026-05-07: **FIX (P0 produção)** — **502 Bad Gateway em export-scorm/export-html resolvido** via padrão async-job real.
   - **Causa raiz**: endpoints `POST /api/course/{id}/export-scorm` e `/export-html` eram síncronos — esperavam 30-180s para gerar ZIP base64-embedded com áudio ElevenLabs, vídeo HeyGen, gamificação. O gateway/proxy K8s da Emergent tem timeout ~100s → **502 Bad Gateway**. Pior: com `uvicorn --workers 1`, o worker bloqueado também não respondia health checks → K8s mata o pod → deployment falha.
   - **Solução**: refatorados ambos os endpoints para **padrão async-job verdadeiro**:
