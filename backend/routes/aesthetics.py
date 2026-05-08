@@ -625,6 +625,28 @@ def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_
 
     return " ".join(parts)
 
+# Pattern matching ALL accumulated aesthetic-fix style tags (with optional
+# whitespace inside the attribute and possibly minified content).
+_AESTHETIC_FIX_TAG_RE = re.compile(
+    r'<style\s+data-aesthetic-fix\s*=\s*[\"\']1[\"\']\s*>[\s\S]*?</style>',
+    re.IGNORECASE,
+)
+
+
+def _clean_aesthetic_fixes_from_html(html: str) -> str:
+    """Remove every `<style data-aesthetic-fix="1">...</style>` tag that
+    earlier Aesthetic Analyzer runs may have injected. Returns the original
+    htmlContent untouched if no such tags are present.
+
+    This is what makes the apply pipeline IDEMPOTENT: re-running with the
+    same (or different) fix sequence does not accumulate broken CSS rules
+    from previous attempts.
+    """
+    if not html or "data-aesthetic-fix" not in html:
+        return html
+    return _AESTHETIC_FIX_TAG_RE.sub("", html)
+
+
 def _apply_html_style_fix(element: dict, css: str, target_color: str = None, preserve_html_typography: bool = False) -> bool:
     """Inject CSS into an HTML element's htmlContent with maximum specificity.
 
@@ -640,10 +662,16 @@ def _apply_html_style_fix(element: dict, css: str, target_color: str = None, pre
     `_extract_dominant_html_bg` and used to validate `target_color`. If the
     LLM proposes a color that fails WCAG against that background, we flip
     polarity so text never becomes invisible.
+
+    BEFORE injecting the new fix, all PREVIOUS aesthetic-fix style tags
+    are removed so re-running the analyzer does not pile on broken rules.
     """
     html = element.get("htmlContent") or ""
     if not html or not (css or target_color):
         return False
+
+    # IDEMPOTENT: strip any prior aesthetic-fix tags first.
+    html = _clean_aesthetic_fixes_from_html(html)
 
     # Detect the simulator's actual visible background — this is what
     # determines whether `target_color` should be light or dark.
@@ -656,6 +684,13 @@ def _apply_html_style_fix(element: dict, css: str, target_color: str = None, pre
         html_bg=html_bg,
     )
     if not final_css:
+        # Even though no new fix was injected, we may have stripped older
+        # aesthetic-fix tags above — persist the cleaned html so leftover
+        # bad rules from prior runs disappear.
+        original = element.get("htmlContent") or ""
+        if html != original:
+            element["htmlContent"] = html
+            return True
         return False
 
     style_tag = f'<style data-aesthetic-fix="1">{final_css}</style>'
@@ -842,4 +877,72 @@ async def aesthetic_snapshot_status(project_id: str, user: dict = Depends(requir
         "hasSnapshot": True,
         "appliedAt": snapshot.get("appliedAt"),
         "appliedCount": snapshot.get("appliedCount", 0),
+    }
+
+
+@router.post("/aesthetics/deep-clean/{project_id}")
+async def deep_clean_aesthetic_fixes(project_id: str, user: dict = Depends(require_auth)):
+    """Strip ALL accumulated `<style data-aesthetic-fix="1">` tags from
+    every HTML element in every slide of the project.
+
+    This is the escape hatch for projects whose simulators were corrupted
+    by repeated applies of older Analyzer versions (each apply piled on
+    new tags without removing prior ones, so universal `body * {color:#fff}`
+    rules accumulated and made text invisible). After deep-clean, the
+    simulators return to the state the AI Agent originally produced.
+
+    Also takes a snapshot first so this action itself can be reverted.
+    """
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    slides = (project.get("course") or {}).get("slides") or []
+    if not slides:
+        return {"cleaned": 0, "message": "Nenhum slide para limpar"}
+
+    # Snapshot before — so user can revert if anything goes wrong
+    import copy as _copy
+    snapshot_slides = _copy.deepcopy(slides)
+
+    cleaned_count = 0
+    for slide in slides:
+        for el in slide.get("elements", []) or []:
+            if el.get("type") != "html":
+                continue
+            html = el.get("htmlContent") or ""
+            if "data-aesthetic-fix" not in html:
+                continue
+            new_html = _clean_aesthetic_fixes_from_html(html)
+            if new_html != html:
+                el["htmlContent"] = new_html
+                cleaned_count += 1
+
+    if cleaned_count == 0:
+        return {"cleaned": 0, "message": "Nada a limpar - nenhuma marcacao do analisador encontrada"}
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    await db.aesthetic_snapshots.update_one(
+        {"projectId": project_id},
+        {"$set": {
+            "projectId": project_id,
+            "slidesBefore": snapshot_slides,
+            "appliedCount": cleaned_count,
+            "appliedAt": datetime.now(timezone.utc).isoformat(),
+            "userId": user.get("user_id", ""),
+            "kind": "deep_clean",
+        }},
+        upsert=True
+    )
+
+    return {
+        "cleaned": cleaned_count,
+        "message": f"{cleaned_count} simulador(es) HTML limpo(s) com sucesso",
+        "canRevert": True,
     }

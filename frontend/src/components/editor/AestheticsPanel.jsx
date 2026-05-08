@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   Sparkles, Loader2, Check, AlertTriangle, Eye, Paintbrush,
   Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp, Wand2,
-  Maximize2, Minimize2, Undo2,
+  Maximize2, Minimize2, Undo2, Eraser,
 } from 'lucide-react';
 import KreaPanel from '../../pages/Agent/components/KreaPanel';
 
@@ -112,6 +112,42 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
       toast.error(e.message || 'Erro ao reverter');
     }
     setReverting(false);
+  }, [projectId, onFixApplied]);
+
+  // Deep clean — strips ALL accumulated aesthetic-fix CSS tags from
+  // every HTML simulator in every slide. Useful when a project's
+  // simulators were corrupted by repeated applies of older Analyzer
+  // versions (universal `body *` rules piled up making text invisible).
+  const [deepCleaning, setDeepCleaning] = useState(false);
+  const handleDeepClean = useCallback(async () => {
+    if (!projectId) return;
+    if (!window.confirm(
+      'Esta acao remove TODAS as marcacoes do Analisador de Estetica dos simuladores HTML deste projeto, ' +
+      'voltando ao estado original do Agente IA. Snapshot sera criado para que voce possa reverter. Continuar?'
+    )) return;
+    setDeepCleaning(true);
+    try {
+      const res = await fetch(`${API}/api/aesthetics/deep-clean/${projectId}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Erro ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.cleaned > 0) {
+        toast.success(data.message || `${data.cleaned} simuladores limpos`);
+        setCanRevert(true);
+        if (onFixApplied) onFixApplied();
+      } else {
+        toast.info(data.message || 'Nada a limpar');
+      }
+    } catch (e) {
+      toast.error(e.message || 'Erro na limpeza profunda');
+    }
+    setDeepCleaning(false);
   }, [projectId, onFixApplied]);
 
   const handleAnalyze = useCallback(async () => {
@@ -380,6 +416,20 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
                 Reverter ultima aplicacao
               </Button>
             )}
+
+            {/* Deep clean — escape hatch for projects whose simulators were
+                corrupted by repeated applies of older Analyzer versions. */}
+            <Button
+              onClick={handleDeepClean}
+              disabled={deepCleaning}
+              variant="outline"
+              className="w-full text-xs h-9 border-rose-700/40 text-rose-300 hover:bg-rose-900/20"
+              data-testid="aesthetics-deep-clean"
+              title="Remove TODAS as marcacoes deste analisador dos simuladores HTML"
+            >
+              {deepCleaning ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Eraser className="w-3 h-3 mr-1" />}
+              Limpeza Profunda (resetar simuladores)
+            </Button>
 
             {/* Krea AI: regenerate images based on aesthetic analysis — promoted
                 to be just below the apply buttons so it's never hidden under
