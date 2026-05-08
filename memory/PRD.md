@@ -88,6 +88,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FIX (P0)** — **Imagens Leonardo não persistiam em produção** (causa raiz encontrada).
+  - **Bug**: o callsite em `services/ai_agent.py:1530-1546` (geração paralela de imagens IA pelo Agente IA) baixava a imagem do Leonardo para disco local mas **NÃO chamava `store_asset_async`**. Em produção K8s, o disco local é efêmero — quando o pod reinicia (ou faz rolling deploy), as imagens desaparecem.
+  - **Por que outros locais funcionavam**: `routes/leonardo.py` (rota `/leonardo/save-to-project` chamada pelo painel manual) E `routes/agent.py` (3 outros callsites) JÁ chamavam `store_asset_async` corretamente. Apenas o callsite do batch paralelo do Agente IA (5 imagens concorrentes via semaphore) não persistia.
+  - **Fix**: adicionado `store_asset_async(_pdb, project_id, fname, dest)` imediatamente após o download bem-sucedido. Se a persistência falhar, `ok = False` e o caminho de retorno é abortado (igual ao padrão dos outros callsites).
+  - **Regression test** (`tests/test_leonardo_persist_regression.py`): scan estático em todo o backend — `download_image_to_disk` em arquivos que mencionam Leonardo DEVE ter `store_asset_async` dentro das próximas 40 linhas. Garante que ninguém esqueça de persistir no futuro.
+  - **Para o usuário em produção**: imagens Leonardo geradas a partir de agora vão persistir. Imagens já quebradas que estão na galeria precisam ser regeneradas (ou removidas via "Remover imagens quebradas" que já existe no painel da Galeria).
+
+
 - 2026-05-08: **FEATURE (P0)** — **Auto-corrigir contrastes nos simuladores** (LLM-independente).
   - **Problema definitivo identificado**: simuladores construídos pelo Agente IA já vinham com problemas de contraste do parto (ex: `.challenge-prompt {color:#fff;background:#e6e9ff}` — branco sobre lavanda claro = 1.5:1, falha WCAG). O LLM nunca conseguia consertar porque sempre propunha regras universais (`body * {color:#0f172a}`) que minha proteção descartava → nada era injetado → simulador continuava quebrado.
   - **Solução determinística**: novo helper `_auto_fix_html_contrast(html)` faz **análise estática do CSS do simulador no servidor**:

@@ -1533,6 +1533,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 try:
                     if source == "leonardo":
                         from services.leonardo_ai import generate_and_wait, download_image_to_disk
+                        from services.asset_store import store_asset_async
                         import uuid as _uuid
                         leo_urls = await generate_and_wait(prompt=keyword, width=1024, height=576, num_images=1)
                         img_url = None
@@ -1542,6 +1543,19 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                             assets_dir.mkdir(parents=True, exist_ok=True)
                             dest = str(assets_dir / fname)
                             ok = await download_image_to_disk(leo_urls[0], dest)
+                            if ok:
+                                # CRITICAL: persist to MongoDB so the image survives
+                                # K8s pod restarts (local disk is ephemeral in
+                                # production). Without this, Leonardo images
+                                # disappear after every rolling deploy.
+                                try:
+                                    persisted = await store_asset_async(_pdb, project_id, fname, dest)
+                                    if not persisted:
+                                        logger.error(f"Leonardo image {fname} failed to persist in MongoDB")
+                                        ok = False
+                                except Exception as persist_err:
+                                    logger.error(f"Leonardo MongoDB persist error for {fname}: {persist_err}")
+                                    ok = False
                             if ok:
                                 img_url = f"/api/projects/{project_id}/assets/{fname}"
                                 # Auto-save to gallery
