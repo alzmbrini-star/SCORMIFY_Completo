@@ -30,12 +30,14 @@ import {
   ChevronUp,
   Sparkles,
   Activity,
+  Database,
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
 import TutorDashboard from './TutorDashboard';
 import IntegrationsHealthPanel from './IntegrationsHealthPanel';
 import CostReportPanel from '../components/admin/CostReportPanel';
+import DataMigrationPanel from '../components/admin/DataMigrationPanel';
 const API_URL = getApiUrl();
 
 export default function Admin() {
@@ -444,10 +446,24 @@ export default function Admin() {
               Custos por Empresa
             </Button>
           )}
+          {isSuperAdmin && (
+            <Button
+              variant={activeTab === 'data_migration' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('data_migration')}
+              className="gap-2"
+              data-testid="tab-data-migration"
+            >
+              <Database className="w-4 h-4" />
+              Migracao
+            </Button>
+          )}
         </div>
 
         {/* Cost Report Tab */}
         {activeTab === 'cost_report' && isSuperAdmin && <CostReportPanel />}
+
+        {/* Data Migration Tab */}
+        {activeTab === 'data_migration' && isSuperAdmin && <DataMigrationPanel />}
 
         {/* Companies Tab */}
         {activeTab === 'companies' && isSuperAdmin && (

@@ -88,6 +88,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FEATURE (preventiva)** — **Migração de dados: normalização de campos numéricos**.
+  - **Problema**: projetos importados de PPT ao longo do tempo acumularam campos numéricos armazenados como strings (`"1280"`, `"1280px"`) ou floats onde ints eram esperados (`1280.5`). Além do bug do 422 no "add slide" já corrigido, isso pode causar falhas silenciosas em outros validators mais estritos no futuro.
+  - **Novo módulo** `routes/admin_migrations.py`:
+    - `POST /api/admin/normalize-numeric-fields?dryRun=true|false` (role `super_admin`/`company_admin`)
+    - Walks `db.projects` → coage tipos em: `slide.width/height/order` (int), `slide.duration` (float), `element.x/y/width/height/rotation/zIndex` (float), `element.style.fontSize/strokeWidth/borderRadius/opacity/letterSpacing/lineHeight` (float), `audio.volume/duration/startTime/endTime` (float), `annotation.x/y/width/height` (float)
+    - Helpers puros `_coerce_to_int`, `_coerce_to_float`, `_normalize_dict_in_place`, `_normalize_project_inplace` — todos idempotentes e defensivos (não alteram bool, handle None, regex-extract de strings mistas tipo "1280px")
+    - Retorna relatório detalhado: `scanned, fixedProjects, totalFieldsCoerced, breakdown{slide_dims, slide_durations, element_pos_size, element_styles, audio_props, annotation_pos}, sampleProjects[]` (top 50)
+  - **UI Admin**: nova aba "Migracao" (apenas super_admin) com `DataMigrationPanel.jsx`:
+    - Botão **"Scan (Dry Run)"** roda sem escrever, mostra card âmbar com contagens + breakdown + top 50 projetos afetados
+    - Botão **"Aplicar Migração"** só habilita após scan, confirm nativo antes de escrever, mostra card verde com resultado
+  - **Validado E2E real em preview**: dry-run detectou **55/56 projetos com dados sujos → 4612 campos a corrigir!** Só esperando o admin clicar "Aplicar" para resolver de vez. Em produção com 128 projetos o volume será maior. **19 pytests novos** (`test_admin_migrations.py`) cobrindo todos os coercers + cenário realista PPT-imported.
+
+
 - 2026-05-08: **FIX (P0 produção)** — **422 Unprocessable Content ao adicionar slide** em projetos importados de PPT.
   - **Causa raiz**: `models.SlideCreate` tinha `width: int` e `height: int` strict. Quando o usuário adicionava slide num projeto cujo primeiro slide foi importado de PPT (com dimensões armazenadas como string `"1280"` ou float `1280.5` no banco), o frontend lia `firstSlide?.width || 1280` e enviava o valor não-int para o backend → Pydantic v2 rejeitava → 422.
   - **Fix backend** (`models.py`): adicionado `field_validator` em `SlideCreate.width/height` que coage qualquer valor para int positivo seguro:

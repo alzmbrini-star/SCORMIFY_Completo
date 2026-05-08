@@ -136,6 +136,9 @@ app.include_router(admin_routes.router, prefix="/api")
 from routes import cost_report as cost_report_routes
 app.include_router(cost_report_routes.router, prefix="/api")
 
+from routes import admin_migrations as admin_migrations_routes
+app.include_router(admin_migrations_routes.router, prefix="/api")
+
 from routes import health as health_routes
 app.include_router(health_routes.router, prefix="/api")
 
