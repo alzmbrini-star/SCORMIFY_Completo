@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FEATURE (P0)** — **Auto-corrigir contrastes nos simuladores** (LLM-independente).
+  - **Problema definitivo identificado**: simuladores construídos pelo Agente IA já vinham com problemas de contraste do parto (ex: `.challenge-prompt {color:#fff;background:#e6e9ff}` — branco sobre lavanda claro = 1.5:1, falha WCAG). O LLM nunca conseguia consertar porque sempre propunha regras universais (`body * {color:#0f172a}`) que minha proteção descartava → nada era injetado → simulador continuava quebrado.
+  - **Solução determinística**: novo helper `_auto_fix_html_contrast(html)` faz **análise estática do CSS do simulador no servidor**:
+    1. `_parse_html_css_rules(html)` extrai cada regra dos blocos `<style>` (skipa `data-aesthetic-fix` próprios e `@keyframes`/gradients).
+    2. Para cada regra com `color: X`, calcula a contraste contra o background efetivo via `_resolve_background_for_selector` (tenta o próprio seletor → ancestrais via parsing do descendant chain → fallback para `body` background).
+    3. Se contraste < 4.5 (WCAG AA), emite override `selector { color: <opposite-polarity> !important }`. Sempre seletor targeted (mesma classe/id que o LLM gerou), nunca universal.
+  - **Novo endpoint** `POST /api/aesthetics/auto-fix-contrast/{project_id}`: aplica em todos os simuladores HTML do projeto, cria snapshot revertível, retorna `{fixed, issuesFixed, message, canRevert}`.
+  - **Frontend `AestheticsPanel.jsx`**: novo botão verde "Auto-corrigir contrastes nos simuladores" com ícone `ShieldCheck` — abaixo de "Limpeza Profunda".
+  - **Validado E2E real**: projeto "Mastering Problem Solving" → **21 regras de contraste corrigidas em 7 simuladores**! Inspeção manual das injections mostra mapeamento perfeito por polaridade (`.opt-btn` em fundo escuro recebeu branco; `.header`, `.score`, `.node`, `.btn-reset` em fundos claros receberam preto). **120/120 testes pytest passando** (16 novos em `test_aesthetics_auto_fix.py`).
+
+
 - 2026-05-08: **FIX (P0)** — Analisador de Estética: **idempotência + Limpeza Profunda** para projetos com simuladores corrompidos.
   - **Causa raiz revelada via screenshots do usuário**: simulador "Detector de Vieses Cognitivos" mostrava textos brancos invisíveis MESMO depois dos fixes anteriores (strip de seletores universais, zero override universal). Investigação E2E mostrou que **um único projeto (Mastering Problem Solving) tinha 23 tags `data-aesthetic-fix` acumuladas em 11 simuladores diferentes** — cada Apply rodado pelo usuário ao longo do tempo (com versões mais antigas e bugadas do Analisador) inseria mais um `<style data-aesthetic-fix>` sem nunca remover os anteriores. As regras `body * {color:#fff !important}` de aplicações passadas continuavam ativas e quebravam tudo, mesmo após meu código novo parar de gerar regras universais.
   - **Fix 1 — IDEMPOTÊNCIA**: novo helper `_clean_aesthetic_fixes_from_html(html)` com regex `<style\s+data-aesthetic-fix\s*=\s*[\"\']1[\"\']\s*>[\s\S]*?</style>`. Em `_apply_html_style_fix`, **antes de injetar nova tag, todas as anteriores são removidas**. Re-aplicar sobre o mesmo elemento agora **substitui** ao invés de empilhar. Bonus: se o final_css ficar vazio (LLM só mandou universais → strippados), o helper ainda persiste o html limpo (apaga corrupção legada mesmo sem nova injeção).

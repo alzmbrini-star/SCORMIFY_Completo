@@ -459,6 +459,128 @@ def _extract_dominant_html_bg(html: str):
     return None
 
 
+# Pattern that matches a single CSS rule (selector list + declaration block).
+_CSS_RULE_RE = re.compile(r"([^{}]+)\{([^{}]*)\}", re.MULTILINE)
+_DECL_RE = re.compile(r"([a-zA-Z\-]+)\s*:\s*([^;]+?)(?:!important)?\s*(?:;|$)", re.IGNORECASE)
+
+
+def _parse_html_css_rules(html: str):
+    """Extract every CSS rule from <style> blocks in the htmlContent.
+
+    Returns a list of dicts: [{"selector": "...", "color": "#fff",
+    "background": "#e6e9ff"}]. Multiple rules with the same selector are
+    merged into a single record.
+    """
+    if not html or "<style" not in html.lower():
+        return []
+
+    by_selector = {}
+    for sm in re.finditer(r"(<style[^>]*>)([\s\S]*?)</style>", html, re.IGNORECASE):
+        opening = sm.group(1)
+        block = sm.group(2)
+        if 'data-aesthetic-fix' in opening:
+            continue
+        block_clean = re.sub(r"/\*[\s\S]*?\*/", "", block)
+        for r in _CSS_RULE_RE.finditer(block_clean):
+            selectors = r.group(1).strip()
+            decls = r.group(2)
+            if selectors.lstrip().startswith("@"):
+                continue
+            color = None
+            bg = None
+            for d in _DECL_RE.finditer(decls):
+                prop = d.group(1).lower().strip()
+                val = d.group(2).strip()
+                if prop == "color":
+                    color = val
+                elif prop in ("background-color", "background"):
+                    if "gradient" in val.lower() or "url(" in val.lower():
+                        continue
+                    first = val.split()[0] if val else val
+                    if first:
+                        bg = first
+            if not color and not bg:
+                continue
+            for sel in [s.strip() for s in selectors.split(",") if s.strip()]:
+                rec = by_selector.setdefault(sel, {"selector": sel, "color": None, "background": None})
+                if color and not rec["color"]:
+                    rec["color"] = color
+                if bg and not rec["background"]:
+                    rec["background"] = bg
+    return list(by_selector.values())
+
+
+def _resolve_background_for_selector(rules, sel: str, fallback=None):
+    """Best-effort: walk descendant chain to find an effective background.
+    For `.card .child`, look up `.card` (parent) if `.child` has no bg.
+    """
+    rec = next((r for r in rules if r["selector"] == sel), None)
+    if rec and rec.get("background"):
+        return rec["background"]
+
+    parts = re.split(r"\s+|\s*>\s*|\s*\+\s*|\s*~\s*", sel.strip())
+    parts = [p for p in parts if p]
+    while len(parts) > 1:
+        parts = parts[:-1]
+        parent_sel = " ".join(parts)
+        rec = next((r for r in rules if r["selector"] == parent_sel), None)
+        if rec and rec.get("background"):
+            return rec["background"]
+
+    if parts:
+        head = parts[0]
+        rec = next((r for r in rules if r["selector"] == head), None)
+        if rec and rec.get("background"):
+            return rec["background"]
+
+    return fallback
+
+
+def _auto_fix_html_contrast(html: str) -> str:
+    """Static analysis of the simulator's <style> blocks to find rules with
+    bad WCAG contrast and emit a TARGETED override CSS. Does NOT depend on
+    LLM correctness — works deterministically from the htmlContent.
+
+    For each rule with `color: X`, we compute the effective background
+    (from the same selector OR an ancestor selector OR the body bg).
+    If contrast < 4.5 (WCAG AA), we emit `selector { color: <opposite-polarity> !important }`.
+    """
+    if not html:
+        return ""
+
+    rules = _parse_html_css_rules(html)
+    if not rules:
+        return ""
+
+    body_bg = _extract_dominant_html_bg(html) or "#ffffff"
+
+    overrides = []
+    seen = set()
+    for rec in rules:
+        color = rec.get("color")
+        if not color:
+            continue
+        sel = rec["selector"].strip()
+        if sel in ("*", "body *", "body", "html") or "[style*=" in sel:
+            continue
+
+        bg = _resolve_background_for_selector(rules, sel, fallback=body_bg)
+        try:
+            ratio = wcag.contrast_ratio(color, bg)
+        except Exception:
+            continue
+        if ratio >= 4.5:
+            continue
+
+        new_color = wcag.pick_high_contrast_color(bg)
+        if sel in seen:
+            continue
+        seen.add(sel)
+        overrides.append(f"{sel} {{ color: {new_color} !important }}")
+
+    return " ".join(overrides)
+
+
 def _strip_universal_selectors(css: str) -> str:
     """Remove rule blocks whose selector list contains any UNIVERSAL or
     overreaching selector. Used in `preserve_html_typography=True` mode to
@@ -944,5 +1066,101 @@ async def deep_clean_aesthetic_fixes(project_id: str, user: dict = Depends(requi
     return {
         "cleaned": cleaned_count,
         "message": f"{cleaned_count} simulador(es) HTML limpo(s) com sucesso",
+        "canRevert": True,
+    }
+
+
+@router.post("/aesthetics/auto-fix-contrast/{project_id}")
+async def auto_fix_html_contrast(project_id: str, user: dict = Depends(require_auth)):
+    """Deterministic, LLM-independent contrast auto-fix for ALL HTML
+    simulators in the project.
+
+    For every `<style>` block inside every HTML element, parses the CSS
+    rules and computes WCAG ratio for each `color` value against its
+    effective background. When ratio < 4.5 (AA fail), emits a TARGETED
+    override `selector { color: <opposite-polarity> !important }`.
+
+    This is the escape hatch when the LLM keeps suggesting universal
+    selectors that get stripped — we don't need the LLM at all here.
+    A snapshot is taken first so the action is revertible.
+    """
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    slides = (project.get("course") or {}).get("slides") or []
+    if not slides:
+        return {"fixed": 0, "message": "Nenhum slide para analisar"}
+
+    import copy as _copy
+    snapshot_slides = _copy.deepcopy(slides)
+
+    fixed_count = 0
+    issues_total = 0
+    for slide in slides:
+        for el in slide.get("elements", []) or []:
+            if el.get("type") != "html":
+                continue
+            html = el.get("htmlContent") or ""
+            if not html:
+                continue
+
+            # First, strip any existing aesthetic-fix tags to start fresh
+            cleaned = _clean_aesthetic_fixes_from_html(html)
+
+            # Analyze the cleaned html for contrast failures
+            override_css = _auto_fix_html_contrast(cleaned)
+            if not override_css:
+                # No issues found in this simulator
+                if cleaned != html:
+                    el["htmlContent"] = cleaned
+                    fixed_count += 1
+                continue
+
+            # Inject the targeted override
+            new_html = cleaned
+            style_tag = f'<style data-aesthetic-fix="1">{override_css}</style>'
+            if "</head>" in new_html:
+                new_html = new_html.replace("</head>", f"{style_tag}</head>", 1)
+            elif "</body>" in new_html:
+                new_html = new_html.replace("</body>", f"{style_tag}</body>", 1)
+            else:
+                new_html = f"{style_tag}{new_html}"
+            el["htmlContent"] = new_html
+            fixed_count += 1
+            # Count overrides emitted (rough proxy for issues fixed)
+            issues_total += override_css.count("{ color")
+
+    if fixed_count == 0:
+        return {
+            "fixed": 0,
+            "issuesFixed": 0,
+            "message": "Nenhum problema de contraste detectado nos simuladores",
+        }
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    await db.aesthetic_snapshots.update_one(
+        {"projectId": project_id},
+        {"$set": {
+            "projectId": project_id,
+            "slidesBefore": snapshot_slides,
+            "appliedCount": fixed_count,
+            "appliedAt": datetime.now(timezone.utc).isoformat(),
+            "userId": user.get("user_id", ""),
+            "kind": "auto_fix_contrast",
+        }},
+        upsert=True
+    )
+
+    return {
+        "fixed": fixed_count,
+        "issuesFixed": issues_total,
+        "message": f"{issues_total} regra(s) de contraste corrigida(s) em {fixed_count} simulador(es)",
         "canRevert": True,
     }

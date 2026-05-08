@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   Sparkles, Loader2, Check, AlertTriangle, Eye, Paintbrush,
   Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp, Wand2,
-  Maximize2, Minimize2, Undo2, Eraser,
+  Maximize2, Minimize2, Undo2, Eraser, ShieldCheck,
 } from 'lucide-react';
 import KreaPanel from '../../pages/Agent/components/KreaPanel';
 
@@ -148,6 +148,38 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
       toast.error(e.message || 'Erro na limpeza profunda');
     }
     setDeepCleaning(false);
+  }, [projectId, onFixApplied]);
+
+  // Deterministic auto-fix-contrast: server-side static analysis of every
+  // simulator's CSS to find color/background pairs with bad WCAG contrast
+  // and emit targeted class overrides. LLM-independent — works even when
+  // the language model keeps proposing universal selectors.
+  const [autoFixing, setAutoFixing] = useState(false);
+  const handleAutoFixContrast = useCallback(async () => {
+    if (!projectId) return;
+    setAutoFixing(true);
+    try {
+      const res = await fetch(`${API}/api/aesthetics/auto-fix-contrast/${projectId}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Erro ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.issuesFixed > 0) {
+        toast.success(data.message || `${data.issuesFixed} regras corrigidas`);
+        setCanRevert(true);
+        if (onFixApplied) onFixApplied();
+      } else {
+        toast.info(data.message || 'Nenhum problema de contraste detectado');
+      }
+    } catch (e) {
+      toast.error(e.message || 'Erro no auto-fix');
+    }
+    setAutoFixing(false);
   }, [projectId, onFixApplied]);
 
   const handleAnalyze = useCallback(async () => {
@@ -429,6 +461,20 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
             >
               {deepCleaning ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Eraser className="w-3 h-3 mr-1" />}
               Limpeza Profunda (resetar simuladores)
+            </Button>
+
+            {/* Deterministic auto-fix-contrast: server-side WCAG analysis of
+                every simulator's CSS. LLM-independent. Catches the common
+                "white text on light card" bugs that the LLM keeps missing. */}
+            <Button
+              onClick={handleAutoFixContrast}
+              disabled={autoFixing}
+              className="w-full text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
+              data-testid="aesthetics-auto-fix-contrast"
+              title="Analisa o CSS de cada simulador HTML e corrige automaticamente regras com contraste WCAG insuficiente"
+            >
+              {autoFixing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
+              Auto-corrigir contrastes nos simuladores
             </Button>
 
             {/* Krea AI: regenerate images based on aesthetic analysis — promoted
