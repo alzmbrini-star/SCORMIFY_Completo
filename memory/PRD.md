@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-11: **FIX (P0)** — Tutorial Agent **efeito ZOOM funcionando**: refatorado para wrapper `.sp-zoom-stage`.
+  - **Bug reportado pelo usuário**: "O efeito ZOOM não está funcionando".
+  - **Causa raiz**: o `transform: scale(2.5)` era aplicado no `.sp-section-inner` (o card inteiro do slide). Isso fazia o card AUMENTAR 2.5x na tela (transbordando viewport), arrastando junto o título "PASSO N" e o body strip do rodapé. Visualmente o usuário só via uma "explosão" pra fora, não um zoom.
+  - **Fix (3 camadas)**:
+    1. **Exporter** (`single_page_exporter.py`): quando slide tem `zoomEffect`, o `background-image` + os `.sp-bg-element` (hotspot rosa + texto da instrução) são embrulhados num novo `<div class="sp-zoom-stage">`. Title e body strip ficam FORA do stage.
+    2. **CSS** (`sp_runtime/styles.css`): `.sp-zoom-stage{position:absolute;inset:0;background-size:cover;transform-origin:50% 50%;will-change:transform}` + classe `sp-has-zoom` na section para scoping.
+    3. **JS** (`sp_runtime/runtime.js`): `transform: scale(N)` agora aplicado no `.sp-zoom-stage` (não mais no inner). Helper `triggerZoom(sec)` extraído para reuso. Threshold IO reduzido de 0.5 → 0.2 (sections grandes não atingem 50%). Trigger inicial proativo via `setTimeout(400ms)` para slides já visíveis no load. Hook em `detectActiveSection` re-dispara o zoom quando o usuário avança via scroll/setas.
+  - **Validado E2E real**: screenshot capturou tanto o estado scale(1) (vista normal) quanto scale(2.5) (background magnificado focando o hotspot do botão "RELATÓRIOS"). Título "PASSO 1" + UI permanecem fixos durante o zoom.
+  - **Testes**: 11 novos pytests em `tests/test_singlepage_zoom_stage.py` cobrindo: stage presente quando zoomEffect set / ausente quando não; bg-image move para stage / fica no inner sem zoom; classe `sp-has-zoom` na section; data-zoom-* attrs corretos; scale=1 dropa tudo; hotspot/text DENTRO do stage; title/body FORA do stage. **101/101 testes Tutorial+SinglePage passando**.
+
+
 - 2026-05-11: **FEATURE (P0)** — Tutorial Agent integration: **import narration audio + narration text** from the external Agent.
   - **Contexto**: o Agente externo (`auto-instructor`) atualizou o schema da API: cada step agora pode ter `narration` (texto pt-BR) e `audio_url` (caminho/URL do MP3 narrado). Endpoint dedicado: `GET /api/v1/tutorials/{id}/steps/{step_id}/audio`.
   - **Backend** (`routes/tutorial_integration.py`):

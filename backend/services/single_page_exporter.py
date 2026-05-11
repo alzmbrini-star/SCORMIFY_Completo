@@ -1289,21 +1289,30 @@ def generate_single_page_html(
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
 
         # Zoom effect (set by Tutorial Agent importer): when present, the
-        # runtime animates a "magnify on hotspot" effect on the bg image.
+        # runtime animates a "magnify on hotspot" effect on a dedicated
+        # `.sp-zoom-stage` wrapper that holds JUST the background-image and
+        # the absolute-positioned overlays (hotspot ring, instruction text).
+        # The card title and body strip stay OUTSIDE the stage so they
+        # don't scale with the zoom.
         zoom_attrs = ""
+        has_zoom = False
         zoom_data = slide.get("zoomEffect")
         if isinstance(zoom_data, dict):
             try:
-                zoom_attrs = (
-                    f' data-zoom-scale="{float(zoom_data.get("scale", 2.0))}"'
-                    f' data-zoom-fx="{float(zoom_data.get("focusX", 50))}"'
-                    f' data-zoom-fy="{float(zoom_data.get("focusY", 50))}"'
-                    f' data-zoom-intro="{int(zoom_data.get("intro", 800))}"'
-                    f' data-zoom-hold="{int(zoom_data.get("hold", 2400))}"'
-                    f' data-zoom-outro="{int(zoom_data.get("outro", 600))}"'
-                )
+                zoom_scale = float(zoom_data.get("scale", 2.0))
+                if zoom_scale > 1.0:
+                    zoom_attrs = (
+                        f' data-zoom-scale="{zoom_scale}"'
+                        f' data-zoom-fx="{float(zoom_data.get("focusX", 50))}"'
+                        f' data-zoom-fy="{float(zoom_data.get("focusY", 50))}"'
+                        f' data-zoom-intro="{int(zoom_data.get("intro", 800))}"'
+                        f' data-zoom-hold="{int(zoom_data.get("hold", 2400))}"'
+                        f' data-zoom-outro="{int(zoom_data.get("outro", 600))}"'
+                    )
+                    has_zoom = True
             except (TypeError, ValueError):
                 zoom_attrs = ""
+                has_zoom = False
 
         bg_color = (slide.get("background") or "").strip()
         bg_image_url = slide.get("backgroundImage") or ""
@@ -1327,11 +1336,18 @@ def generate_single_page_html(
                 card_styles.append("color:#f1f5f9")
                 section_class += " sp-dark"
         if bg_image_url:
-            card_styles.append(f"background-image:url({_esc(bg_image_url)})")
-            card_styles.append("background-size:cover")
-            card_styles.append("background-position:center")
-            card_styles.append("background-repeat:no-repeat")
+            # When the slide has a zoom effect, the background-image is moved
+            # into a dedicated `.sp-zoom-stage` wrapper that we can scale
+            # independently of the card chrome. Otherwise paint the bg
+            # directly on the card (legacy behavior, preserves PPT imports).
+            if not has_zoom:
+                card_styles.append(f"background-image:url({_esc(bg_image_url)})")
+                card_styles.append("background-size:cover")
+                card_styles.append("background-position:center")
+                card_styles.append("background-repeat:no-repeat")
             section_class += " sp-has-bg-image"
+            if has_zoom:
+                section_class += " sp-has-zoom"
             # Preserve slide aspect-ratio so PPT-imported slides render full size
             # (mat the section's max-width 1080px → height ~607px for 16:9).
             # Only set when both dims are sane to avoid math errors.
@@ -1376,14 +1392,36 @@ def generate_single_page_html(
         # narration, sfx, fallback non-positioned) stay in the body strip.
         absolute_elements_html = "\n      ".join(absolute_elements) if absolute_elements else ""
 
+        # When the slide has a zoom effect, the bg-image and the absolute
+        # overlays (hotspot, instruction text) are wrapped in a single
+        # `.sp-zoom-stage` element. The stage is what receives the
+        # `transform: scale()` so the title/body strip/avatar overlay don't
+        # get distorted along with it.
+        if has_zoom and bg_image_url:
+            stage_style = (
+                f'background-image:url({_esc(bg_image_url)});'
+                'background-size:cover;background-position:center;'
+                'background-repeat:no-repeat'
+            )
+            stage_block = (
+                f'    <div class="sp-zoom-stage" style="{stage_style}">\n'
+                f'      {overlay_html}\n'
+                f'      {absolute_elements_html}\n'
+                f'    </div>\n'
+            )
+        else:
+            stage_block = (
+                f'    {overlay_html}\n'
+                f'    {absolute_elements_html}\n'
+            )
+
         section = (
             f'<section class="{section_class}" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
             f'{locked_attr}{zoom_attrs}>\n'
             f'  <div class="sp-section-inner"{card_style}>\n'
-            f'    {overlay_html}\n'
+            f'{stage_block}'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'
-            f'    {absolute_elements_html}\n'
             f'    <div class="sp-section-body">\n'
             f'      {chr(10).join(rendered_elements)}\n'
             f'    </div>\n'
