@@ -1288,6 +1288,23 @@ def generate_single_page_html(
             rendered_elements.append(sfx_html)
         locked_attr = 'data-locked="true"' if s_idx > 0 else ''
 
+        # Zoom effect (set by Tutorial Agent importer): when present, the
+        # runtime animates a "magnify on hotspot" effect on the bg image.
+        zoom_attrs = ""
+        zoom_data = slide.get("zoomEffect")
+        if isinstance(zoom_data, dict):
+            try:
+                zoom_attrs = (
+                    f' data-zoom-scale="{float(zoom_data.get("scale", 2.0))}"'
+                    f' data-zoom-fx="{float(zoom_data.get("focusX", 50))}"'
+                    f' data-zoom-fy="{float(zoom_data.get("focusY", 50))}"'
+                    f' data-zoom-intro="{int(zoom_data.get("intro", 800))}"'
+                    f' data-zoom-hold="{int(zoom_data.get("hold", 2400))}"'
+                    f' data-zoom-outro="{int(zoom_data.get("outro", 600))}"'
+                )
+            except (TypeError, ValueError):
+                zoom_attrs = ""
+
         bg_color = (slide.get("background") or "").strip()
         bg_image_url = slide.get("backgroundImage") or ""
         if bg_image_url:
@@ -1362,7 +1379,7 @@ def generate_single_page_html(
         section = (
             f'<section class="{section_class}" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
-            f'{locked_attr}>\n'
+            f'{locked_attr}{zoom_attrs}>\n'
             f'  <div class="sp-section-inner"{card_style}>\n'
             f'    {overlay_html}\n'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'

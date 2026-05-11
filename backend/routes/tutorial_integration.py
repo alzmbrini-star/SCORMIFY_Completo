@@ -159,7 +159,7 @@ def _generate_step_description(step: dict, idx: int) -> str:
     return f"Passo {idx + 1}: siga a indicacao destacada na tela."
 
 
-def _step_to_slide(step: dict, screenshot_url: Optional[str], slide_idx: int) -> dict:
+def _step_to_slide(step: dict, screenshot_url: Optional[str], slide_idx: int, zoom_level: float = 2.5) -> dict:
     """Convert one tutorial step into a Scormify slide dict."""
     title = step.get("title") or f"Passo {slide_idx + 1}"
     body_text = _generate_step_description(step, slide_idx)
@@ -190,10 +190,14 @@ def _step_to_slide(step: dict, screenshot_url: Optional[str], slide_idx: int) ->
     # the learner knows exactly where the action happens.
     cx = step.get("click_x")
     cy = step.get("click_y")
+    has_focus = False
+    focus_x = focus_y = None
     if cx is not None and cy is not None:
         try:
             cx_int = int(cx)
             cy_int = int(cy)
+            focus_x, focus_y = cx_int, cy_int
+            has_focus = True
             elements.append({
                 "id": str(uuid.uuid4()),
                 "type": "shape",
@@ -227,12 +231,47 @@ def _step_to_slide(step: dict, screenshot_url: Optional[str], slide_idx: int) ->
         slide["backgroundImage"] = screenshot_url
         slide["backgroundImageOpacity"] = 1.0
 
+    # Zoom effect: when the step has a click point AND the tutorial declares a
+    # zoom_level, mark the slide so the player can animate a "magnify on the
+    # hotspot" effect. The renderer transforms `scale(zoom) translate(-fx, -fy)`
+    # on the bg image during the hold window.
+    try:
+        zoom = float(zoom_level or 1.0)
+    except (TypeError, ValueError):
+        zoom = 1.0
+    if has_focus and zoom and zoom > 1.0:
+        # Express focus point as PERCENTAGE of the screenshot dimensions so
+        # the player can compute the transform without knowing pixel sizes
+        # (screenshots may not be exactly 1280x720 — many are 1366x768 etc).
+        # We fall back to the slide canvas if the source dimensions are unknown.
+        src_w = step.get("screenshot_width") or 1280
+        src_h = step.get("screenshot_height") or 720
+        try:
+            fx_pct = (focus_x / float(src_w)) * 100
+            fy_pct = (focus_y / float(src_h)) * 100
+            # Clamp to a safe window so the zoomed-in region stays fully
+            # within the visible card. transform-origin at 0% or 100% pushes
+            # half the magnified image off-screen.
+            fx_pct = max(15.0, min(85.0, fx_pct))
+            fy_pct = max(15.0, min(85.0, fy_pct))
+        except (TypeError, ValueError, ZeroDivisionError):
+            fx_pct, fy_pct = 50.0, 50.0
+        slide["zoomEffect"] = {
+            "scale": round(zoom, 2),
+            "focusX": round(fx_pct, 2),  # percent (0-100)
+            "focusY": round(fy_pct, 2),
+            "intro": 800,                # ms — fade-in zoom
+            "hold": 2400,                # ms — stay zoomed while learner reads
+            "outro": 600,                # ms — zoom out at end
+        }
+
     return slide
 
 
 async def _convert_tutorial_to_slides(tutorial: dict, project_id: str) -> list:
     """Walk all steps, download each screenshot, build slide list."""
     steps = tutorial.get("steps") or []
+    zoom_level = tutorial.get("zoom_level") or 1.0
     slides = []
     for idx, step in enumerate(steps):
         step_id = step.get("id") or str(uuid.uuid4())
@@ -258,7 +297,7 @@ async def _convert_tutorial_to_slides(tutorial: dict, project_id: str) -> list:
             screenshot_url = await _download_screenshot_to_assets(
                 tutorial.get("id") or "", step_id, project_id,
             )
-        slides.append(_step_to_slide(step, screenshot_url, idx))
+        slides.append(_step_to_slide(step, screenshot_url, idx, zoom_level=zoom_level))
     return slides
 
 

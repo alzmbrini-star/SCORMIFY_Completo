@@ -80,6 +80,9 @@ body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,11
    slide background fills the viewport properly. Without this, PPT slides
    render as tiny banners floating in a sea of empty space. */
 .sp-section.sp-aspect-locked .sp-section-inner{max-width:min(95vw,1600px);padding:18px 22px;border-radius:18px;position:relative;overflow:hidden}
+/* Zoom effect (Tutorial Agent imports) — ensure the card clips the scaled
+   background image so it doesn't bleed into neighboring sections. */
+.sp-section[data-zoom-scale] .sp-section-inner{overflow:hidden;position:relative}
 .sp-section.sp-aspect-locked .sp-section-title{position:absolute;top:18px;left:24px;right:24px;font-size:18px;margin:0;text-align:left;background:rgba(10,37,64,.55);color:#facc15;padding:6px 14px;border-radius:8px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:5;pointer-events:none}
 /* Body sits at the bottom as an overlay strip (not full overflow). When the
    slide has only background-image + (optional) avatar overlay, the body

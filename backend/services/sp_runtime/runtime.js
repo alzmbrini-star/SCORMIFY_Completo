@@ -991,6 +991,51 @@
     setupFullscreen();
     window.addEventListener('scroll', detectActiveSection, {passive:true});
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
+
+    // Zoom-on-hotspot animation for Tutorial Agent imports.
+    // Each <section data-zoom-scale="..."> gets an IntersectionObserver that
+    // animates a `transform: scale(N) at (fx%, fy%)` on the inner card while
+    // the section is in view, then zooms back out.
+    var zoomSections = document.querySelectorAll('section[data-zoom-scale]');
+    if (zoomSections.length && typeof IntersectionObserver !== 'undefined') {
+      var zoomIO = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          var sec = entry.target;
+          var inner = sec.querySelector('.sp-section-inner');
+          if (!inner) return;
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            if (sec.__zoomActive) return;
+            sec.__zoomActive = true;
+            var scale = parseFloat(sec.getAttribute('data-zoom-scale') || '1');
+            var fx = parseFloat(sec.getAttribute('data-zoom-fx') || '50');
+            var fy = parseFloat(sec.getAttribute('data-zoom-fy') || '50');
+            var intro = parseInt(sec.getAttribute('data-zoom-intro') || '800', 10);
+            var hold = parseInt(sec.getAttribute('data-zoom-hold') || '2400', 10);
+            var outro = parseInt(sec.getAttribute('data-zoom-outro') || '600', 10);
+            // Use transform-origin as the focus point so scaling stays
+            // anchored at the clicked element (no manual translate math).
+            inner.style.transformOrigin = fx + '% ' + fy + '%';
+            inner.style.willChange = 'transform';
+            inner.style.transition = 'transform ' + intro + 'ms cubic-bezier(.2,.8,.2,1)';
+            // Force reflow then apply scale
+            void inner.offsetWidth;
+            inner.style.transform = 'scale(' + scale + ')';
+            setTimeout(function(){
+              inner.style.transition = 'transform ' + outro + 'ms cubic-bezier(.4,0,.2,1)';
+              inner.style.transform = 'scale(1)';
+              setTimeout(function(){
+                if (inner.parentNode) {
+                  inner.style.willChange = '';
+                  sec.__zoomActive = false;
+                }
+              }, outro + 100);
+            }, intro + hold);
+          }
+        });
+      }, { threshold: [0, 0.5, 1] });
+      zoomSections.forEach(function(sec){ zoomIO.observe(sec); });
+    }
+
     if (SCORM_MODE && window.SCORM) {
       window.addEventListener('beforeunload', function(){
         try { window.SCORM.finish(); } catch(e){}

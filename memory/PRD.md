@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FEATURE** — Tutorial Agent integration: **efeito de zoom na hotspot** importado do `zoom_level` do tutorial.
+  - **Problema reportado**: o Tutorial Agent declara `zoom_level: 2.5` (efeito de lupa no ponto do clique) mas a importação anterior ignorava isso — slides ficavam estáticos sem o zoom-in dinâmico.
+  - **Fix backend** (`_step_to_slide`): quando o step tem `click_x/click_y` E `zoom_level > 1`, anexa `zoomEffect: {scale, focusX%, focusY%, intro, hold, outro}` no slide. Coordenadas viram porcentagem da imagem (clampadas em 15-85% para que o ponto focal sempre fique visível dentro da viewport após o scale).
+  - **Renderer Single Page** (`runtime.js` + `styles.css`):
+    - `<section data-zoom-scale="..." data-zoom-fx="..." data-zoom-fy="..." data-zoom-intro="..." data-zoom-hold="..." data-zoom-outro="...">`
+    - IntersectionObserver detecta quando o slide entra em viewport com `intersectionRatio > 0.5`, aplica `transform-origin: fx% fy%; transform: scale(N)` no inner card com transição cubic-bezier suave. Após `hold` ms, anima de volta para `scale(1)`.
+    - CSS: `overflow:hidden` no `.sp-section-inner` quando tem `data-zoom-scale` (clipa o overflow do bg image escalado).
+  - **Defaults**: scale=2.5 (do `zoom_level` do tutorial), intro=800ms, hold=2400ms, outro=600ms.
+  - **Testes**: 7 novos pytests em `tests/test_tutorial_zoom.py` cobrindo: zoom anexado quando há click + zoom>1, skipado quando não há click, clamping de borda (5,5) e (1270,710), uso de `screenshot_width/height` quando declarado, zoom inválido vira no-effect.
+
+
 - 2026-05-08: **FEATURE (P1)** — **Integração com Tutorial Agent externo** (Auto-Instructor).
   - **Objetivo**: importar tutoriais step-by-step gerados pelo Agente externo (https://auto-instructor-1.preview.emergentagent.com) como cursos Scormify. Cada passo do tutorial vira um slide com screenshot + texto + hotspot circular + narração.
   - **Backend** (`routes/tutorial_integration.py`):
