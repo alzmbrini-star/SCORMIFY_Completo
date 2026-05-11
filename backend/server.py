@@ -142,6 +142,9 @@ app.include_router(admin_migrations_routes.router, prefix="/api")
 from routes import editor_chat as editor_chat_routes
 app.include_router(editor_chat_routes.router, prefix="/api")
 
+from routes import tutorial_integration as tutorial_integration_routes
+app.include_router(tutorial_integration_routes.router, prefix="/api")
+
 from routes import health as health_routes
 app.include_router(health_routes.router, prefix="/api")
 

@@ -47,6 +47,7 @@ import {
   Download,
 } from 'lucide-react';
 import axios from 'axios';
+import TutorialImportDialog from '../components/dashboard/TutorialImportDialog';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -68,6 +69,7 @@ export default function Dashboard() {
 
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showTutorialImport, setShowTutorialImport] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectCompanyId, setNewProjectCompanyId] = useState('');
@@ -410,6 +412,18 @@ export default function Dashboard() {
                 Agente IA
               </Button>
             )}
+
+            {/* Tutorial Import Button - import step-by-step tutorials from
+                the external Auto-Instructor agent. */}
+            <Button
+              variant="outline"
+              className="gap-2 border-cyan-600/40 text-cyan-300 hover:bg-cyan-600/10"
+              onClick={() => setShowTutorialImport(true)}
+              data-testid="tutorial-import-btn"
+            >
+              <Download className="w-4 h-4" />
+              Importar Tutorial
+            </Button>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Import PowerPoint</DialogTitle>
@@ -492,6 +506,16 @@ export default function Dashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Tutorial Import Dialog */}
+        <TutorialImportDialog
+          open={showTutorialImport}
+          onOpenChange={setShowTutorialImport}
+          onProjectCreated={(projectId) => {
+            fetchProjects();
+            if (projectId) navigate(`/editor/${projectId}`);
+          }}
+        />
 
         {/* Projects Grid */}
         <div className="mb-6">

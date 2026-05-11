@@ -88,6 +88,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-08: **FEATURE (P1)** — **Integração com Tutorial Agent externo** (Auto-Instructor).
+  - **Objetivo**: importar tutoriais step-by-step gerados pelo Agente externo (https://auto-instructor-1.preview.emergentagent.com) como cursos Scormify. Cada passo do tutorial vira um slide com screenshot + texto + hotspot circular + narração.
+  - **Backend** (`routes/tutorial_integration.py`):
+    - 4 endpoints proxy (`/api/tutorial-integration/list`, `/tutorials/{id}`, `/tutorials/{id}/generate`, `/tutorials/{id}/status`) que escondem a X-API-Key no servidor — frontend nunca a vê.
+    - `POST /api/tutorial-integration/import/{tutorial_id}` faz o trabalho pesado: puxa tutorial com `embed_data=true`, decodifica screenshot base64 (ou faz download via `/steps/{id}/screenshot` se necessário), persiste cada um como asset Scormify (disco + MongoDB para sobreviver a K8s restarts), gera slide formatado.
+    - `_generate_step_description`: helper que sintetiza descrição quando o Agente não tem narração explícita — usa `action_type` (click/type/scroll/navigate/wait) + `selector`/`typed_text` para gerar texto natural em PT-BR ("Clique em 'Salvar'", "Digite 'admin@exemplo.com' no campo destacado").
+    - `_step_to_slide`: monta slide 1280x720 com `backgroundImage` = screenshot, overlay de texto com plate semi-transparente embaixo, e **hotspot circular** (shape 56x56 com `borderColor:#f472b6` rosa) nas coordenadas exatas `click_x/click_y`.
+    - Modos: `mode=new` (cria projeto novo) ou `mode=append` (anexa slides a projeto existente). Suporta `companyId` para attribution multi-tenant.
+  - **Configuração** (`backend/.env`): `TUTORIAL_AGENT_URL` + `TUTORIAL_AGENT_API_KEY` (atualmente `scormify-api-key-2024`).
+  - **Frontend** (`TutorialImportDialog.jsx` + botão no Dashboard):
+    - Botão "Importar Tutorial" ciano no header do Dashboard ao lado de "Agente IA"
+    - Dialog lista todos os tutoriais com badges de status (Pronto/Gerando/Erro), só permite selecionar os `completed`
+    - Campo opcional de nome customizado, botão "Importar como novo curso"
+    - Após sucesso, navega direto para o Editor do projeto criado
+  - **Validado E2E real**: tutorial "Geração de Relatórios Beta" (8 passos) importado com sucesso → 8 slides criados com screenshots persistidos + textos como "Clique em 'Cursos e Trilhas'" + hotspots nas coords `x=377, y=266`. **16 pytests novos** em `tests/test_tutorial_integration.py` cobrindo todos os action_types + edge cases (coords inválidas, sem screenshot, título default).
+
+
 - 2026-05-08: **FIX** — **Texto final de cenário interativo desformatado** (parede de texto com email inline).
   - **Bug reportado pelo usuário**: desfecho do cenário "Decisão em Cascata" vinha como uma parede só com:
     - Narrativa do desfecho
