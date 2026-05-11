@@ -127,6 +127,118 @@ async def _download_screenshot_to_assets(
     return f"/api/projects/{project_id}/assets/{fname}"
 
 
+def _audio_ext_from_content_type(ct: str) -> str:
+    """Pick a sensible file extension based on the audio MIME type."""
+    ct = (ct or "").lower()
+    if "wav" in ct:
+        return ".wav"
+    if "ogg" in ct:
+        return ".ogg"
+    if "webm" in ct:
+        return ".webm"
+    return ".mp3"
+
+
+def _resolve_audio_url(audio_url: str) -> str:
+    """Turn whatever the Agent gives us into a full URL we can fetch.
+
+    The Agent may return:
+      - `https://host/...mp3`     → use as-is
+      - `/api/v1/.../audio`       → prefix with agent base
+      - `bucket/path/file.mp3`    → s3-like path → prefix with `_agent_base()/files/`
+    """
+    if not audio_url:
+        return ""
+    s = audio_url.strip()
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    base = _agent_base()
+    if s.startswith("/"):
+        return f"{base}{s}"
+    # Looks like a storage path; route through the Agent's static file proxy
+    return f"{base}/api/files/{s.lstrip('/')}"
+
+
+async def _download_step_audio_to_assets(
+    tutorial_id: str,
+    step_id: str,
+    project_id: str,
+    audio_url_hint: Optional[str],
+    audio_base64: Optional[str] = None,
+) -> Optional[dict]:
+    """Download a step's narration audio and persist it as an asset.
+
+    Returns the `slide.audio[]` entry shape:
+        {id, type, src, filename, duration, volume}
+    or None when no audio could be obtained.
+    """
+    content: Optional[bytes] = None
+    content_type = "audio/mpeg"
+
+    # 1) Try embedded base64 first (cheapest — no extra request)
+    if audio_base64:
+        import base64 as _b64
+        try:
+            content = _b64.b64decode(audio_base64)
+        except Exception as e:
+            logger.warning(f"step {step_id}: audio_base64 decode failed: {e}")
+            content = None
+
+    # 2) Try the hint URL provided in the step payload
+    if content is None and audio_url_hint:
+        target = _resolve_audio_url(audio_url_hint)
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                r = await client.get(target, headers=_agent_headers())
+                if r.status_code == 200:
+                    content = r.content
+                    content_type = r.headers.get("content-type") or content_type
+        except httpx.HTTPError as e:
+            logger.warning(f"step {step_id}: audio_url fetch failed ({target}): {e}")
+
+    # 3) Fall back to the dedicated step audio endpoint
+    if content is None:
+        fallback = f"{_agent_base()}/api/v1/tutorials/{tutorial_id}/steps/{step_id}/audio"
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                r = await client.get(fallback, headers=_agent_headers())
+                if r.status_code == 200:
+                    content = r.content
+                    content_type = r.headers.get("content-type") or content_type
+        except httpx.HTTPError as e:
+            logger.warning(f"step {step_id}: audio endpoint failed: {e}")
+
+    if not content:
+        return None
+
+    # Sanity: very small responses are probably error JSON in disguise
+    if len(content) < 200:
+        return None
+
+    ext = _audio_ext_from_content_type(content_type)
+    audio_id = str(uuid.uuid4())
+    fname = f"tutorial_audio_{step_id[:10]}_{audio_id[:8]}{ext}"
+    assets_dir = Path(PROJECTS_DIR) / project_id / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    dest = assets_dir / fname
+    try:
+        dest.write_bytes(content)
+        await store_asset_async(db, project_id, fname, str(dest))
+    except Exception as e:
+        logger.error(f"failed to persist tutorial audio {fname}: {e}")
+        return None
+
+    return {
+        "id": audio_id,
+        "type": "narration",
+        "src": f"/api/projects/{project_id}/assets/{fname}",
+        "filename": fname,
+        "duration": 0,
+        "volume": 1.0,
+        "source": "tutorial_agent",  # provenance tag for debugging
+    }
+
+
 def _generate_step_description(step: dict, idx: int) -> str:
     """Build a human-readable description when the Agent's narration is empty.
     Uses action_type + selector to synthesize a clear instruction."""
@@ -159,11 +271,20 @@ def _generate_step_description(step: dict, idx: int) -> str:
     return f"Passo {idx + 1}: siga a indicacao destacada na tela."
 
 
-def _step_to_slide(step: dict, screenshot_url: Optional[str], slide_idx: int, zoom_level: float = 2.5) -> dict:
+def _step_to_slide(
+    step: dict,
+    screenshot_url: Optional[str],
+    slide_idx: int,
+    zoom_level: float = 2.5,
+    audio_data: Optional[dict] = None,
+) -> dict:
     """Convert one tutorial step into a Scormify slide dict."""
     title = step.get("title") or f"Passo {slide_idx + 1}"
     body_text = _generate_step_description(step, slide_idx)
-    narration_for_tts = (step.get("narration") or body_text)[:2000]
+    # Prefer the explicit narration field when provided so the slide's
+    # narrationScript matches whatever generated the audio file.
+    explicit_narration = (step.get("narration") or "").strip()
+    narration_for_tts = (explicit_narration or body_text)[:2000]
 
     elements = []
     # Add the instruction text overlay
@@ -265,13 +386,20 @@ def _step_to_slide(step: dict, screenshot_url: Optional[str], slide_idx: int, zo
             "outro": 600,                # ms — zoom out at end
         }
 
+    # Audio: when the Tutorial Agent already produced a narration audio file
+    # we attach it to slide.audio[] so the Single Page / SCORM exporters auto-
+    # play it just like ElevenLabs-generated narration.
+    if audio_data:
+        slide["audio"] = [audio_data]
+
     return slide
 
 
 async def _convert_tutorial_to_slides(tutorial: dict, project_id: str) -> list:
-    """Walk all steps, download each screenshot, build slide list."""
+    """Walk all steps, download each screenshot + narration audio, build slide list."""
     steps = tutorial.get("steps") or []
     zoom_level = tutorial.get("zoom_level") or 1.0
+    tutorial_id = tutorial.get("id") or ""
     slides = []
     for idx, step in enumerate(steps):
         step_id = step.get("id") or str(uuid.uuid4())
@@ -295,9 +423,26 @@ async def _convert_tutorial_to_slides(tutorial: dict, project_id: str) -> list:
                 screenshot_url = None
         if not screenshot_url:
             screenshot_url = await _download_screenshot_to_assets(
-                tutorial.get("id") or "", step_id, project_id,
+                tutorial_id, step_id, project_id,
             )
-        slides.append(_step_to_slide(step, screenshot_url, idx, zoom_level=zoom_level))
+
+        # Fetch narration audio if the Agent produced one. The download helper
+        # is resilient: it tries the explicit audio_url first, then falls back
+        # to the dedicated /audio endpoint. Returns None silently when no
+        # audio exists for this step (older tutorials, generation not done).
+        audio_data = await _download_step_audio_to_assets(
+            tutorial_id=tutorial_id,
+            step_id=step_id,
+            project_id=project_id,
+            audio_url_hint=step.get("audio_url"),
+            audio_base64=step.get("audio_base64"),
+        )
+
+        slides.append(_step_to_slide(
+            step, screenshot_url, idx,
+            zoom_level=zoom_level,
+            audio_data=audio_data,
+        ))
     return slides
 
 

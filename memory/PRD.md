@@ -88,6 +88,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-11: **FEATURE (P0)** — Tutorial Agent integration: **import narration audio + narration text** from the external Agent.
+  - **Contexto**: o Agente externo (`auto-instructor`) atualizou o schema da API: cada step agora pode ter `narration` (texto pt-BR) e `audio_url` (caminho/URL do MP3 narrado). Endpoint dedicado: `GET /api/v1/tutorials/{id}/steps/{step_id}/audio`.
+  - **Backend** (`routes/tutorial_integration.py`):
+    - Novos helpers `_audio_ext_from_content_type` (mp3/wav/ogg/webm), `_resolve_audio_url` (abs URL / path relativa / s3-like path), `_download_step_audio_to_assets` com 3 estratégias em cascata: (1) `audio_base64` inline → decode local sem network; (2) `audio_url` do payload → resolve + GET; (3) fallback endpoint `/steps/{id}/audio`. Sanity check: respostas <200 bytes são tratadas como erro JSON disfarçado.
+    - Áudio persistido via `store_asset_async` em GridFS → sobrevive K8s pod restart.
+    - `_step_to_slide(step, ..., audio_data=None)` anexa o áudio como `slide.audio[]` no mesmo formato da ElevenLabs (`{id, type:"narration", src, filename, duration:0, volume:1.0}`) → Single Page exporter já tem autoplay + global mute por padrão.
+    - `narrationScript` prioriza o `step.narration` explícito (preserva o texto exato que gerou o áudio); fallback no auto-description quando vazio.
+    - `_convert_tutorial_to_slides` chama o downloader de áudio em paralelo com o de screenshot.
+  - **Resiliência**: tutoriais antigos sem áudio (ex: `aa2de3c9-...`) continuam funcionando — `audio: None` no slide, zero crash, zero log warning ruidoso.
+  - **Testes**: **21 pytests novos** em `tests/test_tutorial_audio.py` cobrindo content-type → extensão, URL resolution (abs/relative/storage path), attachment ao slide.audio[], narrationScript priority, download via audio_url + via fallback + via base64, 404 graceful, tiny-response rejection, persistência em disco. Todos os 44 testes Tutorial (integration + zoom + audio) passando.
+  - **Validado E2E real**: import do tutorial `aa2de3c9-...` (8 passos, sem áudio ainda) → 8 slides criados com screenshots + zoomEffect + `audio: None` (correto). Pronto para quando o Agente externo gerar áudios de fato.
+
+
 - 2026-05-08: **FEATURE** — Tutorial Agent integration: **efeito de zoom na hotspot** importado do `zoom_level` do tutorial.
   - **Problema reportado**: o Tutorial Agent declara `zoom_level: 2.5` (efeito de lupa no ponto do clique) mas a importação anterior ignorava isso — slides ficavam estáticos sem o zoom-in dinâmico.
   - **Fix backend** (`_step_to_slide`): quando o step tem `click_x/click_y` E `zoom_level > 1`, anexa `zoomEffect: {scale, focusX%, focusY%, intro, hold, outro}` no slide. Coordenadas viram porcentagem da imagem (clampadas em 15-85% para que o ponto focal sempre fique visível dentro da viewport após o scale).
