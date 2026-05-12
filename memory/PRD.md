@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-12: **FIX (P0)** — Tutorial Agent: **janela filha (passo "Captura") + narrações + zoom em TODOS exports**.
+  - **Bugs reportados pelo usuário**: (1) "a última tela capturada que é uma janela filha não está sendo importada" e (2) "funcionalidade de Zoom não está funcionando".
+  - **Causa #1 — passo 9 sumido**: API JSON v1 do Auto-Instructor (`/api/v1/tutorials/{id}`) retorna apenas 8 steps com `narration:""` para todos. O export HTML do mesmo agente expõe **9 steps + narrações reais** ("Clique no Menu Relatórios", "Selecione Cursos!", etc.) — o passo 9 é uma "Captura" (`action="Captura"`) final, gerada só no export.
+  - **Causa #2 — zoom nos SCORM/HTML standalone**: o efeito `zoomEffect` só estava implementado no `single_page_exporter` (runtime SinglePage). O SCORM tradicional (`player.js`) e o HTML standalone (`html_exporter.py`) ignoravam o campo e renderizavam o slide estático.
+  - **Fix #1** (`routes/tutorial_integration.py`): novo helper `_fetch_agent_html_extras(tutorial_id)` baixa `/exports/html_embed`, parseia via BeautifulSoup e extrai por step: `order, action_type, narration, screenshot_base64, audio_base64, audio_url_hint`. `_convert_tutorial_to_slides` mescla com a lista de steps do JSON (JSON tem prioridade quando tem dado; HTML preenche `narration` vazio + adiciona o step 9 que o JSON omite). Novo `_AGENT_ACTION_MAP` traduz labels pt-BR (Clicar→click, Captura→capture, Ação→select_option, etc.). `_generate_step_description` agora trata `capture/select_option`.
+  - **Fix #2a** (`services/export_assets/player.js` — SCORM): novo `slide-zoom-stage` div criado em `renderSlide` quando `slide.zoomEffect.scale > 1`. Bg image + todos os elementos re-parented dentro do stage. Animação disparada via `setTimeout(300ms)` após o slide renderizar.
+  - **Fix #2b** (`services/html_exporter.py` — HTML standalone): JS template enriquecida com `__zoomEffect`, abre/fecha `slide-zoom-stage` no html string, dispara animação após `container.innerHTML = html`.
+  - **Validado E2E real**: import do tutorial `aa2de3c9-...` → **9 slides** (era 8) com narrações reais e áudios anexados. Screenshots em todos 3 ambientes (SinglePage Preview, SCORM via LMS local, HTML Standalone) capturaram tanto o estado scale(1) quanto scale(2.5) — zoom acompanha o hotspot, título/UI fixos. **215/215 testes Tutorial+SinglePage passando**.
+
+
 - 2026-05-11: **FIX (P0)** — Tutorial Agent **efeito ZOOM funcionando**: refatorado para wrapper `.sp-zoom-stage`.
   - **Bug reportado pelo usuário**: "O efeito ZOOM não está funcionando".
   - **Causa raiz**: o `transform: scale(2.5)` era aplicado no `.sp-section-inner` (o card inteiro do slide). Isso fazia o card AUMENTAR 2.5x na tela (transbordando viewport), arrastando junto o título "PASSO N" e o body strip do rodapé. Visualmente o usuário só via uma "explosão" pra fora, não um zoom.

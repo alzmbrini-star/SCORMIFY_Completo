@@ -267,8 +267,130 @@ def _generate_step_description(step: dict, idx: int) -> str:
     if action == "navigate":
         url = step.get("url") or ""
         return f"Acesse {url}." if url else "Acesse o endereco indicado."
+    if action == "select_option":
+        text_val = step.get("typed_text") or step.get("value") or ""
+        return f"Selecione \"{text_val}\" na lista." if text_val else "Selecione a opcao destacada na lista."
+    if action in ("capture", "captura", "screenshot", "final"):
+        return "Resultado final do tutorial."
     # Default fallback
     return f"Passo {idx + 1}: siga a indicacao destacada na tela."
+
+
+# ---------------------------------------------------------------------------
+# Agent's HTML export parser — recovers data the v1 JSON omits:
+#   - The trailing "Captura" step (final screenshot, not in steps[])
+#   - Real human-authored narration text per step (JSON has empty strings)
+#   - Inline audio src (base64 or storage path) per step
+# ---------------------------------------------------------------------------
+
+# Map Portuguese step-action labels from the Agent's HTML to canonical
+# action_type strings used by Scormify's converter.
+_AGENT_ACTION_MAP = {
+    "clicar": "click",
+    "click": "click",
+    "digitar": "type",
+    "type": "type",
+    "preencher": "type",
+    "selecionar": "select_option",
+    "select": "select_option",
+    "acao": "select_option",     # the Agent uses "Ação" for compound clicks (e.g. open select)
+    "ação": "select_option",
+    "rolar": "scroll",
+    "scroll": "scroll",
+    "navegar": "navigate",
+    "navigate": "navigate",
+    "aguardar": "wait",
+    "wait": "wait",
+    "captura": "capture",
+    "capture": "capture",
+}
+
+
+async def _fetch_agent_html_extras(tutorial_id: str) -> dict:
+    """Pull the Tutorial Agent's HTML embed export and parse out the data
+    the v1 JSON API doesn't currently expose: real narration, inline audio,
+    and the trailing 'Captura' step (always missing from steps[]).
+
+    Returns:
+        {
+          'steps': [
+             {'order': 1, 'action_type': 'click', 'narration': '...',
+              'screenshot_base64': '<no-prefix>', 'audio_base64': '...'},
+             ...
+          ]
+        }
+        OR an empty dict on any failure (the caller falls back to the JSON
+        API as the single source of truth).
+    """
+    base = _agent_base()
+    if not base:
+        return {}
+    url = f"{base}/api/v1/tutorials/{tutorial_id}/exports/html_embed"
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+            r = await client.get(url, headers=_agent_headers())
+            if r.status_code != 200 or len(r.content) < 1000:
+                return {}
+            html = r.text
+    except httpx.HTTPError as e:
+        logger.warning(f"agent html_embed fetch failed for {tutorial_id}: {e}")
+        return {}
+
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception as e:
+        logger.warning(f"bs4 parse failed: {e}")
+        return {}
+
+    extras = []
+    for sd in soup.select(".step[data-step]"):
+        try:
+            order = int(sd.get("data-step") or 0)
+        except (TypeError, ValueError):
+            continue
+        action_el = sd.select_one(".step-action")
+        action_label = (action_el.get_text(strip=True) if action_el else "").lower()
+        # strip accents from common pt labels we don't normalize verbatim
+        canonical_action = _AGENT_ACTION_MAP.get(action_label, action_label or "click")
+
+        narration_p = sd.select_one(".narration p, .narration")
+        narration_text = narration_p.get_text(strip=True) if narration_p else ""
+
+        img = sd.select_one(".step-screenshot img")
+        img_src = img.get("src") if img else None
+        screenshot_b64 = None
+        if img_src and img_src.startswith("data:image"):
+            # `data:image/png;base64,XXXXX` → strip the prefix
+            comma = img_src.find(",")
+            if comma > 0:
+                screenshot_b64 = img_src[comma + 1:]
+
+        audio_el = sd.select_one("audio")
+        audio_src = audio_el.get("src") if audio_el else None
+        audio_b64 = None
+        audio_url_hint = None
+        if audio_src:
+            if audio_src.startswith("data:audio"):
+                comma = audio_src.find(",")
+                if comma > 0:
+                    audio_b64 = audio_src[comma + 1:]
+            else:
+                # Could be a relative URL/storage path — leave the hint for
+                # the regular download helper to resolve.
+                audio_url_hint = audio_src
+
+        extras.append({
+            "order": order,
+            "action_type": canonical_action,
+            "narration": narration_text,
+            "screenshot_base64": screenshot_b64,
+            "audio_base64": audio_b64,
+            "audio_url_hint": audio_url_hint,
+        })
+
+    extras.sort(key=lambda x: x["order"])
+    return {"steps": extras}
 
 
 def _step_to_slide(
@@ -396,12 +518,70 @@ def _step_to_slide(
 
 
 async def _convert_tutorial_to_slides(tutorial: dict, project_id: str) -> list:
-    """Walk all steps, download each screenshot + narration audio, build slide list."""
-    steps = tutorial.get("steps") or []
+    """Walk all steps, download each screenshot + narration audio, build slide list.
+
+    Strategy: the Agent's v1 JSON API gives click coords + action_type + step
+    ids, but omits both the trailing 'Captura' step AND the authored narration
+    text (always empty strings). The HTML export carries the full data, so we
+    fetch it once and merge — JSON wins for fields it provides, HTML fills
+    the gaps and adds the missing final-screen step.
+    """
+    json_steps = tutorial.get("steps") or []
     zoom_level = tutorial.get("zoom_level") or 1.0
     tutorial_id = tutorial.get("id") or ""
+
+    extras = await _fetch_agent_html_extras(tutorial_id)
+    html_steps = extras.get("steps", [])
+
+    # Build a quick lookup by order so we can enrich JSON steps with HTML
+    # narration / audio / screenshot when the JSON ones are blank.
+    html_by_order = {s["order"]: s for s in html_steps}
+
+    # The JSON steps drive ordering when they exist (they have click coords);
+    # any HTML-only step (e.g. the final 'Captura' that the JSON omits) is
+    # appended afterwards in HTML order.
+    json_orders = {(s.get("order") or i + 1) for i, s in enumerate(json_steps)}
+    merged_steps = []
+    for i, js in enumerate(json_steps):
+        order = js.get("order") or (i + 1)
+        extra = html_by_order.get(order, {})
+        # Fill in narration from HTML when JSON has an empty string
+        if extra.get("narration") and not (js.get("narration") or "").strip():
+            js = {**js, "narration": extra["narration"]}
+        # Prefer HTML's inline base64 image when the JSON only ships a URL
+        # (saves an extra GET roundtrip per step and works behind auth-walled
+        # agent storage paths).
+        if extra.get("screenshot_base64") and not js.get("screenshot_base64"):
+            js = {**js, "screenshot_base64": extra["screenshot_base64"]}
+        if extra.get("audio_base64") and not js.get("audio_base64"):
+            js = {**js, "audio_base64": extra["audio_base64"]}
+        if extra.get("audio_url_hint") and not js.get("audio_url"):
+            js = {**js, "audio_url": extra["audio_url_hint"]}
+        merged_steps.append(js)
+
+    # Append any HTML steps that have no JSON counterpart (typically the
+    # trailing 'Captura' / final-result screen).
+    for hs in html_steps:
+        if hs["order"] in json_orders:
+            continue
+        synthetic = {
+            "id": f"agent-html-{tutorial_id[:8]}-{hs['order']}",
+            "order": hs["order"],
+            "action_type": hs.get("action_type") or "capture",
+            "narration": hs.get("narration") or "",
+            "screenshot_base64": hs.get("screenshot_base64"),
+            "audio_base64": hs.get("audio_base64"),
+            "audio_url": hs.get("audio_url_hint"),
+            # No click coords from a final screenshot — zoom is skipped naturally.
+            "click_x": None,
+            "click_y": None,
+        }
+        merged_steps.append(synthetic)
+
+    merged_steps.sort(key=lambda s: s.get("order") or 0)
+
     slides = []
-    for idx, step in enumerate(steps):
+    for idx, step in enumerate(merged_steps):
         step_id = step.get("id") or str(uuid.uuid4())
         # Prefer embedded base64 if the Agent already gave it
         screenshot_url = None
@@ -411,7 +591,7 @@ async def _convert_tutorial_to_slides(tutorial: dict, project_id: str) -> list:
             import base64
             try:
                 content = base64.b64decode(b64)
-                fname = f"tutorial_{step_id[:10]}.png"
+                fname = f"tutorial_{step_id[:10]}_{idx}.png"
                 assets_dir = Path(PROJECTS_DIR) / project_id / "assets"
                 assets_dir.mkdir(parents=True, exist_ok=True)
                 dest = assets_dir / fname

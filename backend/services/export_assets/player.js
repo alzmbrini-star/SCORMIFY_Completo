@@ -868,6 +868,30 @@ var CoursePlayer = (function() {
         // already handles proportional sizing for ALL elements.
         // Position/size overrides were causing element overlap on multi-element slides.
         
+        // Zoom-on-hotspot effect (Tutorial Agent imports): when slide carries
+        // a `zoomEffect`, we wrap the bg-image + every element in a transform
+        // stage so the magnify animation moves the background AND the hotspot
+        // overlay together (so the hotspot keeps pointing at the right thing).
+        var zoomStage = null;
+        var zoomEffect = slide.zoomEffect && typeof slide.zoomEffect === 'object' ? slide.zoomEffect : null;
+        if (zoomEffect && parseFloat(zoomEffect.scale || 1) > 1) {
+            zoomStage = document.createElement('div');
+            zoomStage.className = 'slide-zoom-stage';
+            zoomStage.style.position = 'absolute';
+            zoomStage.style.inset = '0';
+            zoomStage.style.transformOrigin =
+                (zoomEffect.focusX != null ? zoomEffect.focusX : 50) + '% ' +
+                (zoomEffect.focusY != null ? zoomEffect.focusY : 50) + '%';
+            zoomStage.style.willChange = 'transform';
+            zoomStage.style.zIndex = '0';
+            // Container must clip what overflows when the stage scales up
+            container.style.overflow = 'hidden';
+            container.appendChild(zoomStage);
+        }
+        // Single place to append every render target so the wrapper logic
+        // is decided exactly once per slide.
+        var renderTarget = zoomStage || container;
+
         // Set background (use 'background' shorthand to support gradients)
         container.style.background = slide.background || '#FFFFFF';
         if (slide.backgroundImage) {
@@ -887,7 +911,7 @@ var CoursePlayer = (function() {
             if (slide.backgroundImageOpacity != null && slide.backgroundImageOpacity !== undefined) {
                 bgImg.style.opacity = slide.backgroundImageOpacity;
             }
-            container.appendChild(bgImg);
+            renderTarget.appendChild(bgImg);
 
             // Aesthetic Analyzer scrim/overlay over background image
             if (slide.backgroundImageOverlay) {
@@ -903,7 +927,7 @@ var CoursePlayer = (function() {
                 } else {
                     overlay.style.background = slide.backgroundImageOverlay;
                 }
-                container.appendChild(overlay);
+                renderTarget.appendChild(overlay);
             }
         }
         
@@ -971,6 +995,17 @@ var CoursePlayer = (function() {
                 }
                 
                 container.appendChild(el);
+                // When a zoom stage exists, also mirror the element inside the
+                // stage so it scales with the magnify. (We keep it in the
+                // container for stable z-ordering and event handling — the
+                // visible stage copy is the one the user sees animate.)
+                if (zoomStage) {
+                    // Re-parent into the stage. The element is positioned
+                    // by absolute left/top in slide-pixel units, so it lays
+                    // out identically whether parented to container or to
+                    // the inset:0 stage.
+                    zoomStage.appendChild(el);
+                }
                 
                 // Apply entrance animations
                 var anims = element.animations && element.animations.length > 0 ? element.animations : [];
@@ -1063,6 +1098,31 @@ var CoursePlayer = (function() {
         if (index === totalSlides - 1) {
             visitedLastSlide = true;
             checkAndSetCompletion();
+        }
+
+        // Trigger the zoom-on-hotspot animation (Tutorial Agent imports).
+        // We schedule the start AFTER the slide fade-in completes (200ms)
+        // so the scale animation reads as a "magnify-in" instead of a jump.
+        if (zoomStage && zoomEffect) {
+            var z_scale = parseFloat(zoomEffect.scale || 1);
+            var z_intro = parseInt(zoomEffect.intro || 800, 10);
+            var z_hold = parseInt(zoomEffect.hold || 2400, 10);
+            var z_outro = parseInt(zoomEffect.outro || 600, 10);
+            // Reset transition so a re-render of the same slide replays
+            zoomStage.style.transition = 'none';
+            zoomStage.style.transform = 'scale(1)';
+            // Force reflow so the browser commits the reset
+            void zoomStage.offsetWidth;
+            var introTimer = setTimeout(function() {
+                zoomStage.style.transition = 'transform ' + z_intro + 'ms cubic-bezier(.2,.8,.2,1)';
+                zoomStage.style.transform = 'scale(' + z_scale + ')';
+                var outroTimer = setTimeout(function() {
+                    zoomStage.style.transition = 'transform ' + z_outro + 'ms cubic-bezier(.4,0,.2,1)';
+                    zoomStage.style.transform = 'scale(1)';
+                }, z_intro + z_hold);
+                window.slideTimelineTimers.push(outroTimer);
+            }, 300);
+            window.slideTimelineTimers.push(introTimer);
         }
     }
     

@@ -1802,6 +1802,18 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 // Build slide HTML
                 var html = '';
+
+                // Zoom-on-hotspot effect (Tutorial Agent imports). When the
+                // slide carries a `zoomEffect`, wrap everything inside a stage
+                // div so the magnify animation moves bg AND overlays together
+                // (so the hotspot keeps pointing at the right element).
+                var __zoomEffect = (slide.zoomEffect && typeof slide.zoomEffect === 'object' && parseFloat(slide.zoomEffect.scale || 1) > 1) ? slide.zoomEffect : null;
+                if (__zoomEffect) {{
+                    container.style.overflow = 'hidden';
+                    html += '<div class="slide-zoom-stage" style="position:absolute;inset:0;transform-origin:' +
+                        (__zoomEffect.focusX != null ? __zoomEffect.focusX : 50) + '% ' +
+                        (__zoomEffect.focusY != null ? __zoomEffect.focusY : 50) + '%;will-change:transform;z-index:0">';
+                }}
                 
                 // Background
                 if (slide.backgroundImage) {{
@@ -2151,8 +2163,40 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     }});
                     html += '</svg>';
                 }}
-                
+
+                // Close the zoom stage wrapper opened at the top of this
+                // function so the bg + overlays are all inside it.
+                if (__zoomEffect) {{
+                    html += '</div>';
+                }}
+
                 container.innerHTML = html;
+
+                // Kick off the zoom animation (Tutorial Agent imports). We
+                // schedule the start AFTER a brief settle so the slide is
+                // visible at scale 1 first, then magnifies into the hotspot.
+                if (__zoomEffect) {{
+                    var __zStage = container.querySelector('.slide-zoom-stage');
+                    if (__zStage) {{
+                        var __zScale = parseFloat(__zoomEffect.scale || 1);
+                        var __zIntro = parseInt(__zoomEffect.intro || 800, 10);
+                        var __zHold = parseInt(__zoomEffect.hold || 2400, 10);
+                        var __zOutro = parseInt(__zoomEffect.outro || 600, 10);
+                        __zStage.style.transition = 'none';
+                        __zStage.style.transform = 'scale(1)';
+                        void __zStage.offsetWidth;
+                        var __zTimer = setTimeout(function() {{
+                            __zStage.style.transition = 'transform ' + __zIntro + 'ms cubic-bezier(.2,.8,.2,1)';
+                            __zStage.style.transform = 'scale(' + __zScale + ')';
+                            var __zOutTimer = setTimeout(function() {{
+                                __zStage.style.transition = 'transform ' + __zOutro + 'ms cubic-bezier(.4,0,.2,1)';
+                                __zStage.style.transform = 'scale(1)';
+                            }}, __zIntro + __zHold);
+                            timelineTimers.push(__zOutTimer);
+                        }}, 300);
+                        timelineTimers.push(__zTimer);
+                    }}
+                }}
                 
                 // Animation effect map for PPT animations
                 var animationEffectMap = {{
