@@ -482,6 +482,12 @@ def _step_to_slide(
         zoom = float(zoom_level or 1.0)
     except (TypeError, ValueError):
         zoom = 1.0
+    # Cap the zoom so the magnify never "blows out" the viewport. The Agent
+    # often sends 2.5x which feels overwhelming on full-screen exports —
+    # 1.6x is enough to draw the eye to the hotspot without losing context.
+    ZOOM_MAX = 1.6
+    if zoom > ZOOM_MAX:
+        zoom = ZOOM_MAX
     if has_focus and zoom and zoom > 1.0:
         # Express focus point as PERCENTAGE of the screenshot dimensions so
         # the player can compute the transform without knowing pixel sizes
@@ -492,11 +498,12 @@ def _step_to_slide(
         try:
             fx_pct = (focus_x / float(src_w)) * 100
             fy_pct = (focus_y / float(src_h)) * 100
-            # Clamp to a safe window so the zoomed-in region stays fully
-            # within the visible card. transform-origin at 0% or 100% pushes
-            # half the magnified image off-screen.
-            fx_pct = max(15.0, min(85.0, fx_pct))
-            fy_pct = max(15.0, min(85.0, fy_pct))
+            # Clamp the focus to a window that keeps the magnified region
+            # comfortably inside the card. At 1.6x scale, a focus at 20%
+            # places the "anchor pixel" at 20% of the card width — which is
+            # still ~24% from the left edge after scaling.
+            fx_pct = max(20.0, min(80.0, fx_pct))
+            fy_pct = max(20.0, min(80.0, fy_pct))
         except (TypeError, ValueError, ZeroDivisionError):
             fx_pct, fy_pct = 50.0, 50.0
         slide["zoomEffect"] = {

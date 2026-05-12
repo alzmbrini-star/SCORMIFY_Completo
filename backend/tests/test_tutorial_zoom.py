@@ -9,14 +9,32 @@ class TestZoomEffect:
         slide = _step_to_slide(step, "/bg.png", 0, zoom_level=2.5)
         z = slide.get("zoomEffect")
         assert z is not None
-        assert z["scale"] == 2.5
-        # 640/1280 = 50%, but clamped to 15-85 — 50 is in range
+        # Scale gets capped at ZOOM_MAX (1.6) — 2.5 was overwhelming on
+        # full-screen exports per user feedback ("estourado na tela").
+        assert z["scale"] == 1.6
+        # 640/1280 = 50%, in range
         assert z["focusX"] == 50.0
         assert z["focusY"] == 50.0
         # Animation timings present
         assert z["intro"] > 0
         assert z["hold"] > 0
         assert z["outro"] > 0
+
+    def test_zoom_scale_capped_at_max(self):
+        """Even when the Agent's zoom_level is high (2.5x, 3x, ...), the
+        importer caps it to a sane maximum so the magnify stays readable."""
+        for incoming in [2.0, 2.5, 3.0, 5.0]:
+            step = {"action_type": "click", "click_x": 640, "click_y": 360}
+            slide = _step_to_slide(step, "/bg.png", 0, zoom_level=incoming)
+            assert slide["zoomEffect"]["scale"] <= 1.6, (
+                f"scale should be capped to 1.6 for zoom_level={incoming}"
+            )
+
+    def test_zoom_preserves_lower_zoom_levels(self):
+        """Below the cap, the explicit zoom_level passes through unchanged."""
+        step = {"action_type": "click", "click_x": 640, "click_y": 360}
+        slide = _step_to_slide(step, "/bg.png", 0, zoom_level=1.3)
+        assert slide["zoomEffect"]["scale"] == 1.3
 
     def test_zoom_skipped_when_no_click_coords(self):
         step = {"action_type": "scroll"}
@@ -29,21 +47,21 @@ class TestZoomEffect:
         assert "zoomEffect" not in slide
 
     def test_focus_point_clamped_to_safe_window(self):
-        """focusX/Y must be clamped to 15-85% so transform-origin at the
+        """focusX/Y must be clamped to 20-80% so transform-origin at the
         extremes doesn't push the magnified image out of the card."""
         # Click at top-left corner
         step = {"action_type": "click", "click_x": 5, "click_y": 5}
-        slide = _step_to_slide(step, "/bg.png", 0, zoom_level=2.0)
+        slide = _step_to_slide(step, "/bg.png", 0, zoom_level=1.5)
         z = slide["zoomEffect"]
-        assert z["focusX"] >= 15.0
-        assert z["focusY"] >= 15.0
+        assert z["focusX"] >= 20.0
+        assert z["focusY"] >= 20.0
 
         # Click at bottom-right corner
         step2 = {"action_type": "click", "click_x": 1270, "click_y": 710}
-        slide2 = _step_to_slide(step2, "/bg.png", 0, zoom_level=2.0)
+        slide2 = _step_to_slide(step2, "/bg.png", 0, zoom_level=1.5)
         z2 = slide2["zoomEffect"]
-        assert z2["focusX"] <= 85.0
-        assert z2["focusY"] <= 85.0
+        assert z2["focusX"] <= 80.0
+        assert z2["focusY"] <= 80.0
 
     def test_focus_uses_screenshot_dimensions_when_provided(self):
         """When the step declares screenshot dimensions, use those for the

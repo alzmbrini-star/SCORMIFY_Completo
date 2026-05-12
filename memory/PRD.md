@@ -88,6 +88,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-12: **TUNING (P0)** — Zoom Tutorial Agent: **cap em 1.6x + foco mais central**.
+  - **Bug reportado**: "O zoom fica estourado na tela". O Agente externo retorna `zoom_level=2.5` por default, o que no full-screen (sobretudo no SCORM/HTML standalone) fazia o detalhe magnificado "explodir" — pedaços gigantes da imagem ocupando toda a viewport, perdendo a noção do conjunto.
+  - **Fix** (`routes/tutorial_integration.py`):
+    - **Cap de scale**: novo `ZOOM_MAX = 1.6`. Qualquer `zoom_level` > 1.6 do Agente é capeado. Valores menores passam (autor pode usar 1.3, 1.4 livremente).
+    - **Clamp do foco** apertado: `focusX/Y` agora clamped em **20-80%** (era 15-85%). Pontos focais muito próximos das bordas eram a maior fonte da sensação de "estouro" (o transform-origin no canto fazia 80% da imagem escalar contra o canto oposto).
+    - **Por que 1.6x**: empiricamente é o sweet spot entre destacar o hotspot e preservar o contexto. Em testes E2E, o detalhe do botão "Relatórios" fica nítido sem que o restante da tela suma da viewport.
+  - **Validado E2E real**: re-import do tutorial `aa2de3c9-...` → 9 slides, scale=1.6 em todos. Screenshots SinglePage Preview mostram o magnify focado no canto superior direito (RELATÓRIOS) com gráficos e contexto ainda visíveis no fundo. **57/57 testes Tutorial passando** (incluindo 2 novos: `test_zoom_scale_capped_at_max` e `test_zoom_preserves_lower_zoom_levels`).
+
+
 - 2026-05-12: **FIX (P0)** — Tutorial Agent: **janela filha (passo "Captura") + narrações + zoom em TODOS exports**.
   - **Bugs reportados pelo usuário**: (1) "a última tela capturada que é uma janela filha não está sendo importada" e (2) "funcionalidade de Zoom não está funcionando".
   - **Causa #1 — passo 9 sumido**: API JSON v1 do Auto-Instructor (`/api/v1/tutorials/{id}`) retorna apenas 8 steps com `narration:""` para todos. O export HTML do mesmo agente expõe **9 steps + narrações reais** ("Clique no Menu Relatórios", "Selecione Cursos!", etc.) — o passo 9 é uma "Captura" (`action="Captura"`) final, gerada só no export.
