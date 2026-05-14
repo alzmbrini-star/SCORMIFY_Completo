@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **FEATURE (P2)** — Brand Kit: **cores e fonte aplicadas automaticamente ao gerar slides**.
+  - **Próxima etapa do roadmap Brand Library**: o `BrandKit` (cores primária/secundária/destaque + fonte) configurado pelo super-admin era persistido mas não consumido pelo gerador de cursos. Agora a identidade visual da empresa é aplicada a todos os slides automaticamente.
+  - **Backend**:
+    - Novo módulo `services/brand_kit_applier.py`: `fetch_brand_kit(db, company_id)` busca o kit da empresa; `apply_brand_kit_to_palette(palette, kit)` retorna uma cópia da palette com overrides.
+    - **Mapeamento**: `primaryColor` → `palette.primary` (chrome/header); `accentColor` → `palette.accent` + `accentLight` derivado automaticamente via lightening 82% (mantém contraste em tints e pills); `secondaryColor` → `palette.text` (corpo); `fontFamily` → `fontHeading` + `fontBody` (com auto-wrap em aspas se tiver espaço e fallback `sans-serif` se vier sem stack).
+    - Validação resiliente: `_is_hex_color()` rejeita valores inválidos silenciosamente (typos no admin não corrompem palette); fonte vazia/space-only é ignorada; cores faltantes preservam o template original.
+    - Hook em `generate_course_from_storyboard` (ai_agent.py): logo após a palette do design-template ser montada, se `use_brand_library=True` E o `company_id` tem brandKit, aplica os overrides. Falhas no fetch (DB down) caem para o palette default (`logger.warning`, sem crash).
+    - **Opt-in cohesivo**: o brandKit só é aplicado quando `useBrandLibrary=True` no projeto. Mesma flag que controla imagens — assim ligar "Brand Library" = "Use identidade completa da empresa" sem surpresas para quem só queria imagens.
+  - **Testing**: **84/84 testes passando** (15 brand library unit + 17 API + 8 override + **44 novos** brand kit applier). Cobertura: validador hex (parametrizado com 7 válidos + 9 inválidos), lightener de cores, todos os mapeamentos, palette imutável (defensivo), partial brand kit (override só dos campos preenchidos), fetch via DB com kit presente/ausente/empty/db-exception. E2E real: o brandKit da Didaxis (`#1e3a8a`, `#10b981`, `#f59e0b`, Inter) foi fetched do MongoDB e aplicado corretamente, com accentLight `#fdeed3` derivado automaticamente.
+
+
 - 2026-05-14: **FIX (P0)** — Brand Library: **token errado no localStorage** causando "Erro ao salvar identidade".
   - **Bug reportado pelo usuário** (com screenshot): toast "Erro ao salvar identidade" ao clicar em Salvar no Brand Kit da Didaxis. Mesmo bug afetaria todos os 5 verbos do BrandLibraryDialog (list/upload/patch/delete/brand-kit) e o BrandLibraryPicker do Editor.
   - **Causa raiz**: meu código lia o token de `localStorage.getItem('token')`, mas o `AuthContext` da app guarda em `'scormify_auth_token'`. Como o token era `null`, o header `Authorization: Bearer null` chegava ao backend e era rejeitado com 401.

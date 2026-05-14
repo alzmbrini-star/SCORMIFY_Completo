@@ -1475,6 +1475,33 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     palette["headerStyle"] = design_token.get("headerStyle", "solid") if design_token else "solid"
     palette["cornerRadius"] = design_token.get("cornerRadius", "12px") if design_token else "12px"
 
+    # Brand Kit: when the project opts into the company's brand library AND
+    # the company has a configured BrandKit, override the palette colors and
+    # font so all the `_build_*_slide` functions render in-brand without
+    # needing per-builder changes. We only honor brandKit when the author
+    # explicitly enabled `use_brand_library` — same opt-in as the imagery
+    # picker — so users who only wanted library images don't get surprised
+    # by color changes.
+    if use_brand_library and company_id:
+        try:
+            from services.brand_kit_applier import fetch_brand_kit, apply_brand_kit_to_palette
+            _bk_db = await _get_motor_db()
+            brand_kit = await fetch_brand_kit(_bk_db, company_id)
+            if brand_kit:
+                palette = apply_brand_kit_to_palette(palette, brand_kit)
+                # Update font variables that are read independently below
+                if palette.get("fontHeading"):
+                    font_heading = palette["fontHeading"]
+                if palette.get("fontBody"):
+                    font_body = palette["fontBody"]
+                logger.info(
+                    f"BrandKit applied for company {company_id}: "
+                    f"primary={palette.get('primary')}, accent={palette.get('accent')}, "
+                    f"fontBody={palette.get('fontBody')}"
+                )
+        except Exception as _e:
+            logger.warning(f"failed to apply brand kit for {company_id}: {_e}")
+
     # Font size scale factor
     font_scale = int(global_font_size) / 100.0 if global_font_size else 1.0
 
