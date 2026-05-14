@@ -49,7 +49,7 @@ export default function BrandLibraryPicker({ open, onClose, companyId, onPick, d
   const [filterType, setFilterType] = useState(defaultType);
   const [filterCategory, setFilterCategory] = useState('');
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+  const token = typeof window !== 'undefined' ? localStorage.getItem('scormify_auth_token') : '';
 
   const load = async () => {
     if (!companyId) {

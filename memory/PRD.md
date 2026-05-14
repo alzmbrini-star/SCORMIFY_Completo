@@ -88,6 +88,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **FIX (P0)** — Brand Library: **token errado no localStorage** causando "Erro ao salvar identidade".
+  - **Bug reportado pelo usuário** (com screenshot): toast "Erro ao salvar identidade" ao clicar em Salvar no Brand Kit da Didaxis. Mesmo bug afetaria todos os 5 verbos do BrandLibraryDialog (list/upload/patch/delete/brand-kit) e o BrandLibraryPicker do Editor.
+  - **Causa raiz**: meu código lia o token de `localStorage.getItem('token')`, mas o `AuthContext` da app guarda em `'scormify_auth_token'`. Como o token era `null`, o header `Authorization: Bearer null` chegava ao backend e era rejeitado com 401.
+  - **Fix**: substituí a chave em `BrandLibraryDialog.jsx` e `BrandLibraryPicker.jsx`.
+  - **Validação**: screenshot E2E com toast "Identidade visual salva" confirma fluxo funcionando — exatamente o caso reportado (Didaxis + cores `#eb6d24` / `#606060`).
+
+
 - 2026-05-14: **FEATURE (P1)** — Brand Library: **override por slide no Editor**.
   - **Pedido do usuário**: completar o roadmap iniciado na entrega anterior — agora o autor pode aplicar imagens da biblioteca **slide a slide** dentro do Editor, sem depender só do toggle do Wizard.
   - **Backend**:

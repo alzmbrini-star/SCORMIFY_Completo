@@ -58,7 +58,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
   const [uploadDesc, setUploadDesc] = useState("");
   const fileInputRef = useRef(null);
 
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("scormify_auth_token");
 
   // -------- fetchers -------------------------------------------------------
   const loadAssets = async () => {
