@@ -1703,6 +1703,7 @@ export default function Editor() {
                     <SlideProperties
                       slide={currentSlide}
                       onUpdate={(data) => updateSlide(currentSlide.id, data)}
+                      project={currentProject}
                     />
                   ) : (
                     <div className="p-4 text-center text-muted-foreground">

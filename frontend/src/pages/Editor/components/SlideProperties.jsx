@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
+import { Button } from '../../../components/ui/button';
+import { Layers, ImagePlus, X as XIcon } from 'lucide-react';
+import BrandLibraryPicker from '../dialogs/BrandLibraryPicker';
 
-export function SlideProperties({ slide, onUpdate }) {
+export function SlideProperties({ slide, onUpdate, project }) {
   const extractSlideText = () => {
     const texts = (slide.elements || [])
       .filter(el => el.type === 'text' && el.content)
@@ -26,6 +29,14 @@ export function SlideProperties({ slide, onUpdate }) {
   };
 
   const slideText = extractSlideText();
+
+  // Brand Library: per-slide picker + per-slide override of the project-wide
+  // useBrandLibrary preference. Three states for `brandLibraryOverride`:
+  //   - undefined → inherit project setting (default)
+  //   - "force"    → use the library on this slide regardless of project flag
+  //   - "skip"     → never use the library on this slide (use AI or none)
+  const [brandPickerOpen, setBrandPickerOpen] = useState(false);
+  const slideOverride = slide.brandLibraryOverride; // undefined | "force" | "skip"
 
   // Smart Avatar toggle is only relevant when the slide has a HeyGen (or
   // transparent) avatar video element AND a scene background image.
@@ -84,6 +95,77 @@ export function SlideProperties({ slide, onUpdate }) {
               onChange={(e) => onUpdate({ duration: parseFloat(e.target.value) })}
               className="h-8"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Brand Library — per-slide picker + override of project-wide setting */}
+      <div className="panel-section" data-testid="brand-library-slide-section">
+        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+          <Layers className="w-4 h-4 text-indigo-500" />
+          Biblioteca de Marca
+        </h4>
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => setBrandPickerOpen(true)}
+            disabled={!project?.companyId}
+            data-testid="brand-library-pick-button"
+          >
+            <ImagePlus className="w-4 h-4 mr-2 text-indigo-500" />
+            {slide.backgroundImage && slide.backgroundImageSource === 'brand_library'
+              ? 'Trocar imagem da biblioteca'
+              : 'Usar imagem da biblioteca'}
+          </Button>
+          {!project?.companyId && (
+            <p className="text-[10px] text-amber-500">
+              Este projeto nao esta vinculado a uma empresa. Defina o `companyId` para acessar a biblioteca.
+            </p>
+          )}
+
+          {slide.backgroundImage && slide.backgroundImageSource === 'brand_library' && (
+            <div className="flex items-center justify-between gap-2 rounded border px-2 py-1.5 bg-muted/30">
+              <span className="text-[11px] text-muted-foreground truncate">
+                Fundo: imagem da biblioteca aplicada
+              </span>
+              <button
+                type="button"
+                onClick={() => onUpdate({ backgroundImage: null, backgroundImageSource: null })}
+                title="Remover imagem da biblioteca"
+                className="text-muted-foreground hover:text-red-500"
+                data-testid="brand-library-clear-button"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          <div className="rounded border p-2 space-y-1">
+            <p className="text-[11px] text-muted-foreground">
+              Estrategia neste slide
+            </p>
+            <div className="grid grid-cols-3 gap-1">
+              {[
+                { value: undefined, label: 'Herdar', testId: 'bl-override-inherit' },
+                { value: 'force', label: 'Forcar', testId: 'bl-override-force' },
+                { value: 'skip', label: 'Ignorar', testId: 'bl-override-skip' },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => onUpdate({ brandLibraryOverride: opt.value })}
+                  data-testid={opt.testId}
+                  className={`text-[11px] rounded px-2 py-1 border ${slideOverride === opt.value ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-background hover:bg-muted'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              <strong>Herdar</strong>: usa a config do projeto. <strong>Forcar</strong>: usa biblioteca mesmo se o projeto estiver desligado. <strong>Ignorar</strong>: pula biblioteca neste slide.
+            </p>
           </div>
         </div>
       </div>
@@ -156,6 +238,23 @@ export function SlideProperties({ slide, onUpdate }) {
             : 'Preenchido automaticamente ao gerar narracao (TTS). Ou clique no botao acima para usar o texto do slide.'}
         </p>
       </div>
+
+      {/* Brand Library picker — mounted at the root of SlideProperties so
+          the dialog overlays the entire editor instead of being clipped. */}
+      <BrandLibraryPicker
+        open={brandPickerOpen}
+        onClose={() => setBrandPickerOpen(false)}
+        companyId={project?.companyId}
+        onPick={(asset) => {
+          // Apply the chosen asset as the slide's backgroundImage and tag it
+          // so the renderer + future export pipelines know its provenance.
+          onUpdate({
+            backgroundImage: asset.url,
+            backgroundImageSource: 'brand_library',
+            backgroundImageAssetId: asset.id,
+          });
+        }}
+      />
     </div>
   );
 }

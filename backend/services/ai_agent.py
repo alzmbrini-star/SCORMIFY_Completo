@@ -1545,10 +1545,21 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     # match the slide gets that asset and we skip Leonardo /
                     # stock altogether — keeping the visual identity on-brand
                     # and saving the generation cost.
-                    if use_brand_library and company_id:
+                    sb_slide_ctx = slides_data[slide_idx] if slide_idx < len(slides_data) else {}
+                    # Per-slide override of the project-wide preference. Three
+                    # values: None → inherit; "force" → ALWAYS try library;
+                    # "skip" → NEVER try library on this slide.
+                    _override = sb_slide_ctx.get("brandLibraryOverride")
+                    if _override == "skip":
+                        _try_library = False
+                    elif _override == "force":
+                        _try_library = True
+                    else:
+                        _try_library = use_brand_library
+
+                    if _try_library and company_id:
                         try:
                             from services.brand_library_picker import pick_asset_for_slide
-                            sb_slide_ctx = slides_data[slide_idx] if slide_idx < len(slides_data) else {}
                             chosen = await pick_asset_for_slide(
                                 _pdb, company_id,
                                 slide_title=sb_slide_ctx.get("title") or "",
@@ -1563,8 +1574,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                                 completed_count += 1
                                 logger.info(f"Image {completed_count}/{total_images} from brand library for slide {slide_idx}")
                                 return
-                            # No match: in strict mode we leave the slide without an image
-                            if brand_library_mode == "strict":
+                            # No match: in strict mode (or per-slide "force"),
+                            # we leave the slide without an image. "force"
+                            # opted in explicitly so a missing match means
+                            # "leave it" rather than fall through to AI.
+                            if brand_library_mode == "strict" or _override == "force":
                                 slide_media[slide_idx] = {"type": "none", "source": "brand_library_strict"}
                                 completed_count += 1
                                 logger.info(f"Image {completed_count}/{total_images} skipped (strict brand library, no match) for slide {slide_idx}")

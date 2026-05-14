@@ -88,6 +88,21 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **FEATURE (P1)** — Brand Library: **override por slide no Editor**.
+  - **Pedido do usuário**: completar o roadmap iniciado na entrega anterior — agora o autor pode aplicar imagens da biblioteca **slide a slide** dentro do Editor, sem depender só do toggle do Wizard.
+  - **Backend**:
+    - `services/ai_agent.py::_generate_one_image`: agora respeita `slide.brandLibraryOverride` com 3 valores:
+      - `None`/missing → herda `useBrandLibrary` do projeto (default)
+      - `"force"` → SEMPRE tenta a biblioteca neste slide (ignora flag do projeto); se sem match, deixa sem imagem (não cai para IA — autor optou explicitamente)
+      - `"skip"` → NUNCA tenta biblioteca neste slide (mesmo que projeto esteja ON)
+    - `models.py::Slide` já tinha `extra="allow"` então `brandLibraryOverride`, `backgroundImageSource` e `backgroundImageAssetId` round-trippam sem schema changes.
+  - **Frontend**:
+    - Novo componente reutilizável `pages/Editor/dialogs/BrandLibraryPicker.jsx`: modal grid com filtros (tipo + categoria), thumbnail clicável, estado vazio/erro/loading bem tratados.
+    - `pages/Editor/components/SlideProperties.jsx`: novo painel "Biblioteca de Marca" com (a) botão "Usar imagem da biblioteca" → abre o picker → ao escolher seta `backgroundImage = asset.url`, `backgroundImageSource = "brand_library"`, `backgroundImageAssetId = asset.id`; (b) pill com botão X para remover quando aplicado; (c) 3 botões Herdar/Forçar/Ignorar (com tooltips explicativos) para definir override.
+    - `pages/Editor.jsx`: passa `project` para SlideProperties (necessário para o `companyId`).
+  - **Testing**: **40/40 testes passando** (15 unit + 17 API + 8 novos override). E2E real validado: upload de PNG via canvas → abertura do Editor → painel mostra Brand Library → click abre picker com 1 asset → click no asset aplica como fundo (thumbnail do slide atualiza imediatamente) → pill "Fundo: imagem da biblioteca aplicada" + botão remover aparecem corretamente.
+
+
 - 2026-05-14: **FEATURE (P0)** — Biblioteca de Marca por Empresa (Brand Library): imagens corporativas curadas + Brand Kit (cores/fonte) que o Agente IA usa ao gerar cursos.
   - **Pedido do usuário**: "padronizações visuais que sigam o modelo da empresa para qual estou criando o(s) Curso(s), tais como fundo dos slides com imagens específicas e uma biblioteca de imagens segmentada por empresa".
   - **Backend novo**:
