@@ -233,6 +233,21 @@ export default function Agent() {
         setOriginalGlobalFontSize(session.globalFontSize || '');
         setOriginalGlobalAnimation(session.globalAnimation || '');
         setEditMediaProjectId(editProjectId);
+        // When opening an existing project for media editing, pull its
+        // companyId from the session payload (sessions cache it) OR fall
+        // back to fetching the project. We need this so the Brand Library
+        // picker can list ONLY this company's curated images.
+        let resolvedCompanyId = session.companyId || session.company_id || '';
+        if (!resolvedCompanyId) {
+          try {
+            const pr = await fetch(`${API}/api/projects/${editProjectId}`, { headers: authHeaders() });
+            if (pr.ok) {
+              const pdata = await pr.json();
+              resolvedCompanyId = pdata?.companyId || pdata?.company_id || '';
+            }
+          } catch (_e) { /* ignore — picker will show empty state */ }
+        }
+        if (resolvedCompanyId) setAgentCompanyId(resolvedCompanyId);
         setConfig(session.config || {});
         setStructure(session.structure);
         setCurrentStep(5); // Go directly to Media Config step
@@ -1262,7 +1277,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} companies={companiesList} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} useBrandLibrary={useBrandLibrary} setUseBrandLibrary={setUseBrandLibrary} brandLibraryMode={brandLibraryMode} setBrandLibraryMode={setBrandLibraryMode} brandLibraryCount={brandLibraryCount} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} useBrandLibrary={useBrandLibrary} setUseBrandLibrary={setUseBrandLibrary} brandLibraryMode={brandLibraryMode} setBrandLibraryMode={setBrandLibraryMode} brandLibraryCount={brandLibraryCount} brandLibraryCompanyId={agentCompanyId || authUser?.companyId} />}
               {mode === 'create' && generationPhases.length > 0 && !generatedProject && (
                 <GeneratingProgressPanel phases={generationPhases} startTime={generationStartTime} config={config} storyboard={storyboard} mediaConfig={mediaConfig} />
               )}

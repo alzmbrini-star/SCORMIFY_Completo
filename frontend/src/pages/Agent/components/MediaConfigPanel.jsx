@@ -24,6 +24,7 @@ import {
   PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
+import BrandLibraryPicker from '../../Editor/dialogs/BrandLibraryPicker';
 
 const API = getApiUrl();
 
@@ -249,6 +250,7 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, i
 const MEDIA_TYPES = [
   { id: 'ai_image', label: 'Imagem IA', description: 'Fotorealista gerada por IA', icon: Image, color: 'emerald' },
   { id: 'gallery_image', label: 'Da Galeria', description: 'Reutilizar imagem existente', icon: ImagePlus, color: 'amber' },
+  { id: 'brand_library_image', label: 'Biblioteca da Marca', description: 'Imagem curada da empresa', icon: Layers, color: 'indigo' },
   { id: 'leonardo', label: 'Leonardo AI', description: 'Imagem premium com Leonardo', icon: Sparkles, color: 'violet' },
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
   { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
@@ -526,7 +528,7 @@ function SuggestionsCategory({ icon: Icon, title, color, items }) {
 }
 
 
-export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate, useBrandLibrary, setUseBrandLibrary, brandLibraryMode, setBrandLibraryMode, brandLibraryCount }) {
+export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate, useBrandLibrary, setUseBrandLibrary, brandLibraryMode, setBrandLibraryMode, brandLibraryCount, brandLibraryCompanyId }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -536,6 +538,10 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   const [previewVideoId, setPreviewVideoId] = useState(null);
   const [showGallery, setShowGallery] = useState(false);
   const [gallerySlideIndex, setGallerySlideIndex] = useState(null);
+  // Brand Library Picker state (per-slide manual selection — different from
+  // the global toggle that lets the agent auto-pick).
+  const [showBrandPicker, setShowBrandPicker] = useState(false);
+  const [brandPickerSlideIdx, setBrandPickerSlideIdx] = useState(null);
   const [designTemplates, setDesignTemplates] = useState([]);
 
   // ElevenLabs narration state - restore voiceId from existing mediaConfig when editing
@@ -1338,6 +1344,8 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                             orange: 'bg-orange-600/15 border-orange-500 text-orange-300',
                             cyan: 'bg-cyan-600/15 border-cyan-500 text-cyan-300',
                             teal: 'bg-teal-600/15 border-teal-500 text-teal-300',
+                            indigo: 'bg-indigo-600/15 border-indigo-500 text-indigo-300',
+                            violet: 'bg-violet-600/15 border-violet-500 text-violet-300',
                             slate: 'bg-slate-800 border-slate-600 text-slate-300',
                           };
                           return (
@@ -1347,6 +1355,9 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                                 if (mt.id === 'gallery_image') {
                                   setGallerySlideIndex(idx);
                                   setShowGallery(true);
+                                } else if (mt.id === 'brand_library_image') {
+                                  setBrandPickerSlideIdx(idx);
+                                  setShowBrandPicker(true);
                                 } else {
                                   updateSlideMedia(idx, mt.id, '');
                                 }
@@ -1396,6 +1407,38 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                     {mc.type === 'gallery_image' && !mc.galleryImageUrl && (
                       <button onClick={() => { setGallerySlideIndex(idx); setShowGallery(true); }} className="text-[11px] text-amber-400/70 hover:text-amber-300 flex items-center gap-1">
                         <ImagePlus className="w-3 h-3" /> Clique para selecionar da galeria
+                      </button>
+                    )}
+
+                    {/* Brand Library image preview — manual per-slide pick */}
+                    {mc.type === 'brand_library_image' && mc.brandImageUrl && (
+                      <div className="flex items-center gap-3 p-2 bg-indigo-900/10 rounded-lg border border-indigo-700/30" data-testid={`brand-lib-preview-slide-${idx}`}>
+                        <img
+                          src={mc.brandImageUrl.startsWith('/') ? `${API}${mc.brandImageUrl}` : mc.brandImageUrl}
+                          alt=""
+                          className="w-16 h-12 object-cover rounded"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-indigo-300 truncate">
+                            {mc.brandImageFilename || 'Imagem da biblioteca'}
+                          </p>
+                          <button
+                            onClick={() => { setBrandPickerSlideIdx(idx); setShowBrandPicker(true); }}
+                            className="text-[10px] text-indigo-400/70 hover:text-indigo-300 underline"
+                            data-testid={`brand-lib-swap-slide-${idx}`}
+                          >
+                            Trocar imagem
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {mc.type === 'brand_library_image' && !mc.brandImageUrl && (
+                      <button
+                        onClick={() => { setBrandPickerSlideIdx(idx); setShowBrandPicker(true); }}
+                        className="text-[11px] text-indigo-400/70 hover:text-indigo-300 flex items-center gap-1"
+                        data-testid={`brand-lib-open-slide-${idx}`}
+                      >
+                        <Layers className="w-3 h-3" /> Clique para escolher da biblioteca da empresa
                       </button>
                     )}
 
@@ -1666,6 +1709,26 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
           }}
         />
       )}
+
+      {/* Brand Library Picker — per-slide manual selection from the company's
+          curated imagery. Same `BrandLibraryPicker` used in the Editor so the
+          UX feels consistent between Wizard and post-generation editing. */}
+      <BrandLibraryPicker
+        open={showBrandPicker}
+        onClose={() => setShowBrandPicker(false)}
+        companyId={brandLibraryCompanyId}
+        defaultType="background"
+        onPick={(asset) => {
+          if (brandPickerSlideIdx !== null) {
+            updateSlideMedia(brandPickerSlideIdx, 'brand_library_image', '', {
+              brandImageUrl: asset.url,
+              brandImageAssetId: asset.id,
+              brandImageFilename: asset.originalFilename || asset.filename,
+            });
+          }
+          setShowBrandPicker(false);
+        }}
+      />
     </div>
   );
 }

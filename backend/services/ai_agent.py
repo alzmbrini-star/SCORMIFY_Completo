@@ -1534,6 +1534,18 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             gallery_url = mc.get("galleryImageUrl", "")
             if gallery_url:
                 slide_media[i] = {"type": "image", "url": gallery_url}
+        elif media_type == "brand_library_image":
+            # Author hand-picked an image from the company's Brand Library
+            # during the Wizard (different from `use_brand_library=True` which
+            # asks the AI to pick automatically). This is the strongest signal
+            # — the author committed to a specific asset, so we use it as-is.
+            brand_url = mc.get("brandImageUrl", "")
+            if brand_url:
+                slide_media[i] = {
+                    "type": "image",
+                    "url": brand_url,
+                    "source": "brand_library_manual",
+                }
         elif media_type in ("youtube", "vimeo"):
             video_url = mc.get("url", "")
             video_info = _parse_video_url(video_url)

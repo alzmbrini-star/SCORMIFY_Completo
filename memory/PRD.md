@@ -88,6 +88,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **FEATURE (P1)** — Wizard Media step: **opção "Biblioteca da Marca" por slide**.
+  - **Pedido do usuário** (com screenshot): adicionar opção "Biblioteca da Marca da Empresa" no painel de Mídia (fase 5 do Wizard) com seleção manual por slide.
+  - **Por que faz sentido**: o toggle global da Brand Library deixa o LLM escolher automaticamente (modo `preferred`/`strict`). Mas o autor às vezes quer **comprometer** uma imagem específica em UM slide ("este slide DEVE usar essa foto do laboratório"). Agora ele faz isso sem editar o curso depois.
+  - **Backend**: novo tipo `brand_library_image` reconhecido em `generate_course_from_storyboard`. Aceita `brandImageUrl` no `mediaConfig` do slide e usa direto (sem chamar Leonardo/Gemini); marca `source: "brand_library_manual"` para analytics futuras de cobertura de marca.
+  - **Frontend** (`MediaConfigPanel.jsx`):
+    - Novo card "Biblioteca da Marca" entre "Da Galeria" e "Leonardo AI" no array `MEDIA_TYPES` (ícone Layers, cor indigo). Color palette extendida para indigo/violet (necessários após a remoção do violeta exclusivo do Leonardo).
+    - Click no card abre o `BrandLibraryPicker` (reuso do componente do Editor — UX consistente).
+    - Após escolha: preview pill com thumbnail + nome do arquivo + botão "Trocar imagem".
+    - Estado vazio: botão "Clique para escolher da biblioteca da empresa" inline.
+  - **Frontend** (`Agent.jsx`): no flow `editMedia=projectId`, agora resolvemos o `companyId` do projeto (primeiro do `session.companyId`, fallback `GET /api/projects/{id}`) e setamos via `setAgentCompanyId()` para que o `BrandLibraryPicker` saiba qual biblioteca listar. **Sem isso**, o picker mostraria "projeto não vinculado a empresa" mesmo quando vinculado — bug que foi capturado no teste e corrigido na mesma iteração.
+  - **Testing**: **89/89 testes passando** (+5 novos em `test_brand_library_media_type.py` cobrindo resolução do dispatch, provenance tag, fallback quando url ausente, URLs absolutas, round-trip do schema da UI). E2E real com 4 assets da Didaxis: open editMedia → click "Biblioteca da Marca" no slide 1 → picker abre com 4 imagens → click numa → pill com thumbnail + "Trocar imagem" aparece + botão fica destacado.
+
+
 - 2026-05-14: **FEATURE (P2)** — Brand Kit: **cores e fonte aplicadas automaticamente ao gerar slides**.
   - **Próxima etapa do roadmap Brand Library**: o `BrandKit` (cores primária/secundária/destaque + fonte) configurado pelo super-admin era persistido mas não consumido pelo gerador de cursos. Agora a identidade visual da empresa é aplicada a todos os slides automaticamente.
   - **Backend**:
