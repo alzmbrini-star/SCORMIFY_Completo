@@ -88,6 +88,24 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **FEATURE (P0)** — Biblioteca de Marca por Empresa (Brand Library): imagens corporativas curadas + Brand Kit (cores/fonte) que o Agente IA usa ao gerar cursos.
+  - **Pedido do usuário**: "padronizações visuais que sigam o modelo da empresa para qual estou criando o(s) Curso(s), tais como fundo dos slides com imagens específicas e uma biblioteca de imagens segmentada por empresa".
+  - **Backend novo**:
+    - Models (`models.py`): `CompanyAsset` (id, companyId, type ∈ {background/illustration/icon/logo/cover/other}, category ∈ {intro/content/transition/conclusion/light_bg/dark_bg/generic}, tags[], description, isActive), `BrandKit` embedded em Company (primaryColor/secondaryColor/accentColor/fontFamily/logoUrl). Field validators normalizam type/category invalidos para defaults seguros.
+    - Routes (`routes/company_assets.py` novo): GET/PUT `/api/companies/{id}/brand-kit` + CRUD completo em `/api/companies/{id}/assets` (multipart upload com type/category/tags CSV/description, listagem com filtros, PATCH metadata, DELETE, GET file público para SCORM offline). Limite de upload 10MB. RBAC: super_admin muta; usuário regular lê só da própria empresa.
+    - Storage (`services/asset_store.py`): novas funções `store_company_asset_async`, `retrieve_company_asset_async`, `delete_company_asset_async`. Coleção dedicada `company_assets` (base64 blob) + `company_assets_meta` (metadata). Persistência GridFS-style sobrevive K8s restarts.
+    - Picker semântico (`services/brand_library_picker.py` novo): `pick_asset_for_slide(db, company_id, slide_title, slide_body, desired_type, desired_category, keyword)`. Filtro hard por type → narrowing por category (broadening se vazio) → catálogo enxuto LLM (Claude Sonnet via Emergent key) escolhendo o id semanticamente mais próximo. Skip-LLM quando há 1 candidato. Cache in-memory por empresa.
+    - Hook no Agente (`services/ai_agent.py::_generate_one_image`): quando `useBrandLibrary=True`, picker é consultado ANTES de Leonardo. Modo `preferred` → cai para IA se sem match; modo `strict` → slide fica sem imagem se sem match.
+    - Wizard endpoint (`routes/agent.py::media-config`): aceita `useBrandLibrary` (bool) e `brandLibraryMode` ('preferred'/'strict') e propaga para `generate_course_from_storyboard`.
+  - **Frontend novo**:
+    - `BrandLibraryDialog.jsx` (super_admin): duas tabs — "Imagens" com upload+filtros+grid+delete, "Identidade" com color pickers + fonte.
+    - Botão paleta em cada card de empresa no `/admin` (icone Palette indigo). Abre o dialog.
+    - `MediaConfigPanel` (step 5 do Wizard): novo card "Biblioteca de Marca da Empresa" com toggle + preview da contagem ("N imagens disponíveis") + seletor de modo (Preferida/Estrita). Toggle desabilita quando a empresa não tem imagens.
+    - `Agent.jsx`: novos states + useEffect que carrega contagem ao entrar no step 5 + props passadas para MediaConfigPanel + persistência via media-config endpoint.
+  - **Testing**: **32/32 testes passando** — 15 unit em `test_brand_library.py` (modelo + picker + cache) + 17 end-to-end API em `test_brand_library_api.py` (brand-kit round-trip, asset CRUD, RBAC cross-tenant, file serving, wizard persistence). Testing agent E2E: 100% success rate, sem issues criticos.
+  - **Validado E2E real**: upload de PNG → list retorna o asset com URL pública → fetch da URL retorna os bytes corretos → PUT brand-kit persiste → DELETE remove. Screenshot do `/admin` mostra os 3 botões paleta nos cards das empresas + dialog Brand Library abrindo limpo com estado "Nenhuma imagem cadastrada".
+
+
 - 2026-05-12: **TUNING (P0)** — Zoom Tutorial Agent: **cap em 1.6x + foco mais central**.
   - **Bug reportado**: "O zoom fica estourado na tela". O Agente externo retorna `zoom_level=2.5` por default, o que no full-screen (sobretudo no SCORM/HTML standalone) fazia o detalhe magnificado "explodir" — pedaços gigantes da imagem ocupando toda a viewport, perdendo a noção do conjunto.
   - **Fix** (`routes/tutorial_integration.py`):

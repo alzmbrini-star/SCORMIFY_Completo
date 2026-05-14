@@ -20,7 +20,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from routes.deps import db, now_utc
-from routes.auth import require_super_admin, require_auth
+from routes.auth import require_super_admin, require_auth, has_role
 from models import (
     CompanyAsset, CompanyAssetUpdate, BrandKitUpdate,
     COMPANY_ASSET_TYPES, COMPANY_ASSET_CATEGORIES,
@@ -57,8 +57,11 @@ async def get_brand_kit(company_id: str, user: dict = Depends(require_auth)):
     """Return the brand kit for a company. Open to all authenticated users
     because the Editor needs it to render previews using corporate colors."""
     company = await _require_company(company_id)
-    # Authorize: super_admin sees any; regular users only their own company
-    if user.get("role") != "super_admin" and user.get("companyId") != company_id:
+    # Authorize: super_admin sees any; regular users only their own company.
+    # Use has_role() so super_admins whose role lives in the `roles[]` array
+    # (newer auth schema) — not the legacy single `role` field — are also
+    # correctly granted access.
+    if not has_role(user, "super_admin") and user.get("companyId") != company_id:
         raise HTTPException(status_code=403, detail="Acesso negado")
     return company.get("brandKit") or {}
 
@@ -95,7 +98,7 @@ async def list_assets(
     """List brand assets for a company. All authenticated users in the
     company (or super_admin) can read so the Editor can preview imagery."""
     await _require_company(company_id)
-    if user.get("role") != "super_admin" and user.get("companyId") != company_id:
+    if not has_role(user, "super_admin") and user.get("companyId") != company_id:
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     query: Dict[str, Any] = {"companyId": company_id}
@@ -142,8 +145,18 @@ async def upload_asset(
     suffix = Path(file.filename).suffix.lower() or ".png"
     safe_filename = f"{asset_id}{suffix}"
 
+    # 10 MB cap — corporate imagery shouldn't need more, and this prevents
+    # a malicious large upload from triggering OOM on the worker.
+    MAX_BYTES = 10 * 1024 * 1024
+
     with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()
+        if len(content) > MAX_BYTES:
+            try:
+                Path(tmp.name).unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise HTTPException(status_code=413, detail=f"Arquivo maior que {MAX_BYTES // 1024 // 1024}MB")
         tmp.write(content)
         tmp_path = tmp.name
 
