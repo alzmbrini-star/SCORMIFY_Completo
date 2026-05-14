@@ -1927,6 +1927,14 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                                     await store_asset_async(_db, src_pid, src_fname, src_path)
                     except Exception:
                         pass
+        elif custom_bg.get("type") == "brand":
+            # Brand library background — `imageUrl` already points at the
+            # public asset endpoint (`/api/companies/{cid}/assets/{aid}/file`),
+            # which is served unauthenticated specifically so SCORM/HTML
+            # exports can fetch it offline. No file copy needed.
+            img_src = custom_bg.get("imageUrl", "")
+            if img_src:
+                bg_image = img_src
 
         slide = {
             "id": actual_slide_id,
@@ -1937,6 +1945,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "background": bg,
             "backgroundImage": bg_image if bg_image else None,
             "backgroundOpacity": custom_bg.get("opacity", 100) if bg_image else None,
+            # Honour the picker's contrast hint: overlay scrim (dark/light)
+            # is applied at render-time by the SinglePage + SCORM runtimes so
+            # generated text stays readable even on busy brand imagery.
+            "backgroundImageOverlay": custom_bg.get("overlay") if bg_image and custom_bg.get("overlay") in ("dark", "light") else None,
             "elements": slide_elements,
             "annotations": [],
             "transition": {"type": "fade", "duration": 0.5},

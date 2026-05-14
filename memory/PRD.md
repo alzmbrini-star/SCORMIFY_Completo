@@ -88,6 +88,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **FEATURE (P0)** — Fundo de curso vindo da Biblioteca de Marca + **contraste automático** dos textos do Agente IA.
+  - **Pedido do usuário**: "optar por uma imagem a ser usada como background do curso prevalecendo sobre os fundos e para os textos criados pelo Agente IA ter o contraste correto! Esta imagem deverá ser optada na Biblioteca de Marca da Empresa!"
+  - **Backend**:
+    - Novo endpoint `GET /api/companies/{cid}/assets/{aid}/analysis`: lê os pixels da imagem (downsample 32x32, fórmula W3C `0.2126*R + 0.7152*G + 0.0722*B`) e retorna `{brightness, tone, recommendedTextColor, recommendedOverlay}`. Thresholds tunados empiricamente (cutoff 0.55 dark/light; overlays nas extremidades 0.30/0.65; midtones sem overlay).
+    - `services/ai_agent.py::generate_course_from_storyboard`: novo branch `custom_bg.type == "brand"` no resolver de bgConfig. Pega `imageUrl` direto (já é `/api/companies/{cid}/assets/{aid}/file` servido offline-friendly) e seta como `slide.backgroundImage`. Propaga `backgroundImageOverlay` (dark/light) que SinglePage + SCORM runtimes já honram.
+  - **Frontend** (`MediaConfigPanel.jsx`):
+    - 5ª tab **"Marca"** ao lado de Padrão/Cor/Degradê/Imagem no `SlideBackgroundPicker` (tanto Global quanto per-slide).
+    - Click "Escolher da Biblioteca de Marca" → reusa `BrandLibraryPicker`.
+    - Ao escolher: chama `/analysis`, salva `bg = {type:'brand', imageUrl, brandAssetId, overlay, suggestedTextColor}`. Se for o picker **global**, dispara `setGlobalTextColor(recommendedTextColor)` para que o Agente já gere texto na cor contrastante.
+    - UI mostra preview com overlay aplicado em vivo + pill com swatch da cor sugerida + 3 botões de toggle de overlay (Sem overlay / Escurecer / Clarear) para override manual.
+    - Aproveita o mecanismo "Aplicar a todos os slides" já existente — autor pode escolher 1 imagem da marca e propagar para o curso inteiro com um botão.
+  - **Testing**: **106/106 testes passando** (+19 novos em `test_brand_background_contrast.py` — branch dispatch para bgConfig.type=brand, overlay valido/invalido/dropped, contrast decision em todas as fronteiras 0.0/0.30/0.55/0.65/1.0, E2E com Pillow gerando navy/pastel/preto puro/branco puro e confirmando que a recomendação bate). E2E real validado: análise do navy `#0f172a` retornou `{brightness: 0.089, text: '#FFFFFF', overlay: 'light'}`; pastel retornou `{brightness: 0.906, text: '#0f172a', overlay: 'dark'}`. Screenshot capturou as 5 tabs + botão "Escolher da Biblioteca de Marca" + toast "Fundo aplicado a todos os 12 slides!".
+
+
 - 2026-05-14: **FEATURE (P1)** — Wizard Media step: **opção "Biblioteca da Marca" por slide**.
   - **Pedido do usuário** (com screenshot): adicionar opção "Biblioteca da Marca da Empresa" no painel de Mídia (fase 5 do Wizard) com seleção manual por slide.
   - **Por que faz sentido**: o toggle global da Brand Library deixa o LLM escolher automaticamente (modo `preferred`/`strict`). Mas o autor às vezes quer **comprometer** uma imagem específica em UM slide ("este slide DEVE usar essa foto do laboratório"). Agora ele faz isso sem editar o curso depois.

@@ -39,8 +39,9 @@ const GRADIENT_DIRECTIONS = [
   { id: 'to top left', label: '\u2196' },
 ];
 
-function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, isGlobal }) {
+function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, isGlobal, brandLibraryCompanyId, setGlobalTextColor }) {
   const bg = bgConfig[String(slideIndex)] || { type: 'default' };
+  const [brandPickerOpen, setBrandPickerOpen] = useState(false);
 
   const updateBg = (patch) => {
     setBgConfig(prev => ({ ...prev, [String(slideIndex)]: { ...bg, ...patch } }));
@@ -124,6 +125,7 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, i
           <TabsTrigger value="solid" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Cor</TabsTrigger>
           <TabsTrigger value="gradient" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Degradê</TabsTrigger>
           <TabsTrigger value="image" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700">Imagem</TabsTrigger>
+          <TabsTrigger value="brand" className="text-[10px] h-6 px-2 data-[state=active]:bg-slate-700" data-testid={`bg-tab-brand-${slideIndex}`}>Marca</TabsTrigger>
         </TabsList>
 
         <TabsContent value="default" className="mt-1">
@@ -242,7 +244,109 @@ function SlideBackgroundPicker({ slideIndex, bgConfig, setBgConfig, allSlides, i
             )}
           </div>
         </TabsContent>
+
+        {/* Marca — pick a course-wide background from the company library and
+            auto-tune the global text color for contrast. This is intended
+            primarily for the GLOBAL bg picker (isGlobal=true) so the whole
+            course inherits a consistent corporate background. */}
+        <TabsContent value="brand" className="mt-1">
+          <div className="space-y-2">
+            {!brandLibraryCompanyId && (
+              <p className="text-[10px] text-amber-400/70">
+                Este projeto nao esta vinculado a uma empresa. Defina o companyId para usar a biblioteca.
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setBrandPickerOpen(true)}
+              disabled={!brandLibraryCompanyId}
+              className="w-full h-8 text-xs border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/30"
+              data-testid={`bg-brand-pick-${slideIndex}`}
+            >
+              <Layers className="w-3.5 h-3.5 mr-1" />
+              {bg.type === 'brand' && bg.imageUrl ? 'Trocar imagem da marca' : 'Escolher da Biblioteca de Marca'}
+            </Button>
+            {bg.type === 'brand' && bg.imageUrl && (
+              <div className="space-y-1.5">
+                <div className="relative h-20 rounded border border-indigo-700/50 overflow-hidden">
+                  <img
+                    src={bg.imageUrl.startsWith('/') ? `${API}${bg.imageUrl}` : bg.imageUrl}
+                    alt="brand background"
+                    className="w-full h-full object-cover"
+                    style={{ opacity: (bg.opacity ?? 100) / 100 }}
+                  />
+                  {bg.overlay === 'dark' && (
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))' }} />
+                  )}
+                  {bg.overlay === 'light' && (
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.75))' }} />
+                  )}
+                </div>
+                {/* Contrast pill */}
+                {bg.suggestedTextColor && (
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                    <div className="w-3 h-3 rounded-sm border border-slate-600" style={{ background: bg.suggestedTextColor }} />
+                    <span>Texto sugerido: {bg.suggestedTextColor}</span>
+                    <span className="text-slate-500">·</span>
+                    <span>Overlay: {bg.overlay || 'nenhum'}</span>
+                  </div>
+                )}
+                {/* Overlay manual toggle */}
+                <div className="flex gap-1">
+                  {['none', 'dark', 'light'].map(o => (
+                    <button
+                      key={o}
+                      onClick={() => updateBg({ overlay: o === 'none' ? null : o })}
+                      className={`flex-1 text-[10px] h-6 rounded border ${(bg.overlay || 'none') === o ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50' : 'bg-slate-800 text-slate-500 hover:text-slate-300 border-slate-700'}`}
+                      data-testid={`bg-overlay-${o}-${slideIndex}`}
+                    >
+                      {o === 'none' ? 'Sem overlay' : o === 'dark' ? 'Escurecer' : 'Clarear'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* Brand Library picker mount — shared component, gives the author a
+          curated grid filtered by type=background. */}
+      <BrandLibraryPicker
+        open={brandPickerOpen}
+        onClose={() => setBrandPickerOpen(false)}
+        companyId={brandLibraryCompanyId}
+        defaultType="background"
+        onPick={async (asset) => {
+          // Ask the backend for a quick brightness analysis so we can suggest
+          // a contrasting text color + overlay. Failing analysis falls back to
+          // sensible defaults (light text, dark overlay).
+          let suggested = { recommendedTextColor: '#FFFFFF', recommendedOverlay: 'dark' };
+          try {
+            const r = await fetch(`${API}/api/companies/${brandLibraryCompanyId}/assets/${asset.id}/analysis`, {
+              headers: authHeaders(),
+            });
+            if (r.ok) suggested = await r.json();
+          } catch (_e) { /* keep fallback */ }
+
+          updateBg({
+            type: 'brand',
+            imageUrl: asset.url,
+            brandAssetId: asset.id,
+            opacity: 100,
+            overlay: suggested.recommendedOverlay === 'none' ? null : suggested.recommendedOverlay,
+            suggestedTextColor: suggested.recommendedTextColor,
+          });
+          // Auto-tune the GLOBAL text color when this is the course-wide
+          // picker so the agent generates text in a readable color from the
+          // start (rather than the author noticing white text vanishing on
+          // a light brand background later).
+          if (isGlobal && setGlobalTextColor) {
+            setGlobalTextColor(suggested.recommendedTextColor);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -1290,6 +1394,8 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
             }}
             allSlides={storyboard?.slides || []}
             isGlobal
+            brandLibraryCompanyId={brandLibraryCompanyId}
+            setGlobalTextColor={setGlobalTextColor}
           />
         </CardContent>
       </Card>
@@ -1321,6 +1427,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                   bgConfig={bgConfig}
                   setBgConfig={setBgConfig}
                   allSlides={storyboard?.slides || []}
+                  brandLibraryCompanyId={brandLibraryCompanyId}
                 />
 
                 {/* Media type selector - only content slides */}

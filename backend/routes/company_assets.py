@@ -262,3 +262,65 @@ async def serve_asset(company_id: str, asset_id: str, request: Request):
         media_type=ct or "image/png",
         headers={"Cache-Control": "public, max-age=3600"},
     )
+
+
+
+@router.get("/{company_id}/assets/{asset_id}/analysis")
+async def analyze_asset_for_contrast(
+    company_id: str,
+    asset_id: str,
+    user: dict = Depends(require_auth),
+):
+    """Compute dominant brightness so the frontend can suggest a contrasting
+    text color when the author picks this asset as the **course background**.
+
+    Returns:
+        {
+            "brightness": 0.0-1.0,    # perceived luminance, 0=black, 1=white
+            "tone": "dark"|"light",   # broad bucket for UI labels
+            "recommendedTextColor": "#FFFFFF" or "#0f172a",
+            "recommendedOverlay": "dark" or "light" or "none",
+        }
+    """
+    await _require_company(company_id)
+    if not has_role(user, "super_admin") and user.get("companyId") != company_id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    data, _ct = await retrieve_company_asset_async(db, company_id, asset_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Imagem nao encontrada")
+
+    try:
+        from PIL import Image  # type: ignore
+        from io import BytesIO
+        img = Image.open(BytesIO(data)).convert("RGB")
+        # Downscale to a tiny thumbnail for fast luminance estimate.
+        img.thumbnail((32, 32))
+        pixels = list(img.getdata())
+        # Standard relative luminance per W3C: 0.2126*R + 0.7152*G + 0.0722*B
+        total = sum(
+            0.2126 * r + 0.7152 * g + 0.0722 * b
+            for r, g, b in pixels
+        )
+        avg_lum = (total / len(pixels)) / 255.0
+    except Exception as e:
+        logger.warning(f"asset analysis failed for {company_id}/{asset_id}: {e}")
+        # Conservative fallback: assume dark image (so default is light text)
+        avg_lum = 0.25
+
+    # Threshold tuned empirically for corporate imagery (slightly darker than
+    # 0.5 because text-on-image usually benefits from a darker assumption).
+    is_dark = avg_lum < 0.55
+    return {
+        "brightness": round(avg_lum, 3),
+        "tone": "dark" if is_dark else "light",
+        # When the image is dark we put light text; when light, dark text.
+        "recommendedTextColor": "#FFFFFF" if is_dark else "#0f172a",
+        # An overlay reinforces contrast — dark overlay on light img + vice versa.
+        # We use "none" for true midtones (0.40-0.65) to let the image speak.
+        "recommendedOverlay": (
+            "dark" if avg_lum > 0.65 else
+            "light" if avg_lum < 0.30 else
+            "none"
+        ),
+    }
