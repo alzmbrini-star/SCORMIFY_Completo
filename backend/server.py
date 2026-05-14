@@ -174,6 +174,9 @@ async def download_marketing_asset(filename: str):
 from routes import companies as companies_routes
 app.include_router(companies_routes.router, prefix="/api")
 
+from routes import company_assets as company_assets_routes
+app.include_router(company_assets_routes.router, prefix="/api")
+
 from routes import users as users_routes
 app.include_router(users_routes.router, prefix="/api")
 

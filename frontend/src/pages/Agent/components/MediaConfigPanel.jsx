@@ -526,7 +526,7 @@ function SuggestionsCategory({ icon: Icon, title, color, items }) {
 }
 
 
-export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate }) {
+export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate, useBrandLibrary, setUseBrandLibrary, brandLibraryMode, setBrandLibraryMode, brandLibraryCount }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -921,6 +921,59 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
           {globalAnimation && (
             <div className="text-[10px] text-amber-400/60 flex items-center gap-1">
               <Check className="w-3 h-3" /> Animação "{globalAnimation}" será aplicada a todos os textos.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Brand Library — Use company's curated imagery */}
+      <Card className="bg-slate-900/50 border-slate-800" data-testid="brand-library-card">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-400" /> Biblioteca de Marca da Empresa
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                {brandLibraryCount == null
+                  ? 'Use imagens curadas da sua empresa em vez de gerar via IA.'
+                  : brandLibraryCount === 0
+                    ? 'Nenhuma imagem cadastrada — peça ao super-admin para popular a biblioteca.'
+                    : `${brandLibraryCount} imagem(ns) disponíveis. O Agente IA escolherá automaticamente a melhor para cada slide.`}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!useBrandLibrary}
+                onChange={(e) => setUseBrandLibrary?.(e.target.checked)}
+                disabled={brandLibraryCount === 0}
+                data-testid="brand-library-toggle"
+                className="w-4 h-4 rounded accent-indigo-500"
+              />
+              <span className="text-sm text-white">{useBrandLibrary ? 'Ativo' : 'Inativo'}</span>
+            </label>
+          </div>
+          {useBrandLibrary && (
+            <div className="grid grid-cols-2 gap-2" data-testid="brand-library-mode-picker">
+              <button
+                type="button"
+                onClick={() => setBrandLibraryMode?.('preferred')}
+                data-testid="bl-mode-preferred"
+                className={`text-left rounded border p-2 ${brandLibraryMode === 'preferred' ? 'border-indigo-400 bg-indigo-500/10' : 'border-slate-700 bg-slate-800/50'}`}
+              >
+                <p className="text-xs font-medium text-white">Preferida</p>
+                <p className="text-[10px] text-slate-400">Tenta a biblioteca; cai para IA se não houver match.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBrandLibraryMode?.('strict')}
+                data-testid="bl-mode-strict"
+                className={`text-left rounded border p-2 ${brandLibraryMode === 'strict' ? 'border-indigo-400 bg-indigo-500/10' : 'border-slate-700 bg-slate-800/50'}`}
+              >
+                <p className="text-xs font-medium text-white">Estrita</p>
+                <p className="text-[10px] text-slate-400">Apenas biblioteca; slides sem match ficam sem imagem.</p>
+              </button>
             </div>
           )}
         </CardContent>

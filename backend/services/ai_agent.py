@@ -1425,8 +1425,17 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
 
 
 
-async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "", design_template_id: str = "") -> dict:
-    """Convert storyboard into Scormfy project data with professional visuals and configurable media."""
+async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "", design_template_id: str = "", company_id: str = "", use_brand_library: bool = False, brand_library_mode: str = "preferred") -> dict:
+    """Convert storyboard into Scormfy project data with professional visuals and configurable media.
+
+    Brand Library:
+        When `use_brand_library` is True the picker tries the company's
+        curated imagery BEFORE falling back to AI generation. `brand_library_mode`
+        controls the fallback policy:
+            - "preferred" (default): use library if a semantic match is found,
+              otherwise call Leonardo / stock as usual.
+            - "strict": use library or leave the slide without a background image.
+    """
     from models import generate_id
     import hashlib
 
@@ -1531,6 +1540,39 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             nonlocal completed_count
             async with semaphore:
                 try:
+                    # Brand Library hook: when the project opts in, try the
+                    # company's curated imagery FIRST. If we find a semantic
+                    # match the slide gets that asset and we skip Leonardo /
+                    # stock altogether — keeping the visual identity on-brand
+                    # and saving the generation cost.
+                    if use_brand_library and company_id:
+                        try:
+                            from services.brand_library_picker import pick_asset_for_slide
+                            sb_slide_ctx = slides_data[slide_idx] if slide_idx < len(slides_data) else {}
+                            chosen = await pick_asset_for_slide(
+                                _pdb, company_id,
+                                slide_title=sb_slide_ctx.get("title") or "",
+                                slide_body=sb_slide_ctx.get("body") or sb_slide_ctx.get("text") or "",
+                                desired_type="background",
+                                keyword=keyword,
+                            )
+                            if chosen and chosen.get("url"):
+                                slide_media[slide_idx] = {
+                                    "type": "image", "url": chosen["url"], "source": "brand_library",
+                                }
+                                completed_count += 1
+                                logger.info(f"Image {completed_count}/{total_images} from brand library for slide {slide_idx}")
+                                return
+                            # No match: in strict mode we leave the slide without an image
+                            if brand_library_mode == "strict":
+                                slide_media[slide_idx] = {"type": "none", "source": "brand_library_strict"}
+                                completed_count += 1
+                                logger.info(f"Image {completed_count}/{total_images} skipped (strict brand library, no match) for slide {slide_idx}")
+                                return
+                        except Exception as _ble:
+                            logger.warning(f"brand library picker failed for slide {slide_idx}: {_ble}")
+                            # Falls through to the regular generation paths below
+
                     if source == "leonardo":
                         from services.leonardo_ai import generate_and_wait, download_image_to_disk
                         from services.asset_store import store_asset_async

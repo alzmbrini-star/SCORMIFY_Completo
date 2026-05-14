@@ -202,3 +202,69 @@ def restore_project_assets_sync(mongo_url: str, db_name: str, project_id: str, a
     except Exception as e:
         logger.warning(f"Failed to restore project assets: {e}")
         return 0
+
+
+
+# ---------------------------------------------------------------------------
+# Company assets (Brand Library) — stored in a separate `company_assets`
+# collection so per-project queries don't scan brand imagery and vice-versa.
+# Same base64 storage pattern as project_assets: survives K8s pod restarts.
+# ---------------------------------------------------------------------------
+
+async def store_company_asset_async(db, company_id: str, asset_id: str, filename: str, file_path: str) -> bool:
+    """Persist a Brand Library asset in MongoDB. Keyed by (company_id, asset_id)
+    so two assets with the same filename within the same company are still
+    distinguishable."""
+    try:
+        with open(file_path, "rb") as f:
+            raw = f.read()
+        data_b64 = base64.b64encode(raw).decode("ascii")
+        ct = _get_content_type(filename)
+        await db.company_assets.update_one(
+            {"company_id": company_id, "asset_id": asset_id},
+            {"$set": {
+                "company_id": company_id,
+                "asset_id": asset_id,
+                "filename": filename,
+                "data": data_b64,
+                "content_type": ct,
+            }},
+            upsert=True,
+        )
+        logger.info(f"Brand asset stored in MongoDB: {company_id}/{asset_id} ({len(raw)} bytes)")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to store brand asset {company_id}/{asset_id}: {e}")
+        return False
+
+
+async def retrieve_company_asset_async(db, company_id: str, asset_id: str) -> tuple:
+    """Fetch a Brand Library asset by (company_id, asset_id). Returns
+    (bytes, content_type) or (None, None) when not found."""
+    if db is None:
+        return None, None
+    async with _asset_semaphore:
+        try:
+            doc = await db.company_assets.find_one(
+                {"company_id": company_id, "asset_id": asset_id},
+                {"_id": 0, "data": 1, "content_type": 1},
+            )
+            if not doc or not doc.get("data"):
+                return None, None
+            return base64.b64decode(doc["data"]), doc.get("content_type", "application/octet-stream")
+        except Exception as e:
+            logger.warning(f"retrieve_company_asset_async failed for {company_id}/{asset_id}: {e}")
+            return None, None
+
+
+async def delete_company_asset_async(db, company_id: str, asset_id: str) -> bool:
+    """Hard-delete a Brand Library asset blob. Caller is responsible for
+    removing the metadata document in the `company_assets_meta` collection."""
+    if db is None:
+        return False
+    try:
+        await db.company_assets.delete_one({"company_id": company_id, "asset_id": asset_id})
+        return True
+    except Exception as e:
+        logger.warning(f"delete_company_asset_async failed for {company_id}/{asset_id}: {e}")
+        return False

@@ -140,6 +140,13 @@ export default function Agent() {
   const [globalTextColor, setGlobalTextColor] = useState('');
   const [globalFontSize, setGlobalFontSize] = useState('');
   const [globalAnimation, setGlobalAnimation] = useState('');
+  // Brand Library: when on, the AI Agent prefers the company's curated
+  // imagery over Leonardo/Gemini generations. Mode controls the fallback:
+  // 'preferred' (try library first, fall back to AI) or 'strict' (library
+  // only — slides without a match render without background).
+  const [useBrandLibrary, setUseBrandLibrary] = useState(false);
+  const [brandLibraryMode, setBrandLibraryMode] = useState('preferred');
+  const [brandLibraryCount, setBrandLibraryCount] = useState(null); // null = not yet loaded
   const [editMediaProjectId, setEditMediaProjectId] = useState(null);
   // Track original configs for smart edit (only apply changed slides)
   const [originalMediaConfig, setOriginalMediaConfig] = useState(null);
@@ -252,6 +259,38 @@ export default function Agent() {
   }, []);
 
   const [agentCompanyId, setAgentCompanyId] = useState('');
+
+  // Brand Library count for the active company. Fetched when the user
+  // lands on step 5 so the MediaConfigPanel can show "N imagens disponíveis"
+  // or disable the toggle if the library is empty.
+  useEffect(() => {
+    if (currentStep !== 5) return;
+    // Resolve the company we'd generate this course for. Super-admin may
+    // pick a target company explicitly; regular users always have their own.
+    const cid = agentCompanyId || authUser?.companyId;
+    if (!cid) {
+      setBrandLibraryCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/companies/${cid}/assets?type=background`, {
+          headers: authHeaders(),
+        });
+        if (!r.ok) {
+          if (!cancelled) setBrandLibraryCount(0);
+          return;
+        }
+        const d = await r.json();
+        if (!cancelled) setBrandLibraryCount(d.total || 0);
+      } catch (_e) {
+        if (!cancelled) setBrandLibraryCount(0);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, agentCompanyId, authUser?.companyId]);
 
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
@@ -646,7 +685,12 @@ export default function Agent() {
       }
       const saveRes = await fetch(`${API}/api/agent/sessions/${sessionId}/media-config`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ mediaConfig: enrichedConfig, bgConfig, globalTextColor, globalFontSize, globalAnimation, designTemplateId: selectedDesignTemplate?.id || '' }),
+        body: JSON.stringify({
+          mediaConfig: enrichedConfig, bgConfig,
+          globalTextColor, globalFontSize, globalAnimation,
+          designTemplateId: selectedDesignTemplate?.id || '',
+          useBrandLibrary, brandLibraryMode,
+        }),
       });
       if (!saveRes.ok) throw new Error('Falha ao salvar configuração de mídia');
 
@@ -1218,7 +1262,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 2 && <ConfigPanel config={config} setConfig={setConfig} analysis={analysis} loading={loading} onGenerate={handleGenerateStructure} templates={templates} selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} designTemplates={designTemplates} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
               {mode === 'create' && currentStep === 3 && <StructurePanel structure={structure} loading={loading} onApprove={handleGenerateStoryboard} progressMsg={storyboardProgressMsg} />}
               {mode === 'create' && currentStep === 4 && <StoryboardPanel storyboard={storyboard} loading={loading} onApprove={handleApproveStoryboard} onSubmitForApproval={handleSubmitForApproval} config={config} setConfig={setConfig} sessionId={sessionId} companies={companiesList} />}
-              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} />}
+              {mode === 'create' && currentStep === 5 && <MediaConfigPanel storyboard={storyboard} mediaConfig={mediaConfig} setMediaConfig={setMediaConfig} loading={loading} onConfirm={handleSaveMediaConfig} heygenConfig={heygenConfig} setHeygenConfig={setHeygenConfig} bgConfig={bgConfig} setBgConfig={setBgConfig} sessionId={sessionId} globalTextColor={globalTextColor} setGlobalTextColor={setGlobalTextColor} globalFontSize={globalFontSize} setGlobalFontSize={setGlobalFontSize} globalAnimation={globalAnimation} setGlobalAnimation={setGlobalAnimation} isEditMode={!!editMediaProjectId} originalMediaConfig={originalMediaConfig} originalBgConfig={originalBgConfig} projectId={editMediaProjectId} selectedDesignTemplate={selectedDesignTemplate} setSelectedDesignTemplate={setSelectedDesignTemplate} useBrandLibrary={useBrandLibrary} setUseBrandLibrary={setUseBrandLibrary} brandLibraryMode={brandLibraryMode} setBrandLibraryMode={setBrandLibraryMode} brandLibraryCount={brandLibraryCount} />}
               {mode === 'create' && generationPhases.length > 0 && !generatedProject && (
                 <GeneratingProgressPanel phases={generationPhases} startTime={generationStartTime} config={config} storyboard={storyboard} mediaConfig={mediaConfig} />
               )}

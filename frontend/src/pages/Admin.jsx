@@ -38,6 +38,8 @@ import TutorDashboard from './TutorDashboard';
 import IntegrationsHealthPanel from './IntegrationsHealthPanel';
 import CostReportPanel from '../components/admin/CostReportPanel';
 import DataMigrationPanel from '../components/admin/DataMigrationPanel';
+import BrandLibraryDialog from '../components/admin/BrandLibraryDialog';
+import { Palette } from 'lucide-react';
 const API_URL = getApiUrl();
 
 export default function Admin() {
@@ -76,6 +78,8 @@ export default function Admin() {
   const [leonardoSummary, setLeonardoSummary] = useState(null);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState(null);
+  // Brand Library dialog state
+  const [brandLibCompany, setBrandLibCompany] = useState(null);
 
   useEffect(() => {
     if (!isCompanyAdmin) {
@@ -485,6 +489,15 @@ export default function Admin() {
                       <p className="text-slate-400 text-sm">/{company.slug}</p>
                     </div>
                     <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setBrandLibCompany(company)}
+                        data-testid={`open-brand-library-${company.id}`}
+                        title="Biblioteca de Marca"
+                      >
+                        <Palette className="w-4 h-4 text-indigo-400" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEditCompany(company)}>
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -1155,6 +1168,13 @@ export default function Admin() {
           </div>
         </div>
       )}
+
+      {/* Brand Library dialog (super_admin only) */}
+      <BrandLibraryDialog
+        open={!!brandLibCompany}
+        onClose={() => setBrandLibCompany(null)}
+        company={brandLibCompany}
+      />
     </div>
   );
 }

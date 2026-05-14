@@ -861,10 +861,18 @@ async def agent_set_media_config(session_id: str, data: dict):
     global_font_size = data.get("globalFontSize", "")
     global_animation = data.get("globalAnimation", "")
     design_template_id = data.get("designTemplateId", "")
+    # Brand Library toggle (Wizard step 5): when on, the AI Agent prefers
+    # the company's curated imagery over Leonardo/Gemini generations.
+    use_brand_library = bool(data.get("useBrandLibrary"))
+    brand_library_mode = (data.get("brandLibraryMode") or "preferred").lower()
+    if brand_library_mode not in ("preferred", "strict"):
+        brand_library_mode = "preferred"
     update_data = {
         "mediaConfig": media_config, "bgConfig": bg_config,
         "globalTextColor": global_text_color, "globalFontSize": global_font_size,
         "globalAnimation": global_animation,
+        "useBrandLibrary": use_brand_library,
+        "brandLibraryMode": brand_library_mode,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     if design_template_id:
@@ -1764,7 +1772,12 @@ async def agent_generate_course(session_id: str):
                 project_dir=str(PROJECTS_DIR), project_id=project.id,
                 media_config=media_config, bg_config=bg_config,
                 global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation,
-                design_template_id=config.get("designTemplateId", "")
+                design_template_id=config.get("designTemplateId", ""),
+                # Brand Library: when the wizard opts in, the picker uses
+                # the company's curated imagery before falling back to AI.
+                company_id=_s.get("companyId") or "",
+                use_brand_library=bool(_s.get("useBrandLibrary") or config.get("useBrandLibrary")),
+                brand_library_mode=(_s.get("brandLibraryMode") or config.get("brandLibraryMode") or "preferred"),
             ))
 
             # PDF imports: migrate extracted images from the temp project to the

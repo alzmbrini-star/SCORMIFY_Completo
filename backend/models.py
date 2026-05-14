@@ -481,6 +481,11 @@ class Company(BaseModel):
     # Limits
     maxUsers: int = 10
     maxProjects: int = 100
+
+    # Brand Kit: corporate identity applied automatically to courses created
+    # for this company. The Agent reads these when generating slides; the
+    # Editor exposes them as "Marca da empresa" presets.
+    brandKit: Optional[Dict[str, Any]] = Field(default=None)
     
     isActive: bool = True
     createdAt: datetime = Field(default_factory=now_utc)
@@ -502,6 +507,85 @@ class CompanyUpdate(BaseModel):
     permissions: Optional[Dict[str, bool]] = None
     maxUsers: Optional[int] = None
     maxProjects: Optional[int] = None
+    isActive: Optional[bool] = None
+
+
+# ---------------------------------------------------------------------------
+# Brand Library: per-company assets (images) + brand kit (colors, fonts).
+# Authored by super_admin, consumed by the Agent when projects opt in.
+# ---------------------------------------------------------------------------
+
+class BrandKit(BaseModel):
+    """Visual identity preset applied to courses for a given company."""
+    model_config = ConfigDict(extra="allow")
+    primaryColor: Optional[str] = None      # e.g. "#1e3a8a"
+    secondaryColor: Optional[str] = None
+    accentColor: Optional[str] = None
+    fontFamily: Optional[str] = None        # e.g. "Inter", "Roboto"
+    logoUrl: Optional[str] = None           # served from /api/companies/.../assets/...
+
+class BrandKitUpdate(BaseModel):
+    primaryColor: Optional[str] = None
+    secondaryColor: Optional[str] = None
+    accentColor: Optional[str] = None
+    fontFamily: Optional[str] = None
+    logoUrl: Optional[str] = None
+
+
+# Asset categories the UI lets the super_admin file imagery under. The Agent
+# uses the category as a strong filter when picking imagery (e.g. only show
+# `intro` assets to the cover slide LLM picker). Free-form tags + description
+# carry the nuance (industry, mood, color palette, etc.).
+COMPANY_ASSET_TYPES = ("background", "illustration", "icon", "logo", "cover", "other")
+COMPANY_ASSET_CATEGORIES = ("intro", "content", "transition", "conclusion", "light_bg", "dark_bg", "generic")
+
+
+class CompanyAsset(BaseModel):
+    """One image (or vector) that lives in a company's Brand Library."""
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(default_factory=lambda: f"casset_{uuid.uuid4().hex[:12]}")
+    companyId: str
+    # File metadata
+    filename: str                           # stored filename (unique within company)
+    originalFilename: Optional[str] = None  # what the user uploaded as
+    contentType: Optional[str] = None       # MIME
+    sizeBytes: Optional[int] = None
+    width: Optional[int] = None             # for images
+    height: Optional[int] = None
+    # Classification
+    type: str = "background"                # one of COMPANY_ASSET_TYPES
+    category: Optional[str] = "generic"     # one of COMPANY_ASSET_CATEGORIES
+    tags: List[str] = Field(default_factory=list)
+    description: Optional[str] = None       # free-form pt-BR — feeds the semantic matcher
+    # Provenance
+    createdBy: Optional[str] = None         # user.id of the uploader
+    createdAt: datetime = Field(default_factory=now_utc)
+    updatedAt: datetime = Field(default_factory=now_utc)
+    isActive: bool = True
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _normalize_type(cls, v):
+        v = (v or "background").lower().strip()
+        return v if v in COMPANY_ASSET_TYPES else "background"
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _normalize_category(cls, v):
+        if v is None:
+            return "generic"
+        v = str(v).lower().strip()
+        return v if v in COMPANY_ASSET_CATEGORIES else "generic"
+
+
+class CompanyAssetUpdate(BaseModel):
+    """Patch metadata of an existing brand asset (file bytes are immutable —
+    upload a new asset instead of editing the bytes)."""
+    type: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
     isActive: Optional[bool] = None
 
 class User(BaseModel):
