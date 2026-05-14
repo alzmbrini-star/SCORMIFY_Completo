@@ -88,6 +88,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-14: **UX (P0)** — Fundo Global: **botão direto "Imagem da Marca → Todos"** + estado persistente no picker.
+  - **Pedido do usuário**: "Em fundo global na parte de media gostaria de poder já escolher a imagem que será aplicada a TODOS os slides ao invés de ter que ir um por um!"
+  - **Dois problemas resolvidos**:
+    1. **Atalho descoberto**: novo botão `Imagem da Marca → Todos` no header do card "Fundo Global" (ícone Layers, indigo) — 1 click abre o BrandLibraryPicker, escolha automática propaga para 12 slides + auto-contraste do texto. Não exige mais navegar pelas 5 tabs (Padrão/Cor/Degradê/Imagem/Marca).
+    2. **Estado persistente**: o wrapper antigo do Fundo Global descartava `__global__` ao propagar — então o picker voltava para "Padrão" sem feedback. Agora **mantém** `__global__` na config E também escreve nos índices 0..N. Resultado: o picker mostra o preview da imagem escolhida, a legenda "Imagem da marca aplicada aos N slides" em verde, e o toggle de overlay fica visível para ajuste fino. Per-slide pickers também sincronizados (todos mostram a mesma imagem).
+  - **Fluxo completo agora**: clicar atalho → escolher imagem → backend computa luminância (~50ms) → aplica em todos os slides + auto-seta `globalTextColor` (#FFFFFF para fundo escuro / #0f172a para fundo claro) + auto-seta overlay (light/dark) → toast "Imagem da marca aplicada aos 12 slides!" → preview no Fundo Global + em cada Capa/Conteúdo abaixo.
+  - **Testing**: **106/106 testes pre-existentes passando** (sem regressões). E2E validado com screenshot capturando: botão atalho visível → click → picker abre → escolha → toast verde + preview persistente em Fundo Global + Capa 1 sincronizada com mesma imagem.
+
+
 - 2026-05-14: **FEATURE (P0)** — Fundo de curso vindo da Biblioteca de Marca + **contraste automático** dos textos do Agente IA.
   - **Pedido do usuário**: "optar por uma imagem a ser usada como background do curso prevalecendo sobre os fundos e para os textos criados pelo Agente IA ter o contraste correto! Esta imagem deverá ser optada na Biblioteca de Marca da Empresa!"
   - **Backend**:

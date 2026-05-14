@@ -646,6 +646,8 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   // the global toggle that lets the agent auto-pick).
   const [showBrandPicker, setShowBrandPicker] = useState(false);
   const [brandPickerSlideIdx, setBrandPickerSlideIdx] = useState(null);
+  // Quick "Imagem da Marca -> Todos os slides" shortcut from the Global card.
+  const [globalQuickBrandOpen, setGlobalQuickBrandOpen] = useState(false);
   const [designTemplates, setDesignTemplates] = useState([]);
 
   // ElevenLabs narration state - restore voiceId from existing mediaConfig when editing
@@ -1373,16 +1375,35 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
               <span className="text-sm font-semibold text-cyan-300">Fundo Global</span>
               <Badge variant="outline" className="text-[9px] border-cyan-600/40 text-cyan-400">Todos os Slides</Badge>
             </div>
+            {/* Quick-apply shortcut — opens the brand picker directly and on
+                pick propagates the choice to every slide in one go. The
+                regular tabs (Padrão / Cor / Degradê / Imagem / Marca) below
+                still work for fine-tuning. */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setGlobalQuickBrandOpen(true)}
+              disabled={!brandLibraryCompanyId}
+              className="h-7 text-[11px] border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/30"
+              data-testid="global-brand-quick-apply"
+            >
+              <Layers className="w-3.5 h-3.5 mr-1" />
+              Imagem da Marca → Todos
+            </Button>
           </div>
-          <p className="text-xs text-slate-400">Aplicar o mesmo fundo a todos os slides de uma vez</p>
+          <p className="text-xs text-slate-400">Aplicar o mesmo fundo a todos os slides de uma vez. {bgConfig['__global__']?.type === 'brand' && bgConfig['__global__']?.imageUrl && (<span className="text-emerald-400">Imagem da marca aplicada aos {storyboard?.slides?.length || 0} slides.</span>)}</p>
           <SlideBackgroundPicker
             slideIndex="__global__"
             bgConfig={bgConfig}
             setBgConfig={(fn) => {
-              const globalBg = typeof fn === 'function' ? fn(bgConfig)['__global__'] : fn['__global__'];
+              const next = typeof fn === 'function' ? fn(bgConfig) : fn;
+              const globalBg = next['__global__'];
               if (globalBg) {
+                // Apply the global pick to ALL slides AND keep `__global__`
+                // populated so the global picker stays in-sync (shows the
+                // preview / chosen image instead of reverting to default).
                 setBgConfig(() => {
-                  const newConfig = {};
+                  const newConfig = { __global__: { ...globalBg } };
                   const totalSlides = storyboard?.slides?.length || 0;
                   for (let i = 0; i < totalSlides; i++) {
                     newConfig[String(i)] = { ...globalBg };
@@ -1390,6 +1411,10 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                   return newConfig;
                 });
                 toast.success(`Fundo aplicado a todos os ${storyboard?.slides?.length || 0} slides!`);
+              } else {
+                // Edge case: the picker mutated a non-global key for some
+                // reason. Still pass-through so we don't lose any state.
+                setBgConfig(next);
               }
             }}
             allSlides={storyboard?.slides || []}
@@ -1834,6 +1859,46 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
             });
           }
           setShowBrandPicker(false);
+        }}
+      />
+
+      {/* Global Quick-Apply Brand Picker — picks one image and writes it as
+          the bg of EVERY slide in a single shot. Includes auto-contrast text
+          color via the /analysis endpoint so generated text stays readable. */}
+      <BrandLibraryPicker
+        open={globalQuickBrandOpen}
+        onClose={() => setGlobalQuickBrandOpen(false)}
+        companyId={brandLibraryCompanyId}
+        defaultType="background"
+        onPick={async (asset) => {
+          let suggested = { recommendedTextColor: '#FFFFFF', recommendedOverlay: 'dark' };
+          try {
+            const r = await fetch(`${API}/api/companies/${brandLibraryCompanyId}/assets/${asset.id}/analysis`, {
+              headers: authHeaders(),
+            });
+            if (r.ok) suggested = await r.json();
+          } catch (_e) { /* keep fallback */ }
+          const newBg = {
+            type: 'brand',
+            imageUrl: asset.url,
+            brandAssetId: asset.id,
+            opacity: 100,
+            overlay: suggested.recommendedOverlay === 'none' ? null : suggested.recommendedOverlay,
+            suggestedTextColor: suggested.recommendedTextColor,
+          };
+          // Write the brand bg to EVERY slide index AND keep __global__ for
+          // picker continuity. Reuses the same shape the regular global
+          // wrapper produces.
+          setBgConfig(() => {
+            const cfg = { __global__: { ...newBg } };
+            const total = storyboard?.slides?.length || 0;
+            for (let i = 0; i < total; i++) cfg[String(i)] = { ...newBg };
+            return cfg;
+          });
+          // Auto-tune the global text color so the agent generates readable text
+          if (setGlobalTextColor) setGlobalTextColor(suggested.recommendedTextColor);
+          toast.success(`Imagem da marca aplicada aos ${storyboard?.slides?.length || 0} slides!`);
+          setGlobalQuickBrandOpen(false);
         }}
       />
     </div>
