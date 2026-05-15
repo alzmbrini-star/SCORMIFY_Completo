@@ -523,6 +523,10 @@ class BrandKit(BaseModel):
     accentColor: Optional[str] = None
     fontFamily: Optional[str] = None        # e.g. "Inter", "Roboto"
     logoUrl: Optional[str] = None           # served from /api/companies/.../assets/...
+    # Where the logo lands on each slide. One of:
+    #   "bottom-right" (default), "bottom-left", "bottom-center",
+    #   "intro-conclusion-only" (only on first + last slide, bottom-right).
+    logoPlacement: Optional[str] = "bottom-right"
 
 class BrandKitUpdate(BaseModel):
     primaryColor: Optional[str] = None
@@ -530,6 +534,7 @@ class BrandKitUpdate(BaseModel):
     accentColor: Optional[str] = None
     fontFamily: Optional[str] = None
     logoUrl: Optional[str] = None
+    logoPlacement: Optional[str] = None
 
 
 # Asset categories the UI lets the super_admin file imagery under. The Agent

@@ -49,6 +49,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
   const [loading, setLoading] = useState(false);
   const [brandKit, setBrandKit] = useState({
     primaryColor: "", secondaryColor: "", accentColor: "", fontFamily: "", logoUrl: "",
+    logoPlacement: "bottom-right",
   });
   // Upload form state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -95,6 +96,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
         accentColor: d.accentColor || "",
         fontFamily: d.fontFamily || "",
         logoUrl: d.logoUrl || "",
+        logoPlacement: d.logoPlacement || "bottom-right",
       });
     } catch (e) {
       // ignore — empty kit is a normal state
@@ -501,6 +503,54 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                 <Upload className="w-3.5 h-3.5 mr-2" />
                 {brandKit.logoUrl ? "Trocar logo" : "Subir logo"}
               </Button>
+
+              {/* Placement selector — only shown once a logo is configured.
+                  Four visual cards, each with a tiny preview rectangle
+                  illustrating WHERE the watermark will land. */}
+              {brandKit.logoUrl && (
+                <div className="mt-3 space-y-2" data-testid="bl-kit-logo-placement-section">
+                  <Label className="text-slate-300 text-xs">Posicao do logo nos slides</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { value: "bottom-right", label: "Inferior Dir.", dotX: 80, dotY: 40 },
+                      { value: "bottom-left", label: "Inferior Esq.", dotX: 12, dotY: 40 },
+                      { value: "bottom-center", label: "Inferior Centro", dotX: 46, dotY: 40 },
+                      { value: "intro-conclusion-only", label: "So 1\u00ba/Ultimo", dotX: 80, dotY: 40, isSpecial: true },
+                    ].map((opt) => {
+                      const active = (brandKit.logoPlacement || "bottom-right") === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setBrandKit({ ...brandKit, logoPlacement: opt.value })}
+                          data-testid={`bl-kit-placement-${opt.value}`}
+                          className={`flex flex-col items-center gap-1 p-2 rounded border ${active ? "bg-indigo-900/30 border-indigo-500 text-indigo-300" : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"}`}
+                        >
+                          {/* Mini slide preview (1.85:1 = 100x54) with a dot
+                              showing where the logo will sit. */}
+                          <div className="relative w-[100px] h-[54px] bg-slate-950 rounded border border-slate-700">
+                            <div
+                              className={`absolute rounded-sm ${active ? "bg-indigo-400" : "bg-slate-500"}`}
+                              style={{ left: opt.dotX, top: opt.dotY, width: 12, height: 6 }}
+                            />
+                            {opt.isSpecial && (
+                              <span className="absolute top-1 left-1 text-[8px] font-bold text-slate-500">
+                                1/{"\u2026"}/N
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-center leading-tight">{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    {brandKit.logoPlacement === "intro-conclusion-only"
+                      ? "O logo aparecera apenas no primeiro e ultimo slide do curso."
+                      : "O logo aparecera em todos os slides."}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">

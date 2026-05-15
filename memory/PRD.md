@@ -88,6 +88,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15: **FEATURE (P2)** — Brand Kit: **`logoPlacement` configurável** com 4 opções de posicionamento.
+  - **Sugerido na finalização anterior, aprovado pelo usuário**: "Sim pode implementar sua sugestão!"
+  - **Backend**:
+    - `models.py::BrandKit` ganha campo `logoPlacement` (default `"bottom-right"`). `BrandKitUpdate` aceita o campo para overrides do super-admin.
+    - `services/ai_agent.py`: watermark loop agora resolve x/y a partir do placement. Quatro modos validados:
+      - `bottom-right` (default) → x=1704, y=726 (canto inferior direito com padding 36/24)
+      - `bottom-left` → x=36, y=726 (canto inferior esquerdo)
+      - `bottom-center` → x=870, y=726 (centro do rodapé)
+      - `intro-conclusion-only` → x=1704, y=726, mas só anexa em slide[0] E slide[-1]. Edge case 1-slide: o slide solo recebe o logo (intro==conclusao). Edge case 2-slides: ambos recebem.
+    - Validação resiliente: placement inválido / vazio / com case diferente → cai para `bottom-right` (typo no admin nao quebra geração).
+  - **Frontend** (`BrandLibraryDialog.jsx`):
+    - Seletor visual de 4 cards (apenas visível quando há logo). Cada card mostra um mini-preview do slide (100x54) com um "dot" indigo na posição exata onde o logo aparecerá. Card "So 1º/Último" tem um label adicional "1/.../N" no topo do preview para diferenciar do bottom-right padrão.
+    - Legenda dinâmica abaixo dos cards: "O logo aparecera em todos os slides." vs. "O logo aparecera apenas no primeiro e ultimo slide do curso." dependendo da escolha.
+    - Estado `logoPlacement` carregado do brand-kit GET, persistido no PUT junto com colors+font+logoUrl. Validado E2E: PUT respondeu 200, GET retornou `logoPlacement: "bottom-left"`.
+  - **Testing**: **132/132 testes passando** (+14 novos em `TestLogoPlacement` cobrindo: default=bottom-right, todas as 4 posições exatas, intro-conclusion-only em 1/2/N slides, placement case-insensitive, fallback para bottom-right em entrada inválida/vazia, invariante de bounds no canvas 1920x820 para todos os modos). E2E real validado com screenshots dos 4 cards + persistência confirmada.
+
+
 - 2026-05-15: **FEATURE (P2)** — Brand Kit: **logo como marca d'agua** nos slides gerados pelo Agente IA.
   - **Pedido do usuário**: aplicar `logoUrl` do brandKit como marca d'agua/footer nos slides — última peça do roadmap Brand Library.
   - **Backend** (`services/ai_agent.py::generate_course_from_storyboard`):

@@ -1964,20 +1964,47 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         project_slides.append(slide)
 
     # Brand watermark: when the company brandKit has a logoUrl, append a
-    # small image element to the bottom-right of every slide so the
-    # corporate identity stays visible end-to-end. The element is tagged
-    # with `isBrandLogo=True` so the Editor can show a dedicated control
-    # and exporters can opt to skip/move it.
+    # small image element to every slide so the corporate identity stays
+    # visible end-to-end. Position depends on `logoPlacement`:
+    #   - bottom-right (default): canto inferior direito
+    #   - bottom-left:           canto inferior esquerdo
+    #   - bottom-center:         centro inferior (rodapé)
+    #   - intro-conclusion-only: only on first + last slide, bottom-right
+    # The element is tagged with `isBrandLogo=True` so the Editor can show a
+    # dedicated control and exporters can opt to skip/move it.
     if brand_kit and isinstance(brand_kit, dict):
         logo_url = (brand_kit.get("logoUrl") or "").strip()
         if logo_url:
-            # Default footer position: bottom-right corner with ~10% padding.
-            # Slide canvas is 1920x820 (see slide dict above).
+            placement = (brand_kit.get("logoPlacement") or "bottom-right").lower().strip()
+            if placement not in ("bottom-right", "bottom-left", "bottom-center", "intro-conclusion-only"):
+                placement = "bottom-right"
             LOGO_W = 180
             LOGO_H = 70
-            x = 1920 - LOGO_W - 36          # 36px right padding
-            y = 820 - LOGO_H - 24           # 24px bottom padding
-            for slide in project_slides:
+            PAD_H = 36      # horizontal padding from edges
+            PAD_V = 24      # bottom padding
+            CANVAS_W = 1920
+            CANVAS_H = 820
+            # Resolve (x, y) once for this placement; both fixed-corner modes
+            # use the same y (bottom strip), only x changes.
+            if placement == "bottom-left":
+                x = PAD_H
+            elif placement == "bottom-center":
+                x = (CANVAS_W - LOGO_W) // 2
+            else:
+                # bottom-right & intro-conclusion-only both use the right corner
+                x = CANVAS_W - LOGO_W - PAD_H
+            y = CANVAS_H - LOGO_H - PAD_V
+
+            total = len(project_slides)
+            for idx, slide in enumerate(project_slides):
+                # `intro-conclusion-only`: only first AND last slide. For a
+                # single-slide course (total==1) we still place the logo —
+                # the user almost certainly wants the brand visible.
+                if placement == "intro-conclusion-only":
+                    is_intro = idx == 0
+                    is_conclusion = idx == total - 1
+                    if not (is_intro or is_conclusion):
+                        continue
                 slide["elements"].append({
                     "id": f"brand-logo-{slide['id'][-6:]}",
                     "type": "image",

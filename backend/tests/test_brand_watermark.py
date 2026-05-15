@@ -19,11 +19,27 @@ def _apply_brand_watermark(slides, brand_kit, use_brand_library=True):
     logo_url = (brand_kit.get("logoUrl") or "").strip()
     if not logo_url:
         return slides
+    placement = (brand_kit.get("logoPlacement") or "bottom-right").lower().strip()
+    if placement not in ("bottom-right", "bottom-left", "bottom-center", "intro-conclusion-only"):
+        placement = "bottom-right"
     LOGO_W = 180
     LOGO_H = 70
-    x = 1920 - LOGO_W - 36
-    y = 820 - LOGO_H - 24
-    for slide in slides:
+    PAD_H = 36
+    PAD_V = 24
+    CANVAS_W = 1920
+    CANVAS_H = 820
+    if placement == "bottom-left":
+        x = PAD_H
+    elif placement == "bottom-center":
+        x = (CANVAS_W - LOGO_W) // 2
+    else:
+        x = CANVAS_W - LOGO_W - PAD_H
+    y = CANVAS_H - LOGO_H - PAD_V
+    total = len(slides)
+    for idx, slide in enumerate(slides):
+        if placement == "intro-conclusion-only":
+            if not (idx == 0 or idx == total - 1):
+                continue
         slide["elements"].append({
             "id": f"brand-logo-{slide['id'][-6:]}",
             "type": "image",
@@ -171,3 +187,109 @@ class TestWatermarkIdempotency:
         _apply_brand_watermark(three_slides, kit, use_brand_library=True)
         for s in three_slides:
             assert sum(1 for e in s["elements"] if e.get("isBrandLogo")) == 2
+
+
+
+# ---------------------------------------------------------------------------
+# logoPlacement variations
+# ---------------------------------------------------------------------------
+
+class TestLogoPlacement:
+    """The brandKit's `logoPlacement` controls where the watermark lands on
+    each slide. Four valid values; anything else falls back to bottom-right."""
+
+    def test_default_placement_is_bottom_right(self, three_slides):
+        kit = {"logoUrl": "/x"}  # no placement field
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        # bottom-right: x = 1920 - 180 - 36 = 1704
+        assert logo["x"] == 1704
+        # bottom: y = 820 - 70 - 24 = 726
+        assert logo["y"] == 726
+
+    def test_bottom_left_position(self, three_slides):
+        kit = {"logoUrl": "/x", "logoPlacement": "bottom-left"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        assert logo["x"] == 36
+        assert logo["y"] == 726
+
+    def test_bottom_center_position(self, three_slides):
+        kit = {"logoUrl": "/x", "logoPlacement": "bottom-center"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        # bottom-center: x = (1920 - 180) / 2 = 870
+        assert logo["x"] == 870
+        assert logo["y"] == 726
+
+    def test_bottom_right_position_explicit(self, three_slides):
+        kit = {"logoUrl": "/x", "logoPlacement": "bottom-right"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        assert logo["x"] == 1704
+        assert logo["y"] == 726
+
+    def test_intro_conclusion_only_applies_to_first_and_last(self, three_slides):
+        kit = {"logoUrl": "/x", "logoPlacement": "intro-conclusion-only"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        assert any(e.get("isBrandLogo") for e in out[0]["elements"])
+        # Middle slide: NO logo
+        assert not any(e.get("isBrandLogo") for e in out[1]["elements"])
+        assert any(e.get("isBrandLogo") for e in out[2]["elements"])
+
+    def test_intro_conclusion_only_with_two_slides(self):
+        """With exactly 2 slides, both are intro AND conclusion -> both get logo."""
+        slides = [
+            {"id": "s-aaa-bbb-111", "title": "Intro", "elements": []},
+            {"id": "s-aaa-bbb-222", "title": "End", "elements": []},
+        ]
+        kit = {"logoUrl": "/x", "logoPlacement": "intro-conclusion-only"}
+        out = _apply_brand_watermark(slides, kit, use_brand_library=True)
+        assert any(e.get("isBrandLogo") for e in out[0]["elements"])
+        assert any(e.get("isBrandLogo") for e in out[1]["elements"])
+
+    def test_intro_conclusion_only_with_one_slide(self):
+        """Edge case: 1-slide course - the single slide gets the logo."""
+        slides = [{"id": "s-solo-1234", "title": "Solo", "elements": []}]
+        kit = {"logoUrl": "/x", "logoPlacement": "intro-conclusion-only"}
+        out = _apply_brand_watermark(slides, kit, use_brand_library=True)
+        assert any(e.get("isBrandLogo") for e in out[0]["elements"])
+
+    def test_intro_conclusion_uses_bottom_right_coords(self, three_slides):
+        """intro-conclusion-only positions the logo in bottom-right."""
+        kit = {"logoUrl": "/x", "logoPlacement": "intro-conclusion-only"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        first_logo = next(e for e in out[0]["elements"] if e.get("isBrandLogo"))
+        assert first_logo["x"] == 1704
+        assert first_logo["y"] == 726
+
+    def test_invalid_placement_falls_back_to_bottom_right(self, three_slides):
+        """Defensive: a typo in the admin form shouldn't break the generator."""
+        kit = {"logoUrl": "/x", "logoPlacement": "top-banner"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        assert logo["x"] == 1704
+
+    def test_empty_placement_string_falls_back(self, three_slides):
+        kit = {"logoUrl": "/x", "logoPlacement": ""}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        assert logo["x"] == 1704
+
+    def test_placement_case_insensitive(self, three_slides):
+        """User-typed values from the admin form get normalized to lowercase."""
+        kit = {"logoUrl": "/x", "logoPlacement": "BOTTOM-LEFT"}
+        out = _apply_brand_watermark(three_slides, kit, use_brand_library=True)
+        logo = out[0]["elements"][-1]
+        assert logo["x"] == 36
+
+    def test_all_placements_keep_logo_in_canvas(self):
+        """For every valid placement, the logo's right+bottom edges must
+        stay inside the 1920x820 canvas."""
+        for placement in ("bottom-right", "bottom-left", "bottom-center", "intro-conclusion-only"):
+            slides = [{"id": "s-test-001", "title": "T", "elements": []}]
+            kit = {"logoUrl": "/x", "logoPlacement": placement}
+            _apply_brand_watermark(slides, kit, use_brand_library=True)
+            logo = slides[0]["elements"][-1]
+            assert 0 <= logo["x"] <= 1920 - logo["width"], f"placement={placement} x out of bounds"
+            assert 0 <= logo["y"] <= 820 - logo["height"], f"placement={placement} y out of bounds"
