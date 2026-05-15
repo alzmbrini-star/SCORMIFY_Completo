@@ -97,6 +97,12 @@ export default function DensitySuggestionsDialog({
   // the Krea model after picking a style.
   const [styles, setStyles] = useState([]);
   const [imageStyle, setImageStyle] = useState("infographic");
+  // When true, the generated image is ALSO persisted to the company's
+  // Brand Library so the author can reuse it on other slides/courses.
+  // Default ON because the most common author intent is "I like this
+  // image, keep it around". Backend silently skips when the user isn't
+  // a super_admin.
+  const [saveToLibrary, setSaveToLibrary] = useState(true);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("scormify_auth_token") : "";
 
@@ -160,7 +166,7 @@ export default function DensitySuggestionsDialog({
       // chain can hit the right backend lane. Suggestions without
       // requiresImage simply ignore these fields.
       const enriched = sug.requiresImage
-        ? { ...sug, imageProvider, kreaModelId, imageStyle }
+        ? { ...sug, imageProvider, kreaModelId, imageStyle, saveToLibrary }
         : sug;
       await Promise.resolve(onApply(enriched));
       onClose?.();
@@ -354,6 +360,26 @@ export default function DensitySuggestionsDialog({
                 </div>
               )}
             </div>
+
+            {/* SAVE TO BRAND LIBRARY toggle — keeps the generated image
+                around for reuse on other slides. */}
+            <label
+              className="flex items-center gap-2 p-2.5 rounded border border-slate-700 hover:border-slate-600 bg-slate-800/40 cursor-pointer transition"
+              data-testid="density-save-to-library-toggle"
+            >
+              <input
+                type="checkbox"
+                checked={saveToLibrary}
+                onChange={(e) => setSaveToLibrary(e.target.checked)}
+                className="w-4 h-4 accent-violet-500 cursor-pointer"
+              />
+              <span className="text-xs text-white flex-1">
+                Salvar tambem na <strong className="text-violet-300">Biblioteca de Marca</strong> da empresa
+              </span>
+              <span className="text-[10px] text-slate-500">
+                {saveToLibrary ? "(reutilizavel)" : "(so neste slide)"}
+              </span>
+            </label>
           </div>
         )}
 

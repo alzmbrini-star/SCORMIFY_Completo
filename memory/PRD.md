@@ -88,6 +88,27 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FEATURE (P1)** — Imagens geradas via Analise de Densidade agora vao tambem para a **Biblioteca de Marca da empresa** (reutilizaveis).
+  - **Pedido do usuario**: "Quero que as imagens geradas na Analise Visual do Agente IA seja inseridas na biblioteca de imagens tambem!"
+  - **Design escolhido**: 1c + 2b (toggle no dialog ligado por default + categorizacao inteligente por estilo).
+  - **Backend** (`routes/density.py`):
+    - `GenerateImageRequest.saveToLibrary: bool = True` — opt-out, nao opt-in.
+    - Mapeamento `STYLE_TO_ASSET_TYPE`: photorealistic/editorial → "background" (preenchem slide), infographic/3d-illustration → "illustration" (acompanham texto).
+    - Apos persistir o JPEG no projeto, se `saveToLibrary=True` E `role=super_admin` E projeto tem `companyId`: insere documento em `company_assets_meta` (com `id`, `companyId`, `filename`, `type`, `category="content"`, `tags=["ia-densidade", style_id, provider]`, `description` com prompt original truncado, `width`/`height` via PIL) E armazena bytes via `store_company_asset_async` (GridFS para sobreviver restarts K8s).
+    - **Idempotencia**: antes de inserir, faz lookup por `(companyId, originalFilename)` — se ja existe (mesmo seed determinístico), reutiliza o `casset_*` ao inves de duplicar. Reaplicar a mesma sugestao 3x = 1 asset na biblioteca, nao 3.
+    - Resposta agora inclui `companyAssetId` (string ou null) + `savedToLibrary` (bool) para o frontend.
+  - **Frontend** (`DensitySuggestionsDialog.jsx`):
+    - Novo toggle visual (checkbox + label) abaixo do picker de provider, dentro do bloco `anySuggestionNeedsImage`. Hint dinâmico: `(reutilizavel)` quando ligado, `(so neste slide)` quando desligado.
+    - `handleApply` enriquece sugestao com `saveToLibrary` antes de invocar callback.
+  - **Frontend** (`SlideProperties.jsx` + `GeneratedPanel.jsx`):
+    - Payload `POST /generate-image` agora inclui `saveToLibrary`. Resposta `savedToLibrary` propagada via `sug._savedToLibrary` para customizar o toast: *"Sugestao aplicada. Imagem gerada e salva na Biblioteca de Marca."* vs *"Sugestao aplicada com imagem gerada."*
+  - **Validacao E2E** (curl):
+    - 1ª chamada com `saveToLibrary:true` → `companyAssetId: casset_xxx`, lib lookup por tag `ia-densidade` retorna o asset
+    - 2ª chamada idêntica → MESMO `companyAssetId` (idempotente, sem duplicar)
+    - Chamada com `saveToLibrary:false` → `companyAssetId: null`, asset NAO criado
+    - Screenshot do dialog confirma toggle marcado por default
+
+
 - 2026-05-15 (cont.): **FEATURE (P0)** — Seletor de **Estilo da Imagem** nas sugestoes de densidade (Infografico / Fotorrealista / Ilustracao 3D / Editorial).
   - **Pedido do usuario**: "Como faco quando quiser uma imagem em nivel fotorealista?"
   - **Backend** (`routes/density.py`):

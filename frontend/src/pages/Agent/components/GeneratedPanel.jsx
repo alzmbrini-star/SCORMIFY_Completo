@@ -483,11 +483,13 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                     provider: sug.imageProvider || 'gemini',
                     kreaModelId: sug.kreaModelId || 'flux-1-dev',
                     imageStyle: sug.imageStyle || 'infographic',
+                    saveToLibrary: sug.saveToLibrary !== false,
                   }),
                 });
                 if (r.ok) {
                   const j = await r.json();
                   generatedImageUrl = j?.url || null;
+                  if (j?.savedToLibrary) sug._savedToLibrary = true;
                 } else {
                   try {
                     const errJson = await r.json();
@@ -592,7 +594,9 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               body: JSON.stringify(proj),
             });
             if (generatedImageUrl) {
-              toast.success('Sugestao aplicada com imagem gerada.');
+              toast.success(sug._savedToLibrary
+                ? 'Sugestao aplicada. Imagem gerada e salva na Biblioteca de Marca.'
+                : 'Sugestao aplicada com imagem gerada.');
             } else if (sug.requiresImage && imageError) {
               toast.error(`Imagem nao gerada: ${imageError}. Texto aplicado mesmo assim.`, { duration: 8000 });
             } else if (sug.requiresImage) {

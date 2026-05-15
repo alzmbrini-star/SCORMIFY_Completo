@@ -18,6 +18,7 @@ All endpoints return shapes compatible with the frontend density UI
 import os
 import logging
 import hashlib
+import uuid
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -157,6 +158,26 @@ class GenerateImageRequest(BaseModel):
     #   "editorial" → magazine-style editorial photography, neutral
     #     lighting, professional composition.
     imageStyle: Optional[str] = "infographic"
+    # Also persist the generated image into the project's company brand
+    # library so the author can reuse it across other slides/courses.
+    # Requires super_admin (mirrors the upload_asset permission). Falls
+    # back silently when the user isn't allowed — the image is still
+    # written as a project asset, just not as a company asset.
+    saveToLibrary: Optional[bool] = True
+
+
+# Style → company-asset type mapping. When we persist a density-generated
+# image into the company brand library, we need to classify it. Photorealistic
+# and editorial shots become "background" candidates (they fill the slide
+# well). Infographic and 3D illustrations become "illustration" candidates
+# (paired with text). The author can re-categorize via the Brand Library UI
+# afterwards.
+STYLE_TO_ASSET_TYPE = {
+    "infographic": "illustration",
+    "photorealistic": "background",
+    "editorial": "background",
+    "3d-illustration": "illustration",
+}
 
 
 # Style configuration. Each style controls (a) a positive prompt suffix
@@ -551,5 +572,81 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     except Exception as e:
         logger.warning(f"[density.generate-image] mongo persist failed: {e}")
 
+    # Optionally persist as a COMPANY brand-library asset so the author can
+    # reuse it across other slides and other courses. Requires super_admin
+    # (mirrors the manual upload_asset permission). Best-effort: failures
+    # here NEVER break the apply flow — the project-level image is already
+    # written above and is what the slide actually references.
+    company_asset_id: Optional[str] = None
+    if req.saveToLibrary and role == "super_admin":
+        try:
+            from services.asset_store import store_company_asset_async
+            from models import CompanyAsset
+
+            company_id = project.get("companyId")
+            if company_id:
+                # Idempotency: if we already saved THIS exact image to the
+                # library (same fname = same provider+style+prompt+suggestionId
+                # seed), don't duplicate the meta row. The author would just
+                # see two copies of the same image in the library.
+                existing = await _motor_db.company_assets_meta.find_one(
+                    {"companyId": company_id, "originalFilename": fname},
+                    {"_id": 0, "id": 1},
+                )
+                if existing:
+                    company_asset_id = existing.get("id")
+                else:
+                    asset_id = f"casset_{uuid.uuid4().hex[:12]}"
+                    lib_filename = f"{asset_id}.jpg"
+                    ok = await store_company_asset_async(_motor_db, company_id, asset_id, lib_filename, fpath)
+                    if ok:
+                        # Derive metadata from the style and the original prompt
+                        # so the brand-library UI can render a useful card.
+                        asset_type = STYLE_TO_ASSET_TYPE.get(style_id, "illustration")
+                        width = height = None
+                        try:
+                            from PIL import Image
+                            with Image.open(fpath) as im:
+                                width, height = im.size
+                        except Exception:
+                            pass
+                        # Description carries the original suggestion prompt
+                        # (truncated) so the semantic matcher can rank this
+                        # asset for similar future suggestions.
+                        src_prompt = (req.imagePrompt or "").strip().replace("\n", " ")
+                        description = (
+                            f"Imagem gerada via Analise de Densidade ({style_id} / {provider}). "
+                            f"Prompt: {src_prompt[:240]}"
+                        )
+                        meta = CompanyAsset(
+                            id=asset_id,
+                            companyId=company_id,
+                            filename=lib_filename,
+                            originalFilename=fname,
+                            contentType="image/jpeg",
+                            sizeBytes=len(img_bytes),
+                            width=width,
+                            height=height,
+                            type=asset_type,
+                            category="content",
+                            tags=["ia-densidade", style_id, provider],
+                            description=description,
+                            createdBy=user.get("id"),
+                        ).model_dump()
+                        await _motor_db.company_assets_meta.insert_one(meta)
+                        company_asset_id = asset_id
+                        logger.info(f"[density.generate-image] saved to brand library: {company_id}/{asset_id}")
+        except Exception as e:
+            logger.warning(f"[density.generate-image] brand-library persist failed: {e}")
+
     url = f"/api/projects/{req.projectId}/assets/{fname}"
-    return {"url": url, "filename": fname, "width": 1200, "height": 1200, "provider": provider, "style": style_id}
+    return {
+        "url": url,
+        "filename": fname,
+        "width": 1200,
+        "height": 1200,
+        "provider": provider,
+        "style": style_id,
+        "companyAssetId": company_asset_id,
+        "savedToLibrary": bool(company_asset_id),
+    }
