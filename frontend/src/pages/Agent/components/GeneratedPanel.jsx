@@ -25,6 +25,8 @@ import {
   PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
+import DensityBadge from '../../../components/DensityBadge';
+import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
 
 const API = getApiUrl();
 
@@ -79,6 +81,39 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
   const [suggestionsStatus, setSuggestionsStatus] = useState('loading');
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+
+  // Per-slide density analysis — auto-runs after the project loads so
+  // authors see badges on the same screen that lists generated slides.
+  const [slideDensity, setSlideDensity] = useState({});       // {slideId: {label,score,reasons,...}}
+  const [densityDialog, setDensityDialog] = useState({ open: false, slide: null });
+  const [densityOpen, setDensityOpen] = useState(false);
+
+  useEffect(() => {
+    if (!project?.projectId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Fetch the full project to get slide elements
+        const pr = await fetch(`${API}/api/projects/${project.projectId}`, { headers: authHeaders() });
+        if (!pr.ok) return;
+        const proj = await pr.json();
+        const slides = proj?.course?.slides || [];
+        if (!slides.length) return;
+        const ar = await fetch(`${API}/api/density/analyze-project`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ slides }),
+        });
+        if (!ar.ok) return;
+        const data = await ar.json();
+        if (cancelled) return;
+        const map = {};
+        (data.slides || []).forEach((s) => { if (s.slideId) map[s.slideId] = { ...s, _slide: slides.find(x => x.id === s.slideId) }; });
+        setSlideDensity(map);
+      } catch (_e) { /* graceful — badges just don't show */ }
+    })();
+    return () => { cancelled = true; };
+  }, [project?.projectId]);
 
   const checkHeygenStatus = useCallback(async () => {
     if (!project?.projectId || !project?.heygenPending) return;
@@ -326,6 +361,112 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
           <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
         </Button>
       </div>
+
+      {/* Density Analysis card — surfaces slides flagged as text-heavy and
+          lets the author open the Editor pre-targeted at that slide, or open
+          the suggestions dialog right here for a quick rewrite. */}
+      {(() => {
+        const items = Object.values(slideDensity);
+        if (items.length === 0) return null;
+        const heavy = items.filter(d => d.label === 'heavy');
+        const medium = items.filter(d => d.label === 'medium');
+        if (heavy.length === 0 && medium.length === 0) return null;
+        return (
+          <Card className="bg-slate-900/50 border-fuchsia-800/40" data-testid="generated-density-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-fuchsia-400" />
+                <span>Analise Visual</span>
+                <Badge variant="outline" className="text-[9px] border-fuchsia-700/50 text-fuchsia-300">
+                  {heavy.length + medium.length} slide(s)
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-slate-400">
+                O Agente IA identificou slides que podem ficar mais visuais. Clique em um para ver sugestoes.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
+                {[...heavy, ...medium].map((d, idx) => (
+                  <button
+                    key={d.slideId || idx}
+                    type="button"
+                    onClick={() => { setDensityDialog({ open: true, slide: d._slide || d }); setDensityOpen(true); }}
+                    data-testid={`generated-density-slide-${idx}`}
+                    className="text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded px-2 py-1.5 flex items-center justify-between gap-2 transition"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs text-white truncate">{d.title || `Slide ${d.index + 1}`}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{d.reasons?.[0] || ''}</p>
+                    </div>
+                    <DensityBadge label={d.label} score={d.score} size="xs" onClick={() => { setDensityDialog({ open: true, slide: d._slide || d }); setDensityOpen(true); }} testId={`density-mini-${idx}`} />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Per-slide suggestions dialog. When a suggestion is applied we
+          PATCH the project's slides[i] via the existing /api/projects/{id}
+          PUT — the Editor screen will reload with the new content. */}
+      <DensitySuggestionsDialog
+        open={densityOpen}
+        onClose={() => { setDensityOpen(false); setDensityDialog({ open: false, slide: null }); }}
+        title={densityDialog.slide?.title || ''}
+        text={(densityDialog.slide?.elements || [])
+          .filter(e => e.type === 'text' && !e.isBrandLogo)
+          .map(e => {
+            if (e.htmlContent) {
+              const d = document.createElement('div'); d.innerHTML = e.htmlContent;
+              return d.textContent || '';
+            }
+            return e.content || e.text || '';
+          })
+          .join(' ')}
+        bullets={[]}
+        hasImage={(densityDialog.slide?.elements || []).some(e => ['image','video','avatar'].includes((e.type||'').toLowerCase()) && !e.isBrandLogo) || !!densityDialog.slide?.backgroundImage}
+        preloadedDensity={densityDialog.slide && slideDensity[densityDialog.slide.id]}
+        onApply={async (sug) => {
+          // Patch the project: rewrite the first text element of this slide.
+          const slide = densityDialog.slide;
+          if (!slide?.id) return;
+          try {
+            // Pull the full project, mutate the matching slide, save.
+            const pr = await fetch(`${API}/api/projects/${project.projectId}`, { headers: authHeaders() });
+            const proj = await pr.json();
+            const slides = proj?.course?.slides || [];
+            const target = slides.find(s => s.id === slide.id);
+            if (!target) return;
+            const elements = [...(target.elements || [])];
+            let idx = elements.findIndex(el => el.type === 'text' && !el.isBrandLogo);
+            const newContent = sug.transformedText
+              || (sug.transformedBullets?.length ? sug.transformedBullets.map(b => `• ${b}`).join('\n') : '');
+            if (idx >= 0) {
+              elements[idx] = { ...elements[idx], content: newContent, htmlContent: undefined };
+            } else if (newContent) {
+              elements.push({ id: `text-${Date.now()}`, type: 'text', content: newContent, x: 80, y: 80, width: 800, height: 400, style: { fontSize: '24px', color: '#FFFFFF' } });
+            }
+            target.elements = elements;
+            // PUT the project back
+            await fetch(`${API}/api/projects/${project.projectId}`, {
+              method: 'PUT',
+              headers: authHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify(proj),
+            });
+            toast.success('Sugestao aplicada. Abra o Editor para visualizar.');
+            // Re-analyze locally
+            setSlideDensity(prev => {
+              const next = { ...prev };
+              delete next[slide.id];
+              return next;
+            });
+          } catch (_e) {
+            toast.error('Falha ao aplicar sugestao.');
+          }
+        }}
+      />
     </div>
   );
 }

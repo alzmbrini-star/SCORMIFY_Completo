@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
+import DensityBadge from '../../../components/DensityBadge';
+import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
 
 const API = getApiUrl();
 
@@ -41,6 +43,40 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [previewMode, setPreviewMode] = useState(true);
+
+  // Density analysis state: auto-runs when the storyboard loads so badges
+  // light up immediately. `densityForSlide[i]` is the {score, label, reasons}
+  // for slide i; densityDialog holds the slide being inspected in the modal.
+  const [densityForSlide, setDensityForSlide] = useState({});
+  const [densityDialog, setDensityDialog] = useState({ open: false, slideIdx: null });
+
+  // Auto-analyze every slide whenever the storyboard mounts / changes length.
+  // Uses the cheap deterministic endpoint — one batch call is enough.
+  useEffect(() => {
+    if (!storyboard?.slides?.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const sections = storyboard.slides.map((s) => ({
+          title: s.title,
+          body: s.body || s.description || s.content || s.text || "",
+          bullets: s.bullets || s.keyPoints || [],
+        }));
+        const r = await fetch(`${API}/api/density/analyze-storyboard`, {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ sections }),
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (cancelled) return;
+        const map = {};
+        (data.sections || []).forEach((sec, idx) => { map[idx] = sec; });
+        setDensityForSlide(map);
+      } catch (_e) { /* badges just won't show — graceful */ }
+    })();
+    return () => { cancelled = true; };
+  }, [storyboard?.slides?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize narration slides when storyboard loads
   useEffect(() => {
@@ -235,12 +271,62 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
         <BookOpen className="w-5 h-5 text-emerald-400" /> Storyboard
       </h2>
 
+      {/* Visual Density summary banner — alerts the author of dense sections
+          before they approve so they can request edits or apply quick fixes. */}
+      {(() => {
+        const total = Object.keys(densityForSlide).length;
+        if (total === 0) return null;
+        const heavy = Object.values(densityForSlide).filter(d => d.label === "heavy").length;
+        const medium = Object.values(densityForSlide).filter(d => d.label === "medium").length;
+        if (heavy === 0 && medium === 0) {
+          return (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2 text-xs text-emerald-300 flex items-center gap-2" data-testid="density-summary-balanced">
+              <Lightbulb className="w-3.5 h-3.5" />
+              Conteudo visualmente equilibrado.
+            </div>
+          );
+        }
+        return (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-xs text-amber-200 flex items-center justify-between gap-2" data-testid="density-summary-banner">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <span>
+                <strong>{heavy}</strong> slide(s) muito textual(is)
+                {medium > 0 && <> · <strong>{medium}</strong> com pouco visual</>}.
+                O Agente IA sugere melhorias para tornar o curso mais engajante.
+              </span>
+            </div>
+            <button
+              type="button"
+              className="text-amber-300 hover:text-amber-100 underline text-[11px]"
+              onClick={() => {
+                // Jump to the first heavy slide so the author sees its details
+                const firstHeavyIdx = Object.entries(densityForSlide)
+                  .find(([_, d]) => d.label === "heavy")?.[0];
+                if (firstHeavyIdx != null) {
+                  setActiveSlide(parseInt(firstHeavyIdx, 10));
+                  setDensityDialog({ open: true, slideIdx: parseInt(firstHeavyIdx, 10) });
+                }
+              }}
+              data-testid="density-summary-jump"
+            >
+              Revisar
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Slide selector pills */}
       <div className="flex gap-1 flex-wrap">
         {storyboard.slides.map((s, i) => {
           const effType = getSlideEffectiveType(s, i);
           const isAvatar = s.type === 'avatar_scene' && effType === 'avatar_scene';
           const wasConverted = s.type === 'avatar_scene' && effType !== 'avatar_scene';
+          const d = densityForSlide[i];
+          // Slide pills also get a tiny color dot when density is medium/heavy
+          // (red for heavy, amber for medium) so the author can scan the whole
+          // course at a glance.
+          const densityDot = d && (d.label === "heavy" ? "bg-red-400" : d.label === "medium" ? "bg-amber-400" : "");
           return (
           <button key={i} onClick={() => setActiveSlide(i)}
             className={`px-2 py-1 rounded text-xs transition-colors relative ${
@@ -256,6 +342,9 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
             )}
             {wasConverted && (
               <span className="absolute -top-1 -left-1 w-2 h-2 bg-amber-400 rounded-full" />
+            )}
+            {densityDot && (
+              <span className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 ${densityDot} rounded-full`} />
             )}
           </button>
           );
@@ -289,6 +378,17 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
               {editedSlides[activeSlide] && <Badge className="text-[9px] bg-amber-600/20 text-amber-300 px-1.5 py-0">Editado</Badge>}
               {wasConverted && (
                 <Badge className="text-[9px] bg-amber-600/20 text-amber-300 px-1.5 py-0">Tipo alterado</Badge>
+              )}
+              {/* Density badge — only shows when content is medium/heavy.
+                  Click opens the suggestions dialog scoped to this slide. */}
+              {densityForSlide[activeSlide] && (
+                <DensityBadge
+                  label={densityForSlide[activeSlide].label}
+                  score={densityForSlide[activeSlide].score}
+                  size="xs"
+                  onClick={() => setDensityDialog({ open: true, slideIdx: activeSlide })}
+                  testId={`storyboard-density-badge-${activeSlide}`}
+                />
               )}
             </CardTitle>
           </CardHeader>
@@ -687,6 +787,57 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
           </div>
         </div>
       )}
+
+      {/* Density Suggestions Dialog — applies the chosen rewrite to a
+          storyboard section via the existing handleSlideTextEdit mechanism
+          so the dirty-edits flow stays consistent. */}
+      <DensitySuggestionsDialog
+        open={densityDialog.open}
+        onClose={() => setDensityDialog({ open: false, slideIdx: null })}
+        title={densityDialog.slideIdx != null ? (storyboard.slides[densityDialog.slideIdx]?.title || '') : ''}
+        text={densityDialog.slideIdx != null
+          ? (() => {
+              const s = storyboard.slides[densityDialog.slideIdx];
+              return s?.body || s?.description || s?.content || s?.text || '';
+            })()
+          : ''}
+        bullets={densityDialog.slideIdx != null ? (storyboard.slides[densityDialog.slideIdx]?.bullets || storyboard.slides[densityDialog.slideIdx]?.keyPoints || []) : []}
+        preloadedDensity={densityDialog.slideIdx != null ? densityForSlide[densityDialog.slideIdx] : null}
+        onApply={(sug) => {
+          const idx = densityDialog.slideIdx;
+          if (idx == null) return;
+          // Apply the transformation to the storyboard. We write to the
+          // `body` field (and `bullets` when provided) using the same
+          // dirty-edit hook the inline editor uses — so an "Apply" still
+          // shows up in the "Editado" badge for transparency.
+          const newBody = sug.transformedText || '';
+          const newBullets = sug.transformedBullets || [];
+          if (newBody) {
+            handleSlideTextEdit(idx, 'body', newBody);
+          }
+          if (newBullets.length > 0) {
+            handleSlideTextEdit(idx, 'bullets', newBullets);
+          }
+          // Re-analyze ONLY this slide after the change so the badge reflects
+          // the new state without a full re-fetch.
+          const section = {
+            title: storyboard.slides[idx]?.title || '',
+            body: newBody || (storyboard.slides[idx]?.body || ''),
+            bullets: newBullets.length ? newBullets : (storyboard.slides[idx]?.bullets || []),
+          };
+          fetch(`${API}/api/density/analyze`, {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(section),
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) setDensityForSlide(prev => ({ ...prev, [idx]: { ...d, index: idx } }));
+            })
+            .catch(() => {});
+          toast.success('Sugestao aplicada ao slide.');
+        }}
+      />
     </div>
   );
 }

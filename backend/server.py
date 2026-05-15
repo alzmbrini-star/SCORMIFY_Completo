@@ -177,6 +177,9 @@ app.include_router(companies_routes.router, prefix="/api")
 from routes import company_assets as company_assets_routes
 app.include_router(company_assets_routes.router, prefix="/api")
 
+from routes import density as density_routes
+app.include_router(density_routes.router, prefix="/api")
+
 from routes import users as users_routes
 app.include_router(users_routes.router, prefix="/api")
 

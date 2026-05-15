@@ -88,6 +88,14 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15: **FEATURE (P0)** — Análise Visual / Densidade de texto em 3 superfícies + sugestões LLM com 1-click apply.
+  - **Pedido do usuário**: detectar slides "muito textuais" no Storyboard, na análise pós-geração do Agente IA E no Editor; oferecer sugestões para tornar o conteúdo mais visual/engajante.
+  - **Escopo aprovado (1c, 2b+c, 3c, 4c, 5c)**: detecção híbrida (deterministica + LLM), sugestões textuais E visuais com aplicação 1-click, 3 superficies, badge + modal, análise automática + on-demand.
+  - **Backend**: `services/text_density_analyzer.py` (scoring deterministico em microssegundos), `services/density_suggester.py` (Claude Sonnet via Emergent key, retorna 3 sugestões com transformedText pronto), `routes/density.py` com 4 endpoints (analyze/suggestions/analyze-storyboard/analyze-project).
+  - **Frontend**: `DensityBadge` e `DensitySuggestionsDialog` reutilizáveis. Integrados em StoryboardPanel (banner+dots+badge), GeneratedPanel (card pós-geração), Editor SlideProperties (botão "Analise Visual").
+  - **Testing**: **129/129 testes passando** (+27 novos). E2E real validado: analyze API retorna score=52 label=medium com 4 reasons; suggestions API retorna 3 sugestões LLM com transformedText pronto; Editor abre o dialog corretamente.
+
+
 - 2026-05-15: **FEATURE (P2)** — Brand Kit: **`logoPlacement` configurável** com 4 opções de posicionamento.
   - **Sugerido na finalização anterior, aprovado pelo usuário**: "Sim pode implementar sua sugestão!"
   - **Backend**:

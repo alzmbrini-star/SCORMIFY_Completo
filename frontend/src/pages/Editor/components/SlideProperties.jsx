@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Input } from '../../../components/ui/input';
 import { Switch } from '../../../components/ui/switch';
 import { Button } from '../../../components/ui/button';
-import { Layers, ImagePlus, X as XIcon } from 'lucide-react';
+import { Layers, ImagePlus, X as XIcon, Sparkles } from 'lucide-react';
 import BrandLibraryPicker from '../dialogs/BrandLibraryPicker';
+import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
 
 export function SlideProperties({ slide, onUpdate, project }) {
   const extractSlideText = () => {
@@ -37,6 +38,42 @@ export function SlideProperties({ slide, onUpdate, project }) {
   //   - "skip"     → never use the library on this slide (use AI or none)
   const [brandPickerOpen, setBrandPickerOpen] = useState(false);
   const slideOverride = slide.brandLibraryOverride; // undefined | "force" | "skip"
+
+  // Density Analysis state — opens the suggestions dialog with this slide's
+  // text + bullets. The dialog calls back into onUpdate when the author
+  // applies a suggestion, so the slide refreshes immediately.
+  const [densityOpen, setDensityOpen] = useState(false);
+
+  // Compute bullets + body text from the slide's elements for the density
+  // analyzer. Mirrors the backend `analyze_slide()` heuristic.
+  const collectDensityInput = () => {
+    const texts = [];
+    const bullets = [];
+    let hasImage = !!slide.backgroundImage;
+    (slide.elements || []).forEach((el) => {
+      if (el.isBrandLogo) return;
+      const t = (el.type || '').toLowerCase();
+      if (t === 'text') {
+        const content = (el.htmlContent
+          ? (() => { const d = document.createElement('div'); d.innerHTML = el.htmlContent; return d.textContent || d.innerText || ''; })()
+          : (el.content || el.text || ''));
+        const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+        const bs = lines.filter(l => l.startsWith('•') || l.startsWith('-') || l.startsWith('*'))
+          .map(l => l.replace(/^[•\-*]\s*/, '').trim());
+        if (bs.length) bullets.push(...bs);
+        const nb = lines.filter(l => !l.startsWith('•') && !l.startsWith('-') && !l.startsWith('*'));
+        if (nb.length) texts.push(nb.join(' '));
+      } else if (['image', 'video', 'avatar', 'iframe', 'flipbook'].includes(t)) {
+        hasImage = true;
+      }
+    });
+    return {
+      title: slide.title || '',
+      text: texts.join(' '),
+      bullets,
+      hasImage,
+    };
+  };
 
   // Smart Avatar toggle is only relevant when the slide has a HeyGen (or
   // transparent) avatar video element AND a scene background image.
@@ -239,6 +276,27 @@ export function SlideProperties({ slide, onUpdate, project }) {
         </p>
       </div>
 
+      {/* Visual Density Analyzer — Agent IA opina sobre o slide */}
+      <div className="panel-section" data-testid="density-section">
+        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-fuchsia-500" />
+          Analise Visual (Agente IA)
+        </h4>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start"
+          onClick={() => setDensityOpen(true)}
+          data-testid="density-analyze-button"
+        >
+          <Sparkles className="w-4 h-4 mr-2 text-fuchsia-500" />
+          Analisar densidade e sugerir melhorias
+        </Button>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          O agente verifica se o slide esta muito textual e sugere alternativas mais visuais.
+        </p>
+      </div>
+
       {/* Brand Library picker — mounted at the root of SlideProperties so
           the dialog overlays the entire editor instead of being clipped. */}
       <BrandLibraryPicker
@@ -253,6 +311,43 @@ export function SlideProperties({ slide, onUpdate, project }) {
             backgroundImageSource: 'brand_library',
             backgroundImageAssetId: asset.id,
           });
+        }}
+      />
+
+      {/* Density Suggestions Dialog — applies a chosen rewrite to the slide
+          by mutating the first text element's content + bullets array.
+          We keep the change shallow (just the text-content fields) so other
+          properties of the element (style, position, animation) survive. */}
+      <DensitySuggestionsDialog
+        open={densityOpen}
+        onClose={() => setDensityOpen(false)}
+        {...collectDensityInput()}
+        onApply={(sug) => {
+          // Find the first text element to rewrite; if there's none we
+          // synthesize one so the suggestion lands somewhere.
+          const elements = [...(slide.elements || [])];
+          let textIdx = elements.findIndex(el => el.type === 'text' && !el.isBrandLogo);
+          const newContent = sug.transformedText
+            || (sug.transformedBullets?.length
+                ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
+                : '');
+          if (textIdx >= 0) {
+            elements[textIdx] = {
+              ...elements[textIdx],
+              content: newContent,
+              // Drop any pre-existing HTML markup since we replaced the prose
+              htmlContent: undefined,
+            };
+          } else {
+            elements.push({
+              id: `text-${Date.now()}`,
+              type: 'text',
+              content: newContent,
+              x: 80, y: 80, width: 800, height: 400,
+              style: { fontSize: '24px', color: '#FFFFFF' },
+            });
+          }
+          onUpdate({ elements });
         }}
       />
     </div>
