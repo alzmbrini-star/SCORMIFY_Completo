@@ -426,6 +426,83 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                 className="bg-slate-900 border-slate-700 text-white"
               />
             </div>
+
+            {/* Logo upload — applied as a watermark on the bottom-right of
+                every AI-generated slide (when use_brand_library=True). */}
+            <div className="border-t border-slate-800 pt-4 space-y-2" data-testid="bl-kit-logo-section">
+              <Label className="text-slate-300">Logo da Marca (marca d'agua nos slides)</Label>
+              {brandKit.logoUrl ? (
+                <div className="flex items-center gap-3 bg-slate-800/50 border border-slate-700 rounded p-3">
+                  <div className="w-32 h-16 bg-slate-950 rounded border border-slate-700 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={brandKit.logoUrl.startsWith('/') ? `${API_URL}${brandKit.logoUrl}` : brandKit.logoUrl}
+                      alt="logo"
+                      className="max-w-full max-h-full object-contain"
+                      data-testid="bl-kit-logo-preview"
+                    />
+                  </div>
+                  <div className="flex-1 text-xs text-slate-400 break-all">{brandKit.logoUrl}</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBrandKit({ ...brandKit, logoUrl: "" })}
+                    data-testid="bl-kit-logo-remove"
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    Remover
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Nenhum logo configurado. Suba uma imagem PNG/SVG (transparente preferencialmente) para aparecer como marca d'agua em todos os slides gerados pelo Agente IA.
+                </p>
+              )}
+              <input
+                ref={(el) => { window.__brandKitLogoFileInput = el; }}
+                type="file"
+                accept="image/png,image/svg+xml,image/webp"
+                className="hidden"
+                data-testid="bl-kit-logo-file"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  // Upload as a logo-typed asset, then write its public URL into brandKit.logoUrl
+                  const fd = new FormData();
+                  fd.append('file', file);
+                  fd.append('type', 'logo');
+                  fd.append('category', 'generic');
+                  fd.append('tags', 'logo,brand-kit');
+                  fd.append('description', "Logo oficial da marca - aplicado como marca d'agua nos slides");
+                  try {
+                    const r = await fetch(`${API_URL}/api/companies/${company.id}/assets`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}` },
+                      body: fd,
+                    });
+                    if (!r.ok) throw new Error('upload failed');
+                    const asset = await r.json();
+                    setBrandKit({ ...brandKit, logoUrl: asset.url });
+                    toast.success("Logo carregado. Lembre de clicar em Salvar Identidade.");
+                    // Refresh the assets tab so the logo also appears in the library grid.
+                    loadAssets();
+                  } catch (_err) {
+                    toast.error("Falha ao subir logo.");
+                  }
+                  e.target.value = ""; // allow re-upload of the same file
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.__brandKitLogoFileInput?.click()}
+                data-testid="bl-kit-logo-upload"
+                className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700"
+              >
+                <Upload className="w-3.5 h-3.5 mr-2" />
+                {brandKit.logoUrl ? "Trocar logo" : "Subir logo"}
+              </Button>
+            </div>
+
             <div className="flex justify-end">
               <Button
                 onClick={handleSaveBrandKit}

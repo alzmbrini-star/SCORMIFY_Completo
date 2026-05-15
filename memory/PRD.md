@@ -88,6 +88,21 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15: **FEATURE (P2)** — Brand Kit: **logo como marca d'agua** nos slides gerados pelo Agente IA.
+  - **Pedido do usuário**: aplicar `logoUrl` do brandKit como marca d'agua/footer nos slides — última peça do roadmap Brand Library.
+  - **Backend** (`services/ai_agent.py::generate_course_from_storyboard`):
+    - `brand_kit` agora é hoisted fora do try-block para reuso após o loop de slides.
+    - Após todos os slides serem montados, se `brand_kit.logoUrl` existe, um elemento `image` é anexado a cada slide com: `x=1704, y=726` (canto inferior direito do canvas 1920x820, com padding 36px/24px), `width=180, height=70`, `opacity=0.9`, `objectFit=contain` (nunca distorce), `isBrandLogo=true` (marker para Editor + exporters), `zIndex=50` (acima do overlay, abaixo de elementos interativos).
+    - Trims `logoUrl` para descartar whitespace acidental que viraria src vazio.
+  - **Frontend** (`BrandLibraryDialog.jsx` — tab Identidade):
+    - Nova seção "Logo da Marca (marca d'agua nos slides)" entre o campo Fonte e o botão Salvar.
+    - Botão "Subir logo" → upload direto via `/api/companies/{id}/assets` com `type=logo, category=generic, tags=logo,brand-kit`. Asset retorna URL pública que é gravada em `brandKit.logoUrl`.
+    - Estado preenchido: preview do logo em caixa 32x16 com `object-contain` + URL truncada + botões "Remover" / "Trocar logo".
+    - Toast educativo após upload: "Logo carregado. Lembre de clicar em Salvar Identidade."
+    - `loadAssets()` é chamado pós-upload para que o logo também apareça na tab Imagens (fica como um asset categorizado).
+  - **Testing**: **120/120 testes passando** (+14 novos em `test_brand_watermark.py` — cobertura: logo aplicado a TODOS os slides, propagação correta da URL, NÃO aplicado quando `use_brand_library=False`, NÃO aplicado quando brandKit faltando/logoUrl vazio/whitespace, posição consistente entre slides, posição no quadrante inferior-direito, bounds dentro do canvas, `objectFit=contain` para evitar distorção, opacidade < 1, marker `isBrandLogo`, preserva elementos existentes, idempotency documentada). E2E real validado: upload de logo DIDAXIS via canvas → preview + toast → Save → brandKit persistido com `logoUrl: /api/companies/company_didaxis001/assets/casset_abdbc36f0726/file`.
+
+
 - 2026-05-14: **UX (P0)** — Fundo Global: **botão direto "Imagem da Marca → Todos"** + estado persistente no picker.
   - **Pedido do usuário**: "Em fundo global na parte de media gostaria de poder já escolher a imagem que será aplicada a TODOS os slides ao invés de ter que ir um por um!"
   - **Dois problemas resolvidos**:

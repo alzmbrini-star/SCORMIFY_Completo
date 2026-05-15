@@ -1482,6 +1482,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     # explicitly enabled `use_brand_library` — same opt-in as the imagery
     # picker — so users who only wanted library images don't get surprised
     # by color changes.
+    # Brand Kit (colors + font + logo) — fetched once and reused. Logo is
+    # applied as a watermark element later in the slide build loop; colors
+    # and font flow through the palette here.
+    brand_kit = None
     if use_brand_library and company_id:
         try:
             from services.brand_kit_applier import fetch_brand_kit, apply_brand_kit_to_palette
@@ -1958,6 +1962,36 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "duration": 5.0,
         }
         project_slides.append(slide)
+
+    # Brand watermark: when the company brandKit has a logoUrl, append a
+    # small image element to the bottom-right of every slide so the
+    # corporate identity stays visible end-to-end. The element is tagged
+    # with `isBrandLogo=True` so the Editor can show a dedicated control
+    # and exporters can opt to skip/move it.
+    if brand_kit and isinstance(brand_kit, dict):
+        logo_url = (brand_kit.get("logoUrl") or "").strip()
+        if logo_url:
+            # Default footer position: bottom-right corner with ~10% padding.
+            # Slide canvas is 1920x820 (see slide dict above).
+            LOGO_W = 180
+            LOGO_H = 70
+            x = 1920 - LOGO_W - 36          # 36px right padding
+            y = 820 - LOGO_H - 24           # 24px bottom padding
+            for slide in project_slides:
+                slide["elements"].append({
+                    "id": f"brand-logo-{slide['id'][-6:]}",
+                    "type": "image",
+                    "imageUrl": logo_url,
+                    "x": x,
+                    "y": y,
+                    "width": LOGO_W,
+                    "height": LOGO_H,
+                    "opacity": 0.9,
+                    "objectFit": "contain",  # never crop the logo
+                    "isBrandLogo": True,
+                    # Stay above the bg overlay and below interactive elements.
+                    "zIndex": 50,
+                })
 
     # Collect narration pending info from media config
     narration_pending = []
