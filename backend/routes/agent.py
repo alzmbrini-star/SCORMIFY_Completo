@@ -4277,15 +4277,21 @@ async def storyboard_chat(session_id: str, data: dict, request: Request, user: d
     system_prompt = """Voce e um assistente conversacional de edicao de Storyboard de curso e-learning.
 
 O usuario te pede alteracoes em linguagem natural sobre um storyboard existente. Sua tarefa:
-1. Interpretar a intencao (editar texto, regerar narracao, adicionar/remover slides, reordenar).
+1. Interpretar a intencao (editar texto visivel, regerar narracao audio, adicionar/remover slides, reordenar).
 2. Gerar uma RESPOSTA amigavel em portugues explicando o que vai fazer.
 3. Gerar uma lista ESTRUTURADA de operacoes que o backend vai aplicar atomicamente.
 
+## CONCEITOS — diferenca CRITICA
+- **Texto do slide** (o que aparece NA TELA durante o curso): titulo + elementos textuais (`elements[].content`). Pedidos como "reescreva o slide", "resume o slide", "deixe o slide mais curto", "reformule o conteudo" se referem AQUI.
+- **Narracao** (`narrationScript`): roteiro de audio falado por uma voz IA. So edita quando o usuario disser EXPLICITAMENTE "narracao", "audio", "voz", "fala", "roteiro de narracao" ou "tom de voz".
+- Quando AMBIGUO, o padrao DEVE ser editar o TEXTO DO SLIDE (e' o que o aluno ve), nao a narracao.
+
 ## Tipos de operacao suportados
-- `edit_title`: {index: int, title: str}
-- `edit_narration`: {index: int, narrationScript: str}
-- `edit_notes`: {index: int, notes: str}
-- `edit_element`: {slideIndex: int, elementIndex: int, content: str}
+- `edit_title`: {index: int, title: str} — editar so o titulo
+- `rewrite_slide`: {index: int, title?: str, elements: [{content: str}]} — REESCREVE TODO o texto visivel do slide. Use para "reescreva o slide N", "resume o slide", "deixe mais curto", "reformule". Voce DEVE preencher `elements` com os novos textos (1 ou 2 paragrafos no maximo).
+- `edit_element`: {slideIndex: int, elementIndex: int, content: str} — editar UM elemento textual especifico (use quando o usuario pedir mudanca pontual, ex: "troque a palavra X por Y no slide 3").
+- `edit_narration`: {index: int, narrationScript: str} — editar APENAS o roteiro de audio. Use SO se o usuario mencionou "narracao", "audio", "voz" ou "fala".
+- `edit_notes`: {index: int, notes: str} — editar as notas do designer.
 - `add_slide`: {insertAfter: int, title: str, narrationScript: str, notes: str, elements: [{type: "text", content: str}]}
 - `delete_slide`: {index: int}
 - `move_slide`: {fromIndex: int, toIndex: int}
@@ -4294,17 +4300,38 @@ O usuario te pede alteracoes em linguagem natural sobre um storyboard existente.
 - Indices sao 0-based. Quando o usuario diz "slide 3", significa index=2.
 - Se a instrucao for ambigua (ex: "melhore isso"), retorne ops=[] e peca esclarecimento no reply.
 - NAO invente slides novos a menos que o usuario peca explicitamente.
-- Narracao: tom conversacional, 40-100 palavras por slide, sem jargoes.
-- Se o usuario pedir "reescreva em tom X", mantenha a informacao mas ajuste registro.
+- Para `rewrite_slide`: produza 1 ou 2 itens em `elements` (titulo da secao + paragrafo, OU paragrafo unico). NAO retorne mais de 2 elements — slides com muitos blocos viram densos demais.
+- Para `edit_narration`: tom conversacional, 40-100 palavras, sem jargoes.
 - Para `add_slide`, use `insertAfter: -1` para inserir no inicio.
+
+## Exemplos de decisao
+
+USUARIO: "reescreva o slide 2 de forma mais resumida"
+→ INTENCAO: reescrever TEXTO DO SLIDE (nao mencionou narracao)
+→ OP: `rewrite_slide` no index=1 com elements curtos.
+
+USUARIO: "deixe a narracao do slide 3 mais informal"
+→ INTENCAO: editar NARRACAO (mencionou explicitamente)
+→ OP: `edit_narration` no index=2.
+
+USUARIO: "no slide 5 troque a palavra 'execucao' por 'implementacao'"
+→ INTENCAO: edicao pontual em um elemento textual
+→ OP: `edit_element` no elementIndex correto.
+
+USUARIO: "reescreva tudo do slide 4 e tambem a narracao"
+→ INTENCAO: AMBOS
+→ OPS: 2 ops — `rewrite_slide` + `edit_narration`.
 
 ## Formato de resposta (JSON estrito)
 ```json
 {
-  "reply": "Entendi! Vou reescrever a narracao do slide 3 em tom mais informal e remover o slide final. Aplicando...",
+  "reply": "Vou reescrever o texto do slide 2 de forma mais resumida.",
   "ops": [
-    {"type": "edit_narration", "index": 2, "narrationScript": "..."},
-    {"type": "delete_slide", "index": 8}
+    {"type": "rewrite_slide", "index": 1, "title": "Linha do Tempo do Hardware",
+     "elements": [
+       {"content": "Mineracao evoluiu de CPUs (2009) a ASICs (2013+). Cada geracao trouxe ganhos de hashrate de ate 100x."},
+       {"content": "Para o minerador profissional, entender essa cronologia e fundamental para avaliar Time-to-ROI."}
+     ]}
   ]
 }
 ```
@@ -4389,6 +4416,76 @@ USUARIO: {message}"""
                     if 0 <= e_idx < len(els):
                         els[e_idx]["content"] = str(op.get("content", ""))
                         applied.append({"type": op_type, "slideIndex": s_idx, "elementIndex": e_idx})
+            elif op_type == "rewrite_slide":
+                # NEW (2026-05-15): rewrites the entire visible content of a
+                # slide. This is what the user actually means 95% of the time
+                # when they say "reescreva o slide N" — NOT just the narration.
+                # Logic mirrors the density-suggestion apply flow:
+                #  1. Find all textual elements (text/html/paragraph/title/heading).
+                #  2. Replace the FIRST textual element with the new content
+                #     (joined from the LLM's `elements` list), keeping its
+                #     position and box.
+                #  3. Drop the remaining textual elements so the new shorter
+                #     prose doesn't compete with old leftovers.
+                #  4. Optionally update the slide title if the LLM provided one.
+                idx = int(op["index"])
+                if 0 <= idx < len(slides):
+                    new_title = op.get("title")
+                    new_elements_raw = op.get("elements") or []
+                    if new_title is not None and str(new_title).strip():
+                        slides[idx]["title"] = str(new_title).strip()
+                    # Compose the new textual content. If LLM gave multiple
+                    # blocks, join them with double newlines so it reads as
+                    # paragraphs. If empty, skip element rewrite.
+                    new_content_parts = []
+                    new_html_parts = []
+                    def _esc(s):
+                        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    for blk in new_elements_raw[:3]:  # safety cap
+                        c = (blk or {}).get("content")
+                        if c and str(c).strip():
+                            txt = str(c).strip()
+                            new_content_parts.append(txt)
+                            new_html_parts.append(
+                                f'<p style="margin:0 0 .8em 0;font-size:26px;line-height:1.5">{_esc(txt)}</p>'
+                            )
+                    if new_content_parts:
+                        plain_text = "\n\n".join(new_content_parts)
+                        html_content = "".join(new_html_parts)
+                        TEXTUAL_TYPES = {"text", "html", "paragraph", "title", "heading"}
+                        els = list(slides[idx].get("elements") or [])
+                        textual_indices = [
+                            i for i, el in enumerate(els)
+                            if (el.get("type") or "").lower() in TEXTUAL_TYPES
+                            and not el.get("isBrandLogo")
+                        ]
+                        if textual_indices:
+                            # Pick LARGEST textual element by area as the
+                            # survivor (avoids squashing into a 50px header).
+                            def _area(i):
+                                e = els[i]
+                                return (e.get("width") or 0) * (e.get("height") or 0)
+                            survivor_idx = max(textual_indices, key=_area)
+                            tgt = els[survivor_idx]
+                            is_html_type = (tgt.get("type") or "").lower() == "html"
+                            tgt["content"] = plain_text
+                            if is_html_type or tgt.get("htmlContent"):
+                                tgt["htmlContent"] = html_content
+                            # Drop the OTHER textual elements
+                            to_remove = set(textual_indices) - {survivor_idx}
+                            els = [e for i, e in enumerate(els) if i not in to_remove]
+                            slides[idx]["elements"] = els
+                        else:
+                            # No textual element existed — append a new one.
+                            slides[idx].setdefault("elements", []).append({
+                                "id": f"text-rewrite-{uuid.uuid4().hex[:8]}",
+                                "type": "text",
+                                "content": plain_text,
+                                "htmlContent": html_content,
+                                "x": 80, "y": 80, "width": 1760, "height": 600,
+                                "style": {"fontSize": "28px", "color": "#0f172a"},
+                            })
+                        applied.append({"type": op_type, "index": idx})
             elif op_type == "add_slide":
                 insert_after = int(op.get("insertAfter", len(slides) - 1))
                 new_slide = {

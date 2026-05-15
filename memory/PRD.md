@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P0)** — Chat de Storyboard editava NARRACAO quando usuario pedia para reescrever o SLIDE.
+  - **Pedido do usuario** (screenshot): "O chat na fase de Storyboard nao esta funcionando, ele diz que faz mas isto nao reflete no texto do slide".
+  - **Causa raiz** (`routes/agent.py`): system prompt do LLM nao distinguia "texto do slide" (visivel ao aluno) de "narrationScript" (audio falado). Pedidos como "reescreva o slide 2" eram interpretados como `edit_narration`. So existia `edit_element` para texto mas exigia `elementIndex` explicito.
+  - **Fix multi-camada**:
+    - System prompt reescrito com secao "CONCEITOS — diferenca CRITICA": "texto do slide" e' `elements[].content` (default), "narracao" e' `narrationScript` (so explicito). Quando AMBIGUO → editar TEXTO DO SLIDE.
+    - 3 exemplos de decisao no prompt: "reescreva o slide 2" → rewrite_slide / "narracao informal" → edit_narration / "troque palavra X" → edit_element.
+    - **Nova operacao `rewrite_slide`**: reescreve titulo + elements. Logica espelha apply de densidade — escolhe MAIOR elemento textual como sobrevivente, sobrescreve `content`+`htmlContent`, dropa os outros textuais. Cap em 3 elements para evitar densidade.
+  - **Validacao E2E** (2 cenarios): "reescreva o slide 2 de forma mais resumida" → `rewrite_slide`, slide.elements[0].content mudou de h2/h3/p verboso para paragrafo conciso, narracao **inalterada**. "deixe a narracao mais informal" → so `edit_narration`.
+
+
 - 2026-05-15 (cont.): **CHORE (P1)** — Auditoria completa: zero usos de `process.env.REACT_APP_BACKEND_URL` no codigo (so o helper `utils/apiUrl.js`).
   - Auditoria revelou que TODOS os 34 componentes que precisam da API base **ja usam `getApiUrl()`** (Timeline, EditorChat, AestheticsPanel, SlideCanvas, CoursePreview, GamificationPanel, e mais 28). A migracao defensiva anterior cobriu os 5 ultimos que ainda liam a env var diretamente.
   - **Script de guarda contra regressao**: `scripts/check-api-base.js` percorre `/app/frontend/src/**/*.{js,jsx,ts,tsx}` e falha com exit code 1 se qualquer arquivo (exceto o proprio helper) tentar ler `process.env.REACT_APP_BACKEND_URL`. Mensagem de erro aponta para o changelog e para o helper correto.
