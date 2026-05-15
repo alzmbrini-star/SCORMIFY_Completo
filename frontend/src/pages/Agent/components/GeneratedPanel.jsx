@@ -470,6 +470,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             // Krea optional) BEFORE finalizing layout so we can size the
             // text region accordingly.
             let generatedImageUrl = null;
+            let imageError = null;
             if (sug.requiresImage && sug.imagePrompt) {
               try {
                 const r = await fetch(`${API}/api/density/generate-image`, {
@@ -486,8 +487,13 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                 if (r.ok) {
                   const j = await r.json();
                   generatedImageUrl = j?.url || null;
+                } else {
+                  try {
+                    const errJson = await r.json();
+                    imageError = errJson?.detail || `Erro ${r.status}`;
+                  } catch (_e) { imageError = `Erro ${r.status}`; }
                 }
-              } catch (_e) { /* fall through to text-only apply */ }
+              } catch (_e) { imageError = 'Falha de rede ao gerar imagem.'; }
             }
 
             const plainText = buildSuggestionPlainText(sug);
@@ -584,11 +590,15 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               headers: authHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify(proj),
             });
-            toast.success(generatedImageUrl
-              ? 'Sugestao aplicada com imagem gerada.'
-              : (sug.requiresImage
-                  ? 'Sugestao aplicada (sem imagem — Gemini indisponivel).'
-                  : 'Sugestao aplicada. O conteudo do slide foi substituido.'));
+            if (generatedImageUrl) {
+              toast.success('Sugestao aplicada com imagem gerada.');
+            } else if (sug.requiresImage && imageError) {
+              toast.error(`Imagem nao gerada: ${imageError}. Texto aplicado mesmo assim.`, { duration: 8000 });
+            } else if (sug.requiresImage) {
+              toast.success('Sugestao aplicada (sem imagem — gerador indisponivel).');
+            } else {
+              toast.success('Sugestao aplicada. O conteudo do slide foi substituido.');
+            }
             // Re-analyze locally
             setSlideDensity(prev => {
               const next = { ...prev };

@@ -74,6 +74,11 @@ export default function DensitySuggestionsDialog({
   // models without losing their provider preference.
   const [providers, setProviders] = useState([]);
   const [imageProvider, setImageProvider] = useState("gemini");
+  // Default to Flux 1 Dev — it's the most broadly compatible Krea model
+  // for the keys our customers typically have. When the model can't render
+  // text legibly (Flux family), the BACKEND automatically strips text
+  // instructions from the prompt and forces an icon-only visual, which
+  // produces a clean infographic instead of gibberish words.
   const [kreaModelId, setKreaModelId] = useState("flux-1-dev");
 
   const token = typeof window !== "undefined" ? localStorage.getItem("scormify_auth_token") : "";
@@ -237,13 +242,39 @@ export default function DensitySuggestionsDialog({
                   className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white"
                   data-testid="density-krea-model"
                 >
-                  {(kreaProvider.models || []).map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.label} {m.approxTimeSeconds ? `(~${m.approxTimeSeconds}s` : ""}
-                      {m.approxCostUSD ? ` $${m.approxCostUSD.toFixed(2)})` : (m.approxTimeSeconds ? ")" : "")}
-                    </option>
-                  ))}
+                  {(kreaProvider.models || []).map(m => {
+                    const tr = m.textRendering || "poor";
+                    const trMark = tr === "excellent" ? "[texto OK]"
+                      : tr === "good" ? "[texto OK]"
+                      : "[so icones]";
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {trMark} {m.label} {m.approxTimeSeconds ? `(~${m.approxTimeSeconds}s` : ""}
+                        {m.approxCostUSD ? ` $${m.approxCostUSD.toFixed(2)})` : (m.approxTimeSeconds ? ")" : "")}
+                      </option>
+                    );
+                  })}
                 </select>
+                {(() => {
+                  const m = (kreaProvider.models || []).find(mm => mm.id === kreaModelId);
+                  const tr = m?.textRendering || "poor";
+                  if (tr === "poor") {
+                    return (
+                      <p className="text-[10px] text-amber-400 mt-1 leading-tight">
+                        Este modelo nao desenha palavras com fidelidade. O backend
+                        forca um visual de icones/simbolos (sem rotulos textuais).
+                        Para texto legivel em portugues, escolha
+                        <strong className="text-amber-200"> Ideogram 3.0</strong> ou
+                        <strong className="text-amber-200"> Imagen 4</strong>.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-[10px] text-emerald-400 mt-1 leading-tight">
+                      Este modelo desenha texto em portugues de forma legivel.
+                    </p>
+                  );
+                })()}
               </div>
             )}
           </div>

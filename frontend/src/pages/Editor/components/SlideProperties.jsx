@@ -347,6 +347,7 @@ export function SlideProperties({ slide, onUpdate, project }) {
           // `applyingId` state already drives a spinner on the Aplicar
           // button, so the wait feels natural.
           let generatedImageUrl = null;
+          let imageError = null;
           // Editor passes `currentProject` whose id field is `.id`. Agent
           // flow uses `.projectId`. Support both shapes.
           const pid = project?.id || project?.projectId;
@@ -371,8 +372,15 @@ export function SlideProperties({ slide, onUpdate, project }) {
               if (r.ok) {
                 const j = await r.json();
                 generatedImageUrl = j?.url || null;
+              } else {
+                // Surface 4xx detail so the user knows WHY (e.g., wrong
+                // Krea model or plan). 5xx returns generic message.
+                try {
+                  const errJson = await r.json();
+                  imageError = errJson?.detail || `Erro ${r.status}`;
+                } catch (_e) { imageError = `Erro ${r.status}`; }
               }
-            } catch (_e) { /* fall through — text-only apply still useful */ }
+            } catch (_e) { imageError = 'Falha de rede ao gerar imagem.'; }
           }
 
           const plainText = buildSuggestionPlainText(sug);
@@ -476,11 +484,17 @@ export function SlideProperties({ slide, onUpdate, project }) {
             // sonner is available app-wide; soft import to avoid coupling
             // eslint-disable-next-line global-require
             const { toast } = require('sonner');
-            toast.success(generatedImageUrl
-              ? 'Sugestao aplicada com imagem gerada.'
-              : (sug.requiresImage
-                  ? 'Sugestao aplicada (sem imagem — Gemini indisponivel).'
-                  : 'Sugestao aplicada ao slide. O conteudo foi substituido.'));
+            if (generatedImageUrl) {
+              toast.success('Sugestao aplicada com imagem gerada.');
+            } else if (sug.requiresImage && imageError) {
+              // Show the backend's specific message (e.g. "Sua conta Krea
+              // nao tem acesso a este modelo, troque para Flux 1 Dev").
+              toast.error(`Imagem nao gerada: ${imageError}. Texto aplicado mesmo assim.`, { duration: 8000 });
+            } else if (sug.requiresImage) {
+              toast.success('Sugestao aplicada (sem imagem — gerador indisponivel).');
+            } else {
+              toast.success('Sugestao aplicada ao slide. O conteudo foi substituido.');
+            }
           } catch (_e) { /* no toast lib — silent */ }
         }}
       />

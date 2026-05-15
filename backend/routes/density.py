@@ -174,7 +174,11 @@ async def list_image_providers(user: dict = Depends(require_auth)):
             "models": [
                 {"id": m["id"], "label": m["label"], "description": m["description"],
                  "approxTimeSeconds": m.get("approxTimeSeconds"),
-                 "approxCostUSD": m.get("approxCostUSD")}
+                 "approxCostUSD": m.get("approxCostUSD"),
+                 # textRendering capability — frontend uses this to show
+                 # a "✓ texto pt-BR" badge on capable models and a warning
+                 # icon on icon-only models.
+                 "textRendering": m.get("textRendering", "poor")}
                 for m in krea_ai.KREA_IMAGE_MODELS
             ],
             "configured": True,
@@ -182,12 +186,20 @@ async def list_image_providers(user: dict = Depends(require_auth)):
     return {"providers": providers}
 
 
-async def _generate_via_krea(prompt: str, model_id: str) -> Optional[bytes]:
+async def _generate_via_krea(prompt: str, model_id: str, negative_prompt: Optional[str] = None) -> Optional[bytes]:
     """Submit a Krea job and poll until completed (or fail fast). Returns
     JPEG bytes or None on failure. Krea is async (submit → poll → download)
     so we wrap that lifecycle here to match the simple bytes-returning
-    contract of `generate_simple_image()`."""
+    contract of `generate_simple_image()`.
+
+    The HTTP error categories are tracked for the caller's error message:
+      - 402 → Krea account doesn't have access to this model (upgrade plan)
+      - 404 → Model path retired or never existed in Krea's catalog
+      - 422 → Payload shape mismatch (we pass width/height/steps but some
+              models expect aspect_ratio or other parameters)
+    """
     import asyncio
+    import httpx
     try:
         # 16:9 wide aspect — most density slides put image on the right
         # half of a 1920x780 union, so a roughly 1200x675 image fills it
@@ -197,6 +209,7 @@ async def _generate_via_krea(prompt: str, model_id: str) -> Optional[bytes]:
             prompt=prompt,
             width=1200,
             height=675,
+            negative_prompt=negative_prompt,
         )
         job_id = job.get("job_id")
         if not job_id:
@@ -264,9 +277,28 @@ async def _generate_via_krea(prompt: str, model_id: str) -> Optional[bytes]:
                 return None
         logger.warning(f"[density.krea] Job {job_id} polling timed out")
         return None
+    except httpx.HTTPStatusError as e:
+        # Re-raise as a specific exception so the route handler can return
+        # a useful 4xx with the actual reason instead of a generic 502.
+        status_code = e.response.status_code
+        if status_code == 402:
+            raise KreaUserError(f"Sua conta Krea nao tem acesso ao modelo '{model_id}'. Atualize seu plano ou escolha outro modelo (ex: Flux 1 Dev).")
+        if status_code == 404:
+            raise KreaUserError(f"O modelo '{model_id}' nao esta disponivel na sua conta Krea. Tente Flux 1 Dev ou troque para Gemini.")
+        if status_code == 422:
+            raise KreaUserError(f"O modelo '{model_id}' tem parametros incompativeis com esta integracao. Use Flux 1 Dev (compatibilidade total) ou Gemini.")
+        logger.error(f"[density.krea] HTTP {status_code}: {e}")
+        return None
     except Exception as e:
         logger.error(f"[density.krea] Generation failed: {e}")
         return None
+
+
+class KreaUserError(Exception):
+    """Raised when the Krea API returns a 4xx whose remedy the user needs
+    to know (e.g. plan upgrade, wrong model). Propagated to the FastAPI
+    route which turns it into a 400 with the human message."""
+    pass
 
 
 @router.post("/generate-image")
@@ -290,14 +322,79 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     if not req.projectId:
         raise HTTPException(status_code=400, detail="projectId is required")
 
-    # Defense in depth: even if the suggester LLM forgot the pt-BR
-    # instruction, we re-append it here. Both Gemini and Krea honor the
-    # language hint when explicit.
-    if not any(token in prompt.lower() for token in ("portugues", "português", "pt-br", "brasil")):
-        prompt = (
-            prompt.rstrip(". ") + ". TODOS os rotulos, titulos, palavras e legendas "
-            "DEVEM estar em portugues do Brasil (pt-BR). NAO usar texto em ingles em nenhuma parte da imagem."
+    # ---- LANGUAGE HARDENING -------------------------------------------------
+    # For models that CAN render text reliably (Ideogram, Imagen, Nano Banana,
+    # ChatGPT Image), force the pt-BR instruction. For models that CAN'T draw
+    # text (Flux family, SeeDream), forcing text just produces gibberish —
+    # we instead REWRITE the prompt to remove all textual labels and force
+    # an icon-only / symbolic visual.
+    provider = (req.provider or "gemini").lower().strip()
+    text_render_quality = "good"  # gemini handles pt-BR text OK
+    if provider == "krea":
+        m = krea_ai.get_model(req.kreaModelId or "flux-1-dev")
+        text_render_quality = (m or {}).get("textRendering", "poor")
+
+    # Negative prompt fed to text-poor models (Flux family). Flux is biased
+    # to add labels even when told not to — `negative_prompt` is the only
+    # reliable suppression mechanism.
+    negative_prompt: Optional[str] = None
+
+    if text_render_quality == "poor":
+        # Strip any text-rendering instruction the suggester LLM injected
+        # (e.g., "Todos os rotulos em portugues") — the model can't draw it
+        # legibly anyway. Force ICON-ONLY visuals.
+        prompt_lower = prompt.lower()
+        # Remove sentences mentioning "rotulos", "legendas", "labels",
+        # "palavras", "texto", "titulos" (we add our own constraint).
+        for needle in (
+            "todos os rotulos",
+            "todos os títulos",
+            "rotulos em portugues",
+            "labels in",
+            "with labels",
+            "with text",
+            "with words",
+            "palavras em portugues",
+            "legendas em portugues",
+            "texto em portugues",
+            "nao usar texto em ingles",
+            "no usar texto",
+        ):
+            i = prompt_lower.find(needle)
+            if i >= 0:
+                # Find sentence boundary backward and forward, drop the sentence.
+                start = prompt.rfind(".", 0, i) + 1
+                end = prompt.find(".", i)
+                end = end + 1 if end >= 0 else len(prompt)
+                prompt = (prompt[:start] + prompt[end:]).strip(" .,;")
+                prompt_lower = prompt.lower()
+        # Rewrite POSITIVE prompt to invite a centered iconic visual rather
+        # than a labeled diagram. Flux interprets "diagram with 5 elements"
+        # as "draw 5 labeled regions" and will hallucinate text — so we
+        # rephrase to suggest a hero icon composition.
+        prompt = prompt.rstrip(". ") + (
+            ". Style: minimalist flat vector illustration, centered hero icon, "
+            "abstract symbolic composition. Use icons, shapes, arrows, gradients "
+            "and color coding to convey meaning. Clean modern aesthetic, "
+            "professional infographic look."
         )
+        # NEGATIVE prompt — this is the actual mechanism Flux respects. The
+        # positive "no text" instruction alone is unreliable; negative_prompt
+        # in Flux training data is consistently suppressed.
+        negative_prompt = (
+            "text, letters, words, captions, labels, typography, watermark, "
+            "annotations, lettering, characters, alphabet, writing, signature, "
+            "logo text, gibberish text, fake text, latin characters, font, "
+            "subtitle, heading, paragraph, sentence"
+        )
+    else:
+        # Defense in depth: even if the suggester LLM forgot the pt-BR
+        # instruction, we re-append it here for capable models.
+        if not any(token in prompt.lower() for token in ("portugues", "português", "pt-br", "brasil")):
+            prompt = (
+                prompt.rstrip(". ") + ". TODOS os rotulos, titulos, palavras e legendas "
+                "DEVEM estar em portugues do Brasil (pt-BR). NAO usar texto em ingles em nenhuma parte da imagem."
+            )
 
     # Confirm the user can write to this project. We reuse the same
     # ownership check the projects routes do — super_admin always passes,
@@ -312,12 +409,17 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         if project.get("userId") != user.get("id") and project.get("companyId") != user.get("companyId"):
             raise HTTPException(status_code=403, detail="Forbidden")
 
-    provider = (req.provider or "gemini").lower().strip()
+    # We pre-resolved `provider` earlier (during language hardening) so we
+    # could pick the right prompt strategy. Now branch on it to call the
+    # actual generation backend.
     img_bytes: Optional[bytes] = None
     if provider == "krea":
         if not krea_ai.is_configured():
             raise HTTPException(status_code=400, detail="Krea API key not configured. Open admin settings to add KREA_API_KEY.")
-        img_bytes = await _generate_via_krea(prompt, req.kreaModelId or "flux-1-dev")
+        try:
+            img_bytes = await _generate_via_krea(prompt, req.kreaModelId or "flux-1-dev", negative_prompt=negative_prompt)
+        except KreaUserError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         if not img_bytes:
             raise HTTPException(status_code=502, detail="Image generation failed (Krea)")
     else:

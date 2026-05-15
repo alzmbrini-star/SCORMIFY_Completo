@@ -88,6 +88,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P0)** — Krea/Flux gerava palavras inventadas (gibberish "Clentcãca", "QUENTARACAÇAO") em vez de português correto.
+  - **Pedido do usuário** (com screenshot): "corrija a geração de imagens com KREA pois não está gerando as palavras corretamente em Português do Brasil".
+  - **Causa raiz**: modelos Flux base (Flux 1 Dev, Flux 1.1 Pro, Flux Kontext) **não conseguem renderizar texto legível**, especialmente em idiomas não-inglês — limitação técnica do modelo, não do prompt. Reforçar instruções pt-BR só piora (mais texto = mais gibberish).
+  - **Fix multi-camada** (`routes/density.py`):
+    - Cada modelo Krea agora tem flag `textRendering: "excellent" | "good" | "poor"` em `services/krea_ai.py`.
+    - Quando provider é Krea e modelo é `poor` (Flux family + SeeDream): backend **REESCREVE o prompt** — remove instruções de rótulos/texto (regex em "rotulos", "labels", "palavras", etc) e força visual icônico ("minimalist flat vector, centered hero icon, abstract symbolic composition").
+    - **Crucial**: adiciona `negative_prompt` com 18+ palavras-chave de supressão de texto ("text, letters, words, captions, labels, typography, gibberish text, fake text, latin characters, font, ..."). Esse é o mecanismo que o Flux DE FATO respeita (testado anteriormente sem negative_prompt e ainda vinha texto).
+    - Modelos com text rendering bom (Ideogram, Imagen, Nano Banana 2) recebem a instrução pt-BR completa intacta.
+  - **Robustez** (`density.py`):
+    - Nova `KreaUserError` exception captura erros 402/404/422 do Krea e propaga **mensagens humanas em pt-BR**: "Sua conta Krea não tem acesso a este modelo, atualize seu plano ou troque para Flux 1 Dev." Antes vinha 502 genérico.
+    - Frontend (`SlideProperties.jsx` + `GeneratedPanel.jsx`) agora captura o `detail` do erro 4xx e mostra via toast.error com `duration: 8000`.
+  - **UI** (`DensitySuggestionsDialog.jsx`):
+    - Dropdown de modelos Krea mostra prefixo `[texto OK]` ou `[so icones]` em cada modelo.
+    - Quando modelo selecionado é `poor`, hint amber explica: "Este modelo nao desenha palavras com fidelidade. Backend forca visual de icones. Para texto legivel em portugues, escolha Ideogram 3.0 ou Imagen 4."
+    - Quando é `good`/`excellent`, hint emerald confirma: "Este modelo desenha texto em portugues de forma legivel."
+    - Default mudado de Ideogram 3.0 (que retorna 404 nesta integracao) para Flux 1 Dev (compatibilidade total + agora gera icon-only via negative_prompt).
+  - **Validação**: Gemini 2.5 Flash Lite analisou imagem gerada com novo prompt → **"NO text, words, or letters (including gibberish fake words) are present"**. Resultado: ilustração limpa estilo flat vector, pessoa centralizada com ícones (relógio, megafone, dados). Zero gibberish.
+
+
 - 2026-05-15 (cont.): **FEATURE (P0)** — Seletor de provider de imagem nas sugestões de densidade: **Gemini Nano Banana OU Krea AI**.
   - **Pedido do usuário**: "Gostaria de ter opção de usar imagens do nano banana ou do KREA além das do GEMINI" + corrigir imagens em inglês e texto branco invisível.
   - **Backend** (`routes/density.py`):

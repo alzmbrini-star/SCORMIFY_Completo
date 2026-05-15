@@ -48,6 +48,14 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.04,
         "approxTimeSeconds": 4,
         "tier": "standard",
+        # textRendering: how reliably the model can draw legible words.
+        #   "poor" → produces gibberish for non-English words; we must
+        #            strip text instructions from the prompt and force
+        #            icon-only visuals.
+        #   "good" → renders short labels reliably, even in pt-BR.
+        #   "excellent" → typography-specialized models (Ideogram, Imagen)
+        #            can do paragraphs.
+        "textRendering": "poor",
     },
     {
         "id": "flux-1.1-pro",
@@ -60,6 +68,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.06,
         "approxTimeSeconds": 11,
         "tier": "premium",
+        "textRendering": "poor",
     },
     {
         "id": "flux-kontext",
@@ -72,6 +81,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.04,
         "approxTimeSeconds": 5,
         "tier": "standard",
+        "textRendering": "poor",
     },
     {
         "id": "imagen-4",
@@ -84,6 +94,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.04,
         "approxTimeSeconds": 32,
         "tier": "premium",
+        "textRendering": "excellent",
     },
     {
         "id": "imagen-4-ultra",
@@ -96,6 +107,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.06,
         "approxTimeSeconds": 30,
         "tier": "premium",
+        "textRendering": "excellent",
     },
     {
         "id": "nano-banana-2",
@@ -108,6 +120,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.06,
         "approxTimeSeconds": 15,
         "tier": "standard",
+        "textRendering": "good",
     },
     {
         "id": "nano-banana-pro",
@@ -120,6 +133,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.15,
         "approxTimeSeconds": 30,
         "tier": "premium",
+        "textRendering": "good",
     },
     {
         "id": "chatgpt-image",
@@ -132,6 +146,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.04,
         "approxTimeSeconds": 60,
         "tier": "standard",
+        "textRendering": "good",
     },
     {
         "id": "seedream-5-lite",
@@ -144,6 +159,7 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.04,
         "approxTimeSeconds": 20,
         "tier": "standard",
+        "textRendering": "poor",
     },
     {
         "id": "ideogram-3.0",
@@ -156,8 +172,17 @@ KREA_IMAGE_MODELS: List[Dict[str, Any]] = [
         "approxCostUSD": 0.06,
         "approxTimeSeconds": 18,
         "tier": "standard",
+        "textRendering": "excellent",
     },
 ]
+
+
+def get_model(model_id: str) -> Optional[Dict[str, Any]]:
+    """Look up a Krea model config by id. Returns None when unknown."""
+    for m in KREA_IMAGE_MODELS:
+        if m["id"] == model_id:
+            return m
+    return None
 
 
 def get_api_key() -> str:
