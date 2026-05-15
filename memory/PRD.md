@@ -88,6 +88,22 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FEATURE (P0)** — Sugestões de densidade com badge "Inclui imagem" agora **geram a imagem de verdade** via Gemini Nano Banana.
+  - **Pedido do usuário**: "veja após aplicar a sugestão que dizia ter IMAGEM INCLUÍDA não há nenhuma imagem, apenas a sumarização do texto! Poderia corrigir?"
+  - **Backend** (`routes/density.py`):
+    - Novo endpoint `POST /api/density/generate-image` com payload `{projectId, imagePrompt, suggestionId}`.
+    - Renderiza via `services/gemini_image.generate_simple_image()` (Gemini 3 Pro Image Preview / Nano Banana via Emergent LLM key). Tempo: ~15-25s.
+    - Persiste o JPEG em `/app/storage/projects/{pid}/assets/density_img_{seed}.jpg` E via `store_asset_async` em MongoDB GridFS (sobrevive K8s restarts).
+    - Filename determinístico via `md5(suggestionId|imagePrompt)` → reaplicar mesma sugestão é idempotente, sem clutter de galeria.
+    - RBAC: super_admin bypassa; outros precisam compartilhar empresa ou ser dono do projeto.
+  - **Frontend** (`SlideProperties.jsx` + `GeneratedPanel.jsx`):
+    - Quando sugestão tem `requiresImage=true && imagePrompt`, dispara `POST /api/density/generate-image` ANTES de aplicar o layout. Botão "Aplicar" mostra Loader2 spinner durante a espera.
+    - Recebe `url` e divide o bounding box do sobrevivente em **55% texto à esquerda / 43% imagem à direita** (gutter 2%). Adiciona novo elemento `type:'image'` com `objectFit:'cover'`, `zIndex:5`.
+    - Suporta ambos os shapes de prop: `project.id` (Editor) e `project.projectId` (Agent). Sem isso, o Editor não dispararia o fetch.
+    - Toast diferenciado: "Sugestao aplicada com imagem gerada." / "(sem imagem — Gemini indisponivel)" / "O conteudo foi substituido" (text-only).
+  - **Testing**: backend **6/6 pytest passando** (`tests/test_density_generate_image.py` cobrindo auth/validation/RBAC/happy-path/idempotency). Frontend E2E validado pelo testing agent v3 — fluxo completo confirmado: density-analyze → suggestions dialog → density-apply-0 → POST /generate-image (200 em ~19s) → slide refresh com texto+imagem lado a lado. Success rate: 100%.
+
+
 - 2026-05-15 (cont.): **FIX (P0 CRÍTICO)** — Densidade Textual: prose ficava "espremida" em faixa de 50px ao aplicar (slide aparentava vazio).
   - **Bug reportado pelo usuário** (com 2 screenshots antes/depois): "Apliquei uma sugestão de melhoria e o slide ficou em branco!".
   - **Causa raiz**: slides do Agente IA têm 2 elementos `html`: (a) faixa header laranja em `x=0,y=0,w=1920,h=50` (banner do módulo) e (b) corpo rico em `x=80,y=80,w=1760,h=700` (h2/h3, prose, layout completo). Meu código antigo escolhia `textualIdxs[0]` (a faixa) como sobrevivente, gravava o novo prose dentro de 1920x50, e dropava o corpo (1760x700). Resultado: nova prose visualmente squashada em uma fita de 50px no topo + corpo dropado = slide "vazio".
