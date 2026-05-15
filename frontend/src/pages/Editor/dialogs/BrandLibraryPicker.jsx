@@ -19,8 +19,9 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Layers, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import { getApiUrl } from '../../../utils/apiUrl';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = getApiUrl();
 
 const TYPE_OPTIONS = [
   { value: '', label: 'Todos' },

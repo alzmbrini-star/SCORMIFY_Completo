@@ -21,8 +21,9 @@ import {
   Sparkles, Lightbulb, AlertTriangle, Scissors, ListChecks,
   Columns2, LayoutGrid, GitBranch, Loader2, Camera, Box, Newspaper,
 } from "lucide-react";
+import { getApiUrl } from "../utils/apiUrl";
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = getApiUrl();
 
 const TYPE_ICONS = {
   summarize: Sparkles,

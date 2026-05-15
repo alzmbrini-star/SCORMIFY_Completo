@@ -88,6 +88,24 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P0 PRODUCAO)** — Erros CORS apos deploy: chamadas indo para host errado (`gemini-voice-text.emergent.host` ao inves de `backend-startup.emergent.host`).
+  - **Pedido do usuario** (screenshot): "Estou com o mesmo problema em producao tanto ao alimentar a biblioteca de marca quanto ao analisar visualmente. Ja fiz novo Deploy... nao resolveu."
+  - **Causa raiz**: `REACT_APP_BACKEND_URL` foi "baked" no bundle JavaScript de producao apontando para o host **errado** (`gemini-voice-text.emergent.host`, provavelmente de um deploy anterior). React env vars sao incorporadas ao bundle em build-time — re-deploy sem alterar a variavel mantem o valor antigo.
+  - **Sintoma do usuario**: chamadas `/api/auth/me` e `/api/auth/login` chegavam ao backend (mesma origem, retornavam 502 generico), mas `/api/density/*`, `/api/companies/*/brand-kit`, `/api/companies/*/assets` iam para `gemini-voice-text` absoluto e batiam em CORS.
+  - **Fix defensivo no codigo** (sem depender de re-deploy ou alteracao de env var):
+    - 5 arquivos quebrados agora importam `getApiUrl` de `utils/apiUrl.js` em vez de ler `process.env.REACT_APP_BACKEND_URL` diretamente:
+      - `components/admin/BrandLibraryDialog.jsx`
+      - `components/DensitySuggestionsDialog.jsx`
+      - `pages/Editor/dialogs/BrandLibraryPicker.jsx`
+      - `pages/Editor/components/SlideProperties.jsx` (linha 356)
+      - (PdfPreviewPanel.jsx so tinha em comentario)
+    - `getApiUrl()` retorna `window.location.origin` quando rodando no browser → todas as chamadas viram **same-origin** → ingress K8s ja roteia `/api/*` para o backend (mesma maquina) → SEM CORS, SEM URL hardcoded incorreto.
+    - O env var so eh usado como fallback para SSR/Node onde `window` nao existe (cenario que nao acontece em runtime).
+  - **Por que o fix funciona em producao mesmo SEM novo deploy?**: o ingress de producao em `backend-startup.emergent.host` ja roteia `/api/*` para o backend (prova: `/api/auth/me` ja chegava ao backend retornando 502, nao DNS error). Apos esse fix + redeploy o usuario, mesmo se `REACT_APP_BACKEND_URL` ainda apontar para o host antigo, o bundle ignora esse valor em runtime e sempre usa same-origin.
+  - **Validacao**: smoke test no preview (login → dashboard) confirma que o refactor nao quebrou o ambiente de desenvolvimento. Helper `getApiUrl` ja era usado por 10+ outros componentes (Timeline, EditorChat, AestheticsPanel, etc) com track record de funcionamento.
+  - **Acao requerida do usuario**: **redeployar** para producao receber o bundle JavaScript corrigido.
+
+
 - 2026-05-15 (cont.): **FEATURE (P1)** — Imagens geradas via Analise de Densidade agora vao tambem para a **Biblioteca de Marca da empresa** (reutilizaveis).
   - **Pedido do usuario**: "Quero que as imagens geradas na Analise Visual do Agente IA seja inseridas na biblioteca de imagens tambem!"
   - **Design escolhido**: 1c + 2b (toggle no dialog ligado por default + categorizacao inteligente por estilo).

@@ -10,6 +10,7 @@ import {
   buildSuggestionHtml,
   buildSuggestionPlainText,
 } from '../../../lib/densityApplyHelpers';
+import { getApiUrl } from '../../../utils/apiUrl';
 
 export function SlideProperties({ slide, onUpdate, project }) {
   const extractSlideText = () => {
@@ -353,7 +354,7 @@ export function SlideProperties({ slide, onUpdate, project }) {
           const pid = project?.id || project?.projectId;
           if (sug.requiresImage && sug.imagePrompt && pid) {
             try {
-              const apiBase = process.env.REACT_APP_BACKEND_URL;
+              const apiBase = getApiUrl();
               const token = localStorage.getItem('scormify_auth_token') || '';
               const r = await fetch(`${apiBase}/api/density/generate-image`, {
                 method: 'POST',

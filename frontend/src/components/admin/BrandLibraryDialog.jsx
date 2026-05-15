@@ -19,8 +19,9 @@ import { toast } from "sonner";
 import {
   Upload, Trash2, Tag, Layers, Palette, Image as ImageIcon, X,
 } from "lucide-react";
+import { getApiUrl } from "../../utils/apiUrl";
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = getApiUrl();
 
 const ASSET_TYPES = [
   { value: "background", label: "Fundo" },
