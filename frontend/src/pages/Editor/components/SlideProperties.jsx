@@ -314,40 +314,88 @@ export function SlideProperties({ slide, onUpdate, project }) {
         }}
       />
 
-      {/* Density Suggestions Dialog — applies a chosen rewrite to the slide
-          by mutating the first text element's content + bullets array.
-          We keep the change shallow (just the text-content fields) so other
-          properties of the element (style, position, animation) survive. */}
+      {/* Density Suggestions Dialog — applies a chosen rewrite to the slide.
+          We REPLACE the content of the first text-like element (type ∈
+          {text, html, paragraph, title}) instead of adding a new one — so
+          the rewritten prose visibly replaces the original on the canvas
+          rather than overlaying it. Position/style/animation of the host
+          element are preserved. */}
       <DensitySuggestionsDialog
         open={densityOpen}
         onClose={() => setDensityOpen(false)}
         {...collectDensityInput()}
         onApply={(sug) => {
-          // Find the first text element to rewrite; if there's none we
-          // synthesize one so the suggestion lands somewhere.
           const elements = [...(slide.elements || [])];
-          let textIdx = elements.findIndex(el => el.type === 'text' && !el.isBrandLogo);
-          const newContent = sug.transformedText
+          const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
+          // Find ALL textual elements (not just the first). When the
+          // transformation is more concise we keep just the first one and
+          // drop the rest — the whole point is to reduce density.
+          const textualIdxs = elements
+            .map((el, i) => ({ el, i }))
+            .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo)
+            .map(({ i }) => i);
+
+          const plainText = sug.transformedText
             || (sug.transformedBullets?.length
                 ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
                 : '');
-          if (textIdx >= 0) {
-            elements[textIdx] = {
-              ...elements[textIdx],
-              content: newContent,
-              // Drop any pre-existing HTML markup since we replaced the prose
-              htmlContent: undefined,
+          // Build HTML version too — useful when the host element renders
+          // rich HTML (which is the case for AI-Agent-generated slides).
+          const escape = (s) => String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          let htmlContent = '';
+          if (sug.transformedBullets?.length) {
+            htmlContent = `<ul style="margin:0;padding-left:1.2em">${sug.transformedBullets
+              .map(b => `<li style="margin-bottom:.4em">${escape(b)}</li>`)
+              .join('')}</ul>`;
+            if (sug.transformedText) {
+              htmlContent = `<p style="margin:0 0 .6em 0">${escape(sug.transformedText)}</p>` + htmlContent;
+            }
+          } else if (sug.transformedText) {
+            // Preserve paragraph breaks
+            htmlContent = sug.transformedText
+              .split(/\n\n+/)
+              .map(p => `<p style="margin:0 0 .6em 0">${escape(p).replace(/\n/g, '<br/>')}</p>`)
+              .join('');
+          }
+
+          if (textualIdxs.length > 0) {
+            const targetIdx = textualIdxs[0];
+            const target = elements[targetIdx];
+            const isHtmlType = (target.type || '').toLowerCase() === 'html';
+            elements[targetIdx] = {
+              ...target,
+              // Update BOTH content and htmlContent so whichever the renderer
+              // reads (depends on slide template), the new prose shows.
+              content: plainText,
+              htmlContent: isHtmlType || target.htmlContent ? htmlContent : undefined,
             };
+            // Drop the OTHER textual elements so the new content isn't
+            // competing with the old prose. We keep non-text elements
+            // (images, shapes, audio, etc) untouched.
+            const toRemove = new Set(textualIdxs.slice(1));
+            const cleaned = elements.filter((_, i) => !toRemove.has(i));
+            onUpdate({ elements: cleaned });
           } else {
             elements.push({
               id: `text-${Date.now()}`,
               type: 'text',
-              content: newContent,
-              x: 80, y: 80, width: 800, height: 400,
-              style: { fontSize: '24px', color: '#FFFFFF' },
+              content: plainText,
+              htmlContent,
+              x: 80, y: 80, width: 1760, height: 600,
+              style: { fontSize: '28px', color: '#FFFFFF' },
             });
+            onUpdate({ elements });
           }
-          onUpdate({ elements });
+          // Confirm visually so the author knows something happened
+          try {
+            // sonner is available app-wide; soft import to avoid coupling
+            // eslint-disable-next-line global-require
+            const { toast } = require('sonner');
+            toast.success('Sugestao aplicada ao slide. O conteudo foi substituido.');
+          } catch (_e) { /* no toast lib — silent */ }
         }}
       />
     </div>
