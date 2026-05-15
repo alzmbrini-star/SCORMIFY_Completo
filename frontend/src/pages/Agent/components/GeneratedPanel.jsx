@@ -27,6 +27,11 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import DensityBadge from '../../../components/DensityBadge';
 import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
+import {
+  pickReadableTextColor,
+  buildSuggestionHtml,
+  buildSuggestionPlainText,
+} from '../../../lib/densityApplyHelpers';
 
 const API = getApiUrl();
 
@@ -482,33 +487,14 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               } catch (_e) { /* fall through to text-only apply */ }
             }
 
-            const plainText = sug.transformedText
-              || (sug.transformedBullets?.length
-                  ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
-                  : '');
+            const plainText = buildSuggestionPlainText(sug);
+            // Pre-pick text color from slide-level hints. Will be re-resolved
+            // when we know the survivor (to honor any per-element color override).
+            let textColor = pickReadableTextColor(slide, null);
             // Build HTML version too — html-type elements render htmlContent,
             // so we MUST overwrite it (clobbering with undefined would leave
             // the original rich markup visible on the canvas).
-            const escape = (s) => String(s)
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;');
-            // Inherit the survivor's font color when possible so the new
-            // prose stays consistent with the slide theme.
-            let htmlContent = '';
-            if (sug.transformedBullets?.length) {
-              htmlContent = `<ul style="margin:0 0 0 0;padding-left:1.2em;font-size:24px;line-height:1.5">${sug.transformedBullets
-                .map(b => `<li style="margin-bottom:.6em">${escape(b)}</li>`)
-                .join('')}</ul>`;
-              if (sug.transformedText) {
-                htmlContent = `<p style="margin:0 0 .8em 0;font-size:28px;line-height:1.4;font-weight:600">${escape(sug.transformedText)}</p>` + htmlContent;
-              }
-            } else if (sug.transformedText) {
-              htmlContent = sug.transformedText
-                .split(/\n\n+/)
-                .map(p => `<p style="margin:0 0 .8em 0;font-size:26px;line-height:1.5">${escape(p).replace(/\n/g, '<br/>')}</p>`)
-                .join('');
-            }
+            let htmlContent = buildSuggestionHtml(sug, textColor);
 
             if (textualEls.length > 0) {
               // Pick the LARGEST textual element by area. Header strips have
@@ -518,6 +504,11 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                 const aC = (cur.el.width || 0) * (cur.el.height || 0);
                 return aC > aB ? cur : best;
               });
+              const finalColor = pickReadableTextColor(slide, survivor.el);
+              if (finalColor !== textColor) {
+                textColor = finalColor;
+                htmlContent = buildSuggestionHtml(sug, finalColor);
+              }
               // Compute UNION bounding box of all textual elements so the
               // survivor expands to fit the merged area (no squashing).
               const xs = textualEls.map(({ el }) => el.x || 0);
@@ -570,7 +561,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                 x: 80, y: 80,
                 width: generatedImageUrl ? 900 : 1760,
                 height: 600,
-                style: { fontSize: '28px', color: '#FFFFFF' },
+                style: { fontSize: '28px', color: textColor },
               });
               if (generatedImageUrl) {
                 elements.push({

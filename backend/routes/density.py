@@ -158,6 +158,16 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     if not req.projectId:
         raise HTTPException(status_code=400, detail="projectId is required")
 
+    # Defense in depth: even if the suggester LLM forgot the pt-BR
+    # instruction, we re-append it here. Gemini 3 Pro Image Preview honors
+    # the language hint when explicit. Also we filter incidental English
+    # words the suggester may have leaked.
+    if not any(token in prompt.lower() for token in ("portugues", "português", "pt-br", "brasil")):
+        prompt = (
+            prompt.rstrip(". ") + ". TODOS os rotulos, titulos, palavras e legendas "
+            "DEVEM estar em portugues do Brasil (pt-BR). NAO usar texto em ingles em nenhuma parte da imagem."
+        )
+
     # Confirm the user can write to this project. We reuse the same
     # ownership check the projects routes do — super_admin always passes,
     # otherwise the project must belong to the user's company or be owned

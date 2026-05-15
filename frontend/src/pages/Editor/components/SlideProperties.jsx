@@ -5,6 +5,11 @@ import { Button } from '../../../components/ui/button';
 import { Layers, ImagePlus, X as XIcon, Sparkles } from 'lucide-react';
 import BrandLibraryPicker from '../dialogs/BrandLibraryPicker';
 import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
+import {
+  pickReadableTextColor,
+  buildSuggestionHtml,
+  buildSuggestionPlainText,
+} from '../../../lib/densityApplyHelpers';
 
 export function SlideProperties({ slide, onUpdate, project }) {
   const extractSlideText = () => {
@@ -368,31 +373,13 @@ export function SlideProperties({ slide, onUpdate, project }) {
             } catch (_e) { /* fall through — text-only apply still useful */ }
           }
 
-          const plainText = sug.transformedText
-            || (sug.transformedBullets?.length
-                ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
-                : '');
+          const plainText = buildSuggestionPlainText(sug);
+          // Pre-pick survivor color hint so we can build readable HTML even
+          // when no survivor exists yet (slide had no textual element).
+          const textColor = pickReadableTextColor(slide, null);
           // Build HTML version too — useful when the host element renders
           // rich HTML (which is the case for AI-Agent-generated slides).
-          const escape = (s) => String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-          let htmlContent = '';
-          if (sug.transformedBullets?.length) {
-            htmlContent = `<ul style="margin:0;padding-left:1.2em;font-size:24px;line-height:1.5">${sug.transformedBullets
-              .map(b => `<li style="margin-bottom:.6em">${escape(b)}</li>`)
-              .join('')}</ul>`;
-            if (sug.transformedText) {
-              htmlContent = `<p style="margin:0 0 .8em 0;font-size:28px;line-height:1.4;font-weight:600">${escape(sug.transformedText)}</p>` + htmlContent;
-            }
-          } else if (sug.transformedText) {
-            // Preserve paragraph breaks
-            htmlContent = sug.transformedText
-              .split(/\n\n+/)
-              .map(p => `<p style="margin:0 0 .8em 0;font-size:26px;line-height:1.5">${escape(p).replace(/\n/g, '<br/>')}</p>`)
-              .join('');
-          }
+          let htmlContent = buildSuggestionHtml(sug, textColor);
 
           if (textualEls.length > 0) {
             // Pick the LARGEST textual element by area as the survivor.
@@ -401,6 +388,12 @@ export function SlideProperties({ slide, onUpdate, project }) {
               const aC = (cur.el.width || 0) * (cur.el.height || 0);
               return aC > aB ? cur : best;
             });
+            // Re-resolve text color now that we know which element survived
+            // — it may carry an explicit style.color the author hand-tuned.
+            const finalColor = pickReadableTextColor(slide, survivor.el);
+            if (finalColor !== textColor) {
+              htmlContent = buildSuggestionHtml(sug, finalColor);
+            }
             // UNION bounding box of all textual elements → the survivor's box
             // expands to fit the merged area so the new prose isn't squashed.
             const xs = textualEls.map(({ el }) => el.x || 0);
@@ -462,7 +455,7 @@ export function SlideProperties({ slide, onUpdate, project }) {
               x: 80, y: 80,
               width: generatedImageUrl ? 900 : 1760,
               height: 600,
-              style: { fontSize: '28px', color: '#FFFFFF' },
+              style: { fontSize: '28px', color: textColor },
             });
             if (generatedImageUrl) {
               elements.push({

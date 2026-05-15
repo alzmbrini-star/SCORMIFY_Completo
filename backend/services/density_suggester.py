@@ -52,7 +52,7 @@ Responda EXCLUSIVAMENTE com um JSON valido no formato:
       "description": "Frase explicando o beneficio (max 18 palavras)",
       "transformedText": "Novo corpo do slide ja transformado (pronto pra aplicar)",
       "transformedBullets": ["bullet 1", "bullet 2", "bullet 3"],
-      "imagePrompt": "Prompt em ingles para gerar imagem de apoio (so se relevante; senao string vazia)",
+      "imagePrompt": "Descricao em pt-BR para gerar imagem de apoio (so se relevante; senao string vazia). DEVE incluir explicitamente: 'TODOS os textos, rotulos, legendas e titulos da imagem em PORTUGUES BRASILEIRO (pt-BR), sem palavras em ingles.'",
       "requiresImage": false
     }}
   ]
@@ -62,7 +62,7 @@ Regras importantes:
 - transformedText em pt-BR, conciso, voz ativa.
 - transformedBullets em pt-BR, no maximo 5 itens, frases curtas (≤8 palavras).
 - Se a sugestao for "split", coloque a primeira metade em transformedText e a segunda metade no segundo objeto de suggestion (use 2 sugestoes consecutivas).
-- Para "diagram" e "infographic" deixe requiresImage=true e preencha imagePrompt em ingles tecnico (max 25 palavras).
+- Para "diagram" e "infographic" deixe requiresImage=true e preencha imagePrompt em **PORTUGUES BRASILEIRO (pt-BR)** (max 35 palavras). Sempre termine o imagePrompt com: ". Todos os rotulos, titulos e legendas em portugues do Brasil. NAO usar texto em ingles." — essa instrucao final e OBRIGATORIA quando requiresImage=true.
 - Nunca repita o texto original quase identico — uma sugestao deve transformar de verdade.
 
 Responda APENAS o JSON, sem markdown, sem explicacao."""
