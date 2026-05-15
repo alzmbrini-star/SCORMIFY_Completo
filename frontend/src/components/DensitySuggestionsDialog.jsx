@@ -67,7 +67,33 @@ export default function DensitySuggestionsDialog({
   const [error, setError] = useState("");
   const [applyingId, setApplyingId] = useState(null);
 
+  // Image-generation provider selector. Only relevant for suggestions
+  // with requiresImage=true. We default to "gemini" (Emergent universal
+  // key, no user setup) and offer "krea" when admin has configured the
+  // Krea API key. Stored separately from kreaModelId so users can switch
+  // models without losing their provider preference.
+  const [providers, setProviders] = useState([]);
+  const [imageProvider, setImageProvider] = useState("gemini");
+  const [kreaModelId, setKreaModelId] = useState("flux-1-dev");
+
   const token = typeof window !== "undefined" ? localStorage.getItem("scormify_auth_token") : "";
+
+  // Load available image providers on dialog open. Lightweight call —
+  // returns instantly. We do it once per open so admin-side toggles
+  // (e.g. adding KREA_API_KEY) are picked up without a page refresh.
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/api/density/image-providers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        setProviders(data?.providers || []);
+      } catch (_e) { /* fallthrough — UI degrades to gemini-only */ }
+    })();
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) return;
@@ -102,12 +128,23 @@ export default function DensitySuggestionsDialog({
     if (!onApply) return;
     setApplyingId(sug.id);
     try {
-      await Promise.resolve(onApply(sug));
+      // Pass the provider choice through to the caller so the apply chain
+      // can hit the right backend lane. Suggestions without requiresImage
+      // simply ignore these fields.
+      const enriched = sug.requiresImage
+        ? { ...sug, imageProvider, kreaModelId }
+        : sug;
+      await Promise.resolve(onApply(enriched));
       onClose?.();
     } finally {
       setApplyingId(null);
     }
   };
+
+  // Detect whether any suggestion needs an image — we only render the
+  // provider picker when at least one card promises "Inclui imagem".
+  const anySuggestionNeedsImage = suggestions.some(s => s.requiresImage);
+  const kreaProvider = providers.find(p => p.id === "krea");
 
   const headerStyle = density ? LABEL_STYLES[density.label] : LABEL_STYLES.light;
   const HeaderIcon = headerStyle.icon;
@@ -159,6 +196,56 @@ export default function DensitySuggestionsDialog({
           <div className="text-center py-6 text-slate-400">
             <p className="text-sm">Este conteudo ja esta equilibrado.</p>
             <p className="text-xs mt-1">Nenhuma sugestao adicional necessaria.</p>
+          </div>
+        )}
+
+        {!loading && suggestions.length > 0 && anySuggestionNeedsImage && (
+          <div className="bg-violet-500/5 border border-violet-500/30 rounded p-3 space-y-2" data-testid="density-provider-picker">
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4 text-violet-300" />
+              <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Gerador de imagens</span>
+              <span className="text-[10px] text-slate-500">para sugestoes com "Inclui imagem"</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setImageProvider("gemini")}
+                className={`text-left rounded p-2 border transition ${imageProvider === "gemini" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"}`}
+                data-testid="density-provider-gemini"
+              >
+                <div className="text-xs font-semibold text-white">Gemini Nano Banana</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Rapido (~5s) • Incluso na chave universal</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => kreaProvider && setImageProvider("krea")}
+                disabled={!kreaProvider}
+                className={`text-left rounded p-2 border transition ${imageProvider === "krea" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"} ${!kreaProvider ? "opacity-50 cursor-not-allowed" : ""}`}
+                data-testid="density-provider-krea"
+                title={!kreaProvider ? "Configure KREA_API_KEY no admin para habilitar" : ""}
+              >
+                <div className="text-xs font-semibold text-white">Krea AI {!kreaProvider && <span className="text-[10px] text-amber-400">(nao configurado)</span>}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Mais modelos (Flux, Imagen) • Sua conta Krea</div>
+              </button>
+            </div>
+            {imageProvider === "krea" && kreaProvider && (
+              <div className="pt-1">
+                <label className="text-[10px] text-slate-400 mb-1 block">Modelo Krea</label>
+                <select
+                  value={kreaModelId}
+                  onChange={(e) => setKreaModelId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                  data-testid="density-krea-model"
+                >
+                  {(kreaProvider.models || []).map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} {m.approxTimeSeconds ? `(~${m.approxTimeSeconds}s` : ""}
+                      {m.approxCostUSD ? ` $${m.approxCostUSD.toFixed(2)})` : (m.approxTimeSeconds ? ")" : "")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
 

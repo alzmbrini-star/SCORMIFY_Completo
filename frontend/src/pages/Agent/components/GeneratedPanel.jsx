@@ -466,8 +466,9 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
 
             // If suggestion promised an image (infographic/diagram types),
-            // generate it via Gemini Nano Banana BEFORE finalizing layout
-            // so we can size the text region accordingly.
+            // generate it via the user-selected provider (Gemini default,
+            // Krea optional) BEFORE finalizing layout so we can size the
+            // text region accordingly.
             let generatedImageUrl = null;
             if (sug.requiresImage && sug.imagePrompt) {
               try {
@@ -478,6 +479,8 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                     projectId: project.projectId,
                     imagePrompt: sug.imagePrompt,
                     suggestionId: sug.id,
+                    provider: sug.imageProvider || 'gemini',
+                    kreaModelId: sug.kreaModelId || 'flux-1-dev',
                   }),
                 });
                 if (r.ok) {

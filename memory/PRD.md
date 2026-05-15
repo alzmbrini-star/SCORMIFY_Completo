@@ -88,6 +88,27 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FEATURE (P0)** — Seletor de provider de imagem nas sugestões de densidade: **Gemini Nano Banana OU Krea AI**.
+  - **Pedido do usuário**: "Gostaria de ter opção de usar imagens do nano banana ou do KREA além das do GEMINI" + corrigir imagens em inglês e texto branco invisível.
+  - **Backend** (`routes/density.py`):
+    - Novo `GET /api/density/image-providers` lista providers disponíveis (Gemini sempre OK; Krea aparece quando `KREA_API_KEY` configurado) + 11 modelos Krea com tempo/custo (Flux 1 Dev `~4s $0.04`, Krea-1 `~25s $0.08`, Imagen 4, Nano Banana 2, ChatGPT Image, Ideogram, SeeDream, etc).
+    - `POST /api/density/generate-image` agora aceita `provider` ("gemini"/"krea") + `kreaModelId`. Helper `_generate_via_krea` faz lifecycle Krea (submit → poll 2s × 45 max → download → normalize JPEG via PIL). PNG bruto da Krea (~1.3MB) vira JPEG otimizado (~130KB, redução 90%).
+    - Filename `seed_src = provider|suggestionId|prompt` → cache busting automático ao trocar provider.
+    - Defesa pt-BR: se `imagePrompt` não tiver palavra-chave pt-BR ("portugues"/"brasil"/"pt-br"), o endpoint anexa: "TODOS os rotulos, titulos e legendas DEVEM estar em portugues do Brasil. NAO usar texto em ingles." — garante imagem em pt-BR independente de qual provider.
+  - **Frontend** (`DensitySuggestionsDialog.jsx`):
+    - Picker visual de provider entre o diagnóstico e as sugestões — só aparece quando há sugestão com `requiresImage=true`.
+    - 2 cards lado a lado: "Gemini Nano Banana" (default, badge "Incluso na chave universal") e "Krea AI" (badge "Sua conta Krea"). Card Krea fica `disabled` + tooltip "Configure KREA_API_KEY no admin" quando não configurado.
+    - Switch para Krea revela dropdown com 11 modelos, label inclui custo e tempo (ex: "Flux 1 Dev (fast) (~4s $0.04)").
+    - `handleApply` enriquece sugestão com `imageProvider` + `kreaModelId` antes de invocar callback do pai.
+  - **Sugestões em pt-BR** (`density_suggester.py`): regras de prompt do LLM atualizadas — `imagePrompt` agora é gerado **em pt-BR** com instrução obrigatória de incluir "TODOS os rotulos em portugues do Brasil" no fim. Antes era "Prompt em ingles" → causa raiz das imagens em inglês.
+  - **Texto adaptativo de cor** (`lib/densityApplyHelpers.js` NEW):
+    - `pickReadableTextColor(slide, survivor)`: pipeline 4-step — (1) `survivor.style.color/fontColor` se definido pelo autor, (2) `slide.globalTextColor`, (3) luminância do `slide.backgroundColor` via fórmula W3C (`0.2126R + 0.7152G + 0.0722B`), (4) fallback **`#0f172a` (dark slate)** — NUNCA branco como default.
+    - `buildSuggestionHtml(sug, color)`: embute `color:` em todos `<p>/<ul>/<li>` (4 declarações) → não depende mais do default branco do iframe → texto visível em fundos claros (creme, branco, pastel).
+    - SlideProperties.jsx + GeneratedPanel.jsx refatorados para usar helpers + textColor inteligente.
+    - **7/7 testes Node** passando (fundo branco→preto, navy→cinza claro, override do survivor, globalTextColor priority).
+  - **Validação E2E**: Krea Flux 1 Dev real em 7.8s → JPEG 132KB → screenshot do diálogo mostra picker com 2 cards + dropdown de modelos. PRD atualizado.
+
+
 - 2026-05-15 (cont.): **FEATURE (P0)** — Sugestões de densidade com badge "Inclui imagem" agora **geram a imagem de verdade** via Gemini Nano Banana.
   - **Pedido do usuário**: "veja após aplicar a sugestão que dizia ter IMAGEM INCLUÍDA não há nenhuma imagem, apenas a sumarização do texto! Poderia corrigir?"
   - **Backend** (`routes/density.py`):

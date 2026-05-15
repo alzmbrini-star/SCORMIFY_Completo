@@ -32,6 +32,7 @@ from services.text_density_analyzer import (
 from services.density_suggester import generate_visual_suggestions
 from services.gemini_image import generate_simple_image
 from services.asset_store import store_asset_async
+from services import krea_ai
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/density", tags=["Density"])
@@ -133,6 +134,139 @@ class GenerateImageRequest(BaseModel):
     # Optional hint for filename — keeps repeat applies idempotent and
     # avoids duplicate assets when the same suggestion is re-applied.
     suggestionId: Optional[str] = None
+    # Which image-generation backend to use.
+    #   "gemini" (default)  → Gemini Nano Banana via Emergent LLM key
+    #                          (~3-6s, no user setup needed, billed to
+    #                          Universal Key budget)
+    #   "krea"              → Krea AI (user API key required), various
+    #                          Flux/Imagen/SeeDream models, ~4-25s, billed
+    #                          to the user's Krea account.
+    provider: Optional[str] = "gemini"
+    # Krea-only: which model from KREA_IMAGE_MODELS. Defaults to flux-1-dev
+    # (the fastest, 4s, $0.04) which gives a good price/quality balance for
+    # density-suggestion infographics.
+    kreaModelId: Optional[str] = "flux-1-dev"
+
+
+@router.get("/image-providers")
+async def list_image_providers(user: dict = Depends(require_auth)):
+    """List which image-generation providers are currently usable.
+
+    Frontend uses this to render the provider picker in the density
+    suggestions dialog. The Gemini option is always available (uses the
+    Emergent Universal Key); Krea only appears if KREA_API_KEY is set
+    (user must have configured it in admin settings).
+    """
+    providers = [
+        {
+            "id": "gemini",
+            "label": "Gemini Nano Banana",
+            "description": "Rapido (~5s), ja incluso na chave universal Emergent.",
+            "models": [],
+            "configured": True,
+        },
+    ]
+    if krea_ai.is_configured():
+        providers.append({
+            "id": "krea",
+            "label": "Krea AI",
+            "description": "Mais modelos (Flux, Imagen, SeeDream), maior fidelidade. Cobrado na sua conta Krea.",
+            "models": [
+                {"id": m["id"], "label": m["label"], "description": m["description"],
+                 "approxTimeSeconds": m.get("approxTimeSeconds"),
+                 "approxCostUSD": m.get("approxCostUSD")}
+                for m in krea_ai.KREA_IMAGE_MODELS
+            ],
+            "configured": True,
+        })
+    return {"providers": providers}
+
+
+async def _generate_via_krea(prompt: str, model_id: str) -> Optional[bytes]:
+    """Submit a Krea job and poll until completed (or fail fast). Returns
+    JPEG bytes or None on failure. Krea is async (submit → poll → download)
+    so we wrap that lifecycle here to match the simple bytes-returning
+    contract of `generate_simple_image()`."""
+    import asyncio
+    try:
+        # 16:9 wide aspect — most density slides put image on the right
+        # half of a 1920x780 union, so a roughly 1200x675 image fills it
+        # without awkward letterboxing.
+        job = await krea_ai.submit_generation(
+            model_id=model_id,
+            prompt=prompt,
+            width=1200,
+            height=675,
+        )
+        job_id = job.get("job_id")
+        if not job_id:
+            logger.warning(f"[density.krea] No job_id returned: {job}")
+            return None
+        # Poll up to 90s (Krea claims 4-25s typical for our default model).
+        for _ in range(45):
+            await asyncio.sleep(2)
+            j = await krea_ai.get_job(job_id)
+            status = (j.get("status") or "").lower()
+            if status == "completed":
+                # Krea returns the URL under one of several shapes depending
+                # on the model. The most common (Flux) shape is
+                # `result.urls[0]`. We also handle the older `results: [...]`
+                # and the flat `image_url` form.
+                img_url = None
+                result_obj = j.get("result") or {}
+                if isinstance(result_obj, dict):
+                    urls = result_obj.get("urls") or result_obj.get("images")
+                    if isinstance(urls, list) and urls:
+                        first = urls[0]
+                        img_url = first if isinstance(first, str) else (
+                            first.get("url") or first.get("image_url"))
+                if not img_url:
+                    results = j.get("results") or j.get("outputs") or []
+                    if isinstance(results, list) and results:
+                        first = results[0]
+                        img_url = first if isinstance(first, str) else (
+                            first.get("url") or first.get("image_url"))
+                if not img_url:
+                    img_url = j.get("image_url") or j.get("url")
+                if not img_url:
+                    logger.warning(f"[density.krea] Job done but no URL: {j}")
+                    return None
+                raw = await krea_ai.download_image_bytes(img_url)
+                # Normalize to optimized JPEG so the file extension (.jpg)
+                # matches the bytes and the asset stays small (Krea sends
+                # PNG by default which can be 800KB+).
+                try:
+                    import io
+                    from PIL import Image
+                    img = Image.open(io.BytesIO(raw))
+                    if img.mode in ("RGBA", "LA", "P"):
+                        bg = Image.new("RGB", img.size, (255, 255, 255))
+                        if img.mode == "P":
+                            img = img.convert("RGBA")
+                        bg.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
+                        img = bg
+                    elif img.mode != "RGB":
+                        img = img.convert("RGB")
+                    if max(img.size) > 1400:
+                        ratio = 1400 / max(img.size)
+                        img = img.resize(
+                            (int(img.width * ratio), int(img.height * ratio)),
+                            Image.Resampling.LANCZOS,
+                        )
+                    out = io.BytesIO()
+                    img.save(out, format="JPEG", quality=85, optimize=True)
+                    return out.getvalue()
+                except Exception as e:
+                    logger.warning(f"[density.krea] JPEG normalize failed, keeping raw: {e}")
+                    return raw
+            if status in ("failed", "cancelled", "error"):
+                logger.warning(f"[density.krea] Job {job_id} status={status}")
+                return None
+        logger.warning(f"[density.krea] Job {job_id} polling timed out")
+        return None
+    except Exception as e:
+        logger.error(f"[density.krea] Generation failed: {e}")
+        return None
 
 
 @router.post("/generate-image")
@@ -140,17 +274,15 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     """Generate an illustration for a density suggestion that promised an
     image (e.g. infographic/diagram types).
 
-    Why this endpoint exists: the density suggester returns `imagePrompt`
-    + `requiresImage=True` for visual suggestion types, but applying the
-    suggestion alone only rewrites the slide text. The author was then
-    promised "Inclui imagem" in the UI but received only text — clear UX
-    deficit. This endpoint bridges that gap: takes the imagePrompt the LLM
-    already produced, renders it via Gemini Nano Banana (Emergent key, free
-    for the user), persists the bytes through `store_asset_async` so it
-    survives K8s pod restarts, and returns a public URL the frontend can
-    add to the slide as a new image element.
+    Supports two providers (selectable via `provider` field):
+      - "gemini" (default): Gemini Nano Banana via Emergent Universal Key.
+        Fast (~5s), no user setup, but constrained by the universal key
+        budget.
+      - "krea": Krea AI (requires KREA_API_KEY env var). Multiple models
+        (Flux, Imagen 4, SeeDream, etc) selectable via `kreaModelId`.
+        Billed to the user's Krea account.
 
-    Returns: { url, filename, width, height } on success.
+    Returns: { url, filename, width, height, provider } on success.
     """
     prompt = (req.imagePrompt or "").strip()
     if not prompt:
@@ -159,9 +291,8 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         raise HTTPException(status_code=400, detail="projectId is required")
 
     # Defense in depth: even if the suggester LLM forgot the pt-BR
-    # instruction, we re-append it here. Gemini 3 Pro Image Preview honors
-    # the language hint when explicit. Also we filter incidental English
-    # words the suggester may have leaked.
+    # instruction, we re-append it here. Both Gemini and Krea honor the
+    # language hint when explicit.
     if not any(token in prompt.lower() for token in ("portugues", "português", "pt-br", "brasil")):
         prompt = (
             prompt.rstrip(". ") + ". TODOS os rotulos, titulos, palavras e legendas "
@@ -181,14 +312,26 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         if project.get("userId") != user.get("id") and project.get("companyId") != user.get("companyId"):
             raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Generate via Gemini Nano Banana. ~3-6s typical.
-    img_bytes = await generate_simple_image(prompt)
-    if not img_bytes:
-        raise HTTPException(status_code=502, detail="Image generation failed (Gemini)")
+    provider = (req.provider or "gemini").lower().strip()
+    img_bytes: Optional[bytes] = None
+    if provider == "krea":
+        if not krea_ai.is_configured():
+            raise HTTPException(status_code=400, detail="Krea API key not configured. Open admin settings to add KREA_API_KEY.")
+        img_bytes = await _generate_via_krea(prompt, req.kreaModelId or "flux-1-dev")
+        if not img_bytes:
+            raise HTTPException(status_code=502, detail="Image generation failed (Krea)")
+    else:
+        # Default: Gemini Nano Banana via Emergent key. ~3-6s typical.
+        img_bytes = await generate_simple_image(prompt)
+        if not img_bytes:
+            raise HTTPException(status_code=502, detail="Image generation failed (Gemini)")
+        provider = "gemini"
 
-    # Deterministic filename keyed on prompt + suggestion id keeps re-applies
-    # of the same suggestion idempotent (no duplicate gallery clutter).
-    seed_src = (req.suggestionId or "") + "|" + prompt
+    # Deterministic filename keyed on provider + prompt + suggestion id
+    # keeps re-applies of the same suggestion idempotent (no duplicate
+    # gallery clutter). Provider is in the seed so switching providers
+    # produces a different file (so the new image actually shows up).
+    seed_src = provider + "|" + (req.suggestionId or "") + "|" + prompt
     seed = hashlib.md5(seed_src.encode("utf-8")).hexdigest()[:10]
     fname = f"density_img_{seed}.jpg"
     fpath = os.path.join(PROJECTS_DIR, req.projectId, "assets", fname)
@@ -211,4 +354,4 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         logger.warning(f"[density.generate-image] mongo persist failed: {e}")
 
     url = f"/api/projects/{req.projectId}/assets/{fname}"
-    return {"url": url, "filename": fname, "width": 1200, "height": 1200}
+    return {"url": url, "filename": fname, "width": 1200, "height": 1200, "provider": provider}

@@ -364,6 +364,8 @@ export function SlideProperties({ slide, onUpdate, project }) {
                   projectId: pid,
                   imagePrompt: sug.imagePrompt,
                   suggestionId: sug.id,
+                  provider: sug.imageProvider || 'gemini',
+                  kreaModelId: sug.kreaModelId || 'flux-1-dev',
                 }),
               });
               if (r.ok) {
