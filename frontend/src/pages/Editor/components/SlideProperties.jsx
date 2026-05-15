@@ -342,7 +342,10 @@ export function SlideProperties({ slide, onUpdate, project }) {
           // `applyingId` state already drives a spinner on the Aplicar
           // button, so the wait feels natural.
           let generatedImageUrl = null;
-          if (sug.requiresImage && sug.imagePrompt && project?.projectId) {
+          // Editor passes `currentProject` whose id field is `.id`. Agent
+          // flow uses `.projectId`. Support both shapes.
+          const pid = project?.id || project?.projectId;
+          if (sug.requiresImage && sug.imagePrompt && pid) {
             try {
               const apiBase = process.env.REACT_APP_BACKEND_URL;
               const token = localStorage.getItem('scormify_auth_token') || '';
@@ -353,7 +356,7 @@ export function SlideProperties({ slide, onUpdate, project }) {
                   Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                  projectId: project.projectId,
+                  projectId: pid,
                   imagePrompt: sug.imagePrompt,
                   suggestionId: sug.id,
                 }),
