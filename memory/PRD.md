@@ -88,6 +88,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **CHORE (P1)** — Auditoria completa: zero usos de `process.env.REACT_APP_BACKEND_URL` no codigo (so o helper `utils/apiUrl.js`).
+  - Auditoria revelou que TODOS os 34 componentes que precisam da API base **ja usam `getApiUrl()`** (Timeline, EditorChat, AestheticsPanel, SlideCanvas, CoursePreview, GamificationPanel, e mais 28). A migracao defensiva anterior cobriu os 5 ultimos que ainda liam a env var diretamente.
+  - **Script de guarda contra regressao**: `scripts/check-api-base.js` percorre `/app/frontend/src/**/*.{js,jsx,ts,tsx}` e falha com exit code 1 se qualquer arquivo (exceto o proprio helper) tentar ler `process.env.REACT_APP_BACKEND_URL`. Mensagem de erro aponta para o changelog e para o helper correto.
+  - **Comentarios obsoletos limpos** em `PdfPreviewPanel.jsx` e `BrandLibraryPicker.jsx` que ainda mencionavam a env var.
+  - **Smoke test E2E** no preview: login → dashboard, **0 erros CORS no console**, sem `requestfailed` em chamadas API. Apenas falhas em endpoints Cloudflare RUM (telemetria do hosting, fora do escopo).
+
+
 - 2026-05-15 (cont.): **FIX (P0 PRODUCAO)** — Erros CORS apos deploy: chamadas indo para host errado (`gemini-voice-text.emergent.host` ao inves de `backend-startup.emergent.host`).
   - **Pedido do usuario** (screenshot): "Estou com o mesmo problema em producao tanto ao alimentar a biblioteca de marca quanto ao analisar visualmente. Ja fiz novo Deploy... nao resolveu."
   - **Causa raiz**: `REACT_APP_BACKEND_URL` foi "baked" no bundle JavaScript de producao apontando para o host **errado** (`gemini-voice-text.emergent.host`, provavelmente de um deploy anterior). React env vars sao incorporadas ao bundle em build-time — re-deploy sem alterar a variavel mantem o valor antigo.

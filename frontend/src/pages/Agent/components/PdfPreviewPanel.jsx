@@ -18,7 +18,7 @@ const authHeaders = (extra = {}) => {
  *
  * Props:
  *   - sessionId: agent session id
- *   - apiBase: absolute API url (REACT_APP_BACKEND_URL)
+ *   - apiBase: absolute API url (returned by getApiUrl())
  *   - onSaved(): optional callback when user clicks "Salvar preferencias"
  */
 export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusChange }) {

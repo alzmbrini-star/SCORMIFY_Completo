@@ -91,7 +91,7 @@ export default function BrandLibraryPicker({ open, onClose, companyId, onPick, d
 
   const handlePick = (asset) => {
     // The asset's `url` is already a full path (`/api/companies/.../file`).
-    // The editor / runtime resolves it against `REACT_APP_BACKEND_URL`.
+    // The editor / runtime resolves it against the current API base.
     onPick?.(asset);
     onClose?.();
   };
