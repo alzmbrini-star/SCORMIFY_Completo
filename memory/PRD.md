@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P0 CRÍTICO)** — Densidade Textual: prose ficava "espremida" em faixa de 50px ao aplicar (slide aparentava vazio).
+  - **Bug reportado pelo usuário** (com 2 screenshots antes/depois): "Apliquei uma sugestão de melhoria e o slide ficou em branco!".
+  - **Causa raiz**: slides do Agente IA têm 2 elementos `html`: (a) faixa header laranja em `x=0,y=0,w=1920,h=50` (banner do módulo) e (b) corpo rico em `x=80,y=80,w=1760,h=700` (h2/h3, prose, layout completo). Meu código antigo escolhia `textualIdxs[0]` (a faixa) como sobrevivente, gravava o novo prose dentro de 1920x50, e dropava o corpo (1760x700). Resultado: nova prose visualmente squashada em uma fita de 50px no topo + corpo dropado = slide "vazio".
+  - **Fix** (`SlideProperties.jsx` + `GeneratedPanel.jsx`):
+    - Sobrevivente agora é escolhido por **maior área** (`width × height`), não pelo índice. Header de 96k de área perde para corpo de 1.2M.
+    - Sobrevivente expande sua caixa para o **bounding box união** de todos os elementos textuais (`min(x)`, `min(y)`, `max(x+w)`, `max(y+h)`). Para o exemplo do usuário: vira `x=0, y=0, w=1920, h=780` — espaço amplo para a nova prose respirar.
+    - htmlContent aprimorado com `font-size: 24-28px`, `line-height: 1.4-1.5`, `font-weight: 600` no parágrafo de abertura. Visualmente legível em iframe de 1920x780.
+    - Drop de TODOS os outros elementos textuais (só o sobrevivente fica).
+  - **Recuperação de dados**: slides 8 ("Controles Internos Eficazes") e 12 ("Protocolos de Resposta") do projeto Blindagem Corporativa foram **restaurados manualmente** do `aesthetic_snapshots` (kind=editor_chat, applied 13:03) — voltaram aos 2 elementos originais (header + body completo).
+  - **Testing**: testing agent v3 validou E2E no projeto real `83dffbd3-5aee-4140-b81c-f0395c061a6b`. Slide 12 pós-Apply: 1 elemento html em `0,0,1920,780` com nova prose visível. Bug primário (faixa squashada) RESOLVIDO. Success rate: 80% (1 nota cosmética em slide #13 onde o testing agent contou iframes renderizados como elementos — DB confirma 1 elemento real).
+
+
 - 2026-05-15 (cont.): **FIX (P0)** — Densidade Textual: botão "Aplicar" **agora funciona no Painel Gerado** (slides html-type do Agente IA).
   - **Bug reportado pelo usuário** (com screenshot): "Está correto na análise e nas sugestões, mas ao APLICAR a sugestão selecionada nada ocorre!".
   - **Causa raiz**: `onApply` em `GeneratedPanel.jsx` procurava `el.type === 'text'`. Mas slides gerados pelo Agente IA usam `type === 'html'` (container de markup rico). Lookup retornava vazio → fallback adicionava um elemento órfão em (80,80) → o html original continuava visível por cima → "nada mudou". Mesmo padrão do bug já corrigido em `SlideProperties.jsx`.
