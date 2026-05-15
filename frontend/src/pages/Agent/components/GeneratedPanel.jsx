@@ -416,7 +416,10 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
         onClose={() => { setDensityOpen(false); setDensityDialog({ open: false, slide: null }); }}
         title={densityDialog.slide?.title || ''}
         text={(densityDialog.slide?.elements || [])
-          .filter(e => e.type === 'text' && !e.isBrandLogo)
+          .filter(e => {
+            const t = (e.type || '').toLowerCase();
+            return ['text', 'html', 'paragraph', 'title', 'heading'].includes(t) && !e.isBrandLogo;
+          })
           .map(e => {
             if (e.htmlContent) {
               const d = document.createElement('div'); d.innerHTML = e.htmlContent;
@@ -429,7 +432,12 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
         hasImage={(densityDialog.slide?.elements || []).some(e => ['image','video','avatar'].includes((e.type||'').toLowerCase()) && !e.isBrandLogo) || !!densityDialog.slide?.backgroundImage}
         preloadedDensity={densityDialog.slide && slideDensity[densityDialog.slide.id]}
         onApply={async (sug) => {
-          // Patch the project: rewrite the first text element of this slide.
+          // Patch the project: rewrite the first textual element of this slide.
+          // IMPORTANT: AI-Agent-generated slides have elements of type `html`
+          // (rich content containers) — not `text`. We must include every
+          // textual variant in the lookup, otherwise the suggestion would be
+          // appended as an orphan element and the original prose would stay
+          // intact (which was the bug reported by the user).
           const slide = densityDialog.slide;
           if (!slide?.id) return;
           try {
@@ -440,22 +448,71 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             const target = slides.find(s => s.id === slide.id);
             if (!target) return;
             const elements = [...(target.elements || [])];
-            let idx = elements.findIndex(el => el.type === 'text' && !el.isBrandLogo);
-            const newContent = sug.transformedText
-              || (sug.transformedBullets?.length ? sug.transformedBullets.map(b => `• ${b}`).join('\n') : '');
-            if (idx >= 0) {
-              elements[idx] = { ...elements[idx], content: newContent, htmlContent: undefined };
-            } else if (newContent) {
-              elements.push({ id: `text-${Date.now()}`, type: 'text', content: newContent, x: 80, y: 80, width: 800, height: 400, style: { fontSize: '24px', color: '#FFFFFF' } });
+            const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
+            // Find ALL textual elements — we replace the first and drop the
+            // rest so the new (denser-but-shorter) prose isn't competing with
+            // leftover text from the original layout.
+            const textualIdxs = elements
+              .map((el, i) => ({ el, i }))
+              .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo)
+              .map(({ i }) => i);
+
+            const plainText = sug.transformedText
+              || (sug.transformedBullets?.length
+                  ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
+                  : '');
+            // Build HTML version too — html-type elements render htmlContent,
+            // so we MUST overwrite it (clobbering with undefined would leave
+            // the original rich markup visible on the canvas).
+            const escape = (s) => String(s)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+            let htmlContent = '';
+            if (sug.transformedBullets?.length) {
+              htmlContent = `<ul style="margin:0;padding-left:1.2em">${sug.transformedBullets
+                .map(b => `<li style="margin-bottom:.4em">${escape(b)}</li>`)
+                .join('')}</ul>`;
+              if (sug.transformedText) {
+                htmlContent = `<p style="margin:0 0 .6em 0">${escape(sug.transformedText)}</p>` + htmlContent;
+              }
+            } else if (sug.transformedText) {
+              htmlContent = sug.transformedText
+                .split(/\n\n+/)
+                .map(p => `<p style="margin:0 0 .6em 0">${escape(p).replace(/\n/g, '<br/>')}</p>`)
+                .join('');
             }
-            target.elements = elements;
+
+            if (textualIdxs.length > 0) {
+              const targetIdx = textualIdxs[0];
+              const tgtEl = elements[targetIdx];
+              const isHtmlType = (tgtEl.type || '').toLowerCase() === 'html';
+              elements[targetIdx] = {
+                ...tgtEl,
+                content: plainText,
+                htmlContent: isHtmlType || tgtEl.htmlContent ? htmlContent : undefined,
+              };
+              // Drop the OTHER textual elements (keep images/shapes/audio).
+              const toRemove = new Set(textualIdxs.slice(1));
+              target.elements = elements.filter((_, i) => !toRemove.has(i));
+            } else if (plainText) {
+              elements.push({
+                id: `text-${Date.now()}`,
+                type: 'text',
+                content: plainText,
+                htmlContent,
+                x: 80, y: 80, width: 1760, height: 600,
+                style: { fontSize: '28px', color: '#FFFFFF' },
+              });
+              target.elements = elements;
+            }
             // PUT the project back
             await fetch(`${API}/api/projects/${project.projectId}`, {
               method: 'PUT',
               headers: authHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify(proj),
             });
-            toast.success('Sugestao aplicada. Abra o Editor para visualizar.');
+            toast.success('Sugestao aplicada. O conteudo do slide foi substituido.');
             // Re-analyze locally
             setSlideDensity(prev => {
               const next = { ...prev };
