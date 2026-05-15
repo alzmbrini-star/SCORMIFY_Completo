@@ -432,12 +432,19 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
         hasImage={(densityDialog.slide?.elements || []).some(e => ['image','video','avatar'].includes((e.type||'').toLowerCase()) && !e.isBrandLogo) || !!densityDialog.slide?.backgroundImage}
         preloadedDensity={densityDialog.slide && slideDensity[densityDialog.slide.id]}
         onApply={async (sug) => {
-          // Patch the project: rewrite the first textual element of this slide.
+          // Patch the project: rewrite the largest textual element of this slide.
           // IMPORTANT: AI-Agent-generated slides have elements of type `html`
           // (rich content containers) — not `text`. We must include every
           // textual variant in the lookup, otherwise the suggestion would be
           // appended as an orphan element and the original prose would stay
           // intact (which was the bug reported by the user).
+          // ALSO IMPORTANT: AI-Agent slides typically have a small HEADER
+          // strip at index 0 (e.g. 1920x50 banner) and the actual BODY at
+          // index 1 (e.g. 1760x700). Picking index 0 squashes the new
+          // content into the header — visually catastrophic. We pick the
+          // LARGEST textual element by area as the survivor, and we
+          // EXPAND its box to cover the union of all merged elements so
+          // the new prose has room to breathe.
           const slide = densityDialog.slide;
           if (!slide?.id) return;
           try {
@@ -449,13 +456,9 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             if (!target) return;
             const elements = [...(target.elements || [])];
             const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
-            // Find ALL textual elements — we replace the first and drop the
-            // rest so the new (denser-but-shorter) prose isn't competing with
-            // leftover text from the original layout.
-            const textualIdxs = elements
+            const textualEls = elements
               .map((el, i) => ({ el, i }))
-              .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo)
-              .map(({ i }) => i);
+              .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
 
             const plainText = sug.transformedText
               || (sug.transformedBullets?.length
@@ -468,32 +471,51 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               .replace(/&/g, '&amp;')
               .replace(/</g, '&lt;')
               .replace(/>/g, '&gt;');
+            // Inherit the survivor's font color when possible so the new
+            // prose stays consistent with the slide theme.
             let htmlContent = '';
             if (sug.transformedBullets?.length) {
-              htmlContent = `<ul style="margin:0;padding-left:1.2em">${sug.transformedBullets
-                .map(b => `<li style="margin-bottom:.4em">${escape(b)}</li>`)
+              htmlContent = `<ul style="margin:0 0 0 0;padding-left:1.2em;font-size:24px;line-height:1.5">${sug.transformedBullets
+                .map(b => `<li style="margin-bottom:.6em">${escape(b)}</li>`)
                 .join('')}</ul>`;
               if (sug.transformedText) {
-                htmlContent = `<p style="margin:0 0 .6em 0">${escape(sug.transformedText)}</p>` + htmlContent;
+                htmlContent = `<p style="margin:0 0 .8em 0;font-size:28px;line-height:1.4;font-weight:600">${escape(sug.transformedText)}</p>` + htmlContent;
               }
             } else if (sug.transformedText) {
               htmlContent = sug.transformedText
                 .split(/\n\n+/)
-                .map(p => `<p style="margin:0 0 .6em 0">${escape(p).replace(/\n/g, '<br/>')}</p>`)
+                .map(p => `<p style="margin:0 0 .8em 0;font-size:26px;line-height:1.5">${escape(p).replace(/\n/g, '<br/>')}</p>`)
                 .join('');
             }
 
-            if (textualIdxs.length > 0) {
-              const targetIdx = textualIdxs[0];
-              const tgtEl = elements[targetIdx];
-              const isHtmlType = (tgtEl.type || '').toLowerCase() === 'html';
-              elements[targetIdx] = {
-                ...tgtEl,
+            if (textualEls.length > 0) {
+              // Pick the LARGEST textual element by area. Header strips have
+              // tiny height (~50px); body containers are 600-800px tall.
+              const survivor = textualEls.reduce((best, cur) => {
+                const aB = (best.el.width || 0) * (best.el.height || 0);
+                const aC = (cur.el.width || 0) * (cur.el.height || 0);
+                return aC > aB ? cur : best;
+              });
+              // Compute UNION bounding box of all textual elements so the
+              // survivor expands to fit the merged area (no squashing).
+              const xs = textualEls.map(({ el }) => el.x || 0);
+              const ys = textualEls.map(({ el }) => el.y || 0);
+              const rights = textualEls.map(({ el }) => (el.x || 0) + (el.width || 0));
+              const bottoms = textualEls.map(({ el }) => (el.y || 0) + (el.height || 0));
+              const ux = Math.min(...xs);
+              const uy = Math.min(...ys);
+              const uw = Math.max(...rights) - ux;
+              const uh = Math.max(...bottoms) - uy;
+
+              const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html';
+              elements[survivor.i] = {
+                ...survivor.el,
+                x: ux, y: uy, width: uw, height: uh,
                 content: plainText,
-                htmlContent: isHtmlType || tgtEl.htmlContent ? htmlContent : undefined,
+                htmlContent: isHtmlType || survivor.el.htmlContent ? htmlContent : undefined,
               };
               // Drop the OTHER textual elements (keep images/shapes/audio).
-              const toRemove = new Set(textualIdxs.slice(1));
+              const toRemove = new Set(textualEls.filter(t => t.i !== survivor.i).map(t => t.i));
               target.elements = elements.filter((_, i) => !toRemove.has(i));
             } else if (plainText) {
               elements.push({

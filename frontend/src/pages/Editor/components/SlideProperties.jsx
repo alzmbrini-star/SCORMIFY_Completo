@@ -327,13 +327,13 @@ export function SlideProperties({ slide, onUpdate, project }) {
         onApply={(sug) => {
           const elements = [...(slide.elements || [])];
           const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
-          // Find ALL textual elements (not just the first). When the
-          // transformation is more concise we keep just the first one and
-          // drop the rest — the whole point is to reduce density.
-          const textualIdxs = elements
+          // Find ALL textual elements. AI-Agent slides often have a small
+          // HEADER strip at index 0 (1920x50 banner) and the BODY at index 1
+          // (1760x700). We MUST pick the largest as survivor — otherwise the
+          // new prose would be squashed into the header strip (broken UX).
+          const textualEls = elements
             .map((el, i) => ({ el, i }))
-            .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo)
-            .map(({ i }) => i);
+            .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
 
           const plainText = sug.transformedText
             || (sug.transformedBullets?.length
@@ -347,35 +347,51 @@ export function SlideProperties({ slide, onUpdate, project }) {
             .replace(/>/g, '&gt;');
           let htmlContent = '';
           if (sug.transformedBullets?.length) {
-            htmlContent = `<ul style="margin:0;padding-left:1.2em">${sug.transformedBullets
-              .map(b => `<li style="margin-bottom:.4em">${escape(b)}</li>`)
+            htmlContent = `<ul style="margin:0;padding-left:1.2em;font-size:24px;line-height:1.5">${sug.transformedBullets
+              .map(b => `<li style="margin-bottom:.6em">${escape(b)}</li>`)
               .join('')}</ul>`;
             if (sug.transformedText) {
-              htmlContent = `<p style="margin:0 0 .6em 0">${escape(sug.transformedText)}</p>` + htmlContent;
+              htmlContent = `<p style="margin:0 0 .8em 0;font-size:28px;line-height:1.4;font-weight:600">${escape(sug.transformedText)}</p>` + htmlContent;
             }
           } else if (sug.transformedText) {
             // Preserve paragraph breaks
             htmlContent = sug.transformedText
               .split(/\n\n+/)
-              .map(p => `<p style="margin:0 0 .6em 0">${escape(p).replace(/\n/g, '<br/>')}</p>`)
+              .map(p => `<p style="margin:0 0 .8em 0;font-size:26px;line-height:1.5">${escape(p).replace(/\n/g, '<br/>')}</p>`)
               .join('');
           }
 
-          if (textualIdxs.length > 0) {
-            const targetIdx = textualIdxs[0];
-            const target = elements[targetIdx];
-            const isHtmlType = (target.type || '').toLowerCase() === 'html';
-            elements[targetIdx] = {
-              ...target,
+          if (textualEls.length > 0) {
+            // Pick the LARGEST textual element by area as the survivor.
+            const survivor = textualEls.reduce((best, cur) => {
+              const aB = (best.el.width || 0) * (best.el.height || 0);
+              const aC = (cur.el.width || 0) * (cur.el.height || 0);
+              return aC > aB ? cur : best;
+            });
+            // UNION bounding box of all textual elements → the survivor's box
+            // expands to fit the merged area so the new prose isn't squashed.
+            const xs = textualEls.map(({ el }) => el.x || 0);
+            const ys = textualEls.map(({ el }) => el.y || 0);
+            const rights = textualEls.map(({ el }) => (el.x || 0) + (el.width || 0));
+            const bottoms = textualEls.map(({ el }) => (el.y || 0) + (el.height || 0));
+            const ux = Math.min(...xs);
+            const uy = Math.min(...ys);
+            const uw = Math.max(...rights) - ux;
+            const uh = Math.max(...bottoms) - uy;
+
+            const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html';
+            elements[survivor.i] = {
+              ...survivor.el,
+              x: ux, y: uy, width: uw, height: uh,
               // Update BOTH content and htmlContent so whichever the renderer
               // reads (depends on slide template), the new prose shows.
               content: plainText,
-              htmlContent: isHtmlType || target.htmlContent ? htmlContent : undefined,
+              htmlContent: isHtmlType || survivor.el.htmlContent ? htmlContent : undefined,
             };
             // Drop the OTHER textual elements so the new content isn't
             // competing with the old prose. We keep non-text elements
             // (images, shapes, audio, etc) untouched.
-            const toRemove = new Set(textualIdxs.slice(1));
+            const toRemove = new Set(textualEls.filter(t => t.i !== survivor.i).map(t => t.i));
             const cleaned = elements.filter((_, i) => !toRemove.has(i));
             onUpdate({ elements: cleaned });
           } else {
