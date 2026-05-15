@@ -2008,6 +2008,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide["elements"].append({
                     "id": f"brand-logo-{slide['id'][-6:]}",
                     "type": "image",
+                    # Write both `src` (canonical name used by all 3 frontend
+                    # renderers — SlideCanvas, CoursePreview, SplitPreview)
+                    # and `imageUrl` (legacy name used by some exporters and
+                    # back-compat tooling). This avoids a 50% breakage rate
+                    # depending on which surface the slide is viewed from.
+                    "src": logo_url,
                     "imageUrl": logo_url,
                     "x": x,
                     "y": y,

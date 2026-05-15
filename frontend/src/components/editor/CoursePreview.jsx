@@ -753,7 +753,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 {/* Image */}
                 {element.type === 'image' && (
                   <img
-                    src={getAssetUrl(element.src, projectId)}
+                    src={getAssetUrl(element.src || element.imageUrl, projectId)}
                     alt=""
                     style={{ 
                       width: '100%', 

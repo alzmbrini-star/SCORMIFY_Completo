@@ -360,7 +360,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                     </div>
                   )}
                   {element.type === 'image' && (
-                    <img src={getAssetUrl(element.src, projectId)} alt="" style={{ width: '100%', height: '100%', objectFit: element.objectFit || 'contain', display: 'block' }} />
+                    <img src={getAssetUrl(element.src || element.imageUrl, projectId)} alt="" style={{ width: '100%', height: '100%', objectFit: element.objectFit || 'contain', display: 'block' }} />
                   )}
                   {element.type === 'shape' && (
                     <div className="w-full h-full flex items-center justify-center" style={{

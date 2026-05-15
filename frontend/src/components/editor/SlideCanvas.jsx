@@ -677,7 +677,7 @@ const SlideCanvas = ({
               {/* Image Element */}
               {element.type === 'image' && (
                 <img
-                  src={getAssetUrl(element.src)}
+                  src={getAssetUrl(element.src || element.imageUrl)}
                   alt=""
                   className="w-full h-full pointer-events-none select-none"
                   style={{

@@ -88,6 +88,16 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P1)** — Marca d'agua (logo da Brand Kit) aparecia como **retangulo vazio** no slide.
+  - **Pedido do usuario** (screenshot): "A imagem de logo no canto inferior esquerdo seria para aparecer em marca d'agua mas esta quebrada".
+  - **Causa raiz**: `brand_kit_applier` em `ai_agent.py` linha 2010 escrevia o logo como elemento `{type: "image", imageUrl: ...}` mas os 3 renderers do frontend (`SlideCanvas.jsx`, `CoursePreview.jsx`, `SplitPreview.jsx`) leem `element.src`. Como `element.src` era undefined, `getAssetUrl(undefined)` retornava `''` → `<img src="">` renderizava placeholder vazio.
+  - **Fix multi-camada**:
+    - Backend `ai_agent.py`: brand-logo agora escreve em **AMBOS** os campos (`src` + `imageUrl`) para back-compat. Comentario explica que os 3 renderers usam `src` mas exporters legacy podem usar `imageUrl`.
+    - Frontend (todos os 3 renderers): fallback `element.src || element.imageUrl` para que slides ja gerados (com so `imageUrl`) sejam exibidos corretamente sem precisar regerar.
+    - `single_page_exporter._render_image_element_inner` tambem aceita ambos os campos (estava ok mas agora documentado).
+  - **Validacao**: lint OK, backend healthy. Logos antigos em DB nao precisam migracao porque renderers agora aceitam o campo legado.
+
+
 - 2026-05-15 (cont.): **FIX (P0)** — Chat de Storyboard editava NARRACAO quando usuario pedia para reescrever o SLIDE.
   - **Pedido do usuario** (screenshot): "O chat na fase de Storyboard nao esta funcionando, ele diz que faz mas isto nao reflete no texto do slide".
   - **Causa raiz** (`routes/agent.py`): system prompt do LLM nao distinguia "texto do slide" (visivel ao aluno) de "narrationScript" (audio falado). Pedidos como "reescreva o slide 2" eram interpretados como `edit_narration`. So existia `edit_element` para texto mas exigia `elementIndex` explicito.

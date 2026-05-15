@@ -343,7 +343,10 @@ def _render_text_element_inner(el: dict) -> str:
 
 
 def _render_image_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str) -> str:
-    src = el.get("src") or el.get("content") or ""
+    # Support both `src` (canonical) and `imageUrl` (legacy from the
+    # brand-kit applier which writes logos with imageUrl). Falling back to
+    # `content` last for ancient slides that stored the URL there.
+    src = el.get("src") or el.get("imageUrl") or el.get("content") or ""
     src = _resolve_asset_url(src, project_id, assets_dir, base_url)
     alt = _esc(el.get("alt", ""))
     style = el.get("style") or {}
