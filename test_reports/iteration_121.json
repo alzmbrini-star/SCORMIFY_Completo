@@ -1,0 +1,50 @@
+{
+  "summary": "Tested the NEW image-generation flow for density suggestions. Backend endpoint POST /api/density/generate-image is FULLY WORKING (6/6 pytest assertions pass, including auth guards, validation, cross-tenant 403, happy-path with a real 60KB JPEG, and idempotent deterministic filename). Frontend smoke (slide 1 Capa) renders correctly. HOWEVER, the PRIMARY frontend E2E (clicking 'Aplicar' on an 'Inclui imagem' suggestion in the editor) FAILS: image generation is NEVER triggered. Network trace shows zero calls to /api/density/generate-image even though the user-facing 'Inclui imagem' badge is present on all three suggestions. RCA: SlideProperties.jsx reads `project?.projectId`, but the Editor passes `project={currentProject}` and currentProject's id field is `.id` (used by ~30 other call sites in Editor.jsx). The guard `if (sug.requiresImage && sug.imagePrompt && project?.projectId)` is therefore ALWAYS false → fetch never fires → slide receives text-only apply at full canvas width and no image. This is the exact regression the iteration was supposed to fix.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SlideProperties.jsx (Editor density apply)",
+        "issue": "Image generation never fires for requiresImage suggestions. The slide ends up text-only at full-width — identical to the pre-fix buggy behaviour the user reported. ROOT CAUSE: lines 345 and 356 reference `project?.projectId` / `project.projectId`, but the parent Editor.jsx (line 1706) passes `project={currentProject}` and currentProject uses `.id` (verified against 30+ other usages in Editor.jsx: lines 405, 411, 464, 467, 472, 543, 546, etc.). One-line fix: change `project?.projectId` -> `project?.id || project?.projectId` (and same on the body payload). After the fix, the spinner should appear for ~15-25s and the slide should split 55/43 text+image.",
+        "selector": "[data-testid=\"density-apply-0\"] (in editor flow)",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Editor -> Density Aplicar -> /api/density/generate-image",
+        "issue": "Frontend never invokes the new backend endpoint because of the projectId field mismatch above. Confirmed by network capture during E2E: only /api/density/suggestions (200) was called; no /api/density/generate-image request appeared. Toast text was empty (the success/failure branch with the image message was never reached because htmlElements update completed before any awaited fetch).",
+        "affected_selectors": ["[data-testid=\"density-apply-0\"]", "[data-testid=\"density-analyze-button\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_density_generate_image.py",
+    "/app/test_reports/pytest/density_generate_image.xml"
+  ],
+  "action_items": [
+    "CRITICAL P0: Fix SlideProperties.jsx lines 345 and 356 to use the correct project id field. The Editor passes `currentProject` which exposes `.id`; the new code expects `.projectId` (which is GeneratedPanel.jsx's shape, where project comes from /api/agent endpoints). Minimal patch: replace `project?.projectId` with `(project?.id || project?.projectId)` in both the guard condition and the fetch body. Without this, the entire image-generation feature is unreachable from the editor.",
+    "After the fix, re-run the E2E: select slide-8 -> click density-analyze-button -> wait for suggestions -> click density-apply-0 (Pilares dos Controles Internos, type=infografico) -> button should spin ~15-25s -> slide should have BOTH a text element (left ~55%) AND an image element (right ~43%) with src starting with /api/projects/.../assets/density_img_*.jpg. Backend log should show '[gemini-image]' lines.",
+    "Optional cleanup: extract the duplicated apply logic (SlideProperties.jsx 327-487 and GeneratedPanel.jsx 434-590) into a shared hook/util — this exact field-name drift would have been caught by a single source of truth."
+  ],
+  "critical_code_review_comments": [
+    "BUG: SlideProperties.jsx line 345 — `project?.projectId` is undefined because parent passes `currentProject` (id field). Causes silent feature failure.",
+    "SlideProperties.jsx line 480 — `const { toast } = require('sonner')` inside an async callback works in CRA but is brittle. Move to a top-level static import.",
+    "GeneratedPanel.jsx mirrors the same apply pipeline (lines 434-590). Code duplication ~80 lines persists from iteration_120 — still recommended to extract.",
+    "density.py 195-201: builds a fresh AsyncIOMotorClient per request just to call store_asset_async. This leaks connections under load. Reuse the shared client from routes.deps."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_density_generate_image.py (NEW)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 pytest)",
+    "frontend": "20% — slide 1 smoke OK, but the primary feature path (density Aplicar with image) is silently broken on the editor side due to a one-line field-name bug"
+  },
+  "test_credentials": "admin@scormify.com / admin123 (super_admin), admin@empresateste.com / empresa123 (cross-tenant test) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "None. Reused existing project 83dffbd3-5aee-4140-b81c-f0395c061a6b. Note: two density_img_*.jpg assets were created in /app/storage/projects/83dffbd3-.../assets/ during the happy-path backend tests (one with suggestionId=test-suggestion-pytest-001 and one idempotent probe). These can stay as artifacts.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend image-generation endpoint is solid — do not retest it; the 6 pytest cases in /app/backend/tests/test_density_generate_image.py cover everything. Frontend bug: SlideProperties.jsx uses project.projectId but receives currentProject whose id field is .id. After main agent patches that one-liner, repeat the E2E (login as admin@scormify, navigate /editor/83dffbd3-5aee-4140-b81c-f0395c061a6b, click [data-testid='slide-8'], click [data-testid='density-analyze-button'], wait ~10-15s for the dialog, then click [data-testid='density-apply-0']). Watch for a 15-25s spinner and verify the canvas afterwards contains an <img> whose src includes '/api/projects/83dffbd3.../assets/density_img_'.",
+  "rca of the issue": "Field-name mismatch between two prop-shape conventions. Agent flow (/api/agent/projects) returns objects with .projectId; the editor flow (/api/projects/{id}) returns objects with .id. SlideProperties.jsx was authored against the agent-flow shape (matching GeneratedPanel.jsx) but is actually mounted from the editor flow. The truthy-guard short-circuits, no fetch fires, and the apply silently degrades to text-only without any error log — making the bug hard to spot in dev tools. Reproduction: clear, every time. Mitigation: `project?.id || project?.projectId` in the two references on lines 345 & 356 of SlideProperties.jsx."
+}

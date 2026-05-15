@@ -460,6 +460,28 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               .map((el, i) => ({ el, i }))
               .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
 
+            // If suggestion promised an image (infographic/diagram types),
+            // generate it via Gemini Nano Banana BEFORE finalizing layout
+            // so we can size the text region accordingly.
+            let generatedImageUrl = null;
+            if (sug.requiresImage && sug.imagePrompt) {
+              try {
+                const r = await fetch(`${API}/api/density/generate-image`, {
+                  method: 'POST',
+                  headers: authHeaders({ 'Content-Type': 'application/json' }),
+                  body: JSON.stringify({
+                    projectId: project.projectId,
+                    imagePrompt: sug.imagePrompt,
+                    suggestionId: sug.id,
+                  }),
+                });
+                if (r.ok) {
+                  const j = await r.json();
+                  generatedImageUrl = j?.url || null;
+                }
+              } catch (_e) { /* fall through to text-only apply */ }
+            }
+
             const plainText = sug.transformedText
               || (sug.transformedBullets?.length
                   ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
@@ -507,25 +529,59 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               const uw = Math.max(...rights) - ux;
               const uh = Math.max(...bottoms) - uy;
 
+              // When an image was generated, split the union: 55% for text
+              // on the left and ~43% for the image on the right (2% gutter).
+              let textW = uw, imgX = 0, imgY = 0, imgW = 0, imgH = 0;
+              if (generatedImageUrl) {
+                const gutter = Math.max(24, Math.floor(uw * 0.02));
+                textW = Math.floor(uw * 0.55) - gutter;
+                imgW = uw - textW - gutter;
+                imgX = ux + textW + gutter;
+                imgY = uy;
+                imgH = uh;
+              }
+
               const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html';
               elements[survivor.i] = {
                 ...survivor.el,
-                x: ux, y: uy, width: uw, height: uh,
+                x: ux, y: uy, width: textW, height: uh,
                 content: plainText,
                 htmlContent: isHtmlType || survivor.el.htmlContent ? htmlContent : undefined,
               };
               // Drop the OTHER textual elements (keep images/shapes/audio).
               const toRemove = new Set(textualEls.filter(t => t.i !== survivor.i).map(t => t.i));
               target.elements = elements.filter((_, i) => !toRemove.has(i));
+              if (generatedImageUrl) {
+                target.elements.push({
+                  id: `density-img-${Date.now()}`,
+                  type: 'image',
+                  src: generatedImageUrl,
+                  x: imgX, y: imgY, width: imgW, height: imgH,
+                  objectFit: 'cover',
+                  zIndex: 5,
+                });
+              }
             } else if (plainText) {
               elements.push({
                 id: `text-${Date.now()}`,
                 type: 'text',
                 content: plainText,
                 htmlContent,
-                x: 80, y: 80, width: 1760, height: 600,
+                x: 80, y: 80,
+                width: generatedImageUrl ? 900 : 1760,
+                height: 600,
                 style: { fontSize: '28px', color: '#FFFFFF' },
               });
+              if (generatedImageUrl) {
+                elements.push({
+                  id: `density-img-${Date.now()}`,
+                  type: 'image',
+                  src: generatedImageUrl,
+                  x: 1020, y: 80, width: 820, height: 600,
+                  objectFit: 'cover',
+                  zIndex: 5,
+                });
+              }
               target.elements = elements;
             }
             // PUT the project back
@@ -534,7 +590,11 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               headers: authHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify(proj),
             });
-            toast.success('Sugestao aplicada. O conteudo do slide foi substituido.');
+            toast.success(generatedImageUrl
+              ? 'Sugestao aplicada com imagem gerada.'
+              : (sug.requiresImage
+                  ? 'Sugestao aplicada (sem imagem — Gemini indisponivel).'
+                  : 'Sugestao aplicada. O conteudo do slide foi substituido.'));
             // Re-analyze locally
             setSlideDensity(prev => {
               const next = { ...prev };

@@ -324,7 +324,7 @@ export function SlideProperties({ slide, onUpdate, project }) {
         open={densityOpen}
         onClose={() => setDensityOpen(false)}
         {...collectDensityInput()}
-        onApply={(sug) => {
+        onApply={async (sug) => {
           const elements = [...(slide.elements || [])];
           const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
           // Find ALL textual elements. AI-Agent slides often have a small
@@ -334,6 +334,36 @@ export function SlideProperties({ slide, onUpdate, project }) {
           const textualEls = elements
             .map((el, i) => ({ el, i }))
             .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
+
+          // If the suggestion promised an image (infographic/diagram types),
+          // generate it FIRST — applying the text-only rewrite without the
+          // promised image would feel like a half-finished apply. We render
+          // via Gemini Nano Banana on the backend; ~3-6s. The dialog's
+          // `applyingId` state already drives a spinner on the Aplicar
+          // button, so the wait feels natural.
+          let generatedImageUrl = null;
+          if (sug.requiresImage && sug.imagePrompt && project?.projectId) {
+            try {
+              const apiBase = process.env.REACT_APP_BACKEND_URL;
+              const token = localStorage.getItem('scormify_auth_token') || '';
+              const r = await fetch(`${apiBase}/api/density/generate-image`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  projectId: project.projectId,
+                  imagePrompt: sug.imagePrompt,
+                  suggestionId: sug.id,
+                }),
+              });
+              if (r.ok) {
+                const j = await r.json();
+                generatedImageUrl = j?.url || null;
+              }
+            } catch (_e) { /* fall through — text-only apply still useful */ }
+          }
 
           const plainText = sug.transformedText
             || (sug.transformedBullets?.length
@@ -379,10 +409,24 @@ export function SlideProperties({ slide, onUpdate, project }) {
             const uw = Math.max(...rights) - ux;
             const uh = Math.max(...bottoms) - uy;
 
+            // When an image was generated we split the box: text on the
+            // left ~55% of the union, image on the right ~40% (5% gutter).
+            // Otherwise the text uses the full union as before.
+            let textX = ux, textY = uy, textW = uw, textH = uh;
+            let imgX = 0, imgY = 0, imgW = 0, imgH = 0;
+            if (generatedImageUrl) {
+              const gutter = Math.max(24, Math.floor(uw * 0.02));
+              textW = Math.floor(uw * 0.55) - gutter;
+              imgW = uw - textW - gutter;
+              imgX = ux + textW + gutter;
+              imgY = uy;
+              imgH = uh;
+            }
+
             const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html';
             elements[survivor.i] = {
               ...survivor.el,
-              x: ux, y: uy, width: uw, height: uh,
+              x: textX, y: textY, width: textW, height: textH,
               // Update BOTH content and htmlContent so whichever the renderer
               // reads (depends on slide template), the new prose shows.
               content: plainText,
@@ -392,17 +436,41 @@ export function SlideProperties({ slide, onUpdate, project }) {
             // competing with the old prose. We keep non-text elements
             // (images, shapes, audio, etc) untouched.
             const toRemove = new Set(textualEls.filter(t => t.i !== survivor.i).map(t => t.i));
-            const cleaned = elements.filter((_, i) => !toRemove.has(i));
+            let cleaned = elements.filter((_, i) => !toRemove.has(i));
+            if (generatedImageUrl) {
+              cleaned.push({
+                id: `density-img-${Date.now()}`,
+                type: 'image',
+                src: generatedImageUrl,
+                x: imgX, y: imgY, width: imgW, height: imgH,
+                objectFit: 'cover',
+                zIndex: 5,
+              });
+            }
             onUpdate({ elements: cleaned });
           } else {
+            // No existing textual element — just append the new prose, and
+            // the image if it was generated.
             elements.push({
               id: `text-${Date.now()}`,
               type: 'text',
               content: plainText,
               htmlContent,
-              x: 80, y: 80, width: 1760, height: 600,
+              x: 80, y: 80,
+              width: generatedImageUrl ? 900 : 1760,
+              height: 600,
               style: { fontSize: '28px', color: '#FFFFFF' },
             });
+            if (generatedImageUrl) {
+              elements.push({
+                id: `density-img-${Date.now()}`,
+                type: 'image',
+                src: generatedImageUrl,
+                x: 1020, y: 80, width: 820, height: 600,
+                objectFit: 'cover',
+                zIndex: 5,
+              });
+            }
             onUpdate({ elements });
           }
           // Confirm visually so the author knows something happened
@@ -410,7 +478,11 @@ export function SlideProperties({ slide, onUpdate, project }) {
             // sonner is available app-wide; soft import to avoid coupling
             // eslint-disable-next-line global-require
             const { toast } = require('sonner');
-            toast.success('Sugestao aplicada ao slide. O conteudo foi substituido.');
+            toast.success(generatedImageUrl
+              ? 'Sugestao aplicada com imagem gerada.'
+              : (sug.requiresImage
+                  ? 'Sugestao aplicada (sem imagem — Gemini indisponivel).'
+                  : 'Sugestao aplicada ao slide. O conteudo foi substituido.'));
           } catch (_e) { /* no toast lib — silent */ }
         }}
       />
