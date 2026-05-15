@@ -88,6 +88,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FEATURE (P0)** — Seletor de **Estilo da Imagem** nas sugestoes de densidade (Infografico / Fotorrealista / Ilustracao 3D / Editorial).
+  - **Pedido do usuario**: "Como faco quando quiser uma imagem em nivel fotorealista?"
+  - **Backend** (`routes/density.py`):
+    - Novo `GET /api/density/image-styles` retorna 4 estilos com label pt-BR, icone (lucide), e `recommendedKreaModel` para auto-pick.
+    - `POST /api/density/generate-image` agora aceita `imageStyle` ("infographic" | "photorealistic" | "3d-illustration" | "editorial"). Dicionario `IMAGE_STYLE_CONFIG` mapeia cada estilo a 3 transformacoes:
+      - `positiveSuffix`: instrucao de estilo apendada ao prompt ("professional editorial photography, photorealistic, 50mm lens, 8k...")
+      - `negativeAddon`: aesthetic negatives ("cartoon, illustration, drawing, infographic, flat design...")
+      - `stripText`: bool. Photo/Editorial = `false` (queremos detalhe visual); Infografico/3D = `true` (foca em icones quando modelo nao desenha texto).
+    - Logica decisional: `should_strip_text = style.stripText AND model.textRendering == "poor"`. Fotorrealismo NUNCA tira instrucoes mesmo em Flux base — apenas adiciona estilo + negative aesthetic.
+    - Filename seed agora inclui `style_id` → trocar estilo gera novo arquivo (cache busting natural).
+  - **Frontend** (`DensitySuggestionsDialog.jsx`):
+    - Novo picker **"ESTILO DA IMAGEM"** (emerald) com grade 2x2 de botoes + icones lucide-react (LayoutGrid/Camera/Box/Newspaper).
+    - Auto-switch do modelo Krea: ao escolher um estilo, se provider for Krea, kreaModelId vira o `recommendedKreaModel` daquele estilo (autor pode override depois).
+    - Hint contextual aparece para Fotorrealista: "funciona melhor com Krea AI + Flux 1.1 Pro. Em texto-poor models a saida pode ficar levemente estilizada."
+    - Hint do modelo Krea agora aparece SOMENTE quando relevante (texto-poor + estilo infografico) — evita avisos enganosos para estilos foto.
+  - **Validacao E2E**:
+    - Gemini 2.5 Flash Lite analisou imagem gerada com `imageStyle=photorealistic` + Flux 1 Dev → **"This image is PHOTOREALISTIC (a photograph)"**. Cena: executivo apresentando dashboard de compliance em sala de reuniao moderna, audiencia atenta, depth of field, lighting natural, texturas realistas. Mood profissional. Zero traco de flat design.
+    - Screenshot do dialog confirma picker visual em grade 2x2 com Fotorrealista selecionado + hint emerald.
+
+
 - 2026-05-15 (cont.): **FIX (P0)** — Krea/Flux gerava palavras inventadas (gibberish "Clentcãca", "QUENTARACAÇAO") em vez de português correto.
   - **Pedido do usuário** (com screenshot): "corrija a geração de imagens com KREA pois não está gerando as palavras corretamente em Português do Brasil".
   - **Causa raiz**: modelos Flux base (Flux 1 Dev, Flux 1.1 Pro, Flux Kontext) **não conseguem renderizar texto legível**, especialmente em idiomas não-inglês — limitação técnica do modelo, não do prompt. Reforçar instruções pt-BR só piora (mais texto = mais gibberish).

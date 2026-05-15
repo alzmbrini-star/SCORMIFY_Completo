@@ -367,6 +367,7 @@ export function SlideProperties({ slide, onUpdate, project }) {
                   suggestionId: sug.id,
                   provider: sug.imageProvider || 'gemini',
                   kreaModelId: sug.kreaModelId || 'flux-1-dev',
+                  imageStyle: sug.imageStyle || 'infographic',
                 }),
               });
               if (r.ok) {

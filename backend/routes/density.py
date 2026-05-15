@@ -146,6 +146,82 @@ class GenerateImageRequest(BaseModel):
     # (the fastest, 4s, $0.04) which gives a good price/quality balance for
     # density-suggestion infographics.
     kreaModelId: Optional[str] = "flux-1-dev"
+    # Visual style of the generated image. The default ("infographic") is
+    # what we shipped first — flat-vector icon-based composition, ideal for
+    # density-suggestion diagrams. Other options:
+    #   "photorealistic" → studio-grade photography look. Skips the
+    #     icon-only rewriting (we WANT visual detail). Best paired with a
+    #     photoreal model (Flux 1.1 Pro, Imagen 4) when on Krea.
+    #   "3d-illustration" → octane-style 3D render. Good for product
+    #     visualizations.
+    #   "editorial" → magazine-style editorial photography, neutral
+    #     lighting, professional composition.
+    imageStyle: Optional[str] = "infographic"
+
+
+# Style configuration. Each style controls (a) a positive prompt suffix
+# that biases the model toward the look the author asked for, (b) a
+# negative prompt to suppress the wrong aesthetic, and (c) whether the
+# text-stripping rewriting should run. For photorealistic & editorial we
+# DON'T strip text instructions because A) the user is asking for a photo
+# of a scene, not a labeled diagram, and B) any incidental words in the
+# scene (e.g. document headers) being slightly garbled is invisible at
+# slide-resolution viewing.
+IMAGE_STYLE_CONFIG = {
+    "infographic": {
+        "label": "Infografico flat",
+        "positiveSuffix": "Style: minimalist flat vector illustration, centered hero icon, abstract symbolic composition. Use icons, shapes, arrows, gradients and color coding to convey meaning. Clean modern aesthetic, professional infographic look.",
+        "negativeAddon": "photograph, photo, photorealistic, realistic, 3d render, render, depth of field, bokeh",
+        "stripText": True,
+    },
+    "photorealistic": {
+        "label": "Fotorrealista",
+        "positiveSuffix": "Style: professional editorial photography, photorealistic, highly detailed, natural realistic lighting, shallow depth of field, shot on Canon EOS R5, 50mm lens, f/1.8, ultra sharp, 8k.",
+        "negativeAddon": "cartoon, illustration, drawing, painting, anime, infographic, flat design, icon, vector art, low quality, blurry, deformed",
+        "stripText": False,
+    },
+    "3d-illustration": {
+        "label": "Ilustracao 3D",
+        "positiveSuffix": "Style: high-quality 3D illustration, octane render, ray tracing, soft studio lighting, isometric perspective, vibrant colors, detailed materials and textures, modern corporate aesthetic.",
+        "negativeAddon": "photograph, photo, flat design, vector art, infographic, sketch, low poly",
+        "stripText": True,
+    },
+    "editorial": {
+        "label": "Editorial corporativo",
+        "positiveSuffix": "Style: editorial corporate photography, magazine cover quality, modern professional environment, natural lighting, neutral colors, candid composition, shot on medium format camera.",
+        "negativeAddon": "cartoon, illustration, drawing, infographic, flat design, 3d render, low quality, blurry, oversaturated",
+        "stripText": False,
+    },
+}
+
+
+# Recommended Krea model for each style. When the author picks a style
+# the frontend asks "should I auto-switch the Krea model too?" and uses
+# this map. The user is always free to override.
+STYLE_KREA_MODEL_HINT = {
+    "infographic": "flux-1-dev",        # fast, icon-friendly
+    "photorealistic": "flux-1.1-pro",   # best photoreal in Flux family
+    "3d-illustration": "flux-1.1-pro",  # also handles 3D well
+    "editorial": "flux-1.1-pro",        # photorealistic but editorial
+}
+
+
+@router.get("/image-styles")
+async def list_image_styles(user: dict = Depends(require_auth)):
+    """List the visual styles the author can request for a generated image.
+
+    Each style has a label (pt-BR), a hint for the recommended Krea model
+    (the frontend auto-switches if the user is on Krea), and an icon
+    keyword for the picker UI.
+    """
+    return {
+        "styles": [
+            {"id": "infographic", "label": "Infografico flat", "icon": "LayoutGrid", "recommendedKreaModel": "flux-1-dev"},
+            {"id": "photorealistic", "label": "Fotorrealista", "icon": "Camera", "recommendedKreaModel": "flux-1.1-pro"},
+            {"id": "3d-illustration", "label": "Ilustracao 3D", "icon": "Box", "recommendedKreaModel": "flux-1.1-pro"},
+            {"id": "editorial", "label": "Editorial corporativo", "icon": "Newspaper", "recommendedKreaModel": "flux-1.1-pro"},
+        ]
+    }
 
 
 @router.get("/image-providers")
@@ -322,24 +398,39 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     if not req.projectId:
         raise HTTPException(status_code=400, detail="projectId is required")
 
-    # ---- LANGUAGE HARDENING -------------------------------------------------
-    # For models that CAN render text reliably (Ideogram, Imagen, Nano Banana,
-    # ChatGPT Image), force the pt-BR instruction. For models that CAN'T draw
-    # text (Flux family, SeeDream), forcing text just produces gibberish —
-    # we instead REWRITE the prompt to remove all textual labels and force
-    # an icon-only / symbolic visual.
+    # ---- STYLE & LANGUAGE HARDENING ----------------------------------------
+    # Three orthogonal concerns shape the final prompt:
+    #   (1) `imageStyle` — what does the author WANT the image to look like
+    #       (infographic / photorealistic / 3D / editorial).
+    #   (2) `textRendering` of the chosen model — CAN it draw legible
+    #       words?  Photographic models that can't draw text are still
+    #       fine for photorealistic prompts because we don't ask for
+    #       labels.
+    #   (3) Source `imagePrompt` from the suggestion LLM, which was
+    #       authored assuming "infographic with pt-BR labels". We may
+    #       need to strip those labels when the model can't draw text
+    #       OR keep them when the model can.
+    style_id = (req.imageStyle or "infographic").strip().lower()
+    style = IMAGE_STYLE_CONFIG.get(style_id) or IMAGE_STYLE_CONFIG["infographic"]
+
     provider = (req.provider or "gemini").lower().strip()
     text_render_quality = "good"  # gemini handles pt-BR text OK
     if provider == "krea":
         m = krea_ai.get_model(req.kreaModelId or "flux-1-dev")
         text_render_quality = (m or {}).get("textRendering", "poor")
 
+    # The text-stripping rewrite runs when EITHER the style asks for it
+    # (infographic / 3D, both flat-vector-ish) AND the model can't render
+    # text. Photorealistic & editorial styles never strip — they don't
+    # invite labels in the first place.
+    should_strip_text = style["stripText"] and text_render_quality == "poor"
+
     # Negative prompt fed to text-poor models (Flux family). Flux is biased
     # to add labels even when told not to — `negative_prompt` is the only
     # reliable suppression mechanism.
     negative_prompt: Optional[str] = None
 
-    if text_render_quality == "poor":
+    if should_strip_text:
         # Strip any text-rendering instruction the suggester LLM injected
         # (e.g., "Todos os rotulos em portugues") — the model can't draw it
         # legibly anyway. Force ICON-ONLY visuals.
@@ -371,26 +462,31 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         # Rewrite POSITIVE prompt to invite a centered iconic visual rather
         # than a labeled diagram. Flux interprets "diagram with 5 elements"
         # as "draw 5 labeled regions" and will hallucinate text — so we
-        # rephrase to suggest a hero icon composition.
-        prompt = prompt.rstrip(". ") + (
-            ". Style: minimalist flat vector illustration, centered hero icon, "
-            "abstract symbolic composition. Use icons, shapes, arrows, gradients "
-            "and color coding to convey meaning. Clean modern aesthetic, "
-            "professional infographic look."
-        )
+        # rephrase to suggest a hero icon composition with the style suffix.
+        prompt = prompt.rstrip(". ") + ". " + style["positiveSuffix"]
         # NEGATIVE prompt — this is the actual mechanism Flux respects. The
         # positive "no text" instruction alone is unreliable; negative_prompt
-        # in Flux training data is consistently suppressed.
-        negative_prompt = (
+        # in Flux training data is consistently suppressed. We add the
+        # style-specific aesthetic negatives on top.
+        base_negative = (
             "text, letters, words, captions, labels, typography, watermark, "
             "annotations, lettering, characters, alphabet, writing, signature, "
             "logo text, gibberish text, fake text, latin characters, font, "
             "subtitle, heading, paragraph, sentence"
         )
+        negative_prompt = base_negative + ", " + style["negativeAddon"]
     else:
-        # Defense in depth: even if the suggester LLM forgot the pt-BR
-        # instruction, we re-append it here for capable models.
-        if not any(token in prompt.lower() for token in ("portugues", "português", "pt-br", "brasil")):
+        # No text-strip needed. Append the style suffix so the model knows
+        # what aesthetic to target, and still apply the style-specific
+        # negative prompt (e.g. for photorealistic we want "no cartoon").
+        prompt = prompt.rstrip(". ") + ". " + style["positiveSuffix"]
+        negative_prompt = style["negativeAddon"]
+        # Defense in depth: for text-capable models on infographic-like
+        # styles, re-append the pt-BR instruction if the suggester LLM
+        # forgot it.
+        if style_id in ("infographic",) and not any(
+            token in prompt.lower() for token in ("portugues", "português", "pt-br", "brasil")
+        ):
             prompt = (
                 prompt.rstrip(". ") + ". TODOS os rotulos, titulos, palavras e legendas "
                 "DEVEM estar em portugues do Brasil (pt-BR). NAO usar texto em ingles em nenhuma parte da imagem."
@@ -429,11 +525,11 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
             raise HTTPException(status_code=502, detail="Image generation failed (Gemini)")
         provider = "gemini"
 
-    # Deterministic filename keyed on provider + prompt + suggestion id
-    # keeps re-applies of the same suggestion idempotent (no duplicate
-    # gallery clutter). Provider is in the seed so switching providers
-    # produces a different file (so the new image actually shows up).
-    seed_src = provider + "|" + (req.suggestionId or "") + "|" + prompt
+    # Deterministic filename keyed on provider + style + prompt + suggestion
+    # id keeps re-applies of the same suggestion idempotent (no duplicate
+    # gallery clutter). Provider and style are in the seed so switching
+    # either produces a different file (so the new image actually shows up).
+    seed_src = provider + "|" + style_id + "|" + (req.suggestionId or "") + "|" + prompt
     seed = hashlib.md5(seed_src.encode("utf-8")).hexdigest()[:10]
     fname = f"density_img_{seed}.jpg"
     fpath = os.path.join(PROJECTS_DIR, req.projectId, "assets", fname)
@@ -456,4 +552,4 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         logger.warning(f"[density.generate-image] mongo persist failed: {e}")
 
     url = f"/api/projects/{req.projectId}/assets/{fname}"
-    return {"url": url, "filename": fname, "width": 1200, "height": 1200, "provider": provider}
+    return {"url": url, "filename": fname, "width": 1200, "height": 1200, "provider": provider, "style": style_id}

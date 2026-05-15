@@ -19,7 +19,7 @@ import {
 import { Button } from "./ui/button";
 import {
   Sparkles, Lightbulb, AlertTriangle, Scissors, ListChecks,
-  Columns2, LayoutGrid, GitBranch, Loader2,
+  Columns2, LayoutGrid, GitBranch, Loader2, Camera, Box, Newspaper,
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -31,6 +31,15 @@ const TYPE_ICONS = {
   comparison: Columns2,
   infographic: LayoutGrid,
   diagram: GitBranch,
+};
+
+// Icon lookup for the style picker. Backend returns the icon name as a
+// string in /image-styles; we map it to the actual lucide component here.
+const STYLE_ICONS = {
+  LayoutGrid,
+  Camera,
+  Box,
+  Newspaper,
 };
 
 const TYPE_LABELS = {
@@ -81,6 +90,14 @@ export default function DensitySuggestionsDialog({
   // produces a clean infographic instead of gibberish words.
   const [kreaModelId, setKreaModelId] = useState("flux-1-dev");
 
+  // Visual style picker — determines the aesthetic of the generated image
+  // (infografico flat / fotorrealista / 3D / editorial). Each style maps
+  // to a positive+negative prompt suffix on the backend AND optionally
+  // auto-switches the recommended Krea model. The user can still override
+  // the Krea model after picking a style.
+  const [styles, setStyles] = useState([]);
+  const [imageStyle, setImageStyle] = useState("infographic");
+
   const token = typeof window !== "undefined" ? localStorage.getItem("scormify_auth_token") : "";
 
   // Load available image providers on dialog open. Lightweight call —
@@ -90,13 +107,19 @@ export default function DensitySuggestionsDialog({
     if (!open) return;
     (async () => {
       try {
-        const r = await fetch(`${API_URL}/api/density/image-providers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        setProviders(data?.providers || []);
-      } catch (_e) { /* fallthrough — UI degrades to gemini-only */ }
+        const [pr, sr] = await Promise.all([
+          fetch(`${API_URL}/api/density/image-providers`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/density/image-styles`, { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (pr.ok) {
+          const data = await pr.json();
+          setProviders(data?.providers || []);
+        }
+        if (sr.ok) {
+          const data = await sr.json();
+          setStyles(data?.styles || []);
+        }
+      } catch (_e) { /* fallthrough — UI degrades gracefully */ }
     })();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -133,11 +156,11 @@ export default function DensitySuggestionsDialog({
     if (!onApply) return;
     setApplyingId(sug.id);
     try {
-      // Pass the provider choice through to the caller so the apply chain
-      // can hit the right backend lane. Suggestions without requiresImage
-      // simply ignore these fields.
+      // Pass the provider+style choice through to the caller so the apply
+      // chain can hit the right backend lane. Suggestions without
+      // requiresImage simply ignore these fields.
       const enriched = sug.requiresImage
-        ? { ...sug, imageProvider, kreaModelId }
+        ? { ...sug, imageProvider, kreaModelId, imageStyle }
         : sug;
       await Promise.resolve(onApply(enriched));
       onClose?.();
@@ -205,78 +228,132 @@ export default function DensitySuggestionsDialog({
         )}
 
         {!loading && suggestions.length > 0 && anySuggestionNeedsImage && (
-          <div className="bg-violet-500/5 border border-violet-500/30 rounded p-3 space-y-2" data-testid="density-provider-picker">
-            <div className="flex items-center gap-2">
-              <LayoutGrid className="w-4 h-4 text-violet-300" />
-              <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Gerador de imagens</span>
-              <span className="text-[10px] text-slate-500">para sugestoes com "Inclui imagem"</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setImageProvider("gemini")}
-                className={`text-left rounded p-2 border transition ${imageProvider === "gemini" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"}`}
-                data-testid="density-provider-gemini"
-              >
-                <div className="text-xs font-semibold text-white">Gemini Nano Banana</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Rapido (~5s) • Incluso na chave universal</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => kreaProvider && setImageProvider("krea")}
-                disabled={!kreaProvider}
-                className={`text-left rounded p-2 border transition ${imageProvider === "krea" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"} ${!kreaProvider ? "opacity-50 cursor-not-allowed" : ""}`}
-                data-testid="density-provider-krea"
-                title={!kreaProvider ? "Configure KREA_API_KEY no admin para habilitar" : ""}
-              >
-                <div className="text-xs font-semibold text-white">Krea AI {!kreaProvider && <span className="text-[10px] text-amber-400">(nao configurado)</span>}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Mais modelos (Flux, Imagen) • Sua conta Krea</div>
-              </button>
-            </div>
-            {imageProvider === "krea" && kreaProvider && (
-              <div className="pt-1">
-                <label className="text-[10px] text-slate-400 mb-1 block">Modelo Krea</label>
-                <select
-                  value={kreaModelId}
-                  onChange={(e) => setKreaModelId(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-                  data-testid="density-krea-model"
-                >
-                  {(kreaProvider.models || []).map(m => {
-                    const tr = m.textRendering || "poor";
-                    const trMark = tr === "excellent" ? "[texto OK]"
-                      : tr === "good" ? "[texto OK]"
-                      : "[so icones]";
-                    return (
-                      <option key={m.id} value={m.id}>
-                        {trMark} {m.label} {m.approxTimeSeconds ? `(~${m.approxTimeSeconds}s` : ""}
-                        {m.approxCostUSD ? ` $${m.approxCostUSD.toFixed(2)})` : (m.approxTimeSeconds ? ")" : "")}
-                      </option>
-                    );
-                  })}
-                </select>
-                {(() => {
-                  const m = (kreaProvider.models || []).find(mm => mm.id === kreaModelId);
-                  const tr = m?.textRendering || "poor";
-                  if (tr === "poor") {
-                    return (
-                      <p className="text-[10px] text-amber-400 mt-1 leading-tight">
-                        Este modelo nao desenha palavras com fidelidade. O backend
-                        forca um visual de icones/simbolos (sem rotulos textuais).
-                        Para texto legivel em portugues, escolha
-                        <strong className="text-amber-200"> Ideogram 3.0</strong> ou
-                        <strong className="text-amber-200"> Imagen 4</strong>.
-                      </p>
-                    );
-                  }
-                  return (
-                    <p className="text-[10px] text-emerald-400 mt-1 leading-tight">
-                      Este modelo desenha texto em portugues de forma legivel.
-                    </p>
-                  );
-                })()}
+          <div className="space-y-2">
+            {/* STYLE PICKER — what visual aesthetic should the image have? */}
+            <div className="bg-emerald-500/5 border border-emerald-500/30 rounded p-3 space-y-2" data-testid="density-style-picker">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-emerald-300" />
+                <span className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">Estilo da imagem</span>
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-2">
+                {(styles.length ? styles : [
+                  { id: "infographic", label: "Infografico flat", icon: "LayoutGrid", recommendedKreaModel: "flux-1-dev" },
+                  { id: "photorealistic", label: "Fotorrealista", icon: "Camera", recommendedKreaModel: "flux-1.1-pro" },
+                  { id: "3d-illustration", label: "Ilustracao 3D", icon: "Box", recommendedKreaModel: "flux-1.1-pro" },
+                  { id: "editorial", label: "Editorial corporativo", icon: "Newspaper", recommendedKreaModel: "flux-1.1-pro" },
+                ]).map(s => {
+                  const Icon = STYLE_ICONS[s.icon] || LayoutGrid;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setImageStyle(s.id);
+                        // Auto-switch Krea model to the style's recommendation
+                        // when the user is on Krea. They can still override
+                        // afterwards if they want — we honor the user's last
+                        // explicit pick.
+                        if (imageProvider === "krea" && s.recommendedKreaModel) {
+                          setKreaModelId(s.recommendedKreaModel);
+                        }
+                      }}
+                      className={`text-left rounded p-2 border transition flex items-center gap-2 ${imageStyle === s.id ? "border-emerald-400 bg-emerald-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"}`}
+                      data-testid={`density-style-${s.id}`}
+                    >
+                      <Icon className="w-4 h-4 text-emerald-300 shrink-0" />
+                      <span className="text-xs font-semibold text-white">{s.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {imageStyle === "photorealistic" && (
+                <p className="text-[10px] text-emerald-400/80 leading-tight pt-1">
+                  Fotorrealismo funciona melhor com <strong>Krea AI + Flux 1.1 Pro</strong>.
+                  Em texto-poor models (Flux 1 Dev) a saida pode ficar levemente estilizada.
+                </p>
+              )}
+            </div>
+
+            {/* PROVIDER PICKER — which engine to use */}
+            <div className="bg-violet-500/5 border border-violet-500/30 rounded p-3 space-y-2" data-testid="density-provider-picker">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4 text-violet-300" />
+                <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Gerador de imagens</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setImageProvider("gemini")}
+                  className={`text-left rounded p-2 border transition ${imageProvider === "gemini" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"}`}
+                  data-testid="density-provider-gemini"
+                >
+                  <div className="text-xs font-semibold text-white">Gemini Nano Banana</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Rapido (~5s) • Incluso na chave universal</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!kreaProvider) return;
+                    setImageProvider("krea");
+                    // When switching TO Krea, pre-pick the recommended model
+                    // for the currently-active style.
+                    const styleRec = (styles.find(s => s.id === imageStyle) || {}).recommendedKreaModel;
+                    if (styleRec) setKreaModelId(styleRec);
+                  }}
+                  disabled={!kreaProvider}
+                  className={`text-left rounded p-2 border transition ${imageProvider === "krea" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"} ${!kreaProvider ? "opacity-50 cursor-not-allowed" : ""}`}
+                  data-testid="density-provider-krea"
+                  title={!kreaProvider ? "Configure KREA_API_KEY no admin para habilitar" : ""}
+                >
+                  <div className="text-xs font-semibold text-white">Krea AI {!kreaProvider && <span className="text-[10px] text-amber-400">(nao configurado)</span>}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Mais modelos (Flux, Imagen) • Sua conta Krea</div>
+                </button>
+              </div>
+              {imageProvider === "krea" && kreaProvider && (
+                <div className="pt-1">
+                  <label className="text-[10px] text-slate-400 mb-1 block">Modelo Krea</label>
+                  <select
+                    value={kreaModelId}
+                    onChange={(e) => setKreaModelId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                    data-testid="density-krea-model"
+                  >
+                    {(kreaProvider.models || []).map(m => {
+                      const tr = m.textRendering || "poor";
+                      const trMark = tr === "excellent" ? "[texto OK]"
+                        : tr === "good" ? "[texto OK]"
+                        : "[so icones]";
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {trMark} {m.label} {m.approxTimeSeconds ? `(~${m.approxTimeSeconds}s` : ""}
+                          {m.approxCostUSD ? ` $${m.approxCostUSD.toFixed(2)})` : (m.approxTimeSeconds ? ")" : "")}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {(() => {
+                    const m = (kreaProvider.models || []).find(mm => mm.id === kreaModelId);
+                    const tr = m?.textRendering || "poor";
+                    if (tr === "poor" && imageStyle === "infographic") {
+                      return (
+                        <p className="text-[10px] text-amber-400 mt-1 leading-tight">
+                          Este modelo nao desenha palavras com fidelidade. Backend
+                          forca visual de icones (sem rotulos textuais).
+                        </p>
+                      );
+                    }
+                    if (tr !== "poor") {
+                      return (
+                        <p className="text-[10px] text-emerald-400 mt-1 leading-tight">
+                          Este modelo desenha texto em portugues de forma legivel.
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
