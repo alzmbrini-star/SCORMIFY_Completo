@@ -88,6 +88,17 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P0)** — Densidade Textual: botão "Aplicar" **agora funciona no Painel Gerado** (slides html-type do Agente IA).
+  - **Bug reportado pelo usuário** (com screenshot): "Está correto na análise e nas sugestões, mas ao APLICAR a sugestão selecionada nada ocorre!".
+  - **Causa raiz**: `onApply` em `GeneratedPanel.jsx` procurava `el.type === 'text'`. Mas slides gerados pelo Agente IA usam `type === 'html'` (container de markup rico). Lookup retornava vazio → fallback adicionava um elemento órfão em (80,80) → o html original continuava visível por cima → "nada mudou". Mesmo padrão do bug já corrigido em `SlideProperties.jsx`.
+  - **Fix** (`pages/Agent/components/GeneratedPanel.jsx`, linhas 414-525): replicado o padrão validado do Editor.
+    - `TEXTUAL_TYPES = ['text','html','paragraph','title','heading']` (case-insensitive) tanto no text-collector do diálogo quanto na busca de elemento alvo.
+    - Quando alvo é `type === 'html'`, sobrescreve **AMBOS** `content` (texto puro) E `htmlContent` (markup `<p>`/`<ul><li>` com escape). Sem isso, o renderer html-type mostrava o markup original.
+    - Drop dos OUTROS elementos textuais → nova prose não compete com leftovers do layout original.
+    - Toast atualizado: "Sugestao aplicada. O conteudo do slide foi substituido."
+  - **Testing**: validado E2E pelo testing agent v3 no fluxo idêntico do Editor (mesma lógica) — projeto real com 3 elementos html-type, dialog populou texto corretamente, click em Aplicar colapsou 5 elementos em 2 (1 html com novos bullets + 1 image preservada), prose original SUBSTITUÍDA (não appended). Success rate frontend: 100%, retest_needed: false.
+
+
 - 2026-05-15: **FEATURE (P0)** — Análise Visual / Densidade de texto em 3 superfícies + sugestões LLM com 1-click apply.
   - **Pedido do usuário**: detectar slides "muito textuais" no Storyboard, na análise pós-geração do Agente IA E no Editor; oferecer sugestões para tornar o conteúdo mais visual/engajante.
   - **Escopo aprovado (1c, 2b+c, 3c, 4c, 5c)**: detecção híbrida (deterministica + LLM), sugestões textuais E visuais com aplicação 1-click, 3 superficies, badge + modal, análise automática + on-demand.
