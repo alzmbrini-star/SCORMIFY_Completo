@@ -1431,6 +1431,82 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
 
 
 
+def apply_brand_logo_to_slides(project_slides: list, brand_kit: dict) -> int:
+    """Apply (or refresh) the brand-kit logo as a watermark on every slide.
+
+    Returns the number of slides that got a logo element added or updated.
+    Used by:
+      - the initial generation pipeline (right after slide composition)
+      - the new POST /api/projects/{pid}/apply-watermark-all endpoint
+        (lets the author apply the watermark to an ALREADY-generated course
+        without regenerating from scratch — the user explicitly asked for
+        this control in the Editor)
+
+    Idempotent: removes any existing `isBrandLogo=True` element before
+    inserting the fresh one. This means re-running this function with a
+    DIFFERENT logoUrl correctly swaps the watermark, AND running it
+    repeatedly with the same logo doesn't pile up duplicates.
+    """
+    if not brand_kit or not isinstance(brand_kit, dict):
+        return 0
+    logo_url = (brand_kit.get("logoUrl") or "").strip()
+    if not logo_url:
+        return 0
+    placement = (brand_kit.get("logoPlacement") or "bottom-right").lower().strip()
+    if placement not in ("bottom-right", "bottom-left", "bottom-center", "intro-conclusion-only"):
+        placement = "bottom-right"
+    LOGO_W = 180
+    LOGO_H = 70
+    PAD_H = 36
+    PAD_V = 24
+    CANVAS_W = 1920
+    CANVAS_H = 820
+    if placement == "bottom-left":
+        x = PAD_H
+    elif placement == "bottom-center":
+        x = (CANVAS_W - LOGO_W) // 2
+    else:
+        x = CANVAS_W - LOGO_W - PAD_H
+    y = CANVAS_H - LOGO_H - PAD_V
+    total = len(project_slides)
+    applied = 0
+    for idx, slide in enumerate(project_slides):
+        if placement == "intro-conclusion-only":
+            is_intro = idx == 0
+            is_conclusion = idx == total - 1
+            if not (is_intro or is_conclusion):
+                # Make sure NO stale logo lingers when the placement is
+                # restricted — if user previously chose bottom-right then
+                # switched to intro-conclusion-only, the middle slides
+                # would still have a logo otherwise.
+                slide["elements"] = [e for e in (slide.get("elements") or []) if not e.get("isBrandLogo")]
+                continue
+        # Drop any pre-existing brand-logo element so re-applies are clean.
+        slide["elements"] = [e for e in (slide.get("elements") or []) if not e.get("isBrandLogo")]
+        slide["elements"].append({
+            "id": f"brand-logo-{slide['id'][-6:]}",
+            "type": "image",
+            # Write both `src` (canonical name used by all 3 frontend
+            # renderers — SlideCanvas, CoursePreview, SplitPreview)
+            # and `imageUrl` (legacy name used by some exporters and
+            # back-compat tooling). This avoids a 50% breakage rate
+            # depending on which surface the slide is viewed from.
+            "src": logo_url,
+            "imageUrl": logo_url,
+            "x": x,
+            "y": y,
+            "width": LOGO_W,
+            "height": LOGO_H,
+            "opacity": 0.9,
+            "objectFit": "contain",
+            "isBrandLogo": True,
+            "zIndex": 50,
+        })
+        applied += 1
+    return applied
+
+
+
 async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "", design_template_id: str = "", company_id: str = "", use_brand_library: bool = False, brand_library_mode: str = "preferred") -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media.
 
@@ -1969,68 +2045,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         }
         project_slides.append(slide)
 
-    # Brand watermark: when the company brandKit has a logoUrl, append a
-    # small image element to every slide so the corporate identity stays
-    # visible end-to-end. Position depends on `logoPlacement`:
-    #   - bottom-right (default): canto inferior direito
-    #   - bottom-left:           canto inferior esquerdo
-    #   - bottom-center:         centro inferior (rodapé)
-    #   - intro-conclusion-only: only on first + last slide, bottom-right
-    # The element is tagged with `isBrandLogo=True` so the Editor can show a
-    # dedicated control and exporters can opt to skip/move it.
-    if brand_kit and isinstance(brand_kit, dict):
-        logo_url = (brand_kit.get("logoUrl") or "").strip()
-        if logo_url:
-            placement = (brand_kit.get("logoPlacement") or "bottom-right").lower().strip()
-            if placement not in ("bottom-right", "bottom-left", "bottom-center", "intro-conclusion-only"):
-                placement = "bottom-right"
-            LOGO_W = 180
-            LOGO_H = 70
-            PAD_H = 36      # horizontal padding from edges
-            PAD_V = 24      # bottom padding
-            CANVAS_W = 1920
-            CANVAS_H = 820
-            # Resolve (x, y) once for this placement; both fixed-corner modes
-            # use the same y (bottom strip), only x changes.
-            if placement == "bottom-left":
-                x = PAD_H
-            elif placement == "bottom-center":
-                x = (CANVAS_W - LOGO_W) // 2
-            else:
-                # bottom-right & intro-conclusion-only both use the right corner
-                x = CANVAS_W - LOGO_W - PAD_H
-            y = CANVAS_H - LOGO_H - PAD_V
-
-            total = len(project_slides)
-            for idx, slide in enumerate(project_slides):
-                # `intro-conclusion-only`: only first AND last slide. For a
-                # single-slide course (total==1) we still place the logo —
-                # the user almost certainly wants the brand visible.
-                if placement == "intro-conclusion-only":
-                    is_intro = idx == 0
-                    is_conclusion = idx == total - 1
-                    if not (is_intro or is_conclusion):
-                        continue
-                slide["elements"].append({
-                    "id": f"brand-logo-{slide['id'][-6:]}",
-                    "type": "image",
-                    # Write both `src` (canonical name used by all 3 frontend
-                    # renderers — SlideCanvas, CoursePreview, SplitPreview)
-                    # and `imageUrl` (legacy name used by some exporters and
-                    # back-compat tooling). This avoids a 50% breakage rate
-                    # depending on which surface the slide is viewed from.
-                    "src": logo_url,
-                    "imageUrl": logo_url,
-                    "x": x,
-                    "y": y,
-                    "width": LOGO_W,
-                    "height": LOGO_H,
-                    "opacity": 0.9,
-                    "objectFit": "contain",  # never crop the logo
-                    "isBrandLogo": True,
-                    # Stay above the bg overlay and below interactive elements.
-                    "zIndex": 50,
-                })
+    # Brand watermark: apply via shared helper so the same logic powers
+    # both the initial generation AND the manual "apply to all" endpoint.
+    apply_brand_logo_to_slides(project_slides, brand_kit)
 
     # Collect narration pending info from media config
     narration_pending = []

@@ -169,20 +169,79 @@ export function SlideProperties({ slide, onUpdate, project }) {
           )}
 
           {slide.backgroundImage && slide.backgroundImageSource === 'brand_library' && (
-            <div className="flex items-center justify-between gap-2 rounded border px-2 py-1.5 bg-muted/30">
-              <span className="text-[11px] text-muted-foreground truncate">
-                Fundo: imagem da biblioteca aplicada
-              </span>
+            <div className="rounded border bg-muted/30 px-2 py-1.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground truncate">
+                  Fundo: imagem da biblioteca aplicada
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ backgroundImage: null, backgroundImageSource: null })}
+                  title="Remover imagem da biblioteca"
+                  className="shrink-0 text-muted-foreground hover:text-red-500"
+                  data-testid="brand-library-clear-icon"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => onUpdate({ backgroundImage: null, backgroundImageSource: null })}
-                title="Remover imagem da biblioteca"
-                className="text-muted-foreground hover:text-red-500"
+                className="w-full text-[11px] text-red-600 hover:text-red-700 hover:bg-red-500/10 rounded px-2 py-1 border border-red-500/30 transition"
                 data-testid="brand-library-clear-button"
               >
-                <XIcon className="w-3.5 h-3.5" />
+                Remover imagem deste slide
               </button>
             </div>
+          )}
+
+          {/* Apply brand-kit watermark (logo) to ALL slides of this project */}
+          {project?.brandKit?.logoUrl && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!project?.projectId && !project?.id) return;
+                const pid = project.id || project.projectId;
+                if (!window.confirm("Aplicar a marca d'agua da empresa em TODOS os slides do curso? Slides que ja possuem o logo serao atualizados.")) return;
+                try {
+                  const apiBase = getApiUrl();
+                  const token = localStorage.getItem('scormify_auth_token') || '';
+                  const r = await fetch(`${apiBase}/api/projects/${pid}/apply-watermark-all`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({}),
+                  });
+                  if (r.ok) {
+                    const j = await r.json();
+                    try {
+                      // eslint-disable-next-line global-require
+                      const { toast } = require('sonner');
+                      toast.success(`Marca d'agua aplicada em ${j.appliedCount || 0} slides. Recarregando...`);
+                    } catch (_e) { /* silent */ }
+                    setTimeout(() => window.location.reload(), 1200);
+                  } else {
+                    const err = await r.json().catch(() => ({}));
+                    try {
+                      // eslint-disable-next-line global-require
+                      const { toast } = require('sonner');
+                      toast.error(err.detail || "Falha ao aplicar marca d'agua.");
+                    } catch (_e) { /* silent */ }
+                  }
+                } catch (_e) {
+                  try {
+                    // eslint-disable-next-line global-require
+                    const { toast } = require('sonner');
+                    toast.error("Erro de rede ao aplicar marca d'agua.");
+                  } catch (__e) { /* silent */ }
+                }
+              }}
+              className="w-full text-[11px] text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 rounded px-2 py-1.5 border border-violet-500/30 transition flex items-center justify-center gap-1.5"
+              data-testid="apply-watermark-all-button"
+              title="Adiciona o logo da Brand Kit como marca d'agua em todos os slides do curso"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Aplicar marca d'agua em TODOS os slides
+            </button>
           )}
 
           <div className="rounded border p-2 space-y-1">

@@ -88,6 +88,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX + FEATURE (P1)** — Card "Biblioteca de Marca" no Editor: botao **"Remover fundo"** mais visivel + novo botao **"Aplicar marca d'agua em TODOS os slides"**.
+  - **Pedido do usuario** (com screenshot): "Quando aplico uma imagem de fundo usando o card Biblioteca de marca, nao tenho a opcao de remover. Preciso tambem que seja possivel inserir a marca d'agua a partir do card para TODOS os slides!"
+  - **Fix #1 — Botao Remover visivel** (`SlideProperties.jsx`):
+    - Antes: so um icone X de 3.5x3.5px no canto direito (facil de perder).
+    - Agora: alem do icone, um botao explicito "Remover imagem deste slide" de largura total com borda vermelha + hover state. Ambos atalhos no mesmo dialog.
+  - **Fix #2 — Apply watermark all** (backend + frontend):
+    - **Backend** (`routes/projects_crud.py`): novo `POST /api/projects/{pid}/apply-watermark-all`. Carrega o brandKit do projeto (ou fallback para o brandKit da empresa), valida que `logoUrl` existe (400 amigavel se nao tiver) e chama a funcao compartilhada `apply_brand_logo_to_slides()`. Retorna `{appliedCount, totalSlides}`.
+    - **Backend refactor** (`services/ai_agent.py`): extraida a logica de aplicar logo (que estava inline na geracao) para uma funcao top-level `apply_brand_logo_to_slides(slides, brand_kit) -> int`. **Idempotente** — remove qualquer `isBrandLogo=True` pre-existente antes de inserir o novo. Suporta `placement` em 4 modos (bottom-right/left/center/intro-conclusion-only). Mesma funcao usada pela geracao inicial E pelo endpoint manual → garantia de pixel-equivalencia.
+    - **Frontend** (`SlideProperties.jsx`): botao "Aplicar marca d'agua em TODOS os slides" so aparece quando `project.brandKit.logoUrl` existe. Confirm dialog antes de aplicar. Backend errors propagados via toast.error. Reload da pagina apos sucesso (1.2s) para refletir.
+  - **Validacao E2E** (curl, 4 cenarios):
+    - 401 sem token ✓
+    - 404 com projectId inexistente ✓
+    - 400 com mensagem em pt-BR quando empresa sem logoUrl ("Acesse Admin → Biblioteca de Marca para fazer upload do logo") ✓
+    - Happy path: 19 slides → 19 logos aplicados em <1s ✓
+    - **Idempotencia**: 2 chamadas consecutivas → cada slide tem exatamente 1 elemento `isBrandLogo` (sem duplicacao) ✓
+
+
 - 2026-05-15 (cont.): **FIX (P0)** — Simuladores HTML do Agente IA com fontes brancas sobre fundo branco (invisiveis).
   - **Pedido do usuario** (screenshot): "Em producao ainda estou tendo problemas com as fontes brancas sobre fundo branco nos simuladores em HTML criados pelo Agente IA, mesmo efetuando a limpeza profunda e revertendo as mudancas elas nao se refletem!"
   - **Causa raiz**: o LLM (Gemini Flash) gerando HTML de simuladores (drag-and-drop, quiz, flashcards) usava patterns "dark mode" — cards com `color: white` em backgrounds claros (pastel/azul claro) do brand kit. Texto ficava invisivel ao exportar para SCORM/HTML.

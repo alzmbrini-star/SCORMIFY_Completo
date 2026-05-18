@@ -681,6 +681,64 @@ async def upload_ppt(
 # ---------------------------------------------------------------------------
 # Design template application
 # ---------------------------------------------------------------------------
+@router.post("/projects/{project_id}/apply-watermark-all")
+async def apply_watermark_to_all_slides(project_id: str, user: dict = Depends(require_auth)):
+    """Apply the brand-kit logo as a watermark to EVERY slide of the project.
+
+    User-facing trigger: button "Aplicar marca d'agua em TODOS os slides"
+    in the Brand Library section of the slide properties panel. Lets the
+    author refresh the watermark on an already-generated course without
+    regenerating from scratch (which would lose any manual tweaks).
+
+    The actual logic is shared with the generation pipeline via
+    `services.ai_agent.apply_brand_logo_to_slides()`, so the result is
+    pixel-identical to what `generate_course_from_storyboard()` would
+    produce. Idempotent: re-running cleans stale logos first.
+
+    Returns: { appliedCount: int, totalSlides: int }
+    """
+    from datetime import datetime, timezone
+    from services.ai_agent import apply_brand_logo_to_slides
+
+    project = await load_authorized_project(project_id, user)
+
+    # Resolve the brand kit. Priority: project's overriding brandKit (if
+    # any) → company.brandKit. If neither has logoUrl, fail fast with a
+    # friendly message so the UI can guide the user to the admin settings.
+    brand_kit = project.get("brandKit") or {}
+    if not brand_kit.get("logoUrl"):
+        company_id = project.get("companyId")
+        if company_id:
+            from routes.deps import db
+            company = await db.companies.find_one({"id": company_id}, {"_id": 0, "brandKit": 1})
+            if company and company.get("brandKit"):
+                brand_kit = company["brandKit"]
+    if not brand_kit or not brand_kit.get("logoUrl"):
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhum logo configurado na Brand Kit da empresa. Acesse Admin → Biblioteca de Marca para fazer upload do logo.",
+        )
+
+    slides = (project.get("course") or {}).get("slides") or []
+    if not slides:
+        raise HTTPException(status_code=400, detail="O projeto nao tem slides para aplicar marca d'agua.")
+
+    applied = apply_brand_logo_to_slides(slides, brand_kit)
+
+    # Persist the mutation. We rewrite course.slides + updatedAt so the
+    # frontend's autosync picks up the change immediately on reload.
+    from routes.deps import db
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {"appliedCount": applied, "totalSlides": len(slides)}
+
+
+
 
 @router.post("/projects/{project_id}/apply-design-template")
 async def apply_design_template_to_project(project_id: str, data: dict, user: dict = Depends(require_auth)):
