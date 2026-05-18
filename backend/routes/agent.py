@@ -813,7 +813,7 @@ async def agent_generate_bg_image(data: dict):
         if images and len(images) > 0:
             img_bytes = base64.b64decode(images[0]['data'])
             import hashlib
-            seed = hashlib.md5(prompt.encode()).hexdigest()[:10]
+            seed = hashlib.md5(prompt.encode(), usedforsecurity=False).hexdigest()[:10]
             fname = f"bg_ai_{seed}.png"
             fpath = os.path.join(str(PROJECTS_DIR), "bg_temp", fname)
             os.makedirs(os.path.dirname(fpath), exist_ok=True)
@@ -1141,7 +1141,7 @@ async def apply_media_changes(session_id: str, data: dict):
                         ext = "png"
                         if "jpeg" in header or "jpg" in header:
                             ext = "jpg"
-                        seed = hashlib.md5(b64[:200].encode()).hexdigest()[:12]
+                        seed = hashlib.md5(b64[:200].encode(), usedforsecurity=False).hexdigest()[:12]
                         fname = f"bg_upload_{seed}.{ext}"
                         fpath = os.path.join(str(PROJECTS_DIR), "bg_temp", fname)
                         os.makedirs(os.path.dirname(fpath), exist_ok=True)
@@ -3855,7 +3855,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                     if images and len(images) > 0:
                         img_bytes = base64.b64decode(images[0]['data'])
                         import hashlib
-                        seed = hashlib.md5(bg_prompt.encode()).hexdigest()[:10]
+                        seed = hashlib.md5(bg_prompt.encode(), usedforsecurity=False).hexdigest()[:10]
                         fname = f"avatar_bg_{seed}.png"
                         fpath = os.path.join(str(PROJECTS_DIR), project_id, "assets", fname)
                         os.makedirs(os.path.dirname(fpath), exist_ok=True)

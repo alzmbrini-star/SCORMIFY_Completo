@@ -524,7 +524,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             elif elem_type == 'video' and elem_src and isinstance(elem_src, str) and elem_src.startswith('http'):
                 try:
                     import hashlib
-                    url_hash = hashlib.md5(elem_src.encode()).hexdigest()[:12]
+                    url_hash = hashlib.md5(elem_src.encode(), usedforsecurity=False).hexdigest()[:12]
                     if '.webm' in elem_src.lower():
                         vid_ext = '.webm'
                     elif '.mp4' in elem_src.lower():

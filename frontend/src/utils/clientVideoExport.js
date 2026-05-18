@@ -5,6 +5,7 @@
  * Output: MP4 (H.264 + AAC) or WebM.
  */
 import html2canvas from 'html2canvas';
+import DOMPurify from 'dompurify';
 
 function pickMimeType() {
   const candidates = [
@@ -169,7 +170,13 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       // Resolve URLs in HTML content
       let content = el.htmlContent || '<p>HTML</p>';
       content = content.replace(/(src=["'])\/api\//g, `$1${apiUrl}/api/`);
-      htmlDiv.innerHTML = content;
+      // Sanitize before injecting into the DOM — content originates from
+      // user-editable slides and LLM output that could contain
+      // <script> or onerror= payloads. Even though this div is short-lived
+      // (only used for html2canvas to rasterize), the script COULD fire
+      // before capture and exfiltrate cookies / localStorage. DOMPurify
+      // strips all event handlers and unsafe tags but keeps formatting.
+      htmlDiv.innerHTML = DOMPurify.sanitize(content);
       wrapper.appendChild(htmlDiv);
     } else if (el.type === 'button') {
       const btn = document.createElement('div');

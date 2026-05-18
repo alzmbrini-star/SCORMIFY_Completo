@@ -152,10 +152,22 @@ def convert_pptx_to_images(pptx_path: str, output_dir: str, dpi: int = 150) -> L
     
     try:
         # First convert PPTX to PDF using LibreOffice
-        cmd_pdf = f'"{libreoffice_path}" --headless --invisible --convert-to pdf --outdir "{temp_dir}" "{pptx_path}"'
-        
-        logger.info(f"Converting PPTX to PDF: {cmd_pdf}")
-        result = subprocess.run(cmd_pdf, shell=True, capture_output=True, text=True, timeout=120)
+        # SECURITY (2026-05-15): we used to shell out via `subprocess.run(cmd, shell=True)`
+        # with `pptx_path` interpolated into a quoted string. That's vulnerable to
+        # command injection if the upload filename contains a `"` (e.g. an attacker
+        # uploads `evil"; rm -rf /; #.pptx`). Even though our auth gates filter
+        # uploads, defense in depth says NEVER use shell=True with user-supplied
+        # paths. Pass arguments as a list so subprocess does the escaping for us.
+        cmd_pdf = [
+            libreoffice_path,
+            "--headless",
+            "--invisible",
+            "--convert-to", "pdf",
+            "--outdir", str(temp_dir),
+            str(pptx_path),
+        ]
+        logger.info(f"Converting PPTX to PDF: {' '.join(cmd_pdf)}")
+        result = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=120)
         
         if result.returncode != 0:
             logger.error(f"LibreOffice PDF conversion failed: {result.stderr}")
@@ -234,10 +246,17 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
     
     try:
         # Method 1: Convert to PDF first, then use pdftoppm directly
-        cmd_pdf = f'"{libreoffice_path}" --headless --invisible --convert-to pdf --outdir "{temp_dir}" "{pptx_path}"'
-        
-        logger.info(f"Fallback: Converting to PDF first: {cmd_pdf}")
-        result = subprocess.run(cmd_pdf, shell=True, capture_output=True, text=True, timeout=120)
+        # Same security note as the primary path: avoid shell=True with user-supplied paths.
+        cmd_pdf = [
+            libreoffice_path,
+            "--headless",
+            "--invisible",
+            "--convert-to", "pdf",
+            "--outdir", str(temp_dir),
+            str(pptx_path),
+        ]
+        logger.info(f"Fallback: Converting to PDF first: {' '.join(cmd_pdf)}")
+        result = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=120)
         
         pdf_files = list(temp_dir.glob("*.pdf"))
         if pdf_files:
@@ -245,10 +264,10 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
             
             # Use pdftoppm to convert PDF to images
             output_prefix = str(output_path / "slide")
-            cmd_pdftoppm = f'pdftoppm -png -r 150 "{pdf_path}" "{output_prefix}"'
+            cmd_pdftoppm = ["pdftoppm", "-png", "-r", "150", str(pdf_path), output_prefix]
             
-            logger.info(f"Converting PDF to images: {cmd_pdftoppm}")
-            result = subprocess.run(cmd_pdftoppm, shell=True, capture_output=True, text=True, timeout=120)
+            logger.info(f"Converting PDF to images: {' '.join(cmd_pdftoppm)}")
+            result = subprocess.run(cmd_pdftoppm, capture_output=True, text=True, timeout=120)
             
             # pdftoppm creates files like slide-1.png, slide-2.png, etc.
             png_files = sorted(output_path.glob("slide-*.png"))
@@ -265,10 +284,16 @@ def convert_pptx_to_images_fallback(pptx_path: str, output_dir: str) -> List[str
         
         # Method 2: Direct PNG (last resort - only first slide)
         logger.warning("PDF method failed, trying direct PNG (will only get first slide)")
-        cmd = f'"{libreoffice_path}" --headless --invisible --convert-to png --outdir "{output_path}" "{pptx_path}"'
-        
-        logger.info(f"Fallback conversion: {cmd}")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+        cmd = [
+            libreoffice_path,
+            "--headless",
+            "--invisible",
+            "--convert-to", "png",
+            "--outdir", str(output_path),
+            str(pptx_path),
+        ]
+        logger.info(f"Fallback conversion: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         
         png_files = sorted(output_path.glob("*.png"))
         return [str(f) for f in png_files]

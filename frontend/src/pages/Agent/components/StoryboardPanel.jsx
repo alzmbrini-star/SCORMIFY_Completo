@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { getApiUrl } from '../../../utils/apiUrl';
 import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
@@ -328,7 +329,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
           // course at a glance.
           const densityDot = d && (d.label === "heavy" ? "bg-red-400" : d.label === "medium" ? "bg-amber-400" : "");
           return (
-          <button key={i} onClick={() => setActiveSlide(i)}
+          <button key={s.id || `slide-${i}`} onClick={() => setActiveSlide(i)}
             className={`px-2 py-1 rounded text-xs transition-colors relative ${
               i === activeSlide
                 ? (isAvatar ? 'bg-violet-600 text-white' : 'bg-emerald-600 text-white')
@@ -438,15 +439,15 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
                     className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-200 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-300 [&_p]:text-sm [&_p]:text-slate-300 [&_p]:mb-2 [&_strong]:text-emerald-300 [&_ul]:text-slate-300 [&_ol]:text-slate-300 [&_li]:text-sm [&_li]:mb-1 [&_a]:text-emerald-400 min-h-[80px]"
                     data-testid={`storyboard-preview-${activeSlide}`}
                     dangerouslySetInnerHTML={{
-                      __html: slide.elements?.map((el, elIdx) => {
+                      __html: DOMPurify.sanitize(slide.elements?.map((el, elIdx) => {
                         const content = (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ?? (el.content || '');
                         return content;
-                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>'
+                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>')
                     }}
                   />
                 ) : (
                   slide.elements?.map((el, elIdx) => (
-                    <div key={elIdx}>
+                    <div key={el.id || `el-${activeSlide}-${elIdx}`}>
                       <label className="text-[10px] text-slate-500 mb-0.5 block">Conteudo {elIdx + 1}</label>
                       <Textarea
                         value={
@@ -471,10 +472,10 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
                     className="bg-slate-800/50 rounded-lg p-4 border border-violet-700/30 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-200 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-300 [&_p]:text-sm [&_p]:text-slate-300 [&_p]:mb-2 [&_strong]:text-violet-300 [&_ul]:text-slate-300 [&_ol]:text-slate-300 [&_li]:text-sm [&_li]:mb-1 min-h-[80px]"
                     data-testid={`storyboard-avatar-preview-${activeSlide}`}
                     dangerouslySetInnerHTML={{
-                      __html: slide.elements?.map((el, elIdx) => {
+                      __html: DOMPurify.sanitize(slide.elements?.map((el, elIdx) => {
                         const content = (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ?? (el.content || '');
                         return content;
-                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>'
+                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>')
                     }}
                   />
                 ) : (
@@ -540,11 +541,11 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
               <div className="bg-amber-900/10 rounded p-3 border border-amber-800/20">
                 <span className="text-xs text-amber-400 block mb-2">Perguntas do Quiz:</span>
                 {slide.quizQuestions.map((q, qi) => (
-                  <div key={qi} className="mb-2">
+                  <div key={q.id || `q-${qi}`} className="mb-2">
                     <p className="text-sm font-medium text-slate-200">{qi + 1}. {q.text}</p>
                     <div className="ml-4 mt-1 space-y-1">
                       {q.alternatives?.map((a, ai) => (
-                        <p key={ai} className={`text-xs ${a.isCorrect ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        <p key={a.id || `a-${qi}-${ai}`} className={`text-xs ${a.isCorrect ? 'text-emerald-400' : 'text-slate-400'}`}>
                           {a.isCorrect ? '\u2713' : '\u25CB'} {a.text}
                         </p>
                       ))}
@@ -652,7 +653,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
                   if (!sc?.hasScript) return null;
                   return (
                     <div
-                      key={i}
+                      key={s.id || `narr-${i}`}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all cursor-pointer ${
                         sc.enabled
                           ? 'border-amber-500/40 bg-amber-900/10'

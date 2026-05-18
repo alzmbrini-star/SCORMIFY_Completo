@@ -4,12 +4,13 @@ Thin orchestrator that configures FastAPI, CORS, database and includes route mod
 """
 import sys
 print("[STARTUP] server.py: Loading imports...", flush=True)
-from fastapi import FastAPI, APIRouter, Request
+from fastapi import FastAPI, APIRouter, Request, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 import os
 import re
+import uuid
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
@@ -423,6 +424,7 @@ async def _recover_stalled_ppt_jobs():
                 )
                 if ppt_doc and ppt_doc.get("data"):
                     # Restore file to disk
+                    from routes.deps import UPLOADS_DIR
                     restore_path = Path(file_path) if file_path else (UPLOADS_DIR / f"{project_id}_recovered.pptx")
                     restore_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(restore_path, 'wb') as f:

@@ -103,7 +103,7 @@ export default function TutorDashboard() {
             {courseDetail.topQuestions?.length > 0 ? (
               <div className="space-y-2">
                 {courseDetail.topQuestions.map((q, i) => (
-                  <div key={i} className="flex items-start gap-3 py-2 border-b border-slate-800 last:border-0">
+                  <div key={q.id || q.question || `q-${i}`} className="flex items-start gap-3 py-2 border-b border-slate-800 last:border-0">
                     <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                       i < 3 ? 'bg-amber-600/20 text-amber-300' : 'bg-slate-700 text-slate-400'
                     }`}>
@@ -143,7 +143,7 @@ export default function TutorDashboard() {
             <ScrollArea className="max-h-[400px]">
               <div className="space-y-3">
                 {courseDetail.recentLogs?.map((log, i) => (
-                  <div key={i} className="p-3 bg-slate-800/50 rounded-lg space-y-2">
+                  <div key={log.id || log.timestamp || `log-${i}`} className="p-3 bg-slate-800/50 rounded-lg space-y-2">
                     <div className="flex items-start gap-2">
                       <HelpCircle className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                       <p className="text-sm text-white">{log.question}</p>
@@ -252,7 +252,7 @@ export default function TutorDashboard() {
               <CardContent>
                 <div className="space-y-2">
                   {dashboard.companies.map((c, i) => (
-                    <div key={i}
+                    <div key={c.name || `company-${i}`}
                       className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg cursor-pointer hover:bg-slate-800 transition-colors"
                       onClick={() => toggleCompany(c.name)}
                     >
@@ -288,7 +288,7 @@ export default function TutorDashboard() {
           {/* Courses list */}
           <div className="space-y-3">
             {filteredCourses.map((course, i) => (
-              <Card key={i} className="bg-slate-900/50 border-slate-800 hover:border-blue-700/40 transition-colors cursor-pointer" onClick={() => course.projectId && fetchCourseDetail(course.projectId)}>
+              <Card key={course.projectId || course.title || `course-${i}`} className="bg-slate-900/50 border-slate-800 hover:border-blue-700/40 transition-colors cursor-pointer" onClick={() => course.projectId && fetchCourseDetail(course.projectId)}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">

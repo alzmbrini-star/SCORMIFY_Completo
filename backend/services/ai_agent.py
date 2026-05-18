@@ -714,7 +714,7 @@ async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) ->
 
         if images and len(images) > 0:
             import hashlib
-            seed = hashlib.md5(keyword.encode()).hexdigest()[:10]
+            seed = hashlib.md5(keyword.encode(), usedforsecurity=False).hexdigest()[:10]
             fname = f"ai_img_{seed}.png"
             fpath = os.path.join(project_dir, project_id, "assets", fname)
             os.makedirs(os.path.dirname(fpath), exist_ok=True)
@@ -781,7 +781,6 @@ async def _auto_save_gallery(image_url: str, keywords: str, project_id: str):
             }
             await _db.image_gallery.insert_one(doc)
             logger.info(f"Image auto-saved to gallery: {image_url}")
-        _client.close()
     except Exception as e:
         logger.warning(f"Gallery auto-save failed (non-fatal): {e}")
 
@@ -791,7 +790,7 @@ async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -
     import httpx
     import hashlib
     try:
-        seed = hashlib.md5(keyword.encode()).hexdigest()[:10]
+        seed = hashlib.md5(keyword.encode(), usedforsecurity=False).hexdigest()[:10]
         url = f"https://picsum.photos/seed/{seed}/800/450"
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             resp = await client.get(url)
@@ -1542,7 +1541,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         font_body = design_token["fonts"]["body"]
     else:
         # Legacy: select palette by title hash
-        title_hash = int(hashlib.md5(config.get("title", "curso").encode()).hexdigest()[:8], 16)
+        title_hash = int(hashlib.md5(config.get("title", "curso").encode(), usedforsecurity=False).hexdigest()[:8], 16)
         palette = _COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)]
         font_heading = "'Inter', sans-serif"
         font_body = "'Inter', sans-serif"

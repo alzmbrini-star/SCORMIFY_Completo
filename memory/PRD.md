@@ -88,6 +88,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-18: **CHORE — Code Quality Pass** (5 itens aplicados, 7 recusados com justificativa).
+  - **Aplicados**:
+    - **#11 Undefined Python vars (F821)**: 4 corrigidos — `HTTPException` no `server.py:164` (adicionado import), `UPLOADS_DIR` no `server.py:434` (import local de `routes.deps`), `uuid` no `server.py:434` (adicionado import), `_client.close()` orfao em `ai_agent.py:782` (removido — closure ja se encarrega). Ruff F821 agora zero.
+    - **#2b shell=True em `services/ppt_image_parser.py`**: 4 calls de `subprocess.run(cmd, shell=True)` com `pptx_path` interpolado em string virou `subprocess.run([args, ...])` lista. Removido vetor de command-injection (upload com filename como `evil"; rm -rf /; #.pptx` agora e seguro).
+    - **#7 MD5 cache-key marcacao**: 7 calls de `hashlib.md5(x)` em `scorm_exporter.py`, `ai_agent.py`, `agent.py`, `density.py` agora usam `hashlib.md5(x, usedforsecurity=False)`. Sinaliza intencao (cache key, nao crypto) e elimina o flag B324 do bandit. Output identico, nao quebra cache busting.
+    - **#8 Array index keys → IDs estaveis**: 9 ocorrencias em `StoryboardPanel.jsx`, `MediaConfigPanel.jsx`, `TutorDashboard.jsx`. Padrao: `key={item.id || \`fallback-${i}\`}`. Previne bugs de reorder quando o autor adiciona/remove slides ou perguntas.
+    - **#3 XSS via DOMPurify**: instalado `dompurify@3.4.5`. Sanitizado os 2 `dangerouslySetInnerHTML` em `StoryboardPanel.jsx` (preview do storyboard que renderiza HTML do LLM) + 1 `innerHTML` em `clientVideoExport.js` (renderizacao temporaria pra html2canvas). LLM hallucinations de `<script>` agora removidas antes do render. Os outros 3 `innerHTML` (em `SlideProperties.jsx` e `GeneratedPanel.jsx`) ficaram intocados — sao DIVs OFF-DOM usadas so para `htmlToText` (nao renderizam, sem risco de XSS).
+  - **Recusados com justificativa**:
+    - **#1 Circular import**: FALSO POSITIVO. `routes/agent.py` importa `services/ai_agent.py`, NAO o inverso. Verificado via Python — ambos modulos importam OK isolados, sem ciclo.
+    - **#2 `exec()` em `video_exporter.py`**: FALSO POSITIVO. E `asyncio.create_subprocess_exec()` que e a versao SEGURA (passa args como lista, nao usa shell). Oposto de `subprocess.run(shell=True)`. Nada a corrigir.
+    - **#4 React Hook deps faltando**: ALTO RISCO de quebrar runtime — `useEffect` deps mexem em comportamento em tempo real. Cada hook precisaria de teste especifico antes de adicionar deps. ROI ruim sem testing agent rodando case-by-case.
+    - **#5 Senhas em testes**: nao sao secrets reais — sao credenciais MOCK (`admin@scormify.com/admin123`) gerenciadas via `/app/memory/test_credentials.md` e seed script. Refactor para env vars adicionaria complexidade sem ganho real de seguranca.
+    - **#6 Refactor de complexidade alta** (`admin.py:get_admin_reports`, etc): refactoring puramente cosmetico. Nao corrige bug nem melhora performance. Adia para quando o codigo precisar de mudanca de logica de fato.
+    - **#9 Split de componentes grandes** (RichTextEditor 1550 linhas, etc): mesmo argumento — refactoring sem ROI imediato. Risco de quebrar features atuais.
+    - **#10 `localStorage` → httpOnly cookies para auth**: MUITO ALTO RISCO. Reescreveria todo o sistema de auth (frontend `AuthContext`, `authFetch`, todos os 30+ componentes que leem `scormify_auth_token`, backend session middleware). Trade-off: protege contra XSS apenas se XSS ocorrer mesmo COM DOMPurify e CSP. Decisao arquitetural — pediria confirmacao explicita do usuario antes de tocar.
+    - **#12 Reduzir imports**: refactoring sem ROI. `routes/agent.py` com 138 imports e' refleto de ser o orquestrador central do Agente IA — split for split's sake nao ajuda.
+  - **Validacao**: smoke test E2E (login + dashboard com 4 projetos) confirmou que a app esta integra. 0 erros novos no console. Lint Python F821 zero. Lint JS zero.
+
+
 - 2026-05-15 (cont.): **FEATURE (P1)** — "Aplicar este fundo em TODOS os slides" no card Biblioteca de Marca do Editor.
   - **Pedido do usuario**: "Onde encontro o aplicar background em todos os slides? a) adicionar botao no card Editor + chat"
   - **Contexto**: o atalho "Imagem da Marca → Todos" existia apenas no `MediaConfigPanel.jsx` da fase de geracao do Agente IA. Apos o curso ja gerado, o autor so podia trocar o fundo de um slide por vez — sem broadcast.

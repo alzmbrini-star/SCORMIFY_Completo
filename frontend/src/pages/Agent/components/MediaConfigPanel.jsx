@@ -616,7 +616,7 @@ function SuggestionsCategory({ icon: Icon, title, color, items }) {
         <Badge variant="outline" className="text-[9px] ml-auto border-slate-700 text-slate-400">{items.length}</Badge>
       </div>
       {items.map((item, idx) => (
-        <div key={idx} className="pl-5 space-y-0.5" data-testid={`suggestion-item-${color}-${idx}`}>
+        <div key={item.id || `${color}-${item.title || idx}`} className="pl-5 space-y-0.5" data-testid={`suggestion-item-${color}-${idx}`}>
           <div className="flex items-start gap-2">
             <span className="text-xs font-medium text-slate-200">{item.title}</span>
             <Badge variant="outline" className={`text-[8px] shrink-0 ${PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.media}`}>
@@ -1436,7 +1436,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
           const typeColor = { title: 'text-blue-400 border-blue-500/40', content: 'text-slate-400 border-slate-600', quiz: 'text-amber-400 border-amber-500/40', summary: 'text-purple-400 border-purple-500/40' };
 
           return (
-            <Card key={idx} className={`bg-slate-900/50 ${borderColor} transition-colors`} data-testid={`media-slide-${idx}`}>
+            <Card key={slide.id || `media-${idx}`} className={`bg-slate-900/50 ${borderColor} transition-colors`} data-testid={`media-slide-${idx}`}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={`text-[10px] ${typeColor[slide.type] || 'border-slate-600 text-slate-400'}`}>
@@ -1759,7 +1759,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                                 const isSelected = mc.narration?.selectedScript === opt;
                                 return (
                                   <div
-                                    key={oi}
+                                    key={`script-${idx}-${oi}-${(opt || '').slice(0, 16)}`}
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => selectNarrationScript(idx, opt)}

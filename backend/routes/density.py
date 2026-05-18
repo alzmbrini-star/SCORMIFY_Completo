@@ -551,7 +551,7 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     # gallery clutter). Provider and style are in the seed so switching
     # either produces a different file (so the new image actually shows up).
     seed_src = provider + "|" + style_id + "|" + (req.suggestionId or "") + "|" + prompt
-    seed = hashlib.md5(seed_src.encode("utf-8")).hexdigest()[:10]
+    seed = hashlib.md5(seed_src.encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
     fname = f"density_img_{seed}.jpg"
     fpath = os.path.join(PROJECTS_DIR, req.projectId, "assets", fname)
     os.makedirs(os.path.dirname(fpath), exist_ok=True)
