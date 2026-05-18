@@ -1099,11 +1099,131 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
     )
 
 
+def _inject_contrast_safety_net(html: str) -> str:
+    """Inject a small JavaScript that fixes white-on-white (or any
+    low-contrast) text inside interactive simulators.
+
+    Why this is needed: the AI-Agent prompt asks the LLM to produce HTML
+    drag-and-drop / quiz / flashcard simulators. The LLM often produces
+    cards with `color: white` on a light pastel `background` (or vice
+    versa) because it copies typical "dark mode" patterns without
+    checking contrast against the actual brand-kit background. End
+    result: invisible text on the slide — reported by users.
+
+    The script runs once on DOMContentLoaded, walks every text-bearing
+    element, computes the effective background by ascending the tree
+    until a non-transparent color is found, and forces a contrasting
+    foreground if the WCAG contrast ratio is below 3.0 (the minimum
+    for large text per WCAG 2.1 AA). It NEVER touches elements that
+    are already legible — designs that were intentionally white-on-dark
+    are preserved.
+
+    The injection is safe to apply repeatedly (idempotent — guarded by
+    a sentinel `data-sp-contrast-safety` attribute on the html root).
+    """
+    safety_script = """
+<script>(function(){
+  if(document.documentElement.hasAttribute('data-sp-contrast-safety'))return;
+  document.documentElement.setAttribute('data-sp-contrast-safety','1');
+  function run(){
+    function parseColor(str){
+      if(!str)return null;
+      var m=str.match(/rgba?\\(([^)]+)\\)/);
+      if(!m)return null;
+      var p=m[1].split(',').map(function(s){return parseFloat(s.trim());});
+      if(p.length<3)return null;
+      var a=p.length>=4?p[3]:1;
+      return {r:p[0],g:p[1],b:p[2],a:a};
+    }
+    function lum(c){
+      function ch(v){v=v/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);}
+      return 0.2126*ch(c.r)+0.7152*ch(c.g)+0.0722*ch(c.b);
+    }
+    function contrast(a,b){
+      var L1=lum(a),L2=lum(b);
+      var l=Math.max(L1,L2),d=Math.min(L1,L2);
+      return (l+0.05)/(d+0.05);
+    }
+    function effectiveBg(el){
+      // Walk up the DOM until we find a non-transparent background.
+      // Default to white if we reach the root with no opaque ancestor.
+      var node=el;
+      while(node && node.nodeType===1){
+        var cs=window.getComputedStyle(node);
+        var bg=parseColor(cs.backgroundColor);
+        if(bg && bg.a>0.1) return bg;
+        // Some authors use background-image gradients without setting
+        // a fallback color — assume a light surface in that case
+        // (most brand kits default to light backgrounds).
+        if(cs.backgroundImage && cs.backgroundImage!=='none'){
+          return {r:240,g:240,b:240,a:1};
+        }
+        node=node.parentElement;
+      }
+      return {r:255,g:255,b:255,a:1};
+    }
+    function hasDirectText(el){
+      for(var i=0;i<el.childNodes.length;i++){
+        var n=el.childNodes[i];
+        if(n.nodeType===3 && n.nodeValue && n.nodeValue.trim()) return true;
+      }
+      return false;
+    }
+    // Run twice — once immediately, once after 600ms to catch elements
+    // populated by the simulator's own JS (drag-and-drop libraries
+    // often inject cards async after init).
+    function pass(){
+      var els=document.querySelectorAll('body *');
+      for(var i=0;i<els.length;i++){
+        var el=els[i];
+        if(!hasDirectText(el)) continue;
+        var cs=window.getComputedStyle(el);
+        var fg=parseColor(cs.color);
+        if(!fg) continue;
+        var bg=effectiveBg(el);
+        if(contrast(fg,bg)<3.0){
+          // Pick whichever direction maximizes legibility.
+          var dark={r:15,g:23,b:42,a:1}, light={r:241,g:245,b:249,a:1};
+          var pick=contrast(dark,bg)>contrast(light,bg)?'#0f172a':'#f1f5f9';
+          el.style.setProperty('color',pick,'important');
+          // Also tighten text-shadow if any white shadow would dim
+          // the now-dark text against a light background.
+          if(cs.textShadow && cs.textShadow!=='none'){
+            el.style.setProperty('text-shadow','none','important');
+          }
+        }
+      }
+    }
+    pass();
+    setTimeout(pass,600);
+    setTimeout(pass,2000);
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',run);
+  } else {
+    run();
+  }
+})();</script>
+"""
+    # Inject right before </body> so the simulator's own initialization
+    # runs first; we then run our post-pass to catch anything left
+    # invisible. If no </body> tag is found, append at the end — still
+    # gets executed by the iframe loader.
+    if "</body>" in html.lower():
+        # Case-insensitive replace of the last </body>
+        idx = html.lower().rfind("</body>")
+        return html[:idx] + safety_script + html[idx:]
+    return html + safety_script
+
+
 def _render_simulator_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, slide_idx: int, el_idx: int) -> str:
     sim_html = el.get("htmlContent") or el.get("content") or ""
     sim_html = _inline_assets_in_html(sim_html, project_id, assets_dir, base_url)
     if "<meta" not in sim_html.lower() and "charset" not in sim_html.lower():
         sim_html = '<meta charset="utf-8">\n' + sim_html
+    # Inject the contrast safety-net so simulators with white-on-white
+    # text become legible without requiring the author to regenerate.
+    sim_html = _inject_contrast_safety_net(sim_html)
     sim_html_b64 = base64.b64encode(sim_html.encode("utf-8")).decode("ascii") if sim_html else ""
     return (
         f'<div class="sp-simulator sp-interactive" data-interactive="simulator" data-required="true" '

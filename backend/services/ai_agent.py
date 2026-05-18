@@ -427,6 +427,12 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
   2. CSS: Design moderno e atraente com gradientes, sombras, border-radius, transições, animações CSS (keyframes para celebração, shake para erro, etc.)
   3. JavaScript: TODA interatividade deve funcionar - botões onclick, drag-and-drop, cliques, feedback visual dinâmico, sons visuais (animações que simulam feedback)
   4. Use cores vibrantes e profissionais, fonte legível (sans-serif)
+  4.1 ⚠️ CONTRASTE OBRIGATÓRIO: Para CADA elemento com texto (cards, items arrastáveis, botões, opções, labels):
+       - SE o background do elemento é claro (branco/pastel/cinza claro/azul claro), o `color` do texto DEVE ser escuro (#0f172a, #1e293b, #1f2937 ou similar)
+       - SE o background é escuro (preto/azul-marinho/roxo escuro), o `color` DEVE ser claro (#ffffff, #f1f5f9)
+       - NUNCA use `color: white` em background claro — produz texto invisível
+       - NUNCA use `color: black` em background escuro
+       - Em dúvida, declare EXPLICITAMENTE `color` E `background-color` no MESMO seletor CSS para evitar herança acidental
   5. Dimensões do conteúdo: 960x540 pixels (não use scroll, tudo deve caber na tela)
   6. Inclua: título do jogo, instruções breves, pontuação/progresso e feedback ao aluno
   7. NUNCA gere HTML vazio ou estático - todo jogo DEVE ter interação real via JavaScript

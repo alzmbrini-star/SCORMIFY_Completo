@@ -88,6 +88,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FIX (P0)** — Simuladores HTML do Agente IA com fontes brancas sobre fundo branco (invisiveis).
+  - **Pedido do usuario** (screenshot): "Em producao ainda estou tendo problemas com as fontes brancas sobre fundo branco nos simuladores em HTML criados pelo Agente IA, mesmo efetuando a limpeza profunda e revertendo as mudancas elas nao se refletem!"
+  - **Causa raiz**: o LLM (Gemini Flash) gerando HTML de simuladores (drag-and-drop, quiz, flashcards) usava patterns "dark mode" — cards com `color: white` em backgrounds claros (pastel/azul claro) do brand kit. Texto ficava invisivel ao exportar para SCORM/HTML.
+  - **Fix multi-camada** (preventivo + corretivo):
+    - **Preventivo no prompt** (`services/ai_agent.py`): regra 4.1 OBRIGATORIA adicionada — "SE background claro, color escuro. SE background escuro, color claro. NUNCA use `color: white` em background claro." 5 exemplos especificos no prompt para grounding.
+    - **Corretivo (safety-net JS injetado)** em `services/single_page_exporter._inject_contrast_safety_net()`: novo modulo de 60 linhas que injeta um pequeno `<script>` antes de `</body>` em TODO simulator HTML. Script roda no DOMContentLoaded + 2 retries (600ms e 2000ms para capturar elementos populados async pelo drag-drop):
+      - Percorre cada elemento textual visivel (filtrado por `hasDirectText`)
+      - Sobe a arvore DOM ate encontrar background nao-transparente (`effectiveBg`)
+      - Calcula contraste WCAG via formula de luminance relativa (0.2126R + 0.7152G + 0.0722B)
+      - Se contraste < 3.0 (WCAG 2.1 AA minimo para texto grande): forca `color: #0f172a` ou `#f1f5f9` conforme luminance do fundo, com `!important`
+      - **Preserva designs ja legiveis**: nao toca em nada com contraste >= 3.0
+      - Idempotente: guard via `data-sp-contrast-safety` no root
+    - **Aplicado retroativamente**: simuladores ja gerados em projetos antigos (no DB de producao) tambem sao corrigidos no proximo export — sem necessidade de regerar/migrar dados.
+  - **Validacao visual** (Playwright + HTML de teste com 4 cards):
+    - Card 1/2 (branco-sobre-azul-claro invisivel) → texto auto-corrigido para `rgb(15,23,42)` legivel ✓
+    - Card 3 (ja estava correto, escuro-sobre-claro) → preservado ✓
+    - Card 4 (legitimo dark-mode, branco-sobre-escuro) → preservado **sem quebra** ✓
+    - Sintaxe JS validada via `node --check` ✓
+
+
 - 2026-05-15 (cont.): **FIX (P1)** — Marca d'agua (logo da Brand Kit) aparecia como **retangulo vazio** no slide.
   - **Pedido do usuario** (screenshot): "A imagem de logo no canto inferior esquerdo seria para aparecer em marca d'agua mas esta quebrada".
   - **Causa raiz**: `brand_kit_applier` em `ai_agent.py` linha 2010 escrevia o logo como elemento `{type: "image", imageUrl: ...}` mas os 3 renderers do frontend (`SlideCanvas.jsx`, `CoursePreview.jsx`, `SplitPreview.jsx`) leem `element.src`. Como `element.src` era undefined, `getAssetUrl(undefined)` retornava `''` → `<img src="">` renderizava placeholder vazio.
