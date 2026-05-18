@@ -5,6 +5,7 @@ Extracted from the old monolithic routes/projects.py. This module holds the
 PPT upload pipeline that creates projects from PowerPoint files.
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Request, Depends
+from pydantic import BaseModel
 from typing import List, Optional
 from pathlib import Path
 import uuid
@@ -736,6 +737,61 @@ async def apply_watermark_to_all_slides(project_id: str, user: dict = Depends(re
         }},
     )
     return {"appliedCount": applied, "totalSlides": len(slides)}
+
+
+class ApplyBackgroundAllRequest(BaseModel):
+    backgroundImage: str  # absolute path like "/api/companies/.../file"
+    backgroundImageSource: Optional[str] = "brand_library"
+
+
+@router.post("/projects/{project_id}/apply-background-all")
+async def apply_background_to_all_slides(
+    project_id: str,
+    req: ApplyBackgroundAllRequest,
+    user: dict = Depends(require_auth),
+):
+    """Apply ONE background image to EVERY slide of the project.
+
+    User-facing trigger: the "Aplicar em TODOS os slides do curso" toggle
+    inside the Brand Library picker (Editor → Properties panel → Trocar
+    imagem da biblioteca). Lets the author broadcast a brand-library
+    image as the global background in a single click — equivalent to
+    the "Fundo Global → Todos" shortcut the Agent IA pipeline already
+    has for the generation phase, but exposed AFTER the course is
+    generated.
+
+    Each slide's `backgroundImage` is overwritten and tagged with
+    `backgroundImageSource` so the UI can show the proper indicator
+    (and the "Remover imagem deste slide" button) on individual slides.
+
+    Returns: { appliedCount: int, totalSlides: int }
+    """
+    from datetime import datetime, timezone
+
+    if not (req.backgroundImage or "").strip():
+        raise HTTPException(status_code=400, detail="backgroundImage is required")
+
+    project = await load_authorized_project(project_id, user)
+    slides = (project.get("course") or {}).get("slides") or []
+    if not slides:
+        raise HTTPException(status_code=400, detail="O projeto nao tem slides para receber o fundo.")
+
+    bg_url = req.backgroundImage.strip()
+    bg_source = (req.backgroundImageSource or "brand_library").strip()
+    for s in slides:
+        s["backgroundImage"] = bg_url
+        s["backgroundImageSource"] = bg_source
+
+    from routes.deps import db
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {"appliedCount": len(slides), "totalSlides": len(slides)}
+
 
 
 

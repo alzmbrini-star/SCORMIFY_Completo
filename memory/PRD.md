@@ -88,6 +88,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-15 (cont.): **FEATURE (P1)** — "Aplicar este fundo em TODOS os slides" no card Biblioteca de Marca do Editor.
+  - **Pedido do usuario**: "Onde encontro o aplicar background em todos os slides? a) adicionar botao no card Editor + chat"
+  - **Contexto**: o atalho "Imagem da Marca → Todos" existia apenas no `MediaConfigPanel.jsx` da fase de geracao do Agente IA. Apos o curso ja gerado, o autor so podia trocar o fundo de um slide por vez — sem broadcast.
+  - **Backend** (`routes/projects_crud.py`):
+    - Novo `POST /api/projects/{pid}/apply-background-all` com payload `{backgroundImage, backgroundImageSource}`.
+    - Valida que o background nao e vazio (400 amigavel "backgroundImage is required").
+    - Carrega projeto via `load_authorized_project` (RBAC mantido), itera por todos os slides e seta `backgroundImage` + `backgroundImageSource` em cada um. Persiste com `updatedAt`.
+    - Retorna `{appliedCount, totalSlides}`.
+    - Adicionado import de `BaseModel` (faltante no modulo).
+  - **Frontend** (`BrandLibraryPicker.jsx` + `SlideProperties.jsx`):
+    - `BrandLibraryPicker` ganhou prop opcional `onPickForAll`. Quando presente, renderiza um **toggle indigo** no topo do dialog: "Aplicar em TODOS os slides do curso — ao inves de so neste slide". Quando ligado e o usuario clica numa imagem, dispara `onPickForAll(asset)` em vez de `onPick(asset)`.
+    - `SlideProperties` passa `onPickForAll` que chama o novo endpoint, mostra toast "Fundo aplicado em N slides. Recarregando..." e da reload em 1.2s para refletir.
+    - Idempotente do ponto de vista do estado: rodar 2x com a mesma imagem nao causa diferenca (apenas reescreve o mesmo URL).
+  - **Validacao E2E** (curl, 3 cenarios):
+    - 400 com payload vazio ✓
+    - Happy path: 16 slides → 16 backgrounds aplicados em <1s ✓
+    - DB query confirma que todos os slides tem o mesmo `backgroundImage` E `backgroundImageSource=brand_library` ✓
+
+
 - 2026-05-15 (cont.): **FIX + FEATURE (P1)** — Card "Biblioteca de Marca" no Editor: botao **"Remover fundo"** mais visivel + novo botao **"Aplicar marca d'agua em TODOS os slides"**.
   - **Pedido do usuario** (com screenshot): "Quando aplico uma imagem de fundo usando o card Biblioteca de marca, nao tenho a opcao de remover. Preciso tambem que seja possivel inserir a marca d'agua a partir do card para TODOS os slides!"
   - **Fix #1 — Botao Remover visivel** (`SlideProperties.jsx`):

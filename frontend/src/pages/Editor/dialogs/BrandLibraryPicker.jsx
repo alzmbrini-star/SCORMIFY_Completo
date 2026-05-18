@@ -43,12 +43,17 @@ const CATEGORY_OPTIONS = [
   { value: 'generic', label: 'Genérico' },
 ];
 
-export default function BrandLibraryPicker({ open, onClose, companyId, onPick, defaultType = 'background' }) {
+export default function BrandLibraryPicker({ open, onClose, companyId, onPick, onPickForAll, defaultType = 'background' }) {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState(defaultType);
   const [filterCategory, setFilterCategory] = useState('');
+  // When true, picking an image applies it to EVERY slide of the project
+  // (not just the currently-open one). Defaults OFF so the existing
+  // single-slide behavior is preserved. The parent passes a `onPickForAll`
+  // callback to opt in to the bulk path; without it the toggle hides.
+  const [applyToAll, setApplyToAll] = useState(false);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('scormify_auth_token') : '';
 
@@ -92,7 +97,13 @@ export default function BrandLibraryPicker({ open, onClose, companyId, onPick, d
   const handlePick = (asset) => {
     // The asset's `url` is already a full path (`/api/companies/.../file`).
     // The editor / runtime resolves it against the current API base.
-    onPick?.(asset);
+    if (applyToAll && onPickForAll) {
+      // Bulk apply — parent is responsible for hitting
+      // POST /api/projects/{pid}/apply-background-all with the asset url.
+      onPickForAll(asset);
+    } else {
+      onPick?.(asset);
+    }
     onClose?.();
   };
 
@@ -108,6 +119,30 @@ export default function BrandLibraryPicker({ open, onClose, companyId, onPick, d
             Biblioteca de Marca — Selecionar Imagem
           </DialogTitle>
         </DialogHeader>
+
+        {/* Apply-to-all toggle — only shows when the parent provided an
+            onPickForAll handler. Lets the author broadcast the picked
+            image to every slide of the project in a single click. */}
+        {onPickForAll && (
+          <label
+            className="flex items-center gap-2 p-2.5 rounded border border-indigo-500/40 bg-indigo-500/10 cursor-pointer transition hover:border-indigo-400"
+            data-testid="blp-apply-to-all-toggle"
+          >
+            <input
+              type="checkbox"
+              checked={applyToAll}
+              onChange={(e) => setApplyToAll(e.target.checked)}
+              className="w-4 h-4 accent-indigo-500 cursor-pointer"
+            />
+            <span className="text-xs flex-1">
+              <strong className="text-indigo-400">Aplicar em TODOS os slides do curso</strong>
+              <span className="text-muted-foreground"> — ao inves de so neste slide</span>
+            </span>
+            {applyToAll && (
+              <span className="text-[10px] text-indigo-300 font-semibold">SELECIONE A IMAGEM →</span>
+            )}
+          </label>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2 items-center">

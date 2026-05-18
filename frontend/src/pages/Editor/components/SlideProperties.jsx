@@ -377,6 +377,48 @@ export function SlideProperties({ slide, onUpdate, project }) {
             backgroundImageAssetId: asset.id,
           });
         }}
+        onPickForAll={async (asset) => {
+          // Bulk apply — broadcast the picked background to every slide
+          // of the project via the new POST /apply-background-all
+          // endpoint. The local `onUpdate` would only touch the current
+          // slide; the endpoint mutates ALL slides server-side.
+          const pid = project?.id || project?.projectId;
+          if (!pid) return;
+          try {
+            const apiBase = getApiUrl();
+            const token = localStorage.getItem('scormify_auth_token') || '';
+            const r = await fetch(`${apiBase}/api/projects/${pid}/apply-background-all`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                backgroundImage: asset.url,
+                backgroundImageSource: 'brand_library',
+              }),
+            });
+            if (r.ok) {
+              const j = await r.json();
+              try {
+                // eslint-disable-next-line global-require
+                const { toast } = require('sonner');
+                toast.success(`Fundo aplicado em ${j.appliedCount} slides. Recarregando...`);
+              } catch (_e) { /* silent */ }
+              setTimeout(() => window.location.reload(), 1200);
+            } else {
+              const err = await r.json().catch(() => ({}));
+              try {
+                // eslint-disable-next-line global-require
+                const { toast } = require('sonner');
+                toast.error(err.detail || 'Falha ao aplicar fundo.');
+              } catch (_e) { /* silent */ }
+            }
+          } catch (_e) {
+            try {
+              // eslint-disable-next-line global-require
+              const { toast } = require('sonner');
+              toast.error('Erro de rede ao aplicar fundo.');
+            } catch (__e) { /* silent */ }
+          }
+        }}
       />
 
       {/* Density Suggestions Dialog — applies a chosen rewrite to the slide.
