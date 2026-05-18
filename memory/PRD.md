@@ -88,6 +88,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-18: **FIX (P1)** — Imagens de fundo da Biblioteca de Marca ficavam "fumacadas" (overlay escuro inesperado).
+  - **Pedido do usuario** (screenshot): "Ao aplicar uma imagem de background na biblioteca de marca fica este efeito smoked escurecido".
+  - **Causa raiz**: o **Aesthetic Analyzer** seta `slide.backgroundImageOverlay='dark'` para melhorar contraste de texto em fundos visualmente busy. Quando o autor DEPOIS sobrepoe esse fundo com uma imagem hand-picked da Brand Library, o overlay legado continua aplicado pelos renderers → a imagem brand fica visualmente "fumacada" / escurecida sem o autor querer.
+  - **Fix de renderer** (3 camadas):
+    - `SlideCanvas.jsx` (Editor): condicional adicionada — overlay so renderiza se `backgroundImageSource !== 'brand_library'` OU se `backgroundImageOverlayForce=true`.
+    - `CoursePreview.jsx`: mesma condicional.
+    - `services/single_page_exporter.py` + `services/html_exporter.py`: mesmo padrao para garantir que exports SCORM/HTML/Single-Page tambem respeitem.
+  - **Migration retroativa**: nova migration `_clear_brand_library_overlays` no startup do server limpa `backgroundImageOverlay` dos slides com `backgroundImageSource='brand_library'` no DB. Best-effort, idempotente, **nao toca slides com `backgroundImageOverlayForce=true`** (autor pode forcar o overlay se quiser). Executada manualmente uma vez: **14 slides em 1 projeto** corrigidos.
+  - **Escape hatch**: caso o autor REALMENTE queira o overlay sobre uma imagem da Brand Library, basta setar `backgroundImageOverlayForce=true` no slide (futuro toggle UI pode expor isso).
+  - **Validacao**: smoke test backend startup OK. Lint zero. Migration idempotente — 2a execucao = 0 alteracoes.
+
+
 - 2026-05-18: **CHORE — Code Quality Pass** (5 itens aplicados, 7 recusados com justificativa).
   - **Aplicados**:
     - **#11 Undefined Python vars (F821)**: 4 corrigidos — `HTTPException` no `server.py:164` (adicionado import), `UPLOADS_DIR` no `server.py:434` (import local de `routes.deps`), `uuid` no `server.py:434` (adicionado import), `_client.close()` orfao em `ai_agent.py:782` (removido — closure ja se encarrega). Ruff F821 agora zero.

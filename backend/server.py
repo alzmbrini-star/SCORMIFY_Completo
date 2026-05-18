@@ -362,6 +362,53 @@ async def _run_migrate_roles():
         logger.warning(f"Roles migration failed (non-fatal): {e}")
 
 
+@app.on_event("startup")
+async def startup_clear_brand_library_overlays():
+    """One-shot migration to clear the Aesthetic-Analyzer "dark" overlay
+    from slides where the background was picked from the Brand Library.
+
+    Why: Aesthetic Analyzer used to apply a `backgroundImageOverlay='dark'`
+    indiscriminately. When a user later overrode the slide background with
+    a hand-picked Brand Library image, that stale overlay made the carefully
+    chosen brand image look "smoked" / darkened — broken UX reported in
+    May/2026.
+
+    The render-side fix (suppress overlay when source==brand_library) ships
+    in the same commit. This migration just heals the historical data so the
+    user doesn't need to manually re-apply every slide.
+
+    Safe: idempotent (only matches slides that still have the legacy
+    overlay attached). Best-effort, non-fatal.
+    """
+    asyncio.create_task(_clear_brand_library_overlays())
+
+
+async def _clear_brand_library_overlays():
+    try:
+        fixed = 0
+        async for p in db.projects.find({}, {"_id": 0, "id": 1, "course": 1}):
+            slides = (p.get("course") or {}).get("slides") or []
+            dirty = False
+            for s in slides:
+                if (s.get("backgroundImageSource") == "brand_library"
+                        and s.get("backgroundImageOverlay")
+                        and not s.get("backgroundImageOverlayForce")):
+                    s["backgroundImageOverlay"] = None
+                    dirty = True
+                    fixed += 1
+            if dirty:
+                await db.projects.update_one(
+                    {"id": p["id"]},
+                    {"$set": {"course.slides": slides}},
+                )
+        if fixed > 0:
+            logger.info(f"Brand-library overlay migration: cleared {fixed} stale overlays")
+    except Exception as e:
+        logger.warning(f"Brand-library overlay migration failed (non-fatal): {e}")
+
+
+
+
 
 @app.on_event("startup")
 async def startup_recover_stalled_ppt_jobs():

@@ -500,8 +500,17 @@ const SlideCanvas = ({
       )}
 
       {/* Background Image Overlay/Scrim — added by Aesthetic Analyzer to
-          improve text contrast on busy backgrounds. */}
+          improve text contrast on busy backgrounds. We SKIP this overlay
+          when the author explicitly picked the image from the Brand
+          Library (backgroundImageSource === 'brand_library') because in
+          that case the author already made an intentional design choice
+          — a stale "dark" overlay from a previous Aesthetic Analyzer run
+          would unexpectedly darken the brand image. Override-friendly:
+          if the user EXPLICITLY sets backgroundImageOverlayForce=true,
+          the scrim still renders. */}
       {slide.backgroundImage && slide.backgroundImageOverlay && (
+        slide.backgroundImageSource !== 'brand_library' || slide.backgroundImageOverlayForce
+      ) && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{

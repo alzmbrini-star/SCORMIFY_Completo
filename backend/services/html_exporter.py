@@ -1824,8 +1824,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         bgOpacity = slide.backgroundOpacity / 100;
                     }}
                     html += '<img class="slide-background" src="' + slide.backgroundImage + '" alt="" style="opacity:' + bgOpacity + '">';
-                    // Aesthetic Analyzer scrim/overlay for text legibility
-                    if (slide.backgroundImageOverlay) {{
+                    // Aesthetic Analyzer scrim/overlay for text legibility.
+                    // Suppressed when bg came from the Brand Library — author
+                    // already made a deliberate choice. Force via backgroundImageOverlayForce.
+                    var bgFromLibrary = slide.backgroundImageSource === 'brand_library';
+                    if (slide.backgroundImageOverlay && (!bgFromLibrary || slide.backgroundImageOverlayForce)) {{
                         var ov = slide.backgroundImageOverlay;
                         var ovBg;
                         if (ov === 'dark') ovBg = 'linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))';

@@ -1485,9 +1485,16 @@ def generate_single_page_html(
         # Optional darkening/lightening scrim over the background image —
         # set by the Aesthetic Analyzer when text needs more contrast over
         # busy imagery. Format: rgba string OR keyword "dark"/"light".
+        # SUPPRESSED when the image came from the Brand Library — the
+        # author picked it intentionally and a stale Aesthetic-Analyzer
+        # overlay would unexpectedly darken the brand image. Override
+        # via `backgroundImageOverlayForce=true` if the user really wants
+        # the scrim on top of a brand-library bg.
         bg_overlay = (slide.get("backgroundImageOverlay") or "").strip()
+        bg_source = (slide.get("backgroundImageSource") or "").strip()
+        bg_overlay_force = bool(slide.get("backgroundImageOverlayForce"))
         overlay_html = ""
-        if bg_overlay and bg_image_url:
+        if bg_overlay and bg_image_url and (bg_source != "brand_library" or bg_overlay_force):
             if bg_overlay == "dark":
                 overlay_css = "background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))"
             elif bg_overlay == "light":

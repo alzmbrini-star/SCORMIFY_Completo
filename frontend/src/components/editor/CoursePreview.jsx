@@ -683,8 +683,13 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               />
             )}
 
-            {/* Background Image Overlay/Scrim (Aesthetic Analyzer) */}
+            {/* Background Image Overlay/Scrim (Aesthetic Analyzer).
+                Suppressed when the image came from the Brand Library —
+                author already made an intentional choice. See SlideCanvas
+                for the full rationale. */}
             {currentSlide?.backgroundImage && currentSlide?.backgroundImageOverlay && (
+              currentSlide?.backgroundImageSource !== 'brand_library' || currentSlide?.backgroundImageOverlayForce
+            ) && (
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
