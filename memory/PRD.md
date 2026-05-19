@@ -88,6 +88,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v6.1): **HOTFIX** — `POST /api/aesthetics/analyze/{pid}` retornando 500.
+  - **Causa raiz**: em `_build_slide_context`, a expressao `opacity < 1` quebrava com `TypeError: '<' not supported between instances of 'str' and 'int'` quando `style.opacity` vinha do DB como string (ex: `"0.5"`). Mesmo problema potencial em `x:.0f`, `y:.0f`, `width:.0f`, `height:.0f` para coordenadas armazenadas como strings.
+  - **Fix**: coercao defensiva via `float(v)` com fallback safe em `opacity`, `x`, `y`, `width`, `height`. Tratamento `try/except` para valores invalidos (ex: `"auto"`).
+  - **Validacao**:
+    - Live API: `POST /api/aesthetics/analyze/a0b4069e-...` retorna 200 (era 500)
+    - 6/6 novos unit tests em `test_aesthetics_opacity_coercion.py` passando (opacity string/int/None/invalid; x/y/w/h strings; fontSize string)
+    - 126 testes do dominio aesthetics passando — sem regressao
+
+
 - 2026-05-19 (cont. v6): **REFACTOR (P0 follow-up #4)** — Remover TODOS os overlays do Analisador de Estetica (no-overlay, color-swap only).
   - **Pedido do usuario** (apos rejeitar plate cirurgico em v5): "preciso de uma solucao ate mais simples que observe a cor da fonte e quando rodar o Analisador de estetica apenas troque de cor para dar contraste sem precisar colocar o overlay que fica muito feio! Poderia corrigir em todos os lugares?"
   - **Mudancas em 6 frentes**:

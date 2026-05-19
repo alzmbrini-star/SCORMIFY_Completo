@@ -103,8 +103,20 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
     for i, el in enumerate(elements):
         el_type = el.get("type", "text")
         style = el.get("style", {})
-        x, y = el.get("x", 0), el.get("y", 0)
-        w, h = el.get("width", 100), el.get("height", 100)
+
+        # Defensive coercion: the DB sometimes stores numeric fields as
+        # strings (e.g., "120", "0.5"). The downstream `.0f` / `<` / etc.
+        # operations require real numbers, so coerce here once.
+        def _num(v, default=0):
+            try:
+                return float(v) if v is not None else default
+            except (TypeError, ValueError):
+                return default
+
+        x = _num(el.get("x"), 0)
+        y = _num(el.get("y"), 0)
+        w = _num(el.get("width"), 100)
+        h = _num(el.get("height"), 100)
         content = (el.get("content") or "")[:80]
         font_size = style.get("fontSize")
         font_color = style.get("fontColor") or style.get("fill")
@@ -124,8 +136,13 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
             desc += f" fill={fill}"
         if text_bg:
             desc += f" textBg={text_bg}"
-        if opacity and opacity < 1:
-            desc += f" opacity={opacity}"
+        if opacity is not None:
+            try:
+                opacity_f = float(opacity)
+            except (TypeError, ValueError):
+                opacity_f = None
+            if opacity_f is not None and opacity_f < 1:
+                desc += f" opacity={opacity_f}"
 
         # Compute & report ACTUAL WCAG ratio so the LLM can prioritize.
         if font_color and bg and not bg_img:
