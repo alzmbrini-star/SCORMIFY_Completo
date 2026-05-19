@@ -19,6 +19,10 @@ from datetime import datetime, timezone
 
 from routes.deps import db
 from routes.auth import require_auth
+from services.html_legacy_normalizer import (
+    has_legacy_font,
+    normalize_legacy_html,
+)
 
 logger = logging.getLogger("server")
 router = APIRouter(tags=["Admin - Migrations"])
@@ -222,5 +226,91 @@ async def normalize_numeric_fields(
             f"DRY RUN: {fixed}/{total} projetos teriam {sum(aggregate.values())} campos corrigidos"
             if dryRun else
             f"OK: {fixed}/{total} projetos atualizados, {sum(aggregate.values())} campos coercidos"
+        ),
+    }
+
+
+
+@router.post("/admin/normalize-font-tags")
+async def normalize_font_tags(
+    dryRun: bool = Query(default=True),
+    user: dict = Depends(require_auth),
+):
+    """Walk every project and convert legacy HTML4 `<font color/face/size>`
+    markup found in `course.slides[].elements[].htmlContent` into modern
+    inline-CSS `<span style="…">` wrappers.
+
+    Why this exists: the React `RichTextEditor` historically called
+    `document.execCommand('foreColor', …)` without `styleWithCSS`, which
+    on Chromium browsers emits `<font color="X">`. The Aesthetic Analyzer
+    needs ONE consistent format to reason about contrast/typography.
+    Going forward, the frontend now normalizes at save/paste time; this
+    migration cleans the legacy DB rows.
+
+    Default `dryRun=true` reports impact without writing. Only admins.
+    Idempotent — safe to re-run.
+    """
+    role = user.get("role", "")
+    if role not in ("super_admin", "admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    scanned = 0
+    mutated_projects = 0
+    mutated_elements = 0
+    sample = []  # cap at 20 for response size
+
+    cursor = db.projects.find({}, {"_id": 0, "id": 1, "name": 1, "course.slides": 1})
+    async for project in cursor:
+        scanned += 1
+        slides = ((project.get("course") or {}).get("slides")) or []
+        project_changed_elements = 0
+
+        for slide in slides:
+            for el in (slide.get("elements") or []):
+                if el.get("type") != "html":
+                    continue
+                html = el.get("htmlContent") or ""
+                if not has_legacy_font(html):
+                    continue
+                cleaned = normalize_legacy_html(html)
+                if cleaned != html:
+                    el["htmlContent"] = cleaned
+                    project_changed_elements += 1
+                    mutated_elements += 1
+
+        if project_changed_elements > 0:
+            mutated_projects += 1
+            if len(sample) < 20:
+                sample.append({
+                    "projectId": project.get("id"),
+                    "name": (project.get("name") or "")[:80],
+                    "elementsCleaned": project_changed_elements,
+                })
+            if not dryRun:
+                try:
+                    await db.projects.update_one(
+                        {"id": project["id"]},
+                        {"$set": {
+                            "course.slides": slides,
+                            "updatedAt": datetime.now(timezone.utc).isoformat(),
+                        }},
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"normalize_font_tags: write failed for {project.get('id')}: {e}"
+                    )
+
+    return {
+        "dryRun": dryRun,
+        "scannedProjects": scanned,
+        "mutatedProjects": mutated_projects,
+        "mutatedElements": mutated_elements,
+        "sampleProjects": sample,
+        "message": (
+            f"DRY RUN: {mutated_projects}/{scanned} projetos teriam "
+            f"{mutated_elements} elementos com <font> convertidos para CSS inline"
+            if dryRun else
+            f"OK: {mutated_projects}/{scanned} projetos limpos, "
+            f"{mutated_elements} elementos modernizados"
         ),
     }

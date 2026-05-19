@@ -105,11 +105,75 @@ export const RichTextEditor = ({
   const initialContentRef = useRef(content);
   const isMountedRef = useRef(false);
 
+  // Normalize legacy HTML4 markup emitted by older `document.execCommand`
+  // sessions (or pasted from external rich-text sources) into modern inline
+  // CSS. The Aesthetic Analyzer + downstream WCAG sweepers can both reason
+  // about inline `style="color:..."`, so converting `<font color="...">`
+  // here means every new content save is automatically "modernized".
+  //
+  // Conversions:
+  //   <font color="X">       → <span style="color:X">
+  //   <font face="X">        → <span style="font-family:X">
+  //   <font size="N">        → <span style="font-size:<Npx>">   (HTML size 1..7)
+  //   Any combination of attrs collapses to a single <span style="...">.
+  const normalizeLegacyMarkup = useCallback((html) => {
+    if (!html || typeof html !== 'string') return html;
+    if (!/<font[\s>]/i.test(html)) return html;
+    try {
+      const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+      // HTML4 size 1..7 maps roughly to 10/13/16/18/24/32/48 px.
+      const sizeMap = { '1': '10px', '2': '13px', '3': '16px', '4': '18px', '5': '24px', '6': '32px', '7': '48px' };
+      doc.body.querySelectorAll('font').forEach((node) => {
+        const span = doc.createElement('span');
+        const decls = [];
+        const color = node.getAttribute('color');
+        const face = node.getAttribute('face');
+        const size = node.getAttribute('size');
+        if (color) decls.push(`color:${color}`);
+        if (face) decls.push(`font-family:${face}`);
+        if (size && sizeMap[String(size).trim()]) decls.push(`font-size:${sizeMap[String(size).trim()]}`);
+        if (decls.length) span.setAttribute('style', decls.join(';'));
+        // Move children into span
+        while (node.firstChild) span.appendChild(node.firstChild);
+        node.replaceWith(span);
+      });
+      return doc.body.innerHTML;
+    } catch {
+      // If parsing fails, keep the original — better than breaking the editor.
+      return html;
+    }
+  }, []);
+
+  // Switch contentEditable to emit modern inline CSS instead of legacy
+  // `<font color>` tags. This MUST run once per editor instance and is
+  // safe to repeat (the spec says it's a no-op when already enabled).
+  // Browsers: Chrome/Edge/Safari support it; Firefox always uses CSS,
+  // so the call simply has no effect there.
+  const enableModernStyling = useCallback(() => {
+    try {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {
+      /* noop on unsupported browsers */
+    }
+  }, []);
+
   // Initialize content on mount - use requestAnimationFrame to avoid React conflicts
   useEffect(() => {
     isMountedRef.current = true;
-    
+    enableModernStyling();
+
     if (editorRef.current && initialContentRef.current) {
+      // Normalize ANY pre-existing legacy `<font>` so downstream saves are clean.
+      const normalized = normalizeLegacyMarkup(initialContentRef.current);
+      if (normalized !== initialContentRef.current) {
+        initialContentRef.current = normalized;
+        lastContentRef.current = normalized;
+        // Bubble the normalization up so the model is saved without `<font>`.
+        // Use a microtask so onChange runs after the parent has mounted.
+        Promise.resolve().then(() => {
+          if (isMountedRef.current) onChange?.(normalized);
+        });
+      }
       // Use RAF to ensure this runs outside React's render cycle
       requestAnimationFrame(() => {
         if (isMountedRef.current && editorRef.current) {
@@ -117,25 +181,32 @@ export const RichTextEditor = ({
         }
       });
     }
-    
+
     return () => {
       isMountedRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle content prop changes after init
   useEffect(() => {
     if (!isMountedRef.current) return;
-    
+
     if (editorRef.current && content !== lastContentRef.current) {
+      const normalized = normalizeLegacyMarkup(content || '');
       // Use RAF to ensure this runs outside React's render cycle
       requestAnimationFrame(() => {
-        if (isMountedRef.current && editorRef.current && content !== lastContentRef.current) {
-          editorRef.current.innerHTML = content || '';
-          lastContentRef.current = content;
+        if (isMountedRef.current && editorRef.current && normalized !== lastContentRef.current) {
+          editorRef.current.innerHTML = normalized;
+          lastContentRef.current = normalized;
+          // If we modernized, push the cleaner version back up.
+          if (normalized !== content) {
+            onChange?.(normalized);
+          }
         }
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
 
   // Update image controls position when image is selected
@@ -403,9 +474,10 @@ export const RichTextEditor = ({
 
   const execCommand = useCallback((command, value = null) => {
     const savedRange = saveSelection();
+    enableModernStyling();
     document.execCommand(command, false, value);
     restoreSelection(savedRange);
-    
+
     // Update content after command
     setTimeout(() => {
       if (editorRef.current) {
@@ -414,7 +486,7 @@ export const RichTextEditor = ({
         onChange?.(newContent);
       }
     }, 0);
-  }, [onChange, saveSelection, restoreSelection]);
+  }, [onChange, saveSelection, restoreSelection, enableModernStyling]);
 
   const handleAIGenerate = useCallback(async () => {
     if (!aiPrompt.trim() || !onGenerateAI) return;
@@ -624,51 +696,54 @@ export const RichTextEditor = ({
     if (editorRef.current) {
       editorRef.current.focus();
     }
+    enableModernStyling();
     document.execCommand('fontName', false, fontFamily);
     setCurrentFont(fontFamily);
     setShowFontSelect(false);
-    
+
     // Update content
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       lastContentRef.current = newContent;
       onChange?.(newContent);
     }
-  }, [onChange]);
+  }, [onChange, enableModernStyling]);
 
   // Apply text color to selection
   const applyColor = useCallback((color) => {
     if (editorRef.current) {
       editorRef.current.focus();
     }
+    enableModernStyling();
     document.execCommand('foreColor', false, color);
     setCurrentColor(color);
     setShowColorPicker(false);
-    
+
     // Update content
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       lastContentRef.current = newContent;
       onChange?.(newContent);
     }
-  }, [onChange]);
+  }, [onChange, enableModernStyling]);
 
   // Apply font size to selection
   const applyFontSize = useCallback((size) => {
     if (editorRef.current) {
       editorRef.current.focus();
     }
+    enableModernStyling();
     document.execCommand('fontSize', false, size);
     setCurrentFontSize(size);
     setShowFontSizeSelect(false);
-    
+
     // Update content
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       lastContentRef.current = newContent;
       onChange?.(newContent);
     }
-  }, [onChange]);
+  }, [onChange, enableModernStyling]);
 
   const formatBlock = useCallback((tag) => {
     execCommand('formatBlock', tag);
@@ -681,8 +756,27 @@ export const RichTextEditor = ({
   }, [onChange]);
 
   const handlePaste = useCallback((e) => {
-    // Allow default paste behavior - it works correctly
-  }, []);
+    // Sanitize incoming HTML so legacy `<font>` markup from Word, Google
+    // Docs, or older browsers gets normalized to modern inline CSS at
+    // paste time. Falls through to default behavior for plain text.
+    const dt = e.clipboardData;
+    if (!dt) return;
+    const html = dt.getData('text/html');
+    if (!html || !/<font[\s>]/i.test(html)) {
+      return; // nothing to clean
+    }
+    e.preventDefault();
+    const cleaned = normalizeLegacyMarkup(html);
+    document.execCommand('insertHTML', false, cleaned);
+    // Bubble the change up
+    setTimeout(() => {
+      if (editorRef.current) {
+        const newContent = editorRef.current.innerHTML;
+        lastContentRef.current = newContent;
+        onChange?.(newContent);
+      }
+    }, 0);
+  }, [normalizeLegacyMarkup, onChange]);
 
   return (
     <div className={`border rounded-lg overflow-hidden bg-slate-900 ${className}`}>

@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 123 backend testing PASSED 100%. Verified the three coordinated fixes: (1) the new POST /api/admin/normalize-font-tags endpoint converts legacy <font color/face/size> tags to inline-CSS <span style> wrappers, gates on admin role, and is fully idempotent; (2) services/html_legacy_normalizer behaves correctly on every shape (12/12 unit tests) including the real h1>font>text pattern from the user's project; (3) POST /api/aesthetics/apply-fix/{project_id} with applyAll=true on the user's project a0b4069e-... runs end-to-end, takes a snapshot, and re-apply after revert yields the same applied count and same plate footprint (idempotent); (4) the propagation+plate behaviour holds across all 16 scenarios in test_aesthetics_html_propagation.py — inline-size scaling, plate polarity from <font color>, no-plate when no bg image, accent-color preservation, legacy <font color='#000'> rewritten only when the LLM proposes a new color AND the existing one fails WCAG. Final DB state: 67 projects scanned, 0 legacy <font> tags remaining — including the user's project.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_normalize_font_tags_integration.py",
+    "/app/backend/tests/test_html_legacy_normalizer.py",
+    "/app/backend/tests/test_aesthetics_html_propagation.py",
+    "/app/test_reports/pytest/iteration_123.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/admin_migrations.py normalize_font_tags loads `course.slides` from EVERY project into memory in a single pass — fine for 67 projects but should switch to streaming/batched writes if the corpus grows past ~5k projects. Not blocking now.",
+    "services/html_legacy_normalizer.py: BeautifulSoup's html.parser will re-serialize the document — for sizable htmlContent strings this could subtly reorder attribute order. Current tests use substring matches so they pass, but exporters that hash htmlContent for cache keys would invalidate after migration. Worth a follow-up if SCORM export starts cache-missing.",
+    "routes/aesthetics.py is 1646 lines (well over the 700-line guideline). Consider splitting apply_aesthetic_fix, analyze, deep_clean, and snapshot-status into focused modules. Functional behaviour is correct; this is a maintainability comment only.",
+    "_SIZE_MAP in html_legacy_normalizer drops unknown size values silently (e.g., size='42'). The test_unknown_size_dropped test documents this, but it would be safer to log a warning so analytics can spot weird inputs."
+  ],
+  "updated_files": ["/app/backend/tests/test_normalize_font_tags_integration.py"],
+  "success_rate": {"backend": "100% (34/34: 12 normalizer unit + 16 propagation unit + 6 live-API integration)", "frontend": "not requested"},
+  "test_credentials": "admin@scormify.com / admin123 (super_admin) - from /app/memory/test_credentials.md",
+  "seed_data_creation": "None. The integration test mutates DB state by toggling the legacy-font migration and an aesthetics apply/revert cycle on project a0b4069e-..., but ends in a clean state: 0 <font> tags remain in any project, and the test reverts then re-applies the same set of aesthetic fixes (final state equivalent to the first apply, snapshot retained so the user can still revert from the UI).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Live backend at REACT_APP_BACKEND_URL is healthy. Iteration 123 fixes are integrated and idempotent. If the user reports any further <font> remnants, run `pytest /app/backend/tests/test_normalize_font_tags_integration.py -v` as the regression gate; it covers the auth gate, dry-run counters, write-then-redry idempotency, and a direct DB scan of the user's project. For the aesthetics flow, the test does analyze→apply→revert→re-apply on a0b4069e-f6ef-4b10-bf5f-459c486d771f and asserts plate-count stability. Total integration runtime: ~10s.",
+  "rca of the issue": "User originally reported (a) font-size was increased but color was not corrected, and (b) a dark overlay was being applied even when not needed. The fix has three coordinated parts now verified: (1) _apply_style_fix in routes/aesthetics.py scales <h2> font-size proportionally to inline styles instead of replacing the whole style block; (2) _inject_html_bg_plate only fires when slide has a backgroundImage AND the element is type=html (verified by test_no_bg_image_means_no_plate + test_non_html_element_unchanged_by_propagator); (3) plate polarity is derived from BOTH inline `color:` styles and legacy `<font color>` attributes via _extract_styled_tag_colors + _pick_dominant_color (verified by test_plate_polarity_uses_font_attr_color + test_legacy_font_color_rewritten_when_llm_proposes + test_legacy_font_color_left_alone_when_legible). The new normalize_legacy_html migration eliminates the need to special-case <font> at WCAG-check time going forward; the frontend RichTextEditor also normalizes at save/paste."
+}
