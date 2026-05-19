@@ -96,7 +96,7 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
     role = _classify_slide(slide, slide_idx, total)
     role_label = {"capa": "CAPA", "html_heavy": "HTML-PESADO", "conteudo": "CONTEUDO"}[role]
 
-    lines = [f"SLIDE {slide_idx + 1} [{role_label}]: \"{title}\" ({width}x{height})"]
+    lines = [f"SLIDE {slide_idx} [{role_label}]: \"{title}\" ({width}x{height})  (use slideIndex={slide_idx} when reporting issues for this slide)"]
     lines.append(f"  Background: {bg}" + (f" + image (opacity {bg_opacity}) — multicolored, contrast unpredictable" if bg_img else ""))
 
     for i, el in enumerate(elements):
@@ -148,6 +148,11 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
 
 
 ANALYSIS_PROMPT = """Voce e um especialista em Design Visual e UX para cursos e-learning. Sua missao e identificar problemas SEVEROS de legibilidade e propor correcoes AGRESSIVAS que produzam mudancas visuais significativas SEM destruir a harmonia visual existente.
+
+## INDEXACAO DE SLIDES (CRITICO!)
+- Cada slide vem rotulado como `SLIDE N` onde N e o **slideIndex (0-based)** que voce DEVE usar no campo `slideIndex` da resposta.
+- NAO faca conversoes — copie o numero exato que aparece no rotulo "SLIDE N".
+- Errar o slideIndex significa aplicar o fix no slide ERRADO. Confira duas vezes antes de finalizar.
 
 ## Tipos de slide (importante!)
 Cada slide vem rotulado entre colchetes:

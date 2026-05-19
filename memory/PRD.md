@@ -88,6 +88,23 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19: **FIX (P0)** — Analisador de Estetica: sugestoes apontavam para slide ERRADO (off-by-one).
+  - **Pedido do usuario** (screenshot): "Slide 10 esta considerando um QUIZ e na verdade e a tela de encerramento! Sincronize os slides corretamente!"
+  - **Causa raiz** confirmada via DB query: nas issues guardadas, o LLM atribuia `slideIndex=9` quando descrevia o "Quiz Final", mas na verdade o quiz estava em `slides[8]` (slide 9 1-based). O slide em `slides[9]` era "Resumo: Seu Roteiro de Sucesso" — a tela de encerramento que o user viu sendo erroneamente marcada como quiz.
+  - **Bug exato** (`routes/aesthetics.py::_build_slide_context`):
+    - Serializer rotulava como `SLIDE {slide_idx + 1}` (1-based, ex: "SLIDE 10")
+    - Prompt exemplo pedia `slideIndex: 0` (0-based)
+    - LLM via "SLIDE 10" no input, retornava `slideIndex=9` (10-1) ... mas isso APONTAVA para slides[9], NAO para slides[8] = o slide real do "SLIDE 10". Off-by-one classico de mapping inconsistente.
+  - **Fix**:
+    - Serializer agora rotula como `SLIDE {slide_idx}` (0-based) + hint inline "(use slideIndex={slide_idx} when reporting issues for this slide)".
+    - Prompt ganhou secao no topo "## INDEXACAO DE SLIDES (CRITICO!)" instruindo: "NAO faca conversoes — copie o numero exato que aparece no rotulo SLIDE N".
+    - Frontend nao precisa mudar — ja exibe `(slideIndex || 0) + 1`, agora bate com o slide real.
+  - **Validacao via unit test** (2 slides reais do projeto do user):
+    - Quiz Final (slides[8]) → rotulado "SLIDE 8" + hint "use slideIndex=8" ✓
+    - Resumo (slides[9]) → rotulado "SLIDE 9" + hint "use slideIndex=9" ✓
+    - LLM nao precisa mais converter — apenas copia o numero literal.
+
+
 - 2026-05-18: **FIX (P0)** — Aesthetic Analyzer: aplicar sugestao de "Fontes" em slide com texto branco-sobre-branco nao corrigia a invisibilidade.
   - **Pedido do usuario** (2 screenshots antes/depois): "Aplicando a sugestao de melhoria visual apenas no slide 10 que tem fontes brancas sobre fundo branco! Depois de aplicado as melhorias ficou exatamente do mesmo modo".
   - **Causa raiz**: a sugestao "Fontes" do Aesthetic Analyzer so injeta `fontSize` no `changes`, nao mexe em `fontColor`. O slide 10 do user tinha texto `#ffffff` sobre fundo branco → invisivel. A aplicacao mudava o tamanho da fonte, mas a cor invisivel permanecia.
