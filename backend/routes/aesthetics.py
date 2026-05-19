@@ -11,6 +11,7 @@ import json
 import re
 import uuid
 import logging
+from typing import Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Depends
 from bs4 import BeautifulSoup
@@ -85,8 +86,20 @@ def _classify_slide(slide: dict, idx: int, total: int) -> str:
     return "conteudo"
 
 
-def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
-    """Extract visual properties from a slide for analysis."""
+def _build_slide_context(slide: dict, slide_idx: int, total: int = 1,
+                         bg_image_bytes: Optional[bytes] = None) -> str:
+    """Extract visual properties from a slide for analysis.
+
+    When `bg_image_bytes` is provided AND the slide has a backgroundImage,
+    we compute PER-ELEMENT luminance over the actual image region behind
+    each text/html element. This lets the LLM (and the WCAG sweep
+    downstream) reason about the REAL color behind the text, not just the
+    solid `slide.background`. Without this, a slide with a navy solid bg
+    + a giant white shape image was getting "white text" recommendations
+    that produced invisible text over the white shape.
+    """
+    from services import bg_image_luminance as bil
+
     bg = slide.get("background", "#FFFFFF")
     bg_img = slide.get("backgroundImage")
     bg_opacity = slide.get("backgroundImageOpacity", 1.0)
@@ -98,7 +111,7 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
     role_label = {"capa": "CAPA", "html_heavy": "HTML-PESADO", "conteudo": "CONTEUDO"}[role]
 
     lines = [f"SLIDE {slide_idx} [{role_label}]: \"{title}\" ({width}x{height})  (use slideIndex={slide_idx} when reporting issues for this slide)"]
-    lines.append(f"  Background: {bg}" + (f" + image (opacity {bg_opacity}) — multicolored, contrast unpredictable" if bg_img else ""))
+    lines.append(f"  Background: {bg}" + (f" + image (opacity {bg_opacity}) — per-element luminance analysis below" if bg_img else ""))
 
     for i, el in enumerate(elements):
         el_type = el.get("type", "text")
@@ -144,15 +157,48 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1) -> str:
             if opacity_f is not None and opacity_f < 1:
                 desc += f" opacity={opacity_f}"
 
+        # Per-element bg luminance over the bgImage region behind the
+        # element. Caller passes already-fetched bytes to avoid N database
+        # round-trips when the same image is used on many slides.
+        region_info = None
+        if bg_image_bytes and width > 0 and height > 0:
+            x_pct = max(0.0, x / width)
+            y_pct = max(0.0, y / height)
+            w_pct = max(0.0, w / width)
+            h_pct = max(0.0, h / height)
+            region_info = bil.analyze_region(bg_image_bytes, x_pct, y_pct, w_pct, h_pct)
+            if region_info:
+                desc += (
+                    f" bgRegion={region_info['tone']}(lum={region_info['luminance']:.2f},"
+                    f"stddev={region_info['stddev']:.2f}"
+                    + (",MIXED" if region_info["isMixed"] else "")
+                    + f",recommend={region_info['recommendedTextColor']})"
+                )
+                # Persist back onto the element so the WCAG sweep can reuse
+                # the same recommendation without re-running PIL on every
+                # apply-fix call.
+                el["_bgRegionLuminance"] = region_info
+
         # Compute & report ACTUAL WCAG ratio so the LLM can prioritize.
-        if font_color and bg and not bg_img:
-            try:
-                ratio = wcag.contrast_ratio(font_color, bg)
-                desc += f" wcag={ratio:.2f}:1"
-                if ratio < 4.5:
-                    desc += " (FAILS-AA)"
-            except Exception:
-                pass
+        # When we have per-region info, use the EFFECTIVE color (region's
+        # mean luminance converted to grayscale hex) — much more accurate
+        # than the solid bg color when the slide has an image.
+        if font_color:
+            effective_bg = bg
+            if region_info:
+                lum_byte = int(round(region_info["luminance"] * 255))
+                effective_bg = f"#{lum_byte:02x}{lum_byte:02x}{lum_byte:02x}"
+            elif bg_img:
+                # No region info available — skip the (misleading) ratio.
+                effective_bg = None
+            if effective_bg:
+                try:
+                    ratio = wcag.contrast_ratio(font_color, effective_bg)
+                    desc += f" wcag={ratio:.2f}:1 (vs {effective_bg})"
+                    if ratio < 4.5:
+                        desc += " (FAILS-AA)"
+                except Exception:
+                    pass
 
         if el_type == "html":
             html = (el.get("htmlContent") or "")[:200]
@@ -182,19 +228,17 @@ Cada slide vem rotulado entre colchetes:
    - Se o simulador tem fundo claro `#f0f2f5` em curso dark, troque para `background:#0f172a` ou cor neutra escura — mas mantenha a tipografia interna do simulador intacta.
 
 ## Foco na deteccao
-1. **CONTRASTE WCAG AA**: contraste minimo 4.5:1 entre texto e fundo. Quando o slide tem `+ image (multicolored)`, SEMPRE proponha plate (textBackgroundColor) — o fundo e imprevisivel.
+1. **CONTRASTE WCAG AA**: contraste minimo 4.5:1 entre texto e fundo. Para slides com `+ image`, **CADA elemento exposto traz uma anotacao `bgRegion=light/dark/mixed` com `recommend=#XXX`** — use ESSE recommend como `fontColor`. NUNCA proponha branco quando `bgRegion=light` ou preto quando `bgRegion=dark`. Para `bgRegion=mixed`, escolha a polaridade dominante (`recommend` ja faz isso).
 2. **HARMONIZACAO VISUAL**: cores que brigam entre si. Mas NAO troque cores de simuladores HTML — eles seguem identidade propria.
 3. **TAMANHO DE FONTES**: aplicar regras de hierarquia ACIMA segundo o tipo de slide. Para HTML-PESADO so atue se a fonte estiver visivelmente apequenada (ex: <12px hardcoded).
 4. **LEGIBILIDADE EM HTML**: simuladores com texto invisivel.
 5. **LAYOUT**: sobreposicao, elementos cortados.
 
-DADOS DOS SLIDES (com WCAG calculado quando aplicavel):
+DADOS DOS SLIDES (com WCAG calculado + analise REAL da imagem de fundo por elemento):
 {slides_data}
 
 ## Tipos de fix disponiveis
-- `style` — muda propriedades do elemento. Use para: fontColor, fontSize, fontFamily, fontWeight, textBackgroundColor (plate), padding, borderRadius, textShadow, opacity.
-- `text_plate` — adiciona backdrop semi-transparente atras de texto.
-- `slide_overlay` — adiciona scrim escuro/claro sobre `backgroundImage`. `changes: {{"overlay": "dark"}}` ou `"light"`.
+- `style` — muda propriedades do elemento. Use para: fontColor, fontSize, fontFamily, fontWeight, textShadow, opacity.
 - `position` — muda x, y, width, height.
 - `background` — muda background do slide.
 - `html_style` — injeta CSS em htmlContent. **REGRAS RIGIDAS para slides HTML-PESADO**:
@@ -206,8 +250,9 @@ DADOS DOS SLIDES (com WCAG calculado quando aplicavel):
    - **Estrategia recomendada**: leia o htmlContent, identifique a CLASSE OU ID exata do elemento problemático, e direcione apenas ele.
 
 ## Regras CRITICAS
-- Prefira preto puro `#0f172a` ou branco puro `#f8fafc` — NUNCA cinza intermediario.
-- Em slides com `+ image`: para CADA texto exposto, adicione `text_plate` E ajuste `fontColor`. Considere `slide_overlay: dark`.
+- Use EXATAMENTE preto `#0f172a` ou branco `#f8fafc` — NUNCA cinza intermediario, NUNCA outras cores.
+- **PROIBIDO** propor `textBackgroundColor`, `backgroundColor`, `padding`, `borderRadius`, `box-shadow` em changes — o usuario rejeitou overlays/plates. Apenas `fontColor` + `fontSize` + `fontWeight` + `fontFamily`.
+- Em slides com `+ image`: SIGA O `recommend=#XXX` ANOTADO no elemento. Se `recommend=#0f172a`, proponha `fontColor: "#0f172a"`. Se `recommend=#f8fafc`, proponha `fontColor: "#f8fafc"`. NAO INVERTER.
 - Cada fix deve produzir mudanca PERCEPTIVEL. Evite micro-ajustes (14px -> 15px).
 - Para slides HTML-PESADO, **emita NO MAXIMO 1 issue por slide** — nao gere ruido sobre simuladores que ja funcionam visualmente bem.
 
@@ -278,8 +323,25 @@ async def analyze_aesthetics(project_id: str, request: Request, user: dict = Dep
     if not slides:
         raise HTTPException(400, "No slides to analyze")
 
+    # Pre-fetch each unique bgImage once. The analyzer now does per-region
+    # luminance analysis (see _build_slide_context) so the LLM can reason
+    # about the ACTUAL color behind each text element, not just the solid
+    # slide.background.
+    from services import bg_image_luminance as bil
+    bg_image_cache: dict = {}
+    for s in slides:
+        url = s.get("backgroundImage")
+        if url and url not in bg_image_cache:
+            bg_image_cache[url] = await bil.fetch_bg_image_bytes(db, url)
+
     # Build context for AI
-    slides_data = "\n\n".join(_build_slide_context(s, i, len(slides)) for i, s in enumerate(slides))
+    slides_data = "\n\n".join(
+        _build_slide_context(
+            s, i, len(slides),
+            bg_image_bytes=bg_image_cache.get(s.get("backgroundImage")),
+        )
+        for i, s in enumerate(slides)
+    )
 
     # Call AI
     prompt = ANALYSIS_PROMPT.format(slides_data=slides_data)
@@ -317,12 +379,31 @@ async def analyze_aesthetics(project_id: str, request: Request, user: dict = Dep
 # Deterministic fix application
 # ---------------------------------------------------------------------------
 
-def _effective_bg_for_element(slide: dict) -> tuple:
-    """Return (bg_color_str, has_image). When the slide has a backgroundImage,
-    we treat it as 'busy/multicolored' and force plate-based fixes regardless
-    of the underlying solid color."""
-    bg_color = (slide.get("background") or "#ffffff").strip()
+def _effective_bg_for_element(slide: dict, element: Optional[dict] = None) -> tuple:
+    """Return (bg_color_str, has_image).
+
+    When `element` carries a `_bgRegionLuminance` analysis result (set by
+    `_build_slide_context`), that region's mean luminance is converted to
+    a grayscale hex and returned as the EFFECTIVE background — this is
+    far more accurate than the solid `slide.background` when the slide
+    has a multicolored bgImage. Example: a slide with `slide.background=#1e3a8a`
+    (dark navy) but a giant white shape over which the text sits → returns
+    `#e6e6e6` instead of `#1e3a8a`, so the WCAG sweep picks DARK text
+    instead of LIGHT.
+    """
     has_image = bool(slide.get("backgroundImage"))
+    # 1) Best signal: per-element region luminance
+    if element is not None:
+        region = element.get("_bgRegionLuminance")
+        if isinstance(region, dict) and "luminance" in region:
+            try:
+                lum = float(region["luminance"])
+                lum_byte = max(0, min(255, int(round(lum * 255))))
+                return f"#{lum_byte:02x}{lum_byte:02x}{lum_byte:02x}", has_image
+            except (TypeError, ValueError):
+                pass
+    # 2) Fallback: solid color
+    bg_color = (slide.get("background") or "#ffffff").strip()
     return bg_color, has_image
 
 
@@ -767,7 +848,7 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
         element["style"] = {}
     style = element["style"]
 
-    bg_color, has_image = _effective_bg_for_element(slide)
+    bg_color, has_image = _effective_bg_for_element(slide, element)
 
     applied_any = False
     for key, val in (changes or {}).items():
@@ -899,7 +980,7 @@ def _apply_text_plate(element: dict, slide: dict) -> bool:
         element["style"] = {}
     style = element["style"]
 
-    bg_color, _ = _effective_bg_for_element(slide)
+    bg_color, _ = _effective_bg_for_element(slide, element)
     current_color = style.get("fontColor") or style.get("color") or "#000000"
     try:
         ratio = wcag.contrast_ratio(current_color, bg_color)
@@ -1447,6 +1528,45 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
     snapshot_slides = _copy.deepcopy(project.get("course", {}).get("slides", []))
 
     slides = project.get("course", {}).get("slides", [])
+
+    # Pre-fetch each unique bgImage once. The per-element luminance info
+    # (stored on each element as `_bgRegionLuminance`) is what teaches the
+    # WCAG sweep to pick the right text color polarity when the slide has
+    # a multicolored bgImage. Without this, the sweep falls back to the
+    # solid `slide.background` and can pick the WRONG polarity (e.g.,
+    # white text over a white region of a decorative image).
+    from services import bg_image_luminance as _bil
+    _bg_cache: dict = {}
+    for s in slides:
+        url = s.get("backgroundImage")
+        if url and url not in _bg_cache:
+            _bg_cache[url] = await _bil.fetch_bg_image_bytes(db, url)
+
+    def _ensure_region_info(_slide: dict, _el: dict):
+        """Populate `_el['_bgRegionLuminance']` based on the bgImage bytes
+        and the element's position. No-op when bgImage isn't fetchable or
+        the element already has the data."""
+        if _el.get("_bgRegionLuminance"):
+            return
+        bg_url = _slide.get("backgroundImage")
+        if not bg_url:
+            return
+        img_bytes = _bg_cache.get(bg_url)
+        if not img_bytes:
+            return
+        try:
+            sw = float(_slide.get("width", 1920)) or 1920.0
+            sh = float(_slide.get("height", 820)) or 820.0
+            ex = float(_el.get("x") or 0)
+            ey = float(_el.get("y") or 0)
+            ew = float(_el.get("width") or 100)
+            eh = float(_el.get("height") or 100)
+        except (TypeError, ValueError):
+            return
+        info = _bil.analyze_region(img_bytes, ex / sw, ey / sh, ew / sw, eh / sh)
+        if info:
+            _el["_bgRegionLuminance"] = info
+
     applied = 0
 
     for issue in to_apply:
@@ -1462,6 +1582,7 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
 
             if fix_type == "style" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
+                _ensure_region_info(slide, element)
                 if _apply_style_fix(element, slide, fix.get("changes", {})):
                     applied += 1
 
@@ -1469,6 +1590,7 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                 # v6: text_plate is now a color-swap (NO overlay). See
                 # _apply_text_plate docstring.
                 element = slide["elements"][el_idx]
+                _ensure_region_info(slide, element)
                 if _apply_text_plate(element, slide):
                     applied += 1
 
@@ -1518,6 +1640,13 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             logger.warning(f"Failed to apply fix {issue.get('id')}: {e}")
 
     if applied > 0:
+        # Strip scratch-only `_bgRegionLuminance` info before persisting —
+        # it's recomputed on demand and bloats the DB otherwise.
+        for s in slides:
+            for el in s.get("elements") or []:
+                if isinstance(el, dict):
+                    el.pop("_bgRegionLuminance", None)
+
         await db.projects.update_one(
             {"id": project_id},
             {"$set": {

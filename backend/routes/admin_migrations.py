@@ -379,19 +379,27 @@ async def cleanup_aesthetic_plates(
                 # These keys were auto-set by the previous plate logic on
                 # text elements over bgImage slides. They cause an ugly
                 # opaque rectangle behind the text in the rendered slide.
+                # We match ANY semi-transparent rgba(...) — that's the
+                # signature of an injected plate (real user-set solid
+                # colors stay).
                 style = el.get("style") or {}
                 if isinstance(style, dict):
+                    semi_transparent_rgba = _re.compile(
+                        r"rgba\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0?\.\d+\s*\)",
+                        _re.IGNORECASE,
+                    )
                     for key in ("textBackgroundColor", "backgroundColor"):
-                        # Only remove if it matches the plate-color pattern
-                        # (rgba(...,0.78) / rgba(248,250,252,0.88)) — leave
-                        # user-set solid colors alone.
                         v = style.get(key)
-                        if isinstance(v, str) and (
-                            v.startswith("rgba(15,23,42") or
-                            v.startswith("rgba(248,250,252")
-                        ):
+                        if isinstance(v, str) and semi_transparent_rgba.search(v):
                             del style[key]
                             touched = True
+                            # Drop padding/borderRadius/textShadow only when
+                            # they accompany a removed plate (avoid touching
+                            # intentional cosmetic style).
+                            for related in ("padding", "borderRadius", "textShadow"):
+                                if related in style:
+                                    del style[related]
+                                    touched = True
                 if touched:
                     project_changed_elements += 1
                     mutated_elements += 1

@@ -88,6 +88,31 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v6.2): **FEAT (P0)** — Per-region bgImage luminance analysis.
+  - **Pedido do usuario**: "Acho que descobri o que esta ocorrendo! A analisador de estetica so leva em conta a cor do background e quando ha uma imagem... ele ignora a cor e so leva em conta cor do backgroung que neste caso e azul escuro portanto deixou a fonte branca!"
+  - **Diagnostico exato do usuario confirmado**: slide 0 tinha `background:#1e3a8a` (navy escuro) + `backgroundImage` decorativa com forma BRANCA enorme no centro. Texto centralizado caia exatamente sobre a area branca. O analyzer so olhava `slide.background` (navy) → contraste branco-sobre-navy = 14:1 (perfeito) → "tudo OK" → texto invisivel na realidade.
+  - **Fix — novo `services/bg_image_luminance.py`**: usa Pillow para baixar a bgImage do `company_assets` e calcular luminancia media PER ELEMENTO (recortando a regiao exata onde o texto esta posicionado). Retorna dict com: `luminance` (0..1), `stddev`, `tone` (light/dark/mixed), `recommendedTextColor` (#0f172a ou #f8fafc), `isMixed` (high stddev = regiao com claro+escuro).
+  - **Integracao no analyzer** (`routes/aesthetics.py`):
+    1. `_build_slide_context` agora aceita `bg_image_bytes` e roda `bil.analyze_region(...)` para cada elemento sobre `bgImage`. Adiciona ao contexto do LLM uma anotacao por elemento: `bgRegion=light(lum=0.94,stddev=0.05,recommend=#0f172a)`. Tambem grava no elemento (`_bgRegionLuminance`) para reuso no apply.
+    2. WCAG ratio agora e computado contra a regiao real (luminance convertida para grayscale hex), nao contra `slide.background` solid quando ha bgImage.
+    3. `_effective_bg_for_element(slide, element)` consulta `element._bgRegionLuminance` primeiro — retorna `#efefef` em vez de `#1e3a8a` para um elemento sobre area branca.
+    4. Endpoint `analyze`: pre-fetch bytes ONCE por URL unica de bgImage (evita N fetches DB para slides que compartilham imagem).
+    5. Endpoint `apply-fix`: `_ensure_region_info()` re-popula `_bgRegionLuminance` antes de cada `_apply_style_fix`. Strip do campo antes de persistir.
+  - **Prompt do LLM atualizado**: agora informa "use ESSE `recommend` como `fontColor`. NUNCA proponha branco quando `bgRegion=light` ou preto quando `bgRegion=dark`". PROIBIDO propor `textBackgroundColor`/plates/padding/borderRadius (v6 no-overlay). Tipos `text_plate`/`slide_overlay` removidos do prompt.
+  - **Validacao via API real (projeto a0b4069e-...)**:
+    - Slide 0 el 1 (titulo "Capa" sobre area branca do logo): ANTES `fontColor=#f8fafc` (texto branco INVISIVEL na area branca). DEPOIS `fontColor=#0f172a` (preto, contraste 15.53:1 vs `#efefef`). 
+    - Slide 0 el 2 (subtitulo): LLM detectou `wcag=2.17:1 (FAILS-AA)` via region info e propos `#0f172a` corretamente.
+    - Score subiu de 45 → 78. Total issues: 5 (era 9 — falsos positivos eliminados).
+    - **Zero issues com `textBackgroundColor`/plate props** (era 100% dos issues de contraste em bgImage no v5).
+  - **Migration `cleanup-aesthetic-plates` extendida**: regex flexivel matcha QUALQUER `rgba(r,g,b,alpha<1)` (com/sem espacos) em `textBackgroundColor`/`backgroundColor`. Tambem strip de `padding`/`borderRadius`/`textShadow` quando acompanham plate removido. Backfill executado: limpou 2 projetos / 8 elementos adicionais.
+  - **Testes** (10 novos + todos antigos = 120/120 passando):
+    - `test_analyze_region_only_inspects_specified_region` ✓ — corner vs center retornam tones opostos
+    - `test_analyze_region_mixed_zone_flagged` ✓ — stddev > 0.18 = mixed
+    - `test_effective_bg_returns_region_luminance_when_available` ✓
+    - `test_slide_context_reports_per_element_region` ✓ — reproduz EXATAMENTE o bug do usuario com imagem de teste sintetica
+  - **Limitacao residual conhecida**: para slides com `bgRegion=mixed` (regiao com luminancia muito variavel), nenhuma cor unica resolve 100%. Nesses casos, vale considerar a feature "Sugerir nova imagem de fundo" (proxima do backlog).
+
+
 - 2026-05-19 (cont. v6.1): **HOTFIX** — `POST /api/aesthetics/analyze/{pid}` retornando 500.
   - **Causa raiz**: em `_build_slide_context`, a expressao `opacity < 1` quebrava com `TypeError: '<' not supported between instances of 'str' and 'int'` quando `style.opacity` vinha do DB como string (ex: `"0.5"`). Mesmo problema potencial em `x:.0f`, `y:.0f`, `width:.0f`, `height:.0f` para coordenadas armazenadas como strings.
   - **Fix**: coercao defensiva via `float(v)` com fallback safe em `opacity`, `x`, `y`, `width`, `height`. Tratamento `try/except` para valores invalidos (ex: `"auto"`).
