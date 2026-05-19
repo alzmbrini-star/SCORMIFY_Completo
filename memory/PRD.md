@@ -88,6 +88,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-18: **FIX (P0)** — Aesthetic Analyzer: aplicar sugestao de "Fontes" em slide com texto branco-sobre-branco nao corrigia a invisibilidade.
+  - **Pedido do usuario** (2 screenshots antes/depois): "Aplicando a sugestao de melhoria visual apenas no slide 10 que tem fontes brancas sobre fundo branco! Depois de aplicado as melhorias ficou exatamente do mesmo modo".
+  - **Causa raiz**: a sugestao "Fontes" do Aesthetic Analyzer so injeta `fontSize` no `changes`, nao mexe em `fontColor`. O slide 10 do user tinha texto `#ffffff` sobre fundo branco → invisivel. A aplicacao mudava o tamanho da fonte, mas a cor invisivel permanecia.
+  - **Fix de defesa em profundidade** (`routes/aesthetics.py::_apply_style_fix`):
+    - **Post-fix contrast sweep**: apos aplicar QUALQUER mudanca em elemento textual (type=text/html/paragraph/title/heading OU com content/htmlContent), verifica o `fontColor` atual contra o background efetivo. Se ratio < 4.5 (WCAG AA), forca cor de alto contraste automaticamente.
+    - **Background image-aware**: em slides com `backgroundImage` (busy), forca `LIGHT_FALLBACK` (`#f1f5f9`) + plate por baixo. Em fundos solidos, usa `pick_high_contrast_color()` (escuro vs claro pela luminancia).
+    - **Sincronia de campos**: forca tanto `style.fontColor` quanto `style.color` para o mesmo valor (renderers diferentes leem campos diferentes).
+    - **Bonus para elementos HTML**: alem do `style.fontColor`, INJETA via `_apply_html_style_fix()` um `<style data-aesthetic-fix>` com `body *, p, h1-h6, span, li, td, th, div { color: ... !important }` que vence inline `<h2 style="color:#fff">` no htmlContent. Idempotente: strips prior aesthetic-fix tags antes de re-injetar.
+  - **Validacao via unit test** (2 cenarios):
+    - Slide text/text com `fontColor=#ffffff` sobre `backgroundColor=#ffffff` + change apenas `fontSize=56` → cor forca para `#0f172a`, tamanho preservado em 56.
+    - Slide html com `<h2 style="color:#ffffff">` + change apenas `fontSize=56` → htmlContent ganha `<style data-aesthetic-fix>` com `color: #0f172a !important` que vence o inline. Idempotente entre re-aplicacoes.
+
+
 - 2026-05-18: **FIX (P1)** — Imagens de fundo da Biblioteca de Marca ficavam "fumacadas" (overlay escuro inesperado).
   - **Pedido do usuario** (screenshot): "Ao aplicar uma imagem de background na biblioteca de marca fica este efeito smoked escurecido".
   - **Causa raiz**: o **Aesthetic Analyzer** seta `slide.backgroundImageOverlay='dark'` para melhorar contraste de texto em fundos visualmente busy. Quando o autor DEPOIS sobrepoe esse fundo com uma imagem hand-picked da Brand Library, o overlay legado continua aplicado pelos renderers → a imagem brand fica visualmente "fumacada" / escurecida sem o autor querer.

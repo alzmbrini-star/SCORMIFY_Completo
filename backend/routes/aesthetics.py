@@ -307,6 +307,14 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
     """Apply style changes WITH WCAG enforcement and automatic plate insertion.
 
     Returns True if any change was applied. Mutates `element` in place.
+
+    Defense-in-depth (2026-05-18): even when the suggestion is purely about
+    font-size or layout, we ALWAYS recheck the element's current fontColor
+    against the effective background. If contrast is below WCAG AA (4.5:1),
+    we silently force a high-contrast color. This catches the case the user
+    reported — applying a "Fontes" suggestion on a slide where the text is
+    white-on-white doesn't visually change anything because the change set
+    only had fontSize. Now we sweep the color too.
     """
     if "style" not in element or not isinstance(element.get("style"), dict):
         element["style"] = {}
@@ -347,6 +355,53 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
 
         style[key] = val
         applied_any = True
+
+    # ------------------------------------------------------------------
+    # POST-FIX CONTRAST SWEEP (defense in depth)
+    # Even if the suggestion didn't include fontColor, the SLIDE itself
+    # might have invisible text. Whenever we touch ANY textual element
+    # we also verify its current fontColor against the effective background.
+    # ------------------------------------------------------------------
+    is_textual = (
+        element.get("type") in ("text", "html", "paragraph", "title", "heading")
+        or element.get("content")
+        or element.get("htmlContent")
+    )
+    if is_textual:
+        current_color = style.get("fontColor") or style.get("color") or "#000000"
+        try:
+            ratio = wcag.contrast_ratio(current_color, bg_color)
+        except Exception:
+            ratio = 99.0  # be permissive when parsing fails
+        if ratio < 4.5:
+            # On busy backgrounds we always go to LIGHT (paired with a plate
+            # below). On solid backgrounds we pick the polarity that wins.
+            if has_image:
+                forced = wcag.LIGHT_FALLBACK
+            else:
+                forced = wcag.pick_high_contrast_color(bg_color)
+            if forced != current_color:
+                style["fontColor"] = forced
+                style["color"] = forced  # keep both keys in sync for renderers
+                applied_any = True
+            # For HTML-bearing elements (slides built by the AI Agent often
+            # use type='html' with inline `<p style="color:#fff">`), the
+            # style.fontColor change alone won't reach those nested inline
+            # rules. Inject an override CSS rule with !important to defeat
+            # them. _apply_html_style_fix is idempotent (strips prior
+            # aesthetic-fix tags before injecting).
+            if element.get("htmlContent"):
+                override_css = (
+                    f"body, body *, p, h1, h2, h3, h4, h5, h6, span, li, td, th, "
+                    f"div {{ color: {forced if forced != current_color else style.get('fontColor', '#0f172a')} !important; }}"
+                )
+                _apply_html_style_fix(
+                    element,
+                    override_css,
+                    target_color=style.get("fontColor"),
+                    preserve_html_typography=False,
+                )
+                applied_any = True
 
     # Auto-add plate when slide has bgImage and the element has visible text
     # AND we just touched its color/font. Plates are the single most effective
