@@ -194,3 +194,83 @@ def test_non_html_element_unchanged_by_propagator():
     sl = {"background": "#ffffff"}
     out = _propagate_style_to_html_content(el, {"fontSize": 48}, sl)
     assert out is False
+
+
+# ---------------------------------------------------------------------------
+# Background-image plate (option A from user)
+# ---------------------------------------------------------------------------
+
+def test_bg_image_injects_dark_plate_for_light_text():
+    """When slide has a busy backgroundImage and text is light/white, inject
+    a semi-transparent DARK backdrop into htmlContent so text is readable
+    over white regions of the decorative image."""
+    el = {
+        "type": "html",
+        "htmlContent": (
+            '<div style="padding:20px;">'
+            '<h2 style="color:#ffffff;font-size:31px;">Conclusão</h2>'
+            '<p style="color:rgba(255,255,255,0.75);font-size:20px;">Body</p>'
+            '</div>'
+        ),
+        "style": {},
+    }
+    sl = {"background": "#1e3a8a", "backgroundImage": "/api/.../bg.jpg"}
+    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
+    html = el["htmlContent"]
+    # Must inject a dark plate via <style data-aesthetic-fix>
+    assert "data-aesthetic-fix" in html, "Plate injection missing on bgImage slide"
+    # Plate must be dark and semi-transparent (rgba with high alpha)
+    assert "rgba(15,23,42" in html, "Expected dark slate plate"
+    # And it overrides the iframe's transparent body
+    assert "background:rgba(15,23,42" in html.replace(" ", "")
+
+
+def test_bg_image_injects_light_plate_for_dark_text():
+    """Inverse polarity: if dominant text is dark, inject a LIGHT plate."""
+    el = {
+        "type": "html",
+        "htmlContent": (
+            '<div style="padding:20px;">'
+            '<h2 style="color:#0f172a;font-size:34px;">Título escuro</h2>'
+            '</div>'
+        ),
+        "style": {},
+    }
+    sl = {"background": "#ffffff", "backgroundImage": "/api/.../bg.jpg"}
+    _apply_style_fix(el, sl, {"fontSize": 56})
+    html = el["htmlContent"]
+    assert "data-aesthetic-fix" in html
+    assert "rgba(248,250,252" in html, "Expected light cream plate for dark text"
+
+
+def test_no_bg_image_means_no_plate():
+    """Slides WITHOUT backgroundImage should NOT receive a plate (no need)."""
+    el = {
+        "type": "html",
+        "htmlContent": (
+            '<h2 style="color:#ffffff;font-size:31px;">Texto</h2>'
+        ),
+        "style": {},
+    }
+    sl = {"background": "#1e3a8a"}  # solid navy, NO backgroundImage
+    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
+    html = el["htmlContent"]
+    # No plate injection — solid bg already provides contrast
+    assert "rgba(15,23,42,0.78)" not in html, "Plate should not be injected without bgImage"
+
+
+def test_bg_image_plate_is_idempotent():
+    """Re-applying must not stack multiple plates."""
+    el = {
+        "type": "html",
+        "htmlContent": '<h2 style="color:#ffffff;font-size:31px;">T</h2>',
+        "style": {},
+    }
+    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
+    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
+    first = el["htmlContent"]
+    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
+    second = el["htmlContent"]
+    # Only one aesthetic-fix style tag survives
+    assert second.count("data-aesthetic-fix") == 1
+    assert first == second

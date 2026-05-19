@@ -88,6 +88,39 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v2): **FIX (P0 follow-up)** — Analisador de Estetica: texto branco continuava invisivel em areas BRANCAS da `backgroundImage` mesmo depois do propagador de fontes.
+  - **Pedido do usuario** (screenshot apos primeiro fix): "ele aumentou o tamanho da fonte, mas nao mexeu na cor por favor corrija este problema!"
+  - **Causa raiz**: o propagador anterior verificava contraste apenas contra `slide.background` (cor SOLIDA, navy `#1e3a8a`). Mas o slide tinha uma `backgroundImage` decorativa com formas BRANCAS no centro — o texto branco caia exatamente em cima dessas regioes claras. Contraste branco-vs-navy = 14:1 (otimo), mas branco-vs-branco-da-imagem = 1:1 (invisivel).
+  - **Fix — Opcao A escolhida pelo usuario**: plate semi-transparente DENTRO do htmlContent.
+    - **Nova funcao `_inject_html_bg_plate(element, slide)`** em `routes/aesthetics.py`:
+      - Detecta cor de texto dominante via `Counter` dos inline `color:` no htmlContent
+      - Light text (`#ffffff`, `#f8fafc`) → injeta plate dark `rgba(15,23,42,0.78)` + `color: #f8fafc`
+      - Dark text (`#0f172a`, `#000`) → injeta plate light `rgba(248,250,252,0.88)` + `color: #0f172a`
+      - O CSS injetado:
+        ```
+        html,body{background:<plate> !important; border-radius:12px; color:<fg>;}
+        body{padding:24px !important;}
+        h1-h6,p,li,span,td,th,div,label{color:inherit;}
+        ```
+      - **Crucial**: o `color:inherit` SEM `!important` so afeta tags SEM cor inline (preserva acentos como `color:#f59e0b`). Body's `color:` provee o default que h3 sem cor inline herda — antes ficava preto sobre o plate dark.
+    - **Integracao**: `_apply_style_fix` agora chama `_inject_html_bg_plate` no final, AUTOMATICAMENTE, sempre que (a) elemento e `type=html`, (b) slide tem `backgroundImage`, e (c) qualquer style change foi aplicada. Decoupled de fontSize/color — qualquer ajuste estetico em slide com bgImage garante o plate.
+    - **Idempotente**: `_clean_aesthetic_fixes_from_html` strip prior tags antes de re-injetar. 2 chamadas seguidas produzem o mesmo HTML.
+  - **Validacao via E2E real** (projeto `a0b4069e-...` slide 9 el 1 — "Conclusao"):
+    - applyAll com 7 fixes → htmlContent ganha `<style data-aesthetic-fix>html,body{background:rgba(15,23,42,0.78) !important; ...}</style>`
+    - Screenshot do iframe simulado mostra:
+      - Plate dark visivel ao redor do conteudo (decoracao da imagem visivel nas margens)
+      - h2 "Conclusao e Proximos Passos" → BRANCO LEGIVEL
+      - h3 "Sintetizando o Aprendizado" (sem cor inline) → agora herda body color, LEGIVEL
+      - Acento orange "Diagnostico Preciso:" → PRESERVADO (color:#f59e0b inline)
+    - Antes vs depois: o texto branco que caia sobre area branca da imagem agora cai sobre o plate dark → contraste garantido.
+  - **Validacao via unit tests** (4 novos + 9 originais = 13/13 passando em `tests/test_aesthetics_html_propagation.py`):
+    - `test_bg_image_injects_dark_plate_for_light_text` ✓
+    - `test_bg_image_injects_light_plate_for_dark_text` ✓
+    - `test_no_bg_image_means_no_plate` ✓ (slide sem bgImage NAO recebe plate)
+    - `test_bg_image_plate_is_idempotent` ✓ (2x apply = mesmo HTML, 1 unica tag)
+  - **Regressao**: 116 testes pre-existentes do dominio aesthetics passando — sem regressao.
+
+
 - 2026-05-19 (cont.): **FIX (P0)** — Analisador de Estetica: aplicar sugestao de "Fontes" em slide `type=html` nao alterava o tamanho/peso visivel do texto.
   - **Pedido do usuario**: "Ele sincronizou corretamente mas continua sem fazer o contraste correto da fonte mesmo depois de aplicar a melhoria sugerida por favor corrija este BUG!"
   - **Causa raiz**: `_apply_style_fix` so mexia em `element.style.fontSize/fontWeight/fontColor` (campos do elemento de fora). Mas elementos `type=html` renderizam o htmlContent dentro de um iframe (srcDoc) — o que o aluno VE e o inline `<h2 style="font-size:31px;font-weight:700;color:#ffffff">` DENTRO do htmlContent. Mexer no style externo nao tinha efeito visual nenhum.

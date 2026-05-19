@@ -367,6 +367,87 @@ def _rewrite_inline_font_weight(style_attr: str, new_weight) -> str:
     return re.sub(r"\bfont-weight\s*:\s*[^;]+", f"font-weight:{new_weight}", style_attr, flags=re.IGNORECASE)
 
 
+def _inject_html_bg_plate(element: dict, slide: dict) -> bool:
+    """For type=html elements on slides with a busy backgroundImage,
+    inject a semi-transparent backdrop into htmlContent so text is
+    legible regardless of what part of the decorative image lies behind
+    it.
+
+    The plate polarity is chosen from the DOMINANT text color of the
+    htmlContent:
+      - light text → dark plate (rgba(15,23,42,0.78))
+      - dark text  → light plate (rgba(248,250,252,0.88))
+
+    Idempotent: strips any prior aesthetic-fix `<style>` tags before
+    re-injecting, so re-applying the same fix yields the same html.
+    Returns True if the htmlContent was mutated.
+    """
+    if element.get("type") != "html":
+        return False
+    if not slide.get("backgroundImage"):
+        return False
+    html = element.get("htmlContent") or ""
+    if not html:
+        return False
+
+    # Strip prior aesthetic-fix tags so we don't pile up backdrops.
+    cleaned = _clean_aesthetic_fixes_from_html(html)
+    try:
+        soup = BeautifulSoup(cleaned, "html.parser")
+    except Exception as exc:
+        logger.warning(f"BS4 parse failed in _inject_html_bg_plate: {exc}")
+        return False
+
+    # Determine dominant inline text color.
+    inline_colors = re.findall(r"\bcolor\s*:\s*([^;\"\']+)", str(soup), re.IGNORECASE)
+    intended_fg = None
+    if inline_colors:
+        from collections import Counter
+        most_common = Counter(c.strip() for c in inline_colors).most_common(1)
+        if most_common:
+            intended_fg = most_common[0][0]
+    # Fallback: assume light text if we can't tell.
+    if not intended_fg:
+        intended_fg = wcag.LIGHT_FALLBACK
+
+    try:
+        is_dark_text = wcag.is_dark_background(intended_fg)
+    except Exception:
+        is_dark_text = False
+
+    if is_dark_text:
+        plate_rgba = "rgba(248,250,252,0.88)"
+        text_color = wcag.DARK_FALLBACK
+    else:
+        plate_rgba = "rgba(15,23,42,0.78)"
+        text_color = wcag.LIGHT_FALLBACK
+
+    rule = (
+        "html,body{background:" + plate_rgba + " !important;"
+        "border-radius:12px;color:" + text_color + ";}"
+        "body{padding:24px !important;}"
+        # Tags without their own inline color inherit the body default.
+        # We also explicitly cover h1-h6 + p + li because some user-agent
+        # stylesheets set their own color (e.g. h3 → black on Chrome).
+        "h1,h2,h3,h4,h5,h6,p,li,span,td,th,div,label{color:inherit;}"
+    )
+
+    style_tag = soup.new_tag("style", attrs={"data-aesthetic-fix": "1"})
+    style_tag.string = rule
+    if soup.head:
+        soup.head.append(style_tag)
+    elif soup.body:
+        soup.body.insert(0, style_tag)
+    else:
+        soup.insert(0, style_tag)
+
+    new_html = str(soup)
+    if new_html != html:
+        element["htmlContent"] = new_html
+        return True
+    return False
+
+
 def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) -> bool:
     """For type=html elements, rewrite inline styles inside htmlContent so
     that fontSize/fontWeight/fontColor changes from `changes` actually
@@ -491,12 +572,17 @@ def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) 
             tag["style"] = new_style
             mutated = True
 
-    # Fallback: no inline font-sizes existed but LLM wants a size change
-    # → inject a <style data-aesthetic-fix> block targeting h1-h6.
+    # ------------------------------------------------------------------
+    # INJECTED STYLE BLOCK (fallback only)
+    # When the htmlContent has NO inline font-sizes but the LLM still
+    # wants a size bump, inject a <style data-aesthetic-fix> targeting
+    # h1-h6. The bgImage plate is handled separately by
+    # `_inject_html_bg_plate` so the two concerns stay independent.
+    # ------------------------------------------------------------------
     if target_size and not sized_entries:
-        css_parts = [f"h1,h2,h3,h4,h5,h6 {{ font-size: {target_size}px !important;"]
+        rule = f"h1,h2,h3,h4,h5,h6 {{ font-size: {target_size}px !important;"
         if new_weight:
-            css_parts.append(f" font-weight: {new_weight} !important;")
+            rule += f" font-weight: {new_weight} !important;"
         if new_color:
             final_color = new_color
             try:
@@ -504,12 +590,10 @@ def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) 
                     final_color = wcag.pick_high_contrast_color(html_bg)
             except Exception:
                 pass
-            css_parts.append(f" color: {final_color} !important;")
-        css_parts.append(" }")
+            rule += f" color: {final_color} !important;"
+        rule += " }"
         style_tag = soup.new_tag("style", attrs={"data-aesthetic-fix": "1"})
-        style_tag.string = "".join(css_parts)
-        # Insert at the very beginning of the soup so head/body tags can
-        # override it normally; idempotent (we stripped prior fixes above).
+        style_tag.string = rule
         if soup.head:
             soup.head.append(style_tag)
         elif soup.body:
@@ -662,6 +746,14 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
         effective_changes = {k: v for k, v in effective_changes.items() if v is not None}
         if effective_changes:
             if _propagate_style_to_html_content(element, effective_changes, slide):
+                applied_any = True
+
+        # BACKGROUND-IMAGE PLATE for html elements on busy slides.
+        # Runs independently of font changes — any style fix that touches
+        # an html element on a slide WITH backgroundImage should also
+        # guarantee the content sits on a known readable backdrop.
+        if applied_any and has_image:
+            if _inject_html_bg_plate(element, slide):
                 applied_any = True
 
     return applied_any
