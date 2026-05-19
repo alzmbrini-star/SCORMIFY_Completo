@@ -88,6 +88,29 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v3): **FIX (P0 follow-up #2)** — Analisador de Estetica: plate com polaridade ERRADA em slides com `<font color>` legacy.
+  - **Pedido do usuario** (screenshot apos v2): "Agora ele esta colocando este overlay escuro mesmo onde nao ha necessidade!" — slide 0 (Capa) ficou com texto BLACK sobre plate DARK = invisivel.
+  - **Causa raiz**: a IA Agent emite HTML4 legacy `<font color="#000000">` tags ao inves de inline `style="color:..."`. Minha deteccao de polaridade do plate (`_inject_html_bg_plate`) so olhava `style="color:"` via regex, ignorando `<font color>`. Resultado: para um slide com texto preto via `<font>`, o detector achava que NAO havia inline-color e defaultava para `LIGHT_FALLBACK` (`#f8fafc`) → plate DARK (errado para texto preto). E o `_propagate_style_to_html_content` tambem nao reescrevia o `<font color>`, entao o texto continuava preto mesmo apos a sugestao da LLM.
+  - **Fix em 3 frentes** (`routes/aesthetics.py`):
+    1. **Novas helpers** `_extract_styled_tag_colors(soup)` + `_pick_dominant_color(entries)`:
+       - Coleta cores de BOTH `style="color:X"` E `<font color="X">` em UMA so passada do soup
+       - Captura tambem `font-size: Npx` da inline-style para escolher o "titulo" (maior tamanho) como referencia da polaridade dominante — mais semantico que apenas frequencia
+       - `_pick_dominant_color`: prioriza color do maior tag; fallback para o mais frequente
+    2. **`_inject_html_bg_plate` refatorado**: usa as novas helpers em vez de regex. Agora detecta corretamente texto preto via `<font color>` e injeta plate LIGHT (em vez de DARK).
+    3. **`_propagate_style_to_html_content` extendido**: alem dos inline `style="color"`, agora tambem reescreve `<font color="X">`:
+       - **Regra**: apenas reescreve se `cur_ratio < 4.5` (contraste atual ruim contra html_bg). Acentos legiveis (orange `#f59e0b` em navy) sao PRESERVADOS.
+       - Quando reescreve: prefere o `new_color` da LLM (validado contra bg, com fallback para `pick_high_contrast_color`).
+  - **Validacao via E2E real** (projeto `a0b4069e-...`):
+    - Slide 0 el[1] tinha `<font color="#000000">` x2 → reescritos para `#f8fafc` ✓
+    - Plate dark `rgba(15,23,42,0.78)` mantido (correto: texto agora e light)
+    - Screenshot dos slides 0 + 9 lado-a-lado mostra texto branco LEGIVEL sobre plate dark, com decoracao da bgImage visivel ao redor.
+  - **Validacao via unit tests** (3 novos + 13 antigos = 16/16 em `tests/test_aesthetics_html_propagation.py`):
+    - `test_legacy_font_color_rewritten_when_llm_proposes` ✓ — `<font color="#000">` → `<font color="#f8fafc">` quando LLM propoe
+    - `test_plate_polarity_uses_font_attr_color` ✓ — detecta black em `<font>`, flipa para light, plate fica dark
+    - `test_legacy_font_color_left_alone_when_legible` ✓ — orange `#f59e0b` em navy PRESERVADO
+  - **Regressao**: 119 testes do dominio aesthetics passando (era 116, +3 novos) — sem regressao.
+
+
 - 2026-05-19 (cont. v2): **FIX (P0 follow-up)** — Analisador de Estetica: texto branco continuava invisivel em areas BRANCAS da `backgroundImage` mesmo depois do propagador de fontes.
   - **Pedido do usuario** (screenshot apos primeiro fix): "ele aumentou o tamanho da fonte, mas nao mexeu na cor por favor corrija este problema!"
   - **Causa raiz**: o propagador anterior verificava contraste apenas contra `slide.background` (cor SOLIDA, navy `#1e3a8a`). Mas o slide tinha uma `backgroundImage` decorativa com formas BRANCAS no centro — o texto branco caia exatamente em cima dessas regioes claras. Contraste branco-vs-navy = 14:1 (otimo), mas branco-vs-branco-da-imagem = 1:1 (invisivel).

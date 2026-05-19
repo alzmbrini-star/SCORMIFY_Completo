@@ -274,3 +274,61 @@ def test_bg_image_plate_is_idempotent():
     # Only one aesthetic-fix style tag survives
     assert second.count("data-aesthetic-fix") == 1
     assert first == second
+
+
+# ---------------------------------------------------------------------------
+# Legacy HTML4 <font color="X"> support (the AI Agent emits these)
+# ---------------------------------------------------------------------------
+
+LEGACY_FONT_HTML = (
+    '<div style="text-align:center;padding:20px;">'
+    '<h1 style="font-family:Inter, sans-serif;font-size:72px;font-weight:900;">'
+    '<font color="#000000">Capa: O Jeito Intelbras de Atender</font></h1>'
+    '<p style="font-family:Inter, sans-serif;font-size:30px;">'
+    '<font color="#000000">Bem-vindo ao treinamento...</font></p>'
+    '</div>'
+)
+
+
+def test_legacy_font_color_rewritten_when_llm_proposes():
+    """<font color="#000"> must be rewritten when LLM proposes a new color
+    (matches the user's actual project where AI Agent emits HTML4 markup)."""
+    el = {"type": "html", "htmlContent": LEGACY_FONT_HTML, "style": {}}
+    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
+    _apply_style_fix(el, sl, {"fontColor": "#f8fafc", "fontSize": 72})
+    new_html = el["htmlContent"]
+    # Both <font color="#000000"> must have flipped to the LLM target
+    assert 'color="#000000"' not in new_html, "Black font color should be replaced"
+    assert 'color="#f8fafc"' in new_html, "Should have new light color in <font> attr"
+
+
+def test_plate_polarity_uses_font_attr_color():
+    """When inline styles have NO color but <font color="X"> does, the
+    plate polarity must be derived from the <font> color (the actually-
+    visible color in the iframe)."""
+    el = {"type": "html", "htmlContent": LEGACY_FONT_HTML, "style": {}}
+    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
+    # Apply only a size change — leave color decisions to defense-in-depth.
+    _apply_style_fix(el, sl, {"fontSize": 72})
+    new_html = el["htmlContent"]
+    # <font color="#000000"> failed WCAG vs html_bg (navy), so it gets
+    # flipped to high-contrast (light).
+    assert 'color="#000000"' not in new_html
+    # After the flip, the dominant color is LIGHT → dark plate expected.
+    assert "rgba(15,23,42" in new_html
+
+
+def test_legacy_font_color_left_alone_when_legible():
+    """If <font color> already has good contrast against html_bg, do not
+    rewrite it (preserve intentional brand colors). E.g., orange accent
+    on dark navy."""
+    html = (
+        '<h2><font color="#f59e0b">Highlighted</font></h2>'
+    )
+    el = {"type": "html", "htmlContent": html, "style": {}}
+    sl = {"background": "#1e3a8a"}  # navy
+    # Trigger propagation via fontSize change (no fontColor)
+    _apply_style_fix(el, sl, {"fontSize": 56})
+    new_html = el["htmlContent"]
+    # orange ~6.4:1 on navy passes WCAG → must be preserved
+    assert 'color="#f59e0b"' in new_html

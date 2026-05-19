@@ -320,6 +320,59 @@ def _effective_bg_for_element(slide: dict) -> tuple:
 _TEXT_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "li", "td", "th", "strong", "b", "em", "div", "label")
 
 
+def _extract_styled_tag_colors(soup: BeautifulSoup):
+    """Walk every tag in `soup` and return a list of dicts:
+        [{"tag": Tag, "color": "#xxx", "source": "style|font_attr", "size_px": float|None}]
+
+    Captures BOTH modern inline `style="color:X"` AND legacy HTML4
+    `<font color="X">` attributes. The AI Agent generates a mix of both,
+    and earlier versions of this analyzer ignored `<font>` → polarity
+    detection got fooled into picking the wrong plate.
+    """
+    entries = []
+    for tag in soup.find_all(True):
+        # Inline style="color:X"
+        style_attr = tag.get("style", "") or ""
+        m_col = re.search(r"\bcolor\s*:\s*([^;\"\']+)", style_attr, re.IGNORECASE)
+        m_sz = re.search(r"\bfont-size\s*:\s*([\d.]+)\s*px", style_attr, re.IGNORECASE)
+        size_px = float(m_sz.group(1)) if m_sz else None
+        if m_col:
+            entries.append({
+                "tag": tag,
+                "color": m_col.group(1).strip().rstrip(';').strip(),
+                "source": "style",
+                "size_px": size_px,
+            })
+        # Legacy <font color="X">
+        if tag.name == "font" and tag.get("color"):
+            entries.append({
+                "tag": tag,
+                "color": str(tag.get("color")).strip(),
+                "source": "font_attr",
+                "size_px": size_px,  # may be inherited
+            })
+    return entries
+
+
+def _pick_dominant_color(entries) -> str:
+    """From `_extract_styled_tag_colors` output, pick the color that
+    represents the slide's primary text identity. Strategy:
+      1. The color of the entry with the largest `size_px` (the title)
+         — assuming we can resolve it.
+      2. Fallback to the most common color across all entries.
+    """
+    if not entries:
+        return wcag.LIGHT_FALLBACK
+    # Prefer the entry with the largest known font-size
+    sized = [e for e in entries if e["size_px"]]
+    if sized:
+        biggest = max(sized, key=lambda e: e["size_px"])
+        return biggest["color"]
+    # Otherwise the most common color
+    from collections import Counter
+    return Counter(e["color"] for e in entries).most_common(1)[0][0]
+
+
 def _rewrite_inline_color(style_attr: str, new_color: str, html_bg: str,
                           only_when_failing: bool = False) -> str:
     """Replace every `color: X` inside an inline style attribute.
@@ -398,17 +451,12 @@ def _inject_html_bg_plate(element: dict, slide: dict) -> bool:
         logger.warning(f"BS4 parse failed in _inject_html_bg_plate: {exc}")
         return False
 
-    # Determine dominant inline text color.
-    inline_colors = re.findall(r"\bcolor\s*:\s*([^;\"\']+)", str(soup), re.IGNORECASE)
-    intended_fg = None
-    if inline_colors:
-        from collections import Counter
-        most_common = Counter(c.strip() for c in inline_colors).most_common(1)
-        if most_common:
-            intended_fg = most_common[0][0]
-    # Fallback: assume light text if we can't tell.
-    if not intended_fg:
-        intended_fg = wcag.LIGHT_FALLBACK
+    # Determine dominant text color from BOTH modern inline styles AND
+    # legacy <font color="X"> attributes. Earlier versions missed <font>
+    # which led to picking the wrong plate polarity on AI-generated slides
+    # that emit HTML4 markup.
+    entries = _extract_styled_tag_colors(soup)
+    intended_fg = _pick_dominant_color(entries)
 
     try:
         is_dark_text = wcag.is_dark_background(intended_fg)
@@ -570,6 +618,42 @@ def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) 
 
         if new_style != style_attr:
             tag["style"] = new_style
+            mutated = True
+
+    # ------------------------------------------------------------------
+    # LEGACY <font color="X"> rewrite
+    # The AI Agent sometimes emits HTML4 `<font color="...">` wrappers
+    # instead of inline `style="color:..."`. We need to rewrite those too
+    # so the visible color actually changes.
+    #
+    # Rule: ONLY rewrite when the current color fails WCAG (< 4.5) against
+    # the html bg. This preserves intentional brand-accent colors that are
+    # already legible (e.g., orange on navy).
+    # ------------------------------------------------------------------
+    for font_tag in soup.find_all("font", color=True):
+        cur = str(font_tag.get("color") or "").strip()
+        if not cur:
+            continue
+        try:
+            cur_ratio = wcag.contrast_ratio(cur, html_bg)
+        except Exception:
+            cur_ratio = 99.0
+        if cur_ratio >= 4.5:
+            # Already legible — DO NOT touch (preserves accents).
+            continue
+        # Failing WCAG: pick a replacement. Prefer the LLM-proposed color
+        # (after validating against the bg); otherwise auto-flip polarity.
+        if new_color:
+            final_color = new_color
+            try:
+                if wcag.contrast_ratio(final_color, html_bg) < 4.5:
+                    final_color = wcag.pick_high_contrast_color(html_bg)
+            except Exception:
+                pass
+        else:
+            final_color = wcag.pick_high_contrast_color(html_bg)
+        if cur.lower() != final_color.lower():
+            font_tag["color"] = final_color
             mutated = True
 
     # ------------------------------------------------------------------
