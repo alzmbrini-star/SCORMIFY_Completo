@@ -200,10 +200,9 @@ def test_non_html_element_unchanged_by_propagator():
 # Background-image plate (option A from user)
 # ---------------------------------------------------------------------------
 
-def test_bg_image_injects_dark_plate_for_light_text():
-    """When slide has a busy backgroundImage and text is light/white, inject
-    a SURGICAL dark plate per text block (not full-body) so the decorative
-    image stays fully visible AROUND the text."""
+def test_bg_image_does_not_inject_plate_anymore():
+    """v6 (no-overlay): even on slides with bgImage, NO plate is injected.
+    Only font color is swapped if needed for contrast."""
     el = {
         "type": "html",
         "htmlContent": (
@@ -217,134 +216,60 @@ def test_bg_image_injects_dark_plate_for_light_text():
     sl = {"background": "#1e3a8a", "backgroundImage": "/api/.../bg.jpg"}
     _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
     html = el["htmlContent"]
-    # Must inject a <style data-aesthetic-fix> with surgical-plate rules
-    assert "data-aesthetic-fix" in html, "Plate injection missing on bgImage slide"
-    # Surgical plate uses attribute markers, not full-body backgrounds
-    assert "data-aesthetic-plate" in html, "Text blocks must be marked for surgical plate"
-    # Plate must be dark for light text
-    assert "rgba(15,23,42" in html, "Expected dark slate plate for light text"
-    # CRUCIAL: iframe stays transparent — bgImage decoration shines through
-    assert "background:transparent" in html.replace(" ", "")
-    # h2 and p must be marked (they are block-level text)
-    assert html.count('data-aesthetic-plate="1"') == 2, "Both h2 and p must get plates"
+    # NO plate markers, NO data-aesthetic-fix style tags
+    assert "data-aesthetic-plate" not in html, "v6: no plate markers should be added"
+    assert "rgba(15,23,42" not in html, "v6: no dark plate rgba"
+    assert "rgba(248,250,252" not in html, "v6: no light plate rgba"
 
 
-def test_bg_image_injects_light_plate_for_dark_text():
-    """Inverse polarity: if dominant text is dark, inject a LIGHT plate."""
+def test_bg_image_low_contrast_text_color_swapped():
+    """When inline text color fails WCAG vs slide.background (solid color,
+    ignoring bgImage variability), swap the inline color. NO plate overlay."""
     el = {
         "type": "html",
         "htmlContent": (
-            '<div style="padding:20px;">'
-            '<h2 style="color:#0f172a;font-size:34px;">Título escuro</h2>'
-            '</div>'
+            '<h2 style="color:#ffffff;">Invisible on white slide</h2>'
         ),
         "style": {},
     }
-    sl = {"background": "#ffffff", "backgroundImage": "/api/.../bg.jpg"}
+    sl = {"background": "#ffffff", "backgroundImage": "/img.jpg"}
     _apply_style_fix(el, sl, {"fontSize": 56})
     html = el["htmlContent"]
-    assert "data-aesthetic-fix" in html
-    assert "rgba(248,250,252" in html, "Expected light cream plate for dark text"
-    # Iframe transparent
-    assert "background:transparent" in html.replace(" ", "")
+    # White color must be replaced with high-contrast (dark)
+    assert "color:#ffffff" not in html.lower()
+    # No plate overlay (markers or rgba backdrops)
+    assert "data-aesthetic-plate" not in html
+    assert "rgba(15,23,42,0.78)" not in html
+    assert "rgba(248,250,252,0.88)" not in html
+    # Iframe body must not get an opaque background painted on it
+    assert "html,body{background:rgba" not in html.replace(" ", "").lower()
+    assert "body{background:rgba" not in html.replace(" ", "").lower()
 
 
-def test_no_bg_image_means_no_plate():
-    """Slides WITHOUT backgroundImage should NOT receive a plate (no need)."""
-    el = {
-        "type": "html",
-        "htmlContent": (
-            '<h2 style="color:#ffffff;font-size:31px;">Texto</h2>'
-        ),
-        "style": {},
-    }
-    sl = {"background": "#1e3a8a"}  # solid navy, NO backgroundImage
-    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
-    html = el["htmlContent"]
-    # No plate injection — solid bg already provides contrast
-    assert "data-aesthetic-plate" not in html, "Plate markers should not appear without bgImage"
-    assert "rgba(15,23,42,0.78)" not in html, "Plate should not be injected without bgImage"
+def test_cleanup_strips_legacy_plate_artifacts():
+    """Applying a style fix to an element that ALREADY has plate artifacts
+    from v3/v4/v5 must strip them clean (no-overlay migration path).
 
-
-def test_bg_image_plate_is_idempotent():
-    """Re-applying must not stack multiple plates."""
-    el = {
-        "type": "html",
-        "htmlContent": '<h2 style="color:#ffffff;font-size:31px;">T</h2>',
-        "style": {},
-    }
-    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
-    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
-    first = el["htmlContent"]
-    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
-    second = el["htmlContent"]
-    # Only one aesthetic-fix style tag survives + one plate marker per block
-    assert second.count("data-aesthetic-fix") == 1
-    # Only one plate marker on the h2 (no stacking)
-    assert second.count('data-aesthetic-plate="1"') == 1
-    assert first == second
-
-
-def test_surgical_plate_keeps_iframe_transparent():
-    """The decorative bgImage must remain visible AROUND the plates —
-    the iframe body must stay transparent."""
-    el = {
-        "type": "html",
-        "htmlContent": '<h1 style="color:#ffffff;font-size:48px;">Title</h1><p style="color:#ffffff">Body</p>',
-        "style": {},
-    }
-    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
-    _apply_style_fix(el, sl, {"fontSize": 48})
-    html = el["htmlContent"]
-    # html/body must NOT get an opaque background — that was the old bug
-    no_space = html.replace(" ", "").lower()
-    assert "html,body{background:transparent" in no_space, (
-        "Iframe must stay transparent so bgImage decoration is visible"
+    Note: a fresh `<style data-aesthetic-fix>` for font-size fallback may
+    be re-injected by the propagator if the element lacks inline sizes,
+    but it MUST NOT contain plate/overlay rules (rgba backdrops, body
+    background, plate markers)."""
+    legacy_html = (
+        '<style data-aesthetic-fix="1">html,body{background:rgba(15,23,42,0.78) !important;}</style>'
+        '<h2 data-aesthetic-plate="1" style="color:#ffffff;">Title</h2>'
+        '<p data-aesthetic-plate="1" style="color:#ffffff;">Body</p>'
     )
-    # No rule should set body's background to a colored rgba
-    assert "body{background:rgba" not in no_space
-
-
-def test_surgical_plate_only_marks_block_text_tags():
-    """Inline tags (span, b, em) MUST NOT receive plate markers — that
-    would break bold/italic runs into fragmented plates."""
-    el = {
-        "type": "html",
-        "htmlContent": (
-            '<h1 style="color:#ffffff">Title <span style="color:#f59e0b">accent</span></h1>'
-            '<p style="color:#ffffff">Body <b>bold</b> text</p>'
-        ),
-        "style": {},
-    }
+    el = {"type": "html", "htmlContent": legacy_html, "style": {}}
     sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
-    _apply_style_fix(el, sl, {"fontSize": 48})
+    _apply_style_fix(el, sl, {"fontSize": 64})
     html = el["htmlContent"]
-    # h1 and p both marked — but NOT the inner span/b
-    assert 'h1 data-aesthetic-plate' in html or '<h1 ' in html and 'data-aesthetic-plate' in html
-    # Inline tags must not have the marker
-    assert '<span data-aesthetic-plate' not in html
-    assert '<b data-aesthetic-plate' not in html
-
-
-def test_surgical_plate_skips_empty_blocks():
-    """Pure-container blocks (e.g., `<div>` with only child elements but no
-    direct text) should NOT be marked — markers go on the actual text
-    leaves."""
-    el = {
-        "type": "html",
-        "htmlContent": (
-            '<div>'
-            '<h2 style="color:#ffffff">Real text</h2>'
-            '<p></p>'  # empty paragraph
-            '</div>'
-        ),
-        "style": {},
-    }
-    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
-    _apply_style_fix(el, sl, {"fontSize": 48})
-    html = el["htmlContent"]
-    # Only the h2 should be marked (empty <p> skipped)
-    assert html.count('data-aesthetic-plate="1"') == 1
+    # Plate markers and old overlay rules removed
+    assert "data-aesthetic-plate" not in html
+    assert "rgba(15,23,42,0.78)" not in html
+    assert "html,body{background" not in html.replace(" ", "").lower()
+    # Text preserved
+    assert "Title" in html
+    assert "Body" in html
 
 
 # ---------------------------------------------------------------------------
@@ -374,9 +299,8 @@ def test_legacy_font_color_rewritten_when_llm_proposes():
 
 
 def test_plate_polarity_uses_font_attr_color():
-    """When inline styles have NO color but <font color="X"> does, the
-    plate polarity must be derived from the <font> color (the actually-
-    visible color in the iframe)."""
+    """v6 (no-overlay): when <font color> fails WCAG vs html_bg, the legacy
+    color must be flipped to high-contrast. NO plate is injected."""
     el = {"type": "html", "htmlContent": LEGACY_FONT_HTML, "style": {}}
     sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
     # Apply only a size change — leave color decisions to defense-in-depth.
@@ -385,8 +309,9 @@ def test_plate_polarity_uses_font_attr_color():
     # <font color="#000000"> failed WCAG vs html_bg (navy), so it gets
     # flipped to high-contrast (light).
     assert 'color="#000000"' not in new_html
-    # After the flip, the dominant color is LIGHT → dark plate expected.
-    assert "rgba(15,23,42" in new_html
+    # No plate overlay anymore (v6)
+    assert "data-aesthetic-plate" not in new_html
+    assert "rgba(15,23,42,0.78)" not in new_html
 
 
 def test_legacy_font_color_left_alone_when_legible():

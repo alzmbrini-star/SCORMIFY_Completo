@@ -759,14 +759,11 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
 
         # WCAG enforcement: any fontColor change is validated against the
         # effective background. If the LLM proposed a still-poor color, we
-        # silently upgrade to pure black/white.
+        # silently upgrade to pure black/white. We use `enforce_min_contrast`
+        # against the SOLID slide.background (ignoring bgImage variability)
+        # — the user prefers a simple swap-color approach over plate overlays.
         if key == "fontColor":
-            if has_image:
-                # On busy backgrounds, we want pure white text + dark plate.
-                # Override LLM suggestion to maximize contrast over the image.
-                final_color = wcag.LIGHT_FALLBACK
-            else:
-                final_color = wcag.enforce_min_contrast(str(val), bg_color, 4.5)
+            final_color = wcag.enforce_min_contrast(str(val), bg_color, 4.5)
             style["fontColor"] = final_color
             applied_any = True
             continue
@@ -804,12 +801,14 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
         except Exception:
             ratio = 99.0  # be permissive when parsing fails
         if ratio < 4.5:
-            # On busy backgrounds we always go to LIGHT (paired with a plate
-            # below). On solid backgrounds we pick the polarity that wins.
-            if has_image:
-                forced = wcag.LIGHT_FALLBACK
-            else:
-                forced = wcag.pick_high_contrast_color(bg_color)
+            # Pick the polarity that wins contrast against the SOLID slide
+            # background. For slides with a busy bgImage we still rely on
+            # the solid base color (slide.background) — the user prefers a
+            # simple "swap color, no overlay" approach. If the bgImage has
+            # very light AND very dark regions both, no single color can
+            # cover both, but this is an accepted tradeoff vs the ugly
+            # overlay rectangles.
+            forced = wcag.pick_high_contrast_color(bg_color)
             if forced != current_color:
                 style["fontColor"] = forced
                 style["color"] = forced  # keep both keys in sync for renderers
@@ -833,19 +832,6 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
                 )
                 applied_any = True
 
-    # Auto-add plate when slide has bgImage and the element has visible text
-    # AND we just touched its color/font. Plates are the single most effective
-    # contrast booster for busy backgrounds — far more reliable than picking
-    # an alternate color.
-    if has_image and (element.get("type") == "text" or element.get("content")):
-        if "textBackgroundColor" not in style and "backgroundColor" not in style:
-            # Pick plate color that contrasts with the (now-corrected) fontColor.
-            plate = wcag.pick_plate_color(style.get("fontColor") or "#ffffff")
-            style["textBackgroundColor"] = plate
-            style.setdefault("padding", "10px 14px")
-            style.setdefault("borderRadius", "8px")
-            applied_any = True
-
     # ------------------------------------------------------------------
     # HTML INLINE STYLE PROPAGATION (the real fix for the user's bug)
     # When the element renders htmlContent inside an iframe, mutations to
@@ -863,36 +849,52 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
         }
         # Drop None entries to keep semantics tight.
         effective_changes = {k: v for k, v in effective_changes.items() if v is not None}
+        propagator_ran = False
         if effective_changes:
             if _propagate_style_to_html_content(element, effective_changes, slide):
                 applied_any = True
+                propagator_ran = True
 
-        # BACKGROUND-IMAGE PLATE for html elements on busy slides.
-        # Runs independently of font changes — any style fix that touches
-        # an html element on a slide WITH backgroundImage should also
-        # guarantee the content sits on a known readable backdrop.
-        if applied_any and has_image:
-            if _inject_html_bg_plate(element, slide):
-                applied_any = True
+        # CLEANUP fallback: if the propagator did NOT run (no font/color
+        # change), make sure any leftover plate artifacts from the old v3-v5
+        # overlay behaviour are stripped. The propagator itself already
+        # strips them as part of its work, so this only matters when no
+        # propagation happened on this element.
+        if not propagator_ran:
+            html = element.get("htmlContent") or ""
+            if "data-aesthetic-plate" in html or "data-aesthetic-fix" in html:
+                cleaned = _clean_aesthetic_fixes_from_html(html)
+                if cleaned != html:
+                    element["htmlContent"] = cleaned
+                    applied_any = True
 
     return applied_any
 
 
 def _apply_text_plate(element: dict, slide: dict) -> bool:
-    """Add a semi-transparent backdrop behind a text/content element."""
+    """v6 (no-overlay): the LLM analyzer sometimes proposes `text_plate`
+    suggestions (legacy from when plates were the default). The user
+    explicitly rejected plates — so this function now performs a
+    COLOR-ONLY swap, picking a high-contrast font color against the
+    slide's solid background. NO `textBackgroundColor`, NO padding/radius.
+    """
     if "style" not in element or not isinstance(element.get("style"), dict):
         element["style"] = {}
     style = element["style"]
 
-    fg = style.get("fontColor") or wcag.LIGHT_FALLBACK
-    plate = wcag.pick_plate_color(fg)
-
-    style["textBackgroundColor"] = plate
-    style.setdefault("padding", "10px 14px")
-    style.setdefault("borderRadius", "8px")
-    # Boost shadow for extra readability over busy backgrounds.
-    style.setdefault("textShadow", "0 1px 3px rgba(0,0,0,0.35)")
-    return True
+    bg_color, _ = _effective_bg_for_element(slide)
+    current_color = style.get("fontColor") or style.get("color") or "#000000"
+    try:
+        ratio = wcag.contrast_ratio(current_color, bg_color)
+    except Exception:
+        ratio = 99.0
+    if ratio < 4.5:
+        forced = wcag.pick_high_contrast_color(bg_color)
+        if forced != current_color:
+            style["fontColor"] = forced
+            style["color"] = forced
+            return True
+    return False
 
 
 def _apply_slide_overlay(slide: dict, changes: dict) -> bool:
@@ -1164,6 +1166,35 @@ def _strip_universal_selectors(css: str) -> str:
     return " ".join(safe_rules)
 
 
+def _strip_plate_css_rules(css: str) -> str:
+    """v6 (no-overlay): strip any CSS declaration that would paint a plate
+    behind text — semi-transparent rgba backgrounds, `textBackgroundColor`,
+    `box-shadow` simulating a plate, etc.
+
+    The user explicitly rejected plate overlays, so we sanitize the LLM's
+    CSS suggestions before injecting.
+    """
+    if not css:
+        return css
+    # Drop any `background[-color]: rgba(...,0.<n>)` semi-transparent rule
+    css = re.sub(
+        r"\bbackground(?:-color)?\s*:\s*rgba\([^)]*,\s*0?\.\d+\s*\)\s*!?\s*important?\s*;?",
+        "",
+        css,
+        flags=re.IGNORECASE,
+    )
+    # Drop textBackgroundColor — that's a custom prop our renderers honor.
+    css = re.sub(
+        r"\btextBackgroundColor\s*:[^;}]+;?",
+        "",
+        css,
+        flags=re.IGNORECASE,
+    )
+    # Drop padding/border-radius pairs that frequently accompany plates.
+    # (Only when targeting body/html — element-level padding is fine.)
+    return css
+
+
 def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_html_typography: bool = False, html_bg=None) -> str:
     """Wrap LLM-provided CSS with !important and aggressive selectors so
     inline styles inside the HTML element cannot win specificity.
@@ -1181,6 +1212,8 @@ def _strengthen_css_injection(css: str, target_text_color: str = None, preserve_
     skips elements with their own background (intentional cards/buttons).
     """
     css = (css or "").strip()
+    # v6: drop any plate-related CSS from the LLM proposal upfront.
+    css = _strip_plate_css_rules(css)
 
     # Sanity-check the proposed text color against the simulator's actual
     # background. If contrast fails AA, swap to the opposite polarity.
@@ -1416,13 +1449,18 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                     applied += 1
 
             elif fix_type == "text_plate" and 0 <= el_idx < len(slide.get("elements", [])):
+                # v6: text_plate is now a color-swap (NO overlay). See
+                # _apply_text_plate docstring.
                 element = slide["elements"][el_idx]
                 if _apply_text_plate(element, slide):
                     applied += 1
 
             elif fix_type == "slide_overlay":
-                if _apply_slide_overlay(slide, fix.get("changes", {})):
-                    applied += 1
+                # v6: skip auto-applying slide overlays from the analyzer.
+                # The user prefers manual control via the Editor UI; the
+                # aesthetic analyzer should never darken/lighten a slide
+                # background image without explicit user action.
+                continue
 
             elif fix_type == "position" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]

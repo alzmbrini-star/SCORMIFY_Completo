@@ -35,16 +35,21 @@ class TestApplyStyleFix:
         # Already perfect contrast — kept
         assert element["style"]["fontColor"] == "#0f172a"
 
-    def test_image_bg_forces_white_text_and_plate(self):
+    def test_image_bg_forces_high_contrast_text_no_plate(self):
+        """v6 (no-overlay): on slides with a busy backgroundImage, the LLM
+        suggestion is validated against the SOLID slide.background. We do
+        NOT auto-add a plate anymore — only a color swap. User explicitly
+        rejected the plate overlay in conversation v6."""
         slide = {"background": "#888", "backgroundImage": "/api/img.png"}
         element = {"type": "text", "content": "hi", "style": {}}
         _apply_style_fix(element, slide, {"fontColor": "#000000"})
-        # On image bg, fontColor is forced to LIGHT (max contrast over scrim)
-        assert element["style"]["fontColor"] == wcag.LIGHT_FALLBACK
-        # Plate auto-added
-        assert "textBackgroundColor" in element["style"]
-        assert element["style"].get("padding")
-        assert element["style"].get("borderRadius")
+        # Color was validated against mid-grey (#888). enforce_min_contrast
+        # is allowed to keep #000 (contrast ~5.5:1 vs #888).
+        assert element["style"].get("fontColor") in ("#000000", wcag.DARK_FALLBACK, wcag.LIGHT_FALLBACK)
+        # CRUCIAL: NO plate auto-injection
+        assert "textBackgroundColor" not in element["style"], (
+            "v6: plate must not be auto-added on bgImage slides"
+        )
 
     def test_tiny_font_size_promoted_to_safe_minimum(self):
         slide = {"background": "#ffffff"}
@@ -67,27 +72,30 @@ class TestApplyStyleFix:
 
 
 class TestApplyTextPlate:
-    def test_plate_added_with_padding_and_radius(self):
-        slide = {"backgroundImage": "/x.png"}
+    def test_text_plate_now_swaps_color_only_v6(self):
+        """v6 (no-overlay): the legacy `text_plate` fix is now a color
+        swap. No `textBackgroundColor` / padding / borderRadius / textShadow
+        keys are added."""
+        slide = {"background": "#1e3a8a", "backgroundImage": "/x.png"}
+        # White on navy = legible (~14:1) so swap should be no-op
         element = {"type": "text", "style": {"fontColor": "#ffffff"}}
         _apply_text_plate(element, slide)
         s = element["style"]
-        assert s.get("textBackgroundColor")
-        assert s.get("padding")
-        assert s.get("borderRadius")
-        assert s.get("textShadow")
+        assert "textBackgroundColor" not in s
+        assert "padding" not in s
+        assert "borderRadius" not in s
 
-    def test_plate_color_matches_fontColor_polarity(self):
-        # Light text → dark plate
-        slide = {}
-        el_light = {"type": "text", "style": {"fontColor": "#ffffff"}}
-        _apply_text_plate(el_light, slide)
-        assert el_light["style"]["textBackgroundColor"] == wcag.DARK_PLATE
-
-        # Dark text → light plate
-        el_dark = {"type": "text", "style": {"fontColor": "#000000"}}
-        _apply_text_plate(el_dark, slide)
-        assert el_dark["style"]["textBackgroundColor"] == wcag.LIGHT_PLATE
+    def test_text_plate_swaps_color_when_low_contrast_v6(self):
+        """v6: when fontColor fails WCAG, it's swapped (and ONLY swapped)."""
+        slide = {"background": "#ffffff"}
+        element = {"type": "text", "style": {"fontColor": "#eeeeee"}}
+        _apply_text_plate(element, slide)
+        s = element["style"]
+        # Color was swapped to dark (only thing that should change)
+        assert s["fontColor"] != "#eeeeee"
+        # No plate keys
+        assert "textBackgroundColor" not in s
+        assert "padding" not in s
 
 
 class TestApplySlideOverlay:

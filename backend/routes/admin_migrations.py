@@ -314,3 +314,122 @@ async def normalize_font_tags(
             f"{mutated_elements} elementos modernizados"
         ),
     }
+
+
+
+@router.post("/admin/cleanup-aesthetic-plates")
+async def cleanup_aesthetic_plates(
+    dryRun: bool = Query(default=True),
+    user: dict = Depends(require_auth),
+):
+    """Strip every leftover `<style data-aesthetic-fix>` tag AND every
+    `data-aesthetic-plate="1"` attribute marker from `htmlContent` in
+    every project. Also removes `textBackgroundColor` / `padding` /
+    `borderRadius` that the previous plate-injection version added to
+    text element styles.
+
+    Why this exists: the v3/v4/v5 plate overlay approach was rejected by
+    the user — they want a no-overlay, swap-color-only behavior. This is
+    a one-shot cleanup of historical plate artifacts that already landed
+    in the DB before the v6 refactor.
+
+    Default `dryRun=true` reports impact without writing. Admin only.
+    Idempotent — safe to re-run.
+    """
+    import re as _re
+    role = user.get("role", "")
+    if role not in ("super_admin", "admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    style_tag_re = _re.compile(
+        r'<style\s+data-aesthetic-fix\s*=\s*[\"\']1[\"\']\s*>[\s\S]*?</style>',
+        _re.IGNORECASE,
+    )
+    plate_attr_re = _re.compile(
+        r'\s+data-aesthetic-plate\s*=\s*[\"\']1[\"\']',
+        _re.IGNORECASE,
+    )
+
+    scanned = 0
+    mutated_projects = 0
+    mutated_elements = 0
+    stripped_styles_total = 0
+    sample = []
+
+    cursor = db.projects.find({}, {"_id": 0, "id": 1, "name": 1, "course.slides": 1})
+    async for project in cursor:
+        scanned += 1
+        slides = ((project.get("course") or {}).get("slides")) or []
+        project_changed_elements = 0
+
+        for slide in slides:
+            for el in (slide.get("elements") or []):
+                touched = False
+                # 1. Clean htmlContent of plate artifacts
+                if el.get("type") == "html":
+                    html = el.get("htmlContent") or ""
+                    if "data-aesthetic-fix" in html or "data-aesthetic-plate" in html:
+                        new_html = style_tag_re.sub("", html)
+                        new_html = plate_attr_re.sub("", new_html)
+                        if new_html != html:
+                            el["htmlContent"] = new_html
+                            stripped_styles_total += 1
+                            touched = True
+                # 2. Clean text element styles of plate-related properties.
+                # These keys were auto-set by the previous plate logic on
+                # text elements over bgImage slides. They cause an ugly
+                # opaque rectangle behind the text in the rendered slide.
+                style = el.get("style") or {}
+                if isinstance(style, dict):
+                    for key in ("textBackgroundColor", "backgroundColor"):
+                        # Only remove if it matches the plate-color pattern
+                        # (rgba(...,0.78) / rgba(248,250,252,0.88)) — leave
+                        # user-set solid colors alone.
+                        v = style.get(key)
+                        if isinstance(v, str) and (
+                            v.startswith("rgba(15,23,42") or
+                            v.startswith("rgba(248,250,252")
+                        ):
+                            del style[key]
+                            touched = True
+                if touched:
+                    project_changed_elements += 1
+                    mutated_elements += 1
+
+        if project_changed_elements > 0:
+            mutated_projects += 1
+            if len(sample) < 20:
+                sample.append({
+                    "projectId": project.get("id"),
+                    "name": (project.get("name") or "")[:80],
+                    "elementsCleaned": project_changed_elements,
+                })
+            if not dryRun:
+                try:
+                    await db.projects.update_one(
+                        {"id": project["id"]},
+                        {"$set": {
+                            "course.slides": slides,
+                            "updatedAt": datetime.now(timezone.utc).isoformat(),
+                        }},
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"cleanup_aesthetic_plates: write failed for {project.get('id')}: {e}"
+                    )
+
+    return {
+        "dryRun": dryRun,
+        "scannedProjects": scanned,
+        "mutatedProjects": mutated_projects,
+        "mutatedElements": mutated_elements,
+        "strippedStyleTags": stripped_styles_total,
+        "sampleProjects": sample,
+        "message": (
+            f"DRY RUN: {mutated_projects}/{scanned} projetos teriam "
+            f"{mutated_elements} elementos limpos do overlay estetico"
+            if dryRun else
+            f"OK: {mutated_projects}/{scanned} projetos limpos, "
+            f"{mutated_elements} elementos sem overlay"
+        ),
+    }

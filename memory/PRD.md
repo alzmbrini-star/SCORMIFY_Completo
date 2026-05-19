@@ -88,7 +88,28 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
-- 2026-05-19 (cont. v5): **REFACTOR (P0 follow-up #3)** — Plate cirurgico por bloco de texto (opcao C do usuario).
+- 2026-05-19 (cont. v6): **REFACTOR (P0 follow-up #4)** — Remover TODOS os overlays do Analisador de Estetica (no-overlay, color-swap only).
+  - **Pedido do usuario** (apos rejeitar plate cirurgico em v5): "preciso de uma solucao ate mais simples que observe a cor da fonte e quando rodar o Analisador de estetica apenas troque de cor para dar contraste sem precisar colocar o overlay que fica muito feio! Poderia corrigir em todos os lugares?"
+  - **Mudancas em 6 frentes**:
+    1. **`_apply_style_fix`** — sweep de contraste agora usa `wcag.pick_high_contrast_color(slide.background)` sempre (mesmo com bgImage), em vez de forcar `LIGHT_FALLBACK`. NAO chama mais `_inject_html_bg_plate`. NAO auto-adiciona `textBackgroundColor`/`padding`/`borderRadius` em elementos text com bgImage. Limpeza opcional de plate artifacts no final quando o propagador nao rodou.
+    2. **`_apply_text_plate`** — RENOMEADO conceitualmente: agora faz APENAS color-swap. Nao adiciona `textBackgroundColor`, `padding`, `borderRadius`, `textShadow`. Mantem o nome legacy para nao quebrar imports no apply-fix endpoint.
+    3. **`_strengthen_css_injection`** — passa por novo `_strip_plate_css_rules` que filtra qualquer regra `background[-color]: rgba(...,0.<n>)` semi-transparente E qualquer `textBackgroundColor` que o LLM emita. CSS proposto pelo LLM nao consegue mais reintroduzir plates.
+    4. **`_apply_html_style_fix`** — herda a limpeza acima via `_strengthen_css_injection`.
+    5. **Apply-fix endpoint** — `fix_type=slide_overlay` agora e SKIPPED automaticamente (nao escurece bgImage automaticamente). `fix_type=text_plate` chama o novo `_apply_text_plate` (color-swap only).
+    6. **Nova migration admin `POST /api/admin/cleanup-aesthetic-plates`** — strip de TODOS os plate artifacts historicos (v3/v4/v5) do DB. Limpa: `<style data-aesthetic-fix>` tags com `rgba(...,0.<n>)`, `data-aesthetic-plate="1"` attrs, `textBackgroundColor` com `rgba(15,23,42,0.78)`/`rgba(248,250,252,0.88)` em styles de elementos text. Admin-only, idempotente.
+  - **Backfill executado em producao**:
+    - Antes (apos v5): 8 projetos com plates injetados, 57 elementos contaminados, 41 `<style data-aesthetic-fix>` tags. 
+    - Apos `cleanup-aesthetic-plates dryRun=false`: 0 plates remanescentes. Re-run dryRun confirma 0 (idempotente).
+    - Projeto a0b4069e-... verificado: applyAll v6 → 5 fixes aplicados, 0 plates injetados.
+  - **Limitacao aceita pelo usuario**: com bgImage que tem regioes claras E escuras simultaneamente, nenhuma cor unica de texto cobre 100% — o trade-off e o texto pode ficar parcialmente invisivel sobre regioes da imagem que casam com sua cor. Esse e o custo de "no-overlay".
+  - **Validacao via unit tests** (119 testes do aesthetics, +4 novos para v6, sem regressao):
+    - `test_bg_image_does_not_inject_plate_anymore` ✓
+    - `test_bg_image_low_contrast_text_color_swapped` ✓ — color swap, sem plate
+    - `test_cleanup_strips_legacy_plate_artifacts` ✓ — apply-fix limpa plates de v3-v5
+    - `test_text_plate_now_swaps_color_only_v6` ✓ — `_apply_text_plate` v6 nao adiciona textBackgroundColor
+
+
+- 2026-05-19 (cont. v5): **REFACTOR (P0 follow-up #3)** — Plate cirurgico por bloco de texto (opcao C do usuario). **REVERTIDO em v6** apos rejeicao do usuario.
   - **Pedido do usuario** (screenshot apos v3/v4): "Ele ainda faz para alguns slides e para outros nao! Poderia corrigir?" — slide com texto verde em htmlContent ja tinha `body{background:#fff}` proprio; o plate fullbody que eu injetava cobria toda a decoracao da bgImage, deixando inconsistente entre slides.
   - **Fix — Opcao C escolhida pelo usuario**: plate APENAS atras de cada bloco de texto (h1-h6, p, li, blockquote, td, th), iframe stays FULLY TRANSPARENT.
     - **Refator `_inject_html_bg_plate`** (`routes/aesthetics.py`):
