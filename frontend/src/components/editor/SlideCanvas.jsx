@@ -848,11 +848,29 @@ const SlideCanvas = ({
                       if (isFullDoc) {
                         return raw;
                       }
+                      // Choose default text color based on slide background luminance.
+                      // Without this, <h3>/<p>/<li> tags WITHOUT inline color inherit
+                      // the fallback `#f1f5f9` (light gray) and become invisible on
+                      // light slides — exactly the user's recurring complaint about
+                      // "textos em cinza claro" after the Aesthetic Analyzer ran.
+                      const slideBg = (slide.background || '#ffffff').toString();
+                      let defaultTextColor = '#f1f5f9'; // dark-bg fallback
+                      const m = slideBg.match(/^#([0-9a-f]{6})$/i);
+                      if (m) {
+                        const r = parseInt(m[1].slice(0, 2), 16);
+                        const g = parseInt(m[1].slice(2, 4), 16);
+                        const b = parseInt(m[1].slice(4, 6), 16);
+                        // Relative luminance (sRGB)
+                        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+                        defaultTextColor = lum > 0.55 ? '#0f172a' : '#f1f5f9';
+                      } else if (/^(#fff|#FFFFFF|white)/i.test(slideBg)) {
+                        defaultTextColor = '#0f172a';
+                      }
                       return `
                       <html>
                         <head>
                           <style>
-                            ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
+                            ${getRtfContentStyles({ textColor: defaultTextColor, backgroundColor: 'transparent' })}
                             /* SlideCanvas-specific overrides */
                             html, body { 
                               overflow: hidden;

@@ -790,6 +790,45 @@ def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) 
             mutated = True
 
     # ------------------------------------------------------------------
+    # COLORLESS TEXT TAGS — inject inline color so the iframe's
+    # user-agent / SlideCanvas fallback doesn't paint them invisible.
+    #
+    # When the AI Agent emits HTML like `<h3>Subtitulo</h3>` WITHOUT an
+    # inline `style="color:..."`, the SlideCanvas iframe defaults the
+    # body color to `#f1f5f9` (light gray) which becomes invisible on
+    # white slides. Same problem hits SCORM/HTML exports.
+    #
+    # Fix: every text-bearing tag (h1-h6, p, li, td, th, blockquote)
+    # that lacks an inline color gets one based on contrast against
+    # the html bg (or against the slide bg when html bg is unknown).
+    # ------------------------------------------------------------------
+    _COLORLESS_TARGETS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td", "th", "blockquote"}
+    safe_color = new_color
+    if not safe_color or wcag.contrast_ratio(safe_color, html_bg) < 4.5:
+        try:
+            safe_color = wcag.pick_high_contrast_color(html_bg)
+        except Exception:
+            safe_color = "#0f172a"
+
+    for tag in soup.find_all(_COLORLESS_TARGETS):
+        # Already has an inline color? leave alone.
+        existing_style = tag.get("style", "") or ""
+        if re.search(r"\bcolor\s*:", existing_style, re.IGNORECASE):
+            continue
+        # Wrapped by a <font color="..."> ancestor? leave alone — that
+        # tag was already handled above and the color cascades down.
+        if tag.find_parent("font", color=True) is not None:
+            continue
+        # Skip pure-container tags with no direct text leaf.
+        text_leaf = (tag.get_text(strip=True) or "")
+        if not text_leaf:
+            continue
+        # Prepend `color:...;` to existing style (or create one).
+        prefix = f"color:{safe_color};"
+        tag["style"] = (prefix + existing_style) if existing_style else prefix
+        mutated = True
+
+    # ------------------------------------------------------------------
     # INJECTED STYLE BLOCK (fallback only)
     # When the htmlContent has NO inline font-sizes but the LLM still
     # wants a size bump, inject a <style data-aesthetic-fix> targeting

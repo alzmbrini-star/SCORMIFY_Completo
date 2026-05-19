@@ -88,6 +88,28 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v6.3): **FIX (P0)** — Analisador de Estetica nao corrigia textos que estavam SEM `style="color"` inline (apareciam cinza claro mesmo apos aplicar).
+  - **Pedido do usuario** (screenshot): "Tive que mudar a cor dos backgrounds para branco e forcar a cor do texto para preto e ainda assim a Analise Estetica nao conseguiu mudar a cor de todos os textos! Veja que ainda ha textos em cinza claro!"
+  - **Causa raiz**: o `SlideCanvas` injetava um CSS global `body { color: '#f1f5f9' }` (cinza-azulado quase branco) no iframe que renderiza o htmlContent. Quando o AI Agent gerava `<h3>Consolidando...</h3>` SEM inline `style="color"`, esse h3 herdava `#f1f5f9` do body → invisivel sobre slide branco. O propagador antes so reescrevia `color:` quando existia inline; nao injetava NOVOS inline colors em tags sem cor.
+  - **Fix em 2 frentes**:
+    1. **Frontend (`SlideCanvas.jsx`)**: a srcDoc do iframe agora calcula `defaultTextColor` baseado na luminancia da `slide.background`. Slide branco → `#0f172a` (escuro); slide escuro → `#f1f5f9` (claro). Resolve no editor LIVE sem precisar rodar o Analisador.
+    2. **Backend (`_propagate_style_to_html_content`)**: novo passo "colorless-text-tag pass". Apos rewrite de inline colors e `<font>` legacy, percorre cada `<h1-h6>`, `<p>`, `<li>`, `<td>`, `<th>`, `<blockquote>` e:
+       - Se NAO tem `style="color:"` inline E nao esta dentro de `<font color>` ancestor → preprenda `color:<safe>;` ao style. `safe` = `wcag.pick_high_contrast_color(html_bg)`. 
+       - Tags ja com inline color → preservadas (regra dos acentos legiveis continua).
+       - Tags dentro de `<font color>` → preservadas (cascade do font ja resolve).
+       - Resolve para SCORM/HTML exports tambem (que nao passam pelo SlideCanvas).
+  - **Validacao via apply-fix real**: projeto `83dffbd3-...` slide 13 "A Jornada da Integridade":
+    - ANTES: `<h3>Consolidando a Blindagem Corporativa</h3>` (sem inline color) → herdava `#f1f5f9` → cinza claro invisivel sobre branco.
+    - DEPOIS: `<h3 style="color:#0f172a;">Consolidando a Blindagem Corporativa</h3>` → preto LEGIVEL.
+    - Mesma correcao em `<h3>Principais Aprendizados</h3>` e qualquer outro tag de texto que estivesse sem cor inline.
+    - Screenshot real do iframe renderizado confirma: TODOS os textos visiveis em preto sobre branco.
+  - **Testes** (4 novos, 19/19 em `test_aesthetics_html_propagation.py`, 120 total):
+    - `test_colorless_h3_gets_inline_color_on_light_bg` ✓ — repro do bug do usuario
+    - `test_colorless_text_inherits_through_font_ancestor` ✓ — nao redundante quando font ancestor cuida
+    - `test_colorless_text_skipped_when_legible_inline_color_exists` ✓ — preserva cores existentes
+    - `test_colorless_dark_bg_gets_light_text` ✓ — polaridade inversa para slide escuro
+
+
 - 2026-05-19 (cont. v6.2): **FEAT (P0)** — Per-region bgImage luminance analysis.
   - **Pedido do usuario**: "Acho que descobri o que esta ocorrendo! A analisador de estetica so leva em conta a cor do background e quando ha uma imagem... ele ignora a cor e so leva em conta cor do backgroung que neste caso e azul escuro portanto deixou a fonte branca!"
   - **Diagnostico exato do usuario confirmado**: slide 0 tinha `background:#1e3a8a` (navy escuro) + `backgroundImage` decorativa com forma BRANCA enorme no centro. Texto centralizado caia exatamente sobre a area branca. O analyzer so olhava `slide.background` (navy) → contraste branco-sobre-navy = 14:1 (perfeito) → "tudo OK" → texto invisivel na realidade.

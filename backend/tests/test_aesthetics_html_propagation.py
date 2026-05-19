@@ -328,3 +328,88 @@ def test_legacy_font_color_left_alone_when_legible():
     new_html = el["htmlContent"]
     # orange ~6.4:1 on navy passes WCAG → must be preserved
     assert 'color="#f59e0b"' in new_html
+
+
+# ---------------------------------------------------------------------------
+# Colorless-text-tag injection (the real user bug from screenshot)
+# ---------------------------------------------------------------------------
+
+def test_colorless_h3_gets_inline_color_on_light_bg():
+    """User's screenshot: <h3>Consolidando...</h3> WITHOUT inline color
+    was rendering as light gray (iframe fallback #f1f5f9) on a white slide.
+    After the propagator runs, the h3 MUST get an inline color matching
+    the slide bg contrast."""
+    html = (
+        '<h2 style="color:#000000;">Title</h2>'
+        '<h3>Subtitle without color</h3>'
+        '<p style="color:#000000;">Body</p>'
+        '<h3>Another subtitle without color</h3>'
+    )
+    el = {"type": "html", "htmlContent": html, "style": {}}
+    sl = {"background": "#ffffff"}  # white slide
+    _apply_style_fix(el, sl, {"fontSize": 32})
+    new_html = el["htmlContent"]
+    # Both h3 elements must now have inline `color:` declarations
+    assert new_html.count("<h3") == 2
+    # Count h3 tags WITHOUT a style attr — should be ZERO after the fix
+    import re
+    h3_without_style = re.findall(r'<h3(?![^>]*style=)', new_html)
+    assert len(h3_without_style) == 0, (
+        "Every h3 must have an inline style after the colorless-text pass"
+    )
+    # The color must be DARK (slide is white)
+    h3_with_dark = re.findall(r'<h3[^>]*style="color:#0f172a', new_html)
+    assert len(h3_with_dark) >= 2, "h3s should be forced to dark on white bg"
+
+
+def test_colorless_text_inherits_through_font_ancestor():
+    """A `<p>` wrapped in `<font color="...">` already gets color from
+    cascade — the propagator must NOT redundantly inject another inline
+    color, otherwise the font ancestor's color is preserved but the inner
+    inline overrides it."""
+    html = '<font color="#000000"><p>Inherits black via font ancestor</p></font>'
+    el = {"type": "html", "htmlContent": html, "style": {}}
+    sl = {"background": "#ffffff"}
+    _apply_style_fix(el, sl, {"fontSize": 24})
+    new_html = el["htmlContent"]
+    # The <p> should NOT have its own style="color:..." since the
+    # <font> ancestor handles it.
+    import re
+    p_with_color = re.search(r'<p[^>]*style="[^"]*color:', new_html)
+    assert p_with_color is None
+
+
+def test_colorless_text_skipped_when_legible_inline_color_exists():
+    """When the tag has an inline color already, the colorless pass must
+    leave it alone — even if that color happens to match the new safe
+    fallback."""
+    html = '<p style="color:#666666;">Mid-gray text</p>'
+    el = {"type": "html", "htmlContent": html, "style": {}}
+    sl = {"background": "#ffffff"}
+    _apply_style_fix(el, sl, {"fontSize": 24})
+    new_html = el["htmlContent"]
+    # The original `color:#666666` MUST stay (the inline-color rewrite
+    # branch governs whether it gets swapped — not this pass).
+    import re
+    colors = re.findall(r'color:\s*(#[0-9a-fA-F]+)', new_html)
+    # No DUPLICATE color declarations on the p (would happen if we prepended)
+    assert colors.count("#666666") == 1
+
+
+def test_colorless_dark_bg_gets_light_text():
+    """Inverse polarity: a <p> without color on a dark slide must get
+    LIGHT inline color, not dark."""
+    html = '<p>No color set</p>'
+    el = {"type": "html", "htmlContent": html, "style": {}}
+    sl = {"background": "#0f172a"}  # dark navy slide
+    _apply_style_fix(el, sl, {"fontSize": 24})
+    new_html = el["htmlContent"]
+    # The p must be wrapped in inline style with a LIGHT color
+    import re
+    m = re.search(r'<p[^>]*style="color:(#[0-9a-fA-F]+)', new_html)
+    assert m is not None, f"p should have inline color injected; got: {new_html}"
+    # Check it's a light value
+    color_hex = m.group(1).lstrip("#")
+    r, g, b = int(color_hex[:2], 16), int(color_hex[2:4], 16), int(color_hex[4:6], 16)
+    lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    assert lum > 0.5, f"p color should be LIGHT on dark slide; lum={lum} color={color_hex}"
