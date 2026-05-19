@@ -422,18 +422,26 @@ def _rewrite_inline_font_weight(style_attr: str, new_weight) -> str:
 
 def _inject_html_bg_plate(element: dict, slide: dict) -> bool:
     """For type=html elements on slides with a busy backgroundImage,
-    inject a semi-transparent backdrop into htmlContent so text is
-    legible regardless of what part of the decorative image lies behind
-    it.
+    inject a SURGICAL backdrop applied per-text-block (not full-body) so
+    text remains legible while the decorative image stays fully visible
+    around the content.
 
-    The plate polarity is chosen from the DOMINANT text color of the
-    htmlContent:
-      - light text → dark plate (rgba(15,23,42,0.78))
-      - dark text  → light plate (rgba(248,250,252,0.88))
+    Strategy (surgical-plate, opt-C in the conversation):
+      - Identify TOP-LEVEL text blocks: h1-h6, p, li, blockquote, td/th
+      - Each block gets:
+          background-color: <plate>  (semi-transparent)
+          padding: 8px 14px
+          border-radius: 8px
+          display: inline-block (so the plate wraps the text run only, not
+                                the full width of the iframe)
+      - The iframe's html/body stay FULLY TRANSPARENT — the slide's
+        backgroundImage decoration is preserved at 100% opacity around
+        every plate.
+      - Polarity follows the dominant text color: light text → dark plate;
+        dark text → light cream plate.
 
     Idempotent: strips any prior aesthetic-fix `<style>` tags before
-    re-injecting, so re-applying the same fix yields the same html.
-    Returns True if the htmlContent was mutated.
+    re-injecting. Returns True if htmlContent was mutated.
     """
     if element.get("type") != "html":
         return False
@@ -465,20 +473,45 @@ def _inject_html_bg_plate(element: dict, slide: dict) -> bool:
 
     if is_dark_text:
         plate_rgba = "rgba(248,250,252,0.88)"
-        text_color = wcag.DARK_FALLBACK
+        text_color_fallback = wcag.DARK_FALLBACK
     else:
         plate_rgba = "rgba(15,23,42,0.78)"
-        text_color = wcag.LIGHT_FALLBACK
+        text_color_fallback = wcag.LIGHT_FALLBACK
 
+    # CSS-only rule using attribute markers. We add `data-aesthetic-plate`
+    # to each candidate text block so the rule selector is bulletproof
+    # against any prior inline styles. Using `box-decoration-break: clone`
+    # so multi-line text gets a plate per line wrap (cleaner look).
     rule = (
-        "html,body{background:" + plate_rgba + " !important;"
-        "border-radius:12px;color:" + text_color + ";}"
-        "body{padding:24px !important;}"
-        # Tags without their own inline color inherit the body default.
-        # We also explicitly cover h1-h6 + p + li because some user-agent
-        # stylesheets set their own color (e.g. h3 → black on Chrome).
-        "h1,h2,h3,h4,h5,h6,p,li,span,td,th,div,label{color:inherit;}"
+        # Keep the iframe transparent — the decorative bgImage shines through.
+        "html,body{background:transparent !important;}"
+        # Each text block gets a surgical plate around its CONTENT box only.
+        "[data-aesthetic-plate]{"
+        f"background-color:{plate_rgba} !important;"
+        "padding:8px 14px !important;"
+        "border-radius:8px !important;"
+        "box-decoration-break:clone;"
+        "-webkit-box-decoration-break:clone;"
+        f"color:{text_color_fallback};"
+        "}"
+        # Tags without their own inline color inherit the plate's default.
+        "[data-aesthetic-plate] *:not([style*=\"color\"]):not(font[color]){color:inherit;}"
     )
+
+    # Mark text blocks. We tag block-level text containers (h1-h6, p, li,
+    # blockquote, td/th) — but skip tiny inline tags (span, b, em) so the
+    # plate doesn't fragment the look of bold/italic runs.
+    _PLATE_TARGETS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote", "td", "th"}
+    mutated_any_block = False
+    for tag in soup.find_all(_PLATE_TARGETS):
+        # Skip tags whose direct text is empty (pure-container blocks).
+        if not (tag.get_text(strip=True) or "").strip():
+            continue
+        # Avoid re-marking already-tagged blocks (idempotency on direct re-runs).
+        if tag.has_attr("data-aesthetic-plate"):
+            continue
+        tag["data-aesthetic-plate"] = "1"
+        mutated_any_block = True
 
     style_tag = soup.new_tag("style", attrs={"data-aesthetic-fix": "1"})
     style_tag.string = rule
@@ -493,7 +526,9 @@ def _inject_html_bg_plate(element: dict, slide: dict) -> bool:
     if new_html != html:
         element["htmlContent"] = new_html
         return True
-    return False
+    # If only the style tag changed but we marked no blocks, that's still a
+    # write — return True so callers know we touched the element.
+    return mutated_any_block
 
 
 def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) -> bool:
@@ -1233,19 +1268,31 @@ _AESTHETIC_FIX_TAG_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Pattern matching `data-aesthetic-plate="1"` attributes that we add to
+# text blocks during surgical-plate injection. Stripping these on cleanup
+# keeps the htmlContent reversible.
+_AESTHETIC_PLATE_ATTR_RE = re.compile(
+    r'\s+data-aesthetic-plate\s*=\s*[\"\']1[\"\']',
+    re.IGNORECASE,
+)
+
 
 def _clean_aesthetic_fixes_from_html(html: str) -> str:
-    """Remove every `<style data-aesthetic-fix="1">...</style>` tag that
-    earlier Aesthetic Analyzer runs may have injected. Returns the original
-    htmlContent untouched if no such tags are present.
+    """Remove every `<style data-aesthetic-fix="1">...</style>` tag AND
+    every `data-aesthetic-plate="1"` marker that earlier Aesthetic
+    Analyzer runs may have injected.
 
     This is what makes the apply pipeline IDEMPOTENT: re-running with the
     same (or different) fix sequence does not accumulate broken CSS rules
     from previous attempts.
     """
-    if not html or "data-aesthetic-fix" not in html:
+    if not html:
         return html
-    return _AESTHETIC_FIX_TAG_RE.sub("", html)
+    if "data-aesthetic-fix" not in html and "data-aesthetic-plate" not in html:
+        return html
+    html = _AESTHETIC_FIX_TAG_RE.sub("", html)
+    html = _AESTHETIC_PLATE_ATTR_RE.sub("", html)
+    return html
 
 
 def _apply_html_style_fix(element: dict, css: str, target_color: str = None, preserve_html_typography: bool = False) -> bool:

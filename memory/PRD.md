@@ -88,6 +88,33 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v5): **REFACTOR (P0 follow-up #3)** — Plate cirurgico por bloco de texto (opcao C do usuario).
+  - **Pedido do usuario** (screenshot apos v3/v4): "Ele ainda faz para alguns slides e para outros nao! Poderia corrigir?" — slide com texto verde em htmlContent ja tinha `body{background:#fff}` proprio; o plate fullbody que eu injetava cobria toda a decoracao da bgImage, deixando inconsistente entre slides.
+  - **Fix — Opcao C escolhida pelo usuario**: plate APENAS atras de cada bloco de texto (h1-h6, p, li, blockquote, td, th), iframe stays FULLY TRANSPARENT.
+    - **Refator `_inject_html_bg_plate`** (`routes/aesthetics.py`):
+      - Marca cada bloco de texto com `data-aesthetic-plate="1"` via BS4
+      - Injeta `<style data-aesthetic-fix>` com regras:
+        - `html,body{background:transparent !important}` — iframe nao bloqueia decoracao
+        - `[data-aesthetic-plate]{background-color:<rgba>; padding:8px 14px; border-radius:8px; box-decoration-break:clone;}`
+      - Skips inline tags (span, b, em) — manteria os runs de bold/italic unidos
+      - Skips blocos vazios (`<p></p>`, containers puros) — markers so em blocos com texto
+      - Polaridade do plate vem de `_pick_dominant_color` (cobre `<font color>` legacy + inline styles)
+    - **`_clean_aesthetic_fixes_from_html`** estendido: agora tambem strip `data-aesthetic-plate="1"` attrs alem dos `<style data-aesthetic-fix>` tags. Garante idempotencia em apply→revert→re-apply.
+    - **Comparacao visual**:
+      - ANTES (v4): retangulo opaco gigante cobrindo todo o iframe, decoracao da imagem visivel apenas nas bordas
+      - DEPOIS (v5): cada bloco de texto com seu proprio plate; decoracao da imagem 100% visivel ao redor de cada bloco e nas margens
+  - **Validacao via E2E real** (projeto `a0b4069e-...`):
+    - Slide 0 el[1]: 4 plate markers (h1 + 1 p), `iframe_transparent=True`
+    - Slide 9 el[1]: 12 plate markers (h2 + h3 + multiple p/li), `iframe_transparent=True`
+    - Screenshot side-by-side mostra: titulo "Capa: O Jeito Intelbras de Atender" com plate dark contornando o texto; "Conclusao e Proximos Passos" idem. Decoracao orange/cinza visivel ao redor.
+  - **Unit tests** (3 novos + 16 antigos refeitos = 19/19 em `test_aesthetics_html_propagation.py`):
+    - `test_surgical_plate_keeps_iframe_transparent` ✓
+    - `test_surgical_plate_only_marks_block_text_tags` ✓ (span/b/em NAO marcados)
+    - `test_surgical_plate_skips_empty_blocks` ✓
+    - `test_bg_image_plate_is_idempotent` atualizado: count("data-aesthetic-plate") == 1 (sem stacking)
+  - **Regressao**: 124 testes do dominio aesthetics passando (era 119, +3 unit + reforco em 2 antigos) — sem regressao.
+
+
 - 2026-05-19 (cont. v4): **REFACTOR (preventive)** — eliminar legacy HTML4 `<font>` markup do pipeline.
   - **Motivo**: o `RichTextEditor` da frontend usava `document.execCommand('foreColor'/'fontName'/'fontSize')` SEM `styleWithCSS=true`, fazendo o Chrome/Edge/Safari emitirem `<font color="X">` legacy. Isso quebrava a deteccao de polaridade do Analisador de Estetica (corrigido em v3 com fallback) mas precisava ser eliminado na origem.
   - **Fix em 4 frentes**:

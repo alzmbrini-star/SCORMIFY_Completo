@@ -202,8 +202,8 @@ def test_non_html_element_unchanged_by_propagator():
 
 def test_bg_image_injects_dark_plate_for_light_text():
     """When slide has a busy backgroundImage and text is light/white, inject
-    a semi-transparent DARK backdrop into htmlContent so text is readable
-    over white regions of the decorative image."""
+    a SURGICAL dark plate per text block (not full-body) so the decorative
+    image stays fully visible AROUND the text."""
     el = {
         "type": "html",
         "htmlContent": (
@@ -217,12 +217,16 @@ def test_bg_image_injects_dark_plate_for_light_text():
     sl = {"background": "#1e3a8a", "backgroundImage": "/api/.../bg.jpg"}
     _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
     html = el["htmlContent"]
-    # Must inject a dark plate via <style data-aesthetic-fix>
+    # Must inject a <style data-aesthetic-fix> with surgical-plate rules
     assert "data-aesthetic-fix" in html, "Plate injection missing on bgImage slide"
-    # Plate must be dark and semi-transparent (rgba with high alpha)
-    assert "rgba(15,23,42" in html, "Expected dark slate plate"
-    # And it overrides the iframe's transparent body
-    assert "background:rgba(15,23,42" in html.replace(" ", "")
+    # Surgical plate uses attribute markers, not full-body backgrounds
+    assert "data-aesthetic-plate" in html, "Text blocks must be marked for surgical plate"
+    # Plate must be dark for light text
+    assert "rgba(15,23,42" in html, "Expected dark slate plate for light text"
+    # CRUCIAL: iframe stays transparent — bgImage decoration shines through
+    assert "background:transparent" in html.replace(" ", "")
+    # h2 and p must be marked (they are block-level text)
+    assert html.count('data-aesthetic-plate="1"') == 2, "Both h2 and p must get plates"
 
 
 def test_bg_image_injects_light_plate_for_dark_text():
@@ -241,6 +245,8 @@ def test_bg_image_injects_light_plate_for_dark_text():
     html = el["htmlContent"]
     assert "data-aesthetic-fix" in html
     assert "rgba(248,250,252" in html, "Expected light cream plate for dark text"
+    # Iframe transparent
+    assert "background:transparent" in html.replace(" ", "")
 
 
 def test_no_bg_image_means_no_plate():
@@ -256,6 +262,7 @@ def test_no_bg_image_means_no_plate():
     _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
     html = el["htmlContent"]
     # No plate injection — solid bg already provides contrast
+    assert "data-aesthetic-plate" not in html, "Plate markers should not appear without bgImage"
     assert "rgba(15,23,42,0.78)" not in html, "Plate should not be injected without bgImage"
 
 
@@ -271,9 +278,73 @@ def test_bg_image_plate_is_idempotent():
     first = el["htmlContent"]
     _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#ffffff"})
     second = el["htmlContent"]
-    # Only one aesthetic-fix style tag survives
+    # Only one aesthetic-fix style tag survives + one plate marker per block
     assert second.count("data-aesthetic-fix") == 1
+    # Only one plate marker on the h2 (no stacking)
+    assert second.count('data-aesthetic-plate="1"') == 1
     assert first == second
+
+
+def test_surgical_plate_keeps_iframe_transparent():
+    """The decorative bgImage must remain visible AROUND the plates —
+    the iframe body must stay transparent."""
+    el = {
+        "type": "html",
+        "htmlContent": '<h1 style="color:#ffffff;font-size:48px;">Title</h1><p style="color:#ffffff">Body</p>',
+        "style": {},
+    }
+    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
+    _apply_style_fix(el, sl, {"fontSize": 48})
+    html = el["htmlContent"]
+    # html/body must NOT get an opaque background — that was the old bug
+    no_space = html.replace(" ", "").lower()
+    assert "html,body{background:transparent" in no_space, (
+        "Iframe must stay transparent so bgImage decoration is visible"
+    )
+    # No rule should set body's background to a colored rgba
+    assert "body{background:rgba" not in no_space
+
+
+def test_surgical_plate_only_marks_block_text_tags():
+    """Inline tags (span, b, em) MUST NOT receive plate markers — that
+    would break bold/italic runs into fragmented plates."""
+    el = {
+        "type": "html",
+        "htmlContent": (
+            '<h1 style="color:#ffffff">Title <span style="color:#f59e0b">accent</span></h1>'
+            '<p style="color:#ffffff">Body <b>bold</b> text</p>'
+        ),
+        "style": {},
+    }
+    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
+    _apply_style_fix(el, sl, {"fontSize": 48})
+    html = el["htmlContent"]
+    # h1 and p both marked — but NOT the inner span/b
+    assert 'h1 data-aesthetic-plate' in html or '<h1 ' in html and 'data-aesthetic-plate' in html
+    # Inline tags must not have the marker
+    assert '<span data-aesthetic-plate' not in html
+    assert '<b data-aesthetic-plate' not in html
+
+
+def test_surgical_plate_skips_empty_blocks():
+    """Pure-container blocks (e.g., `<div>` with only child elements but no
+    direct text) should NOT be marked — markers go on the actual text
+    leaves."""
+    el = {
+        "type": "html",
+        "htmlContent": (
+            '<div>'
+            '<h2 style="color:#ffffff">Real text</h2>'
+            '<p></p>'  # empty paragraph
+            '</div>'
+        ),
+        "style": {},
+    }
+    sl = {"background": "#1e3a8a", "backgroundImage": "/img.jpg"}
+    _apply_style_fix(el, sl, {"fontSize": 48})
+    html = el["htmlContent"]
+    # Only the h2 should be marked (empty <p> skipped)
+    assert html.count('data-aesthetic-plate="1"') == 1
 
 
 # ---------------------------------------------------------------------------
