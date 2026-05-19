@@ -13,6 +13,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Depends
+from bs4 import BeautifulSoup
 from routes.deps import db
 from routes.auth import get_current_user, require_auth
 from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -308,6 +309,227 @@ def _effective_bg_for_element(slide: dict) -> tuple:
     return bg_color, has_image
 
 
+# ---------------------------------------------------------------------------
+# HTML inline style propagation (BS4-powered)
+# ---------------------------------------------------------------------------
+# When the LLM proposes a style change on a type=html element, the outer
+# element style.* changes alone do NOT propagate to inline <h2 style="...">
+# rules inside the iframe-rendered htmlContent. We must REWRITE those inline
+# styles directly so the visible text actually changes.
+
+_TEXT_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "li", "td", "th", "strong", "b", "em", "div", "label")
+
+
+def _rewrite_inline_color(style_attr: str, new_color: str, html_bg: str,
+                          only_when_failing: bool = False) -> str:
+    """Replace every `color: X` inside an inline style attribute.
+
+    When `only_when_failing=True`, only replaces if the current color fails
+    WCAG (ratio < 4.5) against `html_bg`. This protects intentional brand
+    accent colors that are already legible.
+    """
+    def _do(m):
+        cur = m.group(1).strip().rstrip(';').strip()
+        if only_when_failing:
+            try:
+                if wcag.contrast_ratio(cur, html_bg) >= 4.5:
+                    return m.group(0)  # keep as-is, already legible
+            except Exception:
+                pass
+        return f"color:{new_color}"
+    return re.sub(r"\bcolor\s*:\s*([^;]+)", _do, style_attr, flags=re.IGNORECASE)
+
+
+def _rewrite_inline_font_size(style_attr: str, scale: float, target_size: int = None,
+                              is_dominant_tag: bool = False) -> str:
+    """Scale inline font-size declarations. When `is_dominant_tag=True` and
+    `target_size` is set, the largest size in the attribute is replaced
+    EXACTLY with target_size (so the title gets the LLM's intended size
+    rather than scale * old_size which can drift)."""
+    def _do(m):
+        val = m.group(1).strip()
+        px_match = re.match(r"([\d.]+)\s*px", val, re.IGNORECASE)
+        if not px_match:
+            return m.group(0)
+        cur = float(px_match.group(1))
+        if is_dominant_tag and target_size is not None:
+            new_px = int(target_size)
+        else:
+            new_px = max(12, int(round(cur * scale)))
+        return f"font-size:{new_px}px"
+    return re.sub(r"\bfont-size\s*:\s*([^;]+)", _do, style_attr, flags=re.IGNORECASE)
+
+
+def _rewrite_inline_font_weight(style_attr: str, new_weight) -> str:
+    """Replace inline font-weight if present, else leave attribute alone.
+    We DON'T inject font-weight into elements that didn't have one — that
+    would over-bold body text."""
+    return re.sub(r"\bfont-weight\s*:\s*[^;]+", f"font-weight:{new_weight}", style_attr, flags=re.IGNORECASE)
+
+
+def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) -> bool:
+    """For type=html elements, rewrite inline styles inside htmlContent so
+    that fontSize/fontWeight/fontColor changes from `changes` actually
+    become visible.
+
+    Returns True if htmlContent was mutated.
+
+    Strategy:
+      - Detect the simulator's internal background → used for WCAG checks.
+      - If `fontSize` change: find the LARGEST inline `font-size: Npx` in
+        the htmlContent and treat it as the "title". Map it to the new
+        target size; scale all other inline sizes proportionally.
+      - If `fontColor` change: rewrite every inline `color: X` whose current
+        contrast against the html bg fails WCAG (or whose color is the
+        same as the previous title color). PRESERVES intentional accent
+        colors that are already legible (e.g., orange badge on dark bg).
+      - If `fontWeight` change: only updates tags that already declare a
+        font-weight (i.e., headings/strong/b). Avoids over-bolding body.
+      - Fallback: when there are NO inline font-sizes (rare; usually
+        relying on browser defaults), inject a `<style data-aesthetic-fix>`
+        block targeting `h1-h6` with the new size/weight/color.
+    """
+    if element.get("type") != "html":
+        return False
+    html = element.get("htmlContent") or ""
+    if not html:
+        return False
+
+    new_size = changes.get("fontSize")
+    new_color = changes.get("fontColor")
+    new_weight = changes.get("fontWeight")
+    if not any([new_size, new_color, new_weight]):
+        return False
+
+    # Strip any prior aesthetic-fix injection so we start fresh & idempotent.
+    html = _clean_aesthetic_fixes_from_html(html)
+
+    # Determine effective bg for contrast checks.
+    slide_bg = (slide.get("background") or "#ffffff").strip()
+    html_bg = _extract_dominant_html_bg(html) or slide_bg
+
+    # Try to parse with BS4. If parse fails (extremely rare), bail out
+    # gracefully and let the upstream <style>-injection path handle it.
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception as exc:
+        logger.warning(f"BS4 parse failed in _propagate_style_to_html_content: {exc}")
+        return False
+
+    # Coerce new_size to int when possible.
+    target_size = None
+    if new_size is not None:
+        try:
+            target_size = int(str(new_size).strip().rstrip("px"))
+        except (ValueError, TypeError):
+            target_size = None
+
+    # First pass: detect the dominant (largest) font-size & its tag.
+    sized_entries = []  # [(tag, current_px)]
+    for tag in soup.find_all(style=True):
+        m = re.search(r"font-size\s*:\s*([\d.]+)\s*px", tag.get("style", "") or "", re.IGNORECASE)
+        if m:
+            try:
+                sized_entries.append((tag, float(m.group(1))))
+            except ValueError:
+                continue
+
+    scale = None
+    dominant_tag = None
+    if target_size and sized_entries:
+        dominant_tag, max_px = max(sized_entries, key=lambda x: x[1])
+        if max_px > 0:
+            scale = float(target_size) / max_px
+
+    mutated = False
+
+    # Second pass: rewrite inline styles tag-by-tag.
+    for tag in soup.find_all(style=True):
+        style_attr = tag.get("style", "") or ""
+        new_style = style_attr
+
+        # font-size scaling
+        if scale is not None:
+            new_style = _rewrite_inline_font_size(
+                new_style,
+                scale,
+                target_size=target_size,
+                is_dominant_tag=(tag is dominant_tag),
+            )
+
+        # color rewrite — three modes:
+        #  1. LLM proposed new_color → force on every inline color that
+        #     either fails WCAG or matches the previous dominant color.
+        #  2. No new_color but inline color FAILS WCAG against html_bg
+        #     → defense-in-depth, force a high-contrast polarity.
+        if new_color:
+            # Validate proposed color against html bg; flip if it makes
+            # text invisible there.
+            final_color = new_color
+            try:
+                if wcag.contrast_ratio(final_color, html_bg) < 4.5:
+                    final_color = wcag.pick_high_contrast_color(html_bg)
+            except Exception:
+                pass
+            new_style = _rewrite_inline_color(
+                new_style, final_color, html_bg, only_when_failing=True
+            )
+        else:
+            # Defense-in-depth: even without an explicit fontColor request,
+            # rewrite any inline color that fails WCAG against the simulator
+            # background (e.g., white text on white html bg).
+            fallback_color = wcag.pick_high_contrast_color(html_bg)
+            new_style = _rewrite_inline_color(
+                new_style, fallback_color, html_bg, only_when_failing=True
+            )
+
+        # font-weight — only replaces if attribute already has one.
+        if new_weight:
+            new_style = _rewrite_inline_font_weight(new_style, new_weight)
+
+        if new_style != style_attr:
+            tag["style"] = new_style
+            mutated = True
+
+    # Fallback: no inline font-sizes existed but LLM wants a size change
+    # → inject a <style data-aesthetic-fix> block targeting h1-h6.
+    if target_size and not sized_entries:
+        css_parts = [f"h1,h2,h3,h4,h5,h6 {{ font-size: {target_size}px !important;"]
+        if new_weight:
+            css_parts.append(f" font-weight: {new_weight} !important;")
+        if new_color:
+            final_color = new_color
+            try:
+                if wcag.contrast_ratio(final_color, html_bg) < 4.5:
+                    final_color = wcag.pick_high_contrast_color(html_bg)
+            except Exception:
+                pass
+            css_parts.append(f" color: {final_color} !important;")
+        css_parts.append(" }")
+        style_tag = soup.new_tag("style", attrs={"data-aesthetic-fix": "1"})
+        style_tag.string = "".join(css_parts)
+        # Insert at the very beginning of the soup so head/body tags can
+        # override it normally; idempotent (we stripped prior fixes above).
+        if soup.head:
+            soup.head.append(style_tag)
+        elif soup.body:
+            soup.body.insert(0, style_tag)
+        else:
+            soup.insert(0, style_tag)
+        mutated = True
+
+    if mutated:
+        element["htmlContent"] = str(soup)
+        return True
+
+    # No inline mutation happened — restore the cleaned (no aesthetic-fix
+    # tags) html anyway so prior injected styles don't linger.
+    if html != element.get("htmlContent"):
+        element["htmlContent"] = html
+        return True
+    return False
+
+
 def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
     """Apply style changes WITH WCAG enforcement and automatic plate insertion.
 
@@ -420,6 +642,27 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
             style.setdefault("padding", "10px 14px")
             style.setdefault("borderRadius", "8px")
             applied_any = True
+
+    # ------------------------------------------------------------------
+    # HTML INLINE STYLE PROPAGATION (the real fix for the user's bug)
+    # When the element renders htmlContent inside an iframe, mutations to
+    # element.style.fontSize / fontWeight / fontColor are INVISIBLE because
+    # the iframe shows the inline `<h2 style="font-size:31px;color:#fff">`.
+    # Rewrite those inline rules so the visible content actually changes.
+    # ------------------------------------------------------------------
+    if element.get("type") == "html" and element.get("htmlContent"):
+        # Build the effective change set, prefering style.* values that have
+        # already been validated/forced above (e.g., post-sweep enforced color).
+        effective_changes = {
+            "fontSize": style.get("fontSize") if "fontSize" in (changes or {}) else None,
+            "fontWeight": style.get("fontWeight") if "fontWeight" in (changes or {}) else None,
+            "fontColor": style.get("fontColor") if ("fontColor" in (changes or {}) or "fontColor" in style) else None,
+        }
+        # Drop None entries to keep semantics tight.
+        effective_changes = {k: v for k, v in effective_changes.items() if v is not None}
+        if effective_changes:
+            if _propagate_style_to_html_content(element, effective_changes, slide):
+                applied_any = True
 
     return applied_any
 

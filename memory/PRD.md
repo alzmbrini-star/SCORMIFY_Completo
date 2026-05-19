@@ -88,6 +88,34 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont.): **FIX (P0)** — Analisador de Estetica: aplicar sugestao de "Fontes" em slide `type=html` nao alterava o tamanho/peso visivel do texto.
+  - **Pedido do usuario**: "Ele sincronizou corretamente mas continua sem fazer o contraste correto da fonte mesmo depois de aplicar a melhoria sugerida por favor corrija este BUG!"
+  - **Causa raiz**: `_apply_style_fix` so mexia em `element.style.fontSize/fontWeight/fontColor` (campos do elemento de fora). Mas elementos `type=html` renderizam o htmlContent dentro de um iframe (srcDoc) — o que o aluno VE e o inline `<h2 style="font-size:31px;font-weight:700;color:#ffffff">` DENTRO do htmlContent. Mexer no style externo nao tinha efeito visual nenhum.
+  - **Fix multi-camada** (`routes/aesthetics.py`):
+    - **Nova funcao `_propagate_style_to_html_content(element, changes, slide)`**: parseia htmlContent com BeautifulSoup, detecta o maior inline `font-size` (o "titulo" — h2 do `Conclusao`), e:
+      1. **Font-size**: titulo recebe EXATAMENTE o `target_size` da sugestao; demais inline-sizes (p, span, etc.) escalam proporcionalmente (`scale = target/max_existing`). Min 12px.
+      2. **Font-weight**: SO substitui em tags que ja declaram font-weight (h1-h6/strong/b). NAO over-bolda body text.
+      3. **Color**: rewrite apenas em inline-color que falha WCAG vs `html_bg` (do `<style>body{bg:...}` interno). Cores acentuadas legiveis (`#f59e0b` em fundo navy) sao PRESERVADAS.
+      4. **Defense-in-depth**: mesmo sem `fontColor` nas changes, se algum inline-color falha contra o html_bg, e auto-forcado para alto-contraste (cobre o caso historico de white-on-white invisivel).
+      5. **Fallback**: se NAO ha inline-sizes (browser defaults), injeta `<style data-aesthetic-fix>h1,h2,h3,h4,h5,h6{font-size:Npx !important; ...}</style>`.
+    - **Integracao**: `_apply_style_fix` agora chama o propagador sempre que o elemento e `type=html` com `htmlContent` e alguma das chaves fontSize/fontWeight/fontColor foi tocada.
+    - **Idempotente**: strip de prior `<style data-aesthetic-fix>` antes de cada aplicacao — re-aplicar nao acumula CSS.
+  - **Validacao via E2E real** (projeto `a0b4069e-...` slide 9 el 1 — "Conclusao e Proximos Passos"):
+    - BEFORE: `<h2 style="font-size:31px;font-weight:700;color:#ffffff">`
+    - AFTER apply: `<h2 style="font-size:48px;font-weight:800;color:#ffffff">` (LLM target 48). Paragrafo `font-size:20px` escalou para 31px (20*48/31 ≈ 30.97). Cor branca preservada pois constraste vs navy (#1e3a8a) e ~14:1.
+    - applyAll com nova analise (LLM emitiu fontSize=64) → h2 64px, weight 800, p 41px (20*64/31). Tudo escala corretamente.
+  - **Validacao via unit tests** (9/9 passando em `tests/test_aesthetics_html_propagation.py`):
+    - Reproducer com html real do user → font-size 31 → exatamente 48 ✓
+    - font-weight rewrite apenas em tags com peso pre-existente ✓
+    - Idempotencia (aplicar 2x = mesmo resultado) ✓
+    - White-on-white em htmlContent forcado para `#0f172a` quando bg=branco ✓
+    - Cores acentuadas legiveis (orange #f59e0b em navy) PRESERVADAS ✓
+    - Helpers `_rewrite_inline_color`, `_rewrite_inline_font_size` cobertos ✓
+    - Fallback `<style>` block quando nao ha inline-sizes ✓
+    - Nao mexe em elementos non-html ✓
+  - **Regressao**: 112 testes pre-existentes do dominio aesthetics passando — sem regressao.
+
+
 - 2026-05-19: **FIX (P0)** — Analisador de Estetica: sugestoes apontavam para slide ERRADO (off-by-one).
   - **Pedido do usuario** (screenshot): "Slide 10 esta considerando um QUIZ e na verdade e a tela de encerramento! Sincronize os slides corretamente!"
   - **Causa raiz** confirmada via DB query: nas issues guardadas, o LLM atribuia `slideIndex=9` quando descrevia o "Quiz Final", mas na verdade o quiz estava em `slides[8]` (slide 9 1-based). O slide em `slides[9]` era "Resumo: Seu Roteiro de Sucesso" — a tela de encerramento que o user viu sendo erroneamente marcada como quiz.
