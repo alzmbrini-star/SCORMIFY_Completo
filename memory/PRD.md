@@ -88,6 +88,35 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v4): **REFACTOR (preventive)** — eliminar legacy HTML4 `<font>` markup do pipeline.
+  - **Motivo**: o `RichTextEditor` da frontend usava `document.execCommand('foreColor'/'fontName'/'fontSize')` SEM `styleWithCSS=true`, fazendo o Chrome/Edge/Safari emitirem `<font color="X">` legacy. Isso quebrava a deteccao de polaridade do Analisador de Estetica (corrigido em v3 com fallback) mas precisava ser eliminado na origem.
+  - **Fix em 4 frentes**:
+    1. **`frontend/src/components/RichTextEditor.jsx`**: chama `document.execCommand('styleWithCSS', false, true)` no mount e ANTES de cada `execCommand` (foreColor, fontName, fontSize, etc.). Resultado: todo novo conteudo editado emite `style="color:X"` inline em vez de `<font>`.
+    2. **Normalizador no carregamento + paste**: `normalizeLegacyMarkup(html)` em JS converte qualquer `<font color/face/size>` para `<span style>` ao:
+       - Receber initialContent no mount (e propaga via onChange para o estado React)
+       - Receber prop content em update
+       - Paste de fontes externas (Word, Google Docs) — handler detecta `<font>` no clipboard HTML, sanitiza, e insere via `insertHTML`
+    3. **Backend `services/html_legacy_normalizer.py`**: BS4-powered, mesma logica em Python — converte `<font color/face/size>` em `<span style>`. Mapeia size HTML4 (1..7) → px (10/13/16/18/24/32/48). Idempotente. 12 unit tests.
+    4. **Migracao admin `POST /api/admin/normalize-font-tags?dryRun=...`**: walk em todos projetos, converte htmlContent legacy. Idempotente (re-run = 0 mudancas). Admin-only.
+  - **Backfill executado em producao** (`dryRun=false`):
+    - Antes: 67 projetos scaneados, 20 com `<font>`, 63 elementos legacy.
+    - Apos: 0 projetos com `<font>`, 0 elementos legacy. Re-run dry-run confirma 0 (idempotente).
+    - Projeto a0b4069e-... (slide 0 el 1): `<h1>...<font color="#000000">Capa</font></h1>` → `<h1>...<span style="color:#f8fafc">Capa</span></h1>` (cor ja modernizada pelo aesthetics em paralelo).
+  - **Validacao** (testing_agent_v3_fork iteration_123, 34/34 tests passando):
+    - 12/12 unit tests no normalizer (`test_html_legacy_normalizer.py`): real_user_pattern, idempotente, size mapping, face/color combos, preserve children
+    - 16/16 unit tests no propagador/plate (`test_aesthetics_html_propagation.py`)
+    - 6/6 integration tests live API (`test_normalize_font_tags_integration.py`):
+      - Auth gate (401 sem token)
+      - Dry-run conta corretamente
+      - Apply → re-dry-run mostra 0 (idempotente)
+      - Projeto do usuario sem `<font>` apos migracao
+      - Aesthetics apply→revert→reapply idempotente
+  - **Code review comments do testing agent** (nao-bloqueantes):
+    - `routes/aesthetics.py` chegou a 1646 linhas — split em modulos focados eh recomendado (planejado em P3-refactor).
+    - Migration carrega todos projetos em memoria — OK para 67, deve virar streaming acima de 5k projetos.
+    - `_SIZE_MAP` dropa sizes desconhecidos silenciosamente — poderia logar warning.
+
+
 - 2026-05-19 (cont. v3): **FIX (P0 follow-up #2)** — Analisador de Estetica: plate com polaridade ERRADA em slides com `<font color>` legacy.
   - **Pedido do usuario** (screenshot apos v2): "Agora ele esta colocando este overlay escuro mesmo onde nao ha necessidade!" — slide 0 (Capa) ficou com texto BLACK sobre plate DARK = invisivel.
   - **Causa raiz**: a IA Agent emite HTML4 legacy `<font color="#000000">` tags ao inves de inline `style="color:..."`. Minha deteccao de polaridade do plate (`_inject_html_bg_plate`) so olhava `style="color:"` via regex, ignorando `<font color>`. Resultado: para um slide com texto preto via `<font>`, o detector achava que NAO havia inline-color e defaultava para `LIGHT_FALLBACK` (`#f8fafc`) → plate DARK (errado para texto preto). E o `_propagate_style_to_html_content` tambem nao reescrevia o `<font color>`, entao o texto continuava preto mesmo apos a sugestao da LLM.
