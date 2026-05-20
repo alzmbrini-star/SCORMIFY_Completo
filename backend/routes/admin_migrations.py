@@ -441,3 +441,100 @@ async def cleanup_aesthetic_plates(
             f"{mutated_elements} elementos sem overlay"
         ),
     }
+
+
+
+@router.post("/admin/strip-html-container-backgrounds")
+async def strip_html_container_backgrounds_migration(
+    dryRun: bool = Query(default=True),
+    projectId: str = Query(default=""),
+    user: dict = Depends(require_auth),
+):
+    """Strip "island plate" backgrounds from htmlContent wrappers.
+
+    Targets the AI-Agent generated wrapper divs like
+    `<div style="width:100%;height:100%;background:#3b82f6">` that paint
+    a coloured rectangle behind slide content. When the user changes
+    slide.background, those wrappers become disconnected coloured islands
+    visually indistinguishable from rejected plate overlays.
+
+    Body params:
+      - `dryRun` (default True)
+      - `projectId` — optional. When provided, only touches that project.
+
+    Admin only. Idempotent.
+    """
+    from services.html_container_bg_stripper import strip_html_container_backgrounds
+
+    role = user.get("role", "")
+    if role not in ("super_admin", "admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    query: dict = {}
+    if projectId:
+        query["id"] = projectId
+
+    scanned = 0
+    mutated_projects = 0
+    mutated_elements = 0
+    total_stripped = 0
+    sample = []
+
+    cursor = db.projects.find(query, {"_id": 0, "id": 1, "name": 1, "course.slides": 1})
+    async for project in cursor:
+        scanned += 1
+        slides = ((project.get("course") or {}).get("slides")) or []
+        project_changed_elements = 0
+
+        for slide in slides:
+            slide_bg = (slide.get("background") or "").strip() or None
+            for el in (slide.get("elements") or []):
+                if el.get("type") != "html":
+                    continue
+                html = el.get("htmlContent") or ""
+                if not html:
+                    continue
+                new_html, stripped = strip_html_container_backgrounds(html, slide_bg)
+                if stripped > 0 and new_html != html:
+                    el["htmlContent"] = new_html
+                    project_changed_elements += 1
+                    mutated_elements += 1
+                    total_stripped += stripped
+
+        if project_changed_elements > 0:
+            mutated_projects += 1
+            if len(sample) < 20:
+                sample.append({
+                    "projectId": project.get("id"),
+                    "name": (project.get("name") or "")[:80],
+                    "elementsCleaned": project_changed_elements,
+                })
+            if not dryRun:
+                try:
+                    await db.projects.update_one(
+                        {"id": project["id"]},
+                        {"$set": {
+                            "course.slides": slides,
+                            "updatedAt": datetime.now(timezone.utc).isoformat(),
+                        }},
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"strip_html_container_backgrounds: write failed for {project.get('id')}: {e}"
+                    )
+
+    return {
+        "dryRun": dryRun,
+        "scannedProjects": scanned,
+        "mutatedProjects": mutated_projects,
+        "mutatedElements": mutated_elements,
+        "totalContainersStripped": total_stripped,
+        "sampleProjects": sample,
+        "message": (
+            f"DRY RUN: {mutated_projects}/{scanned} projetos teriam "
+            f"{mutated_elements} elementos com {total_stripped} backgrounds de container removidos"
+            if dryRun else
+            f"OK: {mutated_projects}/{scanned} projetos limpos, "
+            f"{mutated_elements} elementos com {total_stripped} backgrounds de container removidos"
+        ),
+    }

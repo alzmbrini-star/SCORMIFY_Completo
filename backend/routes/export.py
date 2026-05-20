@@ -325,6 +325,14 @@ async def _run_scorm_export_job(
         # Generate package — runs in a thread pool to avoid blocking the event loop
         if use_single_page:
             from services.scorm_single_page_exporter import export_single_page_scorm_package
+            from services.company_asset_export import prepare_company_assets_for_export
+            # Pre-extract brand-kit images so the offline SCORM zip carries them.
+            try:
+                _proj_assets_dir = str(PROJECTS_DIR / project_id / "assets")
+                Path(_proj_assets_dir).mkdir(parents=True, exist_ok=True)
+                await prepare_company_assets_for_export(project_doc, db, _proj_assets_dir)
+            except Exception as exc:
+                logger.warning(f"company assets pre-extract for SCORM failed (non-fatal): {exc}")
             zip_path = await asyncio.to_thread(
                 export_single_page_scorm_package,
                 project_doc,
@@ -601,6 +609,19 @@ async def _run_html_export_job(
                 logger.warning(f"Gamification load for HTML single-page failed (non-fatal): {e}")
 
             from services.single_page_exporter import generate_single_page_html
+            from services.company_asset_export import prepare_company_assets_for_export
+
+            # Materialize brand-kit images (logos, watermarks, backgrounds)
+            # to disk under assets_dir/_companies/ so the exporter can inline
+            # them as data URIs. Without this, /api/companies/.../assets/.../file
+            # URLs stay live and break offline rendering.
+            try:
+                _written = await prepare_company_assets_for_export(project_doc, db, assets_dir)
+                if _written:
+                    logger.info(f"Pre-extracted {_written} company assets for HTML export")
+            except Exception as exc:
+                logger.warning(f"prepare_company_assets_for_export failed (non-fatal): {exc}")
+
             html_content = await asyncio.to_thread(
                 generate_single_page_html,
                 project_doc,
@@ -745,6 +766,11 @@ async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)
 
     try:
         from services.single_page_exporter import generate_single_page_html
+        from services.company_asset_export import prepare_company_assets_for_export
+        try:
+            await prepare_company_assets_for_export(project_doc, db, assets_dir)
+        except Exception as exc:
+            logger.warning(f"company assets pre-extract for preview failed (non-fatal): {exc}")
         html_content = generate_single_page_html(
             project_doc,
             assets_dir,

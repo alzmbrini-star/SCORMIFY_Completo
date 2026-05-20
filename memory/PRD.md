@@ -88,6 +88,20 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-19 (cont. v6.4): **FIX (P0 dupla)** — Island plates em SCORM/HTML export + Brand images quebradas.
+  - **Pedidos do usuario** (screenshot): "Os plates ainda continuam quando se exportar para SCORM e HTML por favor corrija!" + "veja tambem que as imagens de marca (backgrounds) nao estao aparecendo".
+  - **Causa raiz #1 (island plates)**: os retangulos coloridos nao eram plates injetados pelo Analisador — eram `<div style="width:100%;height:100%;background:#3b82f6">` wrappers gerados pelo AI Agent original. Quando o usuario muda `slide.background`, esses wrappers viram "ilhas coloridas" desconectadas.
+  - **Causa raiz #2 (brand images)**: `_resolve_asset_url` no `single_page_exporter.py` so capturava URLs `/api/projects/<id>/assets/<file>`. NAO capturava `/api/companies/<cid>/assets/<aid>/file` (formato das brand images: logos, watermarks, backgrounds do BrandKit). Resultado: ficavam com URL live, quebradas em SCORM/HTML offline.
+  - **Fix em 4 frentes**:
+    1. **Novo `services/html_container_bg_stripper.py`** (+ 8 unit tests): `strip_html_container_backgrounds(html, slide_bg)` remove `background[-color]:` apenas de `<div>/<section>/<article>` que sao full-bleed wrappers OR containers com text leaf > 20 chars. PRESERVA badges/chips/buttons/td/th, barrinhas 4px decorativas, spans inline. Idempotente.
+    2. **Endpoint admin `POST /api/admin/strip-html-container-backgrounds`** com `dryRun` + `projectId` opcional. Dry-run: 28/67 projetos teriam 397 backgrounds removidos. Aplicado no projeto Intelbras Itec: 15 elementos limpos, barrinhas decorativas preservadas.
+    3. **Novo fix type `strip_container_bg` no Analisador** (parte B do plano usuario): `_build_slide_context` detecta `ISLAND-PLATE-CANDIDATE: <div> wrapper has background=#XXX` e anota no contexto LLM. Prompt LLM documenta o novo fix_type. Endpoint apply-fix reconhece e chama o stripper.
+    4. **Novo `services/company_asset_export.py`**: `prepare_company_assets_for_export(project_doc, db, assets_dir)` coleta URLs `/api/companies/.../assets/.../file`, baixa via GridFS, grava em `assets_dir/_companies/<asset_id>.<ext>`. `_resolve_asset_url` e `_inline_assets_in_html` agora aceitam BOTH formats e cobrem CSS-level `url(...)`. 3 endpoints de export integrados (HTML, preview, SCORM single-page).
+  - **Testes**: 8 novos no stripper + 132/132 do dominio aesthetics passando — sem regressao.
+  - **Producao**: usuario precisa redeployar (Save to GitHub + Redeploy) para que as correcoes apareçam em https://backend-startup.emergent.host. Apos deploy, pode rodar a migration via `POST /api/admin/strip-html-container-backgrounds?dryRun=false` para limpar 28 projetos existentes.
+
+
+
 - 2026-05-19 (cont. v6.3): **FIX (P0)** — Analisador de Estetica nao corrigia textos que estavam SEM `style="color"` inline (apareciam cinza claro mesmo apos aplicar).
   - **Pedido do usuario** (screenshot): "Tive que mudar a cor dos backgrounds para branco e forcar a cor do texto para preto e ainda assim a Analise Estetica nao conseguiu mudar a cor de todos os textos! Veja que ainda ha textos em cinza claro!"
   - **Causa raiz**: o `SlideCanvas` injetava um CSS global `body { color: '#f1f5f9' }` (cinza-azulado quase branco) no iframe que renderiza o htmlContent. Quando o AI Agent gerava `<h3>Consolidando...</h3>` SEM inline `style="color"`, esse h3 herdava `#f1f5f9` do body → invisivel sobre slide branco. O propagador antes so reescrevia `color:` quando existia inline; nao injetava NOVOS inline colors em tags sem cor.

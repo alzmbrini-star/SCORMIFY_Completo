@@ -53,7 +53,11 @@ def _b64_data_uri(file_path: str) -> Optional[str]:
 
 def _resolve_asset_url(url: str, project_id: str, assets_dir: str, base_url: str = "") -> str:
     """Convert a /api/projects/<id>/assets/<file> URL to an inlined data URI
-    when the file exists on disk. Falls back to absolute base_url + path.
+    when the file exists on disk. Also supports /api/companies/<cid>/assets/<aid>/file
+    when the file has been pre-extracted via `prepare_company_assets_for_export`
+    into `assets_dir/_companies/<aid>.<ext>`.
+
+    Falls back to absolute base_url + path when neither local resolution works.
     """
     if not url:
         return url
@@ -67,7 +71,23 @@ def _resolve_asset_url(url: str, project_id: str, assets_dir: str, base_url: str
         data_uri = _b64_data_uri(str(local_path))
         if data_uri:
             return data_uri
-        # Fallback to remote
+        if base_url:
+            return f"{base_url.rstrip('/')}{url}"
+    # Match company asset path (brand kit images, logos, watermarks, etc.)
+    # Format: /api/companies/<company_id>/assets/<asset_id>/file
+    # These need to have been pre-extracted by `prepare_company_assets_for_export`
+    # into assets_dir/_companies/<asset_id>.<ext>. Without that pre-step, the
+    # SCORM/HTML export would leave the URL untouched and the brand image
+    # would be broken offline.
+    m2 = re.match(r"^/api/companies/[^/]+/assets/([^/]+)/file/?$", url)
+    if m2:
+        asset_id = m2.group(1)
+        # Try every common extension we may have written.
+        for ext in ("png", "jpg", "jpeg", "gif", "webp", "svg", "mp4", "mp3", "ogg", "bin"):
+            local_path = Path(assets_dir) / "_companies" / f"{asset_id}.{ext}"
+            data_uri = _b64_data_uri(str(local_path))
+            if data_uri:
+                return data_uri
         if base_url:
             return f"{base_url.rstrip('/')}{url}"
     if url.startswith("/") and base_url:
@@ -100,7 +120,12 @@ def _esc(s: Any) -> str:
 
 
 def _inline_assets_in_html(html_str: str, project_id: str, assets_dir: str, base_url: str) -> str:
-    """Replace asset URLs inside an htmlContent fragment with data URIs."""
+    """Replace asset URLs inside an htmlContent fragment with data URIs.
+
+    Covers BOTH `/api/projects/<id>/assets/...` (per-project files on disk)
+    AND `/api/companies/<cid>/assets/<aid>/file` (brand-kit images) so the
+    SCORM/HTML package is fully self-contained offline.
+    """
     if not html_str:
         return ""
 
@@ -110,8 +135,22 @@ def _inline_assets_in_html(html_str: str, project_id: str, assets_dir: str, base
         new_url = _resolve_asset_url(url, project_id, assets_dir, base_url)
         return full.replace(url, new_url)
 
-    pattern = re.compile(r'(?:src|href)\s*=\s*"(/api/projects/[^"]+)"')
-    return pattern.sub(repl, html_str)
+    pattern = re.compile(
+        r'(?:src|href)\s*=\s*"((?:/api/projects/[^"]+|/api/companies/[^"]+/assets/[^"]+/file))"'
+    )
+    html_str = pattern.sub(repl, html_str)
+
+    # Also inline CSS-level `url(...)` references in style attributes/blocks.
+    css_pattern = re.compile(
+        r'url\(\s*[\'"]?((?:/api/projects/[^\'")]+|/api/companies/[^\'")]+/assets/[^\'")]+/file))[\'"]?\s*\)'
+    )
+
+    def css_repl(match: re.Match) -> str:
+        url = match.group(1)
+        new_url = _resolve_asset_url(url, project_id, assets_dir, base_url)
+        return f'url("{new_url}")'
+
+    return css_pattern.sub(css_repl, html_str)
 
 
 def _kebab(name: str) -> str:

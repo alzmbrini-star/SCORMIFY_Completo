@@ -201,8 +201,20 @@ def _build_slide_context(slide: dict, slide_idx: int, total: int = 1,
                     pass
 
         if el_type == "html":
-            html = (el.get("htmlContent") or "")[:200]
-            desc += f"\n    HTML: {html}"
+            full_html = el.get("htmlContent") or ""
+            html_excerpt = full_html[:200]
+            desc += f"\n    HTML: {html_excerpt}"
+            # Flag "island plate" containers — `<div>` wrappers with
+            # full-bleed backgrounds that conflict with slide.background.
+            # The LLM should emit a `strip_container_bg` fix for these.
+            container_bg_match = re.search(
+                r'<(div|section|article)[^>]*style="[^"]*\bbackground(?:-color)?\s*:\s*([^;"]+)[^"]*"[^>]*>',
+                full_html,
+                re.IGNORECASE,
+            )
+            if container_bg_match:
+                container_color = container_bg_match.group(2).strip()
+                desc += f"\n    ISLAND-PLATE-CANDIDATE: <{container_bg_match.group(1)}> wrapper has background={container_color} — emit strip_container_bg fix if it visually conflicts with slide.background={bg}"
         elif content:
             desc += f"\n    Text: {content}"
 
@@ -248,6 +260,7 @@ DADOS DOS SLIDES (com WCAG calculado + analise REAL da imagem de fundo por eleme
    - Para font-size, USE `em`/`rem`/`%` (nunca px)
    - NAO injete padding/margin/line-height (sao stripados)
    - **Estrategia recomendada**: leia o htmlContent, identifique a CLASSE OU ID exata do elemento problemático, e direcione apenas ele.
+- `strip_container_bg` — strip backgrounds de containers (`<div>`/`<section>` wrappers) DENTRO de htmlContent. **Use sempre que detectar uma "ilha colorida"**: wrapper `<div style="width:100%;height:100%;background:#XXX">` que conflita com `slide.background`. O fix NAO precisa de `changes` — apenas `{ "type": "strip_container_bg" }` e o backend faz o resto.
 
 ## Regras CRITICAS
 - Use EXATAMENTE preto `#0f172a` ou branco `#f8fafc` — NUNCA cinza intermediario, NUNCA outras cores.
@@ -1639,6 +1652,19 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                 # aesthetic analyzer should never darken/lighten a slide
                 # background image without explicit user action.
                 continue
+
+            elif fix_type == "strip_container_bg" and 0 <= el_idx < len(slide.get("elements", [])):
+                # Remove "island plate" backgrounds from htmlContent wrappers.
+                element = slide["elements"][el_idx]
+                if element.get("type") == "html":
+                    from services.html_container_bg_stripper import strip_html_container_backgrounds
+                    new_html, stripped = strip_html_container_backgrounds(
+                        element.get("htmlContent") or "",
+                        (slide.get("background") or "").strip() or None,
+                    )
+                    if stripped > 0 and new_html != element.get("htmlContent"):
+                        element["htmlContent"] = new_html
+                        applied += 1
 
             elif fix_type == "position" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
