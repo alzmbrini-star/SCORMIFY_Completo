@@ -38,8 +38,9 @@ import TutorDashboard from './TutorDashboard';
 import IntegrationsHealthPanel from './IntegrationsHealthPanel';
 import CostReportPanel from '../components/admin/CostReportPanel';
 import DataMigrationPanel from '../components/admin/DataMigrationPanel';
+import PlatesCleanupPanel from '../components/admin/PlatesCleanupPanel';
 import BrandLibraryDialog from '../components/admin/BrandLibraryDialog';
-import { Palette } from 'lucide-react';
+import { Palette, Eraser } from 'lucide-react';
 const API_URL = getApiUrl();
 
 export default function Admin() {
@@ -461,6 +462,17 @@ export default function Admin() {
               Migracao
             </Button>
           )}
+          {isSuperAdmin && (
+            <Button
+              variant={activeTab === 'plates_cleanup' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('plates_cleanup')}
+              className="gap-2"
+              data-testid="tab-plates-cleanup"
+            >
+              <Eraser className="w-4 h-4" />
+              Limpeza
+            </Button>
+          )}
         </div>
 
         {/* Cost Report Tab */}
@@ -468,6 +480,9 @@ export default function Admin() {
 
         {/* Data Migration Tab */}
         {activeTab === 'data_migration' && isSuperAdmin && <DataMigrationPanel />}
+
+        {/* Plates Cleanup Tab */}
+        {activeTab === 'plates_cleanup' && isSuperAdmin && <PlatesCleanupPanel />}
 
         {/* Companies Tab */}
         {activeTab === 'companies' && isSuperAdmin && (

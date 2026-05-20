@@ -88,6 +88,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-20 (v6.7): **FEAT** — Painel admin "Limpeza de Metadados Antigos".
+  - **Pedido do usuario**: opcao "3" da pergunta anterior — botao no Admin que dispara as 2 migrations sem precisar de terminal.
+  - **Implementacao** (`/admin` tab "Limpeza"):
+    - Novo componente `frontend/src/components/admin/PlatesCleanupPanel.jsx` com 2 cards de migration (visualmente identicos):
+      1. **Plates do Analisador (v3-v5)**: chama `POST /api/admin/cleanup-aesthetic-plates`
+      2. **Island Plates do AI Agent**: chama `POST /api/admin/strip-html-container-backgrounds`
+    - Cada card tem fluxo de 2 passos OBRIGATORIO:
+      1. "Scan (Dry Run)" → mostra preview com 3 contadores (escaneados / a atualizar / elementos) + lista dos primeiros 20 projetos afetados
+      2. "Aplicar" (so habilita apos scan) → confirma com `window.confirm` e roda com `dryRun=false`
+    - Mostra feedback via `toast.success`/`toast.error` e badge verde quando aplicado.
+    - Tab nova "Limpeza" no `/admin` (visivel apenas para `isSuperAdmin`), proxima a "Migracao".
+  - **Validacao**:
+    - Login admin → /admin → Tab "Limpeza" → 2 cards visiveis com testids
+    - Endpoint cleanup-plates dry-run em preview: 1/61 projetos
+    - Endpoint strip-containers dry-run em preview: 26/61 projetos com 314 elementos / 377 backgrounds
+  - **Producao**: apos Save to GitHub + Redeploy, usuario podera limpar prod inteira clicando 2 botoes no Admin > Limpeza, sem precisar de curl/terminal.
+
+
+
 - 2026-05-20 (v6.6): **FIX (P0)** — Plates SOLIDOS antigos (não rgba) ainda presentes em projetos.
   - **Pedido do usuario** (screenshot slide "Teoria da Venda Consultiva"): "ainda vejo plates nos slides, poderia verificar e corrigir? O projeto e o a0b4069e-... Local!"
   - **Causa raiz**: a migration `cleanup-aesthetic-plates` (v6.4) só matchava `textBackgroundColor` com `rgba(r,g,b,alpha<1)`. Mas a versao v3 do Analisador setava SOLIDOS como `textBackgroundColor='#0f172a'` (slate-900 navy). No projeto do user, slide[2] el[1] tinha `{textBackgroundColor:'#0f172a', padding:'25px', border:'2px solid #f59e0b'}` em um elemento HTML — criando o "plate escuro" visivel.
