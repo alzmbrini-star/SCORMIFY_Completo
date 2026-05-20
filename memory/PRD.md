@@ -88,6 +88,19 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-20 (v6.6): **FIX (P0)** — Plates SOLIDOS antigos (não rgba) ainda presentes em projetos.
+  - **Pedido do usuario** (screenshot slide "Teoria da Venda Consultiva"): "ainda vejo plates nos slides, poderia verificar e corrigir? O projeto e o a0b4069e-... Local!"
+  - **Causa raiz**: a migration `cleanup-aesthetic-plates` (v6.4) só matchava `textBackgroundColor` com `rgba(r,g,b,alpha<1)`. Mas a versao v3 do Analisador setava SOLIDOS como `textBackgroundColor='#0f172a'` (slate-900 navy). No projeto do user, slide[2] el[1] tinha `{textBackgroundColor:'#0f172a', padding:'25px', border:'2px solid #f59e0b'}` em um elemento HTML — criando o "plate escuro" visivel.
+  - **Fix**: estendido o detector da migration. Para elementos `type=html`, QUALQUER `textBackgroundColor`/`backgroundColor` nao-transparente e considerado plate legacy (o htmlContent ja carrega seu proprio styling). Para `type=text` mantem so o filtro de rgba semi-transparente (preserva backgrounds intencionais).
+  - **Limpeza adicional**: drop tambem `border` quando acompanha plate removido (era injetado junto pelo v3).
+  - **Backfill executado em producao**: 2/61 projetos limpos, 14 elementos sem overlay (era 0 com a versao anterior do regex).
+  - **Validacao no projeto do usuario** (`a0b4069e-...` slide 2 el 1):
+    - ANTES: `style={fontFamily:'Inter', fontColor:'#0f172a', textBackgroundColor:'#0f172a', padding:'25px', color:'#000000', border:'2px solid #f59e0b'}` → texto preto sobre navy = invisivel
+    - DEPOIS: `style={fontFamily:'Inter', fontColor:'#0f172a', color:'#000000'}` → texto preto sobre fundo branco do slide = legivel
+  - **Producao**: usuario precisa redeployar para aplicar tambem em https://backend-startup.emergent.host. Apos redeploy, rodar `POST /api/admin/cleanup-aesthetic-plates?dryRun=false` para limpar projetos em prod.
+
+
+
 - 2026-05-20 (v6.5): **FIX (P0)** — SCORM tradicional (multi-page) nao copiava brand images, exibindo icones quebrados.
   - **Pedido do usuario** (2 screenshots): "No ambiente local ao exportar para SCORM ainda nao aparece a imagem de Marca definida como Background em HTML esta OK!"
   - **Causa raiz**: o v6.4 corrigiu `_resolve_asset_url` + pre-extraction no `single_page_exporter.py` (modo single-page) e no HTML export, mas NAO no `scorm_exporter.py` (modo TRADICIONAL multi-page, que e o default em muitos cursos). O exporter tradicional fazia `bg_url.split('/assets/')` que extraia errado para URLs `/api/companies/.../assets/<asset_id>/file` — pegava `'file'` como filename e perdia o asset_id. Result: brand backgrounds e watermarks com URL `assets/file` apontando para arquivo inexistente.

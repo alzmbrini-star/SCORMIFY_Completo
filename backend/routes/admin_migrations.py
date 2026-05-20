@@ -379,9 +379,12 @@ async def cleanup_aesthetic_plates(
                 # These keys were auto-set by the previous plate logic on
                 # text elements over bgImage slides. They cause an ugly
                 # opaque rectangle behind the text in the rendered slide.
-                # We match ANY semi-transparent rgba(...) — that's the
-                # signature of an injected plate (real user-set solid
-                # colors stay).
+                # We match BOTH:
+                #   - semi-transparent rgba(...) plates (v4/v5 style)
+                #   - SOLID dark hex on HTML elements (v3 style: e.g. textBackgroundColor='#0f172a'
+                #     on a type=html element). Solid backgrounds on HTML elements are
+                #     ALWAYS the rejected plate behaviour — the htmlContent already
+                #     carries its own styling.
                 style = el.get("style") or {}
                 if isinstance(style, dict):
                     semi_transparent_rgba = _re.compile(
@@ -390,13 +393,23 @@ async def cleanup_aesthetic_plates(
                     )
                     for key in ("textBackgroundColor", "backgroundColor"):
                         v = style.get(key)
-                        if isinstance(v, str) and semi_transparent_rgba.search(v):
+                        if not isinstance(v, str):
+                            continue
+                        is_plate = False
+                        if semi_transparent_rgba.search(v):
+                            is_plate = True
+                        # On HTML elements, ANY non-transparent background was
+                        # auto-injected by the legacy plate logic and creates
+                        # the ugly opaque rectangle the user complained about.
+                        elif el.get("type") == "html" and v.strip().lower() not in ("transparent", "none", "inherit", ""):
+                            is_plate = True
+                        if is_plate:
                             del style[key]
                             touched = True
                             # Drop padding/borderRadius/textShadow only when
                             # they accompany a removed plate (avoid touching
                             # intentional cosmetic style).
-                            for related in ("padding", "borderRadius", "textShadow"):
+                            for related in ("padding", "borderRadius", "textShadow", "border"):
                                 if related in style:
                                     del style[related]
                                     touched = True
