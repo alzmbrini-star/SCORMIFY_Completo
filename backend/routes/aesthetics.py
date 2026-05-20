@@ -884,25 +884,50 @@ def _propagate_style_to_html_content(element: dict, changes: dict, slide: dict) 
 
 
 def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
-    """Apply style changes WITH WCAG enforcement and automatic plate insertion.
+    """Apply style changes WITH WCAG enforcement (no plates / no overlays).
 
     Returns True if any change was applied. Mutates `element` in place.
 
-    Defense-in-depth (2026-05-18): even when the suggestion is purely about
-    font-size or layout, we ALWAYS recheck the element's current fontColor
-    against the effective background. If contrast is below WCAG AA (4.5:1),
-    we silently force a high-contrast color. This catches the case the user
-    reported — applying a "Fontes" suggestion on a slide where the text is
-    white-on-white doesn't visually change anything because the change set
-    only had fontSize. Now we sweep the color too.
+    Plate policy (2026-05-19): the user explicitly rejected ALL background
+    plates behind text elements. This function therefore:
+      1. Strips any banned plate keys (`backgroundColor`,
+         `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`,
+         `textShadow`) from BOTH the incoming `changes` AND any existing
+         residue on `element.style`. Defense-in-depth in case an upstream
+         LLM ignored the prompt prohibition.
+      2. Defensive coercion: any fontColor change is validated against the
+         effective background. If contrast is below WCAG AA (4.5:1), we
+         silently force a high-contrast color. This catches the case the
+         user reported — applying a "Fontes" suggestion on a slide where
+         the text is white-on-white doesn't visually change anything
+         because the change set only had fontSize. Now we sweep the color
+         too.
     """
     if "style" not in element or not isinstance(element.get("style"), dict):
         element["style"] = {}
     style = element["style"]
 
+    # --- Plate prohibition (defense in depth) ---
+    BANNED_STYLE_KEYS = {
+        "backgroundColor", "textBackgroundColor",
+        "padding", "borderRadius",
+        "boxShadow", "box-shadow",
+        "textShadow", "text-shadow",
+    }
+    # Drop any banned keys from incoming proposed changes.
+    if changes:
+        changes = {k: v for k, v in (changes or {}).items() if k not in BANNED_STYLE_KEYS}
+    # Strip pre-existing plate residue so applying ANY style fix also
+    # purges legacy plates the LLM might have left behind earlier.
+    stripped_any = False
+    for k in BANNED_STYLE_KEYS:
+        if k in style:
+            style.pop(k, None)
+            stripped_any = True
+
     bg_color, has_image = _effective_bg_for_element(slide, element)
 
-    applied_any = False
+    applied_any = stripped_any
     for key, val in (changes or {}).items():
         if val in (None, ""):
             continue

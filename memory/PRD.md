@@ -1652,10 +1652,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Testado 100% backend (5/5) + frontend (iteration_106).
   - Frontend Admin: Card "Leonardo AI - Uso de Imagens" com gradiente fuchsia/violet no topo do relatorio. Mostra: imagens geradas, pendentes, custo USD/BRL, modelo, custo por imagem.
 
+- 2026-05-19: FIX (P0) - AI Visual Agent (Editor Chat + Aesthetic Analyzer) ainda gerava plates em textos.
+  - Causa raiz: 2 superficies inseriam `textBackgroundColor`/`backgroundColor`/`padding`/`borderRadius` no `element.style`:
+    1. `routes/editor_chat.py` - System prompt incluia `backgroundColor` no schema da op `edit_element_style` e o whitelist de keys aceitas tambem. Mesmo apos remocao de plates do DB, o proximo turno de chat reintroduzia.
+    2. `routes/aesthetics.py` `_apply_style_fix` - tinha fallback `style[key] = val` sem filtro: se a LLM ignorasse o prompt e mandasse `textBackgroundColor` em `changes`, era salvo.
+  - Fix (defesa em profundidade):
+    - editor_chat: schema do prompt limitado a `{fontColor, fontSize, fontWeight, textAlign, fontFamily}`. Regra explicita PROIBIDO plates. Apply path strippa keys banidas + residuo legado.
+    - aesthetics _apply_style_fix: filtra keys banidas de `changes` E strippa residuo do element.style ao aplicar qualquer fix (auto-healing de projetos historicos).
+  - Tests: 6 novos testes em `tests/test_aesthetics_pipeline.py` + `tests/test_editor_chat_plates.py`. Total 46 passing.
 
 ## Upcoming Tasks (Prioritized)
-- P1: Email Notifications (Approval workflow + Tutor IA alerts)
-- P1: SCORM 2004 & xAPI Export
-- P1: Dashboard for analytics & scoring
-- P1: Course version history
-- P2: Cleanup legacy video_exporter.py backend code
+- P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
+- P1: Historico de versoes dos cursos
+- P2: Adicionar controles no Editor UI para o autor ajustar manualmente os parametros do `zoomEffect` (scale, duration, ponto focal) de tutoriais importados.
+- P3: Otimizar queries de admin (ex: users list) com paginacao nativa.
+- P3: Conteudo Adaptativo (Onda 1): Modal de onboarding de aluno no export e adaptacao de texto em runtime baseada no perfil do usuario via LLM.

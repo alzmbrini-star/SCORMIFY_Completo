@@ -29,7 +29,7 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 ## Tipos de operacao suportados
 - `edit_slide_title`: {slideIndex: int, title: str}
 - `edit_element_content`: {slideIndex: int, elementIndex: int, content: str}
-- `edit_element_style`: {slideIndex: int, elementIndex: int, style: {fontColor?, fontSize?, fontWeight?, backgroundColor?, textAlign?}}
+- `edit_element_style`: {slideIndex: int, elementIndex: int, style: {fontColor?, fontSize?, fontWeight?, textAlign?, fontFamily?}}
 - `add_text_element`: {slideIndex: int, content: str, x?: number, y?: number, width?: number, height?: number, fontSize?: int, fontColor?: str}
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
@@ -43,6 +43,7 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - Para `add_text_element` sem coordenadas explicitas, use x=100, y=100, width=600, height=60, fontSize=20.
 - NAO regere imagens ou audio (isso e feito em outra interface).
 - NAO altere elementos tipo html/quiz/scenario diretamente (estruturas complexas).
+- **PROIBIDO** propor `backgroundColor`, `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`, `textShadow` em `style` — o usuario rejeitou plates/overlays atras do texto. Para resolver contraste sobre imagens, mude APENAS `fontColor` (preto `#0f172a` ou branco `#f8fafc`).
 
 ## Formato JSON estrito
 ```json
@@ -140,7 +141,21 @@ def _apply_ops(slides: list, ops: list) -> list:
                     if 0 <= ei < len(els):
                         style = els[ei].get("style") or {}
                         patch = op.get("style") or {}
-                        for k in ("fontColor", "fontSize", "fontWeight", "backgroundColor", "textAlign", "borderRadius", "padding"):
+                        # 2026-05-19: plate-related keys are FORBIDDEN. The
+                        # user explicitly rejected `backgroundColor`/
+                        # `textBackgroundColor`/`padding`/`borderRadius`
+                        # behind text. Contrast must be resolved via
+                        # `fontColor` only. We also pro-actively strip any
+                        # existing plate residue from this element.
+                        BANNED = {
+                            "backgroundColor", "textBackgroundColor",
+                            "padding", "borderRadius",
+                            "boxShadow", "box-shadow",
+                            "textShadow", "text-shadow",
+                        }
+                        for k in BANNED:
+                            style.pop(k, None)
+                        for k in ("fontColor", "fontSize", "fontWeight", "textAlign", "fontFamily"):
                             if k in patch and patch[k] not in (None, ""):
                                 style[k] = patch[k]
                         els[ei]["style"] = style

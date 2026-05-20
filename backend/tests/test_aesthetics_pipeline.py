@@ -70,6 +70,52 @@ class TestApplyStyleFix:
         assert element["style"]["fontWeight"] == "bold"
         assert element["style"]["fontFamily"] == "Arial"
 
+    def test_banned_plate_keys_in_changes_are_filtered(self):
+        """2026-05-19: even if the LLM ignores the prompt and proposes plate
+        keys in `changes`, the apply path MUST drop them silently. The user
+        has rejected plates categorically — defense-in-depth."""
+        slide = {"background": "#ffffff"}
+        element = {"type": "text", "content": "hi", "style": {}}
+        _apply_style_fix(element, slide, {
+            "fontColor": "#0f172a",
+            "textBackgroundColor": "rgba(15,23,42,0.85)",
+            "backgroundColor": "#0f172a",
+            "padding": "12px 20px",
+            "borderRadius": "10px",
+            "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
+            "textShadow": "0 1px 2px black",
+        })
+        s = element["style"]
+        # Allowed change applied
+        assert s.get("fontColor") == "#0f172a"
+        # All banned keys silently dropped
+        for banned in ("textBackgroundColor", "backgroundColor", "padding",
+                       "borderRadius", "boxShadow", "textShadow"):
+            assert banned not in s, f"banned key {banned} leaked into style"
+
+    def test_existing_plate_residue_is_stripped(self):
+        """Applying any style fix should ALSO purge legacy plate residue
+        from previous LLM runs — so historic projects self-heal."""
+        slide = {"background": "#ffffff"}
+        element = {
+            "type": "text",
+            "content": "hi",
+            "style": {
+                "fontColor": "#0f172a",
+                "textBackgroundColor": "#0f172a",
+                "backgroundColor": "#0f172a",
+                "padding": "12px",
+                "borderRadius": "10px",
+            },
+        }
+        # Apply a benign fontSize bump — should strip plates as side effect.
+        applied = _apply_style_fix(element, slide, {"fontSize": 24})
+        assert applied is True
+        s = element["style"]
+        assert s.get("fontSize") == 24
+        for banned in ("textBackgroundColor", "backgroundColor", "padding", "borderRadius"):
+            assert banned not in s, f"legacy {banned} not stripped"
+
 
 class TestApplyTextPlate:
     def test_text_plate_now_swaps_color_only_v6(self):
