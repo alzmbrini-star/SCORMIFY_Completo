@@ -292,7 +292,7 @@ DADOS DOS SLIDES (com WCAG calculado + analise REAL da imagem de fundo por eleme
       "description": "Texto branco sobre fundo claro - WCAG 1.5:1, falha critica",
       "fix": {{
         "type": "style",
-        "changes": {{"fontColor": "#0f172a", "fontSize": 18, "textBackgroundColor": "rgba(248,250,252,0.85)", "padding": "8px 12px", "borderRadius": "6px"}}
+        "changes": {{"fontColor": "#0f172a", "fontSize": 18}}
       }}
     }},
     {{
