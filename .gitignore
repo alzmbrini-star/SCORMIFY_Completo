@@ -132,9 +132,8 @@ frontend/node_modules/.cache/default-development/30.pack
 frontend/node_modules/.cache/default-development/34.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
 credentials.json
 *.pem
 *.key
@@ -147,9 +146,8 @@ frontend/node_modules/.cache/default-development/40.pack
 frontend/node_modules/.cache/default-development/43.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
 credentials.json
 *.pem
 *.key
@@ -158,9 +156,8 @@ frontend/node_modules/.cache/default-development/39.pack
 frontend/node_modules/.cache/default-development/45.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
 credentials.json
 *.pem
 *.key
@@ -170,27 +167,24 @@ frontend/node_modules/.cache/default-development/49.pack
 frontend/node_modules/.cache/default-development/55.pack
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
 credentials.json
 *.pem
 *.key
 .credentials
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
 credentials.json
 *.pem
 *.key
 .credentials
 -e 
 # Environment and credential files
-.env
-.env.*
-*.env
+# NOTE: .env files MUST be committed to the repo so the Emergent deployment
+# system can auto-update them with production values at deploy time.
 credentials.json
 *.pem
 *.key
