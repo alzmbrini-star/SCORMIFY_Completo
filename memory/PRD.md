@@ -88,6 +88,24 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
 ```
 
 ## Changelog
+- 2026-05-20 (v6.5): **FIX (P0)** — SCORM tradicional (multi-page) nao copiava brand images, exibindo icones quebrados.
+  - **Pedido do usuario** (2 screenshots): "No ambiente local ao exportar para SCORM ainda nao aparece a imagem de Marca definida como Background em HTML esta OK!"
+  - **Causa raiz**: o v6.4 corrigiu `_resolve_asset_url` + pre-extraction no `single_page_exporter.py` (modo single-page) e no HTML export, mas NAO no `scorm_exporter.py` (modo TRADICIONAL multi-page, que e o default em muitos cursos). O exporter tradicional fazia `bg_url.split('/assets/')` que extraia errado para URLs `/api/companies/.../assets/<asset_id>/file` — pegava `'file'` como filename e perdia o asset_id. Result: brand backgrounds e watermarks com URL `assets/file` apontando para arquivo inexistente.
+  - **Fix em 3 frentes** (`services/scorm_exporter.py` + `routes/export.py`):
+    1. **Pre-extraction integrada**: `routes/export.py` else branch (traditional SCORM) agora chama `prepare_company_assets_for_export` antes do `export_scorm_package` (igual ao single-page).
+    2. **Copia `_companies/` para o package SCORM** (`scorm_exporter.py` linhas 380-400): copia todos os arquivos pre-extraidos de `<projects_dir>/<pid>/assets/_companies/<asset_id>.<ext>` para `<package>/assets/_companies/<asset_id>.<ext>`. Constroi mapping `asset_id → local_url` durante a copia.
+    3. **Rewrite de URLs `/api/companies/...` em TRES pontos** do exporter:
+       - `slide.backgroundImage` (linha 510+): novo branch ANTES do split `/assets/` que detecta padrao `/api/companies/.../assets/<aid>/file` e usa o mapping.
+       - `element.src` (image elements / watermarks): mesmo branch dedicado.
+       - `htmlContent` inline `<img src=...>`: regex agora reconhece e rewriteia o pattern company-asset antes de cair no /assets/ generico.
+  - **Validacao end-to-end** (`a0b4069e-...` projeto Excelencia Intelbras):
+    - Pre-fix: `course.json` tinha `"backgroundImage": "assets/file"` (errado) + img tags com URLs `/api/companies/...`.
+    - Pos-fix: `course.json` tem 29 ocorrencias de `casset_`, todas com format `assets/_companies/casset_<id>.png`. Pasta `assets/_companies/` tem ambos os arquivos: `casset_85a6dde4a4d2.png` (background, 966KB) + `casset_15e1a5d28b08.png` (logo/watermark, 69KB).
+    - Screenshot do SCORM rodando localmente: brand background com formas decorativas cinza-laranja VISIVEL + logo/watermark do canto inferior VISIVEL. Identico ao Editor.
+  - **Producao**: usuario precisa redeployar para aplicar tambem em https://backend-startup.emergent.host. Re-export pos-deploy resolve.
+
+
+
 - 2026-05-19 (cont. v6.4): **FIX (P0 dupla)** — Island plates em SCORM/HTML export + Brand images quebradas.
   - **Pedidos do usuario** (screenshot): "Os plates ainda continuam quando se exportar para SCORM e HTML por favor corrija!" + "veja tambem que as imagens de marca (backgrounds) nao estao aparecendo".
   - **Causa raiz #1 (island plates)**: os retangulos coloridos nao eram plates injetados pelo Analisador — eram `<div style="width:100%;height:100%;background:#3b82f6">` wrappers gerados pelo AI Agent original. Quando o usuario muda `slide.background`, esses wrappers viram "ilhas coloridas" desconectadas.

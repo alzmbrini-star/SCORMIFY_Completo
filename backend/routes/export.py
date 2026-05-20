@@ -346,6 +346,15 @@ async def _run_scorm_export_job(
         else:
             project = Project(**project_doc)
             from services.scorm_exporter import export_scorm_package
+            from services.company_asset_export import prepare_company_assets_for_export
+            # Pre-extract brand-kit images so the traditional SCORM exporter
+            # can copy them into the package's assets/_companies/ folder.
+            try:
+                _proj_assets_dir = str(PROJECTS_DIR / project_id / "assets")
+                Path(_proj_assets_dir).mkdir(parents=True, exist_ok=True)
+                await prepare_company_assets_for_export(project_doc, db, _proj_assets_dir)
+            except Exception as exc:
+                logger.warning(f"company assets pre-extract for traditional SCORM failed (non-fatal): {exc}")
             zip_path = await asyncio.to_thread(
                 export_scorm_package,
                 project,

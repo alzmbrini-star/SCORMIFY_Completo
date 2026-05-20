@@ -422,6 +422,34 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         logger.info(f"Total global assets copied: {global_count}")
     else:
         logger.warning(f"Global assets directory does not exist: {global_assets}")
+
+    # Copy pre-extracted COMPANY brand assets (logos, watermarks, BrandKit
+    # backgrounds). These were materialized by `prepare_company_assets_for_export`
+    # into `<project_assets>/_companies/<asset_id>.<ext>` before this exporter
+    # was invoked. We copy them into the SCORM package and rewrite every
+    # `/api/companies/<cid>/assets/<aid>/file` URL in the generated HTML to
+    # point to the local file. Without this, offline LMS playback shows
+    # broken image icons.
+    _company_url_to_local: dict = {}
+    src_companies = Path(storage_dir) / project.id / "assets" / "_companies"
+    if src_companies.exists() and src_companies.is_dir():
+        dest_companies = package_dir / "assets" / "_companies"
+        dest_companies.mkdir(exist_ok=True)
+        company_count = 0
+        for asset_file in src_companies.iterdir():
+            if not asset_file.is_file():
+                continue
+            shutil.copy2(asset_file, dest_companies / asset_file.name)
+            company_count += 1
+            # Map asset_id (filename stem) → local relative URL
+            asset_id = asset_file.stem
+            _company_url_to_local[asset_id] = f"assets/_companies/{asset_file.name}"
+        logger.info(f"Copied {company_count} company brand assets")
+    else:
+        logger.info(
+            "No pre-extracted company assets found — brand images will be "
+            "kept as live URLs (may break offline)"
+        )
     
     # Write scripts (read from export_assets directory)
     with open(package_dir / "scripts" / "scorm-api.js", 'w') as f:
@@ -460,6 +488,30 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Fix all asset URLs in slides - embed images as base64 data URIs
     package_assets = package_dir / "assets"
+
+    # Helper for rewriting company-asset URLs.
+    _company_url_re = re.compile(r"/api/companies/[^/]+/assets/([^/]+)/file/?", re.IGNORECASE)
+
+    def _rewrite_company_url(url: str) -> str:
+        """If `url` matches /api/companies/.../assets/<id>/file, return the
+        local `assets/_companies/<id>.<ext>` rewrite. Otherwise unchanged."""
+        if not url or not isinstance(url, str):
+            return url
+        m = _company_url_re.search(url)
+        if not m:
+            return url
+        asset_id = m.group(1)
+        local = _company_url_to_local.get(asset_id)
+        if local:
+            return local
+        # Not yet copied: try a fallback lookup in `_companies/` directory.
+        cdir = package_assets / "_companies"
+        if cdir.exists():
+            for f in cdir.iterdir():
+                if f.stem == asset_id:
+                    return f"assets/_companies/{f.name}"
+        return url  # leave unchanged so the LMS still tries the live URL
+
     for slide in (course_data.get('slides') or []):
         if not isinstance(slide, dict):
             continue
@@ -467,7 +519,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         # Fix background image URL - EMBED AS DATA URI
         bg_url = slide.get('backgroundImage') or ''
         if bg_url and isinstance(bg_url, str):
-            if '/assets/' in bg_url:
+            # Company brand image — rewrite to local _companies/ path
+            if "/api/companies/" in bg_url:
+                slide['backgroundImage'] = _rewrite_company_url(bg_url)
+            elif '/assets/' in bg_url:
                 # Handle both /assets/filename and /assets/project_id/filename patterns
                 parts = bg_url.split('/assets/')
                 raw = parts[-1].split('?')[0]
@@ -490,7 +545,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             elem_src = element.get('src') or ''
             elem_type = element.get('type') or ''
 
-            if elem_src and isinstance(elem_src, str) and '/assets/' in elem_src:
+            # Company brand image (logo, watermark) — rewrite to local path
+            if elem_src and isinstance(elem_src, str) and "/api/companies/" in elem_src:
+                element['src'] = _rewrite_company_url(elem_src)
+            elif elem_src and isinstance(elem_src, str) and '/assets/' in elem_src:
                 raw = elem_src.split('/assets/')[-1].split('?')[0]
                 filename = raw.split('/')[-1] if '/' in raw else raw
                 if filename:
@@ -565,6 +623,13 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                     def fix_img_src(match):
                         src = match.group(1)
                         if not src or src.startswith('data:'):
+                            return match.group(0)
+                        # Company brand image URL — rewrite to local
+                        # _companies/ path (the directory copy happens above).
+                        if "/api/companies/" in src:
+                            rewritten = _rewrite_company_url(src)
+                            if rewritten != src:
+                                return f'src="{rewritten}"'
                             return match.group(0)
                         if '/api/assets/' in src:
                             fn_raw = src.split('/api/assets/')[-1].split('?')[0]
