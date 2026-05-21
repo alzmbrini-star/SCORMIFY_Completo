@@ -2275,7 +2275,7 @@ export default function Editor() {
         <Sheet open={showAestheticsPanel} onOpenChange={(o) => { setShowAestheticsPanel(o); if (!o) setAestheticsExpanded(false); }}>
           <SheetContent
             side="right"
-            className={`${aestheticsExpanded ? 'w-[95vw] max-w-[1400px]' : 'w-[380px]'} bg-slate-950 border-slate-800 p-4 overflow-y-auto transition-[width,max-width] duration-300`}
+            className={`${aestheticsExpanded ? 'w-[97vw] max-w-[1600px]' : 'w-[380px]'} bg-slate-950 border-slate-800 p-4 flex flex-col transition-[width,max-width] duration-300`}
             aria-describedby={undefined}
           >
             <SheetHeader className="sr-only">

@@ -267,7 +267,7 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
   });
 
   return (
-    <div className="space-y-4" data-testid="aesthetics-panel">
+    <div className={`space-y-4 ${expanded ? 'flex flex-col h-full overflow-hidden' : ''}`} data-testid="aesthetics-panel">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-violet-400" />
@@ -343,8 +343,8 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
           </Card>
 
           {/* Issues by category */}
-          <ScrollArea className={expanded ? 'max-h-[68vh]' : 'max-h-[45vh]'}>
-            <div className={expanded ? 'grid grid-cols-2 gap-3 pr-2' : 'space-y-2 pr-2'}>
+          <ScrollArea className={expanded ? 'flex-1 min-h-0 pr-1' : 'max-h-[45vh]'}>
+            <div className={expanded ? 'grid grid-cols-2 xl:grid-cols-3 gap-3 pr-2' : 'space-y-2 pr-2'}>
               {Object.entries(groupedIssues).map(([cat, items]) => {
                 const Icon = CATEGORY_ICONS[cat] || AlertTriangle;
                 const expandedCat = expandedCategories.has(cat);
@@ -405,7 +405,7 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
           )}
 
           {/* Action buttons */}
-          <div className="space-y-2 pb-16">
+          <div className={`space-y-2 ${expanded ? 'shrink-0 pt-2 border-t border-slate-800' : 'pb-16'}`}>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-slate-400">{selectedFixes.size} de {result.issues?.length || 0} selecionadas</span>
               <div className="flex gap-2">
