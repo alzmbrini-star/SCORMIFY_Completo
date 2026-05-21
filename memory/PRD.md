@@ -1661,6 +1661,26 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
     - aesthetics _apply_style_fix: filtra keys banidas de `changes` E strippa residuo do element.style ao aplicar qualquer fix (auto-healing de projetos historicos).
   - Tests: 6 novos testes em `tests/test_aesthetics_pipeline.py` + `tests/test_editor_chat_plates.py`. Total 46 passing.
 
+- 2026-05-21: FIX (P0) - Analisador de Estetica retornava 500 `KeyError: ' "type"'` em producao.
+  - Causa raiz: linha 263 de `routes/aesthetics.py` tinha exemplo `{ "type": "strip_container_bg" }` SEM escape no `ANALYSIS_PROMPT`. `str.format()` interpretava como placeholder.
+  - Fix: escapado para `{{ "type": "strip_container_bg" }}`. Curl real ao endpoint validado HTTP 200.
+  - Novo teste de regressao `tests/test_aesthetics_prompt_format.py` garante apenas `{slides_data}` como placeholder valido.
+
+- 2026-05-21: UI - Painel Analisador de Estetica com mais campo visual.
+  - Sheet expandido: `w-[97vw] max-w-[1600px]` (era 95vw/1400px), removido `overflow-y-auto` + adicionado `flex flex-col`.
+  - Panel root: `flex flex-col h-full overflow-hidden` quando expandido. ScrollArea trocou `max-h-[68vh]` por `flex-1 min-h-0`.
+  - Grid de issues com breakpoint `xl:grid-cols-3` em telas >=1280px. Removido `pb-16` desnecessario.
+  - Botoes de acao no rodape com `shrink-0 pt-2 border-t border-slate-800`.
+
+- 2026-05-21: FEATURE (P1) - Editor Chat: inserir N slides via comando natural.
+  - Nova op `add_slide` em `routes/editor_chat.py` com suporte a `count` (1..20) — inserir bulk em uma unica chamada.
+  - Suporta: `insertAfter` (0-based; -1 = inicio; >= len-1 = fim), `title`, `content`, `background` (herda do anterior se omitido), `narrationScript`.
+  - Quando `count > 1` e `title` fornecido, backend numera automaticamente ("Title 1", "Title 2", ...).
+  - Exemplos validados via curl:
+    - "Adicione 3 slides em branco no final" → 3 slides "Novo Slide 1/2/3" inseridos no fim.
+    - "Insira 2 slides depois do slide 1 sobre Seguranca no Trabalho" → 2 slides com conteudo gerado pelo LLM.
+  - 13 novos testes em `tests/test_editor_chat_add_slide.py` cobrindo: insercao simples/bulk, herancao de background, numeracao automatica, clamping de indices, content vira paragrafo HTML, narrationScript persistido.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos

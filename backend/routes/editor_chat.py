@@ -31,6 +31,13 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - `edit_element_content`: {slideIndex: int, elementIndex: int, content: str}
 - `edit_element_style`: {slideIndex: int, elementIndex: int, style: {fontColor?, fontSize?, fontWeight?, textAlign?, fontFamily?}}
 - `add_text_element`: {slideIndex: int, content: str, x?: number, y?: number, width?: number, height?: number, fontSize?: int, fontColor?: str}
+- `add_slide`: {insertAfter: int, count?: int (default 1, max 20), title?: str, content?: str, background?: "#hex", narrationScript?: str}
+   - Use SEMPRE que o autor pedir "adicionar slide", "inserir slide", "criar slide", "novo slide" etc.
+   - `insertAfter` e o slideIndex (0-based) APOS o qual inserir. Para inserir no inicio use -1; para inserir no fim use o ultimo indice.
+   - Se o autor pedir "adicione N slides" / "insira N slides", use `count: N` (max 20 por seguranca).
+   - Quando `count > 1` e `title` for fornecido, o backend numera automaticamente: "Title 1", "Title 2", etc.
+   - `content` e opcional — se fornecido vira um paragrafo do corpo do slide.
+   - `background` herda do slide anterior se omitido.
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
 - `move_slide`: {fromIndex: int, toIndex: int}
@@ -44,6 +51,11 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - NAO regere imagens ou audio (isso e feito em outra interface).
 - NAO altere elementos tipo html/quiz/scenario diretamente (estruturas complexas).
 - **PROIBIDO** propor `backgroundColor`, `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`, `textShadow` em `style` — o usuario rejeitou plates/overlays atras do texto. Para resolver contraste sobre imagens, mude APENAS `fontColor` (preto `#0f172a` ou branco `#f8fafc`).
+
+## Exemplos de inserir slides
+- "Adicione 5 slides em branco no fim" → 1 op: `{"type":"add_slide","insertAfter":<ultimo_index>,"count":5,"title":"Novo Slide"}`
+- "Insira 3 slides depois do slide 2" → 1 op: `{"type":"add_slide","insertAfter":1,"count":3}`
+- "Crie um slide sobre Segurança no Trabalho após o slide 4" → 1 op: `{"type":"add_slide","insertAfter":3,"title":"Segurança no Trabalho","content":"Pontos principais sobre seguranca no ambiente de trabalho..."}`
 
 ## Formato JSON estrito
 ```json
@@ -119,7 +131,7 @@ def _apply_ops(slides: list, ops: list) -> list:
     applied = []
     for op in ops:
         try:
-            t = op.get("type")
+            t = (op or {}).get("type") if isinstance(op, dict) else None
             if t == "edit_slide_title":
                 i = int(op["slideIndex"])
                 if 0 <= i < len(slides):
@@ -178,6 +190,71 @@ def _apply_ops(slides: list, ops: list) -> list:
                         },
                     })
                     applied.append({"type": t, "slideIndex": si, "newElementIndex": len(els) - 1})
+            elif t == "add_slide":
+                # Insert N new blank slides after a given index. Supports
+                # bulk insertion via `count` (default 1, capped at 20).
+                # 2026-05-21: requested by user to be able to ask
+                # "adicione N slides" via Editor Chat.
+                insert_after = int(op.get("insertAfter", len(slides) - 1))
+                # Clamp: -1 means "insert at start"; >= len-1 means "append at end".
+                insert_after = max(-1, min(len(slides) - 1, insert_after))
+                try:
+                    count = int(op.get("count", 1))
+                except (TypeError, ValueError):
+                    count = 1
+                count = max(1, min(20, count))
+
+                base_title = str(op.get("title") or "Novo Slide").strip() or "Novo Slide"
+                content_text = str(op.get("content") or "").strip()
+                # Inherit background from the previous slide if not provided.
+                prev_bg = "#FFFFFF"
+                if 0 <= insert_after < len(slides):
+                    prev_bg = slides[insert_after].get("background") or "#FFFFFF"
+                bg = str(op.get("background") or prev_bg)
+                narration = str(op.get("narrationScript") or "")
+
+                inserted_at = []
+                for n in range(count):
+                    title_n = f"{base_title} {n + 1}" if count > 1 else base_title
+                    elements = []
+                    if content_text:
+                        # Plain HTML paragraph centered on the slide canvas.
+                        html_content = (
+                            f'<p style="margin:0;font-size:26px;line-height:1.5">'
+                            f'{content_text.replace(chr(60), "&lt;").replace(chr(62), "&gt;")}</p>'
+                        )
+                        elements.append({
+                            "id": str(uuid.uuid4()),
+                            "type": "text",
+                            "content": content_text,
+                            "htmlContent": html_content,
+                            "x": 80, "y": 200, "width": 1760, "height": 420,
+                            "style": {"fontSize": 26, "fontColor": "#0f172a"},
+                        })
+                    new_slide = {
+                        "id": str(uuid.uuid4()),
+                        "title": title_n,
+                        "order": insert_after + 1 + n,
+                        "width": 1920,
+                        "height": 820,
+                        "background": bg,
+                        "elements": elements,
+                        "annotations": [],
+                        "transition": {"type": "fade", "duration": 0.5},
+                        "audio": [],
+                        "notes": "",
+                        "narrationScript": narration,
+                        "duration": 5.0,
+                    }
+                    pos = insert_after + 1 + n
+                    slides.insert(pos, new_slide)
+                    inserted_at.append(pos)
+
+                # Re-number order field on every slide so it stays canonical.
+                for i, s in enumerate(slides):
+                    s["order"] = i
+
+                applied.append({"type": t, "insertedAt": inserted_at, "count": count})
             elif t == "delete_element":
                 si, ei = int(op["slideIndex"]), int(op["elementIndex"])
                 if 0 <= si < len(slides):
