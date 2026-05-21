@@ -1693,6 +1693,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
     - "Aplique o fundo da categoria intro no slide 1" → LLM escolhe asset por categoria correta.
   - 19 novos testes em `tests/test_editor_chat_brand_bg.py`. Total 36 passing nos arquivos de editor chat.
 
+- 2026-05-21: FEATURE (P1) - Editor Chat: aplicar paleta da marca (cores + fonte) com WCAG automatico.
+  - Nova op `apply_brand_palette` em `routes/editor_chat.py`.
+  - Le `company.brandKit` (primaryColor, accentColor, secondaryColor, fontFamily) e injeta no prompt do LLM.
+  - Pinta `slide.background` com a cor escolhida (default `primary`, aceita `accent`/`secondary` via `target`).
+  - Sweep de WCAG: cada elemento textual recebe `fontColor` = melhor contraste (escolhe entre DARK/LIGHT FALLBACK por MAIOR ratio, nao so luminancia, garantindo AA em cores mid-luminance como amber).
+  - `clearBackgroundImage:true` opcional: remove imagem de fundo para usar so a cor solida.
+  - Pula `html`/`quiz`/`scenario`/`image`/`shape` (preserva tipografia interna de simuladores).
+  - Strippa plate residue (`textBackgroundColor`/`padding`/`borderRadius` etc) ao tocar em qualquer elemento.
+  - `fontFamily` da marca aplicada nos textos junto com a cor.
+  - Validado via curl em projeto real (Didaxis, primary=#eb6d24): "Aplique a paleta da marca em todos os slides" → 14 slides com bg laranja, Inter font. "Use a cor accent nos slides 1 ao 3" → 3 slides com #f59e0b.
+  - 15 novos testes em `tests/test_editor_chat_brand_palette.py`. **51 testes passing** nos arquivos de editor chat.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos

@@ -46,6 +46,12 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
    - Propaga um background de marca para MULTIPLOS slides. Sem `brandAssetId`, usa o primeiro `background` da biblioteca.
    - `allSlides: true` aplica em TODOS os slides do curso.
    - Ou use `fromIndex`/`toIndex` (inclusive) para um intervalo (ex: slides 2 a 5 → fromIndex=1, toIndex=4).
+- `apply_brand_palette`: {target?: "primary"|"accent"|"secondary", fromIndex?: int, toIndex?: int, allSlides?: bool, clearBackgroundImage?: bool}
+   - Aplica a PALETA da marca: pinta `slide.background` com a cor escolhida do BrandKit e atualiza `fontColor` de TODOS os elementos de texto para garantir contraste WCAG AA.
+   - `target` (default "primary"): qual cor da paleta usar. "accent" e "secondary" tambem aceitos.
+   - `clearBackgroundImage: true` remove qualquer imagem de fundo dos slides afetados (volta para a cor solida da paleta).
+   - Default e aplicar em TODOS os slides. Use `fromIndex`/`toIndex` para um intervalo.
+   - Se o autor pedir "aplique a fonte da marca", use essa op (a fontFamily do BrandKit e aplicada automaticamente nos textos).
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
 - `move_slide`: {fromIndex: int, toIndex: int}
@@ -71,6 +77,12 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - "Crie 3 slides com fundo da marca da empresa" → 1 op: `{"type":"add_slide","insertAfter":<ultimo>,"count":3,"useBrandBackground":true}`
 - "Use o fundo Capa Corporativa em todos os slides" → 1 op com `brandAssetId` do asset cujo nome/categoria casa com "Capa Corporativa": `{"type":"apply_brand_background","brandAssetId":"casset_xxx","allSlides":true}`
 - "Coloque o fundo da marca nos slides 2 ao 5" → 1 op: `{"type":"apply_brand_background","fromIndex":1,"toIndex":4}`
+
+## Exemplos com Paleta de Marca (cores + fonte)
+- "Aplique a paleta da marca em todos os slides" → 1 op: `{"type":"apply_brand_palette","allSlides":true}`
+- "Use a cor de destaque (accent) da marca como fundo" → 1 op: `{"type":"apply_brand_palette","allSlides":true,"target":"accent"}`
+- "Aplique as cores da marca e remova imagens de fundo" → 1 op: `{"type":"apply_brand_palette","allSlides":true,"clearBackgroundImage":true}`
+- "Aplique a fonte da marca em todos os slides" → 1 op: `{"type":"apply_brand_palette","allSlides":true}` (a fonte do BrandKit e aplicada junto com a cor)
 
 ## Formato JSON estrito
 ```json
@@ -125,6 +137,30 @@ async def _call_llm(system_prompt: str, user_prompt: str, session_key: str) -> s
             logger.warning(f"editor_chat LLM {provider} error: {str(e)[:80]}")
             continue
     raise HTTPException(502, "LLM indisponivel")
+
+
+async def _load_brand_kit(company_id: str) -> dict:
+    """Fetch the company's BrandKit (primary/secondary/accent colors + font).
+    Returns empty dict when no kit / no company. Lightweight wrapper that
+    avoids importing the full brand_kit_applier on every chat call."""
+    if not company_id:
+        return {}
+    try:
+        doc = await db.companies.find_one(
+            {"id": company_id},
+            {"_id": 0, "brandKit": 1, "name": 1},
+        )
+    except Exception as exc:
+        logger.warning(f"editor_chat: brand kit fetch failed: {exc}")
+        return {}
+    if not doc:
+        return {}
+    kit = doc.get("brandKit") or {}
+    # Surface a `companyName` alias so the LLM can address the user properly.
+    if doc.get("name"):
+        kit = dict(kit)
+        kit["companyName"] = doc["name"]
+    return kit
 
 
 async def _load_brand_backgrounds(company_id: str) -> list:
@@ -188,7 +224,7 @@ def _extract_json(raw: str) -> dict:
         return {"reply": raw[:500], "ops": []}
 
 
-def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None) -> list:
+def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_kit: dict = None) -> list:
     """Mutate slides in-place applying a list of editor ops. Returns the
     list of ops that were actually applied (skips malformed ones).
 
@@ -196,8 +232,12 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None) -> list:
     (see `_load_brand_backgrounds`). Used by `add_slide` /
     `apply_brand_background` / `set_slide_background_image` to resolve
     `brandAssetId` and `useBrandBackground:true` flags.
+
+    `brand_kit` is the pre-fetched BrandKit (primary/secondary/accent +
+    font). Used by `apply_brand_palette` to update slide colors / text.
     """
     brand_backgrounds = brand_backgrounds or []
+    brand_kit = brand_kit or {}
     applied = []
     for op in ops:
         try:
@@ -395,6 +435,111 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None) -> list:
                     "assetId": asset.get("id"),
                     "url": img_url,
                 })
+            elif t == "apply_brand_palette":
+                # Apply the company's BrandKit colors (and optionally font)
+                # to slides: paints `slide.background` with `primaryColor`
+                # (or accent if explicitly requested) and sweeps every
+                # textual element's `fontColor` to win WCAG AA contrast
+                # against the new background. Defense-in-depth strips any
+                # plate residue while at it.
+                if not brand_kit:
+                    continue
+                # Hex sanity
+                def _hex(v):
+                    return v if isinstance(v, str) and v.startswith("#") and len(v) in (4, 7) else None
+                primary = _hex(brand_kit.get("primaryColor"))
+                accent = _hex(brand_kit.get("accentColor"))
+                secondary = _hex(brand_kit.get("secondaryColor"))
+                font_family = (brand_kit.get("fontFamily") or "").strip() or None
+
+                # Which palette color to use as slide bg?
+                target = (op.get("target") or "primary").lower()
+                if target == "accent" and accent:
+                    chosen_bg = accent
+                elif target == "secondary" and secondary:
+                    chosen_bg = secondary
+                else:
+                    chosen_bg = primary or accent or secondary
+                if not chosen_bg:
+                    # No usable color in the kit — skip silently.
+                    continue
+
+                # Range: allSlides default, else fromIndex/toIndex inclusive.
+                if op.get("allSlides") or (
+                    op.get("fromIndex") is None and op.get("toIndex") is None
+                ):
+                    start, end = 0, len(slides) - 1
+                else:
+                    try:
+                        start = max(0, int(op.get("fromIndex", 0)))
+                        end = min(len(slides) - 1, int(op.get("toIndex", len(slides) - 1)))
+                    except (TypeError, ValueError):
+                        start, end = 0, len(slides) - 1
+                if end < start or not slides:
+                    continue
+
+                # Plate keys that must be stripped from any text element we touch.
+                BANNED_STYLE_KEYS = {
+                    "backgroundColor", "textBackgroundColor",
+                    "padding", "borderRadius",
+                    "boxShadow", "box-shadow",
+                    "textShadow", "text-shadow",
+                }
+
+                from services import wcag  # lazy import — only when invoked
+                # Pick the fallback (dark vs light) that gives the BEST
+                # WCAG contrast against the chosen background. This beats
+                # `pick_high_contrast_color` for mid-luminance bgs (e.g.,
+                # amber) where the luminance-threshold heuristic can pick
+                # the wrong polarity.
+                try:
+                    dark_ratio = wcag.contrast_ratio(wcag.DARK_FALLBACK, chosen_bg)
+                    light_ratio = wcag.contrast_ratio(wcag.LIGHT_FALLBACK, chosen_bg)
+                    best_text_color = (
+                        wcag.LIGHT_FALLBACK if light_ratio >= dark_ratio
+                        else wcag.DARK_FALLBACK
+                    )
+                except Exception:
+                    best_text_color = wcag.pick_high_contrast_color(chosen_bg)
+                affected_slides = []
+                text_swaps = 0
+                for idx in range(start, end + 1):
+                    sl = slides[idx]
+                    # 1. Paint solid background (clear any image bg if explicitly requested)
+                    sl["background"] = chosen_bg
+                    if op.get("clearBackgroundImage"):
+                        sl.pop("backgroundImage", None)
+                    # 2. Sweep every textual element: enforce WCAG AA and
+                    # apply brand font if provided. Skip html/quiz/scenario
+                    # to avoid breaking simulator internal typography.
+                    for el in (sl.get("elements") or []):
+                        if not isinstance(el, dict):
+                            continue
+                        if el.get("type") in ("html", "quiz", "scenario", "image", "shape"):
+                            continue
+                        st = el.get("style")
+                        if not isinstance(st, dict):
+                            st = {}
+                            el["style"] = st
+                        # Strip plate residue
+                        for k in BANNED_STYLE_KEYS:
+                            st.pop(k, None)
+                        # Apply the best-contrast text color we computed.
+                        st["fontColor"] = best_text_color
+                        # Keep `color` alias in sync for legacy renderers.
+                        st["color"] = best_text_color
+                        if font_family:
+                            st["fontFamily"] = font_family
+                        text_swaps += 1
+                    affected_slides.append(idx)
+
+                applied.append({
+                    "type": t,
+                    "affectedSlides": affected_slides,
+                    "backgroundUsed": chosen_bg,
+                    "textElementsUpdated": text_swaps,
+                    "fontFamily": font_family,
+                })
             elif t == "delete_element":
                 si, ei = int(op["slideIndex"]), int(op["elementIndex"])
                 if 0 <= si < len(slides):
@@ -443,10 +588,13 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     if not slides:
         raise HTTPException(400, "Curso sem slides para editar")
 
-    # Pre-load brand backgrounds from the project's company so the LLM
-    # can suggest them by name/category and the apply path can resolve
-    # `brandAssetId` / `useBrandBackground:true` in a single round-trip.
-    brand_backgrounds = await _load_brand_backgrounds(project.get("companyId") or "")
+    # Pre-load brand backgrounds + brand kit from the project's company so
+    # the LLM can suggest them by name/category and the apply path can
+    # resolve `brandAssetId` / `useBrandBackground:true` / brand palette
+    # ops in a single round-trip.
+    company_id = project.get("companyId") or ""
+    brand_backgrounds = await _load_brand_backgrounds(company_id)
+    brand_kit = await _load_brand_kit(company_id)
 
     summary = _build_course_summary(slides)
     history = (data.get("history") or [])[-6:]
@@ -469,6 +617,28 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
             "e nao gere ops de background de marca.\n\n"
         )
 
+    # Surface the BrandKit (colors + font) so the LLM can use the
+    # `apply_brand_palette` op when the author asks for "paleta da marca",
+    # "cores da empresa", "fonte da marca" etc.
+    if brand_kit and any(brand_kit.get(k) for k in ("primaryColor", "accentColor", "secondaryColor", "fontFamily")):
+        kit_compact = {
+            "companyName": brand_kit.get("companyName"),
+            "primaryColor": brand_kit.get("primaryColor"),
+            "accentColor": brand_kit.get("accentColor"),
+            "secondaryColor": brand_kit.get("secondaryColor"),
+            "fontFamily": brand_kit.get("fontFamily"),
+        }
+        brand_section += (
+            f"PALETA DE MARCA (BrandKit da empresa):\n"
+            f"{json.dumps(kit_compact, ensure_ascii=False)}\n\n"
+        )
+    else:
+        brand_section += (
+            "PALETA DE MARCA: BrandKit nao configurado. Se o autor pedir "
+            "'paleta da marca' ou 'cores da empresa', responda que a empresa "
+            "nao tem BrandKit definido e nao gere ops de palette.\n\n"
+        )
+
     user_prompt = (
         f"CURSO ATUAL (resumo):\n{json.dumps(summary, ensure_ascii=False)[:8000]}\n\n"
         f"{brand_section}"
@@ -484,7 +654,7 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     # `aesthetic_snapshots` collection so existing Revert button works).
     snapshot_slides = _copy.deepcopy(slides) if ops else None
 
-    applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds)
+    applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds, brand_kit=brand_kit)
 
     if applied:
         await db.projects.update_one(
