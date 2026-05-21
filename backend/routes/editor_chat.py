@@ -31,13 +31,21 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - `edit_element_content`: {slideIndex: int, elementIndex: int, content: str}
 - `edit_element_style`: {slideIndex: int, elementIndex: int, style: {fontColor?, fontSize?, fontWeight?, textAlign?, fontFamily?}}
 - `add_text_element`: {slideIndex: int, content: str, x?: number, y?: number, width?: number, height?: number, fontSize?: int, fontColor?: str}
-- `add_slide`: {insertAfter: int, count?: int (default 1, max 20), title?: str, content?: str, background?: "#hex", narrationScript?: str}
+- `add_slide`: {insertAfter: int, count?: int (default 1, max 20), title?: str, content?: str, background?: "#hex", narrationScript?: str, useBrandBackground?: bool, brandAssetId?: str}
    - Use SEMPRE que o autor pedir "adicionar slide", "inserir slide", "criar slide", "novo slide" etc.
    - `insertAfter` e o slideIndex (0-based) APOS o qual inserir. Para inserir no inicio use -1; para inserir no fim use o ultimo indice.
    - Se o autor pedir "adicione N slides" / "insira N slides", use `count: N` (max 20 por seguranca).
    - Quando `count > 1` e `title` for fornecido, o backend numera automaticamente: "Title 1", "Title 2", etc.
    - `content` e opcional — se fornecido vira um paragrafo do corpo do slide.
    - `background` herda do slide anterior se omitido.
+   - `useBrandBackground: true` → o backend usa o PRIMEIRO background da Biblioteca de Marca da empresa (se houver). Use quando o autor pedir "fundo da marca", "background da empresa", "imagem da marca".
+   - `brandAssetId` → use o ID exato de um asset listado em BIBLIOTECA DE MARCA quando o autor mencionar por nome/categoria (ex: "use o fundo 'Capa Corporativa'").
+- `set_slide_background_image`: {slideIndex: int, brandAssetId?: str, imageUrl?: str, clear?: bool}
+   - Define a imagem de fundo de UM slide. Use `brandAssetId` para puxar da Biblioteca de Marca. `clear: true` remove o backgroundImage.
+- `apply_brand_background`: {brandAssetId?: str, fromIndex?: int, toIndex?: int, allSlides?: bool}
+   - Propaga um background de marca para MULTIPLOS slides. Sem `brandAssetId`, usa o primeiro `background` da biblioteca.
+   - `allSlides: true` aplica em TODOS os slides do curso.
+   - Ou use `fromIndex`/`toIndex` (inclusive) para um intervalo (ex: slides 2 a 5 → fromIndex=1, toIndex=4).
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
 - `move_slide`: {fromIndex: int, toIndex: int}
@@ -51,11 +59,18 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - NAO regere imagens ou audio (isso e feito em outra interface).
 - NAO altere elementos tipo html/quiz/scenario diretamente (estruturas complexas).
 - **PROIBIDO** propor `backgroundColor`, `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`, `textShadow` em `style` — o usuario rejeitou plates/overlays atras do texto. Para resolver contraste sobre imagens, mude APENAS `fontColor` (preto `#0f172a` ou branco `#f8fafc`).
+- Se a BIBLIOTECA DE MARCA estiver vazia e o autor pedir "fundo da marca", responda no `reply` que a empresa ainda nao tem backgrounds cadastrados e nao gere ops.
 
 ## Exemplos de inserir slides
 - "Adicione 5 slides em branco no fim" → 1 op: `{"type":"add_slide","insertAfter":<ultimo_index>,"count":5,"title":"Novo Slide"}`
 - "Insira 3 slides depois do slide 2" → 1 op: `{"type":"add_slide","insertAfter":1,"count":3}`
 - "Crie um slide sobre Segurança no Trabalho após o slide 4" → 1 op: `{"type":"add_slide","insertAfter":3,"title":"Segurança no Trabalho","content":"Pontos principais sobre seguranca no ambiente de trabalho..."}`
+
+## Exemplos com Biblioteca de Marca
+- "Aplique o fundo da marca em todos os slides" → 1 op: `{"type":"apply_brand_background","allSlides":true}`
+- "Crie 3 slides com fundo da marca da empresa" → 1 op: `{"type":"add_slide","insertAfter":<ultimo>,"count":3,"useBrandBackground":true}`
+- "Use o fundo Capa Corporativa em todos os slides" → 1 op com `brandAssetId` do asset cujo nome/categoria casa com "Capa Corporativa": `{"type":"apply_brand_background","brandAssetId":"casset_xxx","allSlides":true}`
+- "Coloque o fundo da marca nos slides 2 ao 5" → 1 op: `{"type":"apply_brand_background","fromIndex":1,"toIndex":4}`
 
 ## Formato JSON estrito
 ```json
@@ -112,6 +127,54 @@ async def _call_llm(system_prompt: str, user_prompt: str, session_key: str) -> s
     raise HTTPException(502, "LLM indisponivel")
 
 
+async def _load_brand_backgrounds(company_id: str) -> list:
+    """Fetch the active brand backgrounds for a company. Returns a list of
+    light dicts: {id, name, category, tags, url}. Empty when company has
+    no brand library or no `type=background` assets registered.
+
+    The Editor Chat surface uses this to:
+      1. Show the LLM what is available (so it can pick by name/category).
+      2. Resolve `useBrandBackground: true` / `brandAssetId` at apply time.
+    """
+    if not company_id:
+        return []
+    try:
+        rows = await db.company_assets_meta.find(
+            {"companyId": company_id, "type": "background", "isActive": {"$ne": False}},
+            {"_id": 0, "id": 1, "name": 1, "category": 1, "tags": 1, "filename": 1},
+        ).sort("createdAt", -1).to_list(50)
+    except Exception as exc:
+        logger.warning(f"editor_chat: brand bg fetch failed: {exc}")
+        return []
+    out = []
+    for r in rows:
+        out.append({
+            "id": r.get("id"),
+            "name": r.get("name") or r.get("filename") or r.get("id"),
+            "category": r.get("category") or "generic",
+            "tags": r.get("tags") or [],
+            "url": f"/api/companies/{company_id}/assets/{r.get('id')}/file",
+        })
+    return out
+
+
+def _resolve_brand_background(brand_backgrounds: list, brand_asset_id: str = None) -> dict:
+    """Pick a brand background to use. If `brand_asset_id` is given, find
+    that specific asset; otherwise return the FIRST (most recently created)
+    background from the library. Returns None if no match / empty library.
+    """
+    if not brand_backgrounds:
+        return None
+    if brand_asset_id:
+        for b in brand_backgrounds:
+            if b.get("id") == brand_asset_id:
+                return b
+        # No match: fall back to first so the action still produces an effect
+        # — the user explicitly asked for a brand background.
+        return brand_backgrounds[0]
+    return brand_backgrounds[0]
+
+
 def _extract_json(raw: str) -> dict:
     m = re.search(r"```json\s*([\s\S]*?)```", raw)
     if m:
@@ -125,9 +188,16 @@ def _extract_json(raw: str) -> dict:
         return {"reply": raw[:500], "ops": []}
 
 
-def _apply_ops(slides: list, ops: list) -> list:
+def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None) -> list:
     """Mutate slides in-place applying a list of editor ops. Returns the
-    list of ops that were actually applied (skips malformed ones)."""
+    list of ops that were actually applied (skips malformed ones).
+
+    `brand_backgrounds` is the pre-fetched list of company brand backgrounds
+    (see `_load_brand_backgrounds`). Used by `add_slide` /
+    `apply_brand_background` / `set_slide_background_image` to resolve
+    `brandAssetId` and `useBrandBackground:true` flags.
+    """
+    brand_backgrounds = brand_backgrounds or []
     applied = []
     for op in ops:
         try:
@@ -213,6 +283,17 @@ def _apply_ops(slides: list, ops: list) -> list:
                 bg = str(op.get("background") or prev_bg)
                 narration = str(op.get("narrationScript") or "")
 
+                # 2026-05-21: brand background support. When the user asks
+                # "crie 3 slides com fundo da marca", the LLM sets
+                # `useBrandBackground:true` (or `brandAssetId`). Resolve here.
+                bg_image_url = ""
+                use_brand = bool(op.get("useBrandBackground"))
+                brand_asset_id = op.get("brandAssetId") or None
+                if use_brand or brand_asset_id:
+                    asset = _resolve_brand_background(brand_backgrounds, brand_asset_id)
+                    if asset and asset.get("url"):
+                        bg_image_url = asset["url"]
+
                 inserted_at = []
                 for n in range(count):
                     title_n = f"{base_title} {n + 1}" if count > 1 else base_title
@@ -246,6 +327,8 @@ def _apply_ops(slides: list, ops: list) -> list:
                         "narrationScript": narration,
                         "duration": 5.0,
                     }
+                    if bg_image_url:
+                        new_slide["backgroundImage"] = bg_image_url
                     pos = insert_after + 1 + n
                     slides.insert(pos, new_slide)
                     inserted_at.append(pos)
@@ -254,7 +337,64 @@ def _apply_ops(slides: list, ops: list) -> list:
                 for i, s in enumerate(slides):
                     s["order"] = i
 
-                applied.append({"type": t, "insertedAt": inserted_at, "count": count})
+                applied.append({
+                    "type": t,
+                    "insertedAt": inserted_at,
+                    "count": count,
+                    "brandBackgroundUsed": bool(bg_image_url),
+                })
+            elif t == "set_slide_background_image":
+                # Set or clear backgroundImage on a single slide.
+                si = int(op["slideIndex"])
+                if 0 <= si < len(slides):
+                    if op.get("clear"):
+                        slides[si].pop("backgroundImage", None)
+                        applied.append({"type": t, "slideIndex": si, "cleared": True})
+                    else:
+                        img_url = op.get("imageUrl")
+                        if op.get("brandAssetId") or (img_url is None and brand_backgrounds):
+                            asset = _resolve_brand_background(
+                                brand_backgrounds, op.get("brandAssetId")
+                            )
+                            if asset:
+                                img_url = asset.get("url")
+                        if img_url:
+                            slides[si]["backgroundImage"] = str(img_url)
+                            applied.append({"type": t, "slideIndex": si, "url": img_url})
+            elif t == "apply_brand_background":
+                # Propagate a brand background to a range of slides (or all).
+                if not brand_backgrounds:
+                    # Library empty — no-op so the LLM's verbal reply explains
+                    # the situation; the apply layer just skips silently.
+                    continue
+                asset = _resolve_brand_background(
+                    brand_backgrounds, op.get("brandAssetId")
+                )
+                if not asset or not asset.get("url"):
+                    continue
+                img_url = asset["url"]
+                if op.get("allSlides") or (
+                    op.get("fromIndex") is None and op.get("toIndex") is None
+                ):
+                    start, end = 0, len(slides) - 1
+                else:
+                    try:
+                        start = max(0, int(op.get("fromIndex", 0)))
+                        end = min(len(slides) - 1, int(op.get("toIndex", len(slides) - 1)))
+                    except (TypeError, ValueError):
+                        start, end = 0, len(slides) - 1
+                if end < start:
+                    continue
+                affected = []
+                for idx in range(start, end + 1):
+                    slides[idx]["backgroundImage"] = img_url
+                    affected.append(idx)
+                applied.append({
+                    "type": t,
+                    "affectedSlides": affected,
+                    "assetId": asset.get("id"),
+                    "url": img_url,
+                })
             elif t == "delete_element":
                 si, ei = int(op["slideIndex"]), int(op["elementIndex"])
                 if 0 <= si < len(slides):
@@ -303,11 +443,35 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     if not slides:
         raise HTTPException(400, "Curso sem slides para editar")
 
+    # Pre-load brand backgrounds from the project's company so the LLM
+    # can suggest them by name/category and the apply path can resolve
+    # `brandAssetId` / `useBrandBackground:true` in a single round-trip.
+    brand_backgrounds = await _load_brand_backgrounds(project.get("companyId") or "")
+
     summary = _build_course_summary(slides)
     history = (data.get("history") or [])[-6:]
 
+    brand_section = ""
+    if brand_backgrounds:
+        # Compact list for the LLM. Cap to first 20 to keep the prompt small.
+        brand_list = [
+            {"id": b["id"], "name": b["name"], "category": b["category"], "tags": b["tags"]}
+            for b in brand_backgrounds[:20]
+        ]
+        brand_section = (
+            f"BIBLIOTECA DE MARCA (backgrounds disponiveis da empresa):\n"
+            f"{json.dumps(brand_list, ensure_ascii=False)}\n\n"
+        )
+    else:
+        brand_section = (
+            "BIBLIOTECA DE MARCA: vazia. Se o autor pedir 'fundo da marca', "
+            "responda no `reply` que a empresa nao tem backgrounds cadastrados "
+            "e nao gere ops de background de marca.\n\n"
+        )
+
     user_prompt = (
         f"CURSO ATUAL (resumo):\n{json.dumps(summary, ensure_ascii=False)[:8000]}\n\n"
+        f"{brand_section}"
         f"CONVERSA:\n{json.dumps(history, ensure_ascii=False) if history else '(primeira mensagem)'}\n\n"
         f"AUTOR: {message}"
     )
@@ -320,7 +484,7 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     # `aesthetic_snapshots` collection so existing Revert button works).
     snapshot_slides = _copy.deepcopy(slides) if ops else None
 
-    applied = _apply_ops(slides, ops)
+    applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds)
 
     if applied:
         await db.projects.update_one(

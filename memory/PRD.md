@@ -1681,6 +1681,18 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
     - "Insira 2 slides depois do slide 1 sobre Seguranca no Trabalho" → 2 slides com conteudo gerado pelo LLM.
   - 13 novos testes em `tests/test_editor_chat_add_slide.py` cobrindo: insercao simples/bulk, herancao de background, numeracao automatica, clamping de indices, content vira paragrafo HTML, narrationScript persistido.
 
+- 2026-05-21: FEATURE (P1) - Editor Chat: fundo de marca da empresa via comando natural.
+  - Backend pre-busca os backgrounds da `Biblioteca de Marca` da empresa do projeto e injeta lista compacta no prompt (`id, name, category, tags`).
+  - Nova op `set_slide_background_image` (1 slide; aceita `brandAssetId`, `imageUrl` ou `clear:true`).
+  - Nova op `apply_brand_background` (multi-slide; `allSlides:true` ou `fromIndex/toIndex`).
+  - Op `add_slide` estendida com `useBrandBackground:true` (1o asset disponivel) e `brandAssetId` (asset especifico).
+  - Resolucao centralizada em `_resolve_brand_background` com fallback para o 1o asset quando o id pedido nao existe.
+  - Validado via curl:
+    - "Aplique o fundo da marca em todos os slides" → propaga em todos.
+    - "Adicione 3 slides no final com fundo da marca" → 3 slides novos ja com `backgroundImage` da marca.
+    - "Aplique o fundo da categoria intro no slide 1" → LLM escolhe asset por categoria correta.
+  - 19 novos testes em `tests/test_editor_chat_brand_bg.py`. Total 36 passing nos arquivos de editor chat.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos
