@@ -102,7 +102,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
           return;
         }
 
-        // Extraction done (or no PDF) — fetch the preview endpoint normally
+        // Extraction done (or no PDF) — fetch the preview endpoint normally.
         if (onStatusChange) onStatusChange(false);
         const res = await fetch(`${apiBase}/api/agent/sessions/${sessionId}/pdf-preview`, {
           headers: authHeaders(),
@@ -112,6 +112,16 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
         if (!active) return;
         setPreview(data);
         setImages((data.images || []).map(img => ({ ...img })));
+        // 2026-05-25: if the user has NOT uploaded a PDF yet (hasPdf=false)
+        // and there's no status info, keep polling every 3s. This handles
+        // the very common case where the user opens the "Analise" tab BEFORE
+        // uploading: without polling, the panel would stay hidden forever
+        // even after the upload finishes because the effect's deps never
+        // change. The poll is cheap (light=1) and stops as soon as we see
+        // the PDF arrive.
+        if (!data?.hasPdf && !status) {
+          pollTimer = setTimeout(load, 3000);
+        }
       } catch (e) {
         if (active) toast.error(e.message || 'Erro ao carregar preview');
       } finally {

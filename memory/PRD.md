@@ -1721,6 +1721,11 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Validado via curl em projeto Didaxis real (6 slides, 1 chamada): bg imagem + cor `#eb6d24` + logo `casset_f2cf9ffc9b61` inserido em todos. Re-aplicacao: 0 logos duplicados.
   - 17 novos testes em `tests/test_editor_chat_brand_identity.py`. **75 testes passing** entre editor_chat + faithful_status.
 
+- 2026-05-25: FIX (P1 PROD) - Opcao "Modo Fiel" sumia ao entrar na aba Analise antes de fazer upload.
+  - Causa raiz em `PdfPreviewPanel.jsx`: useEffect com deps `[sessionId, apiBase]` so fetchava no mount. Se usuario chegava na aba Analise ANTES do upload, captura `hasPdf:false`, e como nao havia polling no caminho "no PDF yet", nunca re-fetchava — mesmo apos upload terminar.
+  - Fix: quando `data.hasPdf=false && !status`, agenda novo `setTimeout(load, 3000)` para detectar upload concluido. Poll para naturalmente assim que `pdf_ready` aparece.
+  - Validado: backend retorna corretamente `pdfExtractionStatus.status=pdf_ready` apos chunked upload. O bug era 100% frontend.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos
