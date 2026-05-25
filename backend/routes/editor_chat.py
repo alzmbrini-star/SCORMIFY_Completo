@@ -52,6 +52,12 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
    - `clearBackgroundImage: true` remove qualquer imagem de fundo dos slides afetados (volta para a cor solida da paleta).
    - Default e aplicar em TODOS os slides. Use `fromIndex`/`toIndex` para um intervalo.
    - Se o autor pedir "aplique a fonte da marca", use essa op (a fontFamily do BrandKit e aplicada automaticamente nos textos).
+- `apply_brand_identity`: {brandAssetId?, paletteTarget?, fromIndex?, toIndex?, allSlides?, applyBackground?:bool, applyPalette?:bool, applyLogo?:bool, logoCorner?: "top-right"|"top-left"|"bottom-right"|"bottom-left"}
+   - **Op combinada / "Identidade Visual Completa"**: aplica de uma so vez (1) fundo de marca (imagem da biblioteca) + (2) paleta (cor + fonte) + (3) logo como marca d'agua no canto.
+   - Use SEMPRE que o autor pedir "aplique a identidade visual", "marca completa", "identidade da empresa", "aplicar branding".
+   - Todos os 3 componentes ativos por padrao. Para desligar algum: `applyLogo:false` (so cores+fundo), `applyBackground:false` (so cores+logo), etc.
+   - `logoCorner` define o canto onde o logo aparece (default top-right).
+   - Funciona em todos os slides por default; use `fromIndex`/`toIndex` para um intervalo.
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
 - `move_slide`: {fromIndex: int, toIndex: int}
@@ -83,6 +89,12 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - "Use a cor de destaque (accent) da marca como fundo" → 1 op: `{"type":"apply_brand_palette","allSlides":true,"target":"accent"}`
 - "Aplique as cores da marca e remova imagens de fundo" → 1 op: `{"type":"apply_brand_palette","allSlides":true,"clearBackgroundImage":true}`
 - "Aplique a fonte da marca em todos os slides" → 1 op: `{"type":"apply_brand_palette","allSlides":true}` (a fonte do BrandKit e aplicada junto com a cor)
+
+## Exemplos com Identidade Visual Completa (combinado)
+- "Aplique a identidade visual completa da empresa" → 1 op: `{"type":"apply_brand_identity","allSlides":true}`
+- "Aplique o branding da empresa neste curso" → 1 op: `{"type":"apply_brand_identity","allSlides":true}`
+- "Coloque a marca completa, mas sem o logo" → 1 op: `{"type":"apply_brand_identity","allSlides":true,"applyLogo":false}`
+- "Aplique a identidade nos slides 2 a 5 com logo no canto inferior direito" → 1 op: `{"type":"apply_brand_identity","fromIndex":1,"toIndex":4,"logoCorner":"bottom-right"}`
 
 ## Formato JSON estrito
 ```json
@@ -163,6 +175,41 @@ async def _load_brand_kit(company_id: str) -> dict:
     return kit
 
 
+async def _load_brand_logo(company_id: str, brand_kit: dict = None) -> str:
+    """Resolve the company's brand logo URL.
+
+    Priority order:
+      1. First `type=logo` asset registered in the Brand Library (recent).
+      2. `brandKit.logoUrl` (if set on the BrandKit).
+      3. `company.logo` field (top-level legacy field).
+    Returns the resolved URL or empty string when nothing is configured.
+    """
+    if not company_id:
+        return ""
+    # 1. Library asset
+    try:
+        row = await db.company_assets_meta.find_one(
+            {"companyId": company_id, "type": "logo", "isActive": {"$ne": False}},
+            {"_id": 0, "id": 1},
+            sort=[("createdAt", -1)],
+        )
+        if row and row.get("id"):
+            return f"/api/companies/{company_id}/assets/{row['id']}/file"
+    except Exception as exc:
+        logger.warning(f"editor_chat: brand logo asset fetch failed: {exc}")
+    # 2. BrandKit field
+    if brand_kit and brand_kit.get("logoUrl"):
+        return str(brand_kit["logoUrl"])
+    # 3. Legacy company.logo
+    try:
+        doc = await db.companies.find_one({"id": company_id}, {"_id": 0, "logo": 1})
+        if doc and doc.get("logo"):
+            return str(doc["logo"])
+    except Exception:
+        pass
+    return ""
+
+
 async def _load_brand_backgrounds(company_id: str) -> list:
     """Fetch the active brand backgrounds for a company. Returns a list of
     light dicts: {id, name, category, tags, url}. Empty when company has
@@ -224,7 +271,7 @@ def _extract_json(raw: str) -> dict:
         return {"reply": raw[:500], "ops": []}
 
 
-def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_kit: dict = None) -> list:
+def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_kit: dict = None, brand_logo_url: str = "") -> list:
     """Mutate slides in-place applying a list of editor ops. Returns the
     list of ops that were actually applied (skips malformed ones).
 
@@ -235,6 +282,9 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
 
     `brand_kit` is the pre-fetched BrandKit (primary/secondary/accent +
     font). Used by `apply_brand_palette` to update slide colors / text.
+
+    `brand_logo_url` is the pre-resolved logo URL of the company. Used by
+    `apply_brand_identity` to inject a watermark image element.
     """
     brand_backgrounds = brand_backgrounds or []
     brand_kit = brand_kit or {}
@@ -540,6 +590,153 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                     "textElementsUpdated": text_swaps,
                     "fontFamily": font_family,
                 })
+            elif t == "apply_brand_identity":
+                # Combined op: applies brand background image + brand palette
+                # (colors + font) + brand logo as watermark, all in one go.
+                # Designed as the "instant onboarding" for imported courses
+                # where the author wants the whole identity sweep applied.
+                affected_slides_list = []
+                bg_url_used = ""
+                palette_bg_used = ""
+                logo_inserted_count = 0
+                text_swaps = 0
+                font_family_applied = None
+
+                # ---- Resolve targets / range ----
+                if op.get("allSlides") or (
+                    op.get("fromIndex") is None and op.get("toIndex") is None
+                ):
+                    start, end = 0, len(slides) - 1
+                else:
+                    try:
+                        start = max(0, int(op.get("fromIndex", 0)))
+                        end = min(len(slides) - 1, int(op.get("toIndex", len(slides) - 1)))
+                    except (TypeError, ValueError):
+                        start, end = 0, len(slides) - 1
+                if end < start or not slides:
+                    continue
+
+                # Flags — default ALL components ON.
+                add_bg = op.get("applyBackground", True)
+                add_palette = op.get("applyPalette", True)
+                add_logo = op.get("applyLogo", True) and bool(brand_logo_url)
+
+                # ---- 1. Brand background image ----
+                if add_bg and brand_backgrounds:
+                    asset = _resolve_brand_background(brand_backgrounds, op.get("brandAssetId"))
+                    if asset and asset.get("url"):
+                        bg_url_used = asset["url"]
+
+                # ---- 2. Palette: resolve text color (best WCAG ratio) ----
+                def _hex(v):
+                    return v if isinstance(v, str) and v.startswith("#") and len(v) in (4, 7) else None
+                primary = _hex(brand_kit.get("primaryColor"))
+                accent = _hex(brand_kit.get("accentColor"))
+                secondary = _hex(brand_kit.get("secondaryColor"))
+                font_family = (brand_kit.get("fontFamily") or "").strip() or None
+                target = (op.get("paletteTarget") or "primary").lower()
+                if target == "accent" and accent:
+                    palette_bg_used = accent
+                elif target == "secondary" and secondary:
+                    palette_bg_used = secondary
+                else:
+                    palette_bg_used = primary or accent or secondary or ""
+
+                if add_palette and palette_bg_used:
+                    from services import wcag
+                    try:
+                        dark_ratio = wcag.contrast_ratio(wcag.DARK_FALLBACK, palette_bg_used)
+                        light_ratio = wcag.contrast_ratio(wcag.LIGHT_FALLBACK, palette_bg_used)
+                        best_text_color = (
+                            wcag.LIGHT_FALLBACK if light_ratio >= dark_ratio
+                            else wcag.DARK_FALLBACK
+                        )
+                    except Exception:
+                        best_text_color = wcag.pick_high_contrast_color(palette_bg_used)
+                    BANNED_STYLE_KEYS = {
+                        "backgroundColor", "textBackgroundColor",
+                        "padding", "borderRadius",
+                        "boxShadow", "box-shadow",
+                        "textShadow", "text-shadow",
+                    }
+                else:
+                    best_text_color = None
+                    BANNED_STYLE_KEYS = set()
+
+                # ---- 3. Logo watermark placement ----
+                # Top-right corner by default (canvas 1920x820 → 80x80 logo at x=1760, y=24).
+                # Author can override via `logoCorner`: top-right (default),
+                # top-left, bottom-right, bottom-left.
+                logo_corner = (op.get("logoCorner") or "top-right").lower()
+                logo_size = 96
+                margin = 24
+                canvas_w, canvas_h = 1920, 820
+                if logo_corner == "top-left":
+                    lx, ly = margin, margin
+                elif logo_corner == "bottom-right":
+                    lx, ly = canvas_w - logo_size - margin, canvas_h - logo_size - margin
+                elif logo_corner == "bottom-left":
+                    lx, ly = margin, canvas_h - logo_size - margin
+                else:  # top-right (default)
+                    lx, ly = canvas_w - logo_size - margin, margin
+
+                # ---- Apply per-slide ----
+                for idx in range(start, end + 1):
+                    sl = slides[idx]
+                    # 1) Brand background image
+                    if bg_url_used:
+                        sl["backgroundImage"] = bg_url_used
+                    # 2) Palette: solid background + sweep text colors
+                    if add_palette and palette_bg_used:
+                        sl["background"] = palette_bg_used
+                        for el in (sl.get("elements") or []):
+                            if not isinstance(el, dict):
+                                continue
+                            if el.get("type") in ("html", "quiz", "scenario", "image", "shape"):
+                                continue
+                            st = el.get("style")
+                            if not isinstance(st, dict):
+                                st = {}
+                                el["style"] = st
+                            for k in BANNED_STYLE_KEYS:
+                                st.pop(k, None)
+                            st["fontColor"] = best_text_color
+                            st["color"] = best_text_color
+                            if font_family:
+                                st["fontFamily"] = font_family
+                                font_family_applied = font_family
+                            text_swaps += 1
+                    # 3) Logo watermark — insert ONLY if not already present
+                    # (recognize by data-brand-logo marker on the element).
+                    if add_logo:
+                        els = sl.get("elements") or []
+                        already = any(
+                            isinstance(e, dict) and e.get("isBrandLogo") for e in els
+                        )
+                        if not already:
+                            els.append({
+                                "id": str(uuid.uuid4()),
+                                "type": "image",
+                                "src": brand_logo_url,
+                                "x": lx, "y": ly,
+                                "width": logo_size, "height": logo_size,
+                                "isBrandLogo": True,
+                                "alt": "Logo da empresa",
+                                "style": {"opacity": 0.9, "objectFit": "contain"},
+                            })
+                            sl["elements"] = els
+                            logo_inserted_count += 1
+                    affected_slides_list.append(idx)
+
+                applied.append({
+                    "type": t,
+                    "affectedSlides": affected_slides_list,
+                    "backgroundImageUsed": bg_url_used,
+                    "paletteBackgroundUsed": palette_bg_used if add_palette else "",
+                    "logoInsertedCount": logo_inserted_count,
+                    "textElementsUpdated": text_swaps,
+                    "fontFamily": font_family_applied,
+                })
             elif t == "delete_element":
                 si, ei = int(op["slideIndex"]), int(op["elementIndex"])
                 if 0 <= si < len(slides):
@@ -595,6 +792,7 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     company_id = project.get("companyId") or ""
     brand_backgrounds = await _load_brand_backgrounds(company_id)
     brand_kit = await _load_brand_kit(company_id)
+    brand_logo_url = await _load_brand_logo(company_id, brand_kit)
 
     summary = _build_course_summary(slides)
     history = (data.get("history") or [])[-6:]
@@ -639,6 +837,11 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
             "nao tem BrandKit definido e nao gere ops de palette.\n\n"
         )
 
+    if brand_logo_url:
+        brand_section += f"LOGO DA MARCA: disponivel ({brand_logo_url}). Pode ser usado como marca d'agua via `apply_brand_identity`.\n\n"
+    else:
+        brand_section += "LOGO DA MARCA: nao cadastrado. Se o autor pedir 'identidade visual completa', use `apply_brand_identity` com `applyLogo:false`.\n\n"
+
     user_prompt = (
         f"CURSO ATUAL (resumo):\n{json.dumps(summary, ensure_ascii=False)[:8000]}\n\n"
         f"{brand_section}"
@@ -654,7 +857,7 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     # `aesthetic_snapshots` collection so existing Revert button works).
     snapshot_slides = _copy.deepcopy(slides) if ops else None
 
-    applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds, brand_kit=brand_kit)
+    applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds, brand_kit=brand_kit, brand_logo_url=brand_logo_url)
 
     if applied:
         await db.projects.update_one(

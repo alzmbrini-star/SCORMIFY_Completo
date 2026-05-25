@@ -1712,6 +1712,15 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Bug colateral corrigido: `if not p` retornava 404 para projetos sem `faithfulStatus` (dict vazio e falsy). Trocado para `if p is None`.
   - 7 novos testes em `tests/test_faithful_status_cache.py`. Lint OK.
 
+- 2026-05-21: FEATURE (P1) - Editor Chat: identidade visual completa em 1 comando.
+  - Nova op `apply_brand_identity` em `routes/editor_chat.py` que combina (1) brand background image + (2) brand palette (cores + fonte) + (3) logo como marca d'agua no canto.
+  - Flags individuais: `applyBackground`, `applyPalette`, `applyLogo` (todas default true).
+  - `logoCorner`: "top-right" (default), "top-left", "bottom-right", "bottom-left". Tamanho 96x96 com margem 24px.
+  - **Idempotente**: logos marcados com `isBrandLogo:true` — re-aplicacoes nao duplicam.
+  - Nova funcao `_load_brand_logo` resolve logo em 3 niveis: 1) primeiro asset `type=logo` da Biblioteca, 2) `brandKit.logoUrl`, 3) `company.logo` legado.
+  - Validado via curl em projeto Didaxis real (6 slides, 1 chamada): bg imagem + cor `#eb6d24` + logo `casset_f2cf9ffc9b61` inserido em todos. Re-aplicacao: 0 logos duplicados.
+  - 17 novos testes em `tests/test_editor_chat_brand_identity.py`. **75 testes passing** entre editor_chat + faithful_status.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos
