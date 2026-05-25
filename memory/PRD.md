@@ -1705,6 +1705,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Validado via curl em projeto real (Didaxis, primary=#eb6d24): "Aplique a paleta da marca em todos os slides" → 14 slides com bg laranja, Inter font. "Use a cor accent nos slides 1 ao 3" → 3 slides com #f59e0b.
   - 15 novos testes em `tests/test_editor_chat_brand_palette.py`. **51 testes passing** nos arquivos de editor chat.
 
+- 2026-05-21: FIX (P0 PROD) - HTTP 520 em `/api/projects/{id}/faithful-status` durante import PDF Modo Fiel.
+  - Causa raiz: PyMuPDF/Tesseract no worker thread seguram o GIL, congelando o event loop principal. `asyncio.wait_for(timeout=5)` no polling NAO dispara porque o timer depende do loop estar rodando. Cloudflare desiste apos ~100s e retorna 520.
+  - Fix: cache em memoria (`_FAITHFUL_STATUS_CACHE: dict[str,dict]`) atualizado pelo worker em cada progresso. Polling le do cache PRIMEIRO (O(1), sem await, sem I/O) e cai pro Mongo so em cache miss. Mongo timeout reduzido a 2.5s + try/except Exception generico (qualquer erro DB vira "processing" ao inves de 500/520).
+  - FIFO eviction a 256 entradas para limitar memoria.
+  - Bug colateral corrigido: `if not p` retornava 404 para projetos sem `faithfulStatus` (dict vazio e falsy). Trocado para `if p is None`.
+  - 7 novos testes em `tests/test_faithful_status_cache.py`. Lint OK.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos

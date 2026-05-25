@@ -24,6 +24,36 @@ router = APIRouter(tags=["PDF Import"])
 # them and free the thread pool when the user decides to skip the slow path.
 _PDF_EXTRACTION_TASKS: dict = {}
 
+# In-memory cache for `faithfulStatus` keyed by project_id. The worker thread
+# updates this on EVERY progress callback so the polling endpoint can answer
+# in microseconds without touching Mongo. This is the critical mitigation for
+# the production HTTP 520 errors: even when the uvicorn event loop is starved
+# by PyMuPDF / Tesseract holding the GIL in the worker thread, the polling
+# endpoint can still respond synchronously from this dict before the loop
+# tries to await anything. Capped via FIFO eviction at 256 entries to bound
+# memory. Lock-free reads/writes are safe in CPython because dict ops are
+# atomic for single key set/get; we use a small list to enforce FIFO order.
+_FAITHFUL_STATUS_CACHE: dict[str, dict] = {}
+_FAITHFUL_STATUS_ORDER: list[str] = []
+_FAITHFUL_STATUS_MAX = 256
+
+
+def _faithful_set_cache(project_id: str, status: dict) -> None:
+    """Update the in-memory faithful status cache. Safe to call from any
+    thread (worker or main loop)."""
+    if not project_id or not isinstance(status, dict):
+        return
+    if project_id not in _FAITHFUL_STATUS_CACHE:
+        _FAITHFUL_STATUS_ORDER.append(project_id)
+        # Evict the oldest entry if we exceeded the cap.
+        if len(_FAITHFUL_STATUS_ORDER) > _FAITHFUL_STATUS_MAX:
+            try:
+                oldest = _FAITHFUL_STATUS_ORDER.pop(0)
+                _FAITHFUL_STATUS_CACHE.pop(oldest, None)
+            except Exception:
+                pass
+    _FAITHFUL_STATUS_CACHE[project_id] = status
+
 
 # =============================================================================
 # CHUNKED PDF UPLOAD (streams directly to GridFS to avoid OOM on large files)
@@ -625,6 +655,9 @@ async def agent_generate_faithful_course(
         "startedAt": datetime.now(timezone.utc).isoformat(),
     }
     await db.projects.insert_one(project_dict)
+    # Seed the in-memory cache so the very first poll already finds an entry
+    # (avoids racing against Mongo replication on Atlas in production).
+    _faithful_set_cache(project.id, dict(project_dict["faithfulStatus"]))
 
     await db.agent_sessions.update_one(
         {"id": session_id},
@@ -698,11 +731,22 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
             if now - last_update["t"] < 1.0 and pct < 0.999:
                 return
             last_update["t"] = now
+            progress_int = int(pct * 90)
+            status_payload = {
+                "status": "processing",
+                "progress": progress_int,
+                "message": f"Renderizando {msg}...",
+            }
+            # 1. Update in-memory cache IMMEDIATELY (no I/O, no await) so the
+            #    polling endpoint can answer fast even when the main event
+            #    loop is starved by GIL-holding PyMuPDF calls.
+            _faithful_set_cache(project_id, status_payload)
+            # 2. Best-effort Mongo update for durability across pod restarts.
             try:
                 asyncio.create_task(local_db.projects.update_one(
                     {"id": project_id},
                     {"$set": {
-                        "faithfulStatus.progress": int(pct * 90),
+                        "faithfulStatus.progress": progress_int,
                         "faithfulStatus.message": f"Renderizando {msg}...",
                         "updatedAt": datetime.now(timezone.utc).isoformat(),
                     }}
@@ -726,12 +770,19 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
                 except Exception as e:
                     logger.warning(f"[bg-faithful] persist {p['filename']} failed: {e}")
             if total > 0 and (i + 1) % 5 == 0:
+                save_progress = 90 + int(9 * (i + 1) / total)
+                save_msg = f"Salvando imagens ({i+1}/{total})..."
+                _faithful_set_cache(project_id, {
+                    "status": "processing",
+                    "progress": save_progress,
+                    "message": save_msg,
+                })
                 try:
                     await local_db.projects.update_one(
                         {"id": project_id},
                         {"$set": {
-                            "faithfulStatus.progress": 90 + int(9 * (i + 1) / total),
-                            "faithfulStatus.message": f"Salvando imagens ({i+1}/{total})...",
+                            "faithfulStatus.progress": save_progress,
+                            "faithfulStatus.message": save_msg,
                         }}
                     )
                 except Exception:
@@ -739,17 +790,19 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
 
         slides = build_faithful_slides(extraction["pages"], project_id)
 
+        done_status = {
+            "status": "done",
+            "message": f"Curso fiel criado: {len(slides)} slides.",
+            "progress": 100,
+            "finishedAt": datetime.now(timezone.utc).isoformat(),
+        }
+        _faithful_set_cache(project_id, done_status)
         await local_db.projects.update_one(
             {"id": project_id},
             {"$set": {
                 "course.slides": slides,
                 "status": "generated",
-                "faithfulStatus": {
-                    "status": "done",
-                    "message": f"Curso fiel criado: {len(slides)} slides.",
-                    "progress": 100,
-                    "finishedAt": datetime.now(timezone.utc).isoformat(),
-                },
+                "faithfulStatus": done_status,
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             }}
         )
@@ -766,17 +819,19 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
     except Exception as e:
         import traceback as _tb
         logger.error(f"[bg-faithful] project={project_id} failed: {e}\n{_tb.format_exc()}")
+        error_status = {
+            "status": "error",
+            "message": f"Falha: {str(e)[:180]}",
+            "progress": 0,
+            "finishedAt": datetime.now(timezone.utc).isoformat(),
+        }
+        _faithful_set_cache(project_id, error_status)
         try:
             await local_db.projects.update_one(
                 {"id": project_id},
                 {"$set": {
                     "status": "error",
-                    "faithfulStatus": {
-                        "status": "error",
-                        "message": f"Falha: {str(e)[:180]}",
-                        "progress": 0,
-                        "finishedAt": datetime.now(timezone.utc).isoformat(),
-                    },
+                    "faithfulStatus": error_status,
                 }}
             )
         except Exception:
@@ -792,21 +847,40 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
 async def get_faithful_status(project_id: str, user: dict = Depends(require_auth)):
     """Poll endpoint for Modo Fiel background rendering progress.
 
-    Ultra-light: only fetches the `faithfulStatus` field with a short timeout
-    so it responds fast even when CPU is busy rendering pages.
+    Production-hardened against HTTP 520s: reads from an in-memory cache
+    FIRST (O(1), no I/O, no await) so this endpoint responds in microseconds
+    even when the main uvicorn event loop is starved by GIL-holding PyMuPDF
+    or Tesseract calls in the worker thread. Falls back to Mongo only when
+    the project has no cache entry (e.g., after a pod restart).
     """
+    # Cache hit → respond immediately. No Mongo round-trip, no await, no
+    # chance of getting blocked behind GIL-holding rendering work.
+    cached = _FAITHFUL_STATUS_CACHE.get(project_id)
+    if cached:
+        return cached
+
+    # Cache miss → fall back to Mongo with a hard 2.5s timeout so we never
+    # hang past Cloudflare's edge-timeout threshold.
     try:
         p = await asyncio.wait_for(
             db.projects.find_one(
                 {"id": project_id},
-                {"_id": 0, "faithfulStatus": 1}
+                {"_id": 0, "id": 1, "faithfulStatus": 1}
             ),
-            timeout=5.0,
+            timeout=2.5,
         )
     except asyncio.TimeoutError:
         # Don't fail the polling — return a "still processing" placeholder so
         # the client keeps polling instead of erroring out.
         return {"status": "processing", "progress": -1, "message": "Aguarde..."}
-    if not p:
+    except Exception as exc:
+        # Any other DB error: log and treat as still processing rather than
+        # bubble up a 500 that would turn into a Cloudflare 520.
+        logger.warning(f"faithful-status mongo error for {project_id}: {exc}")
+        return {"status": "processing", "progress": -1, "message": "Aguarde..."}
+    if p is None:
         raise HTTPException(404, "Project not found")
-    return p.get("faithfulStatus") or {"status": "done", "progress": 100, "message": ""}
+    status = p.get("faithfulStatus") or {"status": "done", "progress": 100, "message": ""}
+    # Warm the cache so subsequent polls are instant.
+    _faithful_set_cache(project_id, status)
+    return status
