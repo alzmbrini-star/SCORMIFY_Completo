@@ -626,6 +626,21 @@ async def agent_generate_faithful_course(
         logger.error(f"[faithful] Failed to read PDF from GridFS: {e}")
         raise HTTPException(500, f"Nao foi possivel ler o PDF salvo: {e}")
 
+    # 2026-05-25: size guard against OOM on small production pods (~512Mi).
+    # PyMuPDF expands PDF bytes 3-5x in memory + pixmaps (1280x546 RGB ≈
+    # 2.1MB each, peak 3 simultaneous). A 30MB PDF can push peak RAM to
+    # ~250MB before GC. We hard-cap at 40MB to leave room for the rest of
+    # the FastAPI app + motor connection pool. Authors with bigger PDFs
+    # are told to split them.
+    FAITHFUL_MAX_BYTES = 40 * 1024 * 1024
+    pdf_size_mb = len(pdf_bytes) / (1024 * 1024)
+    if len(pdf_bytes) > FAITHFUL_MAX_BYTES:
+        raise HTTPException(
+            413,
+            f"PDF muito grande ({pdf_size_mb:.1f} MB). O Modo Fiel suporta ate {FAITHFUL_MAX_BYTES // (1024*1024)} MB. "
+            f"Por favor, divida o PDF em partes menores e processe-as separadamente."
+        )
+
     title = (body.get("title") or s.get("fileName", "Curso").rsplit(".", 1)[0]).strip()[:160]
 
     # Background generation to avoid Cloudflare 100s timeout on large PDFs.

@@ -869,6 +869,22 @@ FAITHFUL_JPEG_QUALITY = 80
 # event loop handling /faithful-status polling requests.
 FAITHFUL_PAGE_COOLDOWN = 0.30  # seconds
 
+# Adaptive quality thresholds (2026-05-25). For large PDFs we render at a
+# lower resolution / lower quality to keep peak memory under the production
+# pod's ~512Mi limit. PyMuPDF pixmaps are width*height*3 bytes; halving
+# both axes cuts the peak by 4x.
+ADAPTIVE_LARGE_PDF_BYTES = 10 * 1024 * 1024     # 10 MB
+ADAPTIVE_HUGE_PDF_BYTES = 25 * 1024 * 1024      # 25 MB
+
+
+def _pick_render_params(pdf_bytes_len: int) -> tuple:
+    """Return (width, height, jpeg_quality) tuned for the PDF size."""
+    if pdf_bytes_len > ADAPTIVE_HUGE_PDF_BYTES:
+        return 960, 410, 65   # ~60% less peak memory than default
+    if pdf_bytes_len > ADAPTIVE_LARGE_PDF_BYTES:
+        return 1120, 478, 72  # ~30% less peak memory
+    return SLIDE_WIDTH, SLIDE_HEIGHT, FAITHFUL_JPEG_QUALITY
+
 
 async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
                                progress_cb=None) -> dict:
@@ -889,9 +905,13 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
     assets_dir.mkdir(parents=True, exist_ok=True)
     pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
     total_pages = pdf.page_count
+    # Adaptive sizing: shrink the render target for large PDFs to avoid
+    # OOM on small production pods (~512Mi). Each MuPDF pixmap is
+    # width*height*3 bytes; halving both axes cuts peak RAM by ~4x.
+    eff_w, eff_h, eff_q = _pick_render_params(len(pdf_bytes))
     logger.info(
         f"[pdf_extractor/faithful] rendering {total_pages} pages at "
-        f"{SLIDE_WIDTH}x{SLIDE_HEIGHT} (DPI {FAITHFUL_DPI})"
+        f"{eff_w}x{eff_h} q={eff_q} (PDF {len(pdf_bytes) / (1024*1024):.1f} MB)"
     )
 
     pages_out: list = []
@@ -907,19 +927,19 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
         # pixmap explicitly so the MuPDF C memory is freed before the next
         # page. This is essential on low-memory production pods.
         def _do_render():
-            # Compute scale so the page FITS inside SLIDE_WIDTH x SLIDE_HEIGHT
+            # Compute scale so the page FITS inside eff_w x eff_h
             page_rect = page.rect
             src_w = page_rect.width
             src_h = page_rect.height
-            scale_w = SLIDE_WIDTH / src_w
-            scale_h = SLIDE_HEIGHT / src_h
+            scale_w = eff_w / src_w
+            scale_h = eff_h / src_h
             scale = min(scale_w, scale_h)
             matrix = fitz.Matrix(scale, scale)
             pix = None
             try:
                 pix = page.get_pixmap(matrix=matrix, alpha=False)
                 # Save directly as JPEG via pixmap (no PIL needed).
-                pix.save(str(target), jpg_quality=FAITHFUL_JPEG_QUALITY)
+                pix.save(str(target), jpg_quality=eff_q)
             finally:
                 # Explicit release of MuPDF memory before the next page.
                 if pix is not None:

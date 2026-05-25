@@ -1726,6 +1726,25 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Fix: quando `data.hasPdf=false && !status`, agenda novo `setTimeout(load, 3000)` para detectar upload concluido. Poll para naturalmente assim que `pdf_ready` aparece.
   - Validado: backend retorna corretamente `pdfExtractionStatus.status=pdf_ready` apos chunked upload. O bug era 100% frontend.
 
+- 2026-05-25: FIX (P0 PROD) - OOM em PDFs grandes no Modo Fiel (trava em 76%).
+  - Causa raiz: PDF de 26.5 MB → PyMuPDF expande 3-5x em memoria + pixmaps 1280x546x3 simultaneos → pico ~300-400MB. Pod producao com ~512Mi RAM bate em OOM Kill → reinicia → cache morre → polling oscila 502/520 → trava em 76%.
+  - Fix 1: limite hard de 40 MB no endpoint `/generate-faithful-course` com HTTP 413 e mensagem clara para dividir em partes.
+  - Fix 2: `_pick_render_params(pdf_bytes_len)` em `pdf_extractor.py` — qualidade adaptativa:
+    - <=10 MB: 1280x546 q80 (default)
+    - 10-25 MB: 1120x478 q72 (~30% menos memoria)
+    - 25-40 MB: 960x410 q65 (~60% menos memoria)
+  - `extract_pdf_faithful` usa params eff_w/eff_h/eff_q ao inves de constantes fixas.
+  - 7 novos testes em `tests/test_pdf_adaptive_render.py`. 14 passing.
+
+- 2026-05-25: FIX (P0 PROD) - 502 no GET `/api/agent/sessions/{id}` (payload oversized).
+  - Causa: endpoint retornava `contentText` (texto completo do PDF, ate MB) + `pdfPageImages` (base64). Cloudflare timeout em respostas grandes.
+  - Fix em `routes/agent.py:339`: default exclui `contentText` e `pdfPageImages`. `?full=1` opt-in. `?light=1` legado mantido.
+  - Fix em `server.py`: adicionado `GZipMiddleware(minimum_size=1024)`. Validado: `/api/projects` agora 36KB vs ~200KB sem gzip.
+
+- 2026-05-25: FIX (P0 PROD) - Upload chunked falhando com 502 em chunk 3/7.
+  - Causa: chunks de 4MB demoravam demais no nginx upstream.
+  - Fix em `Agent.jsx`: chunk reduzido para 2MB + retry com backoff exponencial (3 tentativas, pausas 0.8s/1.6s/2.4s) so em 502/503/504.
+
 ## Upcoming Tasks (Prioritized)
 - P1: Dashboard de analytics & scoring (geral, alem do Tutor IA)
 - P1: Historico de versoes dos cursos
