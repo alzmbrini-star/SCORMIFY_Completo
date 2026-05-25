@@ -1022,6 +1022,12 @@ def build_faithful_slides(pages: list, project_id: str) -> list:
             "background": "#ffffff",
             "backgroundImage": url,
             "backgroundOpacity": 100,
+            # 2026-05-25: Modo Fiel renders the PDF page AS the slide bg.
+            # Default `cover` crops top/sides when aspect ratios differ
+            # (Letter PDF ~2.59 vs slide ~2.34) — exactly what made the
+            # title and side logos disappear in production SCORM exports.
+            # `contain` letter-boxes instead, preserving the WHOLE page.
+            "backgroundImageFit": "contain",
             "elements": [],
             "annotations": [],
             "transition": {"type": "fade", "duration": 0.5},

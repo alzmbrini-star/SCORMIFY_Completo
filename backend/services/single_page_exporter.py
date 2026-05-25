@@ -1502,9 +1502,15 @@ def generate_single_page_html(
             # into a dedicated `.sp-zoom-stage` wrapper that we can scale
             # independently of the card chrome. Otherwise paint the bg
             # directly on the card (legacy behavior, preserves PPT imports).
+            # 2026-05-25: honor `backgroundImageFit` per slide. Modo Fiel
+            # slides set `"contain"` so the WHOLE PDF page is visible
+            # (no cropping of title/sides when aspect ratios differ).
+            fit_mode = slide.get("backgroundImageFit")
+            if not fit_mode:
+                fit_mode = "contain" if slide.get("_pdfFaithful") else "cover"
             if not has_zoom:
                 card_styles.append(f"background-image:url({_esc(bg_image_url)})")
-                card_styles.append("background-size:cover")
+                card_styles.append(f"background-size:{fit_mode}")
                 card_styles.append("background-position:center")
                 card_styles.append("background-repeat:no-repeat")
             section_class += " sp-has-bg-image"
@@ -1567,9 +1573,13 @@ def generate_single_page_html(
         # `transform: scale()` so the title/body strip/avatar overlay don't
         # get distorted along with it.
         if has_zoom and bg_image_url:
+            # 2026-05-25: honor `backgroundImageFit` here too.
+            zoom_fit = slide.get("backgroundImageFit")
+            if not zoom_fit:
+                zoom_fit = "contain" if slide.get("_pdfFaithful") else "cover"
             stage_style = (
                 f'background-image:url({_esc(bg_image_url)});'
-                'background-size:cover;background-position:center;'
+                f'background-size:{zoom_fit};background-position:center;'
                 'background-repeat:no-repeat'
             )
             stage_block = (

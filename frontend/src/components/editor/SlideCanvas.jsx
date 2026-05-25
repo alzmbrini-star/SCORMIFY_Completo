@@ -493,8 +493,17 @@ const SlideCanvas = ({
         <img
           src={getAssetUrl(slide.backgroundImage)}
           alt=""
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
-          style={{ zIndex: 0, opacity: slide.backgroundImageOpacity != null ? slide.backgroundImageOpacity : 1 }}
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          style={{
+            zIndex: 0,
+            opacity: slide.backgroundImageOpacity != null ? slide.backgroundImageOpacity : 1,
+            // 2026-05-25: honor `backgroundImageFit` per slide. Modo Fiel
+            // sets `"contain"` to show the whole PDF page. Other slides
+            // default to `contain` here too (editor convention) — change
+            // to `slide.backgroundImageFit || 'cover'` if you want the
+            // editor to match the SCORM `cover` default.
+            objectFit: slide.backgroundImageFit || 'contain',
+          }}
           draggable={false}
         />
       )}

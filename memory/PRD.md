@@ -1736,6 +1736,13 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - `extract_pdf_faithful` usa params eff_w/eff_h/eff_q ao inves de constantes fixas.
   - 7 novos testes em `tests/test_pdf_adaptive_render.py`. 14 passing.
 
+- 2026-05-25: FIX (P0) - SCORM/HTML exports do Modo Fiel cortavam topo/laterais.
+  - Causa: `objectFit:'cover'` no player.js + `background-size:cover` no single_page_exporter. Quando PDF (Letter ~2.59:1) era inserido no slide canvas (1280x546 ~2.34:1), as bordas eram cortadas — exatamente o que apareceu no SCORM: titulo "RELATORIO CONSOLIDADO..." cortado, logos cortados, etc.
+  - Fix: adicionado campo `backgroundImageFit` ("cover"|"contain") no slide. `build_faithful_slides` em `pdf_extractor.py` agora seta `"contain"` em todos os slides do Modo Fiel.
+  - Atualizado `player.js`, `single_page_exporter.py` e `SlideCanvas.jsx` para honrar o campo. Backwards-compat: slides legados com `_pdfFaithful:True` ou `type=='content'` + bg image em `/assets/*.jpg` recebem `contain` como fallback.
+  - Migration `/api/admin/migrate-faithful-bgfit` adiciona o campo nos slides ja salvos. Executada no preview: 2 projetos, 90 slides ajustados. Idempotente.
+  - 4 novos testes em `tests/test_faithful_bg_fit.py`.
+
 - 2026-05-25: FIX (P0 PROD) - 502 no GET `/api/agent/sessions/{id}` (payload oversized).
   - Causa: endpoint retornava `contentText` (texto completo do PDF, ate MB) + `pdfPageImages` (base64). Cloudflare timeout em respostas grandes.
   - Fix em `routes/agent.py:339`: default exclui `contentText` e `pdfPageImages`. `?full=1` opt-in. `?light=1` legado mantido.

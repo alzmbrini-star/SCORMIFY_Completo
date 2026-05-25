@@ -903,7 +903,22 @@ var CoursePlayer = (function() {
             bgImg.style.left = '0';
             bgImg.style.width = '100%';
             bgImg.style.height = '100%';
-            bgImg.style.objectFit = 'cover'; // Cover maintains aspect ratio while filling container
+            // 2026-05-25: honor `backgroundImageFit` per slide. Modo Fiel
+            // sets `"contain"` so the WHOLE PDF page is visible (no top/
+            // side cropping when aspect ratios differ). Other slides keep
+            // the default `cover` so decorative backgrounds fill the canvas.
+            // Backwards-compat: legacy Modo Fiel slides exported before
+            // this fix are detected via `_pdfFaithful`/`type==='content'`
+            // + presence of `backgroundImage` and forced to contain.
+            var fitMode = slide.backgroundImageFit;
+            if (!fitMode) {
+                if (slide._pdfFaithful) {
+                    fitMode = 'contain';
+                } else {
+                    fitMode = 'cover';
+                }
+            }
+            bgImg.style.objectFit = fitMode;
             bgImg.style.objectPosition = 'center center';
             bgImg.style.pointerEvents = 'none';
             bgImg.style.zIndex = '0';

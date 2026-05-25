@@ -551,3 +551,65 @@ async def strip_html_container_backgrounds_migration(
             f"{mutated_elements} elementos com {total_stripped} backgrounds de container removidos"
         ),
     }
+
+
+
+@router.post("/admin/migrate-faithful-bgfit")
+async def migrate_faithful_bgfit(
+    dryRun: bool = Query(default=True),
+    user: dict = Depends(require_auth),
+):
+    """Retrofit every legacy Modo Fiel slide with `backgroundImageFit:
+    "contain"` so SCORM and Single-Page exports no longer crop the top
+    and sides of the PDF page.
+
+    Targets slides that have ALL of:
+      - `_pdfFaithful: True` OR `type=="content"` + `backgroundImage` starting with `/api/projects/.../assets/`
+      - missing `backgroundImageFit` field (idempotent)
+    """
+    role = user.get("role", "")
+    if role not in ("super_admin", "admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    scanned = 0
+    mutated_projects = 0
+    mutated_slides = 0
+    cursor = db.projects.find({}, {"_id": 0, "id": 1, "course": 1})
+    async for proj in cursor:
+        scanned += 1
+        slides = (proj.get("course") or {}).get("slides") or []
+        changed = False
+        for sl in slides:
+            if sl.get("backgroundImageFit"):
+                continue  # already set
+            bg = sl.get("backgroundImage") or ""
+            is_faithful = bool(sl.get("_pdfFaithful")) or (
+                sl.get("type") == "content"
+                and isinstance(bg, str)
+                and "/assets/" in bg
+                and (bg.endswith(".jpg") or bg.endswith(".jpeg") or bg.endswith(".png"))
+            )
+            if not is_faithful:
+                continue
+            sl["backgroundImageFit"] = "contain"
+            changed = True
+            mutated_slides += 1
+        if changed and not dryRun:
+            await db.projects.update_one(
+                {"id": proj["id"]},
+                {"$set": {"course.slides": slides}},
+            )
+        if changed:
+            mutated_projects += 1
+    return {
+        "scanned": scanned,
+        "mutatedProjects": mutated_projects,
+        "mutatedSlides": mutated_slides,
+        "dryRun": dryRun,
+        "message": (
+            f"DRY RUN: {mutated_projects}/{scanned} projetos teriam "
+            f"{mutated_slides} slides do Modo Fiel ajustados para backgroundImageFit=contain"
+            if dryRun else
+            f"OK: {mutated_projects}/{scanned} projetos, "
+            f"{mutated_slides} slides do Modo Fiel ajustados para backgroundImageFit=contain"
+        ),
+    }
