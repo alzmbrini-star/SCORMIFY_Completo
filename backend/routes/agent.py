@@ -336,11 +336,22 @@ async def create_agent_session(data: AgentSessionCreate, request: Request, user:
 
 @router.get("/agent/sessions/{session_id}")
 async def get_agent_session(session_id: str, request: Request, user: dict = Depends(require_agent_access)):
-    """Get agent session state. Use ?light=1 for polling (excludes large contentText)."""
+    """Get agent session state.
+
+    Default behavior excludes large fields (`contentText`, `pdfPageImages`)
+    so the polling path never trips Cloudflare's edge upstream timeout
+    with multi-MB JSON payloads. Pass `?light=1` (legacy) or `?full=1` to
+    explicitly opt-in to the full document. The frontend never needs
+    `contentText` from this endpoint — it manages the textarea state
+    locally — so excluding by default is safe.
+    """
     exclude = {"_id": 0}
-    # During polling, exclude large content fields to reduce payload and prevent gateway timeouts
-    if request.query_params.get("light"):
+    # Opt-in to the full document. By default we exclude oversized fields.
+    if not request.query_params.get("full"):
         exclude["contentText"] = 0
+        # PDF page images can also be huge (base64 encoded). Strip them
+        # too unless explicitly requested.
+        exclude["pdfPageImages"] = 0
     s = await db.agent_sessions.find_one({"id": session_id}, exclude)
     if not s:
         raise HTTPException(404, "Session not found")

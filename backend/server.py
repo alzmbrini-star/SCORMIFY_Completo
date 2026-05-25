@@ -83,6 +83,13 @@ app.add_middleware(
     max_age=86400,
 )
 
+# GZip middleware (2026-05-25): compresses JSON responses > 1KB. Critical
+# for production behind Cloudflare/nginx — large agent session payloads
+# (storyboard, images metadata, etc.) were causing 502 Bad Gateway under
+# edge timeout. Compressing reduces typical JSON by 70-90%.
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 # Health endpoints - defined FIRST to ensure immediate availability
 @app.get("/health")
 async def health_check():
