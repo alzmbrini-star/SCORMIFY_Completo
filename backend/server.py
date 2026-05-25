@@ -35,17 +35,31 @@ db_name = os.environ.get('DB_NAME', 'scormify')
 if not mongo_url:
     raise RuntimeError("MONGO_URL environment variable is required")
 
-# Use longer timeouts for Atlas (remote) connections
+# Use longer timeouts for Atlas (remote) connections — but cap selection
+# at 15s so a misconfigured network/DNS causes a fast, visible failure
+# in the supervisor log instead of a multi-minute crash loop that only
+# shows up as "Connection refused" on nginx upstream.
 is_atlas = "mongodb.net" in mongo_url or "mongodb+srv" in mongo_url
-client = AsyncIOMotorClient(
-    mongo_url,
-    serverSelectionTimeoutMS=60000 if is_atlas else 10000,
-    connectTimeoutMS=60000 if is_atlas else 10000,
-    socketTimeoutMS=120000 if is_atlas else 30000,
-    maxPoolSize=20,
-    retryWrites=True,
-    retryReads=True,
-)
+print(f"[STARTUP] server.py: Creating Motor client (is_atlas={is_atlas})...", flush=True)
+try:
+    client = AsyncIOMotorClient(
+        mongo_url,
+        serverSelectionTimeoutMS=15000 if is_atlas else 10000,
+        connectTimeoutMS=15000 if is_atlas else 10000,
+        socketTimeoutMS=120000 if is_atlas else 30000,
+        maxPoolSize=20,
+        retryWrites=True,
+        retryReads=True,
+    )
+    print("[STARTUP] server.py: Motor client created OK.", flush=True)
+except Exception as exc:
+    # Surface DNS / SRV / TLS errors LOUDLY in stdout so the supervisor
+    # log makes the root cause obvious instead of leaving uvicorn unable
+    # to bind. Re-raise so supervisor can autorestart (but at least the
+    # operator sees WHY).
+    import traceback as _tb
+    print(f"[STARTUP][FATAL] Motor client init failed: {exc}\n{_tb.format_exc()}", flush=True)
+    raise
 db = client[db_name]
 exports_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="exports")
 
