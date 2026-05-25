@@ -347,8 +347,14 @@ export default function Agent() {
         if (!res.ok) throw new Error(`Upload falhou (${res.status})`);
         data = await res.json();
       } else {
-        // Large file: chunked upload to bypass proxy/Cloudflare body limits
-        const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB per chunk
+        // Large file: chunked upload to bypass proxy/Cloudflare body limits.
+        // 2026-05-25: reduced chunk size from 4MB to 2MB after production
+        // reported "Falha no chunk 3/7 (502)" on a 26.5MB PDF. Smaller chunks
+        // are far less likely to trip Cloudflare/nginx upstream timeouts
+        // under high write contention. Added retry with exponential backoff
+        // (3 attempts per chunk) to survive transient gateway hiccups.
+        const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB per chunk
+        const MAX_RETRIES = 3;
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
         const uploadId = `u${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
 
@@ -359,18 +365,43 @@ export default function Agent() {
           const start = i * CHUNK_SIZE;
           const end = Math.min(start + CHUNK_SIZE, file.size);
           const chunk = file.slice(start, end);
-          const form = new FormData();
-          form.append('chunk', chunk, `chunk_${i}`);
-          form.append('uploadId', uploadId);
-          form.append('chunkIndex', String(i));
-          form.append('totalChunks', String(totalChunks));
-          form.append('fileName', file.name);
 
-          const res = await fetch(`${API}/api/agent/sessions/${sid}/upload-chunk`, {
-            method: 'POST', headers: authHeaders(), body: form,
-          });
-          if (!res.ok) throw new Error(`Falha no chunk ${i + 1}/${totalChunks} (${res.status})`);
-          lastResponse = await res.json();
+          let attempt = 0;
+          let chunkOk = false;
+          let lastStatus = 0;
+          while (attempt < MAX_RETRIES && !chunkOk) {
+            attempt += 1;
+            try {
+              const form = new FormData();
+              form.append('chunk', chunk, `chunk_${i}`);
+              form.append('uploadId', uploadId);
+              form.append('chunkIndex', String(i));
+              form.append('totalChunks', String(totalChunks));
+              form.append('fileName', file.name);
+
+              const res = await fetch(`${API}/api/agent/sessions/${sid}/upload-chunk`, {
+                method: 'POST', headers: authHeaders(), body: form,
+              });
+              lastStatus = res.status;
+              if (res.ok) {
+                lastResponse = await res.json();
+                chunkOk = true;
+                break;
+              }
+              // Retry on transient gateway errors (502/503/504). Anything else
+              // is a permanent failure — bubble up immediately.
+              if ([502, 503, 504].includes(res.status) && attempt < MAX_RETRIES) {
+                await new Promise(r => setTimeout(r, 800 * attempt));
+                continue;
+              }
+              throw new Error(`Falha no chunk ${i + 1}/${totalChunks} (${res.status})`);
+            } catch (chunkErr) {
+              if (attempt >= MAX_RETRIES) {
+                throw new Error(`Falha no chunk ${i + 1}/${totalChunks} (${lastStatus || chunkErr.message})`);
+              }
+              await new Promise(r => setTimeout(r, 800 * attempt));
+            }
+          }
           setFileName(`${file.name} (${i + 1}/${totalChunks})`);
         }
         data = lastResponse;
