@@ -137,10 +137,19 @@ export default function TutorDashboard() {
             <CardTitle className="text-sm flex items-center gap-2">
               <Clock className="w-4 h-4 text-slate-400" />
               Interacoes Recentes
+              <Badge className="ml-auto text-[10px] bg-slate-700 text-slate-300" data-testid="recent-interactions-count">
+                {courseDetail.recentLogs?.length || 0}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[400px]">
+            {/* Native overflow scroll: shadcn ScrollArea ignored `max-h-*` here
+                because Radix needs a FIXED height. Native scroll respects
+                `max-h` and shows the scrollbar exactly when content overflows. */}
+            <div
+              className="max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900"
+              data-testid="recent-interactions-scroll"
+            >
               <div className="space-y-3">
                 {courseDetail.recentLogs?.map((log, i) => (
                   <div key={log.id || log.timestamp || `log-${i}`} className="p-3 bg-slate-800/50 rounded-lg space-y-2">
@@ -149,15 +158,18 @@ export default function TutorDashboard() {
                       <p className="text-sm text-white">{log.question}</p>
                     </div>
                     {log.response && (
-                      <p className="text-xs text-slate-400 ml-6 line-clamp-2">{log.response}</p>
+                      <p className="text-xs text-slate-400 ml-6 line-clamp-3">{log.response}</p>
                     )}
                     <p className="text-[10px] text-slate-500 ml-6">
                       {log.createdAt ? new Date(log.createdAt).toLocaleString('pt-BR') : ''}
                     </p>
                   </div>
                 ))}
+                {(!courseDetail.recentLogs || courseDetail.recentLogs.length === 0) && (
+                  <p className="text-sm text-slate-500 text-center py-4">Nenhuma interacao registrada</p>
+                )}
               </div>
-            </ScrollArea>
+            </div>
           </CardContent>
         </Card>
       </div>
