@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import {
@@ -45,6 +46,7 @@ import {
   BookOpen,
   Layers,
   Download,
+  Filter,
 } from 'lucide-react';
 import axios from 'axios';
 import TutorialImportDialog from '../components/dashboard/TutorialImportDialog';
@@ -85,6 +87,50 @@ export default function Dashboard() {
 
   // Dashboard metrics
   const [metrics, setMetrics] = useState(null);
+
+  // 2026-05-27: Super-admin filters for the projects grid (company + date
+  // recency). Hidden for non-super-admin users — those only see their own
+  // company anyway, so a filter would be redundant.
+  const [filterCompanyId, setFilterCompanyId] = useState('all');
+  const [filterDateRange, setFilterDateRange] = useState('all'); // all | 7d | 30d | 90d
+  const [companiesList, setCompaniesList] = useState([]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    axios.get(`${API_URL}/api/companies`)
+      .then(res => setCompaniesList(Array.isArray(res.data) ? res.data : (res.data?.companies || [])))
+      .catch(() => setCompaniesList([]));
+  }, [isSuperAdmin, API_URL]);
+
+  // Apply client-side filtering for the grid.
+  const filteredProjects = useMemo(() => {
+    let list = [...(projects || [])];
+    if (isSuperAdmin && filterCompanyId !== 'all') {
+      if (filterCompanyId === '__none__') {
+        list = list.filter(p => !p.companyId);
+      } else {
+        list = list.filter(p => p.companyId === filterCompanyId);
+      }
+    }
+    if (filterDateRange !== 'all') {
+      const days = parseInt(filterDateRange, 10);
+      if (Number.isFinite(days) && days > 0) {
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        list = list.filter(p => {
+          const ts = new Date(p.createdAt || p.updatedAt || 0).getTime();
+          return ts >= cutoff;
+        });
+      }
+    }
+    // Always sort by most recent first when a recency filter is on, so the
+    // "criados recentemente" view feels right.
+    list.sort((a, b) => {
+      const ta = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const tb = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      return tb - ta;
+    });
+    return list;
+  }, [projects, isSuperAdmin, filterCompanyId, filterDateRange]);
 
   useEffect(() => {
     fetchProjects();
@@ -518,27 +564,82 @@ export default function Dashboard() {
         />
 
         {/* Projects Grid */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold mb-4">Your Projects</h3>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h3 className="text-xl font-semibold">Your Projects</h3>
+          {/* Super-admin only filters: company + recency. Non-super-admin
+              users only see their own company so filters would be noise. */}
+          {isSuperAdmin && (
+            <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-superadmin-filters">
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Empresa:</span>
+                <select
+                  value={filterCompanyId}
+                  onChange={(e) => setFilterCompanyId(e.target.value)}
+                  className="bg-background border border-border rounded-md px-2 py-1.5 text-sm min-w-[160px]"
+                  data-testid="filter-company-select"
+                >
+                  <option value="all">Todas as empresas</option>
+                  <option value="__none__">Sem empresa</option>
+                  {companiesList.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Criados:</span>
+                <select
+                  value={filterDateRange}
+                  onChange={(e) => setFilterDateRange(e.target.value)}
+                  className="bg-background border border-border rounded-md px-2 py-1.5 text-sm"
+                  data-testid="filter-date-select"
+                >
+                  <option value="all">Qualquer data</option>
+                  <option value="7">Últimos 7 dias</option>
+                  <option value="30">Últimos 30 dias</option>
+                  <option value="90">Últimos 90 dias</option>
+                </select>
+              </div>
+              {(filterCompanyId !== 'all' || filterDateRange !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() => { setFilterCompanyId('all'); setFilterDateRange('all'); }}
+                  data-testid="filter-clear-btn"
+                >
+                  Limpar
+                </Button>
+              )}
+              <Badge variant="outline" className="text-xs" data-testid="filter-count-badge">
+                {filteredProjects.length} de {projects.length}
+              </Badge>
+            </div>
+          )}
         </div>
 
         {loading && projects.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        ) : projects.length === 0 ? (
+        ) : filteredProjects.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-16 text-center">
               <Presentation className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-              <h4 className="text-lg font-medium mb-2">No projects yet</h4>
+              <h4 className="text-lg font-medium mb-2">
+                {projects.length === 0 ? 'No projects yet' : 'Nenhum projeto corresponde aos filtros'}
+              </h4>
               <p className="text-muted-foreground mb-4">
-                Create a new project or import a PowerPoint to get started
+                {projects.length === 0
+                  ? 'Create a new project or import a PowerPoint to get started'
+                  : 'Ajuste os filtros de empresa ou data para ver mais projetos.'}
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {projects.map((project) => (
+            {filteredProjects.map((project) => (
               <Card
                 key={project.id}
                 className="card-hover cursor-pointer group relative"
