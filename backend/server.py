@@ -93,24 +93,43 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 # Health endpoints - defined FIRST to ensure immediate availability
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Liveness probe — pure synchronous response, NO Mongo dependency.
+
+    K8s uses this to detect dead pods. Must respond < 1s regardless of
+    Mongo connectivity. Returning a literal dict is the cheapest path
+    (no awaits, no I/O).
+    """
+    return {"status": "healthy", "service": "scormify-api"}
 
 @app.get("/healthz")
 async def health_check_k8s():
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "scormify-api"}
 
 @app.get("/ready")
 async def readiness_check():
-    return {"status": "ready"}
+    """Readiness probe — succeeds only when Mongo is reachable.
+
+    Different from /health: K8s uses this to decide if the pod should
+    receive traffic. If Mongo is down, the pod stays out of the LB
+    rotation instead of returning 502 to users. Short timeout (2s) so
+    we never block the kubelet's probe budget.
+    """
+    try:
+        await asyncio.wait_for(db.command("ping"), timeout=2.0)
+        return {"status": "ready"}
+    except Exception as exc:
+        # Return 503 so K8s removes us from rotation but doesn't restart
+        # the pod (liveness is /health, which always returns 200).
+        raise HTTPException(status_code=503, detail=f"mongo not ready: {exc}") from exc
 
 # Also register health at /api/health for deployment systems that use the /api prefix
 @app.get("/api/health")
 async def health_check_api():
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "scormify-api"}
 
 @app.get("/api/healthz")
 async def health_check_api_k8s():
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "scormify-api"}
 
 print("[STARTUP] server.py: Loading route modules...", flush=True)
 
