@@ -687,73 +687,71 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Add tutor configuration
     if tutor_config and tutor_config.get('enabled'):
-        # Build course context from slide content for the tutor
+        # Build course context from slide content for the tutor.
+        #
+        # 2026-05-26: include `slide.title` and `slide.notes` so courses
+        # imported from PDF Modo Fiel or PPT (whose `elements` is empty
+        # but whose OCR'd / extracted text lives in `notes`) get a
+        # meaningful tutor context. Previously the tutor was useless on
+        # imported courses because it only read `elements[*].content`.
         import re as _re
-        slide_summaries = []
-        for i, slide in enumerate(course_data.get('slides') or []):
-            if not isinstance(slide, dict):
-                continue
-            elements_text = []
+
+        def _slide_text_parts(slide: dict) -> list:
+            """Collect ALL textual signals from a slide for tutor context.
+
+            Order: title -> notes (PDF Modo Fiel OCR) -> extractedText (PPT
+            import shapes) -> elements text. Notes/extractedText are
+            critical for Modo Fiel and PPT imports where `elements` is empty.
+            """
+            parts = []
+            title = (slide.get('title') or '').strip()
+            if title and title.lower() not in ('novo slide', 'slide', 'untitled'):
+                parts.append(title[:200])
+            for field in ('notes', 'extractedText'):
+                txt = (slide.get(field) or '').strip()
+                if txt:
+                    clean = _re.sub(r'<[^>]+>', ' ', txt)
+                    clean = _re.sub(r'\s+', ' ', clean).strip()
+                    if clean:
+                        parts.append(clean[:2000])
             for elem in (slide.get('elements') or []):
-                if isinstance(elem, dict):
-                    # Extract text from all possible fields: content (text/shape), htmlContent (html elements), text (legacy)
-                    raw = elem.get('content') or elem.get('htmlContent') or elem.get('text') or ''
-                    if raw:
-                        plain = _re.sub(r'<[^>]+>', ' ', raw).strip()
-                        plain = _re.sub(r'\s+', ' ', plain)  # collapse whitespace
-                        if plain:
-                            elements_text.append(plain[:500])
-                    # Also extract button text
-                    btn_text = elem.get('buttonText')
-                    if btn_text:
-                        elements_text.append(btn_text)
-                    # Extract quiz questions for context
-                    quiz_cfg = elem.get('quizConfig')
-                    if quiz_cfg and isinstance(quiz_cfg, dict):
-                        q_title = quiz_cfg.get('title')
-                        if q_title:
-                            elements_text.append(f"Quiz: {q_title}")
-                    # Extract scenario context
-                    scenario_data = elem.get('scenarioData')
-                    if scenario_data and isinstance(scenario_data, dict):
-                        s_title = scenario_data.get('title')
-                        if s_title:
-                            elements_text.append(f"Cenário: {s_title}")
-            if elements_text:
-                slide_summaries.append(f"Slide {i+1}: " + " | ".join(elements_text))
-        
-        course_context = "\n".join(slide_summaries[:50])  # Limit to 50 slides
-        
-        # Build per-slide contexts for slide-aware tutoring
+                if not isinstance(elem, dict):
+                    continue
+                raw = elem.get('content') or elem.get('htmlContent') or elem.get('text') or ''
+                if raw:
+                    plain = _re.sub(r'<[^>]+>', ' ', raw).strip()
+                    plain = _re.sub(r'\s+', ' ', plain)
+                    if plain:
+                        parts.append(plain[:500])
+                btn_text = elem.get('buttonText')
+                if btn_text:
+                    parts.append(btn_text)
+                quiz_cfg = elem.get('quizConfig')
+                if quiz_cfg and isinstance(quiz_cfg, dict):
+                    q_title = quiz_cfg.get('title')
+                    if q_title:
+                        parts.append(f"Quiz: {q_title}")
+                scenario_data = elem.get('scenarioData')
+                if scenario_data and isinstance(scenario_data, dict):
+                    s_title = scenario_data.get('title')
+                    if s_title:
+                        parts.append(f"Cenário: {s_title}")
+            return parts
+
+        slide_summaries = []
         per_slide_contexts = []
         for i, slide in enumerate(course_data.get('slides') or []):
             if not isinstance(slide, dict):
                 per_slide_contexts.append('')
                 continue
-            elements_text = []
-            for elem in (slide.get('elements') or []):
-                if isinstance(elem, dict):
-                    raw = elem.get('content') or elem.get('htmlContent') or elem.get('text') or ''
-                    if raw:
-                        plain = re.sub(r'<[^>]+>', ' ', raw).strip()
-                        plain = re.sub(r'\s+', ' ', plain)
-                        if plain:
-                            elements_text.append(plain[:500])
-                    btn_text = elem.get('buttonText')
-                    if btn_text:
-                        elements_text.append(btn_text)
-                    quiz_cfg = elem.get('quizConfig')
-                    if quiz_cfg and isinstance(quiz_cfg, dict):
-                        q_title = quiz_cfg.get('title')
-                        if q_title:
-                            elements_text.append(f"Quiz: {q_title}")
-                    scenario_data = elem.get('scenarioData')
-                    if scenario_data and isinstance(scenario_data, dict):
-                        s_title = scenario_data.get('title')
-                        if s_title:
-                            elements_text.append(f"Cenário: {s_title}")
-            per_slide_contexts.append(" | ".join(elements_text) if elements_text else '')
-        
+            parts = _slide_text_parts(slide)
+            joined = " | ".join(parts) if parts else ''
+            per_slide_contexts.append(joined)
+            if parts:
+                slide_summaries.append(f"Slide {i+1}: " + joined)
+
+        course_context = "\n".join(slide_summaries[:80])  # cap at 80 slides
+
         course_data['tutorConfig'] = {
             'enabled': True,
             'apiUrl': tutor_config.get('apiUrl', ''),
@@ -764,7 +762,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             'messageLimit': tutor_config.get('messageLimit', 50),
             'suggestedQuestions': tutor_config.get('suggestedQuestions', [])
         }
-        logger.info(f"AI Tutor enabled for SCORM package with {len(slide_summaries)} slide summaries")
+        logger.info(
+            f"AI Tutor enabled for SCORM package with {len(slide_summaries)} slide summaries "
+            f"(context len={len(course_context)} chars)"
+        )
     
     # Verify audio assets exist and restore from MongoDB if missing
     for slide in (course_data.get('slides') or []):
