@@ -1743,6 +1743,24 @@ Build a full-featured AI course authoring platform with an "Intelligent Active L
   - Migration `/api/admin/migrate-faithful-bgfit` adiciona o campo nos slides ja salvos. Executada no preview: 2 projetos, 90 slides ajustados. Idempotente.
   - 4 novos testes em `tests/test_faithful_bg_fit.py`.
 
+- 2026-05-26: FEATURE (P1) - Tutor IA agora le texto OCR de cursos importados.
+  - Problema: Tutor IA respondia "este tema nao e abordado no curso" para cursos importados via PDF Modo Fiel ou PPT. Causa: o exporter SCORM montava `courseContext` apenas com `slide.elements[*].content`, que e vazio em imports (Modo Fiel guarda OCR em `slide.notes`, PPT em `slide.extractedText`).
+  - Fix em `scorm_exporter.py`: novo helper `_slide_text_parts(slide)` que coleta `title` -> `notes` (OCR) -> `extractedText` (PPT shapes) -> `elements[*].content/htmlContent`. Removeu duplicacao (DRY) entre `courseContext` global e `slideContexts` per-slide.
+  - Cada slide pode contribuir ate 2000 chars de notes/extractedText (cap evita estourar context window do LLM). Cap total de slides aumentado de 50 -> 80.
+  - Titulos genericos ("Novo Slide", "Slide", "Untitled") sao filtrados.
+  - 9 novos testes em `tests/test_tutor_context.py`. Cursos existentes precisam apenas re-exportar SCORM — os dados ja estao no DB.
+
+- 2026-05-27: FEATURE (P1) - Dashboard Tutor: expandir empresa + custo por empresa.
+  - Backend (`routes/admin.py`):
+    - `tutor_logs.insert_one` agora calcula `estimatedInputTokens`, `estimatedOutputTokens`, `estimatedCostUSD` via heuristica 4 chars/token + pricing Gemini 3 Flash ($0.075/$0.30 por 1M).
+    - `/admin/tutor-dashboard` aggregate inclui `totalCostUSD`, `totalInputTokens`, `totalOutputTokens` por curso. `company_summary` agora carrega `courseList` com topQuestions + recentQuestions + cost por curso (sem round-trip extra).
+    - Response root tem `totalCostUSD`, `totalCostBRL`, `currency.USD_TO_BRL`.
+  - Frontend (`pages/TutorDashboard.jsx`):
+    - Card "Perguntas por Empresa" agora mostra badge de custo total no header.
+    - Cada empresa expande inline para mostrar todos os cursos com top 5 perguntas + `<details>` collapsible com perguntas recentes (datas + custo USD por pergunta).
+    - Botao "Ver detalhes →" abre o modal de curso existente.
+  - Custo aparece apenas em perguntas novas (logs antigos retroativos = US$ 0). Backend respondendo OK em curl: 2 empresas (Didaxis 10q, Sem empresa 69q).
+
 - 2026-05-25: FIX (P0 PROD) - 502 no GET `/api/agent/sessions/{id}` (payload oversized).
   - Causa: endpoint retornava `contentText` (texto completo do PDF, ate MB) + `pdfPageImages` (base64). Cloudflare timeout em respostas grandes.
   - Fix em `routes/agent.py:339`: default exclui `contentText` e `pdfPageImages`. `?full=1` opt-in. `?light=1` legado mantido.

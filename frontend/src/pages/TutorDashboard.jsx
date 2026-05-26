@@ -242,31 +242,122 @@ export default function TutorDashboard() {
         <>
           {/* Company breakdown (Super Admin only) */}
           {isSuperAdmin && dashboard.companies?.length > 0 && (
-            <Card className="bg-slate-900/50 border-slate-800">
+            <Card className="bg-slate-900/50 border-slate-800" data-testid="tutor-companies-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-amber-400" />
                   Perguntas por Empresa
+                  {dashboard.totalCostUSD != null && (
+                    <Badge className="ml-auto bg-emerald-600/15 text-emerald-300 text-[10px]" data-testid="tutor-total-cost-badge">
+                      Custo total: US$ {dashboard.totalCostUSD.toFixed(4)} · R$ {dashboard.totalCostBRL?.toFixed(2)}
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {dashboard.companies.map((c, i) => (
-                    <div key={c.name || `company-${i}`}
-                      className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg cursor-pointer hover:bg-slate-800 transition-colors"
-                      onClick={() => toggleCompany(c.name)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Building2 className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium">{c.name}</span>
-                        <Badge className="text-[10px] bg-blue-600/15 text-blue-300">{c.courses} curso{c.courses !== 1 ? 's' : ''}</Badge>
+                  {dashboard.companies.map((c, i) => {
+                    const isExpanded = !!expandedCompanies[c.name];
+                    return (
+                      <div key={c.name || `company-${i}`} className="bg-slate-800/50 rounded-lg overflow-hidden" data-testid={`tutor-company-row-${i}`}>
+                        <div
+                          className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-800 transition-colors"
+                          onClick={() => toggleCompany(c.name)}
+                          data-testid={`tutor-company-toggle-${i}`}
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                            <span className="text-sm font-medium truncate">{c.name}</span>
+                            <Badge className="text-[10px] bg-blue-600/15 text-blue-300 shrink-0">{c.courses} curso{c.courses !== 1 ? 's' : ''}</Badge>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {c.totalCostUSD != null && c.totalCostUSD > 0 && (
+                              <span className="text-xs text-emerald-300/90 font-mono" data-testid={`tutor-company-cost-${i}`}>
+                                R$ {c.totalCostBRL?.toFixed(2)}
+                              </span>
+                            )}
+                            <span className="text-sm font-semibold text-amber-300">{c.totalQuestions} perguntas</span>
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                          </div>
+                        </div>
+
+                        {/* Expanded: courses with their questions */}
+                        {isExpanded && (
+                          <div className="border-t border-slate-700/60 p-3 space-y-3 bg-slate-900/40" data-testid={`tutor-company-expanded-${i}`}>
+                            {(c.courseList || []).length === 0 ? (
+                              <p className="text-xs text-slate-500 italic">Nenhum curso encontrado.</p>
+                            ) : (
+                              c.courseList.map((cs, ci) => (
+                                <div key={cs.projectId || ci} className="bg-slate-800/40 rounded-md p-3 space-y-2">
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <BookOpen className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                      <span className="text-xs font-medium truncate">{cs.courseName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      {cs.totalCostUSD > 0 && (
+                                        <Badge className="text-[10px] bg-emerald-600/10 text-emerald-300">
+                                          US$ {cs.totalCostUSD.toFixed(4)}
+                                        </Badge>
+                                      )}
+                                      <Badge className="text-[10px] bg-blue-600/15 text-blue-300">{cs.totalQuestions} perguntas</Badge>
+                                      {cs.projectId && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 px-2 text-[10px] text-blue-300 hover:text-blue-200"
+                                          onClick={(ev) => { ev.stopPropagation(); fetchCourseDetail(cs.projectId); }}
+                                          data-testid={`tutor-company-${i}-course-${ci}-detail`}
+                                        >
+                                          Ver detalhes →
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Top questions inline */}
+                                  {(cs.topQuestions || []).length > 0 && (
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500">Mais perguntadas</p>
+                                      {cs.topQuestions.map((q, qi) => (
+                                        <div key={qi} className="flex items-start gap-2 text-xs">
+                                          <span className={`w-5 text-center font-bold shrink-0 ${qi === 0 ? 'text-amber-400' : 'text-slate-500'}`}>{qi + 1}.</span>
+                                          <span className="text-slate-300 flex-1 break-words">{q.question}</span>
+                                          <Badge className="text-[9px] bg-blue-600/10 text-blue-300 shrink-0">{q.count}x</Badge>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Recent timeline (last 5) */}
+                                  {(cs.recentQuestions || []).length > 0 && (
+                                    <details className="text-xs">
+                                      <summary className="cursor-pointer text-slate-400 hover:text-slate-200 select-none">
+                                        Perguntas recentes ({cs.recentQuestions.length})
+                                      </summary>
+                                      <div className="mt-2 space-y-1 max-h-60 overflow-y-auto pr-1">
+                                        {cs.recentQuestions.slice(0, 10).map((q, qi) => (
+                                          <div key={qi} className="border-l-2 border-slate-700 pl-2 py-1">
+                                            <p className="text-slate-200 break-words">{q.question}</p>
+                                            <p className="text-[10px] text-slate-500 mt-0.5">
+                                              {q.createdAt ? new Date(q.createdAt).toLocaleString('pt-BR') : ''}
+                                              {q.estimatedCostUSD != null && q.estimatedCostUSD > 0 && (
+                                                <span className="ml-2 text-emerald-400/80">· US$ {q.estimatedCostUSD.toFixed(6)}</span>
+                                              )}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </details>
+                                  )}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-amber-300">{c.totalQuestions} perguntas</span>
-                        {expandedCompanies[c.name] ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

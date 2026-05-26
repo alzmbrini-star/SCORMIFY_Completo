@@ -265,13 +265,36 @@ CONTEUDO DO CURSO:
 
         # Log the question for analytics dashboard
         try:
+            # 2026-05-27: track approximate cost per question. Gemini 3
+            # Flash pricing (https://ai.google.dev/pricing):
+            #   input  $0.075 / 1M tokens
+            #   output $0.30  / 1M tokens
+            # We don't have exact token counts from emergentintegrations,
+            # so we estimate with 4 chars ≈ 1 token (standard heuristic).
+            response_str = response if isinstance(response, str) else str(response)
+            # Input = course context (3000-8000 chars) + system prompt (~1500) + user history (capped) + new question.
+            # Use a flat estimate based on captured fields.
+            ctx_len = len(course_context or "")
+            history_len = sum(len(m.get("content", "")) for m in (history or []))
+            estimated_input_tokens = (
+                ctx_len // 4 + history_len // 4 + len(user_message) // 4 + 400  # system prompt overhead
+            )
+            estimated_output_tokens = len(response_str) // 4
+            cost_in = estimated_input_tokens * 0.075 / 1_000_000
+            cost_out = estimated_output_tokens * 0.30 / 1_000_000
+            cost_usd = round(cost_in + cost_out, 6)
+
             await db.tutor_logs.insert_one({
                 "sessionId": session_id,
                 "projectId": project_id,
                 "companyId": company_id,
                 "courseTopic": course_topic,
                 "question": user_message,
-                "response": response[:500] if isinstance(response, str) else str(response)[:500],
+                "response": response_str[:500],
+                "estimatedInputTokens": estimated_input_tokens,
+                "estimatedOutputTokens": estimated_output_tokens,
+                "estimatedCostUSD": cost_usd,
+                "model": "gemini-3-flash",
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             })
         except Exception as log_err:
@@ -322,7 +345,11 @@ async def get_tutor_dashboard(request: Request, user: dict = Depends(require_aut
                 "response": "$response",
                 "createdAt": "$createdAt",
                 "sessionId": "$sessionId",
+                "estimatedCostUSD": "$estimatedCostUSD",
             }},
+            "totalCostUSD": {"$sum": {"$ifNull": ["$estimatedCostUSD", 0]}},
+            "totalInputTokens": {"$sum": {"$ifNull": ["$estimatedInputTokens", 0]}},
+            "totalOutputTokens": {"$sum": {"$ifNull": ["$estimatedOutputTokens", 0]}},
             "lastActivity": {"$max": "$createdAt"},
         }},
         {"$sort": {"totalQuestions": -1}},
@@ -368,25 +395,62 @@ async def get_tutor_dashboard(request: Request, user: dict = Depends(require_aut
             "lastActivity": r.get("lastActivity", ""),
             "topQuestions": [{"question": q, "count": c} for q, c in top_questions],
             "recentQuestions": sorted(r["questions"], key=lambda x: x.get("createdAt", ""), reverse=True)[:20],
+            "totalCostUSD": round(r.get("totalCostUSD", 0), 6),
+            "totalInputTokens": r.get("totalInputTokens", 0),
+            "totalOutputTokens": r.get("totalOutputTokens", 0),
         })
 
     # Summary stats
+    USD_TO_BRL = 5.50
     total_questions = sum(c["totalQuestions"] for c in courses)
     total_courses = len(courses)
+    total_cost_usd = sum(c["totalCostUSD"] for c in courses)
 
-    # Company summary (for super admin)
+    # Company summary (for super admin) — includes cost + course list for
+    # the expand-to-detail UI. Each company entry now carries the full
+    # list of its courses so the dashboard can show questions inline
+    # without an extra round-trip.
     company_summary = {}
     for c in courses:
         cname = c["companyName"] or "Sem empresa"
         if cname not in company_summary:
-            company_summary[cname] = {"companyId": c["companyId"], "totalQuestions": 0, "courses": 0}
+            company_summary[cname] = {
+                "companyId": c["companyId"],
+                "totalQuestions": 0,
+                "courses": 0,
+                "totalCostUSD": 0.0,
+                "totalInputTokens": 0,
+                "totalOutputTokens": 0,
+                "courseList": [],
+            }
         company_summary[cname]["totalQuestions"] += c["totalQuestions"]
         company_summary[cname]["courses"] += 1
+        company_summary[cname]["totalCostUSD"] += c["totalCostUSD"]
+        company_summary[cname]["totalInputTokens"] += c["totalInputTokens"]
+        company_summary[cname]["totalOutputTokens"] += c["totalOutputTokens"]
+        company_summary[cname]["courseList"].append({
+            "projectId": c["projectId"],
+            "courseName": c["courseName"],
+            "totalQuestions": c["totalQuestions"],
+            "totalCostUSD": c["totalCostUSD"],
+            "topQuestions": c["topQuestions"][:5],
+            "recentQuestions": c["recentQuestions"][:10],
+        })
+
+    # Round company-level costs and convert to BRL for the UI.
+    companies_payload = []
+    for name, info in sorted(company_summary.items(), key=lambda x: -x[1]["totalQuestions"]):
+        info["totalCostUSD"] = round(info["totalCostUSD"], 4)
+        info["totalCostBRL"] = round(info["totalCostUSD"] * USD_TO_BRL, 2)
+        companies_payload.append({"name": name, **info})
 
     return {
         "totalQuestions": total_questions,
         "totalCourses": total_courses,
-        "companies": [{"name": k, **v} for k, v in sorted(company_summary.items(), key=lambda x: -x[1]["totalQuestions"])],
+        "totalCostUSD": round(total_cost_usd, 4),
+        "totalCostBRL": round(total_cost_usd * USD_TO_BRL, 2),
+        "currency": {"USD_TO_BRL": USD_TO_BRL},
+        "companies": companies_payload,
         "courses": courses,
     }
 
