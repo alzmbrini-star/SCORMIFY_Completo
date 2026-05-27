@@ -52,12 +52,12 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
    - `clearBackgroundImage: true` remove qualquer imagem de fundo dos slides afetados (volta para a cor solida da paleta).
    - Default e aplicar em TODOS os slides. Use `fromIndex`/`toIndex` para um intervalo.
    - Se o autor pedir "aplique a fonte da marca", use essa op (a fontFamily do BrandKit e aplicada automaticamente nos textos).
-- `apply_brand_identity`: {brandAssetId?, paletteTarget?, fromIndex?, toIndex?, allSlides?, applyBackground?:bool, applyPalette?:bool, applyLogo?:bool, logoCorner?: "top-right"|"top-left"|"bottom-right"|"bottom-left", logoSize?: int|"small"|"medium"|"large"}
+- `apply_brand_identity`: {brandAssetId?, paletteTarget?, fromIndex?, toIndex?, allSlides?, applyBackground?:bool, applyPalette?:bool, applyLogo?:bool, logoCorner?: "top-right"|"top-left"|"bottom-right"|"bottom-left"|"bottom-center", logoSize?: int|"small"|"medium"|"large"}
    - **Op combinada / "Identidade Visual Completa" / "Brand Kit Completo"**: aplica de uma so vez (1) fundo de marca (imagem da biblioteca) + (2) paleta (cor + fonte) + (3) logo como marca d'agua no canto.
    - Use SEMPRE que o autor pedir "aplique a identidade visual", "marca completa", "identidade da empresa", "aplicar branding", **"aplique o brand kit"**, **"brand kit completo"**, **"kit completo da marca"**, **"kit da empresa"**.
    - Todos os 3 componentes ativos por padrao. Para desligar algum: `applyLogo:false` (so cores+fundo), `applyBackground:false` (so cores+logo), etc.
-   - `logoCorner` define o canto onde o logo aparece (default top-right).
-   - `logoSize` controla o tamanho do logo em pixels (32–320). Tambem aceita presets "small" (64px), "medium" (96px), "large" (160px). Sem esse campo, usa o tamanho configurado pelo super admin no BrandKit (default 96px).
+   - **CRITICO**: NUNCA inclua `logoCorner` no op a menos que o autor mencione EXPLICITAMENTE um canto/posicao (ex: "canto inferior direito", "no topo", "centralizado"). Caso contrario, omita o campo — o backend usa a posicao configurada pelo super admin no BrandKit (`logoPlacement`).
+   - **CRITICO**: NUNCA inclua `logoSize` no op a menos que o autor mencione EXPLICITAMENTE um tamanho (ex: "logo grande", "logo pequeno", "logo de 200px"). Caso contrario, omita — o backend usa o tamanho configurado no BrandKit.
    - Funciona em todos os slides por default; use `fromIndex`/`toIndex` para um intervalo.
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
@@ -262,6 +262,62 @@ def _resolve_brand_background(brand_backgrounds: list, brand_asset_id: str = Non
         # — the user explicitly asked for a brand background.
         return brand_backgrounds[0]
     return brand_backgrounds[0]
+
+
+def _user_mentioned_corner(message: str) -> bool:
+    """Detect whether the author's free-text message mentions a logo corner.
+    Used as a guardrail: if the user did NOT say anything about position,
+    we must NEVER let the LLM's hallucinated `logoCorner` override the
+    BrandKit's configured `logoPlacement` (which is the source of truth
+    set by the super admin in the UI)."""
+    if not message:
+        return False
+    return bool(re.search(
+        r"\b(canto|cantos|topo|fundo|superior|inferior|esquerd[ao]s?|"
+        r"direit[ao]s?|centro|centralizado|"
+        r"top[\s-]?right|top[\s-]?left|bottom[\s-]?right|"
+        r"bottom[\s-]?left|bottom[\s-]?center)\b",
+        message,
+        re.IGNORECASE,
+    ))
+
+
+def _user_mentioned_size(message: str) -> bool:
+    """Detect whether the author's message mentions logo size."""
+    if not message:
+        return False
+    return bool(re.search(
+        r"\b(tamanho|tamanhos|pequen[ao]s?|m[ée]di[ao]s?|grande|grandes|"
+        r"maior|menor|mini|tiny|small|medium|large|big|"
+        r"\d+\s*p[xX]|\d+\s*pixels?)\b",
+        message,
+        re.IGNORECASE,
+    ))
+
+
+def _sanitize_brand_ops(ops: list, message: str) -> list:
+    """Strip `logoCorner` / `logoSize` from `apply_brand_identity` ops when
+    the user didn't explicitly mention them. The LLM tends to hallucinate
+    these fields (defaulting to "top-right" / 96) which silently overrides
+    the super admin's BrandKit config — causing the production bug where
+    "Aplique o brand kit completo" landed the logo at top-right at the
+    wrong size despite the kit configured for bottom-left + 160 px."""
+    if not isinstance(ops, list):
+        return ops
+    mentions_corner = _user_mentioned_corner(message)
+    mentions_size = _user_mentioned_size(message)
+    if mentions_corner and mentions_size:
+        return ops  # nothing to strip
+    for op in ops:
+        if not isinstance(op, dict):
+            continue
+        if op.get("type") != "apply_brand_identity":
+            continue
+        if not mentions_corner:
+            op.pop("logoCorner", None)
+        if not mentions_size:
+            op.pop("logoSize", None)
+    return ops
 
 
 def _extract_json(raw: str) -> dict:
@@ -919,6 +975,12 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     parsed = _extract_json(raw)
     reply = parsed.get("reply") or "Entendi."
     ops = parsed.get("ops") or []
+
+    # Guardrail: strip LLM-hallucinated `logoCorner`/`logoSize` from
+    # apply_brand_identity ops so the BrandKit config (set in the Super
+    # Admin UI) is the source of truth UNLESS the author explicitly
+    # mentioned position/size in their message.
+    ops = _sanitize_brand_ops(ops, message)
 
     # Snapshot BEFORE mutating so the user can revert (shares the same
     # `aesthetic_snapshots` collection so existing Revert button works).
