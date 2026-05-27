@@ -61,11 +61,23 @@ def test_op_overrides_kit_size():
 
 
 def test_op_size_int_clamped():
-    for raw, expected_w in ((9999, 320), (0, 32)):
+    # Positive over-max: clamped to 320. Zero/negative: invalid → falls back to default 96.
+    for raw, expected_w in ((9999, 320), (0, 96), (-5, 96)):
         sl = _slide("A")
         _apply_ops([sl], [{"type": "apply_brand_identity", "allSlides": True, "logoSize": raw}],
                    brand_backgrounds=[], brand_kit=_kit(), brand_logo_url="/logo.png")
         assert _logo(sl)["width"] == expected_w
+
+
+def test_kit_size_as_numeric_string():
+    """Production defense: kits saved through legacy paths may store logoSize
+    as a string like '160' or '160px'. Parser must accept both."""
+    for raw in ("160", "160px", " 160 ", "160.0"):
+        sl = _slide("A")
+        kit = _kit(logoSize=raw)
+        _apply_ops([sl], [{"type": "apply_brand_identity", "allSlides": True}],
+                   brand_backgrounds=[], brand_kit=kit, brand_logo_url="/logo.png")
+        assert _logo(sl)["width"] == 160, f"failed for raw={raw!r}"
 
 
 def test_uses_kit_placement_bottom_left():

@@ -75,11 +75,19 @@ async def update_brand_kit(
     """Replace the brand kit fields for a company (super_admin only)."""
     await _require_company(company_id)
     kit = payload.model_dump(exclude_none=True)
+    logger.info(
+        "update_brand_kit company=%s saving kit keys=%s logoSize=%r logoPlacement=%r",
+        company_id, list(kit.keys()), kit.get("logoSize"), kit.get("logoPlacement"),
+    )
     await db.companies.update_one(
         {"id": company_id},
         {"$set": {"brandKit": kit, "updatedAt": now_utc()}},
     )
-    return {"brandKit": kit}
+    # Echo the persisted kit back so the client can verify what was stored.
+    persisted = await db.companies.find_one(
+        {"id": company_id}, {"_id": 0, "brandKit": 1},
+    )
+    return {"brandKit": (persisted or {}).get("brandKit") or kit}
 
 
 # ---------------------------------------------------------------------------

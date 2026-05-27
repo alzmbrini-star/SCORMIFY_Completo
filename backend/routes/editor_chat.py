@@ -745,20 +745,39 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                 _intro_concl_only = (_kit_placement == "intro-conclusion-only")
 
                 # Resolve logo size: op param overrides BrandKit setting. Accepts
-                # named presets ("small"=64, "medium"=96, "large"=160) or a raw
-                # integer (clamped to 32–320 px for safety).
+                # named presets ("small"=64, "medium"=96, "large"=160), a raw
+                # integer, OR a numeric string ("160" or "160px"). Defensive
+                # parsing because production DB values from older saves may be
+                # stored as strings depending on the path that persisted them.
                 LOGO_SIZE_PRESETS = {"small": 64, "medium": 96, "large": 160}
-                _raw_size = op.get("logoSize")
-                if _raw_size is None:
-                    _raw_size = brand_kit.get("logoSize")
-                logo_size = 96
-                if isinstance(_raw_size, str):
-                    logo_size = LOGO_SIZE_PRESETS.get(_raw_size.strip().lower(), 96)
-                elif isinstance(_raw_size, (int, float)):
-                    try:
-                        logo_size = max(32, min(320, int(_raw_size)))
-                    except (TypeError, ValueError):
-                        logo_size = 96
+
+                def _resolve_logo_size(raw):
+                    if raw is None or isinstance(raw, bool):
+                        return None
+                    if isinstance(raw, (int, float)):
+                        try:
+                            n = int(raw)
+                            return max(32, min(320, n)) if n > 0 else None
+                        except (TypeError, ValueError):
+                            return None
+                    if isinstance(raw, str):
+                        s = raw.strip().lower()
+                        if not s:
+                            return None
+                        if s in LOGO_SIZE_PRESETS:
+                            return LOGO_SIZE_PRESETS[s]
+                        try:
+                            n = int(float(s.rstrip("px").strip()))
+                            return max(32, min(320, n)) if n > 0 else None
+                        except (TypeError, ValueError):
+                            return None
+                    return None
+
+                logo_size = (
+                    _resolve_logo_size(op.get("logoSize"))
+                    or _resolve_logo_size(brand_kit.get("logoSize"))
+                    or 96
+                )
                 # Logos are usually horizontal/wide. Use logoSize as the WIDTH
                 # of the bounding box and make the height a shorter band so
                 # `objectFit: contain` shows the logo at full configured width
@@ -766,6 +785,13 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                 # the static export path (`apply_brand_logo_to_slides`).
                 logo_w = logo_size
                 logo_h = max(32, int(round(logo_size / 2.5)))
+                # Log the resolved values so we can diagnose production issues
+                # by inspecting backend logs. Cheap one-liner per apply.
+                logger.info(
+                    "editor_chat apply_brand_identity: kit.logoSize=%r op.logoSize=%r → logo_size=%d (w=%d h=%d) corner=%s",
+                    brand_kit.get("logoSize"), op.get("logoSize"),
+                    logo_size, logo_w, logo_h, logo_corner,
+                )
                 margin = 24
                 canvas_w, canvas_h = 1920, 820
                 if logo_corner == "top-left":
@@ -857,6 +883,9 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                     "backgroundImageUsed": bg_url_used,
                     "paletteBackgroundUsed": palette_bg_used if add_palette else "",
                     "logoInsertedCount": logo_inserted_count,
+                    "logoSizeResolved": logo_size,
+                    "logoCornerResolved": logo_corner,
+                    "kitLogoSizeRaw": brand_kit.get("logoSize"),
                     "textElementsUpdated": text_swaps,
                     "fontFamily": font_family_applied,
                 })
