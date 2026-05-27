@@ -527,6 +527,11 @@ class BrandKit(BaseModel):
     #   "bottom-right" (default), "bottom-left", "bottom-center",
     #   "intro-conclusion-only" (only on first + last slide, bottom-right).
     logoPlacement: Optional[str] = "bottom-right"
+    # Logo size in pixels (applied on a 1920x820 canvas). Author-configurable
+    # in the Super Admin Brand Kit UI; Editor Chat can also override per-op
+    # via `logoSize` (number) or named presets ("small"=64, "medium"=96,
+    # "large"=160). Defaults to 96 px when unset.
+    logoSize: Optional[int] = 96
 
 class BrandKitUpdate(BaseModel):
     primaryColor: Optional[str] = None
@@ -535,6 +540,7 @@ class BrandKitUpdate(BaseModel):
     fontFamily: Optional[str] = None
     logoUrl: Optional[str] = None
     logoPlacement: Optional[str] = None
+    logoSize: Optional[int] = None
 
 
 # Asset categories the UI lets the super_admin file imagery under. The Agent

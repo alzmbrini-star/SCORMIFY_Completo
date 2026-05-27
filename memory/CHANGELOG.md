@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-02-XX (Editor Chat: Brand Kit fix + logo size control)
+
+### Bug fix: "Aplique o brand kit completo" só aplicava cores (sem logo, sem fonte)
+- **Root cause**: o LLM mapeava a frase "brand kit completo" para `apply_brand_palette` em vez de `apply_brand_identity`, porque o System Prompt só tinha exemplos com "identidade visual completa" / "branding".
+- **Fix**: adicionados exemplos explícitos ("aplique o brand kit", "kit da empresa", "kit completo da marca", "brand kit completo") apontando para `apply_brand_identity` em `routes/editor_chat.py`. Também adicionado padrão "logo grande/médio/pequeno" na descrição da op.
+
+### Feature: Tamanho customizável do logo no Brand Kit
+- **Modelo**: novo campo `logoSize` (int, default 96, range 32–320) em `BrandKit` + `BrandKitUpdate`.
+- **Editor Chat**: op `apply_brand_identity` agora aceita `logoSize: int | "small" | "medium" | "large"`. Override em ordem: op-level > BrandKit-level > default(96).
+- **Re-apply idempotente**: rodar o comando novamente com tamanho diferente agora SINCRONIZA o elemento `isBrandLogo` existente (atualiza width/height/posição/src) em vez de pular silenciosamente.
+- **UI Super Admin**: `BrandLibraryDialog.jsx` ganhou seção "Tamanho do logo" com 3 presets (Pequeno=64, Médio=96, Grande=160) + input numérico personalizado (32–320 px).
+- **Testes**: 8 testes pytest em `tests/test_editor_chat_logo_size.py` cobrem default size, preset overrides, clamping, idempotência e fallback sem logo URL.
+
+
 ## 2026-04-17 (Fork: AI Agent analyze_content Fix)
 
 ### CRITICAL Bug Fix: AI Agent Course Creation - `analyze_content` ImportError

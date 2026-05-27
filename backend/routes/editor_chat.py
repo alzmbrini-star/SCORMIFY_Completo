@@ -52,11 +52,12 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
    - `clearBackgroundImage: true` remove qualquer imagem de fundo dos slides afetados (volta para a cor solida da paleta).
    - Default e aplicar em TODOS os slides. Use `fromIndex`/`toIndex` para um intervalo.
    - Se o autor pedir "aplique a fonte da marca", use essa op (a fontFamily do BrandKit e aplicada automaticamente nos textos).
-- `apply_brand_identity`: {brandAssetId?, paletteTarget?, fromIndex?, toIndex?, allSlides?, applyBackground?:bool, applyPalette?:bool, applyLogo?:bool, logoCorner?: "top-right"|"top-left"|"bottom-right"|"bottom-left"}
-   - **Op combinada / "Identidade Visual Completa"**: aplica de uma so vez (1) fundo de marca (imagem da biblioteca) + (2) paleta (cor + fonte) + (3) logo como marca d'agua no canto.
-   - Use SEMPRE que o autor pedir "aplique a identidade visual", "marca completa", "identidade da empresa", "aplicar branding".
+- `apply_brand_identity`: {brandAssetId?, paletteTarget?, fromIndex?, toIndex?, allSlides?, applyBackground?:bool, applyPalette?:bool, applyLogo?:bool, logoCorner?: "top-right"|"top-left"|"bottom-right"|"bottom-left", logoSize?: int|"small"|"medium"|"large"}
+   - **Op combinada / "Identidade Visual Completa" / "Brand Kit Completo"**: aplica de uma so vez (1) fundo de marca (imagem da biblioteca) + (2) paleta (cor + fonte) + (3) logo como marca d'agua no canto.
+   - Use SEMPRE que o autor pedir "aplique a identidade visual", "marca completa", "identidade da empresa", "aplicar branding", **"aplique o brand kit"**, **"brand kit completo"**, **"kit completo da marca"**, **"kit da empresa"**.
    - Todos os 3 componentes ativos por padrao. Para desligar algum: `applyLogo:false` (so cores+fundo), `applyBackground:false` (so cores+logo), etc.
    - `logoCorner` define o canto onde o logo aparece (default top-right).
+   - `logoSize` controla o tamanho do logo em pixels (32–320). Tambem aceita presets "small" (64px), "medium" (96px), "large" (160px). Sem esse campo, usa o tamanho configurado pelo super admin no BrandKit (default 96px).
    - Funciona em todos os slides por default; use `fromIndex`/`toIndex` para um intervalo.
 - `delete_element`: {slideIndex: int, elementIndex: int}
 - `change_slide_background`: {slideIndex: int, background: "#hex"}
@@ -93,8 +94,13 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 ## Exemplos com Identidade Visual Completa (combinado)
 - "Aplique a identidade visual completa da empresa" → 1 op: `{"type":"apply_brand_identity","allSlides":true}`
 - "Aplique o branding da empresa neste curso" → 1 op: `{"type":"apply_brand_identity","allSlides":true}`
+- "Aplique o brand kit completo para todos os slides" → 1 op: `{"type":"apply_brand_identity","allSlides":true}`
+- "Aplique o kit da marca completo" → 1 op: `{"type":"apply_brand_identity","allSlides":true}`
 - "Coloque a marca completa, mas sem o logo" → 1 op: `{"type":"apply_brand_identity","allSlides":true,"applyLogo":false}`
 - "Aplique a identidade nos slides 2 a 5 com logo no canto inferior direito" → 1 op: `{"type":"apply_brand_identity","fromIndex":1,"toIndex":4,"logoCorner":"bottom-right"}`
+- "Aplique a marca com logo grande no canto inferior direito" → 1 op: `{"type":"apply_brand_identity","allSlides":true,"logoCorner":"bottom-right","logoSize":"large"}`
+- "Aplique a identidade visual com o logo pequeno" → 1 op: `{"type":"apply_brand_identity","allSlides":true,"logoSize":"small"}`
+- "Coloque o branding com logo de 200px" → 1 op: `{"type":"apply_brand_identity","allSlides":true,"logoSize":200}`
 
 ## Formato JSON estrito
 ```json
@@ -668,7 +674,21 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                 # Author can override via `logoCorner`: top-right (default),
                 # top-left, bottom-right, bottom-left.
                 logo_corner = (op.get("logoCorner") or "top-right").lower()
+                # Resolve logo size: op param overrides BrandKit setting. Accepts
+                # named presets ("small"=64, "medium"=96, "large"=160) or a raw
+                # integer (clamped to 32–320 px for safety).
+                LOGO_SIZE_PRESETS = {"small": 64, "medium": 96, "large": 160}
+                _raw_size = op.get("logoSize")
+                if _raw_size is None:
+                    _raw_size = brand_kit.get("logoSize")
                 logo_size = 96
+                if isinstance(_raw_size, str):
+                    logo_size = LOGO_SIZE_PRESETS.get(_raw_size.strip().lower(), 96)
+                elif isinstance(_raw_size, (int, float)):
+                    try:
+                        logo_size = max(32, min(320, int(_raw_size)))
+                    except (TypeError, ValueError):
+                        logo_size = 96
                 margin = 24
                 canvas_w, canvas_h = 1920, 820
                 if logo_corner == "top-left":
@@ -706,14 +726,17 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                                 st["fontFamily"] = font_family
                                 font_family_applied = font_family
                             text_swaps += 1
-                    # 3) Logo watermark — insert ONLY if not already present
-                    # (recognize by data-brand-logo marker on the element).
+                    # 3) Logo watermark — insert if missing, or sync size/position/src
+                    # of any existing brand-logo element so re-running the command
+                    # with a new logoSize/logoCorner actually updates the slide.
                     if add_logo:
                         els = sl.get("elements") or []
-                        already = any(
-                            isinstance(e, dict) and e.get("isBrandLogo") for e in els
-                        )
-                        if not already:
+                        existing_idx = None
+                        for ei, e in enumerate(els):
+                            if isinstance(e, dict) and e.get("isBrandLogo"):
+                                existing_idx = ei
+                                break
+                        if existing_idx is None:
                             els.append({
                                 "id": str(uuid.uuid4()),
                                 "type": "image",
@@ -725,6 +748,17 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                                 "style": {"opacity": 0.9, "objectFit": "contain"},
                             })
                             sl["elements"] = els
+                            logo_inserted_count += 1
+                        else:
+                            existing = els[existing_idx]
+                            existing["src"] = brand_logo_url
+                            existing["x"] = lx
+                            existing["y"] = ly
+                            existing["width"] = logo_size
+                            existing["height"] = logo_size
+                            existing.setdefault("style", {})
+                            existing["style"]["objectFit"] = "contain"
+                            existing.setdefault("alt", "Logo da empresa")
                             logo_inserted_count += 1
                     affected_slides_list.append(idx)
 

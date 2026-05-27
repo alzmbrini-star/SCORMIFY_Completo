@@ -50,7 +50,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
   const [loading, setLoading] = useState(false);
   const [brandKit, setBrandKit] = useState({
     primaryColor: "", secondaryColor: "", accentColor: "", fontFamily: "", logoUrl: "",
-    logoPlacement: "bottom-right",
+    logoPlacement: "bottom-right", logoSize: 96,
   });
   // Upload form state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -98,6 +98,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
         fontFamily: d.fontFamily || "",
         logoUrl: d.logoUrl || "",
         logoPlacement: d.logoPlacement || "bottom-right",
+        logoSize: Number.isFinite(d.logoSize) ? d.logoSize : 96,
       });
     } catch (e) {
       // ignore — empty kit is a normal state
@@ -550,6 +551,54 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                       ? "O logo aparecera apenas no primeiro e ultimo slide do curso."
                       : "O logo aparecera em todos os slides."}
                   </p>
+
+                  {/* Logo size control: presets + numeric input. Drives both the
+                      static export pipeline (apply_brand_logo_to_slides) and
+                      the Editor Chat `apply_brand_identity` op when no per-op
+                      override is provided. */}
+                  <div className="mt-4 space-y-2" data-testid="bl-kit-logo-size-section">
+                    <Label className="text-slate-300 text-xs">Tamanho do logo (px)</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 64, label: "Pequeno", short: "64px" },
+                        { value: 96, label: "Medio", short: "96px" },
+                        { value: 160, label: "Grande", short: "160px" },
+                      ].map((opt) => {
+                        const active = (brandKit.logoSize || 96) === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setBrandKit({ ...brandKit, logoSize: opt.value })}
+                            data-testid={`bl-kit-logo-size-${opt.value}`}
+                            className={`flex flex-col items-center gap-0.5 py-2 rounded border ${active ? "bg-indigo-900/30 border-indigo-500 text-indigo-300" : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"}`}
+                          >
+                            <span className="text-xs">{opt.label}</span>
+                            <span className="text-[10px] text-slate-500">{opt.short}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] text-slate-500">Personalizado:</span>
+                      <Input
+                        type="number"
+                        min={32}
+                        max={320}
+                        step={4}
+                        value={brandKit.logoSize ?? 96}
+                        onChange={(e) => {
+                          const n = parseInt(e.target.value, 10);
+                          if (Number.isFinite(n)) {
+                            setBrandKit({ ...brandKit, logoSize: Math.max(32, Math.min(320, n)) });
+                          }
+                        }}
+                        className="h-7 w-20 bg-slate-900 border-slate-700 text-xs"
+                        data-testid="bl-kit-logo-size-input"
+                      />
+                      <span className="text-[10px] text-slate-500">px (32–320)</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
