@@ -156,8 +156,9 @@ class TestApplyBrandIdentity:
         _apply_ops(slides, [{"type": "apply_brand_identity", "logoCorner": "bottom-right"}],
                    brand_backgrounds=BG, brand_kit=KIT, brand_logo_url=LOGO_URL)
         logo = next(e for e in slides[0]["elements"] if e.get("isBrandLogo"))
-        # 1920 - 96 - 24 = 1800; 820 - 96 - 24 = 700
-        assert logo["x"] == 1800 and logo["y"] == 700
+        # logo box is 96 wide × round(96/2.5)=38 tall
+        # 1920 - 96 - 24 = 1800; 820 - 38 - 24 = 758
+        assert logo["x"] == 1800 and logo["y"] == 758
 
     def test_no_logo_url_skips_logo_silently(self):
         slides = _course()

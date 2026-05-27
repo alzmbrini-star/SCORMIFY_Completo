@@ -670,10 +670,24 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                     BANNED_STYLE_KEYS = set()
 
                 # ---- 3. Logo watermark placement ----
-                # Top-right corner by default (canvas 1920x820 → 80x80 logo at x=1760, y=24).
-                # Author can override via `logoCorner`: top-right (default),
-                # top-left, bottom-right, bottom-left.
-                logo_corner = (op.get("logoCorner") or "top-right").lower()
+                # Author can override per-op via `logoCorner` (top-right /
+                # top-left / bottom-right / bottom-left / bottom-center).
+                # Falls back to `brand_kit.logoPlacement` configured in the
+                # Super Admin Brand Kit UI, then defaults to bottom-right.
+                _kit_placement = (brand_kit.get("logoPlacement") or "").strip().lower()
+                logo_corner = (op.get("logoCorner") or "").strip().lower()
+                if not logo_corner:
+                    # Map BrandKit values → corner. "intro-conclusion-only"
+                    # uses bottom-right with a per-slide filter applied below.
+                    if _kit_placement in ("bottom-right", "bottom-left", "bottom-center", "top-right", "top-left"):
+                        logo_corner = _kit_placement
+                    elif _kit_placement == "intro-conclusion-only":
+                        logo_corner = "bottom-right"
+                    else:
+                        logo_corner = "bottom-right"
+                # Track intro-conclusion-only intent so we can skip middle slides.
+                _intro_concl_only = (_kit_placement == "intro-conclusion-only")
+
                 # Resolve logo size: op param overrides BrandKit setting. Accepts
                 # named presets ("small"=64, "medium"=96, "large"=160) or a raw
                 # integer (clamped to 32–320 px for safety).
@@ -689,16 +703,25 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                         logo_size = max(32, min(320, int(_raw_size)))
                     except (TypeError, ValueError):
                         logo_size = 96
+                # Logos are usually horizontal/wide. Use logoSize as the WIDTH
+                # of the bounding box and make the height a shorter band so
+                # `objectFit: contain` shows the logo at full configured width
+                # instead of shrinking it to fit a square. Aspect ~2.5:1 matches
+                # the static export path (`apply_brand_logo_to_slides`).
+                logo_w = logo_size
+                logo_h = max(32, int(round(logo_size / 2.5)))
                 margin = 24
                 canvas_w, canvas_h = 1920, 820
                 if logo_corner == "top-left":
                     lx, ly = margin, margin
                 elif logo_corner == "bottom-right":
-                    lx, ly = canvas_w - logo_size - margin, canvas_h - logo_size - margin
+                    lx, ly = canvas_w - logo_w - margin, canvas_h - logo_h - margin
                 elif logo_corner == "bottom-left":
-                    lx, ly = margin, canvas_h - logo_size - margin
-                else:  # top-right (default)
-                    lx, ly = canvas_w - logo_size - margin, margin
+                    lx, ly = margin, canvas_h - logo_h - margin
+                elif logo_corner == "bottom-center":
+                    lx, ly = (canvas_w - logo_w) // 2, canvas_h - logo_h - margin
+                else:  # top-right
+                    lx, ly = canvas_w - logo_w - margin, margin
 
                 # ---- Apply per-slide ----
                 for idx in range(start, end + 1):
@@ -729,20 +752,30 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                     # 3) Logo watermark — insert if missing, or sync size/position/src
                     # of any existing brand-logo element so re-running the command
                     # with a new logoSize/logoCorner actually updates the slide.
+                    # When BrandKit placement is "intro-conclusion-only", skip
+                    # middle slides AND strip any stale logo lingering there.
                     if add_logo:
                         els = sl.get("elements") or []
+                        is_first = (idx == start)
+                        is_last = (idx == end)
+                        skip_logo_here = _intro_concl_only and not (is_first or is_last)
                         existing_idx = None
                         for ei, e in enumerate(els):
                             if isinstance(e, dict) and e.get("isBrandLogo"):
                                 existing_idx = ei
                                 break
-                        if existing_idx is None:
+                        if skip_logo_here:
+                            # Drop any stale logo on middle slides.
+                            if existing_idx is not None:
+                                els.pop(existing_idx)
+                                sl["elements"] = els
+                        elif existing_idx is None:
                             els.append({
                                 "id": str(uuid.uuid4()),
                                 "type": "image",
                                 "src": brand_logo_url,
                                 "x": lx, "y": ly,
-                                "width": logo_size, "height": logo_size,
+                                "width": logo_w, "height": logo_h,
                                 "isBrandLogo": True,
                                 "alt": "Logo da empresa",
                                 "style": {"opacity": 0.9, "objectFit": "contain"},
@@ -754,8 +787,8 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
                             existing["src"] = brand_logo_url
                             existing["x"] = lx
                             existing["y"] = ly
-                            existing["width"] = logo_size
-                            existing["height"] = logo_size
+                            existing["width"] = logo_w
+                            existing["height"] = logo_h
                             existing.setdefault("style", {})
                             existing["style"]["objectFit"] = "contain"
                             existing.setdefault("alt", "Logo da empresa")
