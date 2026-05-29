@@ -351,6 +351,29 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
                 <><Eye className="w-4 h-4 mr-2" /> Analisar Estetica do Curso</>
               )}
             </Button>
+
+            {/* Divider + nuclear shortcut so the author can skip analysis
+                entirely when they already know all text needs to be forced
+                to high contrast (typical after AI agent generates a course
+                with mixed-readability decorative backgrounds). */}
+            <div className="flex items-center gap-2 pt-2">
+              <div className="flex-1 h-px bg-slate-700"></div>
+              <span className="text-[10px] text-slate-500 uppercase tracking-wide">ou</span>
+              <div className="flex-1 h-px bg-slate-700"></div>
+            </div>
+            <Button
+              onClick={handleForceHighContrast}
+              disabled={applying}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+              data-testid="aesthetics-force-high-contrast-pre"
+              title="Forca TODOS os textos do curso para alto contraste, ignorando design. Reversivel."
+            >
+              {applying ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+              Forcar Alto Contraste (Todos os slides)
+            </Button>
+            <p className="text-[10px] text-slate-500 leading-tight">
+              Pula a analise e forca contraste em todos os elementos. Reversivel via &quot;Reverter&quot;.
+            </p>
           </CardContent>
         </Card>
       )}
