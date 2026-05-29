@@ -1645,8 +1645,24 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             _el["_bgRegionLuminance"] = info
 
     applied = 0
+    # Track per-issue outcome so the response can show the user exactly which
+    # slide/element each fix touched and whether it succeeded. Crucial for
+    # debugging the "toast says applied but visually nothing changed" class
+    # of bugs — almost always caused by a stale slideIndex/elementIndex from
+    # an older analysis run that no longer matches the current slide structure.
+    issue_outcomes: list = []
 
     for issue in to_apply:
+        outcome = {
+            "id": issue.get("id"),
+            "slideIndex": issue.get("slideIndex"),
+            "elementIndex": issue.get("elementIndex"),
+            "fixType": (issue.get("fix") or {}).get("type"),
+            "applied": False,
+            "reason": "",
+            "before": {},
+            "after": {},
+        }
         try:
             slide_idx = issue.get("slideIndex", -1)
             el_idx = issue.get("elementIndex", -1)
@@ -1654,14 +1670,31 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             fix_type = fix.get("type", "")
 
             if slide_idx < 0 or slide_idx >= len(slides):
+                outcome["reason"] = f"slideIndex {slide_idx} out of range (have {len(slides)} slides)"
+                issue_outcomes.append(outcome)
                 continue
             slide = slides[slide_idx]
+            els = slide.get("elements") or []
+            outcome["slideTitle"] = slide.get("title") or ""
+
+            # Pre-capture before-state for elements we intend to mutate.
+            if 0 <= el_idx < len(els):
+                pre = els[el_idx]
+                outcome["before"] = {
+                    "elementType": pre.get("type"),
+                    "fontColor": (pre.get("style") or {}).get("fontColor"),
+                    "color": (pre.get("style") or {}).get("color"),
+                    "htmlContentLen": len(pre.get("htmlContent") or ""),
+                }
 
             if fix_type == "style" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
                 _ensure_region_info(slide, element)
                 if _apply_style_fix(element, slide, fix.get("changes", {})):
                     applied += 1
+                    outcome["applied"] = True
+                else:
+                    outcome["reason"] = "style fix returned False (no change needed)"
 
             elif fix_type == "text_plate" and 0 <= el_idx < len(slide.get("elements", [])):
                 # v6: text_plate is now a color-swap (NO overlay). See
@@ -1670,16 +1703,17 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                 _ensure_region_info(slide, element)
                 if _apply_text_plate(element, slide):
                     applied += 1
+                    outcome["applied"] = True
+                else:
+                    outcome["reason"] = "text_plate fix returned False"
 
             elif fix_type == "slide_overlay":
                 # v6: skip auto-applying slide overlays from the analyzer.
-                # The user prefers manual control via the Editor UI; the
-                # aesthetic analyzer should never darken/lighten a slide
-                # background image without explicit user action.
+                outcome["reason"] = "slide_overlay disabled by policy"
+                issue_outcomes.append(outcome)
                 continue
 
             elif fix_type == "strip_container_bg" and 0 <= el_idx < len(slide.get("elements", [])):
-                # Remove "island plate" backgrounds from htmlContent wrappers.
                 element = slide["elements"][el_idx]
                 if element.get("type") == "html":
                     from services.html_container_bg_stripper import strip_html_container_backgrounds
@@ -1690,6 +1724,11 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                     if stripped > 0 and new_html != element.get("htmlContent"):
                         element["htmlContent"] = new_html
                         applied += 1
+                        outcome["applied"] = True
+                    else:
+                        outcome["reason"] = f"strip_container_bg made no change (stripped={stripped})"
+                else:
+                    outcome["reason"] = f"element type {element.get('type')} is not html"
 
             elif fix_type == "position" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
@@ -1698,25 +1737,24 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                     if key in changes:
                         element[key] = changes[key]
                 applied += 1
+                outcome["applied"] = True
 
             elif fix_type == "background":
                 changes = fix.get("changes", {})
                 if "background" in changes:
                     slide["background"] = changes["background"]
                     applied += 1
+                    outcome["applied"] = True
+                else:
+                    outcome["reason"] = "background fix had no 'background' key"
 
             elif fix_type == "html_style" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
                 css = fix.get("cssInjection", "")
-                # Try to extract a target color from the CSS so the override
-                # is even stronger (catches inline `<span style="color:red">`).
                 target_color = None
                 m = re.search(r"color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))", css or "")
                 if m:
                     target_color = m.group(1)
-                # For HTML-heavy slides (simulators built by the AI Agent),
-                # preserve internal typography — don't let the analyzer
-                # impose absolute pixel sizes on intentional design.
                 slide_role = _classify_slide(slide, slide_idx, len(slides))
                 preserve_typo = slide_role == "html_heavy"
                 if _apply_html_style_fix(
@@ -1725,9 +1763,25 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                     preserve_html_typography=preserve_typo,
                 ):
                     applied += 1
+                    outcome["applied"] = True
+                else:
+                    outcome["reason"] = "html_style fix returned False (no change needed)"
+            else:
+                outcome["reason"] = f"unhandled fix_type='{fix_type}' or elIdx={el_idx} out of range"
+
+            # After-state capture for elements we touched.
+            if 0 <= el_idx < len(els):
+                post = els[el_idx]
+                outcome["after"] = {
+                    "fontColor": (post.get("style") or {}).get("fontColor"),
+                    "color": (post.get("style") or {}).get("color"),
+                    "htmlContentLen": len(post.get("htmlContent") or ""),
+                }
 
         except Exception as e:
             logger.warning(f"Failed to apply fix {issue.get('id')}: {e}")
+            outcome["reason"] = f"exception: {type(e).__name__}: {e}"
+        issue_outcomes.append(outcome)
 
     if applied > 0:
         # Strip scratch-only `_bgRegionLuminance` info before persisting —
@@ -1757,7 +1811,16 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             upsert=True
         )
 
-    return {"applied": applied, "total": len(to_apply), "message": f"{applied} correcoes aplicadas", "canRevert": applied > 0}
+    return {
+        "applied": applied,
+        "total": len(to_apply),
+        "message": f"{applied} correcoes aplicadas",
+        "canRevert": applied > 0,
+        # Diagnostic breakdown — surfaces in DevTools so we can see exactly
+        # what each issue did/didn't do. Helps catch stale-index bugs where
+        # the analyzer reports applied=N but visually nothing changes.
+        "details": issue_outcomes,
+    }
 
 
 @router.post("/aesthetics/revert/{project_id}")
