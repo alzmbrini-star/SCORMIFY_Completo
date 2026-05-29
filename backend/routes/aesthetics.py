@@ -1644,6 +1644,47 @@ def _apply_html_style_fix(element: dict, css: str, target_color: str = None, pre
     return True
 
 
+def _force_inline_color_sweep(element: dict, slide: dict) -> bool:
+    """Defense-in-depth: directly rewrite every inline `color:` token in
+    `element.htmlContent` that fails WCAG against the element's effective
+    bg (region luminance if a bgImage is present, else slide.background).
+
+    This is THE bulletproof fallback for cases where the LLM injected a
+    targeted CSS rule (e.g., `h2.summary-title{color:...}`) but the actual
+    inline `<h2 style="color:#fff">` doesn't have that class, so the rule
+    never matches. We bypass selectors entirely and rewrite the inline
+    style attributes themselves.
+
+    Idempotent: returns True if any color was changed."""
+    if element.get("type") != "html":
+        return False
+    html_now = element.get("htmlContent") or ""
+    if not html_now:
+        return False
+    effective_bg, _ = _effective_bg_for_element(slide, element)
+    forced = wcag.pick_high_contrast_color(effective_bg)
+
+    def _replace(m):
+        prefix = m.group(1)
+        cur = m.group(2)
+        try:
+            if wcag.contrast_ratio(cur, effective_bg) < 4.5:
+                return f"{prefix}{forced}"
+        except Exception:
+            pass
+        return m.group(0)
+
+    new_html = re.sub(
+        r"(\bcolor\s*:\s*)(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))",
+        _replace,
+        html_now,
+    )
+    if new_html != html_now:
+        element["htmlContent"] = new_html
+        return True
+    return False
+
+
 @router.post("/aesthetics/apply-fix/{project_id}")
 async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = Depends(require_auth)):
     """Apply a specific aesthetic fix or all fixes to a project.
@@ -1798,17 +1839,26 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             elif fix_type == "strip_container_bg" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
                 if element.get("type") == "html":
+                    _ensure_region_info(slide, element)
                     from services.html_container_bg_stripper import strip_html_container_backgrounds
                     new_html, stripped = strip_html_container_backgrounds(
                         element.get("htmlContent") or "",
                         (slide.get("background") or "").strip() or None,
                     )
+                    bg_changed = False
                     if stripped > 0 and new_html != element.get("htmlContent"):
                         element["htmlContent"] = new_html
+                        bg_changed = True
+                    # Always run the inline color sweep — strip_container_bg
+                    # is the analyzer's signal that this html has visual
+                    # problems against the slide bg. Even if no container
+                    # bg was stripped, force-fix invisible text inside.
+                    inline_swept = _force_inline_color_sweep(element, slide)
+                    if bg_changed or inline_swept:
                         applied += 1
                         outcome["applied"] = True
                     else:
-                        outcome["reason"] = f"strip_container_bg made no change (stripped={stripped})"
+                        outcome["reason"] = f"strip_container_bg + inline sweep both no-op (stripped={stripped})"
                 else:
                     outcome["reason"] = f"element type {element.get('type')} is not html"
 
@@ -1832,6 +1882,7 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
 
             elif fix_type == "html_style" and 0 <= el_idx < len(slide.get("elements", [])):
                 element = slide["elements"][el_idx]
+                _ensure_region_info(slide, element)
                 css = fix.get("cssInjection", "")
                 target_color = None
                 m = re.search(r"color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))", css or "")
@@ -1839,15 +1890,23 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                     target_color = m.group(1)
                 slide_role = _classify_slide(slide, slide_idx, len(slides))
                 preserve_typo = slide_role == "html_heavy"
-                if _apply_html_style_fix(
+                html_applied = _apply_html_style_fix(
                     element, css,
                     target_color=target_color,
                     preserve_html_typography=preserve_typo,
-                ):
+                )
+                # Belt-and-suspenders: even if the CSS injection ran, the
+                # LLM-generated selector may not match real inline tags.
+                # Run a direct inline rewrite to guarantee the visible color
+                # actually changes. This is THE fix for the production case
+                # where `h2.summary-title{color:#0f172a}` was injected but
+                # the actual `<h2 style="color:#fff">` had no class.
+                inline_swept = _force_inline_color_sweep(element, slide)
+                if html_applied or inline_swept:
                     applied += 1
                     outcome["applied"] = True
                 else:
-                    outcome["reason"] = "html_style fix returned False (no change needed)"
+                    outcome["reason"] = "html_style + inline sweep both no-op"
             else:
                 outcome["reason"] = f"unhandled fix_type='{fix_type}' or elIdx={el_idx} out of range"
 
