@@ -484,6 +484,21 @@ def _pick_dominant_color(entries) -> str:
     return Counter(e["color"] for e in entries).most_common(1)[0][0]
 
 
+def _replace_color_when_failing(match, effective_bg: str, forced: str) -> str:
+    """Helper: returns `color:<forced>` when the matched color fails WCAG
+    against `effective_bg`, else returns the original match unchanged.
+    Used by the defensive guardrail in `_apply_style_fix` to rewrite
+    individual inline color tokens that the propagator missed."""
+    prefix = match.group(1)
+    cur = match.group(2)
+    try:
+        if wcag.contrast_ratio(cur, effective_bg) < 4.5:
+            return f"{prefix}{forced}"
+    except Exception:
+        pass
+    return match.group(0)
+
+
 def _rewrite_inline_color(style_attr: str, new_color: str, html_bg: str,
                           only_when_failing: bool = False) -> str:
     """Replace every `color: X` inside an inline style attribute.
@@ -1046,33 +1061,35 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
         # DEFENSIVE GUARDRAIL (2026-05 production bug fix): when this fix
         # targets a contrast issue but the propagator was a no-op (because
         # the html's internal bg detection said colors are fine vs an
-        # internal dark card, while the visible slide background is
-        # actually light), force an !important color override anchored on
-        # the SLIDE's solid background — the source of truth for what the
-        # user actually sees in the Editor/SCORM. Runs only when:
-        #   - element renders html
-        #   - the slide bg is a solid color (not bgImage-only) so we can
-        #     reason about contrast deterministically
-        # The injection is idempotent via _apply_html_style_fix's strip step.
+        # internal dark card, while the visible slide region is actually
+        # light), force an !important color override anchored on the
+        # ELEMENT'S EFFECTIVE bg (region luminance when a bgImage exists,
+        # else the solid slide.background). Source of truth for what the
+        # user actually sees in the Editor/SCORM. The injection is
+        # idempotent via _apply_html_style_fix's strip step.
         html_now = element.get("htmlContent") or ""
-        slide_solid_bg = (slide.get("background") or "").strip()
-        if html_now and slide_solid_bg and not has_image:
+        if html_now:
+            # Use the same effective bg we computed at the top of this
+            # function (line 928) — _effective_bg_for_element returns the
+            # local region luminance for slides with bgImage, which is the
+            # ONLY accurate bg for off-center text over decorative photos.
+            effective_bg = bg_color  # already computed earlier
             try:
-                # Find the dominant inline color in the html — the one most
-                # likely visible to the user — and check contrast.
+                # Find every distinct inline color in the html and check
+                # contrast against the effective region bg.
                 inline_colors = re.findall(
                     r"color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))",
                     html_now,
                 )
-                problem_colors = []
-                for c in inline_colors[:30]:  # cap to avoid pathological html
+                problem_count = 0
+                for c in set(inline_colors[:30]):
                     try:
-                        if wcag.contrast_ratio(c, slide_solid_bg) < 4.5:
-                            problem_colors.append(c)
+                        if wcag.contrast_ratio(c, effective_bg) < 4.5:
+                            problem_count += 1
                     except Exception:
                         continue
-                if problem_colors:
-                    forced = wcag.pick_high_contrast_color(slide_solid_bg)
+                if problem_count:
+                    forced = wcag.pick_high_contrast_color(effective_bg)
                     # Specific selector list (no universal `*`) so the
                     # injection passes _strengthen_css_injection's filter.
                     override_css = (
@@ -1085,6 +1102,20 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
                         target_color=forced,
                         preserve_html_typography=False,
                     ):
+                        applied_any = True
+                    # ALSO: directly rewrite the offending inline color
+                    # attributes inside the htmlContent so the visible text
+                    # actually changes even if the iframe's stylesheet
+                    # injection is later sanitized away by a renderer.
+                    # This is belt-and-suspenders for SCORM exports where
+                    # `<style>` blocks may be stripped.
+                    new_html = re.sub(
+                        r"(\bcolor\s*:\s*)(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))",
+                        lambda m: _replace_color_when_failing(m, effective_bg, forced),
+                        element.get("htmlContent") or "",
+                    )
+                    if new_html != element.get("htmlContent"):
+                        element["htmlContent"] = new_html
                         applied_any = True
             except Exception as exc:
                 logger.warning(f"defensive html color guardrail failed: {exc}")
