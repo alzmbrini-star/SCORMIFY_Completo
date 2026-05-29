@@ -159,3 +159,53 @@ async def test_force_high_contrast_creates_revertible_snapshot():
     assert "color:#fff" in snap_html
     await db.projects.delete_one({"id": pid})
     await db.aesthetic_snapshots.delete_one({"projectId": pid})
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_force_high_contrast_preserves_white_text_on_dark_simulator():
+    """Regression test for production bug: simulator with dark internal body
+    (`body{background:#1e293b}`) on a LIGHT slide was getting its white
+    titles forced to dark by the nuclear sweep, making them invisible.
+
+    The fix detects `_extract_dominant_html_bg` and uses THAT internal bg
+    for the contrast decision, preserving legible white-on-dark."""
+    from server import app as _wrapped  # noqa: F401
+    from routes.aesthetics import force_high_contrast_all_slides
+    from routes.deps import db
+    import uuid as _uuid
+
+    pid = f"test-fhc-sim-{_uuid.uuid4().hex[:8]}"
+    await db.projects.delete_one({"id": pid})
+    simulator_html = (
+        "<!DOCTYPE html><html><head>"
+        "<style>body{background:#1e293b;color:#f1f5f9}.card{background:#0f172a}</style>"
+        "</head><body>"
+        "<h1 style=\"color:#ffffff;\">Simulador Adoção</h1>"
+        "<button style=\"background:#1e293b;color:#ffffff;\">Dados Limpos</button>"
+        "</body></html>"
+    )
+    slides = [{
+        "id": "s0", "title": "Sim", "background": "#ffffff",  # LIGHT slide
+        "elements": [{
+            "id": "e0", "type": "html",
+            "x": 0, "y": 0, "width": 1920, "height": 820,
+            "style": {},
+            "htmlContent": simulator_html,
+        }],
+    }]
+    await db.projects.insert_one(_make_project(pid, slides))
+
+    await force_high_contrast_all_slides(
+        pid, user={"user_id": "test", "role": "super_admin"},
+    )
+    p = await db.projects.find_one({"id": pid}, {"_id": 0})
+    el = p["course"]["slides"][0]["elements"][0]
+    html = el["htmlContent"]
+    # White title MUST be preserved — it's legible on the dark internal bg
+    assert "color:#ffffff" in html, (
+        "Simulator white text on dark internal bg must NOT be forced dark"
+    )
+    # The body-level <style> must NOT have an override that flips colors —
+    # we only inject overrides when internal_bg is undetectable.
+    assert 'data-aesthetic-fix' not in html
+    await db.projects.delete_one({"id": pid})

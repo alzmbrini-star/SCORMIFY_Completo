@@ -2180,15 +2180,43 @@ async def force_high_contrast_all_slides(project_id: str, user: dict = Depends(r
                 continue
 
             _ensure_region(slide, el)
-            effective_bg, _ = _effective_bg_for_element(slide, el)
-            forced_color = wcag.pick_high_contrast_color(effective_bg)
+            slide_bg_effective, _ = _effective_bg_for_element(slide, el)
+            slide_forced_color = wcag.pick_high_contrast_color(slide_bg_effective)
 
-            # 1) Wrapper-level style — set both keys + restore opacity
+            # If the element renders htmlContent, detect its INTERNAL bg
+            # (e.g., dark `body{background:#1e293b}` for simulator cards).
+            # The internal bg, when present, is the ACTUAL surface the user
+            # sees — so we must pick contrast against THAT, not the slide.
+            # Without this, white text on a dark simulator card gets
+            # incorrectly forced to dark when the slide is light → invisible.
+            html_initial = el.get("htmlContent") or ""
+            internal_bg = _extract_dominant_html_bg(html_initial) if html_initial else None
+            if internal_bg:
+                try:
+                    forced_color = wcag.pick_high_contrast_color(internal_bg)
+                except Exception:
+                    forced_color = slide_forced_color
+                bg_for_test = internal_bg
+            else:
+                forced_color = slide_forced_color
+                bg_for_test = slide_bg_effective
+
+            # 1) Wrapper-level style — only update if current color FAILS
+            # WCAG against the bg the user sees. Avoids flattening colors
+            # that were already legible (e.g., a dark title #0f172a wrapper
+            # rendering on a light html card stays dark).
             style = el.setdefault("style", {})
-            if style.get("fontColor") != forced_color:
+            current_wrapper_color = style.get("fontColor") or style.get("color") or ""
+            wrapper_needs_fix = True
+            if current_wrapper_color:
+                try:
+                    wrapper_needs_fix = wcag.contrast_ratio(current_wrapper_color, bg_for_test) < 4.5
+                except Exception:
+                    wrapper_needs_fix = True
+            if wrapper_needs_fix and style.get("fontColor") != forced_color:
                 style["fontColor"] = forced_color
+                style["color"] = forced_color
                 touched_in_slide += 1
-            style["color"] = forced_color
             try:
                 op_val = float(style.get("opacity") or 1)
                 if op_val < 1:
@@ -2197,17 +2225,27 @@ async def force_high_contrast_all_slides(project_id: str, user: dict = Depends(r
                 style["opacity"] = 1
 
             # 2) htmlContent — strip prior aesthetic fix tags then rewrite
-            html = el.get("htmlContent") or ""
+            # ONLY colors that actually fail contrast against the html's
+            # internal bg (preserves legit colors like white-on-dark inside
+            # a simulator's dark card).
+            html = html_initial
             if html:
                 html = _clean_aesthetic_fixes_from_html(html)
 
-                # 2a) Force every inline `color:` to high contrast.
-                def _force_color(m):
+                # 2a) Rewrite each inline `color:` ONLY if it fails WCAG vs
+                # the resolved bg (internal html bg when present, else slide).
+                def _maybe_force_color(m):
                     prefix = m.group(1)
-                    return f"{prefix}{forced_color}"
+                    cur = m.group(2).strip()
+                    try:
+                        if wcag.contrast_ratio(cur, bg_for_test) < 4.5:
+                            return f"{prefix}{forced_color}"
+                    except Exception:
+                        pass
+                    return m.group(0)
                 html = re.sub(
                     r"(\bcolor\s*:\s*)(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-zA-Z]+)",
-                    _force_color,
+                    _maybe_force_color,
                     html,
                 )
                 # 2b) Force every inline `opacity:` < 1 to 1.
@@ -2225,26 +2263,28 @@ async def force_high_contrast_all_slides(project_id: str, user: dict = Depends(r
                     _force_opacity,
                     html,
                 )
-                # 2c) Inject specific-selector override (no `*`) so any
-                # later inline rule additions get clamped.
-                override_css = (
-                    "p, h1, h2, h3, h4, h5, h6, span, li, td, th, a, "
-                    "strong, em, b, i, label, blockquote, dd, dt, small, "
-                    "div { "
-                    f"color: {forced_color} !important; "
-                    "opacity: 1 !important; "
-                    "visibility: visible !important; "
-                    "}"
-                )
-                style_tag = f'<style data-aesthetic-fix="1">{override_css}</style>'
-                if "</head>" in html:
-                    html = html.replace("</head>", f"{style_tag}</head>", 1)
-                elif "</body>" in html:
-                    html = html.replace("</body>", f"{style_tag}</body>", 1)
-                else:
-                    html = f"{style_tag}{html}"
+                # 2c) Inject specific-selector override ONLY when the html
+                # has NO detectable internal bg (simulators with their own
+                # dark/light surface manage colors themselves; we don't
+                # want to !important-override their cohesive design).
+                if not internal_bg:
+                    override_css = (
+                        "p, h1, h2, h3, h4, h5, h6, span, li, td, th, a, "
+                        "strong, em, b, i, label, blockquote, dd, dt, small "
+                        "{ "
+                        f"color: {forced_color} !important; "
+                        "opacity: 1 !important; "
+                        "}"
+                    )
+                    style_tag = f'<style data-aesthetic-fix="1">{override_css}</style>'
+                    if "</head>" in html:
+                        html = html.replace("</head>", f"{style_tag}</head>", 1)
+                    elif "</body>" in html:
+                        html = html.replace("</body>", f"{style_tag}</body>", 1)
+                    else:
+                        html = f"{style_tag}{html}"
 
-                if html != el["htmlContent"]:
+                if html != html_initial:
                     el["htmlContent"] = html
                     touched_in_slide += 1
 
