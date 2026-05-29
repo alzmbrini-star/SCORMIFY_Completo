@@ -1043,6 +1043,52 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
                     element["htmlContent"] = cleaned
                     applied_any = True
 
+        # DEFENSIVE GUARDRAIL (2026-05 production bug fix): when this fix
+        # targets a contrast issue but the propagator was a no-op (because
+        # the html's internal bg detection said colors are fine vs an
+        # internal dark card, while the visible slide background is
+        # actually light), force an !important color override anchored on
+        # the SLIDE's solid background — the source of truth for what the
+        # user actually sees in the Editor/SCORM. Runs only when:
+        #   - element renders html
+        #   - the slide bg is a solid color (not bgImage-only) so we can
+        #     reason about contrast deterministically
+        # The injection is idempotent via _apply_html_style_fix's strip step.
+        html_now = element.get("htmlContent") or ""
+        slide_solid_bg = (slide.get("background") or "").strip()
+        if html_now and slide_solid_bg and not has_image:
+            try:
+                # Find the dominant inline color in the html — the one most
+                # likely visible to the user — and check contrast.
+                inline_colors = re.findall(
+                    r"color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))",
+                    html_now,
+                )
+                problem_colors = []
+                for c in inline_colors[:30]:  # cap to avoid pathological html
+                    try:
+                        if wcag.contrast_ratio(c, slide_solid_bg) < 4.5:
+                            problem_colors.append(c)
+                    except Exception:
+                        continue
+                if problem_colors:
+                    forced = wcag.pick_high_contrast_color(slide_solid_bg)
+                    # Specific selector list (no universal `*`) so the
+                    # injection passes _strengthen_css_injection's filter.
+                    override_css = (
+                        f"p, h1, h2, h3, h4, h5, h6, span, li, td, th, "
+                        f"a, strong, em, b, i, label "
+                        f"{{ color: {forced} !important; }}"
+                    )
+                    if _apply_html_style_fix(
+                        element, override_css,
+                        target_color=forced,
+                        preserve_html_typography=False,
+                    ):
+                        applied_any = True
+            except Exception as exc:
+                logger.warning(f"defensive html color guardrail failed: {exc}")
+
     return applied_any
 
 
@@ -1680,11 +1726,16 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             # Pre-capture before-state for elements we intend to mutate.
             if 0 <= el_idx < len(els):
                 pre = els[el_idx]
+                pre_html = pre.get("htmlContent") or ""
                 outcome["before"] = {
                     "elementType": pre.get("type"),
                     "fontColor": (pre.get("style") or {}).get("fontColor"),
                     "color": (pre.get("style") or {}).get("color"),
-                    "htmlContentLen": len(pre.get("htmlContent") or ""),
+                    "htmlContentLen": len(pre_html),
+                    # First 400 chars of htmlContent for diagnostic: this is
+                    # what reveals inline `<h1 style="color:white">` rules
+                    # that override the wrapper's `style.fontColor`.
+                    "htmlSample": pre_html[:400],
                 }
 
             if fix_type == "style" and 0 <= el_idx < len(slide.get("elements", [])):
@@ -1772,10 +1823,12 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             # After-state capture for elements we touched.
             if 0 <= el_idx < len(els):
                 post = els[el_idx]
+                post_html = post.get("htmlContent") or ""
                 outcome["after"] = {
                     "fontColor": (post.get("style") or {}).get("fontColor"),
                     "color": (post.get("style") or {}).get("color"),
-                    "htmlContentLen": len(post.get("htmlContent") or ""),
+                    "htmlContentLen": len(post_html),
+                    "htmlSample": post_html[:400],
                 }
 
         except Exception as e:
