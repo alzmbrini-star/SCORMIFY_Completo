@@ -2095,6 +2095,202 @@ async def deep_clean_aesthetic_fixes(project_id: str, user: dict = Depends(requi
     }
 
 
+@router.post("/aesthetics/force-high-contrast/{project_id}")
+async def force_high_contrast_all_slides(project_id: str, user: dict = Depends(require_auth)):
+    """**Nuclear contrast option** — author-triggered, sweeps EVERY text element
+    on EVERY slide and forces high-contrast colors + opacity:1 regardless of
+    what the LLM analyzer thought.
+
+    For each slide:
+      - For each element of type text/html/paragraph/title/heading:
+          * Resolve effective bg (region luminance if bgImage present, else
+            slide.background).
+          * Pick high-contrast polarity (#0f172a dark text, or #f8fafc light).
+          * Force `style.fontColor` AND `style.color` to that polarity.
+          * Strip `style.opacity` if < 1 (so text is fully opaque).
+          * For htmlContent:
+              - Inject a `<style data-aesthetic-fix>` with specific selector
+                list (no `*`) forcing color + opacity:1 + visibility:visible.
+              - Rewrite EVERY inline `color: X` directly (bypasses any LLM
+                class-mismatch issue).
+              - Rewrite EVERY inline `opacity: X` to 1 when < 0.5.
+              - Convert `rgba(R,G,B,a)` with low alpha to opaque equivalents.
+
+    Idempotent: re-running produces the same html. Creates a snapshot so the
+    author can revert if the visual outcome is too aggressive. Returns the
+    count of touched elements per slide.
+    """
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    slides = (project.get("course") or {}).get("slides") or []
+    if not slides:
+        return {"fixed": 0, "message": "Nenhum slide encontrado"}
+
+    import copy as _copy
+    snapshot_slides = _copy.deepcopy(slides)
+
+    # Pre-fetch each bgImage once for region luminance analysis.
+    from services import bg_image_luminance as _bil
+    _bg_cache: dict = {}
+    for s in slides:
+        url = s.get("backgroundImage")
+        if url and url not in _bg_cache:
+            _bg_cache[url] = await _bil.fetch_bg_image_bytes(db, url)
+
+    def _ensure_region(_slide, _el):
+        if _el.get("_bgRegionLuminance"):
+            return
+        bg_url = _slide.get("backgroundImage")
+        if not bg_url:
+            return
+        img_bytes = _bg_cache.get(bg_url)
+        if not img_bytes:
+            return
+        try:
+            sw = float(_slide.get("width", 1920)) or 1920.0
+            sh = float(_slide.get("height", 820)) or 820.0
+            ex = float(_el.get("x") or 0)
+            ey = float(_el.get("y") or 0)
+            ew = float(_el.get("width") or 100)
+            eh = float(_el.get("height") or 100)
+        except (TypeError, ValueError):
+            return
+        info = _bil.analyze_region(img_bytes, ex / sw, ey / sh, ew / sw, eh / sh)
+        if info:
+            _el["_bgRegionLuminance"] = info
+
+    TEXTUAL_TYPES = {"text", "html", "paragraph", "title", "heading"}
+    touched_total = 0
+    per_slide_breakdown = []
+
+    for s_idx, slide in enumerate(slides):
+        touched_in_slide = 0
+        for el in slide.get("elements") or []:
+            if not isinstance(el, dict):
+                continue
+            # Only text-bearing elements
+            is_textual = (
+                el.get("type") in TEXTUAL_TYPES
+                or el.get("content")
+                or el.get("htmlContent")
+            )
+            if not is_textual:
+                continue
+
+            _ensure_region(slide, el)
+            effective_bg, _ = _effective_bg_for_element(slide, el)
+            forced_color = wcag.pick_high_contrast_color(effective_bg)
+
+            # 1) Wrapper-level style — set both keys + restore opacity
+            style = el.setdefault("style", {})
+            if style.get("fontColor") != forced_color:
+                style["fontColor"] = forced_color
+                touched_in_slide += 1
+            style["color"] = forced_color
+            try:
+                op_val = float(style.get("opacity") or 1)
+                if op_val < 1:
+                    style["opacity"] = 1
+            except (TypeError, ValueError):
+                style["opacity"] = 1
+
+            # 2) htmlContent — strip prior aesthetic fix tags then rewrite
+            html = el.get("htmlContent") or ""
+            if html:
+                html = _clean_aesthetic_fixes_from_html(html)
+
+                # 2a) Force every inline `color:` to high contrast.
+                def _force_color(m):
+                    prefix = m.group(1)
+                    return f"{prefix}{forced_color}"
+                html = re.sub(
+                    r"(\bcolor\s*:\s*)(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-zA-Z]+)",
+                    _force_color,
+                    html,
+                )
+                # 2b) Force every inline `opacity:` < 1 to 1.
+                def _force_opacity(m):
+                    prefix = m.group(1)
+                    try:
+                        cur = float(m.group(2))
+                        if cur < 1:
+                            return f"{prefix}1"
+                    except (TypeError, ValueError):
+                        pass
+                    return m.group(0)
+                html = re.sub(
+                    r"(\bopacity\s*:\s*)([\d.]+)",
+                    _force_opacity,
+                    html,
+                )
+                # 2c) Inject specific-selector override (no `*`) so any
+                # later inline rule additions get clamped.
+                override_css = (
+                    "p, h1, h2, h3, h4, h5, h6, span, li, td, th, a, "
+                    "strong, em, b, i, label, blockquote, dd, dt, small, "
+                    "div { "
+                    f"color: {forced_color} !important; "
+                    "opacity: 1 !important; "
+                    "visibility: visible !important; "
+                    "}"
+                )
+                style_tag = f'<style data-aesthetic-fix="1">{override_css}</style>'
+                if "</head>" in html:
+                    html = html.replace("</head>", f"{style_tag}</head>", 1)
+                elif "</body>" in html:
+                    html = html.replace("</body>", f"{style_tag}</body>", 1)
+                else:
+                    html = f"{style_tag}{html}"
+
+                if html != el["htmlContent"]:
+                    el["htmlContent"] = html
+                    touched_in_slide += 1
+
+        # Strip the scratch luminance info before persisting.
+        for el in slide.get("elements") or []:
+            if isinstance(el, dict):
+                el.pop("_bgRegionLuminance", None)
+
+        if touched_in_slide:
+            per_slide_breakdown.append({
+                "slideIndex": s_idx,
+                "slideTitle": slide.get("title") or "",
+                "elementsTouched": touched_in_slide,
+            })
+        touched_total += touched_in_slide
+
+    if touched_total == 0:
+        return {"fixed": 0, "message": "Nenhum elemento textual encontrado para forcar contraste"}
+
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "course.slides": slides,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    await db.aesthetic_snapshots.update_one(
+        {"projectId": project_id},
+        {"$set": {
+            "projectId": project_id,
+            "slidesBefore": snapshot_slides,
+            "appliedCount": touched_total,
+            "appliedAt": datetime.now(timezone.utc).isoformat(),
+            "userId": user.get("user_id", ""),
+            "kind": "force_high_contrast",
+        }},
+        upsert=True,
+    )
+    return {
+        "fixed": touched_total,
+        "message": f"{touched_total} elemento(s) forcado(s) para alto contraste",
+        "canRevert": True,
+        "perSlide": per_slide_breakdown,
+    }
+
+
 @router.post("/aesthetics/auto-fix-contrast/{project_id}")
 async def auto_fix_html_contrast(project_id: str, user: dict = Depends(require_auth)):
     """Deterministic, LLM-independent contrast auto-fix for ALL HTML

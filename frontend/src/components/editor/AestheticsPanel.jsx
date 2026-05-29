@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   Sparkles, Loader2, Check, AlertTriangle, Eye, Paintbrush,
   Monitor, Smartphone, Type, Palette, Layout, Layers, X, ChevronDown, ChevronUp, Wand2,
-  Maximize2, Minimize2, Undo2, Eraser, ShieldCheck,
+  Maximize2, Minimize2, Undo2, Eraser, ShieldCheck, Zap,
 } from 'lucide-react';
 import KreaPanel from '../../pages/Agent/components/KreaPanel';
 
@@ -249,6 +249,39 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
     setApplying(false);
   }, [projectId, selectedFixes, onFixApplied]);
 
+  // Nuclear option: force every textual element in every slide to high
+  // contrast. Bypasses the LLM analyzer entirely. Use as a last resort
+  // when the analyzer can't catch every long-tail edge case (rgba alpha
+  // text, opacity classes, off-canvas labels, etc.).
+  const handleForceHighContrast = useCallback(async () => {
+    if (!projectId) return;
+    const ok = window.confirm(
+      'Vai forcar TODOS os textos do curso para alto contraste, ignorando o ' +
+      'design original. Acao reversivel via "Reverter ultima correcao". ' +
+      'Continuar?'
+    );
+    if (!ok) return;
+    setApplying(true);
+    try {
+      const res = await fetch(`${API}/api/aesthetics/force-high-contrast/${projectId}`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Erro ${res.status}`);
+      }
+      const data = await res.json();
+      toast.success(`${data.fixed} elemento(s) forcado(s) para alto contraste`);
+      if (data.canRevert) setCanRevert(true);
+      if (onFixApplied) onFixApplied();
+    } catch (e) {
+      toast.error(e.message || 'Erro ao forcar contraste');
+    }
+    setApplying(false);
+  }, [projectId, onFixApplied]);
+
   const toggleCategory = (cat) => {
     setExpandedCategories(prev => {
       const next = new Set(prev);
@@ -475,6 +508,21 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
             >
               {autoFixing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
               Auto-corrigir contrastes nos simuladores
+            </Button>
+
+            {/* NUCLEAR OPTION: force every textual element on every slide
+                to high contrast. Use ONLY when the analyzer keeps missing
+                edge-case elements (rgba alpha text, opacity-classed labels,
+                off-canvas microtitles). Reversible via snapshot. */}
+            <Button
+              onClick={handleForceHighContrast}
+              disabled={applying}
+              className="w-full text-xs h-9 bg-orange-600 hover:bg-orange-700 text-white"
+              data-testid="aesthetics-force-high-contrast"
+              title="Forca TODOS os textos do curso para alto contraste, ignorando design. Reversivel."
+            >
+              {applying ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />}
+              Forcar Alto Contraste (Todos os slides)
             </Button>
 
             {/* Krea AI: regenerate images based on aesthetic analysis — promoted
