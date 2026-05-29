@@ -45,35 +45,46 @@ def _make_user_bug_element_and_slide():
     )
 
 
+@pytest.mark.skip(reason="Author policy (2026-05): type=html elements must NOT receive fontSize changes from the analyzer. See _apply_style_fix TYPOGRAPHY_BLOCKED_FOR_HTML guard.")
 def test_user_fontes_suggestion_scales_inline_font_sizes():
-    """LLM 'Fontes' fix: fontSize 31 -> 48 should grow the visible h2."""
+    """[DEPRECATED] LLM 'Fontes' fix used to propagate fontSize → inline html.
+    Now blocked: analyzer only touches color/contrast in type=html."""
     el, sl = _make_user_bug_element_and_slide()
-    # Exactly the change set the user's analysis emits
     fix_changes = {"fontSize": 48, "fontWeight": "800", "fontColor": "#f8fafc"}
     applied = _apply_style_fix(el, sl, fix_changes)
-
-    assert applied is True, "style fix must report a change"
+    assert applied is True
     new_html = el["htmlContent"]
-
-    # The dominant inline font-size (was 31px) MUST be exactly the target 48px
-    assert "font-size:48px" in new_html, "Title should grow to the target px"
-    # The 20px paragraph should scale proportionally (20 * 48/31 ≈ 31)
-    assert "font-size:20px" not in new_html, "Paragraph should also scale"
-    # Outer element.style.fontSize is also updated (legacy field, no regression)
+    assert "font-size:48px" in new_html
+    assert "font-size:20px" not in new_html
     assert el["style"]["fontSize"] == 48
     assert el["style"]["fontWeight"] == "800"
 
 
+@pytest.mark.skip(reason="Author policy: see test_user_fontes_suggestion_scales_inline_font_sizes")
 def test_user_fontes_suggestion_propagates_font_weight():
-    """h2 had font-weight:700 — must become 800 per the LLM fix."""
+    """[DEPRECATED] fontWeight propagation to type=html is disabled."""
     el, sl = _make_user_bug_element_and_slide()
     _apply_style_fix(el, sl, {"fontSize": 48, "fontWeight": "800", "fontColor": "#f8fafc"})
     new_html = el["htmlContent"]
-    assert "font-weight:800" in new_html, "h2 inline font-weight should be replaced"
-    # The paragraph had NO font-weight declaration → must STAY without it
-    assert new_html.count("font-weight") <= 2, (
-        "Should not add font-weight to tags that didn't have it"
-    )
+    assert "font-weight:800" in new_html
+    assert new_html.count("font-weight") <= 2
+
+
+def test_html_typography_protected_against_size_changes():
+    """Author policy: analyzer must NEVER shrink/grow font-size on type=html.
+    Visible inline sizes (31px on h2, 20px on p) must remain intact even when
+    the LLM suggests fontSize:48."""
+    el, sl = _make_user_bug_element_and_slide()
+    original = el["htmlContent"]
+    _apply_style_fix(el, sl, {"fontSize": 48, "fontWeight": "800"})
+    # The outer element.style must also NOT get a fontSize bump — guard runs
+    # before the style[].assign line.
+    assert "fontSize" not in (el.get("style") or {})
+    # Inline html sizes preserved
+    assert "font-size:31px" in el["htmlContent"]
+    assert "font-size:20px" in el["htmlContent"]
+    # No accidental wholesale rewrite of the html beyond expected color sweep
+    assert el["htmlContent"].count("<h2") == original.count("<h2")
 
 
 def test_idempotent_apply():
@@ -101,27 +112,24 @@ WHITE_ON_WHITE_HTML = (
 def test_white_on_white_in_html_forced_to_dark():
     el = {"type": "html", "htmlContent": WHITE_ON_WHITE_HTML, "style": {}}
     sl = {"background": "#ffffff"}
-    # LLM proposes only fontSize change — we expect the contrast sweep to
-    # ALSO fix the invisible inline colors.
-    applied = _apply_style_fix(el, sl, {"fontSize": 56})
+    # LLM proposes a fontColor change — the contrast sweep + inline rewriter
+    # together must remove the invisible white-on-white pattern.
+    # (Author policy disallows fontSize on type=html; we use fontColor here.)
+    applied = _apply_style_fix(el, sl, {"fontColor": "#0f172a"})
     assert applied is True
     new_html = el["htmlContent"]
     # Inline `color:#ffffff` MUST be replaced (would be invisible on white bg)
     assert "color:#ffffff" not in new_html.lower(), (
         "Invisible white-on-white inline color must be rewritten"
     )
-    # h2 grows to 56px exactly (was the dominant size at 32)
-    assert "font-size:56px" in new_html
+    # font-size on the html must NOT change (typography protected)
+    assert "font-size:32px" in new_html
 
 
 def test_legible_accent_colors_preserved():
     """Brand orange `color:#f59e0b` on dark navy bg already has decent contrast
     relative to white. The propagation MUST NOT flatten intentional accents
     when the LLM color change is purely cosmetic.
-
-    Specifically: with new_color=#f8fafc (almost white) and an existing
-    `color:#f59e0b` on `background:#1e3a8a` (orange on navy), the orange
-    has ~6.4:1 contrast — passes WCAG. We should NOT rewrite it.
     """
     html = (
         '<div style="background:#1e3a8a;padding:10px;">'
@@ -131,13 +139,11 @@ def test_legible_accent_colors_preserved():
     )
     el = {"type": "html", "htmlContent": html, "style": {}}
     sl = {"background": "#1e3a8a"}
-    _apply_style_fix(el, sl, {"fontSize": 48, "fontColor": "#f8fafc"})
+    _apply_style_fix(el, sl, {"fontColor": "#f8fafc"})
     new_html = el["htmlContent"]
     # Orange accent has good contrast vs navy — must be PRESERVED
     assert "#f59e0b" in new_html, "Intentional accent color must not be flattened"
-    # White title color is also legible on navy — accepted to be rewritten
-    # to #f8fafc since the LLM explicitly requested it (and contrast is fine)
-    # Either #ffffff or #f8fafc is acceptable; both readable.
+    # White title color is also legible on navy — accepted either way
     title_color_ok = ("color:#f8fafc" in new_html.lower()) or ("color:#ffffff" in new_html.lower())
     assert title_color_ok
 
@@ -173,20 +179,20 @@ def test_rewrite_inline_font_size_scales_and_targets():
 # ---------------------------------------------------------------------------
 
 def test_no_inline_sizes_falls_back_to_style_block():
-    """If htmlContent uses browser defaults for sizes, we inject a <style>
-    block targeting h1-h6 with the new size."""
+    """If htmlContent uses browser defaults for sizes AND the analyzer needs
+    to push a color, the colorless-text pass injects inline color directly
+    on each tag (fontSize/fontWeight intentionally skipped for type=html)."""
     el = {
         "type": "html",
         "htmlContent": "<h2>Browser default sized</h2><p>Body</p>",
         "style": {},
     }
     sl = {"background": "#ffffff"}
-    _apply_style_fix(el, sl, {"fontSize": 56, "fontColor": "#0f172a"})
+    _apply_style_fix(el, sl, {"fontColor": "#0f172a"})
     new_html = el["htmlContent"]
-    # Fallback <style data-aesthetic-fix> block must be injected
-    assert "data-aesthetic-fix" in new_html
-    assert "font-size: 56px" in new_html or "font-size:56px" in new_html
-    assert "h1,h2,h3,h4,h5,h6" in new_html.replace(" ", "")
+    # Each tag must now have inline color
+    assert 'color:#0f172a' in new_html.replace(" ", "")
+    assert "<h2 style=" in new_html or 'style="color' in new_html
 
 
 def test_non_html_element_unchanged_by_propagator():
@@ -347,7 +353,7 @@ def test_colorless_h3_gets_inline_color_on_light_bg():
     )
     el = {"type": "html", "htmlContent": html, "style": {}}
     sl = {"background": "#ffffff"}  # white slide
-    _apply_style_fix(el, sl, {"fontSize": 32})
+    _apply_style_fix(el, sl, {"fontColor": "#0f172a"})
     new_html = el["htmlContent"]
     # Both h3 elements must now have inline `color:` declarations
     assert new_html.count("<h3") == 2
@@ -370,7 +376,7 @@ def test_colorless_text_inherits_through_font_ancestor():
     html = '<font color="#000000"><p>Inherits black via font ancestor</p></font>'
     el = {"type": "html", "htmlContent": html, "style": {}}
     sl = {"background": "#ffffff"}
-    _apply_style_fix(el, sl, {"fontSize": 24})
+    _apply_style_fix(el, sl, {"fontColor": "#0f172a"})
     new_html = el["htmlContent"]
     # The <p> should NOT have its own style="color:..." since the
     # <font> ancestor handles it.
@@ -386,7 +392,7 @@ def test_colorless_text_skipped_when_legible_inline_color_exists():
     html = '<p style="color:#666666;">Mid-gray text</p>'
     el = {"type": "html", "htmlContent": html, "style": {}}
     sl = {"background": "#ffffff"}
-    _apply_style_fix(el, sl, {"fontSize": 24})
+    _apply_style_fix(el, sl, {"fontColor": "#0f172a"})
     new_html = el["htmlContent"]
     # The original `color:#666666` MUST stay (the inline-color rewrite
     # branch governs whether it gets swapped — not this pass).
@@ -402,7 +408,7 @@ def test_colorless_dark_bg_gets_light_text():
     html = '<p>No color set</p>'
     el = {"type": "html", "htmlContent": html, "style": {}}
     sl = {"background": "#0f172a"}  # dark navy slide
-    _apply_style_fix(el, sl, {"fontSize": 24})
+    _apply_style_fix(el, sl, {"fontColor": "#f8fafc"})
     new_html = el["htmlContent"]
     # The p must be wrapped in inline style with a LIGHT color
     import re

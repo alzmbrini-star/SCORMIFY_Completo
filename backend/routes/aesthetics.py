@@ -932,6 +932,14 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
     # Drop any banned keys from incoming proposed changes.
     if changes:
         changes = {k: v for k, v in (changes or {}).items() if k not in BANNED_STYLE_KEYS}
+    # Surgical typography protection for type=html elements: the analyzer
+    # must NEVER change font-size / font-weight on `type=html` (these are
+    # AI-Agent-built rich layouts where the author already iterated on
+    # typography). Author choice: contrast-only fixes for html. Other
+    # element kinds (text, title, heading) can still receive size tweaks.
+    if element.get("type") == "html" and changes:
+        TYPOGRAPHY_BLOCKED_FOR_HTML = {"fontSize", "fontWeight", "lineHeight"}
+        changes = {k: v for k, v in changes.items() if k not in TYPOGRAPHY_BLOCKED_FOR_HTML}
     # Strip pre-existing plate residue so applying ANY style fix also
     # purges legacy plates the LLM might have left behind earlier.
     stripped_any = False
@@ -1884,6 +1892,17 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
                 element = slide["elements"][el_idx]
                 _ensure_region_info(slide, element)
                 css = fix.get("cssInjection", "")
+                # Author choice (2026-05): NEVER let the analyzer rewrite
+                # font-size / font-weight / line-height of type=html
+                # elements. Strip those declarations from the injected CSS
+                # before it lands in htmlContent. Color-only sweeps remain.
+                if element.get("type") == "html" and css:
+                    css = re.sub(
+                        r"\b(font-size|font-weight|line-height)\s*:\s*[^;}]+;?",
+                        "",
+                        css,
+                        flags=re.IGNORECASE,
+                    )
                 target_color = None
                 m = re.search(r"color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))", css or "")
                 if m:
