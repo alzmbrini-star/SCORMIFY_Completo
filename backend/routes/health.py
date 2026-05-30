@@ -126,7 +126,7 @@ async def _check_leonardo() -> dict:
 
 
 async def _check_heygen() -> dict:
-    key = os.environ.get("HEYGEN_API_KEY", "").strip()
+    from routes.deps import HEYGEN_API_KEY as key
     if not key:
         return {"status": "not_configured", "error": "HEYGEN_API_KEY not set"}
     t0 = time.monotonic()

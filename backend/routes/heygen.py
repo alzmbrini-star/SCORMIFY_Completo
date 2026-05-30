@@ -1092,7 +1092,7 @@ async def heygen_video_events(video_id: str, request: Request):
                         # Check status from HeyGen API directly
                         try:
                             async with httpx.AsyncClient() as client:
-                                headers = {"X-Api-Key": os.getenv("HEYGEN_API_KEY", "")}
+                                headers = {"X-Api-Key": HEYGEN_API_KEY}
                                 resp = await client.get(
                                     f"https://api.heygen.com/v1/video_status.get?video_id={video_id}",
                                     headers=headers,

@@ -9,7 +9,14 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-LEONARDO_API_KEY = os.environ.get("LEONARDO_API_KEY", "")
+def _clean(raw: str) -> str:
+    s = (raw or "").strip()
+    if len(s) >= 2 and ((s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'")):
+        s = s[1:-1].strip()
+    return s
+
+
+LEONARDO_API_KEY = _clean(os.environ.get("LEONARDO_API_KEY", ""))
 LEONARDO_BASE_URL = "https://cloud.leonardo.ai/api/rest/v1"
 
 # Phoenix 1.0 model - high quality

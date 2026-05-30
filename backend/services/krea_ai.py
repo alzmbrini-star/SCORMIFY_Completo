@@ -186,8 +186,16 @@ def get_model(model_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_api_key() -> str:
-    """Lazy-load API key — allows hot-reload after admin updates."""
-    return os.environ.get("KREA_API_KEY", "").strip()
+    """Lazy-load API key — allows hot-reload after admin updates.
+
+    Defensive sanitizer (2026-02): strip wrapper quotes/whitespace because
+    secrets persisted via the Super Admin UI sometimes land in .env with
+    surrounding double quotes — which then carry into the Authorization
+    header and trip 403/401 from the upstream provider."""
+    raw = os.environ.get("KREA_API_KEY", "").strip()
+    if len(raw) >= 2 and ((raw[0] == '"' and raw[-1] == '"') or (raw[0] == "'" and raw[-1] == "'")):
+        raw = raw[1:-1].strip()
+    return raw
 
 
 def is_configured() -> bool:

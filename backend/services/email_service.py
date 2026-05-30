@@ -6,7 +6,14 @@ import resend
 
 logger = logging.getLogger("server")
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
+def _clean(raw: str) -> str:
+    s = (raw or "").strip()
+    if len(s) >= 2 and ((s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'")):
+        s = s[1:-1].strip()
+    return s
+
+
+resend.api_key = _clean(os.environ.get("RESEND_API_KEY", ""))
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 APP_NAME = "Scormify"
 

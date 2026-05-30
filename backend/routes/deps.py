@@ -91,9 +91,23 @@ async def _sync_job_to_db(job_id: str, updates: dict):
         except Exception as e:
             logger.warning(f"Failed to sync job {job_id} to DB: {e}")
 
+# Defensive helper: strip wrapper quotes / whitespace from env values
+# (production bug 2026-02: HEYGEN_API_KEY was saved as `"sk_V2_hgu_..."` —
+# literal quotes — making every HeyGen request return 403 because the
+# `X-Api-Key` header carried the quoted string instead of the raw token).
+def _clean_secret(raw: str) -> str:
+    if not raw:
+        return ""
+    s = raw.strip()
+    # Strip ONE matching pair of single OR double quotes if both sides have it.
+    if len(s) >= 2 and ((s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'")):
+        s = s[1:-1].strip()
+    return s
+
+
 # HeyGen config
-HEYGEN_API_KEY = os.environ.get('HEYGEN_API_KEY', '')
-HEYGEN_BASE_URL = os.environ.get('HEYGEN_BASE_URL', 'https://api.heygen.com')
+HEYGEN_API_KEY = _clean_secret(os.environ.get('HEYGEN_API_KEY', ''))
+HEYGEN_BASE_URL = _clean_secret(os.environ.get('HEYGEN_BASE_URL', 'https://api.heygen.com'))
 HEYGEN_HEADERS = {
     "X-Api-Key": HEYGEN_API_KEY,
     "Accept": "application/json",
@@ -101,7 +115,7 @@ HEYGEN_HEADERS = {
 }
 
 # ElevenLabs config
-ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY', '')
+ELEVENLABS_API_KEY = _clean_secret(os.environ.get('ELEVENLABS_API_KEY', ''))
 
 # HeyGen credits cache
 heygen_credits_cache: Dict[str, Any] = {
