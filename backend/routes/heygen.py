@@ -25,6 +25,60 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["HeyGen"])
 
 
+# ── HeyGen request helpers ────────────────────────────────────────────
+# HeyGen sits behind Cloudflare. WAF intermittently returns generic
+# nginx-style 403 to our K8s egress IPs even when the API key is valid.
+# Empirically, a single retry after a short delay (with the same headers,
+# different connection) succeeds the vast majority of the time.
+async def heygen_request(
+    method: str, url: str, *,
+    headers: dict = None, json_body: dict = None,
+    timeout: float = 30.0, max_attempts: int = 3,
+) -> httpx.Response:
+    """HeyGen-specific HTTP client with backoff retries on transient
+    Cloudflare 403 / 429 / 5xx. Returns the last response (caller still
+    inspects status_code). Logs each retry for production diagnostics."""
+    last_resp = None
+    delay = 0.5
+    final_headers = {**HEYGEN_HEADERS, **(headers or {})}
+    for attempt in range(1, max_attempts + 1):
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                req_kwargs = {"headers": final_headers}
+                if json_body is not None:
+                    req_kwargs["json"] = json_body
+                last_resp = await client.request(method, url, **req_kwargs)
+            except httpx.RequestError as e:
+                logger.warning(
+                    "heygen_request network error attempt=%d url=%s err=%s",
+                    attempt, url, e,
+                )
+                if attempt == max_attempts:
+                    raise
+                await asyncio.sleep(delay)
+                delay *= 2
+                continue
+        # Retry on transient WAF / rate-limit / server errors. 401 stays
+        # final (means the api key is genuinely invalid). 4xx other than
+        # 403/429 also stays final to surface validation errors fast.
+        retryable = last_resp.status_code in (403, 429) or last_resp.status_code >= 500
+        if not retryable or attempt == max_attempts:
+            if last_resp.status_code != 200:
+                logger.warning(
+                    "heygen_request final status=%d attempts=%d url=%s body=%s",
+                    last_resp.status_code, attempt, url,
+                    (last_resp.text or "")[:300],
+                )
+            return last_resp
+        logger.info(
+            "heygen_request retrying status=%d attempt=%d/%d url=%s",
+            last_resp.status_code, attempt, max_attempts, url,
+        )
+        await asyncio.sleep(delay)
+        delay *= 2
+    return last_resp
+
+
 @router.get("/heygen/avatars")
 async def list_heygen_avatars(limit: int = 200, gender: Optional[str] = None):
     """List available HeyGen avatars with optional gender filter"""
@@ -32,42 +86,39 @@ async def list_heygen_avatars(limit: int = 200, gender: Optional[str] = None):
         raise HTTPException(status_code=500, detail="HeyGen API key not configured")
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as http_client:
-            response = await http_client.get(
-                f"{HEYGEN_BASE_URL}/v2/avatars",
-                headers=HEYGEN_HEADERS
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"HeyGen avatars error: {response.status_code} - {response.text}")
-                raise HTTPException(status_code=response.status_code, detail="Failed to fetch avatars from HeyGen")
-            
-            data = response.json()
-            avatars = data.get("data", {}).get("avatars", [])
-            
-            # Filter by gender if specified
-            if gender and gender.lower() != 'all':
-                avatars = [a for a in avatars if a.get("gender", "").lower() == gender.lower()]
-            
-            # Format avatars for frontend
-            formatted_avatars = []
-            for avatar in avatars[:limit]:
-                formatted_avatars.append({
-                    "avatar_id": avatar.get("avatar_id"),
-                    "avatar_name": avatar.get("avatar_name"),
-                    "preview_image_url": avatar.get("preview_image_url"),
-                    "preview_video_url": avatar.get("preview_video_url"),
-                    "gender": avatar.get("gender"),
-                })
-            
-            # Get unique genders for filter options
-            all_genders = list(set(a.get("gender", "unknown") for a in data.get("data", {}).get("avatars", []) if a.get("gender")))
-            
-            return {
-                "avatars": formatted_avatars, 
-                "total": len(avatars),
-                "available_genders": sorted(all_genders)
-            }
+        response = await heygen_request(
+            "GET", f"{HEYGEN_BASE_URL}/v2/avatars",
+        )
+        if response.status_code != 200:
+            logger.error(f"HeyGen avatars error: {response.status_code} - {response.text[:200]}")
+            raise HTTPException(status_code=response.status_code, detail="Failed to fetch avatars from HeyGen")
+
+        data = response.json()
+        avatars = data.get("data", {}).get("avatars", [])
+
+        # Filter by gender if specified
+        if gender and gender.lower() != 'all':
+            avatars = [a for a in avatars if a.get("gender", "").lower() == gender.lower()]
+
+        # Format avatars for frontend
+        formatted_avatars = []
+        for avatar in avatars[:limit]:
+            formatted_avatars.append({
+                "avatar_id": avatar.get("avatar_id"),
+                "avatar_name": avatar.get("avatar_name"),
+                "preview_image_url": avatar.get("preview_image_url"),
+                "preview_video_url": avatar.get("preview_video_url"),
+                "gender": avatar.get("gender"),
+            })
+
+        # Get unique genders for filter options
+        all_genders = list(set(a.get("gender", "unknown") for a in data.get("data", {}).get("avatars", []) if a.get("gender")))
+
+        return {
+            "avatars": formatted_avatars,
+            "total": len(avatars),
+            "available_genders": sorted(all_genders)
+        }
     except httpx.RequestError as e:
         logger.error(f"HeyGen request error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
@@ -229,54 +280,52 @@ async def test_avatar_voice_combination(request: TestCombinationRequest):
     test_script = "Olá! Esta é uma prévia da minha voz e aparência. Espero que goste da combinação!"
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as http_client:
-            payload = {
-                "video_inputs": [
-                    {
-                        "character": {
-                            "type": "avatar",
-                            "avatar_id": request.avatar_id,
-                            "avatar_style": "normal"
-                        },
-                        "voice": {
-                            "type": "text",
-                            "input_text": test_script,
-                            "voice_id": request.voice_id
-                        }
+        payload = {
+            "video_inputs": [
+                {
+                    "character": {
+                        "type": "avatar",
+                        "avatar_id": request.avatar_id,
+                        "avatar_style": "normal"
+                    },
+                    "voice": {
+                        "type": "text",
+                        "input_text": test_script,
+                        "voice_id": request.voice_id
                     }
-                ],
-                "dimension": {"width": 1280, "height": 720},
-                "title": "Test Combination Preview"
-            }
+                }
+            ],
+            "dimension": {"width": 1280, "height": 720},
+            "title": "Test Combination Preview"
+        }
 
-            response = await http_client.post(
-                f"{HEYGEN_BASE_URL}/v2/video/generate",
-                headers=HEYGEN_HEADERS,
-                json=payload
-            )
+        response = await heygen_request(
+            "POST", f"{HEYGEN_BASE_URL}/v2/video/generate",
+            json_body=payload, timeout=60.0,
+        )
 
-            if response.status_code != 200:
-                error_data = response.json() if response.text else {}
-                error_msg = error_data.get("error", {}).get("message", response.text[:200])
-                raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
+        if response.status_code != 200:
+            error_data = response.json() if response.text else {}
+            error_msg = error_data.get("error", {}).get("message", response.text[:200])
+            raise HTTPException(status_code=response.status_code, detail=f"HeyGen error: {error_msg}")
 
-            data = response.json()
-            video_id = data.get("data", {}).get("video_id")
-            if not video_id:
-                raise HTTPException(status_code=500, detail="No video ID returned from HeyGen")
+        data = response.json()
+        video_id = data.get("data", {}).get("video_id")
+        if not video_id:
+            raise HTTPException(status_code=500, detail="No video ID returned from HeyGen")
 
-            await db.heygen_videos.insert_one({
-                "video_id": video_id,
-                "avatar_id": request.avatar_id,
-                "voice_id": request.voice_id,
-                "script": test_script,
-                "title": "Test Combination Preview",
-                "status": "processing",
-                "is_test": True,
-                "created_at": now_utc()
-            })
+        await db.heygen_videos.insert_one({
+            "video_id": video_id,
+            "avatar_id": request.avatar_id,
+            "voice_id": request.voice_id,
+            "script": test_script,
+            "title": "Test Combination Preview",
+            "status": "processing",
+            "is_test": True,
+            "created_at": now_utc()
+        })
 
-            return {"video_id": video_id, "status": "processing"}
+        return {"video_id": video_id, "status": "processing"}
     except httpx.RequestError as e:
         logger.error(f"HeyGen test-combination error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
