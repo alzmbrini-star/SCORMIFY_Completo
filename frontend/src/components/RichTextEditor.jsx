@@ -472,6 +472,66 @@ export const RichTextEditor = ({
     }
   }, []);
 
+  // Map computed font-size pixel values to the closest preset shown in
+  // the dropdown so the toolbar accurately reflects the cursor / selection.
+  // (Without this, the dropdown was permanently stuck at the initial '3'
+  // = 14px regardless of what the cursor was actually pointing at.)
+  const pxToPresetValue = useCallback((px) => {
+    const target = parseFloat(px);
+    if (!Number.isFinite(target) || target <= 0) return null;
+    const map = [
+      { value: '1', px: 10 }, { value: '2', px: 12 }, { value: '3', px: 14 },
+      { value: '4', px: 16 }, { value: '5', px: 18 }, { value: '6', px: 24 },
+      { value: '7', px: 36 },
+    ];
+    // Pick the entry with minimum absolute distance to the actual px.
+    let best = map[0];
+    let bestDiff = Math.abs(target - best.px);
+    for (let i = 1; i < map.length; i++) {
+      const d = Math.abs(target - map[i].px);
+      if (d < bestDiff) { best = map[i]; bestDiff = d; }
+    }
+    return best.value;
+  }, []);
+
+  // Sync the toolbar's font-size dropdown with the current caret position.
+  // Listens to `selectionchange` events on the document and on every focus
+  // movement inside the editor; cheap because we only read computedStyle
+  // of one element. Bails out gracefully when the selection isn't inside
+  // this editor (avoids cross-instance contamination).
+  const syncFontSizeFromSelection = useCallback(() => {
+    if (!editorRef.current) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    // Make sure the active selection is inside THIS editor instance.
+    if (!editorRef.current.contains(range.startContainer)) return;
+    // Walk up to find an element node to inspect (text nodes have no
+    // computedStyle on their own).
+    let node = range.startContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+    try {
+      const cs = window.getComputedStyle(node);
+      const fs = cs && cs.fontSize;  // e.g. "20px"
+      const preset = pxToPresetValue(fs);
+      if (preset) {
+        setCurrentFontSize((prev) => (prev !== preset ? preset : prev));
+      }
+    } catch {
+      /* noop — DOM may be detached briefly during teardown */
+    }
+  }, [pxToPresetValue]);
+
+  // Wire selection sync to document-level selectionchange + editor focus.
+  // selectionchange fires whenever the caret moves, including arrow keys,
+  // clicks, drag-select, and programmatic range changes from execCommand.
+  useEffect(() => {
+    const handler = () => syncFontSizeFromSelection();
+    document.addEventListener('selectionchange', handler);
+    return () => document.removeEventListener('selectionchange', handler);
+  }, [syncFontSizeFromSelection]);
+
   const execCommand = useCallback((command, value = null) => {
     const savedRange = saveSelection();
     enableModernStyling();
@@ -743,7 +803,11 @@ export const RichTextEditor = ({
       lastContentRef.current = newContent;
       onChange?.(newContent);
     }
-  }, [onChange, enableModernStyling]);
+    // Some browsers (Chrome 121+) don't fire selectionchange right after
+    // execCommand('fontSize'). Re-sync explicitly so the dropdown stays
+    // in lockstep with the actual rendered size.
+    setTimeout(syncFontSizeFromSelection, 0);
+  }, [onChange, enableModernStyling, syncFontSizeFromSelection]);
 
   const formatBlock = useCallback((tag) => {
     execCommand('formatBlock', tag);
