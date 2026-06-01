@@ -8,7 +8,7 @@ import uuid
 import copy
 import logging
 
-from routes.deps import update_project
+from routes.deps import update_project, db, now_utc
 from routes.auth import require_auth
 from routes.projects_common import load_authorized_project
 from models import (
@@ -216,17 +216,27 @@ async def add_element(project_id: str, slide_id: str, data: ElementCreate, user:
     element_dict['zIndex'] = len(elements)
     elements.append(element_dict)
 
-    slides[slide_index]['elements'] = elements
-    course['slides'] = slides
-
-    await update_project(project_id, {"course": course})
+    # Granular update (see update_element rationale).
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            f"course.slides.{slide_index}.elements": elements,
+            "updatedAt": now_utc().isoformat(),
+        }},
+    )
 
     return element_dict
 
 
 @router.put("/projects/{project_id}/slides/{slide_id}/elements/{element_id}")
 async def update_element(project_id: str, slide_id: str, element_id: str, data: ElementUpdate, user: dict = Depends(require_auth)):
-    """Update element"""
+    """Update element.
+
+    Uses a granular `$set` on the specific array index so we never resend
+    the whole course document to MongoDB on every keystroke save. Critical
+    for projects with Faithful Mode (slides carrying multi-MB base64 PNGs)
+    where the legacy full-course $set was causing 502 Bad Gateway in
+    production (request > 100s Cloudflare timeout)."""
     project = await load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
@@ -243,10 +253,16 @@ async def update_element(project_id: str, slide_id: str, element_id: str, data: 
     update_data = data.model_dump(exclude_unset=True)
     elements[elem_index].update(update_data)
 
-    slides[slide_index]['elements'] = elements
-    course['slides'] = slides
-
-    await update_project(project_id, {"course": course})
+    # Granular update — only the element + updatedAt. Mongo's positional
+    # dotted-path $set keeps the request payload small (<= 1MB even for
+    # heavy htmlContent) and lets Atlas finish in <100ms.
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            f"course.slides.{slide_index}.elements.{elem_index}": elements[elem_index],
+            "updatedAt": now_utc().isoformat(),
+        }},
+    )
 
     return elements[elem_index]
 
@@ -265,9 +281,13 @@ async def delete_element(project_id: str, slide_id: str, element_id: str, user: 
     elements = slides[slide_index].get('elements', [])
     elements = [e for e in elements if e.get('id') != element_id]
 
-    slides[slide_index]['elements'] = elements
-    course['slides'] = slides
-
-    await update_project(project_id, {"course": course})
+    # Granular update (see update_element rationale).
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            f"course.slides.{slide_index}.elements": elements,
+            "updatedAt": now_utc().isoformat(),
+        }},
+    )
 
     return {"message": "Element deleted"}
