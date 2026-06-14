@@ -47,9 +47,22 @@ import {
   Layers,
   Download,
   Filter,
+  Search,
+  X,
 } from 'lucide-react';
 import axios from 'axios';
 import TutorialImportDialog from '../components/dashboard/TutorialImportDialog';
+
+// Pure helper to parse an ISO date string into a millisecond timestamp.
+// Lives outside the component so `useMemo` filter logic stays pure under
+// strict hooks/purity lint rules. Returns 0 for invalid/empty input —
+// callers compare `>= cutoff`, so 0 just excludes the project from
+// recency filters (legacy/seed data without createdAt).
+const isoToMs = (iso) => {
+  if (!iso) return 0;
+  const n = Date.parse(iso);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -95,6 +108,28 @@ export default function Dashboard() {
   const [filterDateRange, setFilterDateRange] = useState('all'); // all | 7d | 30d | 90d
   const [companiesList, setCompaniesList] = useState([]);
 
+  // 2026-06-01: Search by project name. Available to ALL roles (not just
+  // super admin) — even within a single company the catalog grows large
+  // and finding a specific course by scrolling is painful. Debounced
+  // (250ms) so typing stays snappy while filtering large project lists.
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(searchInput.trim().toLowerCase()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Recency cutoff for date filter — bound to filter changes via useMemo
+  // (pure: same `filterDateRange` => same `cutoffMs`). For our "last N
+  // days" semantics, staleness within a single browser session is fine;
+  // user re-opens the filter to force a refresh if needed.
+  const cutoffMs = useMemo(() => {
+    if (filterDateRange === 'all') return 0;
+    const days = parseInt(filterDateRange, 10);
+    if (!Number.isFinite(days) || days <= 0) return 0;
+    return Date.now() - days * 24 * 60 * 60 * 1000;
+  }, [filterDateRange]);
+
   useEffect(() => {
     if (!isSuperAdmin) return;
     axios.get(`${API_URL}/api/companies`)
@@ -105,6 +140,16 @@ export default function Dashboard() {
   // Apply client-side filtering for the grid.
   const filteredProjects = useMemo(() => {
     let list = [...(projects || [])];
+    // Name search — match against project.name AND course.metadata.title
+    // so titles tweaked only on the course (without renaming the project)
+    // still surface in search results.
+    if (searchQuery) {
+      list = list.filter((p) => {
+        const n = (p.name || '').toLowerCase();
+        const t = ((p.course && p.course.metadata && p.course.metadata.title) || '').toLowerCase();
+        return n.includes(searchQuery) || t.includes(searchQuery);
+      });
+    }
     if (isSuperAdmin && filterCompanyId !== 'all') {
       if (filterCompanyId === '__none__') {
         list = list.filter(p => !p.companyId);
@@ -112,15 +157,8 @@ export default function Dashboard() {
         list = list.filter(p => p.companyId === filterCompanyId);
       }
     }
-    if (filterDateRange !== 'all') {
-      const days = parseInt(filterDateRange, 10);
-      if (Number.isFinite(days) && days > 0) {
-        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-        list = list.filter(p => {
-          const ts = new Date(p.createdAt || p.updatedAt || 0).getTime();
-          return ts >= cutoff;
-        });
-      }
+    if (cutoffMs > 0) {
+      list = list.filter(p => isoToMs(p.createdAt || p.updatedAt) >= cutoffMs);
     }
     // Always sort by most recent first when a recency filter is on, so the
     // "criados recentemente" view feels right.
@@ -130,7 +168,7 @@ export default function Dashboard() {
       return tb - ta;
     });
     return list;
-  }, [projects, isSuperAdmin, filterCompanyId, filterDateRange]);
+  }, [projects, isSuperAdmin, filterCompanyId, cutoffMs, searchQuery]);
 
   useEffect(() => {
     fetchProjects();
@@ -566,57 +604,85 @@ export default function Dashboard() {
         {/* Projects Grid */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <h3 className="text-xl font-semibold">Your Projects</h3>
-          {/* Super-admin only filters: company + recency. Non-super-admin
-              users only see their own company so filters would be noise. */}
-          {isSuperAdmin && (
-            <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-superadmin-filters">
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Empresa:</span>
-                <select
-                  value={filterCompanyId}
-                  onChange={(e) => setFilterCompanyId(e.target.value)}
-                  className="bg-background border border-border rounded-md px-2 py-1.5 text-sm min-w-[160px]"
-                  data-testid="filter-company-select"
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search by project name — available to all roles. */}
+            <div className="relative" data-testid="dashboard-search-wrapper">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar por nome..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="bg-background border border-border rounded-md pl-8 pr-7 py-1.5 text-sm w-56"
+                data-testid="dashboard-search-input"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  data-testid="dashboard-search-clear"
+                  aria-label="Limpar busca"
                 >
-                  <option value="all">Todas as empresas</option>
-                  <option value="__none__">Sem empresa</option>
-                  {companiesList.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Criados:</span>
-                <select
-                  value={filterDateRange}
-                  onChange={(e) => setFilterDateRange(e.target.value)}
-                  className="bg-background border border-border rounded-md px-2 py-1.5 text-sm"
-                  data-testid="filter-date-select"
-                >
-                  <option value="all">Qualquer data</option>
-                  <option value="7">Últimos 7 dias</option>
-                  <option value="30">Últimos 30 dias</option>
-                  <option value="90">Últimos 90 dias</option>
-                </select>
-              </div>
-              {(filterCompanyId !== 'all' || filterDateRange !== 'all') && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  onClick={() => { setFilterCompanyId('all'); setFilterDateRange('all'); }}
-                  data-testid="filter-clear-btn"
-                >
-                  Limpar
-                </Button>
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
-              <Badge variant="outline" className="text-xs" data-testid="filter-count-badge">
-                {filteredProjects.length} de {projects.length}
-              </Badge>
             </div>
-          )}
+            {/* Super-admin only filters: company + recency. Non-super-admin
+                users only see their own company so filters would be noise. */}
+            {isSuperAdmin && (
+              <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-superadmin-filters">
+                <div className="flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Empresa:</span>
+                  <select
+                    value={filterCompanyId}
+                    onChange={(e) => setFilterCompanyId(e.target.value)}
+                    className="bg-background border border-border rounded-md px-2 py-1.5 text-sm min-w-[160px]"
+                    data-testid="filter-company-select"
+                  >
+                    <option value="all">Todas as empresas</option>
+                    <option value="__none__">Sem empresa</option>
+                    {companiesList.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Criados:</span>
+                  <select
+                    value={filterDateRange}
+                    onChange={(e) => setFilterDateRange(e.target.value)}
+                    className="bg-background border border-border rounded-md px-2 py-1.5 text-sm"
+                    data-testid="filter-date-select"
+                  >
+                    <option value="all">Qualquer data</option>
+                    <option value="7">Últimos 7 dias</option>
+                    <option value="30">Últimos 30 dias</option>
+                    <option value="90">Últimos 90 dias</option>
+                  </select>
+                </div>
+                {(filterCompanyId !== 'all' || filterDateRange !== 'all') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => { setFilterCompanyId('all'); setFilterDateRange('all'); }}
+                    data-testid="filter-clear-btn"
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            )}
+            {/* Result count badge — visible to everyone, always shows the
+                current filter ratio so the user knows how many projects
+                were matched vs total available. */}
+            <Badge variant="outline" className="text-xs" data-testid="filter-count-badge">
+              {filteredProjects.length} de {projects.length}
+            </Badge>
+          </div>
         </div>
 
         {loading && projects.length === 0 ? (
