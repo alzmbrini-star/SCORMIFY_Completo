@@ -38,7 +38,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 import numpy as np
 import imageio
 import imageio_ffmpeg  # noqa: F401
@@ -861,6 +861,186 @@ def _render_frame_writing(
     return img
 
 
+# ---------------------------------------------------------------------------
+# Eraser-at-end animation
+# ---------------------------------------------------------------------------
+#
+# Goal: simulate a classroom-style felt eraser sweeping the text away in
+# horizontal stripes (left → right, top → bottom). This is appended AFTER
+# the writing + dwell phases when `erase_at_end=True`. The result is a
+# self-contained "write → pause → erase" clip the author can chain on the
+# Timeline with multiple Whiteboard videos without seeing the prior text.
+
+ERASER_COLOR = (110, 110, 115)       # dark gray "felt" body
+ERASER_HIGHLIGHT = (170, 170, 175)   # subtle top edge highlight
+
+
+def _compute_text_band(chars: list, font_size: int) -> tuple[int, int]:
+    """Return (y_top, y_bottom) of the text area to erase, in canvas coords."""
+    if not chars:
+        return MARGIN_Y, MARGIN_Y + int(font_size * 1.2)
+    y_top = min(int(c["y"]) for c in chars)
+    line_h = int(font_size * 1.2)
+    y_bottom = max(int(c["y"]) + line_h for c in chars)
+    # Add a bit of padding for ascenders/descenders.
+    return max(0, y_top - 8), min(CANVAS_H, y_bottom + 8)
+
+
+def _render_final_text_layer(
+    chars: list,
+    glyph_cache: dict,
+    transparent: bool,
+) -> Image.Image:
+    """Render the "all chars fully drawn" image WITHOUT title/underline/hand.
+    Used as a baseline that the erase animation progressively masks away."""
+    img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    for c in chars:
+        ch, cx, cy = c["ch"], c["x"], c["y"]
+        color = c.get("color", DEFAULT_INK_COLOR)
+        bold = c.get("bold", False)
+        underline = c.get("underline", False)
+        entry = glyph_cache.get(ch)
+        if entry is None:
+            continue
+        full = _make_glyph_image(entry, len(entry["reveal_masks"]) - 1, color, bold)
+        img.paste(full, (cx + entry["left"], cy + entry["top"]), full)
+        if underline:
+            char_w = int(entry["width"] + entry["left"]) + (1 if bold else 0)
+            thickness = max(2, int(font_size_from_entry(entry) / 28))
+            uy = cy + int(font_size_from_entry(entry) * 0.92)
+            d = ImageDraw.Draw(img)
+            d.line([(cx, uy), (cx + char_w, uy)], fill=color, width=thickness)
+    return img
+
+
+def font_size_from_entry(entry: dict) -> int:
+    """Best-effort font-size estimate from a glyph entry (its mask height)."""
+    # `reveal_masks[-1]` is the final-shape glyph; its height ≈ font size.
+    masks = entry.get("reveal_masks") or []
+    if masks:
+        return masks[-1].height
+    return 80  # safe default
+
+
+def _build_erase_schedule(
+    text_band: tuple[int, int],
+    font_size: int,
+    chars_per_second: float,
+) -> tuple[list[tuple[int, int]], int, int, int]:
+    """Compute the eraser geometry and per-stripe frame count.
+
+    Returns:
+      stripe_bounds: list of (y_top, y_bottom) for each stripe (top→bottom)
+      eraser_w: width in px of the eraser block
+      eraser_h: height in px of the eraser block (= stripe height)
+      frames_per_stripe: how many animation frames per horizontal pass
+    """
+    y_top, y_bottom = text_band
+    band_h = max(1, y_bottom - y_top)
+    eraser_h = max(60, int(font_size * 1.05))
+    num_stripes = max(1, (band_h + eraser_h - 1) // eraser_h)
+    # Distribute stripes evenly inside the band so the last one doesn't overshoot.
+    stripe_h = band_h // num_stripes
+    stripe_bounds: list[tuple[int, int]] = []
+    for i in range(num_stripes):
+        y0 = y_top + i * stripe_h
+        y1 = y_top + (i + 1) * stripe_h if i < num_stripes - 1 else y_bottom
+        stripe_bounds.append((y0, y1))
+    eraser_w = max(140, int(font_size * 2.4))
+    # Speed: ~2.5x faster than writing. For a 1920px sweep we want ~0.5s
+    # per stripe at typical writing speeds, clamped to a usable range.
+    erase_cps = max(2.0, chars_per_second * 2.5)
+    # Approximate "chars" per stripe to keep timing intuitive.
+    chars_per_stripe = max(8, int((CANVAS_W - 2 * MARGIN_X) / max(1, font_size * 0.6)))
+    stripe_seconds = max(0.35, min(1.2, chars_per_stripe / erase_cps))
+    frames_per_stripe = max(8, int(round(stripe_seconds * FPS)))
+    return stripe_bounds, eraser_w, eraser_h, frames_per_stripe
+
+
+def _render_frame_erasing(
+    erase_step: int,
+    total_erase_steps_per_stripe: int,
+    stripe_bounds: list[tuple[int, int]],
+    eraser_w: int,
+    final_text_layer: Image.Image,
+    title: Optional[str],
+    title_font,
+    transparent: bool,
+) -> Image.Image:
+    """Render a single erase-phase frame at `erase_step` (global step index
+    across all stripes). The eraser sweeps left→right across the current
+    stripe; once it exits the right edge the next stripe begins."""
+    if transparent:
+        img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    else:
+        img = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+
+    # Title stays visible during erase.
+    if title and title_font:
+        bb = title_font.getbbox(title)
+        tw = bb[2] - bb[0]
+        d.text(((CANVAS_W - tw) // 2, 40), title, font=title_font, fill=(40, 60, 140))
+        d.line(
+            [(MARGIN_X, 130), (CANVAS_W - MARGIN_X, 130)],
+            fill=(120, 140, 200), width=3,
+        )
+
+    stripe_idx = min(len(stripe_bounds) - 1, erase_step // total_erase_steps_per_stripe)
+    step_in_stripe = erase_step - stripe_idx * total_erase_steps_per_stripe
+    sweep = step_in_stripe / max(1, total_erase_steps_per_stripe - 1)
+    sweep = min(1.0, max(0.0, sweep))
+
+    # Build a mask of where the original text is STILL visible.
+    # Mask == 255 keeps pixels, 0 hides them.
+    mask = Image.new("L", (CANVAS_W, CANVAS_H), 255)
+    md = ImageDraw.Draw(mask)
+    # Past stripes — fully erased.
+    for i in range(stripe_idx):
+        y0, y1 = stripe_bounds[i]
+        md.rectangle([(0, y0), (CANVAS_W, y1)], fill=0)
+    # Current stripe — erase from left edge up to where the eraser passed.
+    y0, y1 = stripe_bounds[stripe_idx]
+    sweep_x_right = int(
+        MARGIN_X + sweep * (CANVAS_W - 2 * MARGIN_X)
+    )
+    if sweep_x_right > 0:
+        md.rectangle([(0, y0), (sweep_x_right, y1)], fill=0)
+
+    # Composite the masked final text onto our background.
+    if transparent:
+        text_copy = final_text_layer.copy()
+        alpha = text_copy.split()[3]
+        new_alpha = ImageChops.multiply(alpha, mask)
+        text_copy.putalpha(new_alpha)
+        img = Image.alpha_composite(img, text_copy)
+        d = ImageDraw.Draw(img)
+    else:
+        # On white BG: paste using mask as the "where to keep" mask.
+        # We need to flatten RGBA text onto white first, then paste with mask.
+        flat = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
+        flat.paste(final_text_layer, (0, 0), final_text_layer)
+        img.paste(flat, (0, 0), mask)
+        d = ImageDraw.Draw(img)
+
+    # Draw the eraser block at the leading edge of the sweep.
+    # The eraser sits to the right of the already-erased zone, advancing.
+    ex_left = max(MARGIN_X, sweep_x_right - eraser_w // 2)
+    ex_right = min(CANVAS_W - MARGIN_X, ex_left + eraser_w)
+    ey_top = y0
+    ey_bot = y1
+    d.rounded_rectangle(
+        [(ex_left, ey_top), (ex_right, ey_bot)],
+        radius=8, fill=ERASER_COLOR,
+    )
+    # Thin highlight along the top of the eraser for a subtle 3D feel.
+    d.rectangle(
+        [(ex_left + 4, ey_top + 4), (ex_right - 4, ey_top + 10)],
+        fill=ERASER_HIGHLIGHT,
+    )
+    return img
+
+
 async def render_whiteboard_video(
     text: str,
     title: Optional[str] = None,
@@ -871,6 +1051,7 @@ async def render_whiteboard_video(
     transparent: bool = False,
     ink_color: Optional[tuple[int, int, int]] = None,
     text_html: Optional[str] = None,
+    erase_at_end: bool = False,
 ) -> tuple[str, dict]:
     """Synthesize a whiteboard video from `text` (or rich `text_html`).
 
@@ -948,6 +1129,32 @@ async def render_whiteboard_video(
     dwell_frames = int(FPS * dwell_end_seconds)
     total_frames = total_anim_frames + dwell_frames
 
+    # Optional erase-at-end phase: append frames where a felt-eraser
+    # block sweeps the text away in horizontal stripes. Pre-render the
+    # final text layer once so the erase frames just composite a masked
+    # version of it.
+    erase_meta: dict = {}
+    final_text_layer = None
+    stripe_bounds: list[tuple[int, int]] = []
+    eraser_w = 0
+    frames_per_stripe = 0
+    total_erase_frames = 0
+    if erase_at_end:
+        text_band = _compute_text_band(chars, font_size)
+        stripe_bounds, eraser_w, _eraser_h, frames_per_stripe = _build_erase_schedule(
+            text_band, font_size, chars_per_second,
+        )
+        total_erase_frames = len(stripe_bounds) * frames_per_stripe
+        # Build the final image to be masked. We render it without title /
+        # underline / hand — those are redrawn each erase frame.
+        final_text_layer = _render_final_text_layer(chars, glyph_cache, transparent)
+        erase_meta = {
+            "eraseStripes": len(stripe_bounds),
+            "eraseFrames": total_erase_frames,
+            "eraseDuration": total_erase_frames / FPS,
+        }
+    total_frames_with_erase = total_frames + total_erase_frames
+
     video_id = f"wb_{uuid.uuid4().hex[:12]}"
     if transparent:
         # Transparent output: animated PNG. VP9-alpha and VP8-alpha
@@ -965,6 +1172,7 @@ async def render_whiteboard_video(
             total_frames, total_anim_frames, total_substeps,
             chars, glyph_cache, char_substeps, char_step_starts,
             hand_img, title, title_font,
+            final_text_layer, stripe_bounds, eraser_w, frames_per_stripe,
         )
         info_format = "apng"
     else:
@@ -986,6 +1194,7 @@ async def render_whiteboard_video(
                 writer, total_frames, total_anim_frames, total_substeps,
                 chars, glyph_cache, char_substeps, char_step_starts,
                 hand_img, title, title_font, False,
+                final_text_layer, stripe_bounds, eraser_w, frames_per_stripe,
             )
         finally:
             writer.close()
@@ -993,17 +1202,20 @@ async def render_whiteboard_video(
 
     file_size = out_path.stat().st_size
     logger.info(
-        "whiteboard: rendered %s.%s (%d frames, %.1fs, %.1f KB, transparent=%s)",
-        video_id, ext, total_frames, total_frames / FPS, file_size / 1024, transparent,
+        "whiteboard: rendered %s.%s (%d frames write+dwell, %d erase, %.1fs total, %.1f KB, transparent=%s)",
+        video_id, ext, total_frames, total_erase_frames,
+        total_frames_with_erase / FPS, file_size / 1024, transparent,
     )
     return f"/api/whiteboard/file/{video_id}.{ext}", {
         "videoId": video_id,
-        "duration": total_frames / FPS,
-        "frames": total_frames,
+        "duration": total_frames_with_erase / FPS,
+        "frames": total_frames_with_erase,
         "totalChars": total,
         "fileSize": file_size,
         "transparent": transparent,
         "format": info_format,
+        "eraseAtEnd": bool(erase_at_end),
+        **erase_meta,
     }
 
 
@@ -1012,11 +1224,22 @@ def _write_apng_via_ffmpeg(
     total_frames: int, total_anim_frames: int, total_substeps: int,
     chars, glyph_cache, char_substeps, char_step_starts,
     hand_img, title: Optional[str], title_font,
+    final_text_layer: Optional[Image.Image] = None,
+    stripe_bounds: Optional[list] = None,
+    eraser_w: int = 0,
+    frames_per_stripe: int = 0,
 ) -> None:
     """Encode an animated PNG by piping raw RGBA frames into ffmpeg's
     APNG encoder. APNG preserves the alpha channel losslessly — the only
-    format we can reliably produce with transparency in this env."""
+    format we can reliably produce with transparency in this env.
+
+    When `final_text_layer` + `stripe_bounds` are provided, an erase
+    animation is appended after the write+dwell phase."""
     import subprocess
+    total_erase_frames = (
+        len(stripe_bounds) * frames_per_stripe if stripe_bounds else 0
+    )
+    grand_total = total_frames + total_erase_frames
     proc = subprocess.Popen(
         [ffmpeg_bin, "-y", "-loglevel", "error",
          "-f", "rawvideo", "-pix_fmt", "rgba",
@@ -1028,20 +1251,29 @@ def _write_apng_via_ffmpeg(
         stdin=subprocess.PIPE,
     )
     try:
-        for f in range(total_frames):
-            if f < total_anim_frames:
-                step_idx = min(
-                    total_substeps - 1,
-                    int(f * total_substeps / max(1, total_anim_frames)),
+        for f in range(grand_total):
+            if f < total_frames:
+                # Write + dwell phase
+                if f < total_anim_frames:
+                    step_idx = min(
+                        total_substeps - 1,
+                        int(f * total_substeps / max(1, total_anim_frames)),
+                    )
+                else:
+                    step_idx = total_substeps - 1
+                frame = _render_frame_writing(
+                    step_idx, chars, glyph_cache,
+                    char_substeps, char_step_starts, hand_img,
+                    title=title, title_font=title_font,
+                    transparent=True,
                 )
             else:
-                step_idx = total_substeps - 1
-            frame = _render_frame_writing(
-                step_idx, chars, glyph_cache,
-                char_substeps, char_step_starts, hand_img,
-                title=title, title_font=title_font,
-                transparent=True,
-            )
+                # Erase phase
+                erase_step = f - total_frames
+                frame = _render_frame_erasing(
+                    erase_step, frames_per_stripe, stripe_bounds, eraser_w,
+                    final_text_layer, title, title_font, transparent=True,
+                )
             arr = np.asarray(frame, dtype=np.uint8)
             # Ensure 4-channel RGBA.
             if arr.shape[-1] == 3:
@@ -1062,22 +1294,40 @@ def _write_all_frames(
     writer, total_frames: int, total_anim_frames: int, total_substeps: int,
     chars, glyph_cache, char_substeps, char_step_starts,
     hand_img, title: Optional[str], title_font, transparent: bool = False,
+    final_text_layer: Optional[Image.Image] = None,
+    stripe_bounds: Optional[list] = None,
+    eraser_w: int = 0,
+    frames_per_stripe: int = 0,
 ) -> None:
-    """Synchronous hot loop, offloaded via asyncio.to_thread."""
-    for f in range(total_frames):
-        if f < total_anim_frames:
-            step_idx = min(
-                total_substeps - 1,
-                int(f * total_substeps / max(1, total_anim_frames)),
+    """Synchronous hot loop, offloaded via asyncio.to_thread.
+
+    When `final_text_layer` + `stripe_bounds` are provided, the loop also
+    emits an erase animation after the writing+dwell phase."""
+    total_erase_frames = (
+        len(stripe_bounds) * frames_per_stripe if stripe_bounds else 0
+    )
+    grand_total = total_frames + total_erase_frames
+    for f in range(grand_total):
+        if f < total_frames:
+            if f < total_anim_frames:
+                step_idx = min(
+                    total_substeps - 1,
+                    int(f * total_substeps / max(1, total_anim_frames)),
+                )
+            else:
+                step_idx = total_substeps - 1
+            frame = _render_frame_writing(
+                step_idx, chars, glyph_cache,
+                char_substeps, char_step_starts, hand_img,
+                title=title, title_font=title_font,
+                transparent=transparent,
             )
         else:
-            step_idx = total_substeps - 1
-        frame = _render_frame_writing(
-            step_idx, chars, glyph_cache,
-            char_substeps, char_step_starts, hand_img,
-            title=title, title_font=title_font,
-            transparent=transparent,
-        )
+            erase_step = f - total_frames
+            frame = _render_frame_erasing(
+                erase_step, frames_per_stripe, stripe_bounds, eraser_w,
+                final_text_layer, title, title_font, transparent=transparent,
+            )
         # imageio's FFMPEG writer accepts both RGB and RGBA arrays —
         # when yuva420p is the pixel format, RGBA arrays carry the
         # alpha plane through to the encoder.

@@ -1,6 +1,34 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Whiteboard "Apagar ao final" — eraser sweep)
+
+### Pedido do usuário
+- Encadear vários whiteboards no Timeline sem o texto anterior ficar na tela. Solução: cada vídeo de whiteboard escreve, segura 1.5s, e depois APAGA com um apagador estilo lousa antes do próximo começar.
+
+### Implementação
+- **Backend renderer** (`whiteboard_renderer.py`):
+  - Novo parâmetro `erase_at_end: bool = False`.
+  - Quando ligado, calcula a bounding box do texto (`_compute_text_band`), divide em stripes horizontais (altura ≈ 1.05 × font_size), agenda frames por stripe (velocidade ≈ 2.5× a da escrita).
+  - Pré-renderiza uma única camada com TODOS os chars desenhados (`_render_final_text_layer`) — depois a máscara progressiva simplesmente esconde a parte "já apagada" (eficiente: não re-renderiza glyphs).
+  - `_render_frame_erasing`: para cada frame de apagamento, monta um RGBA com o background, título/sublinhado, máscara progressiva (stripes finalizadas + stripe atual até a posição do apagador) e desenha o bloco retangular cinza (`ERASER_COLOR=(110,110,115)`) com leve highlight `(170,170,175)` no topo para parecer um apagador de feltro.
+  - Tanto APNG (`-c:v apng -plays 1`) quanto MP4 (libx264) suportam o fluxo write→dwell→erase de forma contínua.
+  - Metadata expandida: `eraseAtEnd`, `eraseStripes`, `eraseFrames`, `eraseDuration`.
+- **API** (`routes/whiteboard.py`): novo campo `eraseAtEnd: Optional[bool]` no `WhiteboardGenerateRequest`, passado direto para o renderer.
+- **Frontend** (`WhiteboardDialog.jsx`): novo `<Switch>` "Apagar ao final" com ícone `<Eraser>` da lucide-react, abaixo do toggle de transparente. Estado `eraseAtEnd` enviado no payload.
+
+### Teste manual (verificado por análise de frame com IA visual)
+- MP4 opaco: 48 chars + dwell + 2 stripes (72 frames apagador) → 12.3s totais ✓
+- APNG transparente: mesmo fluxo, 64 frames apagador ✓
+- Frame inspecionado durante a fase de apagamento: bloco cinza horizontal visível, deslizando esquerda→direita, texto sendo coberto progressivamente. ✓
+
+### Uso esperado
+1. Autor escreve "Frase 1" + liga "Apagar ao final" → gera Vídeo A
+2. Cria novo whiteboard, "Frase 2" + apagar → gera Vídeo B
+3. Encadeia A e B no Timeline. Quando Vídeo A acaba, a tela está limpa. Vídeo B começa do zero. Sem sobreposição visual.
+
+
+
 ## 2026-02-XX (Feature: HTML export também embarca Whiteboard)
 
 ### Pedido

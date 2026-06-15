@@ -50,6 +50,7 @@ export default function WhiteboardDialog({
   const [fontSize, setFontSize] = useState(96);
   const [fontFamily, setFontFamily] = useState('caveat');
   const [transparent, setTransparent] = useState(false);
+  const [eraseAtEnd, setEraseAtEnd] = useState(false);
   const [fonts, setFonts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -189,6 +190,7 @@ export default function WhiteboardDialog({
           charsPerSecond: Number(speed) || 6,
           fontFamily: fontFamily || null,
           transparent: Boolean(transparent),
+          eraseAtEnd: Boolean(eraseAtEnd),
           inkColor: inkColor || null,
           projectId,
           slideId,
@@ -563,6 +565,25 @@ export default function WhiteboardDialog({
               data-testid="whiteboard-transparent-toggle"
               checked={transparent}
               onCheckedChange={setTransparent}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3 border border-slate-700 rounded-md bg-slate-900/30">
+            <div className="flex-1 pr-3">
+              <Label htmlFor="wb-erase-at-end" className="flex items-center gap-2 cursor-pointer">
+                <Eraser className="w-4 h-4" /> Apagar ao final
+              </Label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Adiciona um <strong>apagador estilo lousa</strong> passando
+                horizontalmente após a escrita — ideal para encadear vários
+                whiteboards no Timeline sem que o texto anterior fique na tela.
+              </p>
+            </div>
+            <Switch
+              id="wb-erase-at-end"
+              data-testid="whiteboard-erase-at-end-toggle"
+              checked={eraseAtEnd}
+              onCheckedChange={setEraseAtEnd}
             />
           </div>
 

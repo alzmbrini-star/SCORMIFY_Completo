@@ -49,6 +49,11 @@ class WhiteboardGenerateRequest(BaseModel):
     #   spans (and <font color=...>) override the default per segment.
     inkColor: Optional[str] = Field(default=None, max_length=20)
     textHtml: Optional[str] = Field(default=None, max_length=8000)
+    # When true, the generated video appends an eraser sweep after the
+    # writing finishes — simulating a felt eraser wiping the board. Useful
+    # for chaining multiple Whiteboard clips on the Timeline so the prior
+    # text disappears before the next one starts writing.
+    eraseAtEnd: Optional[bool] = Field(default=False)
     # Optional binding — when both are provided, the generated videoUrl
     # is written to the matching slide element so the author doesn't have
     # to manually paste it. When omitted, the URL is just returned.
@@ -119,6 +124,7 @@ async def _run_whiteboard_job(
             transparent=bool(payload.transparent),
             ink_color=ink_rgb,
             text_html=payload.textHtml or None,
+            erase_at_end=bool(payload.eraseAtEnd),
         )
     except ValueError as e:
         await update_job(job_id, {
