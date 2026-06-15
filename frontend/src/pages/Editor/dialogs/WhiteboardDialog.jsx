@@ -14,7 +14,7 @@ import { Switch } from '../../../components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../../../components/ui/select';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
 
@@ -43,6 +43,9 @@ export default function WhiteboardDialog({
   const [transparent, setTransparent] = useState(false);
   const [fonts, setFonts] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [showAi, setShowAi] = useState(false);
   const [result, setResult] = useState(null);  // { videoUrl, format }
 
   // Fetch the available fonts on dialog open.
@@ -53,6 +56,34 @@ export default function WhiteboardDialog({
       .then((d) => setFonts(d.fonts || []))
       .catch(() => setFonts([]));
   }, [open]);
+
+  const handleGenerateAi = async () => {
+    setAiBusy(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/whiteboard/generate-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userPrompt: aiPrompt.trim() || null,
+          projectId,
+          slideId,
+          maxChars: 280,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setText(data.text || '');
+      toast.success(`Texto gerado pela IA (${data.charsUsed} caracteres)`);
+      setShowAi(false);
+    } catch (e) {
+      toast.error(e.message || 'Falha ao gerar texto com IA');
+    }
+    setAiBusy(false);
+  };
 
   const handleGenerate = async () => {
     if (!text.trim()) {
@@ -118,7 +149,54 @@ export default function WhiteboardDialog({
           </div>
 
           <div>
-            <Label htmlFor="wb-text">Texto a escrever</Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label htmlFor="wb-text">Texto a escrever</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAi((v) => !v)}
+                data-testid="whiteboard-ai-toggle"
+                className="h-7 px-2 text-xs text-violet-300 hover:text-violet-200 hover:bg-violet-500/10"
+              >
+                <Wand2 className="w-3 h-3 mr-1" />
+                {showAi ? 'Ocultar IA' : 'Gerar com IA'}
+              </Button>
+            </div>
+            {showAi && (
+              <div className="mb-2 p-3 border border-violet-700/40 rounded-md bg-violet-500/5 space-y-2">
+                <Label htmlFor="wb-ai-prompt" className="text-xs text-violet-200">
+                  Instrução opcional (a IA já usa o título e conteúdo do slide
+                  como contexto)
+                </Label>
+                <Input
+                  id="wb-ai-prompt"
+                  data-testid="whiteboard-ai-prompt-input"
+                  placeholder="Ex.: tom motivacional, 2 linhas, focar nos benefícios"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  maxLength={500}
+                  disabled={aiBusy}
+                />
+                <Button
+                  type="button"
+                  onClick={handleGenerateAi}
+                  disabled={aiBusy}
+                  size="sm"
+                  data-testid="whiteboard-ai-run-btn"
+                  className="bg-violet-600 hover:bg-violet-700 w-full"
+                >
+                  {aiBusy ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando com GPT-4o...</>
+                  ) : (
+                    <><Wand2 className="w-4 h-4 mr-2" /> Gerar texto agora</>
+                  )}
+                </Button>
+                <p className="text-[10px] text-violet-200/70">
+                  O texto gerado substituirá o conteúdo atual do campo abaixo.
+                </p>
+              </div>
+            )}
             <Textarea
               id="wb-text"
               data-testid="whiteboard-text-input"

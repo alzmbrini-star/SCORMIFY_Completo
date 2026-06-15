@@ -200,3 +200,150 @@ async def whiteboard_health():
         info["ffmpegOk"] = False
         info["ffmpegError"] = str(e)
     return info
+
+
+
+# =====================================================================
+# AI-assisted text generation
+# =====================================================================
+
+class WhiteboardAITextRequest(BaseModel):
+    # Optional free-form instruction from the author (tone, focus, etc.)
+    userPrompt: Optional[str] = Field(default=None, max_length=500)
+    # Slide binding — when present we build a rich context from the slide.
+    projectId: Optional[str] = None
+    slideId: Optional[str] = None
+    # Hard cap on the generated text length (suits the whiteboard's
+    # ~300-char recommendation).
+    maxChars: int = Field(default=280, ge=80, le=600)
+
+
+def _extract_slide_context(slide: dict) -> str:
+    """Build a compact text context from a slide for the AI prompt.
+
+    Includes the slide title, any text/HTML element content, narration
+    script (if present), and notes. Strips HTML tags for clarity."""
+    import re
+    parts: list[str] = []
+    title = (slide.get("title") or "").strip()
+    if title:
+        parts.append(f"Título do slide: {title}")
+    elements = slide.get("elements") or []
+    body_chunks: list[str] = []
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        if el.get("type") in ("text", "html"):
+            raw = el.get("content") or el.get("htmlContent") or ""
+            if not raw:
+                continue
+            clean = re.sub(r"<[^>]+>", " ", raw)
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean:
+                body_chunks.append(clean)
+    if body_chunks:
+        parts.append("Conteúdo atual do slide:\n" + "\n".join(body_chunks)[:1500])
+    narration = (slide.get("narration") or "").strip()
+    if narration:
+        parts.append(f"Roteiro de narração: {narration[:600]}")
+    notes = (slide.get("notes") or "").strip()
+    if notes:
+        parts.append(f"Notas do apresentador: {notes[:600]}")
+    extracted = (slide.get("extractedText") or "").strip()
+    if extracted and extracted not in (narration + " " + " ".join(body_chunks)):
+        parts.append(f"Texto extraído (PPT): {extracted[:600]}")
+    return "\n\n".join(parts).strip()
+
+
+@router.post("/generate-text")
+async def generate_whiteboard_text(
+    payload: WhiteboardAITextRequest,
+    user: dict = Depends(require_auth),
+):
+    """Generate a short, didactic text suitable for the whiteboard
+    animation. Uses the slide's title/content/narration as automatic
+    context, plus an optional free-form instruction from the author.
+
+    Output is plain text (no markdown, no quotes), ≤ maxChars, in the
+    same language as the slide. Returns: { text: str, charsUsed: int }.
+    """
+    import os
+    from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(500, "EMERGENT_LLM_KEY not configured")
+
+    # Build context from the slide (if provided).
+    slide_context = ""
+    if payload.projectId and payload.slideId:
+        project = await db.projects.find_one({"id": payload.projectId}, {"_id": 0})
+        if project:
+            slides = (project.get("course") or {}).get("slides") or []
+            slide = next((s for s in slides if s.get("id") == payload.slideId), None)
+            if slide:
+                slide_context = _extract_slide_context(slide)
+
+    user_prompt = (payload.userPrompt or "").strip()
+    max_chars = payload.maxChars
+
+    # If we have neither slide context nor a user prompt, there's
+    # nothing to ground the generation on — surface the problem early.
+    if not slide_context and not user_prompt:
+        raise HTTPException(
+            400,
+            "Forneça uma instrução (userPrompt) ou um slide com conteúdo.",
+        )
+
+    sys_msg = (
+        "Você é um redator pedagógico. Sua tarefa é criar um texto CURTO "
+        "e didático para ser escrito à mão em uma animação de quadro branco. "
+        "REGRAS OBRIGATÓRIAS:\n"
+        f"- Máximo {max_chars} caracteres (conte inclusive espaços).\n"
+        "- Texto direto, claro e impactante. Sem markdown, sem aspas, sem "
+        "listas com bullets — apenas texto puro, no idioma do contexto.\n"
+        "- Pode usar quebras de linha (\\n) para destacar frases-chave.\n"
+        "- Não inclua o título do slide repetido; o título já será "
+        "renderizado separadamente.\n"
+        "- Responda APENAS com o texto final, sem preâmbulo nem explicação."
+    )
+
+    prompt_parts: list[str] = []
+    if slide_context:
+        prompt_parts.append("CONTEXTO DO SLIDE:\n" + slide_context)
+    if user_prompt:
+        prompt_parts.append(
+            "INSTRUÇÃO ADICIONAL DO AUTOR:\n" + user_prompt
+        )
+    prompt_parts.append(
+        f"Gere agora o texto para o whiteboard (≤ {max_chars} caracteres):"
+    )
+    prompt = "\n\n".join(prompt_parts)
+
+    try:
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"wb-text-{payload.slideId or 'free'}",
+            system_message=sys_msg,
+        ).with_model("openai", "gpt-4o")
+        resp = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:  # noqa: BLE001
+        logger.exception("whiteboard ai text gen failed: %s", e)
+        raise HTTPException(502, f"falha ao gerar texto: {e}")
+
+    text = str(resp or "").strip()
+    # Strip wrapping quotes/backticks if the model added them.
+    for wrapper in ('"', "'", "`"):
+        if text.startswith(wrapper) and text.endswith(wrapper):
+            text = text[1:-1].strip()
+    # Convert any literal "\n" the model emitted into real newlines —
+    # the renderer respects \n as line breaks but ignores the literal
+    # 2-char sequence.
+    text = text.replace("\\n", "\n").replace("\\r", "")
+    # Collapse runs of blank lines and strip per-line whitespace.
+    text = "\n".join(line.strip() for line in text.split("\n") if line.strip())
+    # Hard cap as safety net.
+    if len(text) > max_chars:
+        text = text[: max_chars - 1].rstrip() + "…"
+
+    return {"text": text, "charsUsed": len(text)}

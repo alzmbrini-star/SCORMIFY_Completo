@@ -1,6 +1,25 @@
 # Changelog
 
 
+## 2026-02-XX (Whiteboard: Gerador de texto com IA — GPT-4o)
+
+### Feature: Texto do whiteboard gerado por IA com contexto do slide
+- **Botão "Gerar com IA"** no `WhiteboardDialog`: expande um painel violeta com um campo opcional de instrução livre e um botão "Gerar texto agora". O texto retornado preenche o textarea principal.
+- **Híbrido** (slide + prompt):
+  - Extrai automaticamente do slide: `title`, conteúdo de `elements` (texto/HTML, com tags strippadas), `narration`, `notes`, `extractedText` (PPT).
+  - Instrução livre opcional do autor (ex: "tom motivacional", "incluir data X"). Pode ser deixada vazia se o contexto do slide é suficiente.
+- **Modelo**: GPT-4o via Emergent LLM Key (`emergentintegrations.llm.chat.LlmChat`), seguindo o padrão já usado em `density_suggester.py`.
+- **Post-processing**:
+  - Remove aspas/backticks envolventes que o modelo às vezes adiciona.
+  - Converte `\n` literal (que GPT às vezes emite como 2 chars) em quebra real, respeitada pelo renderer.
+  - Hard-cap em `maxChars` (default 280, range 80..600) com elipse no fim.
+  - Strip por linha + colapso de linhas vazias.
+- **Endpoint**: `POST /api/whiteboard/generate-text` — payload `{userPrompt?, projectId?, slideId?, maxChars}` → `{text, charsUsed}`.
+- **Validação**: 400 se nem userPrompt nem slide content estão presentes (evita "geração no escuro").
+- **Aplicado em**: `routes/whiteboard.py` (endpoint + extrator de contexto), `pages/Editor/dialogs/WhiteboardDialog.jsx` (UI expansível com Wand2 icon).
+
+
+
 ## 2026-02-XX (Whiteboard: Fundo transparente + multi-fontes + tamanhos grandes)
 
 ### Feature: Fundo transparente via APNG animado
