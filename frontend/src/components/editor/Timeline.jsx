@@ -346,6 +346,26 @@ const Timeline = ({
     }
   };
 
+  // Mirror the labelling logic from SortableLayerItem so the Timeline rows
+  // show the SAME friendly name the author sees in the Layers panel — e.g.
+  // a whiteboard with Título "Aula 1" reads "Aula 1" in both places instead
+  // of the generic "Image 2". Falls back to a localized type label + index
+  // when no `name` is set (legacy elements, plain images, etc.).
+  const getElementLabel = (element, index) => {
+    const userName = element.name && String(element.name).trim();
+    if (userName) return userName;
+    const fallback =
+      element.type === 'button' ? (element.buttonText || 'Botão') :
+      element.type === 'html' ? 'HTML' :
+      element.type === 'flipbook' ? 'Flipbook' :
+      element.type === 'video' ? 'Vídeo' :
+      element.type === 'image' ? 'Imagem' :
+      element.type === 'text' ? 'Texto' :
+      element.type === 'shape' ? 'Forma' :
+      element.type;
+    return `${fallback} ${index + 1}`;
+  };
+
   // Update slide duration
   const handleDurationChange = (e) => {
     const newDuration = parseFloat(e.target.value) || 5;
@@ -479,8 +499,8 @@ const Timeline = ({
             <div key={element.id} className={`flex items-center px-2 border-b border-border/50 ${expanded ? 'h-14' : 'h-10'}`}>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
                 {getElementIcon(element.type)}
-                <span className="truncate capitalize">
-                  {element.type} {index + 1}
+                <span className="truncate" title={getElementLabel(element, index)}>
+                  {getElementLabel(element, index)}
                 </span>
               </div>
             </div>
@@ -611,7 +631,7 @@ const Timeline = ({
           })}
 
           {/* Element Tracks */}
-          {elements.map((element) => {
+          {elements.map((element, elemIndex) => {
             const startTime = element.startTime || 0;
             const endTime = element.endTime ?? duration;
             const startPercent = (startTime / duration) * 100;
@@ -621,6 +641,13 @@ const Timeline = ({
             const trackHeight = expanded ? 'h-14' : 'h-10';
             const clipHeight = expanded ? 'h-10' : 'h-7';
             const clipTop = expanded ? 'top-2' : 'top-1.5';
+            // For text elements we prefer the actual typed content as the
+            // clip caption (it's more informative). Everything else falls
+            // back to the shared Layers label so Whiteboard "Aula 1"
+            // shows up on the clip too.
+            const clipLabel = element.type === 'text'
+              ? (element.content?.slice(0, 16) || getElementLabel(element, elemIndex))
+              : getElementLabel(element, elemIndex);
 
             return (
               <div key={element.id} className={`${trackHeight} relative border-b border-border/30`}>
@@ -651,8 +678,8 @@ const Timeline = ({
                       {/* Content */}
                       <div className="flex-1 flex items-center px-4 min-w-0">
                         {getElementIcon(element.type)}
-                        <span className="text-[10px] ml-1 truncate">
-                          {element.content?.slice(0, 10) || element.type}
+                        <span className="text-[10px] ml-1 truncate" title={clipLabel}>
+                          {clipLabel}
                         </span>
                       </div>
 
