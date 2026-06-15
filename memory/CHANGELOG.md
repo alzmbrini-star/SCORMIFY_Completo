@@ -8,13 +8,18 @@
 - **Output**: PNG 144×159 (`hand.png`), paleta restrita (preto/grafite/cinza metálico).
 - **Renderer**: `hand_target_h` ajustado de 3.0× para 2.2× do `font_size` para proporção mais elegante. Offsets do tip ajustados para alinhamento preciso no traço.
 
-### Feature: Animação de escrita coluna-a-coluna (acompanha o traço)
-- **Antes**: a caneta pulava letra a letra; o traço inteiro de um caractere aparecia de uma vez.
-- **Agora**: cada letra é revelada **coluna por coluna da esquerda para a direita**, e a ponta da caneta acompanha o **centroide vertical da tinta** em cada coluna. Resultado: a caneta visualmente "desliza sobre o traço" enquanto a letra surge.
-- **Implementação**: pré-cálculo por glifo de um cache `(glyph_rgba, trace, left, top)` onde `trace[col] = (dx, dy)` é o centroide da tinta na coluna `col`. Animação usa sub-passos por caractere (4–16, baseado em `font_size`).
-- **Schedule**: o `chars_per_second` continua sendo o controle de velocidade percebida; os sub-passos só aumentam a resolução temporal sem mexer no timing global.
-- **Performance**: arquivo MP4 cresce ~15-25% por mais frames intermediários, mas ainda < 40 KB para vídeos curtos. Cache de glifos por caractere único garante O(1) por caractere repetido.
-- **Aplicado em**: `services/whiteboard_renderer.py` (reescrito), `assets/whiteboard/_generate_hand.py` (novo design).
+### Feature: Animação de escrita seguindo o ESQUELETO da letra (Zhang-Suen)
+- **Problema da versão anterior**: a caneta usava varredura coluna-a-coluna com centroide vertical da tinta. Em letras com múltiplos traços (H, T, F), a caneta "ficava no vazio" entre os traços (média de duas regiões de tinta = espaço em branco).
+- **Solução**: implementado **Zhang-Suen thinning em numpy puro** (sem scipy). Cada glifo é renderizado → binarizado → afinado em um esqueleto de 1 pixel → caminho do esqueleto é ordenado em "ordem de escrita":
+  1. Componentes conectados ordenados pela esquerda-cima.
+  2. Dentro de cada componente, começa do endpoint topo-esquerdo, anda buscando vizinhos com preferência por continuidade direcional.
+- **Revelação por disco**: cada ponto do esqueleto "pinta" um disco de raio ≈ stroke-width na máscara de revelação — a tinta cresce naturalmente em volta da ponta da caneta, como tinta saindo do nib.
+- **Caneta segue o esqueleto**: a posição da ponta a cada sub-passo é o ponto correspondente do caminho do esqueleto.
+- **Resultado verificado**: para "H", a caneta desenha o vertical esquerdo, depois a travessa, depois o vertical direito — multi-stroke real. Para "o" cursivo, a caneta segue a curva continuamente.
+- **Performance**: 44 chars em 2s de render, MP4 ~45 KB. Cache por glifo único garante reutilização para caracteres repetidos.
+- **Sub-passos por caractere**: aumentados para `font_size/6` (clamp 8–20) para movimento mais suave.
+- **Aplicado em**: `services/whiteboard_renderer.py` (Zhang-Suen + ordenação de path + reveal masks por disco).
+
 
 
 ## 2026-02-XX (Editor Chat: Brand Kit fix + logo size control)
