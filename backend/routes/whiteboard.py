@@ -54,6 +54,10 @@ class WhiteboardGenerateRequest(BaseModel):
     # for chaining multiple Whiteboard clips on the Timeline so the prior
     # text disappears before the next one starts writing.
     eraseAtEnd: Optional[bool] = Field(default=False)
+    # Eraser motion pattern. "horizontal" sweeps each stripe left→right.
+    # "zigzag" alternates direction per stripe so the eraser follows a
+    # continuous serpentine path — feels more human.
+    eraseStyle: Optional[str] = Field(default="horizontal", pattern="^(horizontal|zigzag)$")
     # Optional binding — when both are provided, the generated videoUrl
     # is written to the matching slide element so the author doesn't have
     # to manually paste it. When omitted, the URL is just returned.
@@ -125,6 +129,7 @@ async def _run_whiteboard_job(
             ink_color=ink_rgb,
             text_html=payload.textHtml or None,
             erase_at_end=bool(payload.eraseAtEnd),
+            erase_style=payload.eraseStyle or "horizontal",
         )
     except ValueError as e:
         await update_job(job_id, {

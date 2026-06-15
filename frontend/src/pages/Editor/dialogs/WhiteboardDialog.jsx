@@ -66,6 +66,10 @@ export default function WhiteboardDialog({
   const [fontFamily, setFontFamily] = useState(() => _lsRead('fontFamily', 'caveat'));
   const [transparent, setTransparent] = useState(() => _lsRead('transparent', false));
   const [eraseAtEnd, setEraseAtEnd] = useState(() => _lsRead('eraseAtEnd', false));
+  // Eraser motion pattern. "horizontal" sweeps every stripe left→right.
+  // "zigzag" alternates direction per stripe (serpentine path) — more
+  // organic / teacher-like. Only meaningful when eraseAtEnd is ON.
+  const [eraseStyle, setEraseStyle] = useState(() => _lsRead('eraseStyle', 'horizontal'));
   const [fonts, setFonts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -158,6 +162,7 @@ export default function WhiteboardDialog({
   useEffect(() => { _lsWrite('fontFamily', fontFamily); }, [fontFamily]);
   useEffect(() => { _lsWrite('transparent', transparent); }, [transparent]);
   useEffect(() => { _lsWrite('eraseAtEnd', eraseAtEnd); }, [eraseAtEnd]);
+  useEffect(() => { _lsWrite('eraseStyle', eraseStyle); }, [eraseStyle]);
 
   const handleGenerateAi = async () => {
     setAiBusy(true);
@@ -220,6 +225,7 @@ export default function WhiteboardDialog({
           fontFamily: fontFamily || null,
           transparent: Boolean(transparent),
           eraseAtEnd: Boolean(eraseAtEnd),
+          eraseStyle: eraseStyle || 'horizontal',
           inkColor: inkColor || null,
           projectId,
           slideId,
@@ -615,6 +621,29 @@ export default function WhiteboardDialog({
               onCheckedChange={setEraseAtEnd}
             />
           </div>
+
+          {eraseAtEnd && (
+            <div className="p-3 border border-slate-700 rounded-md bg-slate-900/30 space-y-2">
+              <Label htmlFor="wb-erase-style">Padrão do apagador</Label>
+              <Select value={eraseStyle} onValueChange={setEraseStyle}>
+                <SelectTrigger id="wb-erase-style" data-testid="whiteboard-erase-style-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="horizontal" data-testid="erase-style-horizontal">
+                    Horizontal — esquerda → direita em cada linha
+                  </SelectItem>
+                  <SelectItem value="zigzag" data-testid="erase-style-zigzag">
+                    Zig-Zag — alterna direção (serpenteia)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                <strong>Zig-Zag</strong> evita o "teletransporte" do apagador entre
+                linhas — fica mais natural, como um professor real.
+              </p>
+            </div>
+          )}
 
           {result && (
             <div className="border border-slate-700 rounded-md overflow-hidden bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22><rect width=%2210%22 height=%2210%22 fill=%22%23ccc%22/><rect x=%2210%22 y=%2210%22 width=%2210%22 height=%2210%22 fill=%22%23ccc%22/></svg>')]">

@@ -966,10 +966,16 @@ def _render_frame_erasing(
     title: Optional[str],
     title_font,
     transparent: bool,
+    erase_style: str = "horizontal",
 ) -> Image.Image:
     """Render a single erase-phase frame at `erase_step` (global step index
-    across all stripes). The eraser sweeps left→right across the current
-    stripe; once it exits the right edge the next stripe begins."""
+    across all stripes).
+
+    `erase_style`:
+      - "horizontal" (default): every stripe sweeps left→right.
+      - "zigzag": alternating stripes reverse direction (L→R, R→L, L→R, …),
+        producing a continuous serpentine eraser path — feels more like a
+        teacher quickly wiping the board than a robotic raster scan."""
     if transparent:
         img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
     else:
@@ -991,6 +997,10 @@ def _render_frame_erasing(
     sweep = step_in_stripe / max(1, total_erase_steps_per_stripe - 1)
     sweep = min(1.0, max(0.0, sweep))
 
+    # Direction for the current stripe. Zig-zag flips every other stripe
+    # so the eraser doesn't teleport back to the left edge between rows.
+    reverse = (erase_style == "zigzag") and (stripe_idx % 2 == 1)
+
     # Build a mask of where the original text is STILL visible.
     # Mask == 255 keeps pixels, 0 hides them.
     mask = Image.new("L", (CANVAS_W, CANVAS_H), 255)
@@ -999,13 +1009,25 @@ def _render_frame_erasing(
     for i in range(stripe_idx):
         y0, y1 = stripe_bounds[i]
         md.rectangle([(0, y0), (CANVAS_W, y1)], fill=0)
-    # Current stripe — erase from left edge up to where the eraser passed.
+    # Current stripe — erase progressively from one edge to the other.
     y0, y1 = stripe_bounds[stripe_idx]
-    sweep_x_right = int(
-        MARGIN_X + sweep * (CANVAS_W - 2 * MARGIN_X)
-    )
-    if sweep_x_right > 0:
-        md.rectangle([(0, y0), (sweep_x_right, y1)], fill=0)
+    left_bound = MARGIN_X
+    right_bound = CANVAS_W - MARGIN_X
+    if reverse:
+        # Right-to-left: erase from the right edge inward.
+        sweep_x_left = int(right_bound - sweep * (right_bound - left_bound))
+        if sweep_x_left < CANVAS_W:
+            md.rectangle([(sweep_x_left, y0), (CANVAS_W, y1)], fill=0)
+        # Eraser block at the leading edge (its left face is the wipe front).
+        ex_right = min(right_bound, sweep_x_left + eraser_w // 2)
+        ex_left = max(left_bound, ex_right - eraser_w)
+    else:
+        # Left-to-right (default).
+        sweep_x_right = int(left_bound + sweep * (right_bound - left_bound))
+        if sweep_x_right > 0:
+            md.rectangle([(0, y0), (sweep_x_right, y1)], fill=0)
+        ex_left = max(left_bound, sweep_x_right - eraser_w // 2)
+        ex_right = min(right_bound, ex_left + eraser_w)
 
     # Composite the masked final text onto our background.
     if transparent:
@@ -1024,9 +1046,6 @@ def _render_frame_erasing(
         d = ImageDraw.Draw(img)
 
     # Draw the eraser block at the leading edge of the sweep.
-    # The eraser sits to the right of the already-erased zone, advancing.
-    ex_left = max(MARGIN_X, sweep_x_right - eraser_w // 2)
-    ex_right = min(CANVAS_W - MARGIN_X, ex_left + eraser_w)
     ey_top = y0
     ey_bot = y1
     d.rounded_rectangle(
@@ -1052,6 +1071,7 @@ async def render_whiteboard_video(
     ink_color: Optional[tuple[int, int, int]] = None,
     text_html: Optional[str] = None,
     erase_at_end: bool = False,
+    erase_style: str = "horizontal",
 ) -> tuple[str, dict]:
     """Synthesize a whiteboard video from `text` (or rich `text_html`).
 
@@ -1173,6 +1193,7 @@ async def render_whiteboard_video(
             chars, glyph_cache, char_substeps, char_step_starts,
             hand_img, title, title_font,
             final_text_layer, stripe_bounds, eraser_w, frames_per_stripe,
+            erase_style,
         )
         info_format = "apng"
     else:
@@ -1195,6 +1216,7 @@ async def render_whiteboard_video(
                 chars, glyph_cache, char_substeps, char_step_starts,
                 hand_img, title, title_font, False,
                 final_text_layer, stripe_bounds, eraser_w, frames_per_stripe,
+                erase_style,
             )
         finally:
             writer.close()
@@ -1215,6 +1237,7 @@ async def render_whiteboard_video(
         "transparent": transparent,
         "format": info_format,
         "eraseAtEnd": bool(erase_at_end),
+        "eraseStyle": erase_style if erase_at_end else None,
         **erase_meta,
     }
 
@@ -1228,6 +1251,7 @@ def _write_apng_via_ffmpeg(
     stripe_bounds: Optional[list] = None,
     eraser_w: int = 0,
     frames_per_stripe: int = 0,
+    erase_style: str = "horizontal",
 ) -> None:
     """Encode an animated PNG by piping raw RGBA frames into ffmpeg's
     APNG encoder. APNG preserves the alpha channel losslessly — the only
@@ -1273,6 +1297,7 @@ def _write_apng_via_ffmpeg(
                 frame = _render_frame_erasing(
                     erase_step, frames_per_stripe, stripe_bounds, eraser_w,
                     final_text_layer, title, title_font, transparent=True,
+                    erase_style=erase_style,
                 )
             arr = np.asarray(frame, dtype=np.uint8)
             # Ensure 4-channel RGBA.
@@ -1298,6 +1323,7 @@ def _write_all_frames(
     stripe_bounds: Optional[list] = None,
     eraser_w: int = 0,
     frames_per_stripe: int = 0,
+    erase_style: str = "horizontal",
 ) -> None:
     """Synchronous hot loop, offloaded via asyncio.to_thread.
 
@@ -1327,6 +1353,7 @@ def _write_all_frames(
             frame = _render_frame_erasing(
                 erase_step, frames_per_stripe, stripe_bounds, eraser_w,
                 final_text_layer, title, title_font, transparent=transparent,
+                erase_style=erase_style,
             )
         # imageio's FFMPEG writer accepts both RGB and RGBA arrays —
         # when yuva420p is the pixel format, RGBA arrays carry the
