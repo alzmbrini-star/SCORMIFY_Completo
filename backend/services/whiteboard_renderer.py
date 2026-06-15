@@ -34,6 +34,33 @@ import imageio_ffmpeg  # noqa: F401  # ensures binary is bundled
 
 logger = logging.getLogger("server.whiteboard")
 
+# Resolve the bundled ffmpeg binary path eagerly so production startup
+# fails LOUDLY with a clear error rather than silently 500'ing when the
+# first user clicks generate. imageio-ffmpeg auto-downloads the right
+# binary for the host arch on first call (linux-x86_64 / linux-aarch64
+# / macos / win), provided egress is allowed. If neither bundled nor
+# downloadable, we fall back to a system ffmpeg on $PATH (e.g., an
+# operator who pre-installed it via apt in the deployment image).
+def _resolve_ffmpeg_binary() -> str:
+    # 1) Try imageio-ffmpeg's bundled / cached binary.
+    try:
+        path = imageio_ffmpeg.get_ffmpeg_exe()
+        if path and Path(path).exists():
+            return path
+    except Exception as e:  # noqa: BLE001
+        logger.warning("imageio_ffmpeg.get_ffmpeg_exe() failed: %s", e)
+    # 2) Fallback: PATH-resolved ffmpeg (apt install ffmpeg on the image).
+    import shutil
+    sys_ffmpeg = shutil.which("ffmpeg")
+    if sys_ffmpeg:
+        logger.info("whiteboard: using system ffmpeg at %s", sys_ffmpeg)
+        return sys_ffmpeg
+    # 3) Both failed — raise so the next caller sees a real error.
+    raise RuntimeError(
+        "No ffmpeg binary found. Install imageio-ffmpeg, or `apt-get "
+        "install ffmpeg` in the deployment image."
+    )
+
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "whiteboard"
 FONT_PATH = ASSETS_DIR / "Caveat-Regular.ttf"
 HAND_PATH = ASSETS_DIR / "hand.png"
@@ -177,6 +204,9 @@ async def render_whiteboard_video(
 
     video_id = f"wb_{uuid.uuid4().hex[:12]}"
     out_path = OUTPUT_DIR / f"{video_id}.mp4"
+
+    # Pin the ffmpeg binary path so imageio uses our resolved/system one.
+    os.environ["IMAGEIO_FFMPEG_EXE"] = _resolve_ffmpeg_binary()
 
     # Encode via imageio (uses bundled ffmpeg binary). yuv420p for
     # universal LMS player compatibility.

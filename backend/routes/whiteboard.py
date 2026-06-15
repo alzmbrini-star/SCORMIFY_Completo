@@ -102,13 +102,23 @@ async def serve_whiteboard_file(name: str):
 
 @router.get("/health")
 async def whiteboard_health():
-    """Diagnostic: verifies font + hand asset + ffmpeg binary are ready."""
-    from services.whiteboard_renderer import FONT_PATH, HAND_PATH
-    import imageio_ffmpeg
-    return {
+    """Diagnostic: verifies font + hand asset + ffmpeg binary are ready.
+
+    Crucial for production debugging: hitting this from the browser /
+    admin panel tells you instantly whether the K8s pod has the binary
+    AND can encode (or whether we'd hit a 500 on first generate)."""
+    from services.whiteboard_renderer import FONT_PATH, HAND_PATH, _resolve_ffmpeg_binary
+    info = {
         "fontOk": Path(FONT_PATH).exists(),
         "handOk": Path(HAND_PATH).exists(),
-        "ffmpegPath": imageio_ffmpeg.get_ffmpeg_exe(),
         "outputDir": str(OUTPUT_DIR),
         "outputDirOk": OUTPUT_DIR.exists(),
     }
+    try:
+        info["ffmpegPath"] = _resolve_ffmpeg_binary()
+        info["ffmpegOk"] = True
+    except Exception as e:
+        info["ffmpegPath"] = None
+        info["ffmpegOk"] = False
+        info["ffmpegError"] = str(e)
+    return info
