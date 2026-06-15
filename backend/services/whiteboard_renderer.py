@@ -31,6 +31,7 @@ Pipeline:
 from __future__ import annotations
 
 import os
+import re
 import uuid
 import asyncio
 import logging
@@ -339,20 +340,142 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[
     return out
 
 
-def _layout(text: str, font_size: int, font_path: Path) -> tuple[ImageFont.FreeTypeFont, list[tuple[str, int, int]]]:
-    """Return (font, characters) where each character is (char, x, y)."""
+DEFAULT_INK_COLOR = (20, 20, 20)
+
+
+def _parse_color(value: str) -> Optional[tuple[int, int, int]]:
+    """Parse '#RRGGBB', '#RGB' or 'rgb(r,g,b)' into an (R, G, B) tuple."""
+    if not value:
+        return None
+    value = value.strip().lower()
+    if value.startswith("#"):
+        hex_str = value[1:]
+        if len(hex_str) == 3:
+            hex_str = "".join(c * 2 for c in hex_str)
+        if len(hex_str) == 6:
+            try:
+                return (int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16))
+            except ValueError:
+                return None
+    m = re.match(r"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", value)
+    if m:
+        return tuple(min(255, max(0, int(m.group(i)))) for i in (1, 2, 3))
+    return None
+
+
+def _parse_html_to_runs(html: str, default_color: tuple[int, int, int]) -> list[tuple[str, tuple[int, int, int]]]:
+    """Parse a simple HTML string into a flat list of (char, color) tuples.
+
+    Supports:
+      - `<span style="color:#RRGGBB">...</span>` (nests recursively)
+      - `<font color="#RRGGBB">...</font>` (legacy execCommand output)
+      - `<br>` and `<br/>` as newlines
+      - `<div>...</div>` and `<p>...</p>` as line breaks between siblings
+      - Plain text content with HTML entity decoding
+
+    Everything else is treated as plain text with `default_color`.
+    """
+    from html.parser import HTMLParser
+    from html import unescape
+
+    runs: list[tuple[str, tuple[int, int, int]]] = []
+    color_stack: list[tuple[int, int, int]] = [default_color]
+    # Tags that introduce an implicit line break after their content.
+    BLOCK_TAGS = {"div", "p"}
+    block_depth = 0
+
+    class _P(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            nonlocal block_depth
+            attrs_d = dict(attrs)
+            new_color = None
+            style = attrs_d.get("style", "") or ""
+            m = re.search(r"color\s*:\s*([^;]+)", style, re.IGNORECASE)
+            if m:
+                new_color = _parse_color(m.group(1))
+            if not new_color and tag == "font":
+                new_color = _parse_color(attrs_d.get("color", "") or "")
+            color_stack.append(new_color if new_color else color_stack[-1])
+            if tag == "br":
+                runs.append(("\n", color_stack[-1]))
+            elif tag in BLOCK_TAGS:
+                if runs and runs[-1][0] != "\n":
+                    runs.append(("\n", color_stack[-1]))
+                block_depth += 1
+
+        def handle_startendtag(self, tag, attrs):
+            self.handle_starttag(tag, attrs)
+            self.handle_endtag(tag)
+
+        def handle_endtag(self, tag):
+            nonlocal block_depth
+            if len(color_stack) > 1:
+                color_stack.pop()
+            if tag in BLOCK_TAGS:
+                block_depth = max(0, block_depth - 1)
+
+        def handle_data(self, data):
+            decoded = unescape(data)
+            current = color_stack[-1]
+            for ch in decoded:
+                runs.append((ch, current))
+
+    parser = _P()
+    parser.feed(html)
+    return runs
+
+
+def _layout(
+    text: Optional[str],
+    font_size: int,
+    font_path: Path,
+    default_color: tuple[int, int, int] = DEFAULT_INK_COLOR,
+    text_html: Optional[str] = None,
+) -> tuple[ImageFont.FreeTypeFont, list[tuple[str, int, int, tuple[int, int, int]]]]:
+    """Lay out either plain `text` or rich `text_html` into positioned
+    characters. Each char carries its own RGB color so the renderer can
+    apply per-segment formatting.
+
+    Returns (font, [(char, x, y, (r, g, b)), ...])."""
     font = ImageFont.truetype(str(font_path), font_size)
     max_w = CANVAS_W - 2 * MARGIN_X
-    lines = _wrap_text(text, font, max_w)
+
+    # Build a flat list of (char, color) tuples — either from HTML or
+    # from plain text with the default color.
+    if text_html:
+        char_runs = _parse_html_to_runs(text_html, default_color)
+    else:
+        char_runs = [(c, default_color) for c in (text or "")]
+
+    # Reconstruct the linear text (for wrap calculation) while
+    # remembering each char's color.
+    flat_text = "".join(c for c, _ in char_runs)
+    flat_colors = [color for _, color in char_runs]
+
+    # Word-wrap respects \n and visual width; we apply the wrap on the
+    # plain text and then map back to colors by index.
+    lines = _wrap_text(flat_text, font, max_w)
     line_h = int(font_size * LINE_SPACING)
-    chars: list[tuple[str, int, int]] = []
+
+    # Build a stream of (line_chars, dropped_separators) so we can map
+    # char indices in `flat_text` to the wrapped layout. _wrap_text may
+    # drop separator spaces between wrapped words, so we walk through
+    # flat_text consuming chars as we match them to lines.
+    chars: list[tuple[str, int, int, tuple[int, int, int]]] = []
+    flat_idx = 0
     y = MARGIN_Y
     for line in lines:
         x = MARGIN_X
         for ch in line:
-            chars.append((ch, x, y))
+            # Advance flat_idx past any whitespace/newline chars that were
+            # dropped during wrapping until we match `ch`.
+            while flat_idx < len(flat_text) and flat_text[flat_idx] != ch:
+                flat_idx += 1
+            color = flat_colors[flat_idx] if flat_idx < len(flat_colors) else default_color
+            chars.append((ch, x, y, color))
             adv = font.getlength(ch)
             x += int(adv)
+            flat_idx += 1
         y += line_h
     return font, chars
 
@@ -365,7 +488,7 @@ def _disk_mask(radius: int) -> np.ndarray:
 
 
 def _build_glyph_cache(
-    chars: list[tuple[str, int, int]],
+    chars: list[tuple[str, int, int, tuple[int, int, int]]],
     font: ImageFont.FreeTypeFont,
     sub_steps: int,
 ):
@@ -381,10 +504,13 @@ def _build_glyph_cache(
       - pen_positions: per sub-step the pen tip (x, y) **relative to
         the glyph image origin (0,0)**.
 
-    Whitespace and zero-width chars map to None.
+    Whitespace and zero-width chars map to None. Cache is keyed on the
+    character alone — color is applied at composite time so we never
+    need duplicate cache entries per color.
     """
     cache: dict[str, Optional[dict]] = {}
-    for ch, _, _ in chars:
+    for entry in chars:
+        ch = entry[0]
         if ch in cache:
             continue
         if not ch.strip():
@@ -483,13 +609,21 @@ def _build_glyph_cache(
 # Frame rendering
 # =====================================================================
 
-def _make_glyph_image(entry: dict, reveal_idx: int) -> Image.Image:
+def _make_glyph_image(
+    entry: dict, reveal_idx: int,
+    color: tuple[int, int, int] = DEFAULT_INK_COLOR,
+) -> Image.Image:
     """Apply the cumulative reveal mask of the given sub-step to the
-    glyph's RGBA copy, producing a partial glyph image. The mask zeroes
-    out pixels not yet 'written'."""
+    glyph and recolor the ink with `color`. Pixels not yet 'written'
+    are made transparent."""
     glyph = entry["glyph"]
     mask = entry["reveal_masks"][reveal_idx]
-    arr = np.array(glyph)  # writable copy
+    arr = np.array(glyph)  # writable RGBA copy
+    # Recolor: overwrite RGB channels with the desired ink color while
+    # keeping the original alpha (which carries antialiasing).
+    arr[..., 0] = color[0]
+    arr[..., 1] = color[1]
+    arr[..., 2] = color[2]
     arr[..., 3] = np.where(mask, arr[..., 3], 0)
     return Image.fromarray(arr, "RGBA")
 
@@ -532,15 +666,19 @@ def _render_frame_writing(
 
     # 1) Fully drawn characters before the current one.
     for i in range(cur_idx):
-        ch, cx, cy = chars[i]
+        char_tup = chars[i]
+        ch, cx, cy = char_tup[0], char_tup[1], char_tup[2]
+        color = char_tup[3] if len(char_tup) > 3 else DEFAULT_INK_COLOR
         entry = glyph_cache.get(ch)
         if entry is None:
             continue
-        full = _make_glyph_image(entry, len(entry["reveal_masks"]) - 1)
+        full = _make_glyph_image(entry, len(entry["reveal_masks"]) - 1, color)
         img.paste(full, (cx + entry["left"], cy + entry["top"]), full)
 
     # 2) Partial current character.
-    ch, cx, cy = chars[cur_idx]
+    char_tup = chars[cur_idx]
+    ch, cx, cy = char_tup[0], char_tup[1], char_tup[2]
+    color = char_tup[3] if len(char_tup) > 3 else DEFAULT_INK_COLOR
     entry = glyph_cache.get(ch)
     pen_x: Optional[int] = None
     pen_y: Optional[int] = None
@@ -552,7 +690,7 @@ def _render_frame_writing(
         sub_in_char = step_idx - char_step_starts[cur_idx]
         substeps = char_substeps[cur_idx]
         sub_in_char = max(0, min(substeps - 1, sub_in_char))
-        partial = _make_glyph_image(entry, sub_in_char)
+        partial = _make_glyph_image(entry, sub_in_char, color)
         img.paste(partial, (cx + entry["left"], cy + entry["top"]), partial)
 
         pen_local = entry["pen_positions"][sub_in_char]
@@ -576,18 +714,26 @@ async def render_whiteboard_video(
     dwell_end_seconds: float = 1.5,
     font_family: Optional[str] = None,
     transparent: bool = False,
+    ink_color: Optional[tuple[int, int, int]] = None,
+    text_html: Optional[str] = None,
 ) -> tuple[str, dict]:
-    """Synthesize a whiteboard video from `text`.
+    """Synthesize a whiteboard video from `text` (or rich `text_html`).
 
-    When `transparent` is True the output is a WebM (VP9 + alpha) file
-    suitable for overlaying on slide backgrounds. Otherwise an H.264 MP4
-    on a white canvas is produced (broader LMS player compatibility).
+    When `text_html` is provided, inline `<span style="color:#XXX">` and
+    `<font color="#XXX">` segments are honored — each character is drawn
+    in its segment's color. Otherwise the global `ink_color` (default
+    near-black) is applied to the whole text.
     """
-    if not text or not text.strip():
+    if not (text and text.strip()) and not (text_html and text_html.strip()):
         raise ValueError("text must not be empty")
 
     font_path = _resolve_font_path(font_family)
-    font, chars = _layout(text, font_size, font_path)
+    default_color = ink_color if ink_color else DEFAULT_INK_COLOR
+    font, chars = _layout(
+        text, font_size, font_path,
+        default_color=default_color,
+        text_html=text_html,
+    )
     total = len(chars)
     if total == 0:
         raise ValueError("layout produced 0 characters (only whitespace?)")
@@ -621,7 +767,8 @@ async def render_whiteboard_video(
     glyph_cache = _build_glyph_cache(chars, font, sub_default)
 
     char_substeps: list[int] = []
-    for ch, _, _ in chars:
+    for entry in chars:
+        ch = entry[0]
         if glyph_cache.get(ch) is None:
             char_substeps.append(2)
         else:

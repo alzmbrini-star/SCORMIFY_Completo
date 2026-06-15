@@ -4,7 +4,7 @@
  * optionally enables transparent background (APNG), hits generate.
  * Backend renders in ~1-5s and binds the result to the current slide.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -14,7 +14,7 @@ import { Switch } from '../../../components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../../../components/ui/select';
-import { Loader2, Sparkles, Wand2 } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Palette, Eraser } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
 
@@ -24,6 +24,13 @@ const SIZE_PRESETS = [
   { value: 140, label: 'Grande (140)' },
   { value: 180, label: 'Maior (180)' },
   { value: 220, label: 'Enorme (220)' },
+];
+
+// Quick palette for the in-text color picker (handpicked for high
+// contrast against white whiteboards).
+const PALETTE = [
+  '#1a1a1a', '#FF0000', '#E11D48', '#F59E0B', '#16A34A',
+  '#0EA5E9', '#2563EB', '#7C3AED', '#DB2777', '#0D9488',
 ];
 
 export default function WhiteboardDialog({
@@ -37,6 +44,8 @@ export default function WhiteboardDialog({
 }) {
   const [title, setTitle] = useState(defaultTitle);
   const [text, setText] = useState(defaultText);
+  const [textHtml, setTextHtml] = useState('');
+  const [inkColor, setInkColor] = useState('#1a1a1a');
   const [speed, setSpeed] = useState(6);  // chars/sec
   const [fontSize, setFontSize] = useState(96);
   const [fontFamily, setFontFamily] = useState('caveat');
@@ -47,6 +56,58 @@ export default function WhiteboardDialog({
   const [aiPrompt, setAiPrompt] = useState('');
   const [showAi, setShowAi] = useState(false);
   const [result, setResult] = useState(null);  // { videoUrl, format }
+  const editorRef = useRef(null);
+
+  // Apply a foreground color to the current selection inside the
+  // contentEditable. Falls back to applying to the whole content if
+  // nothing is selected.
+  const applyColorToSelection = (hex) => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      // Nothing selected: just update the *default* ink color for the
+      // whole text — the dedicated ink color picker controls this.
+      setInkColor(hex);
+      return;
+    }
+    // execCommand is deprecated but still the simplest way to wrap a
+    // selection in <span style="color:..."> for our purposes.
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('foreColor', false, hex);
+    syncEditorState();
+  };
+
+  const clearFormattingOnSelection = () => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    document.execCommand('removeFormat');
+    syncEditorState();
+  };
+
+  const syncEditorState = () => {
+    const el = editorRef.current;
+    if (!el) return;
+    setTextHtml(el.innerHTML);
+    setText(el.innerText);
+  };
+
+  // Keep the contentEditable in sync when the AI populates `text` or
+  // when the dialog reopens with a default value.
+  useEffect(() => {
+    if (!editorRef.current) return;
+    // Only push text→editor if the editor doesn't already have it (avoids
+    // overwriting cursor position during typing).
+    if (editorRef.current.innerText.trim() !== (text || '').trim()) {
+      editorRef.current.innerText = text || '';
+      setTextHtml(editorRef.current.innerHTML);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
 
   // Fetch the available fonts on dialog open.
   useEffect(() => {
@@ -93,17 +154,24 @@ export default function WhiteboardDialog({
     setBusy(true);
     setResult(null);
     try {
+      // Detect whether the user actually applied any inline coloring.
+      // If not, send just plain text — keeps payloads small and lets
+      // the backend treat the whole text with the global ink color.
+      const hasInlineColor = textHtml
+        && (/<(span|font)[^>]*color\s*[:=]/i.test(textHtml));
       const res = await fetch(`${getApiUrl()}/api/whiteboard/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           text: text.trim(),
+          textHtml: hasInlineColor ? textHtml : null,
           title: title.trim() || null,
           fontSize: Number(fontSize) || 96,
           charsPerSecond: Number(speed) || 6,
           fontFamily: fontFamily || null,
           transparent: Boolean(transparent),
+          inkColor: inkColor || null,
           projectId,
           slideId,
         }),
@@ -198,18 +266,83 @@ export default function WhiteboardDialog({
               </div>
             )}
             <Textarea
-              id="wb-text"
+              id="wb-text-hidden"
               data-testid="whiteboard-text-input"
-              placeholder="O que a caneta vai escrever. Use Enter para quebras de linha."
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={6}
-              maxLength={2000}
-              className="font-mono text-sm"
+              readOnly
+              className="hidden"
             />
+            {/* Mini-RTF editor: contentEditable div that lets the author
+                wrap selected text in inline color spans. The plain-text
+                `text` and rich `textHtml` are kept in sync. */}
+            <div className="rounded-md border border-slate-700 bg-slate-950/40 overflow-hidden">
+              <div className="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-slate-700 bg-slate-900/40">
+                <span className="text-[10px] text-slate-400 mr-1 flex items-center gap-1">
+                  <Palette className="w-3 h-3" />
+                  Cor:
+                </span>
+                {PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => applyColorToSelection(c)}
+                    title={c}
+                    data-testid={`color-swatch-${c}`}
+                    className="w-5 h-5 rounded-sm border border-slate-600 hover:scale-110 transition-transform"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+                <label className="ml-1 flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer">
+                  <span>+</span>
+                  <input
+                    type="color"
+                    onChange={(e) => applyColorToSelection(e.target.value)}
+                    data-testid="whiteboard-color-custom"
+                    className="w-5 h-5 p-0 border-0 bg-transparent cursor-pointer"
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFormattingOnSelection}
+                  className="h-6 px-2 ml-auto text-[10px]"
+                  data-testid="whiteboard-clear-format"
+                >
+                  <Eraser className="w-3 h-3 mr-1" /> Limpar
+                </Button>
+              </div>
+              <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={syncEditorState}
+                onBlur={syncEditorState}
+                onPaste={(e) => {
+                  // Strip rich formatting from external paste sources —
+                  // we want to start clean and let the author apply our
+                  // palette colors deliberately.
+                  e.preventDefault();
+                  const pasted = (e.clipboardData || window.clipboardData)
+                    .getData('text/plain');
+                  document.execCommand('insertText', false, pasted);
+                }}
+                data-testid="whiteboard-text-editor"
+                className="min-h-[120px] max-h-[300px] overflow-y-auto px-3 py-2 text-sm font-mono outline-none focus:bg-slate-900/30"
+                style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                aria-label="Texto a escrever"
+              />
+            </div>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {text.length}/2000 caracteres. Máximo recomendado: 300 caracteres
-              por slide.
+              {text.length}/2000 caracteres. <strong>Selecione um trecho</strong>
+              {' '}e clique numa cor para destacá-lo. Cor padrão das letras: 
+              <input
+                type="color"
+                value={inkColor}
+                onChange={(e) => setInkColor(e.target.value)}
+                data-testid="whiteboard-default-ink-color"
+                className="ml-1 w-6 h-4 align-middle border border-slate-600 cursor-pointer p-0"
+              />
             </p>
           </div>
 

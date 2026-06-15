@@ -35,6 +35,12 @@ class WhiteboardGenerateRequest(BaseModel):
     charsPerSecond: Optional[float] = Field(default=6.0, ge=2.0, le=40.0)
     fontFamily: Optional[str] = Field(default=None, max_length=64)
     transparent: Optional[bool] = Field(default=False)
+    # RTF / color extensions:
+    # - `inkColor` is a default hex like "#1a1a1a" applied to plain text.
+    # - `textHtml` lets the frontend send rich HTML where inline color
+    #   spans (and <font color=...>) override the default per segment.
+    inkColor: Optional[str] = Field(default=None, max_length=20)
+    textHtml: Optional[str] = Field(default=None, max_length=8000)
     # Optional binding — when both are provided, the generated videoUrl
     # is written to the matching slide element so the author doesn't have
     # to manually paste it. When omitted, the URL is just returned.
@@ -48,6 +54,11 @@ async def generate_whiteboard_video(
     user: dict = Depends(require_auth),
 ):
     """Synthesize a whiteboard MP4 and (optionally) bind it to a slide."""
+    # Parse a hex/rgb ink color override into an RGB tuple for the renderer.
+    ink_rgb = None
+    if payload.inkColor:
+        from services.whiteboard_renderer import _parse_color
+        ink_rgb = _parse_color(payload.inkColor)
     try:
         rel_url, info = await render_whiteboard_video(
             text=payload.text,
@@ -56,6 +67,8 @@ async def generate_whiteboard_video(
             chars_per_second=payload.charsPerSecond or 6.0,
             font_family=payload.fontFamily or None,
             transparent=bool(payload.transparent),
+            ink_color=ink_rgb,
+            text_html=payload.textHtml or None,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))

@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Whiteboard: Cor da tinta + editor RTF mini)
+
+### Feature: Color picker global + RTF inline para colorir trechos
+- **Backend renderer** (`whiteboard_renderer.py`):
+  - Estrutura de `chars` virou 4-tupla `(char, x, y, color)` (era 3-tupla). Cada caractere carrega sua própria cor RGB.
+  - Nova função `_parse_html_to_runs` (HTMLParser stdlib) extrai inline `<span style="color:#XXX">` e `<font color="#XXX">` em sequências de `(char, color)`.
+  - Novo `_parse_color` aceita `#RRGGBB`, `#RGB`, `rgb(r,g,b)`.
+  - `_make_glyph_image` recebe cor: recolore o RGB do glifo mantendo o alpha (que preserva antialiasing). Cache de glifo continua keyed por char (cor aplicada no composite).
+  - `_layout` aceita `default_color` e `text_html` opcionais; quando `text_html` está presente, faz parsing das runs e mapeia cada char para sua cor.
+  - `render_whiteboard_video` aceita `ink_color` e `text_html` params; renderiza cada char com sua cor exata.
+- **Backend route** (`whiteboard.py`): novos campos `inkColor` (hex/rgb) e `textHtml` (HTML max 8000 chars). Validados e passados ao renderer.
+- **Frontend** (`WhiteboardDialog.jsx`):
+  - **Editor mini-RTF**: substituí o Textarea por um `<div contentEditable>` com toolbar de cores. Paleta de 10 cores (alto contraste contra branco) + input `<input type="color">` para cor customizada + botão "Limpar" (`removeFormat`).
+  - **Cor padrão das letras**: input color picker no rodapé do editor que define `inkColor` para todo o texto não-colorido.
+  - **Comportamento de seleção**: usa `document.execCommand('foreColor', ...)` com `styleWithCSS=true` para envolver a seleção em `<span style="color:#XXX">`.
+  - **Paste sanitization**: paste externo é convertido para plain text (`insertText`) para evitar HTML/CSS sujo de outros apps.
+  - **Sync bidirecional**: `text` (plain) e `textHtml` (rich) sincronizados via `onInput`/`onBlur`. Quando IA preenche texto, o useEffect atualiza o contentEditable preservando o cursor.
+  - **Payload smart**: só envia `textHtml` se detectou pelo menos uma tag de cor inline — caso contrário envia só `text` + `inkColor` global (payloads menores).
+- **Verificação**:
+  - ✅ Global red (#E11D48): "Vermelho!" todo na cor escolhida.
+  - ✅ Mixed HTML: "Normal `VERMELHO` e `azul`" — cada palavra na sua cor exata, com a caneta tracejando o esqueleto em qualquer cor.
+- **Skip nesta iteração**: variação de tamanho por trecho (exigiria reflow de layout para mixed font sizes — bem mais complexo). Documentado como backlog.
+
+
+
 ## 2026-02-XX (Whiteboard: Gerador de texto com IA — GPT-4o)
 
 ### Feature: Texto do whiteboard gerado por IA com contexto do slide
