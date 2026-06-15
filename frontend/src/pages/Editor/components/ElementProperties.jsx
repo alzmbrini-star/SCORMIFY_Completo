@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
-import { Maximize2, Sparkles, Scissors } from 'lucide-react';
+import { Maximize2, Sparkles, Scissors, RotateCcw } from 'lucide-react';
 import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import RemoveBackgroundDialog from '../dialogs/RemoveBackgroundDialog';
 
@@ -14,6 +14,41 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
     onUpdate({ style: newStyle });
   };
 
+  // Safe numeric input handler. The previous implementation piped
+  // `parseFloat('')` straight into onUpdate, which writes NaN into the
+  // element and visually "deletes" it (NaN x/y/width/height = nothing
+  // renders). We now:
+  //   - Ignore empty strings (keeps last valid value, lets the user type
+  //     a replacement without losing the element).
+  //   - Drop NaN / non-finite results.
+  //   - Enforce a minimum of 10px on width/height so the element stays
+  //     visible/selectable even at the smallest size.
+  const handleNumericChange = (key, rawValue) => {
+    if (rawValue === '' || rawValue == null) return; // user mid-edit
+    const v = parseFloat(rawValue);
+    if (!Number.isFinite(v)) return;
+    let safe = v;
+    if (key === 'width' || key === 'height') {
+      safe = Math.max(10, v);
+    }
+    onUpdate({ [key]: safe });
+  };
+
+  // Recovery affordance: if an element ended up with NaN/zero/off-canvas
+  // coords (e.g. a previous bug or accidental clear), one click puts it
+  // back in a reasonable centered spot. Picks ~half the slide so big
+  // assets (whiteboards) still fit and small ones remain manageable.
+  const handleResetTransform = () => {
+    const w = Math.round(slideWidth * 0.5);
+    const h = Math.round(slideHeight * 0.5);
+    onUpdate({
+      x: Math.round((slideWidth - w) / 2),
+      y: Math.round((slideHeight - h) / 2),
+      width: w,
+      height: h,
+    });
+  };
+
   return (
     <div className="p-4 space-y-4">
       <div className="panel-section">
@@ -23,49 +58,68 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
             <label className="text-xs text-muted-foreground">X</label>
             <Input
               type="number"
-              value={Math.round(element.x || 0)}
-              onChange={(e) => onUpdate({ x: parseFloat(e.target.value) })}
+              value={Number.isFinite(element.x) ? Math.round(element.x) : 0}
+              onChange={(e) => handleNumericChange('x', e.target.value)}
               className="h-8"
+              data-testid="prop-input-x"
             />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Y</label>
             <Input
               type="number"
-              value={Math.round(element.y || 0)}
-              onChange={(e) => onUpdate({ y: parseFloat(e.target.value) })}
+              value={Number.isFinite(element.y) ? Math.round(element.y) : 0}
+              onChange={(e) => handleNumericChange('y', e.target.value)}
               className="h-8"
+              data-testid="prop-input-y"
             />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Width</label>
             <Input
               type="number"
-              value={Math.round(element.width || 0)}
-              onChange={(e) => onUpdate({ width: parseFloat(e.target.value) })}
+              min={10}
+              value={Number.isFinite(element.width) && element.width > 0 ? Math.round(element.width) : 0}
+              onChange={(e) => handleNumericChange('width', e.target.value)}
               className="h-8"
+              data-testid="prop-input-width"
             />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Height</label>
             <Input
               type="number"
-              value={Math.round(element.height || 0)}
-              onChange={(e) => onUpdate({ height: parseFloat(e.target.value) })}
+              min={10}
+              value={Number.isFinite(element.height) && element.height > 0 ? Math.round(element.height) : 0}
+              onChange={(e) => handleNumericChange('height', e.target.value)}
               className="h-8"
+              data-testid="prop-input-height"
             />
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onUpdate({ x: 0, y: 0, width: slideWidth, height: slideHeight, objectFit: 'cover' })}
-          className="w-full mt-3 gap-2"
-          data-testid="element-fullscreen-btn"
-        >
-          <Maximize2 className="w-4 h-4" />
-          Fullscreen
-        </Button>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onUpdate({ x: 0, y: 0, width: slideWidth, height: slideHeight, objectFit: 'cover' })}
+            className="gap-2"
+            data-testid="element-fullscreen-btn"
+          >
+            <Maximize2 className="w-4 h-4" />
+            Fullscreen
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetTransform}
+            className="gap-2"
+            title="Centraliza no slide com tamanho seguro — útil para recuperar elementos que sumiram após valores inválidos."
+            data-testid="element-reset-transform-btn"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Resetar
+          </Button>
+        </div>
       </div>
 
       {element.type === 'image' && (
