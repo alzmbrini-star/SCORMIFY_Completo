@@ -57,12 +57,27 @@ def _resolve_asset_url(url: str, project_id: str, assets_dir: str, base_url: str
     when the file has been pre-extracted via `prepare_company_assets_for_export`
     into `assets_dir/_companies/<aid>.<ext>`.
 
+    Also resolves /api/whiteboard/file/wb_*.{mp4,png} URLs from the
+    Whiteboard renderer (transparent APNG / opaque MP4 outputs) by
+    reading from `backend/storage/whiteboard/`.
+
     Falls back to absolute base_url + path when neither local resolution works.
     """
     if not url:
         return url
     if url.startswith("data:") or url.startswith("blob:"):
         return url
+    # Match Whiteboard renderer output (MP4 or APNG). These live in a
+    # global storage dir, not the per-project assets dir.
+    m_wb = re.match(r"^/api/whiteboard/file/([^/?#]+)$", url)
+    if m_wb:
+        wb_name = m_wb.group(1)
+        wb_path = Path(__file__).parent.parent / "storage" / "whiteboard" / wb_name
+        data_uri = _b64_data_uri(str(wb_path))
+        if data_uri:
+            return data_uri
+        if base_url:
+            return f"{base_url.rstrip('/')}{url}"
     # Match local project asset path
     m = re.match(r"^/api/projects/[^/]+/assets/(.+)$", url)
     if m:

@@ -48,6 +48,32 @@ def file_to_base64(file_path: str) -> Optional[str]:
         return None
 
 
+# Storage dir of Whiteboard renderer outputs (wb_*.mp4 / wb_*.png).
+# Resolved relative to this file: backend/services/ → backend/storage/whiteboard
+_WHITEBOARD_STORAGE_DIR = Path(__file__).parent.parent / "storage" / "whiteboard"
+
+
+def _resolve_whiteboard_asset(src: str) -> Optional[str]:
+    """If `src` is a Whiteboard renderer URL (`/api/whiteboard/file/wb_*`),
+    return the inlined base64 data URI by reading from the local
+    whiteboard storage dir. Returns None for non-whiteboard URLs or when
+    the file isn't found.
+
+    Used by the HTML exporters so transparent APNG / MP4 outputs from the
+    Hand-Writer feature don't break in offline (self-contained) HTML.
+    """
+    if not src or not isinstance(src, str) or "/api/whiteboard/file/" not in src:
+        return None
+    name = src.split("/api/whiteboard/file/")[-1].split("?")[0].split("/")[0]
+    if not name:
+        return None
+    path = _WHITEBOARD_STORAGE_DIR / name
+    if not path.exists():
+        logger.warning(f"Whiteboard asset not found in storage: {path}")
+        return None
+    return file_to_base64(str(path))
+
+
 async def url_to_base64(url: str) -> Optional[str]:
     """Download a URL and convert to base64 data URI"""
     try:
@@ -336,7 +362,16 @@ async def generate_standalone_html(
     processed_slides = []
     for slide in slides:
         processed_slide = slide.copy()
-        
+
+        # Embed whiteboard slide-level videoUrl (legacy/leftover from
+        # opaque MP4 renders). Without this the raw `/api/whiteboard/file/`
+        # URL leaks into the offline HTML JSON and breaks if the player
+        # ever consumes `slide.videoUrl`.
+        if isinstance(slide.get('videoUrl'), str) and '/api/whiteboard/file/' in slide['videoUrl']:
+            wb_b64 = _resolve_whiteboard_asset(slide['videoUrl'])
+            if wb_b64:
+                processed_slide['videoUrl'] = wb_b64
+
         # Process background image
         if slide.get('backgroundImage'):
             bg_path = slide['backgroundImage']
@@ -381,6 +416,11 @@ async def generate_standalone_html(
                 src = element['src']
                 if src.startswith('data:'):
                     processed_element['src'] = src
+                elif '/api/whiteboard/file/' in src:
+                    # Whiteboard renderer output (APNG transparente sai como
+                    # type=image). Lê do storage dedicado e embute como data URI.
+                    wb_b64 = _resolve_whiteboard_asset(src)
+                    processed_element['src'] = wb_b64 if wb_b64 else src
                 elif src.startswith('/api/') or src.startswith('assets/'):
                     asset_filename = src.split('/')[-1]
                     local_path = os.path.join(assets_dir, asset_filename)
@@ -428,7 +468,12 @@ async def generate_standalone_html(
             # Process video elements (local videos)
             if element.get('type') == 'video' and element.get('src'):
                 src = element['src']
-                if not src.startswith('http') and not element.get('embedUrl'):
+                if '/api/whiteboard/file/' in src:
+                    # Whiteboard renderer MP4 — embed from dedicated storage.
+                    wb_b64 = _resolve_whiteboard_asset(src)
+                    if wb_b64:
+                        processed_element['src'] = wb_b64
+                elif not src.startswith('http') and not element.get('embedUrl'):
                     if src.startswith('/api/') or src.startswith('assets/'):
                         asset_filename = src.split('/')[-1]
                         local_path = os.path.join(assets_dir, asset_filename)
@@ -2543,8 +2588,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var isSmallScreen = window.innerWidth < 1024;
                 var isMobile = isMobileDevice || (isSmallScreen && isTouchDevice);
                 
-                // Detect portrait orientation
-                var isPortrait = window.innerHeight > window.innerWidth;
+                // Detect portrait orientow.innerWidth;
                 var isMobilePortrait = isMobile && isPortrait;
                 var isMobileLand = isMobileLandscape();
                 

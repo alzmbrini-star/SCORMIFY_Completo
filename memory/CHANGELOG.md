@@ -1,6 +1,28 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: HTML export também embarca Whiteboard)
+
+### Pedido
+- Usuário precisa que slides com vídeo de Whiteboard funcionem também no export **HTML Standalone** (não só SCORM). Antes, o HTML saía com URL `/api/whiteboard/file/wb_*.mp4|.png` que não resolvia offline.
+
+### Correção
+- **`services/html_exporter.py`** (HTML tradicional):
+  - Novo helper `_resolve_whiteboard_asset(src)` que lê `wb_*` direto de `backend/storage/whiteboard/` e devolve base64 data URI.
+  - Branches `image` e `video` agora detectam `/api/whiteboard/file/` ANTES do fluxo padrão e usam o helper.
+  - Slide-level `slide.videoUrl` também é processado (legado das gerações MP4 antigas) — evita URL leakage no JSON embutido.
+- **`services/single_page_exporter.py`** (HTML single-page):
+  - `_resolve_asset_url` ganhou pattern `/api/whiteboard/file/(.+)` → resolve de `storage/whiteboard/` para data URI. Como TODOS os renders de elemento usam essa função, tanto image quanto video são cobertos de uma vez.
+
+### Cobertura
+- MP4 (`type=video`, opaque) → embed como `data:video/mp4;base64`.
+- APNG (`type=image`, `isAnimatedPng=true`, transparent) → embed como `data:image/png;base64` (browsers tocam APNG nativamente).
+
+### Testes
+- Novo `tests/test_html_whiteboard_embed.py` valida ambos exporters com arquivos reais do storage. 3 testes (HTML traditional, HTML single-page, SCORM) — todos passando.
+
+
+
 ## 2026-02-XX (Bugfix produção: Whiteboard 520 intermitente durante polling)
 
 ### Sintoma
