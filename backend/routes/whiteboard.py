@@ -69,11 +69,36 @@ async def generate_whiteboard_video(
                 None,
             )
             if slide_idx is not None:
+                slide = slides[slide_idx]
+                elements = slide.get("elements") or []
+                # Replace any prior whiteboard element so re-generating
+                # the same slide doesn't stack multiple copies.
+                elements = [e for e in elements if not (isinstance(e, dict) and e.get("isWhiteboard"))]
+                import uuid as _uuid
+                # Slide canvas is 1920x820 by default — center the 16:9
+                # video at 1280x720 with some breathing room.
+                video_el = {
+                    "id": str(_uuid.uuid4()),
+                    "type": "video",
+                    "src": rel_url,
+                    "x": 320,
+                    "y": 50,
+                    "width": 1280,
+                    "height": 720,
+                    "zIndex": len(elements),
+                    "isWhiteboard": True,
+                    "autoplay": True,
+                    "loop": False,
+                    "controls": True,
+                    "style": {},
+                }
+                elements.append(video_el)
                 await db.projects.update_one(
                     {"id": payload.projectId},
                     {"$set": {
                         f"course.slides.{slide_idx}.videoUrl": rel_url,
                         f"course.slides.{slide_idx}.whiteboardMeta": info,
+                        f"course.slides.{slide_idx}.elements": elements,
                         "updatedAt": now_utc().isoformat(),
                     }},
                 )
