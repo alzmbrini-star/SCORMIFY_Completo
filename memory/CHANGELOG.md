@@ -1,5 +1,22 @@
 # Changelog
 
+
+## 2026-02-XX (Whiteboard: Caneta minimalista + escrita coluna-a-coluna)
+
+### Feature: Asset de caneta minimalista (substitui mão cartunizada)
+- **Asset**: `/app/backend/assets/whiteboard/_generate_hand.py` reescrito para gerar uma caneta minimalista (estilo fineliner) com nib, seção, barril, clip metálico e end cap. Mantida a convenção do tip em (0, 0) para compatibilidade com o renderer.
+- **Output**: PNG 144×159 (`hand.png`), paleta restrita (preto/grafite/cinza metálico).
+- **Renderer**: `hand_target_h` ajustado de 3.0× para 2.2× do `font_size` para proporção mais elegante. Offsets do tip ajustados para alinhamento preciso no traço.
+
+### Feature: Animação de escrita coluna-a-coluna (acompanha o traço)
+- **Antes**: a caneta pulava letra a letra; o traço inteiro de um caractere aparecia de uma vez.
+- **Agora**: cada letra é revelada **coluna por coluna da esquerda para a direita**, e a ponta da caneta acompanha o **centroide vertical da tinta** em cada coluna. Resultado: a caneta visualmente "desliza sobre o traço" enquanto a letra surge.
+- **Implementação**: pré-cálculo por glifo de um cache `(glyph_rgba, trace, left, top)` onde `trace[col] = (dx, dy)` é o centroide da tinta na coluna `col`. Animação usa sub-passos por caractere (4–16, baseado em `font_size`).
+- **Schedule**: o `chars_per_second` continua sendo o controle de velocidade percebida; os sub-passos só aumentam a resolução temporal sem mexer no timing global.
+- **Performance**: arquivo MP4 cresce ~15-25% por mais frames intermediários, mas ainda < 40 KB para vídeos curtos. Cache de glifos por caractere único garante O(1) por caractere repetido.
+- **Aplicado em**: `services/whiteboard_renderer.py` (reescrito), `assets/whiteboard/_generate_hand.py` (novo design).
+
+
 ## 2026-02-XX (Editor Chat: Brand Kit fix + logo size control)
 
 ### Bug fix: "Aplique o brand kit completo" só aplicava cores (sem logo, sem fonte)
