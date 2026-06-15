@@ -548,6 +548,27 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             # Company brand image (logo, watermark) — rewrite to local path
             if elem_src and isinstance(elem_src, str) and "/api/companies/" in elem_src:
                 element['src'] = _rewrite_company_url(elem_src)
+            # Whiteboard renderer output (MP4 video or APNG image). The URL
+            # is relative (`/api/whiteboard/file/wb_*.mp4|.png`) so it never
+            # resolves once the SCORM package is opened offline. Copy the
+            # actual file from the global whiteboard storage into the
+            # package assets and rewrite the src to a local path.
+            elif elem_src and isinstance(elem_src, str) and '/api/whiteboard/file/' in elem_src:
+                wb_name = elem_src.split('/api/whiteboard/file/')[-1].split('?')[0].split('/')[0]
+                if wb_name:
+                    wb_source = STORAGE_DIR / "whiteboard" / wb_name
+                    if wb_source.exists():
+                        try:
+                            (package_dir / "assets").mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(str(wb_source), str(package_dir / "assets" / wb_name))
+                            element['src'] = f"assets/{wb_name}"
+                            logger.info(f"Copied whiteboard asset to package: {wb_name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to copy whiteboard asset {wb_name}: {e}")
+                            element['src'] = f"assets/{wb_name}"
+                    else:
+                        logger.warning(f"Whiteboard source file not found: {wb_source}")
+                        element['src'] = f"assets/{wb_name}"
             elif elem_src and isinstance(elem_src, str) and '/assets/' in elem_src:
                 raw = elem_src.split('/assets/')[-1].split('?')[0]
                 filename = raw.split('/')[-1] if '/' in raw else raw

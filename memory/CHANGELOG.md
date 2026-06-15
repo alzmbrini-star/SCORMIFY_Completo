@@ -1,6 +1,17 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: SCORM Export quebrando slides com Whiteboard)
+
+### P0 fix: Vídeo/APNG do Whiteboard não embarcava no pacote SCORM
+- **Sintoma**: Ao exportar um curso SCORM Multi-página, slides contendo um vídeo de Whiteboard (Hand Writer) apareciam como tela vermelha com ícone de imagem quebrada no canto. Outros slides funcionavam normalmente.
+- **Causa raiz**: O `scorm_exporter.py` só tratava URLs `/assets/...` e URLs externas `http(s)://...`. O renderer de Whiteboard gera URLs relativas `/api/whiteboard/file/wb_*.mp4` (vídeo) ou `/api/whiteboard/file/wb_*.png` (APNG transparente). Essas URLs caíam no fallthrough, ficavam intactas no `course.json` exportado e não resolviam quando o pacote era aberto offline.
+- **Correção** (`/app/backend/services/scorm_exporter.py`, ~linha 548): novo branch que detecta `/api/whiteboard/file/` no `element.src`, localiza o arquivo em `STORAGE_DIR/whiteboard/`, copia para `package/assets/` e reescreve o `src` para `assets/{nome}`. Funciona tanto para MP4 (`type=video`) quanto APNG (`type=image` + `isAnimatedPng=true`).
+- **Teste**: novo `tests/test_scorm_whiteboard_asset.py` valida copy + rewrite para MP4 e APNG usando arquivos reais já presentes em `storage/whiteboard/`. Passa em verde.
+- **Impacto**: usuário precisa **Redeploy to Production** para que a correção apareça no link público.
+
+
+
 ## 2026-02-XX (Whiteboard: Negrito + Sublinhado + Alinhamento + Listas)
 
 ### Feature: Set completo de formatação RTF
