@@ -1,6 +1,25 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Whiteboard sobrescrevia o anterior no mesmo slide)
+
+### Sintoma
+- Ao gerar um segundo Whiteboard no mesmo slide, ele removia o primeiro. Impossível encadear via Timeline porque só havia 1 elemento por vez.
+
+### Causa
+- `routes/whiteboard.py:_run_whiteboard_job` tinha um filtro `elements = [e for e in elements if not e.get("isWhiteboard")]` ANTES de adicionar o novo. Era proposital pra evitar "stacking" durante regenerações, mas atrapalha o caso de uso de múltiplos whiteboards encadeados.
+
+### Correção
+- Removido o filtro — agora cada geração apenas anexa.
+- **Bônus UX**: posição inicial agora é deslocada em +24px (x,y) por whiteboard já existente no slide (até +200px). Assim no Editor os múltiplos não ficam exatamente sobrepostos visualmente — o autor consegue clicar/selecionar cada um pra ajustar timeline/posição.
+- Limite máximo: ~9 whiteboards antes do offset saturar — mais que suficiente pra qualquer caso prático de encadeamento.
+
+### Teste manual
+- 2 POSTs sequenciais no mesmo slide → 2 elementos `isWhiteboard=true` coexistem ✓
+- Posições: 1º em (320,50), 2º em (344,74) ✓
+
+
+
 ## 2026-02-XX (Feature: Whiteboard "Apagar ao final" — eraser sweep)
 
 ### Pedido do usuário

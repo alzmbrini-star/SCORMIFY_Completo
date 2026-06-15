@@ -154,18 +154,31 @@ async def _run_whiteboard_job(
             if slide_idx is not None:
                 slide = slides[slide_idx]
                 elements = slide.get("elements") or []
-                elements = [
-                    e for e in elements
-                    if not (isinstance(e, dict) and e.get("isWhiteboard"))
-                ]
+                # Note: we intentionally APPEND the new whiteboard instead
+                # of replacing existing ones. The author can have multiple
+                # whiteboards on the same slide to chain them via Timeline
+                # (e.g. "write text 1 → erase → write text 2 → erase").
+                # If the user wants to replace, they can delete the old
+                # element from the Editor manually.
                 is_apng = info.get("format") == "apng"
+                # Stagger position slightly when there are pre-existing
+                # whiteboards so they don't visually stack identically in
+                # the Editor canvas. The Timeline still controls playback
+                # order independently of position.
+                existing_wb = sum(
+                    1 for e in elements
+                    if isinstance(e, dict) and e.get("isWhiteboard")
+                )
+                offset = min(existing_wb * 24, 200)
+                base_x = 320 + offset
+                base_y = 50 + offset
                 if is_apng:
                     new_el = {
                         "id": str(_uuid.uuid4()),
                         "type": "image",
                         "src": rel_url,
-                        "x": 320,
-                        "y": 50,
+                        "x": base_x,
+                        "y": base_y,
                         "width": 1280,
                         "height": 720,
                         "zIndex": len(elements),
@@ -178,8 +191,8 @@ async def _run_whiteboard_job(
                         "id": str(_uuid.uuid4()),
                         "type": "video",
                         "src": rel_url,
-                        "x": 320,
-                        "y": 50,
+                        "x": base_x,
+                        "y": base_y,
                         "width": 1280,
                         "height": 720,
                         "zIndex": len(elements),
