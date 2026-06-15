@@ -46,11 +46,26 @@ export default function WhiteboardDialog({
   const [text, setText] = useState(defaultText);
   const [textHtml, setTextHtml] = useState('');
   const [inkColor, setInkColor] = useState('#1a1a1a');
-  const [speed, setSpeed] = useState(6);  // chars/sec
-  const [fontSize, setFontSize] = useState(96);
-  const [fontFamily, setFontFamily] = useState('caveat');
-  const [transparent, setTransparent] = useState(false);
-  const [eraseAtEnd, setEraseAtEnd] = useState(false);
+  // Render preferences are persisted in localStorage so when the user
+  // closes and reopens the dialog (Radix unmounts content by default),
+  // their last chosen speed / font / transparency / erase setting comes
+  // back. Without this, every reopen reset everything to defaults — and
+  // users would generate a second whiteboard expecting "Fundo
+  // transparente" still ON but get an opaque MP4 instead.
+  const _lsRead = (key, fallback) => {
+    try {
+      const v = localStorage.getItem(`wb:${key}`);
+      if (v === null) return fallback;
+      return JSON.parse(v);
+    } catch {
+      return fallback;
+    }
+  };
+  const [speed, setSpeed] = useState(() => _lsRead('speed', 6));
+  const [fontSize, setFontSize] = useState(() => _lsRead('fontSize', 96));
+  const [fontFamily, setFontFamily] = useState(() => _lsRead('fontFamily', 'caveat'));
+  const [transparent, setTransparent] = useState(() => _lsRead('transparent', false));
+  const [eraseAtEnd, setEraseAtEnd] = useState(() => _lsRead('eraseAtEnd', false));
   const [fonts, setFonts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -129,6 +144,20 @@ export default function WhiteboardDialog({
       .then((d) => setFonts(d.fonts || []))
       .catch(() => setFonts([]));
   }, [open]);
+
+  // Persist user preferences to localStorage so a second generation
+  // (even after the dialog closed and remounted) keeps the same render
+  // settings. Without this, "Fundo transparente" / "Apagar ao final"
+  // silently flipped back to OFF between sessions.
+  const _lsWrite = (key, val) => {
+    try { localStorage.setItem(`wb:${key}`, JSON.stringify(val)); }
+    catch { /* localStorage quota / privacy mode — ignore */ }
+  };
+  useEffect(() => { _lsWrite('speed', speed); }, [speed]);
+  useEffect(() => { _lsWrite('fontSize', fontSize); }, [fontSize]);
+  useEffect(() => { _lsWrite('fontFamily', fontFamily); }, [fontFamily]);
+  useEffect(() => { _lsWrite('transparent', transparent); }, [transparent]);
+  useEffect(() => { _lsWrite('eraseAtEnd', eraseAtEnd); }, [eraseAtEnd]);
 
   const handleGenerateAi = async () => {
     setAiBusy(true);

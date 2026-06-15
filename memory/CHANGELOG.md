@@ -1,6 +1,28 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Whiteboard perdia config entre aberturas do diálogo)
+
+### Sintoma
+- Ao gerar um segundo Whiteboard, mesmo com "Fundo transparente" aparentemente ativo, o resultado vinha como MP4 com fundo branco. Toggles "Apagar ao final", velocidade, fonte etc. também resetavam.
+
+### Causa
+- `<Dialog>` do Radix UI **desmonta os filhos** quando fecha (`open=false`). Como resultado, todo o estado interno do `WhiteboardDialog` voltava aos defaults do `useState(...)` na próxima abertura. Visualmente o usuário "lembrava" de ter ligado o toggle, mas o estado já estava em `false`.
+- Pior: o usuário pode ter clicado "Gerar" sem perceber que os toggles tinham resetado, porque os valores DEFAULTS são todos `false` e cinza pálido.
+
+### Correção
+- **Persistência em `localStorage`** das preferências de render no `WhiteboardDialog.jsx`:
+  - `transparent`, `eraseAtEnd`, `speed`, `fontSize`, `fontFamily` agora são lidos do `localStorage` no `useState(...)` inicial e gravados via `useEffect` a cada alteração.
+  - Chaves prefixadas `wb:` para evitar conflito com outras features (ex: `wb:transparent`, `wb:eraseAtEnd`).
+  - Try/catch em volta de cada acesso ao localStorage (privacy mode / quota / iframe sandboxed).
+- **Não persistido**: `text`, `title`, `inkColor`, `result` — estes são por-slide / por-sessão, não fazem sentido reusar.
+
+### Resultado esperado
+- Usuário liga "Fundo transparente" no primeiro whiteboard, fecha, abre de novo → toggle continua ON. Gera o segundo → APNG transparente ✓
+- Mesmo princípio para "Apagar ao final" e demais sliders.
+
+
+
 ## 2026-02-XX (Bugfix: Whiteboard sobrescrevia o anterior no mesmo slide)
 
 ### Sintoma
