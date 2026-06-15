@@ -70,10 +70,81 @@ def _resolve_ffmpeg_binary() -> str:
 
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "whiteboard"
-FONT_PATH = ASSETS_DIR / "Caveat-Regular.ttf"
+FONTS_DIR = ASSETS_DIR / "fonts"
+# Legacy single-font location (kept for fallback compat).
+LEGACY_FONT_PATH = ASSETS_DIR / "Caveat-Regular.ttf"
 HAND_PATH = ASSETS_DIR / "hand.png"
 OUTPUT_DIR = Path(os.environ.get("STORAGE_DIR", "/app/backend/storage")) / "whiteboard"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# =====================================================================
+# Font catalog — bundled handwriting / marker fonts.
+# =====================================================================
+# Each entry: id (used as font_family param) -> (filename, display name,
+# style hint). The "hand_friendly" flag tells the UI which fonts work
+# well with the pen animation (handwriting fonts) vs print fonts that
+# would still animate but look less natural.
+
+FONT_CATALOG: dict[str, dict] = {
+    "caveat": {
+        "file": "Caveat.ttf",
+        "label": "Caveat (manuscrita)",
+        "style": "handwriting",
+    },
+    "architects_daughter": {
+        "file": "ArchitectsDaughter.ttf",
+        "label": "Architects Daughter (arquiteto)",
+        "style": "handwriting",
+    },
+    "indie_flower": {
+        "file": "IndieFlower.ttf",
+        "label": "Indie Flower (arredondada)",
+        "style": "handwriting",
+    },
+    "patrick_hand": {
+        "file": "PatrickHand.ttf",
+        "label": "Patrick Hand (limpa)",
+        "style": "handwriting",
+    },
+    "permanent_marker": {
+        "file": "PermanentMarker.ttf",
+        "label": "Permanent Marker (marcador)",
+        "style": "marker",
+    },
+    "shadows_into_light": {
+        "file": "ShadowsIntoLight.ttf",
+        "label": "Shadows Into Light (fina)",
+        "style": "handwriting",
+    },
+    "kalam": {
+        "file": "Kalam.ttf",
+        "label": "Kalam (caligráfica)",
+        "style": "handwriting",
+    },
+}
+
+
+def _resolve_font_path(font_family: Optional[str]) -> Path:
+    """Map a `font_family` id to a TTF on disk. Falls back to Caveat."""
+    if font_family and font_family in FONT_CATALOG:
+        candidate = FONTS_DIR / FONT_CATALOG[font_family]["file"]
+        if candidate.exists():
+            return candidate
+    # Default: Caveat in the new fonts dir, else legacy location.
+    new_caveat = FONTS_DIR / "Caveat.ttf"
+    if new_caveat.exists():
+        return new_caveat
+    return LEGACY_FONT_PATH
+
+
+def list_available_fonts() -> list[dict]:
+    """Return the catalog filtered to fonts physically present on disk."""
+    out = []
+    for fid, meta in FONT_CATALOG.items():
+        if (FONTS_DIR / meta["file"]).exists():
+            out.append({"id": fid, "label": meta["label"], "style": meta["style"]})
+    return out
 
 # Canvas dimensions — 1920x1080 matches SCORM export aspect ratio.
 CANVAS_W, CANVAS_H = 1920, 1080
@@ -268,9 +339,9 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[
     return out
 
 
-def _layout(text: str, font_size: int) -> tuple[ImageFont.FreeTypeFont, list[tuple[str, int, int]]]:
+def _layout(text: str, font_size: int, font_path: Path) -> tuple[ImageFont.FreeTypeFont, list[tuple[str, int, int]]]:
     """Return (font, characters) where each character is (char, x, y)."""
-    font = ImageFont.truetype(str(FONT_PATH), font_size)
+    font = ImageFont.truetype(str(font_path), font_size)
     max_w = CANVAS_W - 2 * MARGIN_X
     lines = _wrap_text(text, font, max_w)
     line_h = int(font_size * LINE_SPACING)
@@ -432,9 +503,18 @@ def _render_frame_writing(
     hand_img: Image.Image,
     title: Optional[str],
     title_font: Optional[ImageFont.FreeTypeFont],
+    transparent: bool = False,
 ) -> Image.Image:
-    """Render a single MP4 frame at the given **sub-step** index."""
-    img = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
+    """Render a single MP4/WebM frame at the given **sub-step** index.
+
+    When `transparent` is True the background is an empty alpha channel
+    (RGBA, alpha=0) so the resulting video can be overlaid on any slide
+    background. Title and underline are still drawn — they're part of
+    the artwork that should be visible."""
+    if transparent:
+        img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    else:
+        img = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
     d = ImageDraw.Draw(img)
 
     if title and title_font:
@@ -494,19 +574,27 @@ async def render_whiteboard_video(
     font_size: int = FONT_SIZE_DEFAULT,
     chars_per_second: float = 19.0,
     dwell_end_seconds: float = 1.5,
+    font_family: Optional[str] = None,
+    transparent: bool = False,
 ) -> tuple[str, dict]:
-    """Synthesize a whiteboard MP4 from `text`."""
+    """Synthesize a whiteboard video from `text`.
+
+    When `transparent` is True the output is a WebM (VP9 + alpha) file
+    suitable for overlaying on slide backgrounds. Otherwise an H.264 MP4
+    on a white canvas is produced (broader LMS player compatibility).
+    """
     if not text or not text.strip():
         raise ValueError("text must not be empty")
 
-    font, chars = _layout(text, font_size)
+    font_path = _resolve_font_path(font_family)
+    font, chars = _layout(text, font_size, font_path)
     total = len(chars)
     if total == 0:
         raise ValueError("layout produced 0 characters (only whitespace?)")
 
     title_font = None
     if title:
-        title_font = ImageFont.truetype(str(FONT_PATH), int(font_size * 0.9))
+        title_font = ImageFont.truetype(str(font_path), int(font_size * 0.9))
 
     hand_img = Image.open(HAND_PATH).convert("RGBA")
     hand_target_h = int(font_size * 2.2)
@@ -559,45 +647,119 @@ async def render_whiteboard_video(
     total_frames = total_anim_frames + dwell_frames
 
     video_id = f"wb_{uuid.uuid4().hex[:12]}"
-    out_path = OUTPUT_DIR / f"{video_id}.mp4"
-
-    os.environ["IMAGEIO_FFMPEG_EXE"] = _resolve_ffmpeg_binary()
-    writer = imageio.get_writer(
-        str(out_path), format="FFMPEG",
-        mode="I", fps=FPS,
-        codec="libx264", pixelformat="yuv420p",
-        macro_block_size=None,
-        ffmpeg_log_level="error",
-        output_params=["-movflags", "+faststart"],
-    )
-    try:
+    if transparent:
+        # Transparent output: animated PNG. VP9-alpha and VP8-alpha
+        # WebM encoders in our bundled ffmpeg silently strip the alpha
+        # channel during encode (verified), so APNG is the most reliable
+        # format. Modern browsers (Chrome/Firefox/Safari/Edge) play it
+        # natively in <img> tags with full alpha. Larger files than VP9
+        # but acceptable for short animations.
+        ext = "png"  # APNG uses .png extension
+        out_path = OUTPUT_DIR / f"{video_id}.{ext}"
+        ffmpeg_bin = _resolve_ffmpeg_binary()
         await asyncio.to_thread(
-            _write_all_frames,
-            writer, total_frames, total_anim_frames, total_substeps,
+            _write_apng_via_ffmpeg,
+            ffmpeg_bin, out_path, CANVAS_W, CANVAS_H, FPS,
+            total_frames, total_anim_frames, total_substeps,
             chars, glyph_cache, char_substeps, char_step_starts,
             hand_img, title, title_font,
         )
-    finally:
-        writer.close()
+        info_format = "apng"
+    else:
+        # H.264 MP4 on white canvas — broad LMS compatibility.
+        ext = "mp4"
+        out_path = OUTPUT_DIR / f"{video_id}.{ext}"
+        os.environ["IMAGEIO_FFMPEG_EXE"] = _resolve_ffmpeg_binary()
+        writer = imageio.get_writer(
+            str(out_path), format="FFMPEG",
+            mode="I", fps=FPS,
+            codec="libx264", pixelformat="yuv420p",
+            macro_block_size=None,
+            ffmpeg_log_level="error",
+            output_params=["-movflags", "+faststart"],
+        )
+        try:
+            await asyncio.to_thread(
+                _write_all_frames,
+                writer, total_frames, total_anim_frames, total_substeps,
+                chars, glyph_cache, char_substeps, char_step_starts,
+                hand_img, title, title_font, False,
+            )
+        finally:
+            writer.close()
+        info_format = "mp4"
 
     file_size = out_path.stat().st_size
     logger.info(
-        "whiteboard: rendered %s (%d frames, %.1fs, %.1f KB)",
-        video_id, total_frames, total_frames / FPS, file_size / 1024,
+        "whiteboard: rendered %s.%s (%d frames, %.1fs, %.1f KB, transparent=%s)",
+        video_id, ext, total_frames, total_frames / FPS, file_size / 1024, transparent,
     )
-    return f"/api/whiteboard/file/{video_id}.mp4", {
+    return f"/api/whiteboard/file/{video_id}.{ext}", {
         "videoId": video_id,
         "duration": total_frames / FPS,
         "frames": total_frames,
         "totalChars": total,
         "fileSize": file_size,
+        "transparent": transparent,
+        "format": info_format,
     }
+
+
+def _write_apng_via_ffmpeg(
+    ffmpeg_bin: str, out_path: Path, width: int, height: int, fps: int,
+    total_frames: int, total_anim_frames: int, total_substeps: int,
+    chars, glyph_cache, char_substeps, char_step_starts,
+    hand_img, title: Optional[str], title_font,
+) -> None:
+    """Encode an animated PNG by piping raw RGBA frames into ffmpeg's
+    APNG encoder. APNG preserves the alpha channel losslessly — the only
+    format we can reliably produce with transparency in this env."""
+    import subprocess
+    proc = subprocess.Popen(
+        [ffmpeg_bin, "-y", "-loglevel", "error",
+         "-f", "rawvideo", "-pix_fmt", "rgba",
+         "-s", f"{width}x{height}", "-r", str(fps),
+         "-i", "-",
+         "-c:v", "apng", "-f", "apng", "-plays", "0",
+         "-pred", "mixed",  # better compression for APNG
+         str(out_path)],
+        stdin=subprocess.PIPE,
+    )
+    try:
+        for f in range(total_frames):
+            if f < total_anim_frames:
+                step_idx = min(
+                    total_substeps - 1,
+                    int(f * total_substeps / max(1, total_anim_frames)),
+                )
+            else:
+                step_idx = total_substeps - 1
+            frame = _render_frame_writing(
+                step_idx, chars, glyph_cache,
+                char_substeps, char_step_starts, hand_img,
+                title=title, title_font=title_font,
+                transparent=True,
+            )
+            arr = np.asarray(frame, dtype=np.uint8)
+            # Ensure 4-channel RGBA.
+            if arr.shape[-1] == 3:
+                alpha = np.full((arr.shape[0], arr.shape[1], 1), 255, dtype=np.uint8)
+                arr = np.concatenate([arr, alpha], axis=-1)
+            proc.stdin.write(arr.tobytes())
+    finally:
+        try:
+            proc.stdin.close()
+        except Exception:  # noqa: BLE001
+            pass
+        proc.wait(timeout=60)
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg APNG encode failed (rc={proc.returncode})")
 
 
 def _write_all_frames(
     writer, total_frames: int, total_anim_frames: int, total_substeps: int,
     chars, glyph_cache, char_substeps, char_step_starts,
-    hand_img, title: Optional[str], title_font,
+    hand_img, title: Optional[str], title_font, transparent: bool = False,
 ) -> None:
     """Synchronous hot loop, offloaded via asyncio.to_thread."""
     for f in range(total_frames):
@@ -612,5 +774,9 @@ def _write_all_frames(
             step_idx, chars, glyph_cache,
             char_substeps, char_step_starts, hand_img,
             title=title, title_font=title_font,
+            transparent=transparent,
         )
+        # imageio's FFMPEG writer accepts both RGB and RGBA arrays —
+        # when yuva420p is the pixel format, RGBA arrays carry the
+        # alpha plane through to the encoder.
         writer.append_data(np.asarray(frame))

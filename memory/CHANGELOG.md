@@ -1,6 +1,40 @@
 # Changelog
 
 
+## 2026-02-XX (Whiteboard: Fundo transparente + multi-fontes + tamanhos grandes)
+
+### Feature: Fundo transparente via APNG animado
+- **Motivação**: usuário queria sobrepor o vídeo do whiteboard no background do slide sem fundo branco.
+- **Investigação de codec**: WebM VP9-alpha e VP8-alpha foram testados primeiro (parecem suportados via `-pix_fmt yuva420p`), mas tanto o `imageio_ffmpeg` bundled quanto o `ffmpeg` 5.1 do sistema **silenciosamente strippam o canal alpha** durante o encode. O output sempre saía como yuv420p mesmo com a flag `alpha_mode=1`.
+- **Solução**: usamos **APNG (Animated PNG)** para outputs transparentes. APNG preserva alpha losslessly e tem suporte nativo em todos os browsers modernos via `<img>`. Trade-off: arquivos ~10x maiores que MP4 (3.4s = ~1.6MB), aceitável para animações curtas (recomendado <300 chars/slide).
+- **Pipeline**: quando `transparent=True`, frames RGBA são pipeados diretamente para `ffmpeg -c:v apng -f apng -plays 0 -pred mixed` via stdin. Compositing testado sobre fundo colorido: 100% transparente, sem halos.
+- **Binding ao slide**: APNG transparente é injetado como `element.type = "image"` (com `isAnimatedPng: true`) em vez de `"video"`, pois browsers renderizam APNG via `<img>` automaticamente. MP4 opaco continua como `"video"`.
+
+### Feature: 7 fontes manuscritas + tamanhos até 240px
+- **Fontes empacotadas** (todas OFL/Apache, baixadas do repositório oficial Google Fonts):
+  - Caveat (manuscrita, default)
+  - Architects Daughter (arquiteto)
+  - Indie Flower (arredondada)
+  - Patrick Hand (limpa)
+  - Permanent Marker (marcador grosso)
+  - Shadows Into Light (fina)
+  - Kalam (caligráfica)
+- **Catalog API**: `GET /api/whiteboard/fonts` retorna fontes presentes no disco com label e style hint.
+- **Tamanhos**: `fontSize` agora aceita 40..240 (era 40..140), com presets na UI: Pequeno (64), Médio (96), Grande (140), Maior (180), Enorme (220), além de input numérico livre.
+- **UI nova** (`WhiteboardDialog.jsx`):
+  - Dropdown de fonte (fetched de `/api/whiteboard/fonts`)
+  - Combinação preset + input numérico para tamanho
+  - Toggle "Fundo transparente" com explicação do trade-off
+  - Preview do resultado em `<img>` (APNG) ou `<video>` (MP4) com xadrez de fundo para visualizar transparência
+
+### Files
+- `services/whiteboard_renderer.py`: FONT_CATALOG, `_resolve_font_path`, `list_available_fonts`, `_write_apng_via_ffmpeg`, suporte transparent no `_render_frame_writing`.
+- `routes/whiteboard.py`: fontFamily/transparent params, /fonts endpoint, binding APNG como image element, serve .png com mime image/apng.
+- `assets/whiteboard/fonts/*.ttf`: 7 fontes empacotadas (~1.3MB total).
+- `pages/Editor/dialogs/WhiteboardDialog.jsx`: UI completa.
+
+
+
 ## 2026-02-XX (Whiteboard: Caneta minimalista + escrita coluna-a-coluna)
 
 ### Feature: Asset de caneta minimalista (substitui mão cartunizada)
