@@ -926,6 +926,7 @@ def _build_erase_schedule(
     text_band: tuple[int, int],
     font_size: int,
     chars_per_second: float,
+    has_title: bool = False,
 ) -> tuple[list[tuple[int, int]], int, int, int]:
     """Compute the eraser geometry and per-stripe frame count.
 
@@ -934,6 +935,12 @@ def _build_erase_schedule(
       eraser_w: width in px of the eraser block
       eraser_h: height in px of the eraser block (= stripe height)
       frames_per_stripe: how many animation frames per horizontal pass
+
+    When `has_title` is True a "title stripe" covering y=(20, 140) is
+    prepended so the eraser wipes the title in a natural top→bottom
+    motion BEFORE moving on to the text. Without this the previous
+    whiteboard's title remains visible on the last erase frame, which
+    leaks into the next clip when chaining Whiteboards on the Timeline.
     """
     y_top, y_bottom = text_band
     band_h = max(1, y_bottom - y_top)
@@ -946,6 +953,9 @@ def _build_erase_schedule(
         y0 = y_top + i * stripe_h
         y1 = y_top + (i + 1) * stripe_h if i < num_stripes - 1 else y_bottom
         stripe_bounds.append((y0, y1))
+    if has_title:
+        # Title stripe sits at the top (y=20..140 captures title + underline).
+        stripe_bounds.insert(0, (20, 140))
     eraser_w = max(140, int(font_size * 2.4))
     # Speed: ~2.5x faster than writing. For a 1920px sweep we want ~0.5s
     # per stripe at typical writing speeds, clamped to a usable range.
@@ -975,22 +985,19 @@ def _render_frame_erasing(
       - "horizontal" (default): every stripe sweeps left→right.
       - "zigzag": alternating stripes reverse direction (L→R, R→L, L→R, …),
         producing a continuous serpentine eraser path — feels more like a
-        teacher quickly wiping the board than a robotic raster scan."""
+        teacher quickly wiping the board than a robotic raster scan.
+
+    Title and text are composited into a single "content" layer and then
+    masked together — this way the eraser also wipes the title when its
+    stripe is included in `stripe_bounds` (built via
+    `_build_erase_schedule(has_title=True)`). On the very last erase
+    frame the eraser block itself is omitted so the clip ends on a fully
+    clean canvas (no leftover gray block visible when chained on the
+    Timeline)."""
     if transparent:
         img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
     else:
         img = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
-    d = ImageDraw.Draw(img)
-
-    # Title stays visible during erase.
-    if title and title_font:
-        bb = title_font.getbbox(title)
-        tw = bb[2] - bb[0]
-        d.text(((CANVAS_W - tw) // 2, 40), title, font=title_font, fill=(40, 60, 140))
-        d.line(
-            [(MARGIN_X, 130), (CANVAS_W - MARGIN_X, 130)],
-            fill=(120, 140, 200), width=3,
-        )
 
     stripe_idx = min(len(stripe_bounds) - 1, erase_step // total_erase_steps_per_stripe)
     step_in_stripe = erase_step - stripe_idx * total_erase_steps_per_stripe
@@ -1001,7 +1008,7 @@ def _render_frame_erasing(
     # so the eraser doesn't teleport back to the left edge between rows.
     reverse = (erase_style == "zigzag") and (stripe_idx % 2 == 1)
 
-    # Build a mask of where the original text is STILL visible.
+    # Build a mask of where content is STILL visible.
     # Mask == 255 keeps pixels, 0 hides them.
     mask = Image.new("L", (CANVAS_W, CANVAS_H), 255)
     md = ImageDraw.Draw(mask)
@@ -1029,34 +1036,53 @@ def _render_frame_erasing(
         ex_left = max(left_bound, sweep_x_right - eraser_w // 2)
         ex_right = min(right_bound, ex_left + eraser_w)
 
-    # Composite the masked final text onto our background.
-    if transparent:
-        text_copy = final_text_layer.copy()
-        alpha = text_copy.split()[3]
-        new_alpha = ImageChops.multiply(alpha, mask)
-        text_copy.putalpha(new_alpha)
-        img = Image.alpha_composite(img, text_copy)
-        d = ImageDraw.Draw(img)
-    else:
-        # On white BG: paste using mask as the "where to keep" mask.
-        # We need to flatten RGBA text onto white first, then paste with mask.
-        flat = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
-        flat.paste(final_text_layer, (0, 0), final_text_layer)
-        img.paste(flat, (0, 0), mask)
-        d = ImageDraw.Draw(img)
+    # Build a combined content layer (title + final text) so a single mask
+    # wipes both. The title used to be drawn directly on the frame which
+    # meant the eraser couldn't touch it — now the title stripe (when
+    # present in stripe_bounds) properly erases it.
+    content = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    if title and title_font:
+        td = ImageDraw.Draw(content)
+        bb = title_font.getbbox(title)
+        tw = bb[2] - bb[0]
+        td.text(((CANVAS_W - tw) // 2, 40), title, font=title_font, fill=(40, 60, 140))
+        td.line(
+            [(MARGIN_X, 130), (CANVAS_W - MARGIN_X, 130)],
+            fill=(120, 140, 200), width=3,
+        )
+    if final_text_layer is not None:
+        content.alpha_composite(final_text_layer)
 
-    # Draw the eraser block at the leading edge of the sweep.
-    ey_top = y0
-    ey_bot = y1
-    d.rounded_rectangle(
-        [(ex_left, ey_top), (ex_right, ey_bot)],
-        radius=8, fill=ERASER_COLOR,
+    # Composite the masked content onto our background.
+    if transparent:
+        alpha = content.split()[3]
+        new_alpha = ImageChops.multiply(alpha, mask)
+        content.putalpha(new_alpha)
+        img = Image.alpha_composite(img, content)
+    else:
+        # On white BG: flatten content first, then paste using mask.
+        flat = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
+        flat.paste(content, (0, 0), content)
+        img.paste(flat, (0, 0), mask)
+    d = ImageDraw.Draw(img)
+
+    # Draw the eraser block — UNLESS this is the final frame of the final
+    # stripe. Keeping the block on the last frame leaves a gray rectangle
+    # on screen that visually contaminates the next clip when chained.
+    is_last_frame = (
+        stripe_idx == len(stripe_bounds) - 1
+        and step_in_stripe >= total_erase_steps_per_stripe - 1
     )
-    # Thin highlight along the top of the eraser for a subtle 3D feel.
-    d.rectangle(
-        [(ex_left + 4, ey_top + 4), (ex_right - 4, ey_top + 10)],
-        fill=ERASER_HIGHLIGHT,
-    )
+    if not is_last_frame:
+        d.rounded_rectangle(
+            [(ex_left, y0), (ex_right, y1)],
+            radius=8, fill=ERASER_COLOR,
+        )
+        # Thin highlight along the top of the eraser for a subtle 3D feel.
+        d.rectangle(
+            [(ex_left + 4, y0 + 4), (ex_right - 4, y0 + 10)],
+            fill=ERASER_HIGHLIGHT,
+        )
     return img
 
 
@@ -1163,6 +1189,7 @@ async def render_whiteboard_video(
         text_band = _compute_text_band(chars, font_size)
         stripe_bounds, eraser_w, _eraser_h, frames_per_stripe = _build_erase_schedule(
             text_band, font_size, chars_per_second,
+            has_title=bool(title),
         )
         total_erase_frames = len(stripe_bounds) * frames_per_stripe
         # Build the final image to be masked. We render it without title /
