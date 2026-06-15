@@ -27,7 +27,7 @@ export default function WhiteboardDialog({
 }) {
   const [title, setTitle] = useState(defaultTitle);
   const [text, setText] = useState(defaultText);
-  const [speed, setSpeed] = useState(19);  // chars/sec
+  const [speed, setSpeed] = useState(6);  // chars/sec (natural handwriting ~4-8)
   const [busy, setBusy] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
 
@@ -47,7 +47,7 @@ export default function WhiteboardDialog({
           text: text.trim(),
           title: title.trim() || null,
           fontSize: 96,
-          charsPerSecond: Number(speed) || 19,
+          charsPerSecond: Number(speed) || 6,
           projectId,
           slideId,
         }),
@@ -113,13 +113,14 @@ export default function WhiteboardDialog({
               id="wb-speed"
               data-testid="whiteboard-speed-input"
               type="number"
-              min={4}
-              max={40}
+              min={2}
+              max={30}
               value={speed}
               onChange={(e) => setSpeed(e.target.value)}
             />
             <p className="text-[10px] text-muted-foreground mt-1">
-              19 = ritmo natural. 30+ = rapido. 10 = lento e dramatico.
+              4 = lento e dramatico. 6 = natural (recomendado). 10+ = rapido,
+              caneta quase nao aparece se movendo dentro de cada letra.
             </p>
           </div>
 

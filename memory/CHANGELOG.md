@@ -8,9 +8,18 @@
 - **Output**: PNG 144×159 (`hand.png`), paleta restrita (preto/grafite/cinza metálico).
 - **Renderer**: `hand_target_h` ajustado de 3.0× para 2.2× do `font_size` para proporção mais elegante. Offsets do tip ajustados para alinhamento preciso no traço.
 
-### Feature: Animação de escrita seguindo o ESQUELETO da letra (Zhang-Suen)
+### Bug fix: Caneta parecia "parada" no vídeo gerado
+- **Root cause**: o `chars_per_second` default era 19 (~ritmo de digitação robótica). A 30 FPS isso dá só **1.58 frames por caractere**. Como o algoritmo usa ~14 sub-passos por letra para traçar o esqueleto, cada frame avançava ~9 sub-passos — o olho não captava movimento dentro de uma letra, parecia que a caneta pulava de letra em letra.
+- **Fix #1 (backend)**: sub-passos por caractere agora são calculados em função de `FPS/cps` (clamp 6..24), garantindo aproximadamente 1 sub-passo por frame. Também adicionada duração mínima `total_substeps/FPS` para forçar ≥1 frame por sub-passo (slow-down automático se cps for muito alto).
+- **Fix #2 (frontend)**: default reduzido de 19 → 6 cps (velocidade natural de manuscrita). Limites do input ajustados para 2..30 (era 4..40). Texto de ajuda reescrito.
+- **Verificação**: gerei "O instrutor deve enfatizar" com título em cps=6. Grid de 16 frames mostra a caneta em posições nitidamente diferentes em cada frame, acompanhando o texto sendo escrito.
+- **Aplicado em**: `services/whiteboard_renderer.py` (cálculo dinâmico de sub-passos + min duration), `pages/Editor/dialogs/WhiteboardDialog.jsx` (default + bounds + help text).
+
+
 - **Problema da versão anterior**: a caneta usava varredura coluna-a-coluna com centroide vertical da tinta. Em letras com múltiplos traços (H, T, F), a caneta "ficava no vazio" entre os traços (média de duas regiões de tinta = espaço em branco).
 - **Solução**: implementado **Zhang-Suen thinning em numpy puro** (sem scipy). Cada glifo é renderizado → binarizado → afinado em um esqueleto de 1 pixel → caminho do esqueleto é ordenado em "ordem de escrita":
+### Feature: Animação de escrita seguindo o ESQUELETO da letra (Zhang-Suen)
+
   1. Componentes conectados ordenados pela esquerda-cima.
   2. Dentro de cada componente, começa do endpoint topo-esquerdo, anda buscando vizinhos com preferência por continuidade direcional.
 - **Revelação por disco**: cada ponto do esqueleto "pinta" um disco de raio ≈ stroke-width na máscara de revelação — a tinta cresce naturalmente em volta da ponta da caneta, como tinta saindo do nib.

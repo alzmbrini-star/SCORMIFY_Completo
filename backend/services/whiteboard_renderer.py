@@ -516,10 +516,19 @@ async def render_whiteboard_video(
         Image.LANCZOS,
     )
 
-    # Sub-steps per character — controls smoothness of the pen
-    # animation. Higher = more frames per letter = smoother but
-    # heavier file. ~font_size/8 with clamp gives good defaults.
-    sub_default = max(8, min(20, font_size // 6))
+    # Sub-steps per character control how many distinct pen positions
+    # are visible per letter. To FEEL like writing motion the pen has
+    # to land on a different point in many consecutive frames, so we
+    # tie sub-steps to the **frames per character** budget instead of
+    # using a fixed default:
+    #   frames_per_char = FPS / chars_per_second
+    #   sub_default     ≈ frames_per_char (1 substep per frame)
+    # This is then clamped to [6, 24]; the lower bound guarantees a
+    # visible trace even at very high cps (we *slow down* the overall
+    # animation if needed to keep ≥6 frames per char — see duration
+    # calculation below).
+    frames_per_char = FPS / max(0.1, chars_per_second)
+    sub_default = max(6, min(24, int(round(frames_per_char))))
 
     glyph_cache = _build_glyph_cache(chars, font, sub_default)
 
@@ -537,7 +546,14 @@ async def render_whiteboard_video(
         char_step_starts.append(acc)
         acc += s
 
-    duration_sec = total / max(0.1, chars_per_second)
+    # Duration: requested by user as total_chars/cps, BUT we also
+    # enforce a minimum of 1 frame per substep so every pen position
+    # is actually visible. Whichever is longer wins. For cps > ~5 the
+    # min-substep constraint kicks in and slightly slows down playback
+    # — a worthwhile tradeoff for a visible writing motion.
+    requested_duration_sec = total / max(0.1, chars_per_second)
+    min_duration_sec = total_substeps / FPS
+    duration_sec = max(requested_duration_sec, min_duration_sec)
     total_anim_frames = max(1, int(round(duration_sec * FPS)))
     dwell_frames = int(FPS * dwell_end_seconds)
     total_frames = total_anim_frames + dwell_frames
