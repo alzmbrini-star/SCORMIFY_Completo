@@ -174,7 +174,14 @@ async def _run_whiteboard_job(
                     1 for e in elements
                     if isinstance(e, dict) and e.get("isWhiteboard")
                 )
-                offset = min(existing_wb * 24, 200)
+                # Make the stagger meaningfully visible. Previously 24px
+                # offset with 1280×720 elements meant the new whiteboard
+                # essentially covered the previous one — authors thought
+                # the older clip was "deleted" when in fact it was just
+                # hidden behind. 80px diagonal stagger keeps the corner
+                # of every prior whiteboard visible so the author can
+                # click through to it in the Layers panel.
+                offset = min(existing_wb * 80, 400)
                 base_x = 320 + offset
                 base_y = 50 + offset
                 # Friendly element label shown in the Layers panel. Uses
