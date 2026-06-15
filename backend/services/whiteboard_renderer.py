@@ -75,8 +75,11 @@ FONT_SIZE_DEFAULT = 84
 LINE_SPACING = 1.25  # multiplier of font size
 FRAMES_PER_CHAR = 1.6  # at 30fps this is ~19 chars/sec — natural pen speed
 FPS = 30
-HAND_OFFSET_X = -10  # writing tip horizontal nudge so it touches char start
-HAND_OFFSET_Y = -20  # vertical nudge so the tip aligns with char baseline
+# Pen asset has its writing tip at the asset's (0, 0). These nudges
+# fine-tune the tip placement so it visually touches the next char's
+# upper-left, where the ink would appear as the pen draws downward.
+HAND_OFFSET_X = -4   # tiny left nudge so the tip slightly overlaps char start
+HAND_OFFSET_Y = -6   # slight upward nudge so the tip rests on the cap-line
 
 
 def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
@@ -186,9 +189,11 @@ async def render_whiteboard_video(
         title_font = ImageFont.truetype(str(FONT_PATH), int(font_size * 0.9))
 
     hand_img = Image.open(HAND_PATH).convert("RGBA")
-    # Scale hand proportionally to font size so it never looks oversized
-    # on small fonts or tiny on huge ones.
-    hand_target_h = int(font_size * 3.0)
+    # Scale the pen proportionally to font size. ~2.2x font height keeps
+    # the pen visually balanced relative to the text — a hand-and-pen
+    # asset can be larger (3x) without feeling heavy, but a bare pen
+    # looks more elegant at this slightly smaller scale.
+    hand_target_h = int(font_size * 2.2)
     hand_scale = hand_target_h / hand_img.height
     hand_img = hand_img.resize(
         (int(hand_img.width * hand_scale), hand_target_h),
