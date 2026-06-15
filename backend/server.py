@@ -233,6 +233,9 @@ app.include_router(gallery_routes.router, prefix="/api")
 from routes import heygen as heygen_routes
 app.include_router(heygen_routes.router, prefix="/api")
 
+from routes import whiteboard as whiteboard_routes
+app.include_router(whiteboard_routes.router, prefix="/api")
+
 from routes import questions as questions_routes
 app.include_router(questions_routes.router, prefix="/api")
 

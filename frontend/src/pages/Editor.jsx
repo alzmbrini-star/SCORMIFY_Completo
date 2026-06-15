@@ -150,7 +150,7 @@ import {
   ExportDialog, HeygenDialog, SlideVideoDialog, VideoLibraryDialog,
   TTSDialog, MediaDialog, AudioDialog, ButtonDialog, HtmlDialog,
   BulkTextColorDialog, DesignTemplateDialog, ImageGalleryDialog,
-  FlipbookDialog, RichTextDialog,
+  FlipbookDialog, RichTextDialog, WhiteboardDialog,
 } from './Editor/dialogs';
 
 export default function Editor() {
@@ -290,6 +290,8 @@ export default function Editor() {
   const [showButtonDialog, setShowButtonDialog] = useState(false);
   const [showHtmlDialog, setShowHtmlDialog] = useState(false);
   const [showFlipbookDialog, setShowFlipbookDialog] = useState(false);
+  // Whiteboard / Hand-writer dialog (2026-06-15 — self-hosted feature)
+  const [showWhiteboardDialog, setShowWhiteboardDialog] = useState(false);
   const [showBulkTextColorDialog, setShowBulkTextColorDialog] = useState(false);
   const [bulkTextColor, setBulkTextColor] = useState('#ffffff');
   const [bulkFontFamily, setBulkFontFamily] = useState('');
@@ -1556,6 +1558,22 @@ export default function Editor() {
                 <TooltipContent>📹 Biblioteca de Vídeos</TooltipContent>
               </Tooltip>
 
+              {/* Whiteboard / Hand Writer — self-hosted MP4 generator. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 hover:from-amber-500/20 hover:to-yellow-500/20"
+                    onClick={() => setShowWhiteboardDialog(true)}
+                    data-testid="whiteboard-btn"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>✍️ Whiteboard (Hand Writer)</TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -2097,6 +2115,16 @@ export default function Editor() {
           open={showFlipbookDialog} onOpenChange={setShowFlipbookDialog}
           flipbookConfig={flipbookConfig} setFlipbookConfig={setFlipbookConfig}
           handleAddFlipbook={handleAddFlipbook}
+        />
+
+        <WhiteboardDialog
+          open={showWhiteboardDialog}
+          onOpenChange={setShowWhiteboardDialog}
+          projectId={currentProject?.id}
+          slideId={currentSlide?.id}
+          defaultTitle={currentSlide?.title || ''}
+          defaultText={currentSlide?.notes || ''}
+          onGenerated={() => { fetchProject(currentProject?.id); }}
         />
 
         <HeygenDialog

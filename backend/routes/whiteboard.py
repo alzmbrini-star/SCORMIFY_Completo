@@ -1,0 +1,114 @@
+"""HTTP routes for the self-hosted Whiteboard / Hand-writer video
+generator. Endpoints:
+
+  POST /api/whiteboard/generate   — render an MP4 from text/title.
+  GET  /api/whiteboard/file/{name} — serve the generated MP4.
+
+The generate endpoint accepts a project_id + slide_id so the resulting
+video URL is automatically saved to the slide as `videoUrl` (the
+existing Slide model already has this field, used by other video
+generators like HeyGen)."""
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+
+from routes.deps import db, now_utc
+from routes.auth import require_auth
+from services.whiteboard_renderer import (
+    OUTPUT_DIR, render_whiteboard_video,
+)
+
+logger = logging.getLogger("server")
+router = APIRouter(prefix="/whiteboard", tags=["Whiteboard"])
+
+
+class WhiteboardGenerateRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+    title: Optional[str] = Field(default=None, max_length=200)
+    fontSize: Optional[int] = Field(default=84, ge=40, le=140)
+    charsPerSecond: Optional[float] = Field(default=19.0, ge=4.0, le=40.0)
+    # Optional binding — when both are provided, the generated videoUrl
+    # is written to the matching slide element so the author doesn't have
+    # to manually paste it. When omitted, the URL is just returned.
+    projectId: Optional[str] = None
+    slideId: Optional[str] = None
+
+
+@router.post("/generate")
+async def generate_whiteboard_video(
+    payload: WhiteboardGenerateRequest,
+    user: dict = Depends(require_auth),
+):
+    """Synthesize a whiteboard MP4 and (optionally) bind it to a slide."""
+    try:
+        rel_url, info = await render_whiteboard_video(
+            text=payload.text,
+            title=payload.title or None,
+            font_size=payload.fontSize or 84,
+            chars_per_second=payload.charsPerSecond or 19.0,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("whiteboard generate failed: %s", e)
+        raise HTTPException(500, f"render failed: {e}")
+
+    # Bind to slide if requested.
+    if payload.projectId and payload.slideId:
+        project = await db.projects.find_one({"id": payload.projectId}, {"_id": 0})
+        if project:
+            slides = (project.get("course") or {}).get("slides") or []
+            slide_idx = next(
+                (i for i, s in enumerate(slides) if s.get("id") == payload.slideId),
+                None,
+            )
+            if slide_idx is not None:
+                await db.projects.update_one(
+                    {"id": payload.projectId},
+                    {"$set": {
+                        f"course.slides.{slide_idx}.videoUrl": rel_url,
+                        f"course.slides.{slide_idx}.whiteboardMeta": info,
+                        "updatedAt": now_utc().isoformat(),
+                    }},
+                )
+
+    return {
+        "videoUrl": rel_url,
+        **info,
+    }
+
+
+@router.get("/file/{name}")
+async def serve_whiteboard_file(name: str):
+    """Stream the generated MP4 with a long cache TTL — same video for
+    the same script means CDN-friendly idempotent caching."""
+    # Sanitize: name must be wb_<hex>.mp4 to prevent path traversal.
+    if not (name.startswith("wb_") and name.endswith(".mp4") and "/" not in name and ".." not in name):
+        raise HTTPException(404, "invalid name")
+    path = OUTPUT_DIR / name
+    if not path.exists():
+        raise HTTPException(404, "video not found")
+    return FileResponse(
+        str(path), media_type="video/mp4",
+        headers={"Cache-Control": "public, max-age=2592000, immutable"},
+    )
+
+
+@router.get("/health")
+async def whiteboard_health():
+    """Diagnostic: verifies font + hand asset + ffmpeg binary are ready."""
+    from services.whiteboard_renderer import FONT_PATH, HAND_PATH
+    import imageio_ffmpeg
+    return {
+        "fontOk": Path(FONT_PATH).exists(),
+        "handOk": Path(HAND_PATH).exists(),
+        "ffmpegPath": imageio_ffmpeg.get_ffmpeg_exe(),
+        "outputDir": str(OUTPUT_DIR),
+        "outputDirOk": OUTPUT_DIR.exists(),
+    }
