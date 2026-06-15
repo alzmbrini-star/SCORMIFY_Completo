@@ -1022,7 +1022,7 @@ def _write_apng_via_ffmpeg(
          "-f", "rawvideo", "-pix_fmt", "rgba",
          "-s", f"{width}x{height}", "-r", str(fps),
          "-i", "-",
-         "-c:v", "apng", "-f", "apng", "-plays", "0",
+         "-c:v", "apng", "-f", "apng", "-plays", "1",
          "-pred", "mixed",  # better compression for APNG
          str(out_path)],
         stdin=subprocess.PIPE,

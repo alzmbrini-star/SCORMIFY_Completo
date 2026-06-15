@@ -1,6 +1,23 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Whiteboard APNG ficava em loop infinito)
+
+### Sintoma
+- Vídeos de Whiteboard com fundo transparente (APNG) reiniciavam sozinhos toda vez que terminavam de escrever o texto. Esperado: tocar até o fim e parar congelado no quadro final.
+
+### Causa
+- `whiteboard_renderer.py:_write_apng_via_ffmpeg` chamava `ffmpeg ... -plays 0` (que no APNG significa "loop infinito"). O chunk `acTL` da PNG saía com `num_plays=0`.
+
+### Correção
+- **Renderer**: trocado para `-plays 1` (toca uma única vez).
+- **Migração dos arquivos existentes**: script utilitário em `/tmp/fix_apng_loop.py` patcheia o chunk `acTL` in-place (reescreve apenas `num_plays` + CRC32) em todos os APNGs já em `/app/backend/storage/whiteboard/*.png`. Muito mais rápido que re-encode (ms vs minutos por arquivo). Aplicado em 7 APNGs existentes.
+
+### Como verificar
+- Recarregue um curso com slide whiteboard APNG → o vídeo escreve o texto e fica parado no quadro final, sem reiniciar.
+
+
+
 ## 2026-02-XX (Bugfix: SCORM Export quebrando slides com Whiteboard)
 
 ### P0 fix: Vídeo/APNG do Whiteboard não embarcava no pacote SCORM
