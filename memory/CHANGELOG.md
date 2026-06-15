@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix produção: Whiteboard 520 intermitente durante polling)
+
+### Sintoma
+- Após o fix anterior (async job), a geração do Whiteboard ainda apresentava erro 520 em produção — agora não mais no POST, mas no GET `/api/job/{jobId}` durante o polling. O erro era intermitente: bastava UM 520 do Cloudflare e o frontend abortava todo o fluxo, mesmo se a renderização continuasse em andamento no backend.
+
+### Causa
+- Cloudflare 520 é "origem retornou resposta vazia/inválida". Durante renders longos de APNG (1000+ frames), o pod de produção fica sob carga de CPU e o Cloudflare ocasionalmente perde a resposta do origin — comportamento normal sob carga, não um bug do código.
+- O frontend tinha `if (!sres.ok) throw` — qualquer 5xx isolado matava o polling.
+
+### Correção (resiliência client-side)
+- **Frontend** (`WhiteboardDialog.jsx`): polling agora tolera 8 erros consecutivos (~16s de janela de instabilidade) sem abortar. Trata separadamente:
+  - **Network errors** (`fetch` reject): incrementa contador, continua.
+  - **5xx** (incluindo 502/503/504/520/521/522/523/524 do Cloudflare): incrementa contador, continua.
+  - **4xx**: aborta imediatamente (auth/erro de cliente real).
+  - Contador é resetado a cada resposta OK — só "queima" tentativas se a instabilidade for sustentada.
+- Mantém o ceiling absoluto de 5 minutos para não travar indefinidamente.
+
+### Por que isso resolve
+- Renders normalmente finalizam em 30–90s. Mesmo que o Cloudflare derrube 2-3 polls intermediários, o frontend persiste e captura o `status=completed` no próximo poll bem-sucedido. A renderização no backend nunca foi o problema — só a fragilidade do client.
+
+### Action item para o usuário
+- **Redeploy to Production** para aplicar a tolerância no frontend.
+
+
+
 ## 2026-02-XX (Bugfix produção: Whiteboard 520 em renders longos)
 
 ### Sintoma (produção)

@@ -206,15 +206,40 @@ export default function WhiteboardDialog({
       if (!jobId) throw new Error('Resposta inesperada do servidor');
       const started = Date.now();
       const maxMs = 5 * 60 * 1000; // 5 min ceiling — long APNGs can be slow
+      let consecutiveErrors = 0;
+      const MAX_CONSEC_ERRORS = 8;  // ~16s of solid downtime before we give up
       let data = null;
-      // First poll immediately, then every 2s.
       // eslint-disable-next-line no-constant-condition
       while (true) {
         await new Promise((r) => setTimeout(r, 2000));
-        const sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, {
-          credentials: 'include',
-        });
-        if (!sres.ok) throw new Error(`Status HTTP ${sres.status}`);
+        let sres;
+        try {
+          sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, {
+            credentials: 'include',
+          });
+        } catch (netErr) {
+          // Network blip — keep trying. Cloudflare may briefly drop the
+          // upstream while the pod is under CPU/memory pressure.
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
+            throw new Error('Conexão perdida com o servidor após várias tentativas');
+          }
+          continue;
+        }
+        // 5xx (incl. Cloudflare 502/503/504/520/521/522/523/524) are
+        // transient — keep polling. Only abort on 4xx (real client/auth
+        // errors) or after too many consecutive transient failures.
+        if (sres.status >= 500) {
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
+            throw new Error(`Servidor instável (${sres.status}) após ${MAX_CONSEC_ERRORS} tentativas`);
+          }
+          continue;
+        }
+        if (!sres.ok) {
+          throw new Error(`Status HTTP ${sres.status}`);
+        }
+        consecutiveErrors = 0;
         const sjob = await sres.json();
         if (sjob.status === 'completed' && sjob.result) {
           data = sjob.result;
