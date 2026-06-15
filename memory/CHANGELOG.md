@@ -1,6 +1,27 @@
 # Changelog
 
 
+## 2026-02-XX (Whiteboard: Negrito + Sublinhado + Alinhamento + Listas)
+
+### Feature: Set completo de formatação RTF
+- **Backend renderer**: chars agora é `list[dict]` com `{ch, x, y, color, bold, underline}`. Parser HTML estendido para extrair:
+  - **Negrito** via `<b>`, `<strong>`, `font-weight:bold|600+`
+  - **Sublinhado** via `<u>`, `text-decoration:underline`
+  - **Alinhamento** via `text-align:left|center|right` no bloco ancestral (consumido por linha-fonte, não por linha-quebrada)
+  - **Listas** `<ul><li>...</li></ul>` — cada `<li>` vira uma linha começando com "• "
+- **Render**:
+  - **Bold** simulado por **dilatação 1-px do alpha** no `_make_glyph_image` (sem variante bold nas fontes manuscritas; dilatação fica visualmente como "mais pressão no marcador"). Cache de glifo é mantido — bold é aplicado no composite.
+  - **Underline** desenhado por `ImageDraw.line` abaixo da baseline (offset 0.92×altura, thickness ≈ altura/28) em segmentos contíguos. Segmento cresce progressivamente conforme a caneta avança (sublinhado também "anima" junto da escrita).
+  - **Alinhamento** aplicado por **linha-fonte** (parágrafo HTML) — cada wrap subline herda a alignment do parágrafo. X inicial calculado de `MARGIN_X + (max_w − line_w) / 2` para centro e `MARGIN_X + max_w − line_w` para direita.
+- **Frontend** (`WhiteboardDialog.jsx`):
+  - Segunda linha de toolbar com botões **B / U / ⇤ / ⇔ / ⇥ / •** (Bold, Underline, AlignLeft, AlignCenter, AlignRight, BulletList).
+  - Cada botão usa `document.execCommand` (`bold`, `underline`, `justifyLeft/Center/Right`, `insertUnorderedList`) com `styleWithCSS=true` para gerar HTML semanticamente compatível com o parser do backend.
+  - Detecção de payload expandida — envia `textHtml` se houver QUALQUER formatação (cor, bold, underline, alinhamento, ou lista).
+- **Skip nesta iteração**: Itálico (Caveat/Marker não têm itálico nativo; faking via skew CSS ficaria visualmente ruim). Listas numeradas. Identação multi-nível. Tamanho por trecho.
+- **Verificação visual**: HTML de teste com Título centralizado + negrito, Normal + sublinhado, 2 itens com bullet, e "Direita" alinhada à direita — todos os 4 features renderizaram corretamente no MP4.
+
+
+
 ## 2026-02-XX (Whiteboard: Cor da tinta + editor RTF mini)
 
 ### Feature: Color picker global + RTF inline para colorir trechos

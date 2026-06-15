@@ -363,62 +363,111 @@ def _parse_color(value: str) -> Optional[tuple[int, int, int]]:
     return None
 
 
-def _parse_html_to_runs(html: str, default_color: tuple[int, int, int]) -> list[tuple[str, tuple[int, int, int]]]:
-    """Parse a simple HTML string into a flat list of (char, color) tuples.
+def _parse_html_to_runs(
+    html: str, default_color: tuple[int, int, int],
+) -> list[dict]:
+    """Parse simple HTML into a flat list of char dicts:
+        {ch, color, bold, underline, align}
+    where `align` is "left"|"center"|"right" inherited from the
+    nearest block ancestor (default "left"). Newlines have `ch="\\n"`
+    and carry the alignment of the line being closed.
 
-    Supports:
-      - `<span style="color:#RRGGBB">...</span>` (nests recursively)
-      - `<font color="#RRGGBB">...</font>` (legacy execCommand output)
-      - `<br>` and `<br/>` as newlines
-      - `<div>...</div>` and `<p>...</p>` as line breaks between siblings
-      - Plain text content with HTML entity decoding
-
-    Everything else is treated as plain text with `default_color`.
+    Supported markup:
+      Color: `<span style="color:#XXX">`, `<font color="#XXX">`
+      Bold:  `<b>`, `<strong>`, `style="font-weight: bold"`
+      Underline: `<u>`, `style="text-decoration: underline"`
+      Breaks: `<br>`, `<div>`, `<p>` (line breaks)
+      Lists: `<ul><li>...</li></ul>` — each li becomes a "• ..." line
+      Alignment: `style="text-align: left|center|right"` on the
+        nearest block element.
     """
     from html.parser import HTMLParser
     from html import unescape
 
-    runs: list[tuple[str, tuple[int, int, int]]] = []
+    runs: list[dict] = []
     color_stack: list[tuple[int, int, int]] = [default_color]
-    # Tags that introduce an implicit line break after their content.
-    BLOCK_TAGS = {"div", "p"}
-    block_depth = 0
+    bold_stack: list[bool] = [False]
+    underline_stack: list[bool] = [False]
+    align_stack: list[str] = ["left"]
+
+    BLOCK_TAGS = {"div", "p", "li"}
+
+    def _current_attrs():
+        return {
+            "color": color_stack[-1],
+            "bold": bold_stack[-1],
+            "underline": underline_stack[-1],
+            "align": align_stack[-1],
+        }
+
+    def _emit_newline():
+        # Only emit if the last emitted char wasn't already a newline
+        # — avoids double breaks from nested block tags.
+        if runs and runs[-1]["ch"] != "\n":
+            runs.append({"ch": "\n", **_current_attrs()})
 
     class _P(HTMLParser):
         def handle_starttag(self, tag, attrs):
-            nonlocal block_depth
             attrs_d = dict(attrs)
+            style = (attrs_d.get("style", "") or "").lower()
+            # Color.
             new_color = None
-            style = attrs_d.get("style", "") or ""
-            m = re.search(r"color\s*:\s*([^;]+)", style, re.IGNORECASE)
+            m = re.search(r"color\s*:\s*([^;]+)", style)
             if m:
                 new_color = _parse_color(m.group(1))
             if not new_color and tag == "font":
                 new_color = _parse_color(attrs_d.get("color", "") or "")
             color_stack.append(new_color if new_color else color_stack[-1])
+            # Bold.
+            is_bold = bold_stack[-1]
+            if tag in ("b", "strong"):
+                is_bold = True
+            elif re.search(r"font-weight\s*:\s*(bold|[6-9]\d\d)", style):
+                is_bold = True
+            bold_stack.append(is_bold)
+            # Underline.
+            is_under = underline_stack[-1]
+            if tag == "u":
+                is_under = True
+            elif "underline" in style and "text-decoration" in style:
+                is_under = True
+            underline_stack.append(is_under)
+            # Alignment (block-level scope).
+            new_align = align_stack[-1]
+            m = re.search(r"text-align\s*:\s*(left|center|right)", style)
+            if m:
+                new_align = m.group(1)
+            align_stack.append(new_align)
+            # Structural breaks.
             if tag == "br":
-                runs.append(("\n", color_stack[-1]))
+                _emit_newline()
             elif tag in BLOCK_TAGS:
-                if runs and runs[-1][0] != "\n":
-                    runs.append(("\n", color_stack[-1]))
-                block_depth += 1
+                _emit_newline()
+            if tag == "li":
+                # Prepend bullet glyph to the line. Bullets inherit
+                # color but ignore bold/underline for visual consistency.
+                for ch in "•  ":
+                    runs.append({
+                        "ch": ch,
+                        "color": color_stack[-1],
+                        "bold": False,
+                        "underline": False,
+                        "align": align_stack[-1],
+                    })
 
         def handle_startendtag(self, tag, attrs):
             self.handle_starttag(tag, attrs)
             self.handle_endtag(tag)
 
         def handle_endtag(self, tag):
-            nonlocal block_depth
-            if len(color_stack) > 1:
-                color_stack.pop()
-            if tag in BLOCK_TAGS:
-                block_depth = max(0, block_depth - 1)
+            for stk in (color_stack, bold_stack, underline_stack, align_stack):
+                if len(stk) > 1:
+                    stk.pop()
 
         def handle_data(self, data):
             decoded = unescape(data)
-            current = color_stack[-1]
             for ch in decoded:
-                runs.append((ch, current))
+                runs.append({"ch": ch, **_current_attrs()})
 
     parser = _P()
     parser.feed(html)
@@ -431,52 +480,83 @@ def _layout(
     font_path: Path,
     default_color: tuple[int, int, int] = DEFAULT_INK_COLOR,
     text_html: Optional[str] = None,
-) -> tuple[ImageFont.FreeTypeFont, list[tuple[str, int, int, tuple[int, int, int]]]]:
+) -> tuple[ImageFont.FreeTypeFont, list[dict]]:
     """Lay out either plain `text` or rich `text_html` into positioned
-    characters. Each char carries its own RGB color so the renderer can
-    apply per-segment formatting.
+    characters. Per-line alignment is honored (left/center/right)
+    based on the alignment of each line's first char.
 
-    Returns (font, [(char, x, y, (r, g, b)), ...])."""
+    Returns (font, list[dict]) where each dict has:
+        ch, x, y, color, bold, underline.
+    """
     font = ImageFont.truetype(str(font_path), font_size)
     max_w = CANVAS_W - 2 * MARGIN_X
 
-    # Build a flat list of (char, color) tuples — either from HTML or
-    # from plain text with the default color.
     if text_html:
         char_runs = _parse_html_to_runs(text_html, default_color)
     else:
-        char_runs = [(c, default_color) for c in (text or "")]
+        char_runs = [{
+            "ch": c, "color": default_color, "bold": False,
+            "underline": False, "align": "left",
+        } for c in (text or "")]
 
-    # Reconstruct the linear text (for wrap calculation) while
-    # remembering each char's color.
-    flat_text = "".join(c for c, _ in char_runs)
-    flat_colors = [color for _, color in char_runs]
+    # Group char_runs into "input lines" by explicit \n characters.
+    # Each input line knows its alignment from its first non-newline
+    # char (or carries the newline char's alignment if empty).
+    input_lines: list[list[dict]] = [[]]
+    for r in char_runs:
+        if r["ch"] == "\n":
+            input_lines.append([])
+        else:
+            input_lines[-1].append(r)
+    # Drop trailing empty lines from typical trailing block tags.
+    while len(input_lines) > 1 and not input_lines[-1]:
+        input_lines.pop()
 
-    # Word-wrap respects \n and visual width; we apply the wrap on the
-    # plain text and then map back to colors by index.
-    lines = _wrap_text(flat_text, font, max_w)
+    chars: list[dict] = []
     line_h = int(font_size * LINE_SPACING)
-
-    # Build a stream of (line_chars, dropped_separators) so we can map
-    # char indices in `flat_text` to the wrapped layout. _wrap_text may
-    # drop separator spaces between wrapped words, so we walk through
-    # flat_text consuming chars as we match them to lines.
-    chars: list[tuple[str, int, int, tuple[int, int, int]]] = []
-    flat_idx = 0
     y = MARGIN_Y
-    for line in lines:
-        x = MARGIN_X
-        for ch in line:
-            # Advance flat_idx past any whitespace/newline chars that were
-            # dropped during wrapping until we match `ch`.
-            while flat_idx < len(flat_text) and flat_text[flat_idx] != ch:
+
+    for input_line in input_lines:
+        if not input_line:
+            # Blank line — preserve as vertical spacing.
+            y += line_h
+            continue
+        # Build the line's text for wrap calc, and apply word-wrap.
+        line_text = "".join(r["ch"] for r in input_line)
+        wrapped = _wrap_text(line_text, font, max_w) or [""]
+        # Alignment from the first char of this paragraph.
+        align = input_line[0].get("align", "left")
+        # Walk the wrapped sublines, mapping each char back to its
+        # source attribute dict by index in `input_line`.
+        flat_idx = 0
+        for sub in wrapped:
+            sub_w = int(font.getlength(sub))
+            if align == "center":
+                line_x = MARGIN_X + max(0, (max_w - sub_w) // 2)
+            elif align == "right":
+                line_x = MARGIN_X + max(0, max_w - sub_w)
+            else:
+                line_x = MARGIN_X
+            x = line_x
+            for ch in sub:
+                # Advance flat_idx through any chars dropped by wrap
+                # (e.g., separator spaces between wrapped words).
+                while (flat_idx < len(input_line)
+                       and input_line[flat_idx]["ch"] != ch):
+                    flat_idx += 1
+                attrs = input_line[flat_idx] if flat_idx < len(input_line) else {
+                    "color": default_color, "bold": False, "underline": False,
+                }
+                chars.append({
+                    "ch": ch, "x": x, "y": y,
+                    "color": attrs.get("color", default_color),
+                    "bold": bool(attrs.get("bold")),
+                    "underline": bool(attrs.get("underline")),
+                })
+                adv = font.getlength(ch)
+                x += int(adv)
                 flat_idx += 1
-            color = flat_colors[flat_idx] if flat_idx < len(flat_colors) else default_color
-            chars.append((ch, x, y, color))
-            adv = font.getlength(ch)
-            x += int(adv)
-            flat_idx += 1
-        y += line_h
+            y += line_h
     return font, chars
 
 
@@ -488,29 +568,18 @@ def _disk_mask(radius: int) -> np.ndarray:
 
 
 def _build_glyph_cache(
-    chars: list[tuple[str, int, int, tuple[int, int, int]]],
+    chars: list[dict],
     font: ImageFont.FreeTypeFont,
     sub_steps: int,
 ):
     """Per-unique-glyph precompute everything the frame loop needs.
 
-    For each character we cache:
-      - glyph_rgba: full Pillow RGBA of the rendered glyph.
-      - reveal_masks: list of bool arrays (len = sub_steps), each a
-        progressively-larger mask of the glyph "visible" at that step.
-      - path: list of (x, y) skeleton points in writing order.
-      - left, top: bbox offsets so the renderer can paste the glyph
-        back at the right canvas coordinates.
-      - pen_positions: per sub-step the pen tip (x, y) **relative to
-        the glyph image origin (0,0)**.
-
-    Whitespace and zero-width chars map to None. Cache is keyed on the
-    character alone — color is applied at composite time so we never
-    need duplicate cache entries per color.
+    Cache is keyed on the character alone — color and bold/underline are
+    applied at composite time so we never duplicate cache entries.
     """
     cache: dict[str, Optional[dict]] = {}
     for entry in chars:
-        ch = entry[0]
+        ch = entry["ch"]
         if ch in cache:
             continue
         if not ch.strip():
@@ -609,22 +678,42 @@ def _build_glyph_cache(
 # Frame rendering
 # =====================================================================
 
+def _dilate_alpha(alpha: np.ndarray) -> np.ndarray:
+    """1-pixel 4-connected dilation of an alpha plane. Used to "fatten"
+    glyph strokes for bold-style emphasis since handwriting fonts don't
+    have native bold weights."""
+    out = alpha.copy()
+    out[1:] = np.maximum(out[1:], alpha[:-1])
+    out[:-1] = np.maximum(out[:-1], alpha[1:])
+    out[:, 1:] = np.maximum(out[:, 1:], out[:, :-1].copy())
+    out[:, :-1] = np.maximum(out[:, :-1], out[:, 1:].copy())
+    return out
+
+
 def _make_glyph_image(
     entry: dict, reveal_idx: int,
     color: tuple[int, int, int] = DEFAULT_INK_COLOR,
+    bold: bool = False,
 ) -> Image.Image:
     """Apply the cumulative reveal mask of the given sub-step to the
     glyph and recolor the ink with `color`. Pixels not yet 'written'
-    are made transparent."""
+    are made transparent.
+
+    When `bold=True` the alpha plane is dilated by 1 pixel before
+    composition — produces a thicker-stroke effect that reads as bold
+    on handwriting fonts (which lack native bold variants)."""
     glyph = entry["glyph"]
     mask = entry["reveal_masks"][reveal_idx]
     arr = np.array(glyph)  # writable RGBA copy
+    masked_alpha = np.where(mask, arr[..., 3], 0).astype(np.uint8)
+    if bold:
+        masked_alpha = _dilate_alpha(masked_alpha)
     # Recolor: overwrite RGB channels with the desired ink color while
-    # keeping the original alpha (which carries antialiasing).
+    # keeping the (possibly dilated) alpha.
     arr[..., 0] = color[0]
     arr[..., 1] = color[1]
     arr[..., 2] = color[2]
-    arr[..., 3] = np.where(mask, arr[..., 3], 0)
+    arr[..., 3] = masked_alpha
     return Image.fromarray(arr, "RGBA")
 
 
@@ -664,38 +753,104 @@ def _render_frame_writing(
             cur_idx = i
             break
 
+    # Track underline segments we need to draw — one per consecutive run
+    # of underlined chars that have been at least partially revealed.
+    underline_segs: list[tuple[int, int, int, tuple[int, int, int]]] = []  # (x0, x1, y, color)
+    cur_underline: Optional[dict] = None
+
+    def _commit_underline():
+        nonlocal cur_underline
+        if cur_underline:
+            underline_segs.append((
+                cur_underline["x0"], cur_underline["x1"],
+                cur_underline["y"], cur_underline["color"],
+            ))
+            cur_underline = None
+
     # 1) Fully drawn characters before the current one.
     for i in range(cur_idx):
-        char_tup = chars[i]
-        ch, cx, cy = char_tup[0], char_tup[1], char_tup[2]
-        color = char_tup[3] if len(char_tup) > 3 else DEFAULT_INK_COLOR
+        c = chars[i]
+        ch, cx, cy = c["ch"], c["x"], c["y"]
+        color = c.get("color", DEFAULT_INK_COLOR)
+        bold = c.get("bold", False)
+        underline = c.get("underline", False)
         entry = glyph_cache.get(ch)
-        if entry is None:
-            continue
-        full = _make_glyph_image(entry, len(entry["reveal_masks"]) - 1, color)
-        img.paste(full, (cx + entry["left"], cy + entry["top"]), full)
+        char_w = int(entry["width"] + entry["left"]) if entry else 0
+        if entry is not None:
+            full = _make_glyph_image(entry, len(entry["reveal_masks"]) - 1, color, bold)
+            img.paste(full, (cx + entry["left"], cy + entry["top"]), full)
+        # Underline tracking — extend or commit segments based on the
+        # contiguity of underlined chars on the SAME baseline.
+        if underline:
+            char_right = cx + (char_w if entry else 0) + (1 if bold else 0)
+            if (cur_underline
+                    and cur_underline["y"] == cy
+                    and cur_underline["color"] == color
+                    and cur_underline["x1"] >= cx - 4):
+                cur_underline["x1"] = char_right
+            else:
+                _commit_underline()
+                cur_underline = {
+                    "x0": cx, "x1": char_right, "y": cy, "color": color,
+                }
+        else:
+            _commit_underline()
 
     # 2) Partial current character.
-    char_tup = chars[cur_idx]
-    ch, cx, cy = char_tup[0], char_tup[1], char_tup[2]
-    color = char_tup[3] if len(char_tup) > 3 else DEFAULT_INK_COLOR
+    c = chars[cur_idx]
+    ch, cx, cy = c["ch"], c["x"], c["y"]
+    color = c.get("color", DEFAULT_INK_COLOR)
+    bold = c.get("bold", False)
+    underline_cur = c.get("underline", False)
     entry = glyph_cache.get(ch)
     pen_x: Optional[int] = None
     pen_y: Optional[int] = None
     if entry is None:
-        # Whitespace: idle pen at character X position, baseline-ish y.
         pen_x = cx
-        pen_y = cy + int(0.55 * (chars[0][2] if False else 60))
+        pen_y = cy + int(0.55 * (chars[0]["y"] if False else 60))
     else:
         sub_in_char = step_idx - char_step_starts[cur_idx]
         substeps = char_substeps[cur_idx]
         sub_in_char = max(0, min(substeps - 1, sub_in_char))
-        partial = _make_glyph_image(entry, sub_in_char, color)
+        partial = _make_glyph_image(entry, sub_in_char, color, bold)
         img.paste(partial, (cx + entry["left"], cy + entry["top"]), partial)
 
         pen_local = entry["pen_positions"][sub_in_char]
         pen_x = cx + entry["left"] + pen_local[0]
         pen_y = cy + entry["top"] + pen_local[1]
+
+        if underline_cur:
+            # Progressive underline for the char being drawn: extend
+            # `x1` to the current pen X to keep the line under the
+            # already-written portion.
+            char_right = max(cx + 2, pen_x)
+            if (cur_underline
+                    and cur_underline["y"] == cy
+                    and cur_underline["color"] == color
+                    and cur_underline["x1"] >= cx - 4):
+                cur_underline["x1"] = char_right
+            else:
+                _commit_underline()
+                cur_underline = {
+                    "x0": cx, "x1": char_right, "y": cy, "color": color,
+                }
+    _commit_underline()
+
+    # 3) Draw collected underline segments. Place the line just under
+    # the baseline of the glyph (cy + font_metric * 0.95) and use a
+    # thickness that scales with the font size we inferred from the
+    # first cached glyph (height proxy).
+    if underline_segs and glyph_cache:
+        sample = next((v for v in glyph_cache.values() if v is not None), None)
+        if sample is not None:
+            base_h = sample["height"]
+            line_y_off = int(base_h * 0.92)
+            line_thick = max(2, base_h // 28)
+            for x0, x1, y, col in underline_segs:
+                d.line(
+                    [(x0, y + line_y_off), (x1, y + line_y_off)],
+                    fill=col, width=line_thick,
+                )
 
     # 3) Pen overlay.
     if pen_x is not None and pen_y is not None:
@@ -768,7 +923,7 @@ async def render_whiteboard_video(
 
     char_substeps: list[int] = []
     for entry in chars:
-        ch = entry[0]
+        ch = entry["ch"]
         if glyph_cache.get(ch) is None:
             char_substeps.append(2)
         else:

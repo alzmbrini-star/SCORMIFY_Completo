@@ -14,7 +14,7 @@ import { Switch } from '../../../components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../../../components/ui/select';
-import { Loader2, Sparkles, Wand2, Palette, Eraser } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Palette, Eraser, Bold, Underline, AlignLeft, AlignCenter, AlignRight, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
 
@@ -89,6 +89,17 @@ export default function WhiteboardDialog({
     syncEditorState();
   };
 
+  // Apply a generic execCommand-based formatting action to the current
+  // selection inside the editor. Used for bold/underline/align/list.
+  const runFormatCommand = (command, value = null) => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand(command, false, value);
+    syncEditorState();
+  };
+
   const syncEditorState = () => {
     const el = editorRef.current;
     if (!el) return;
@@ -154,18 +165,25 @@ export default function WhiteboardDialog({
     setBusy(true);
     setResult(null);
     try {
-      // Detect whether the user actually applied any inline coloring.
-      // If not, send just plain text — keeps payloads small and lets
-      // the backend treat the whole text with the global ink color.
-      const hasInlineColor = textHtml
-        && (/<(span|font)[^>]*color\s*[:=]/i.test(textHtml));
+      // Detect whether the user actually applied any inline formatting
+      // (color, bold, underline, alignment, lists). If not, send just
+      // plain text — smaller payloads and the backend treats the whole
+      // text with the global ink color.
+      const hasFormatting = textHtml && (
+        /<(span|font)[^>]*color\s*[:=]/i.test(textHtml)
+        || /<(b|strong|u)[\s>]/i.test(textHtml)
+        || /text-align\s*:\s*(center|right)/i.test(textHtml)
+        || /<li[\s>]/i.test(textHtml)
+        || /font-weight\s*:\s*(bold|[6-9]\d\d)/i.test(textHtml)
+        || /text-decoration[^;]*underline/i.test(textHtml)
+      );
       const res = await fetch(`${getApiUrl()}/api/whiteboard/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           text: text.trim(),
-          textHtml: hasInlineColor ? textHtml : null,
+          textHtml: hasFormatting ? textHtml : null,
           title: title.trim() || null,
           fontSize: Number(fontSize) || 96,
           charsPerSecond: Number(speed) || 6,
@@ -310,6 +328,64 @@ export default function WhiteboardDialog({
                   data-testid="whiteboard-clear-format"
                 >
                   <Eraser className="w-3 h-3 mr-1" /> Limpar
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-0.5 px-2 py-1 border-b border-slate-700 bg-slate-900/30">
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => runFormatCommand('bold')}
+                  data-testid="whiteboard-fmt-bold"
+                  title="Negrito (traços mais grossos)"
+                  className="h-7 w-7 p-0"
+                >
+                  <Bold className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => runFormatCommand('underline')}
+                  data-testid="whiteboard-fmt-underline"
+                  title="Sublinhado"
+                  className="h-7 w-7 p-0"
+                >
+                  <Underline className="w-3.5 h-3.5" />
+                </Button>
+                <div className="w-px h-5 bg-slate-700 mx-1" />
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => runFormatCommand('justifyLeft')}
+                  data-testid="whiteboard-fmt-align-left"
+                  title="Alinhar à esquerda"
+                  className="h-7 w-7 p-0"
+                >
+                  <AlignLeft className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => runFormatCommand('justifyCenter')}
+                  data-testid="whiteboard-fmt-align-center"
+                  title="Centralizar"
+                  className="h-7 w-7 p-0"
+                >
+                  <AlignCenter className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => runFormatCommand('justifyRight')}
+                  data-testid="whiteboard-fmt-align-right"
+                  title="Alinhar à direita"
+                  className="h-7 w-7 p-0"
+                >
+                  <AlignRight className="w-3.5 h-3.5" />
+                </Button>
+                <div className="w-px h-5 bg-slate-700 mx-1" />
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => runFormatCommand('insertUnorderedList')}
+                  data-testid="whiteboard-fmt-bullet"
+                  title="Lista com marcadores"
+                  className="h-7 w-7 p-0"
+                >
+                  <List className="w-3.5 h-3.5" />
                 </Button>
               </div>
               <div
