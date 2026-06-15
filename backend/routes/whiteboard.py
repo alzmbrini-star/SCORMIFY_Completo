@@ -1,16 +1,24 @@
 """HTTP routes for the self-hosted Whiteboard / Hand-writer video
 generator. Endpoints:
 
-  POST /api/whiteboard/generate   — render an MP4 from text/title.
-  GET  /api/whiteboard/file/{name} — serve the generated MP4.
+  POST /api/whiteboard/generate   — kicks off an async render job. Returns
+                                    `{jobId, statusUrl}` so the frontend
+                                    can poll for completion (renders can
+                                    easily exceed 100s for long APNGs,
+                                    causing Cloudflare 520s on a sync
+                                    request — async pattern bypasses
+                                    that).
+  GET  /api/job/{job_id}          — generic job status polling (already
+                                    exists in projects_crud).
+  GET  /api/whiteboard/file/{name} — serve the generated MP4 / APNG.
 
-The generate endpoint accepts a project_id + slide_id so the resulting
-video URL is automatically saved to the slide as `videoUrl` (the
-existing Slide model already has this field, used by other video
-generators like HeyGen)."""
+The job result payload mirrors what the old sync endpoint returned, so
+the frontend only needs to wait for `result` to be populated."""
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid as _uuid
 from pathlib import Path
 from typing import Optional
 
@@ -18,7 +26,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from routes.deps import db, now_utc
+from routes.deps import db, now_utc, create_job, update_job, jobs
 from routes.auth import require_auth
 from services.whiteboard_renderer import (
     OUTPUT_DIR, render_whiteboard_video, list_available_fonts,
@@ -53,12 +61,54 @@ async def generate_whiteboard_video(
     payload: WhiteboardGenerateRequest,
     user: dict = Depends(require_auth),
 ):
-    """Synthesize a whiteboard MP4 and (optionally) bind it to a slide."""
-    # Parse a hex/rgb ink color override into an RGB tuple for the renderer.
+    """Kick off an async whiteboard render job and return its id.
+
+    Returns 202-ish payload `{jobId, statusUrl}`. The frontend polls
+    `/api/job/{jobId}` until `status == 'completed'` and reads the same
+    fields the old sync endpoint returned from `result`.
+    """
+    # Pre-parse the ink color so an invalid value fails fast (400) before
+    # we spin up a background task.
     ink_rgb = None
     if payload.inkColor:
         from services.whiteboard_renderer import _parse_color
         ink_rgb = _parse_color(payload.inkColor)
+
+    job_id = str(_uuid.uuid4())
+    job_data = {
+        "id": job_id,
+        "type": "whiteboard_generate",
+        "status": "processing",
+        "progress": 0,
+        "message": "Renderizando whiteboard...",
+        "result": None,
+    }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
+
+    asyncio.create_task(
+        _run_whiteboard_job(
+            job_id=job_id,
+            payload=payload,
+            ink_rgb=ink_rgb,
+        )
+    )
+
+    return {
+        "jobId": job_id,
+        "statusUrl": f"/api/job/{job_id}",
+    }
+
+
+async def _run_whiteboard_job(
+    job_id: str,
+    payload: "WhiteboardGenerateRequest",
+    ink_rgb,
+):
+    """Background worker that performs the actual render + slide bind.
+
+    Pushes the final `videoUrl` + meta into the job `result` so the
+    polling frontend can finish the flow."""
     try:
         rel_url, info = await render_whiteboard_video(
             text=payload.text,
@@ -71,14 +121,24 @@ async def generate_whiteboard_video(
             text_html=payload.textHtml or None,
         )
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
+        await update_job(job_id, {
+            "status": "failed",
+            "message": str(e)[:500],
+        })
+        return
+    except Exception as e:  # noqa: BLE001
         logger.exception("whiteboard generate failed: %s", e)
-        raise HTTPException(500, f"render failed: {e}")
+        await update_job(job_id, {
+            "status": "failed",
+            "message": f"render failed: {e}"[:500],
+        })
+        return
 
-    # Bind to slide if requested.
+    # Bind to slide if requested (same logic as the previous sync flow).
     if payload.projectId and payload.slideId:
-        project = await db.projects.find_one({"id": payload.projectId}, {"_id": 0})
+        project = await db.projects.find_one(
+            {"id": payload.projectId}, {"_id": 0}
+        )
         if project:
             slides = (project.get("course") or {}).get("slides") or []
             slide_idx = next(
@@ -88,15 +148,10 @@ async def generate_whiteboard_video(
             if slide_idx is not None:
                 slide = slides[slide_idx]
                 elements = slide.get("elements") or []
-                # Replace any prior whiteboard element so re-generating
-                # the same slide doesn't stack multiple copies.
-                elements = [e for e in elements if not (isinstance(e, dict) and e.get("isWhiteboard"))]
-                import uuid as _uuid
-                # Slide canvas is 1920x820 by default — center the 16:9
-                # output at 1280x720 with some breathing room. APNG
-                # transparent output is bound as an IMAGE element so it
-                # renders via <img>, where APNG plays automatically and
-                # preserves alpha. Opaque MP4 stays as a video element.
+                elements = [
+                    e for e in elements
+                    if not (isinstance(e, dict) and e.get("isWhiteboard"))
+                ]
                 is_apng = info.get("format") == "apng"
                 if is_apng:
                     new_el = {
@@ -134,8 +189,6 @@ async def generate_whiteboard_video(
                     f"course.slides.{slide_idx}.elements": elements,
                     "updatedAt": now_utc().isoformat(),
                 }
-                # Only set `videoUrl` for actual MP4 outputs — APNG is
-                # an image and shouldn't be confused with a true video.
                 if not is_apng:
                     set_fields[f"course.slides.{slide_idx}.videoUrl"] = rel_url
                 await db.projects.update_one(
@@ -143,10 +196,13 @@ async def generate_whiteboard_video(
                     {"$set": set_fields},
                 )
 
-    return {
-        "videoUrl": rel_url,
-        **info,
-    }
+    result = {"videoUrl": rel_url, **info}
+    await update_job(job_id, {
+        "status": "completed",
+        "progress": 100,
+        "message": "Whiteboard pronto",
+        "result": result,
+    })
 
 
 @router.get("/file/{name}")

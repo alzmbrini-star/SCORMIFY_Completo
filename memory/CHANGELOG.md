@@ -1,6 +1,27 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix produção: Whiteboard 520 em renders longos)
+
+### Sintoma (produção)
+- Em https://backend-startup.emergent.host, gerar um Whiteboard com texto grande retornava `Failed to load resource: 520` no console. Em renders longos (APNG transparente com 1000+ frames levando 40–60s), a requisição síncrona ultrapassava o limite de upstream do Cloudflare (~100s para alguns paths) e era abortada antes do backend responder.
+
+### Correção (async job pattern)
+- **Backend** (`routes/whiteboard.py`): `POST /api/whiteboard/generate` agora enfileira um job (`{jobId, statusUrl}`) e retorna em <100ms. O render + bind no slide rodam em `asyncio.create_task`. Reaproveita o `create_job/update_job/get_job` que já existia para o SCORM export.
+- **Frontend** (`WhiteboardDialog.jsx`): após enviar o POST, fica em loop polling `/api/job/{jobId}` a cada 2s até `status == 'completed' | 'failed'`. Ceiling de 5min. O resto do fluxo (mostrar duração, MB, etc.) é idêntico — pega tudo de `job.result`.
+
+### Por que isso resolve
+- A conexão HTTP do POST agora fecha em milissegundos, fora da janela do Cloudflare. Os polls subsequentes são GETs leves (<10ms), também imunes a timeout.
+- Bonus: agora dá pra adicionar barra de progresso real no futuro (basta `update_job` com `progress` de dentro do renderer).
+
+### Teste
+- Curl simulando o fluxo no preview: POST devolveu jobId imediato, polling retornou `status=completed` com `result.videoUrl` em ~2s para texto curto. ✅
+
+### Action item para o usuário
+- Faça **Redeploy to Production** para aplicar o fix no link público.
+
+
+
 ## 2026-02-XX (Bugfix: Whiteboard APNG ficava em loop infinito)
 
 ### Sintoma

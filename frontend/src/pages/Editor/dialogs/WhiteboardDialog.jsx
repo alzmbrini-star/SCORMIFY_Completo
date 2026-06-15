@@ -198,7 +198,35 @@ export default function WhiteboardDialog({
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const enq = await res.json();
+      // Async job: poll until completed. Renders can run 30–90s for long
+      // APNGs — a synchronous request would hit Cloudflare's ~100s upstream
+      // timeout (520). Polling sidesteps that entirely.
+      const jobId = enq.jobId;
+      if (!jobId) throw new Error('Resposta inesperada do servidor');
+      const started = Date.now();
+      const maxMs = 5 * 60 * 1000; // 5 min ceiling — long APNGs can be slow
+      let data = null;
+      // First poll immediately, then every 2s.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, {
+          credentials: 'include',
+        });
+        if (!sres.ok) throw new Error(`Status HTTP ${sres.status}`);
+        const sjob = await sres.json();
+        if (sjob.status === 'completed' && sjob.result) {
+          data = sjob.result;
+          break;
+        }
+        if (sjob.status === 'failed') {
+          throw new Error(sjob.message || 'Falha na geração');
+        }
+        if (Date.now() - started > maxMs) {
+          throw new Error('Timeout aguardando renderização (5min)');
+        }
+      }
       setResult({
         url: `${getApiUrl()}${data.videoUrl}`,
         format: data.format,
