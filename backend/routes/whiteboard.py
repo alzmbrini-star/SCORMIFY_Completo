@@ -172,11 +172,17 @@ async def _run_whiteboard_job(
                 offset = min(existing_wb * 24, 200)
                 base_x = 320 + offset
                 base_y = 50 + offset
+                # Friendly element label shown in the Layers panel. Uses
+                # the dialog Título if provided, otherwise falls back to
+                # a sequence number so multiple whiteboards stay visually
+                # distinguishable ("Whiteboard 1", "Whiteboard 2", …).
+                wb_name = (payload.title or "").strip() or f"Whiteboard {existing_wb + 1}"
                 if is_apng:
                     new_el = {
                         "id": str(_uuid.uuid4()),
                         "type": "image",
                         "src": rel_url,
+                        "name": wb_name,
                         "x": base_x,
                         "y": base_y,
                         "width": 1280,
@@ -191,6 +197,7 @@ async def _run_whiteboard_job(
                         "id": str(_uuid.uuid4()),
                         "type": "video",
                         "src": rel_url,
+                        "name": wb_name,
                         "x": base_x,
                         "y": base_y,
                         "width": 1280,

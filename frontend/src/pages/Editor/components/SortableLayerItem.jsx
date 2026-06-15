@@ -24,13 +24,17 @@ const SortableLayerItem = ({ element, index, isSelected, onClick, onDelete, onUp
 
   const currentOpacity = element.style?.opacity != null ? element.style.opacity : 1;
 
-  const label = element.type === 'button' ? (element.buttonText || 'Botao') : 
+  // Prefer a user-set `name` (e.g. Whiteboard generations save the dialog
+  // Título here, so the Layers list reads "Aula 1" instead of "Imagem").
+  // Falls back to type-specific labels for legacy elements.
+  const label = (element.name && String(element.name).trim()) ||
+    (element.type === 'button' ? (element.buttonText || 'Botao') :
     element.type === 'html' ? 'HTML' :
     element.type === 'flipbook' ? 'Flipbook' :
     element.type === 'video' ? 'Video' :
     element.type === 'image' ? 'Imagem' :
     element.type === 'text' ? 'Texto' :
-    `${element.type} ${element.id.slice(0, 4)}`;
+    `${element.type} ${element.id.slice(0, 4)}`);
 
   return (
     <div ref={setNodeRef} style={style}>

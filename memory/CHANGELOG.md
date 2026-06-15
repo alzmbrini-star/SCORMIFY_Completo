@@ -1,6 +1,25 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Nomeação automática de elementos Whiteboard no Layers)
+
+### Pedido
+- Com múltiplos whiteboards no mesmo slide, o painel "Elementos" mostrava todos como genéricos "Imagem" / "Video", impossível distinguir qual era qual ao editar.
+
+### Implementação
+- **Backend** (`routes/whiteboard.py`): ao criar o elemento de whiteboard, define `name` com o valor do campo "Título" do diálogo. Se vazio, fallback automático **"Whiteboard N"** onde N é a sequência (conta whiteboards pré-existentes + 1 no slide).
+- **Frontend** (`SortableLayerItem.jsx`): o label do item agora prioriza `element.name` (se setado), caindo para os defaults genéricos só pra elementos legados ou sem nome.
+
+### Resultado no Layers
+- Whiteboard com Título "Introdução" → mostrado como **Introdução** no painel
+- Whiteboard sem título → **Whiteboard 1**, **Whiteboard 2**, … numerados automaticamente
+- Funciona retroativamente para qualquer outro elemento que tenha `element.name` setado (ex: imagens da galeria com `alt`/`name`).
+
+### Observação
+- `SlideElement` no Pydantic já tem `model_config = ConfigDict(extra="allow")`, então `name` é persistido em Mongo sem precisar adicionar campo no schema.
+
+
+
 ## 2026-02-XX (Bugfix: Whiteboard perdia config entre aberturas do diálogo)
 
 ### Sintoma
