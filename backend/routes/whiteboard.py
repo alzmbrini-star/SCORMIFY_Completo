@@ -159,17 +159,12 @@ async def _run_whiteboard_job(
             if slide_idx is not None:
                 slide = slides[slide_idx]
                 elements = slide.get("elements") or []
-                # Note: we intentionally APPEND the new whiteboard instead
-                # of replacing existing ones. The author can have multiple
-                # whiteboards on the same slide to chain them via Timeline
-                # (e.g. "write text 1 → erase → write text 2 → erase").
-                # If the user wants to replace, they can delete the old
-                # element from the Editor manually.
+                # We intentionally APPEND the new whiteboard instead of
+                # replacing existing ones — author chains multiple
+                # whiteboards via the Timeline. The position computation
+                # uses the snapshot count (safe even with concurrent
+                # writes: worst-case the offset stacks one extra step).
                 is_apng = info.get("format") == "apng"
-                # Stagger position slightly when there are pre-existing
-                # whiteboards so they don't visually stack identically in
-                # the Editor canvas. The Timeline still controls playback
-                # order independently of position.
                 existing_wb = sum(
                     1 for e in elements
                     if isinstance(e, dict) and e.get("isWhiteboard")
@@ -221,17 +216,31 @@ async def _run_whiteboard_job(
                         "controls": True,
                         "style": {},
                     }
-                elements.append(new_el)
-                set_fields = {
-                    f"course.slides.{slide_idx}.whiteboardMeta": info,
-                    f"course.slides.{slide_idx}.elements": elements,
-                    "updatedAt": now_utc().isoformat(),
+                # CRITICAL: use $push (atomic append) rather than $set on
+                # the whole array. The old logic was read-modify-write
+                # which could race with ANY concurrent slide mutation —
+                # if the frontend (or another job) modified the elements
+                # list during the 10–30s render window, the whiteboard
+                # binding would overwrite those changes (and erase
+                # whatever element was added in the meantime, or even
+                # restore an older snapshot if the frontend wrote new
+                # content during render). $push is server-side atomic
+                # and only appends — existing elements survive untouched
+                # regardless of concurrent writes.
+                update_ops: dict = {
+                    "$push": {
+                        f"course.slides.{slide_idx}.elements": new_el,
+                    },
+                    "$set": {
+                        f"course.slides.{slide_idx}.whiteboardMeta": info,
+                        "updatedAt": now_utc().isoformat(),
+                    },
                 }
                 if not is_apng:
-                    set_fields[f"course.slides.{slide_idx}.videoUrl"] = rel_url
+                    update_ops["$set"][f"course.slides.{slide_idx}.videoUrl"] = rel_url
                 await db.projects.update_one(
                     {"id": payload.projectId},
-                    {"$set": set_fields},
+                    update_ops,
                 )
 
     result = {"videoUrl": rel_url, **info}
