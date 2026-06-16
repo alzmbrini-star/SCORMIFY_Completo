@@ -83,9 +83,12 @@ async def render_whiteboard_plan(
     # Accumulated visible content (drawn ON the canvas for each frame).
     accumulator = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
 
-    # Encode to APNG or MP4 depending on transparency.
+    # Encode to APNG or MP4 depending on transparency. We use the `.png`
+    # extension for APNG outputs (same convention as the text renderer)
+    # so the existing `/api/whiteboard/file/{name}` serving + name
+    # validation works without changes.
     if transparent:
-        ext = "apng"
+        ext = "png"
         info_format = "apng"
     else:
         ext = "mp4"
@@ -270,14 +273,18 @@ def _write_apng_plan(
     hand_img: Image.Image,
 ) -> None:
     ffmpeg_bin = _resolve_ffmpeg_binary()
+    # `-c:v apng -f apng` forces ffmpeg to use the APNG muxer regardless
+    # of the file extension. Without `-f apng` ffmpeg picks the image2
+    # muxer (one file per frame) based on the `.png` extension and the
+    # write fails with "Error muxing a packet"/Broken pipe.
     proc = subprocess.Popen(
         [
             ffmpeg_bin, "-y", "-loglevel", "error",
             "-f", "rawvideo", "-pix_fmt", "rgba",
             "-s", f"{CANVAS_W}x{CANVAS_H}", "-r", str(FPS),
             "-i", "-",
-            "-plays", "1",
-            "-vcodec", "apng",
+            "-c:v", "apng", "-f", "apng", "-plays", "1",
+            "-pred", "mixed",
             str(out_path),
         ],
         stdin=subprocess.PIPE,
