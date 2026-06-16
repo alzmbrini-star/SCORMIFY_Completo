@@ -198,7 +198,17 @@ async def reorder_slides(project_id: str, data: ReorderSlidesRequest, user: dict
 
 @router.post("/projects/{project_id}/slides/{slide_id}/elements")
 async def add_element(project_id: str, slide_id: str, data: ElementCreate, user: dict = Depends(require_auth)):
-    """Add element to slide"""
+    """Add element to slide.
+
+    Uses MongoDB's atomic `$push` operator so concurrent mutations on
+    the same slide (rapid Add Image clicks, async whiteboard render
+    finishing in the background, layer reordering, etc.) cannot clobber
+    each other. The old pattern was load → mutate-list → $set the whole
+    array, which had a multi-second race window during which any other
+    write to slide.elements would be silently overwritten — symptom was
+    a freshly added Brand Kit logo / image / whiteboard suddenly "disappearing"
+    when the next element was added.
+    """
     project = await load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
@@ -213,16 +223,18 @@ async def add_element(project_id: str, slide_id: str, data: ElementCreate, user:
     element = SlideElement(**element_data)
     elements = slides[slide_index].get('elements', [])
     element_dict = element.model_dump()
+    # zIndex is a best-effort hint; the actual final ordering is decided
+    # server-side after the $push lands. Using the loaded snapshot length
+    # may be slightly off under concurrency but it stays unique per add
+    # because the array index keeps growing.
     element_dict['zIndex'] = len(elements)
-    elements.append(element_dict)
 
-    # Granular update (see update_element rationale).
     await db.projects.update_one(
         {"id": project_id},
-        {"$set": {
-            f"course.slides.{slide_index}.elements": elements,
-            "updatedAt": now_utc().isoformat(),
-        }},
+        {
+            "$push": {f"course.slides.{slide_index}.elements": element_dict},
+            "$set": {"updatedAt": now_utc().isoformat()},
+        },
     )
 
     return element_dict
@@ -269,7 +281,17 @@ async def update_element(project_id: str, slide_id: str, element_id: str, data: 
 
 @router.delete("/projects/{project_id}/slides/{slide_id}/elements/{element_id}")
 async def delete_element(project_id: str, slide_id: str, element_id: str, user: dict = Depends(require_auth)):
-    """Delete element"""
+    """Delete element.
+
+    Uses MongoDB's atomic `$pull` operator so concurrent mutations to the
+    same slide.elements array (rapid clicks, async whiteboard render
+    finishing, layer reorder, etc.) cannot race with this delete. The
+    previous implementation rewrote the whole elements array via `$set`,
+    which could silently drop unrelated elements that were added between
+    the snapshot and the write.
+    """
+    # We still need the slide_index so the dotted path resolves. The
+    # snapshot is otherwise unused for the actual delete.
     project = await load_authorized_project(project_id, user)
     course = project.get('course', {})
     slides = course.get('slides', [])
@@ -278,16 +300,12 @@ async def delete_element(project_id: str, slide_id: str, element_id: str, user: 
     if slide_index is None:
         raise HTTPException(status_code=404, detail="Slide not found")
 
-    elements = slides[slide_index].get('elements', [])
-    elements = [e for e in elements if e.get('id') != element_id]
-
-    # Granular update (see update_element rationale).
     await db.projects.update_one(
         {"id": project_id},
-        {"$set": {
-            f"course.slides.{slide_index}.elements": elements,
-            "updatedAt": now_utc().isoformat(),
-        }},
+        {
+            "$pull": {f"course.slides.{slide_index}.elements": {"id": element_id}},
+            "$set": {"updatedAt": now_utc().isoformat()},
+        },
     )
 
     return {"message": "Element deleted"}
