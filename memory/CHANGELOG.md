@@ -1,6 +1,28 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: HTML Export ignorando timeline)
+
+### Sintoma
+- Ao exportar para HTML, elementos com `startTime > 0` nunca apareciam ao longo da reprodução do slide, e elementos com `endTime < slideDuration` ficavam visíveis para sempre. O timeline visual do editor não era respeitado.
+
+### Causa raiz (em `services/html_exporter.py`)
+1. **`startTime` quebrado**: o elemento era renderizado com inline `visibility:hidden;opacity:0`. O timer disparava no instante correto e aplicava `animation: 'fadeIn 0.3s ease-out'`, **mas** o keyframe `fadeIn` só anima `opacity`, não tem `fill-mode: forwards`, e ninguém resetava `visibility` nem `opacity` no inline. Resultado: por 0.3s o elemento aparecia rápido, depois snapback para invisível.
+2. **`endTime` quebrado**: análogo — o timer aplicava `fadeOut` sem `forwards`, e o elemento "ressuscitava" no final da animação até o `setTimeout(display='none', 300)` chegar (com brilho/flash visível).
+3. **Prioridade de estilo inicial errada**: a branch `else if (!hasAnimations && elem.style.opacity !== undefined)` ficava ANTES de `else if (initiallyHidden)`. Se o usuário definia uma opacidade customizada (ex.: 0.8) E startTime > 0, o elemento era renderizado VISÍVEL desde t=0 — o timeline era completamente ignorado.
+
+### Implementação
+- Show timer agora reseta explicitamente `element.style.visibility = 'visible'` e `element.style.opacity = String(elementOpacity)` antes do `fadeIn`, garantindo que o fade encerre num estado visível persistente.
+- Hide timer agora usa `fadeOut 0.3s ease-out forwards` + reset final de `visibility`/`opacity` para `hidden`/`0` — sem flash de volta.
+- Reordenado o bloco de estilo inicial: `initiallyHidden` (startTime > 0 OU entrance animation) é avaliado ANTES de respeitar a opacidade customizada, então o timeline sempre vence.
+
+### Verificação
+- Pytest `tests/test_html_export_timeline.py` (2/2 PASSED): verifica que o HTML gerado contém os resets de visibility/opacity, o `forwards` no fadeOut, a nova ordem de prioridade no init, e que `startTime`/`endTime` chegam na JSON embedded.
+- Pytest E2E `tests/test_html_export_timeline_e2e.py` (1/1 PASSED): gera HTML real, abre num Chromium via Playwright e verifica em 3 marcos temporais (0.2s / 1.3s / 2.0s) que elementos aparecem/somem nos instantes corretos via `getComputedStyle`.
+
+
+
+
 ## 2026-02-XX (Bugfix: AI Shapes — espaçamento entre formas e zonas)
 
 ### Sintoma

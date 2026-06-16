@@ -1934,15 +1934,21 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
                         if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
                         
-                        // Handle opacity based on element type
+                        // Handle opacity based on element type. Order matters:
+                        // initially-hidden (startTime > 0 or has entrance
+                        // animation) must take precedence over a custom
+                        // `elem.style.opacity` — otherwise a user-set
+                        // opacity caused the element to be rendered VISIBLE
+                        // from t=0 even when the timeline said it should
+                        // only appear later (2026-02 bugfix).
                         if (isClipElement || isMaskElement) {{
                             // Clips and masks: start visible/opaque
                             var maskOpacity = (elem.style && elem.style.opacity !== undefined) ? elem.style.opacity : 1;
                             style += 'opacity:' + maskOpacity + ';';
-                        }} else if (!hasAnimations && elem.style && elem.style.opacity !== undefined) {{
-                            style += 'opacity:' + elem.style.opacity + ';';
                         }} else if (initiallyHidden) {{
                             style += 'visibility:hidden;opacity:0;';
+                        }} else if (!hasAnimations && elem.style && elem.style.opacity !== undefined) {{
+                            style += 'opacity:' + elem.style.opacity + ';';
                         }}
                         
                         html += '<div class="slide-element ' + elem.type + '-element" id="element-' + elemIndex + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" style="' + style + '">';
@@ -2452,7 +2458,19 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 // No PPT animations - use timeline startTime/endTime
                                 if (startTime > 0) {{
                                     var showTimer = setTimeout(function() {{
+                                        // BUGFIX (2026-02): the element was rendered with
+                                        // inline `visibility:hidden;opacity:0` to keep it
+                                        // invisible until startTime. The fadeIn keyframe
+                                        // only animates opacity and has no fill-mode, so
+                                        // after 0.3s the element snapped right back to
+                                        // invisible. We must explicitly reset visibility
+                                        // and opacity to the element's intended values
+                                        // BEFORE applying the fadeIn keyframe (the
+                                        // keyframe's "from opacity:0" still produces
+                                        // a clean fade-in for the user).
                                         element.style.display = '';
+                                        element.style.visibility = 'visible';
+                                        element.style.opacity = String(elementOpacity);
                                         element.style.animation = 'fadeIn 0.3s ease-out';
                                     }}, startTime * 1000);
                                     timelineTimers.push(showTimer);
@@ -2460,9 +2478,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 
                                 if (endTime < slideDuration) {{
                                     var hideTimer = setTimeout(function() {{
-                                        element.style.animation = 'fadeOut 0.3s ease-out';
+                                        element.style.animation = 'fadeOut 0.3s ease-out forwards';
                                         setTimeout(function() {{
                                             element.style.display = 'none';
+                                            element.style.visibility = 'hidden';
+                                            element.style.opacity = '0';
                                         }}, 300);
                                     }}, endTime * 1000);
                                     timelineTimers.push(hideTimer);
