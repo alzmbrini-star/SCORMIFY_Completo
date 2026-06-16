@@ -177,21 +177,26 @@ def _measure_text_bbox(text: str, font_size: int) -> tuple[int, int]:
     """Return (width, height) of `text` rendered with the default
     whiteboard font (Caveat) at `font_size`.
 
-    Uses `font.getlength()` (advance width) — the visual horizontal
-    space the text actually occupies — rather than `getbbox()` which
-    returns the tighter ink bbox and underestimates how much room a
-    box needs around the text. Falls back to a heuristic if PIL/font
-    loading fails — never raises so we don't break the plan flow."""
+    Combines `font.getlength()` (advance width) with `font.getbbox()`
+    (ink right edge) and takes the larger — for slanted handwriting
+    fonts these can differ noticeably and we always want to size the
+    bounding shape against the visually rightmost pixel. Falls back to
+    a heuristic if PIL/font loading fails — never raises so we don't
+    break the plan flow."""
     try:
         from PIL import ImageFont
         from .whiteboard_renderer import _resolve_font_path  # type: ignore
         font = ImageFont.truetype(str(_resolve_font_path(None)), font_size)
-        # Advance width = visual width including final char's right bearing.
-        width = int(font.getlength(text))
+        advance = int(font.getlength(text))
         bbox = font.getbbox(text)
+        ink_w = bbox[2] - bbox[0]
+        # Use the larger of the two so wide italic strokes (Caveat's "d",
+        # "f", "/") never escape the autofit box.
+        width = max(advance, ink_w)
         height = bbox[3] - bbox[1]
-        # Add 8% horizontal safety so descenders/italics don't poke out.
-        return (int(width * 1.08), int(height * 1.15))
+        # 12% horizontal safety so descenders/italic flicks don't poke
+        # out. Heights get 18% for ascender + descender comfort.
+        return (int(width * 1.12), int(height * 1.18))
     except Exception:
         # Caveat is ~0.55× font_size wide per char on average.
         return (int(len(text) * font_size * 0.55), int(font_size * 1.1))
@@ -223,15 +228,26 @@ def _autofit_shapes(plan: dict) -> dict:
             "cx": op["x"] + tw // 2, "cy": op["y"] + th // 2,
         })
 
-    PAD = 30
+    PAD = 40
     for op in ops:
         t = op.get("type")
         if t == "rectangle":
             x0, y0 = op["x"], op["y"]
             x1, y1 = x0 + op["w"], y0 + op["h"]
             for tb in text_boxes:
-                # Text whose center is inside the rectangle → expand to fit.
-                if x0 - PAD <= tb["cx"] <= x1 + PAD and y0 - PAD <= tb["cy"] <= y1 + PAD:
+                # MATCH STRATEGY (2026-02 fix): the previous "text center
+                # inside box" rule broke when the LLM produced a NARROW
+                # box around WIDE text — the text's center fell off the
+                # right edge of the box, the match failed, and the box
+                # stayed clipped. We now associate text↔box when the
+                # text's vertical center sits inside the box's vertical
+                # range (with PAD tolerance) AND the text horizontally
+                # overlaps the box even slightly (also with PAD). This
+                # correctly catches "text that visually belongs to the
+                # box, regardless of how wrong the LLM's width was".
+                vertical_match = (y0 - PAD) <= tb["cy"] <= (y1 + PAD)
+                horizontal_overlap = not (tb["x1"] < x0 - PAD or tb["x0"] > x1 + PAD)
+                if vertical_match and horizontal_overlap:
                     nx0 = min(x0, tb["x0"] - PAD)
                     ny0 = min(y0, tb["y0"] - PAD)
                     nx1 = max(x1, tb["x1"] + PAD)
@@ -245,7 +261,9 @@ def _autofit_shapes(plan: dict) -> dict:
             # Ellipse bbox.
             bx0, by0, bx1, by1 = cx - rx, cy - ry, cx + rx, cy + ry
             for tb in text_boxes:
-                if bx0 - PAD <= tb["cx"] <= bx1 + PAD and by0 - PAD <= tb["cy"] <= by1 + PAD:
+                vertical_match = (by0 - PAD) <= tb["cy"] <= (by1 + PAD)
+                horizontal_overlap = not (tb["x1"] < bx0 - PAD or tb["x0"] > bx1 + PAD)
+                if vertical_match and horizontal_overlap:
                     # Required half-axes to contain the text's diagonal
                     # with comfort. We use an inscribed-ellipse rule:
                     # a text rectangle of width W and height H fits in an

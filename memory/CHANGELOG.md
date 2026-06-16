@@ -1,6 +1,27 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Auto-fit do Whiteboard AI Shapes — caixas estreitas em torno de textos largos)
+
+### Sintoma
+- No modo AI Shapes, caixas do lado esquerdo (textos longos como `PowerPoint/PDF/Word`, `Vídeos/Docs Técnicos`) ficavam coladas no texto, enquanto caixas do lado direito (`Curso SCORM 1.2`) tinham padding generoso. Resultado visualmente assimétrico.
+
+### Causa raiz
+- `_autofit_shapes` em `services/whiteboard_ai_plan.py` usava a regra "centro do texto dentro da caixa (±PAD)" para associar texto ↔ shape. Funciona quando a caixa do LLM é grande, mas **quebra** quando o LLM gera uma caixa estreita em torno de um texto longo: o centro do texto cai FORA do `x1` da caixa, o match falha e a caixa não cresce.
+- Adicionalmente, `_measure_text_bbox` usava só `font.getlength()` (advance width) com 8% de margem — para fontes manuscritas inclinadas como Caveat, a tinta visível (`getbbox()[2]`) pode ser mais larga que o advance, e 8% não era suficiente.
+
+### Implementação
+- **`_autofit_shapes`**: nova regra de associação = (centro Y do texto dentro do range Y da caixa ±PAD) ∧ (qualquer sobreposição horizontal das AABBs ±PAD). Casa "texto que visualmente pertence à caixa" mesmo quando a largura do LLM está totalmente errada. Mesma lógica replicada para `circle` (usa a AABB da elipse).
+- **`_measure_text_bbox`**: width = `max(getlength, getbbox[2])` para capturar tanto o advance quanto a borda direita da tinta; margem horizontal subiu de 1.08x → 1.12x, vertical de 1.15x → 1.18x.
+- **`PAD`** subiu de 30 → 40 px para padding mais consistente entre lados.
+
+### Verificação
+- Pytest `tests/test_whiteboard_autofit.py` (5/5 PASSED): caixa estreita cresce, caixa larga não encolhe, texto longe não associa, duas caixas empilhadas casam só com seus textos respectivos, círculo cresce em torno de label largo.
+- Simulação local: 3 caixas (2 com textos longos, 1 com texto curto) → todas terminam com **exatamente 40px de padding à direita** independentemente do comprimento do texto. ✅
+
+
+
+
 ## 2026-02-XX (Bugfix: Ctrl+V no diálogo de Whiteboard colando o último elemento de tela)
 
 ### Sintoma
