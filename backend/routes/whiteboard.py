@@ -499,3 +499,186 @@ async def generate_whiteboard_text(
         text = text[: max_chars - 1].rstrip() + "…"
 
     return {"text": text, "charsUsed": len(text)}
+
+
+
+# =====================================================================
+# AI render-plan generation + plan-based rendering
+# =====================================================================
+
+class WhiteboardPlanRequest(BaseModel):
+    # Natural-language description of what should be drawn (PT-BR).
+    description: str = Field(..., min_length=4, max_length=2000)
+    # Author's preferred ink color (#RRGGBB). The LLM uses it as the
+    # default and may pick complementary colors for emphasis if
+    # `allowColorPerShape` is True.
+    inkColor: Optional[str] = Field(default=None, max_length=16)
+    allowColorPerShape: bool = Field(default=True)
+
+
+@router.post("/ai-plan")
+async def generate_whiteboard_plan(payload: WhiteboardPlanRequest):
+    """Generate a structured render plan from a natural-language
+    description. Returns the plan (summary + ops list) for the UI to
+    show as a preview before the user commits to actually rendering."""
+    from services.whiteboard_ai_plan import generate_render_plan
+    try:
+        plan = await generate_render_plan(
+            payload.description,
+            base_color=payload.inkColor,
+            allow_color_per_shape=payload.allowColorPerShape,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("whiteboard ai-plan failed: %s", e)
+        raise HTTPException(502, f"falha ao gerar plano: {e}")
+    if not plan.get("ops"):
+        raise HTTPException(422, "plano gerado vazio — refine a descrição")
+    return plan
+
+
+class WhiteboardPlanRenderRequest(BaseModel):
+    # The (possibly user-edited) plan returned from /ai-plan.
+    plan: dict
+    fontFamily: Optional[str] = None
+    transparent: bool = Field(default=False)
+    projectId: Optional[str] = None
+    slideId: Optional[str] = None
+    # Friendly element name surfaced in the Layers panel.
+    title: Optional[str] = Field(default=None, max_length=120)
+
+
+@router.post("/generate-from-plan")
+async def generate_from_plan(payload: WhiteboardPlanRenderRequest):
+    """Async job to render a Whiteboard from a confirmed plan.
+
+    Identical lifecycle to /generate (returns jobId, frontend polls
+    /job/{id}) but the worker calls the plan-based renderer instead of
+    the text-only one."""
+    plan = payload.plan or {}
+    ops = plan.get("ops") or []
+    if not ops:
+        raise HTTPException(400, "plan.ops vazio — nada para renderizar")
+
+    job_id = str(_uuid.uuid4())
+    job_data = {
+        "id": job_id,
+        "type": "whiteboard_generate_from_plan",
+        "status": "processing",
+        "progress": 0,
+        "message": "Renderizando whiteboard com IA...",
+        "result": None,
+    }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
+
+    task = asyncio.create_task(
+        _run_whiteboard_plan_job(job_id=job_id, payload=payload),
+    )
+    _pending_jobs.add(task)
+    task.add_done_callback(_pending_jobs.discard)
+
+    return {"jobId": job_id, "statusUrl": f"/api/job/{job_id}"}
+
+
+async def _run_whiteboard_plan_job(
+    job_id: str,
+    payload: "WhiteboardPlanRenderRequest",
+):
+    """Background worker for plan-based renders. Serialized through the
+    same semaphore as /generate so we never run two heavy renders
+    concurrently on a single worker."""
+    async with _render_semaphore:
+        await _do_plan_render(job_id, payload)
+
+
+async def _do_plan_render(
+    job_id: str,
+    payload: "WhiteboardPlanRenderRequest",
+):
+    try:
+        from services.whiteboard_plan_renderer import render_whiteboard_plan
+        rel_url, info = await render_whiteboard_plan(
+            payload.plan,
+            font_family=payload.fontFamily or None,
+            transparent=bool(payload.transparent),
+        )
+    except Exception as e:
+        logger.exception("whiteboard-plan render failed: %s", e)
+        await update_job(job_id, {
+            "status": "failed",
+            "message": f"falha ao renderizar: {e}",
+        })
+        return
+
+    # Bind to slide if requested — atomic $push (same pattern as /generate
+    # to dodge concurrent-write races).
+    if payload.projectId and payload.slideId:
+        project = await db.projects.find_one(
+            {"id": payload.projectId}, {"_id": 0}
+        )
+        if project:
+            slides = (project.get("course") or {}).get("slides") or []
+            slide_idx = next(
+                (i for i, s in enumerate(slides) if s.get("id") == payload.slideId),
+                None,
+            )
+            if slide_idx is not None:
+                slide = slides[slide_idx]
+                elements = slide.get("elements") or []
+                is_apng = info.get("format") == "apng"
+                existing_wb = sum(
+                    1 for e in elements
+                    if isinstance(e, dict) and e.get("isWhiteboard")
+                )
+                offset = min(existing_wb * 80, 400)
+                base_x = 320 + offset
+                base_y = 50 + offset
+                wb_name = (payload.title or "").strip() or f"Whiteboard {existing_wb + 1}"
+                if is_apng:
+                    new_el = {
+                        "id": str(_uuid.uuid4()),
+                        "type": "image",
+                        "src": rel_url,
+                        "name": wb_name,
+                        "x": base_x, "y": base_y,
+                        "width": 1280, "height": 720,
+                        "zIndex": len(elements),
+                        "isWhiteboard": True,
+                        "isAnimatedPng": True,
+                        "style": {"backgroundColor": "transparent"},
+                    }
+                else:
+                    new_el = {
+                        "id": str(_uuid.uuid4()),
+                        "type": "video",
+                        "src": rel_url,
+                        "name": wb_name,
+                        "x": base_x, "y": base_y,
+                        "width": 1280, "height": 720,
+                        "zIndex": len(elements),
+                        "isWhiteboard": True,
+                        "autoplay": True,
+                        "loop": False,
+                        "controls": True,
+                        "style": {},
+                    }
+                update_ops: dict = {
+                    "$push": {f"course.slides.{slide_idx}.elements": new_el},
+                    "$set": {
+                        f"course.slides.{slide_idx}.whiteboardMeta": info,
+                        "updatedAt": now_utc().isoformat(),
+                    },
+                }
+                if not is_apng:
+                    update_ops["$set"][f"course.slides.{slide_idx}.videoUrl"] = rel_url
+                await db.projects.update_one(
+                    {"id": payload.projectId}, update_ops,
+                )
+
+    await update_job(job_id, {
+        "status": "completed",
+        "message": "Whiteboard pronto",
+        "result": {"videoUrl": rel_url, **info},
+    })

@@ -75,6 +75,16 @@ export default function WhiteboardDialog({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [showAi, setShowAi] = useState(false);
+  // AI render-plan mode: instead of writing text linearly, the author
+  // describes the scene in natural language ("escreva X, faça círculo
+  // vermelho em volta, seta para Y...") and the backend asks Claude
+  // to produce a structured plan with shape ops. Preview the plan
+  // before rendering so unexpected layouts can be caught early.
+  const [planMode, setPlanMode] = useState(() => _lsRead('planMode', false));
+  const [planDescription, setPlanDescription] = useState('');
+  const [aiPlan, setAiPlan] = useState(null);  // { summary, ops }
+  const [planBusy, setPlanBusy] = useState(false);
+  const [allowColorPerShape, setAllowColorPerShape] = useState(() => _lsRead('allowColorPerShape', true));
   const [result, setResult] = useState(null);  // { videoUrl, format }
   const editorRef = useRef(null);
 
@@ -163,6 +173,8 @@ export default function WhiteboardDialog({
   useEffect(() => { _lsWrite('transparent', transparent); }, [transparent]);
   useEffect(() => { _lsWrite('eraseAtEnd', eraseAtEnd); }, [eraseAtEnd]);
   useEffect(() => { _lsWrite('eraseStyle', eraseStyle); }, [eraseStyle]);
+  useEffect(() => { _lsWrite('planMode', planMode); }, [planMode]);
+  useEffect(() => { _lsWrite('allowColorPerShape', allowColorPerShape); }, [allowColorPerShape]);
 
   const handleGenerateAi = async () => {
     setAiBusy(true);
@@ -301,6 +313,116 @@ export default function WhiteboardDialog({
     setBusy(false);
   };
 
+  // ── AI plan flow ──────────────────────────────────────────────────
+  // The plan mode operates in 2 steps so the author can review what
+  // the LLM will draw BEFORE the (potentially slow) pen-trace render
+  // kicks off:
+  //   1. POST /ai-plan       → returns {summary, ops}, displayed below
+  //   2. POST /generate-from-plan → kicks off the same async job pipeline
+  //                                 we use for the text-only renderer
+  const handleGeneratePlan = async () => {
+    if (!planDescription.trim()) {
+      toast.error('Descreva o que quer desenhar');
+      return;
+    }
+    setPlanBusy(true);
+    setAiPlan(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/whiteboard/ai-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          description: planDescription.trim(),
+          inkColor: inkColor || null,
+          allowColorPerShape: Boolean(allowColorPerShape),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const plan = await res.json();
+      setAiPlan(plan);
+      toast.success(`Plano gerado com ${plan.ops?.length || 0} operações`);
+    } catch (e) {
+      toast.error(e.message || 'Falha ao gerar plano');
+    }
+    setPlanBusy(false);
+  };
+
+  const handleRenderFromPlan = async () => {
+    if (!aiPlan || !aiPlan.ops?.length) {
+      toast.error('Gere um plano primeiro');
+      return;
+    }
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/whiteboard/generate-from-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          plan: aiPlan,
+          fontFamily: fontFamily || null,
+          transparent: Boolean(transparent),
+          title: title.trim() || null,
+          projectId,
+          slideId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const enq = await res.json();
+      const jobId = enq.jobId;
+      if (!jobId) throw new Error('Resposta inesperada do servidor');
+      // Reuse the same polling loop conventions as the text generate
+      // path (5min ceiling, 8 consecutive transient errors before giving
+      // up). Long shape-heavy plans can run 30–60s.
+      const started = Date.now();
+      const maxMs = 5 * 60 * 1000;
+      let consecutiveErrors = 0;
+      const MAX_CONSEC_ERRORS = 8;
+      let data = null;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        await new Promise((r) => setTimeout(r, 2000));
+        let sres;
+        try {
+          sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, { credentials: 'include' });
+        } catch {
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
+            throw new Error('Conexão perdida após várias tentativas');
+          }
+          continue;
+        }
+        if (sres.status >= 500) {
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
+            throw new Error(`Servidor instável (${sres.status})`);
+          }
+          continue;
+        }
+        if (!sres.ok) throw new Error(`HTTP ${sres.status}`);
+        consecutiveErrors = 0;
+        const sjob = await sres.json();
+        if (sjob.status === 'completed' && sjob.result) { data = sjob.result; break; }
+        if (sjob.status === 'failed') throw new Error(sjob.message || 'Falha na geração');
+        if (Date.now() - started > maxMs) throw new Error('Timeout aguardando renderização');
+      }
+      setResult({ url: `${getApiUrl()}${data.videoUrl}`, format: data.format });
+      toast.success(`Whiteboard gerado (${data.duration.toFixed(1)}s)`);
+      if (onGenerated) onGenerated(data);
+    } catch (e) {
+      toast.error(e.message || 'Falha ao renderizar plano');
+    }
+    setBusy(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl" data-testid="whiteboard-dialog">
@@ -312,6 +434,29 @@ export default function WhiteboardDialog({
         </DialogHeader>
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+          {/* AI plan mode toggle. When ON, the standard text editor is
+              replaced with a description textarea + plan preview panel.
+              All render settings (transparent, erase, font) still apply. */}
+          <div className="flex items-center justify-between p-3 border border-amber-700/40 rounded-md bg-amber-950/20">
+            <div className="flex-1 pr-3">
+              <Label htmlFor="wb-plan-mode" className="flex items-center gap-2 cursor-pointer">
+                <Wand2 className="w-4 h-4 text-amber-400" /> Modo IA + Formas (experimental)
+              </Label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Descreva em português o que quer desenhar — a IA cria um plano
+                com <strong>texto + setas, círculos, retângulos, sublinhados</strong> e
+                a caneta executa em ordem. Útil pra <strong>destacar conceitos</strong>,
+                <strong> conectar ideias</strong> e dar vida didática aos slides.
+              </p>
+            </div>
+            <Switch
+              id="wb-plan-mode"
+              data-testid="whiteboard-plan-mode-toggle"
+              checked={planMode}
+              onCheckedChange={setPlanMode}
+            />
+          </div>
+
           <div>
             <Label htmlFor="wb-title">Título (opcional)</Label>
             <Input
@@ -324,6 +469,84 @@ export default function WhiteboardDialog({
             />
           </div>
 
+          {planMode && (
+            <div className="border border-amber-700/30 rounded-md bg-amber-950/10 p-3 space-y-3">
+              <div>
+                <Label htmlFor="wb-plan-desc" className="text-xs">Descreva o que desenhar (PT-BR)</Label>
+                <Textarea
+                  id="wb-plan-desc"
+                  data-testid="whiteboard-plan-description-input"
+                  placeholder="Ex.: Escreva 'Vendas Q4' no topo. Faça um círculo vermelho em volta. Embaixo, escreva 'Meta: R$ 1M' em verde. Desenhe uma seta azul apontando do círculo até o valor."
+                  value={planDescription}
+                  onChange={(e) => setPlanDescription(e.target.value)}
+                  rows={5}
+                  maxLength={2000}
+                  disabled={planBusy || busy}
+                  className="text-sm"
+                />
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[10px] text-muted-foreground">
+                    {planDescription.length}/2000 — Claude Sonnet 4.5 vai interpretar
+                  </span>
+                  <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer">
+                    <Switch
+                      data-testid="whiteboard-plan-multicolor-toggle"
+                      checked={allowColorPerShape}
+                      onCheckedChange={setAllowColorPerShape}
+                      className="scale-75"
+                    />
+                    Cores diferentes por forma
+                  </label>
+                </div>
+              </div>
+              <Button
+                type="button"
+                onClick={handleGeneratePlan}
+                disabled={planBusy || busy || !planDescription.trim()}
+                size="sm"
+                data-testid="whiteboard-plan-generate-btn"
+                className="bg-amber-600 hover:bg-amber-700 w-full"
+              >
+                {planBusy ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando plano...</>
+                ) : (
+                  <><Sparkles className="w-4 h-4 mr-2" /> Gerar plano</>
+                )}
+              </Button>
+
+              {aiPlan && (
+                <div className="border border-amber-700/40 rounded-md bg-amber-500/5 p-3 space-y-2" data-testid="whiteboard-plan-preview">
+                  <div className="text-xs">
+                    <strong className="text-amber-300">Plano:</strong>
+                    <span className="text-slate-200 ml-1">{aiPlan.summary}</span>
+                  </div>
+                  <details className="text-[10px] text-slate-400">
+                    <summary className="cursor-pointer hover:text-slate-200">
+                      Operações ({aiPlan.ops?.length || 0})
+                    </summary>
+                    <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto font-mono">
+                      {(aiPlan.ops || []).map((op, idx) => (
+                        <li key={idx} className="flex items-center gap-2">
+                          <span
+                            className="inline-block w-2 h-2 rounded-full"
+                            style={{ background: op.color || '#64748b' }}
+                          />
+                          <span className="text-amber-300">{op.type}</span>
+                          {op.type === 'text' && <span>"{op.text}"</span>}
+                          {op.type === 'circle' && <span>raio {op.rx}×{op.ry} em ({op.cx},{op.cy})</span>}
+                          {op.type === 'rectangle' && <span>{op.w}×{op.h} em ({op.x},{op.y})</span>}
+                          {op.type === 'arrow' && <span>({op.x1},{op.y1})→({op.x2},{op.y2})</span>}
+                          {op.type === 'underline' && <span>({op.x1},{op.y1})→({op.x2})</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!planMode && (
           <div>
             <div className="flex items-center justify-between mb-1">
               <Label htmlFor="wb-text">Texto a escrever</Label>
@@ -511,6 +734,7 @@ export default function WhiteboardDialog({
               />
             </p>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -672,15 +896,17 @@ export default function WhiteboardDialog({
             Fechar
           </Button>
           <Button
-            onClick={handleGenerate}
-            disabled={busy || !text.trim()}
+            onClick={planMode ? handleRenderFromPlan : handleGenerate}
+            disabled={busy || planBusy || (planMode ? !aiPlan?.ops?.length : !text.trim())}
             className="bg-amber-600 hover:bg-amber-700"
             data-testid="whiteboard-generate-btn"
           >
             {busy ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando...</>
             ) : (
-              <><Sparkles className="w-4 h-4 mr-2" /> Gerar e Aplicar ao Slide</>
+              <><Sparkles className="w-4 h-4 mr-2" />
+                {planMode ? 'Renderizar Plano' : 'Gerar e Aplicar ao Slide'}
+              </>
             )}
           </Button>
         </DialogFooter>
