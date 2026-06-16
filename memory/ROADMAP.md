@@ -12,7 +12,9 @@
 - [x] **Missing route registrations fix** (companies, users, elevenlabs, gallery, heygen, questions, scenarios, vlibras)
 - [x] **AI Tutor CORS fix** (triple-layer CORS for production cross-origin access)
 - [x] **Video Export Production Fix**: POST returns instantly, all heavy work in background (2026-03-27)
+- [x] **PPT Import populating Presenter Notes** (2026-02): body text now falls back into `slide.notes` when PPT has no presenter notes; `extractedText` field declared on `Slide` model
 - [ ] **User verification**: Image generation with 23+ slides
+- [ ] **Production OOM 502 on Whiteboard** — code optimized (Semaphore + GC), BLOCKED awaiting Emergent Support pod memory scale-up (ticket aberto pelo usuário)
 
 ## P1 - High Priority
 - [ ] SCORM 2004 & xAPI Export (detailed performance data to LMS)

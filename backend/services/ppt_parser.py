@@ -1026,9 +1026,38 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
         if pptx_slide.has_notes_slide:
             try:
                 notes_slide = pptx_slide.notes_slide
-                notes = notes_slide.notes_text_frame.text
-            except:
-                pass
+                raw_notes = notes_slide.notes_text_frame.text or ""
+                notes = raw_notes.strip() or None
+            except Exception as e:
+                logger.debug(f"Slide {slide_idx + 1}: failed to read notes_text_frame: {e}")
+                notes = None
+
+        # Extract slide body text (titles, text frames, table cells). Used
+        # downstream by the AI Tutor, narration and SCORM exporter, and as
+        # a fallback for the Presenter Notes panel when the PPT itself has
+        # no notes.
+        slide_text_parts = []
+        try:
+            for shape in pptx_slide.shapes:
+                if getattr(shape, "has_text_frame", False):
+                    for para in shape.text_frame.paragraphs:
+                        para_text = para.text.strip()
+                        if para_text and para_text != title:
+                            slide_text_parts.append(para_text)
+                if getattr(shape, "has_table", False):
+                    for row in shape.table.rows:
+                        for cell in row.cells:
+                            cell_text = cell.text.strip()
+                            if cell_text:
+                                slide_text_parts.append(cell_text)
+        except Exception as txt_err:
+            logger.debug(f"Slide {slide_idx + 1}: text extraction failed: {txt_err}")
+
+        extracted_text = "\n".join(slide_text_parts) if slide_text_parts else None
+
+        if not notes and extracted_text:
+            notes = extracted_text
+            logger.info(f"Slide {slide_idx + 1}: no presenter notes, using extractedText ({len(extracted_text)} chars) as notes")
         
         slide = Slide(
             id=slide_id,
@@ -1040,7 +1069,8 @@ def parse_pptx(file_path: str, project_id: str, storage_dir: str) -> Course:
             backgroundImage=bg_image,
             elements=elements,
             transition=transition,
-            notes=notes
+            notes=notes,
+            extractedText=extracted_text,
         )
         
         slides.append(slide)

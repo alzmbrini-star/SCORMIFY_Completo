@@ -1,6 +1,30 @@
 # Changelog
 
 
+## 2026-02-XX (P0 Fix: PPT Import preencher Presenter Notes)
+
+### Pedido
+- Bug recorrente adiado por 3 forks: ao importar PPT, o painel "Notas do Apresentador" no Editor ficava vazio mesmo quando o slide tinha texto, deixando o autor sem contexto e o AI Tutor sem material.
+
+### Causa raiz
+- `services/ppt_image_parser.py` (fluxo high-fidelity ConvertAPI/LibreOffice) e `services/ppt_parser.py` (fallback python-only) só populavam `slide.notes` quando o PPTX tinha **notas de apresentador reais** (poucas vezes acontece).
+- O texto dos shapes ia para `extractedText` (consumido pelo AI Tutor e SCORM exporter), mas a UI do Presenter Notes só lê `slide.notes`. Resultado: painel vazio.
+- Adicionalmente, `extractedText` não estava declarado no model `Slide` — funcionava por causa de `extra="allow"`, mas era frágil.
+
+### Implementação
+- **`models.py`**: declarado `extractedText: Optional[str]` no `Slide` para tornar o contrato explícito.
+- **`services/ppt_image_parser.py`**: notas vazias / só com whitespace agora são tratadas como ausentes; quando não há notas reais e há `extractedText`, este último é copiado para `slide.notes`. Logs estruturados (`using PPT presenter notes` vs `using extractedText as notes`) facilitam triagem em produção.
+- **`services/ppt_parser.py`** (fallback): mesma lógica, e agora também extrai `extractedText` (antes só o high-fidelity tinha).
+- **`tests/test_ppt_import_notes.py`**: 3 testes pytest cobrindo (a) notas reais preservadas, (b) fallback quando não há notas, (c) whitespace-only notas → fallback, (d) slide sem nada → não quebra, (e) serialização `model_dump` contém os dois campos.
+
+### Verificação
+- Pytest: `tests/test_ppt_import_notes.py` → 3/3 PASSED.
+- E2E via API: upload de PPT com 2 slides (um com notas reais, um sem) → ambos retornam `notes` populado, `extractedText` independente preservado.
+- Regressão: `tests/test_tutor_context.py` continua passando (AI Tutor segue usando `extractedText` separadamente).
+
+
+
+
 ## 2026-02-XX (Feature: Nomeação automática de elementos Whiteboard no Layers)
 
 ### Pedido

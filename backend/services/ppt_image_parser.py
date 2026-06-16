@@ -590,9 +590,23 @@ def parse_pptx_high_fidelity(file_path: str, project_id: str, storage_dir: str) 
         if pptx_slide.has_notes_slide:
             try:
                 notes_slide = pptx_slide.notes_slide
-                notes = notes_slide.notes_text_frame.text
-            except:
-                pass
+                raw_notes = notes_slide.notes_text_frame.text or ""
+                # python-pptx returns "" for empty notes layouts; treat as no notes
+                notes = raw_notes.strip() or None
+            except Exception as e:
+                logger.debug(f"Slide {slide_idx + 1}: failed to read notes_text_frame: {e}")
+                notes = None
+
+        # FALLBACK (P0 fix, 2026-02-XX): when the PPT has no real presenter
+        # notes, surface the slide's body text so the author sees context
+        # in the Presenter Notes panel (high-fidelity slides are rendered
+        # as images, so text shapes are otherwise invisible in the editor).
+        # We log which case we hit so production bugs are easy to triage.
+        if not notes and extracted_text:
+            notes = extracted_text
+            logger.info(f"Slide {slide_idx + 1}: no presenter notes, using extractedText ({len(extracted_text)} chars) as notes")
+        elif notes:
+            logger.info(f"Slide {slide_idx + 1}: using PPT presenter notes ({len(notes)} chars)")
         
         slide = Slide(
             id=slide_id,

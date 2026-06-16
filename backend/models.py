@@ -170,6 +170,12 @@ class Slide(BaseModel):
     # Notes for presenter
     notes: Optional[str] = None
     
+    # Plain text extracted from slide shapes during PPT import.
+    # Kept separate from `notes` so the AI Tutor / narration / SCORM
+    # exporter can still consume the source text even after an author
+    # manually edits the Presenter Notes panel.
+    extractedText: Optional[str] = None
+    
     # LIBRAS script for VLibras avatar translation
     librasScript: Optional[str] = None
     

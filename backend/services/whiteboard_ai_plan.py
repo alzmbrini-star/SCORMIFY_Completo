@@ -69,6 +69,14 @@ REGRAS DE LAYOUT (CANVAS 1920×1080):
 - Use a área útil: x entre 140 e 1780, y entre 140 e 940.
 - Não sobreponha textos uns aos outros. Use linhas separadas verticalmente
   (typically ~120-160px entre linhas de texto).
+- A fonte usada é uma manuscrita estilo "Caveat" — bem mais LARGA que
+  fontes comuns. Para CALCULAR largura aproximada: cada caractere ocupa
+  ~0.55 × font_size em px. Ex.: "PowerPoint/PDF/Word" (19 chars) em
+  font_size=80 ⇒ largura ≈ 19 × 0.55 × 80 = 836px. Reserve espaço!
+- Caixas (rectangle) e círculos (circle) que ENVOLVAM um texto devem ser
+  pelo menos 30-50px maiores que o texto em cada direção. Em caso de
+  dúvida, GENEROSIDADE > apertado. Ex.: para uma caixa em torno de
+  "PowerPoint/PDF/Word" em font_size 80, use w=900 h=150.
 - Coloque cada operação de FORMA depois das operações de TEXTO relacionadas
   — a caneta sempre escreve primeiro, depois enfatiza/sublinha/circula.
 - Máximo de 8 formas geométricas. Texto livre não conta para esse limite.
@@ -132,7 +140,126 @@ async def generate_render_plan(
         raise RuntimeError("LLM returned empty response")
 
     plan = _parse_plan(str(resp))
-    return _normalize_plan(plan, base_color=base_color, allow_color_per_shape=allow_color_per_shape)
+    plan = _normalize_plan(plan, base_color=base_color, allow_color_per_shape=allow_color_per_shape)
+    # Post-LLM safety net: the model can't predict the rendered width
+    # of the Caveat handwriting font (which is ~30-50% wider per char
+    # than a typical sans-serif at the same font_size). Without this
+    # step the LLM-suggested boxes habitually clip text like
+    # "PowerPoint/PDF/Word" out the right side. We measure each text op
+    # with the actual font and grow any shape that's meant to wrap it.
+    plan = _autofit_shapes(plan)
+    # Re-clamp after autofit since growing shapes can push them past the
+    # canvas boundary. Better to clip than to draw off-screen.
+    plan = _clamp_shapes_to_canvas(plan)
+    return plan
+
+
+def _clamp_shapes_to_canvas(plan: dict) -> dict:
+    """Final pass: ensure no shape extends past the canvas edges after
+    autofit. Shrinks if necessary."""
+    for op in plan.get("ops", []):
+        t = op.get("type")
+        if t == "rectangle":
+            op["x"] = max(0, min(CANVAS_W - 10, op["x"]))
+            op["y"] = max(0, min(CANVAS_H - 10, op["y"]))
+            op["w"] = max(30, min(CANVAS_W - op["x"], op["w"]))
+            op["h"] = max(30, min(CANVAS_H - op["y"], op["h"]))
+        elif t == "circle":
+            # Pull centers in if the ellipse would extend off-canvas.
+            op["rx"] = min(op["rx"], min(op["cx"], CANVAS_W - op["cx"]))
+            op["ry"] = min(op["ry"], min(op["cy"], CANVAS_H - op["cy"]))
+            op["rx"] = max(20, op["rx"])
+            op["ry"] = max(20, op["ry"])
+    return plan
+
+
+def _measure_text_bbox(text: str, font_size: int) -> tuple[int, int]:
+    """Return (width, height) of `text` rendered with the default
+    whiteboard font (Caveat) at `font_size`.
+
+    Uses `font.getlength()` (advance width) — the visual horizontal
+    space the text actually occupies — rather than `getbbox()` which
+    returns the tighter ink bbox and underestimates how much room a
+    box needs around the text. Falls back to a heuristic if PIL/font
+    loading fails — never raises so we don't break the plan flow."""
+    try:
+        from PIL import ImageFont
+        from .whiteboard_renderer import _resolve_font_path  # type: ignore
+        font = ImageFont.truetype(str(_resolve_font_path(None)), font_size)
+        # Advance width = visual width including final char's right bearing.
+        width = int(font.getlength(text))
+        bbox = font.getbbox(text)
+        height = bbox[3] - bbox[1]
+        # Add 8% horizontal safety so descenders/italics don't poke out.
+        return (int(width * 1.08), int(height * 1.15))
+    except Exception:
+        # Caveat is ~0.55× font_size wide per char on average.
+        return (int(len(text) * font_size * 0.55), int(font_size * 1.1))
+
+
+def _autofit_shapes(plan: dict) -> dict:
+    """Grow rectangles and circles to comfortably contain any text op
+    whose center sits inside them. Uses real font measurements rather
+    than the LLM's guess.
+
+    Heuristic for matching shapes ↔ texts:
+      - Shape `S` "contains" text op `T` if T's anchor (x,y) is inside
+        S's bounding rectangle (with a small tolerance). When the LLM
+        outputs a shape paired with a label, this anchor-inside test is
+        a reliable association.
+      - Once matched, we compute the text's actual rendered bbox and
+        expand S to fit it + 30px padding on each side.
+    """
+    ops = plan.get("ops") or []
+    # Pre-compute rendered bboxes for every text op.
+    text_boxes: list[dict] = []
+    for op in ops:
+        if op.get("type") != "text":
+            continue
+        tw, th = _measure_text_bbox(op["text"], op["font_size"])
+        text_boxes.append({
+            "x0": op["x"], "y0": op["y"],
+            "x1": op["x"] + tw, "y1": op["y"] + th,
+            "cx": op["x"] + tw // 2, "cy": op["y"] + th // 2,
+        })
+
+    PAD = 30
+    for op in ops:
+        t = op.get("type")
+        if t == "rectangle":
+            x0, y0 = op["x"], op["y"]
+            x1, y1 = x0 + op["w"], y0 + op["h"]
+            for tb in text_boxes:
+                # Text whose center is inside the rectangle → expand to fit.
+                if x0 - PAD <= tb["cx"] <= x1 + PAD and y0 - PAD <= tb["cy"] <= y1 + PAD:
+                    nx0 = min(x0, tb["x0"] - PAD)
+                    ny0 = min(y0, tb["y0"] - PAD)
+                    nx1 = max(x1, tb["x1"] + PAD)
+                    ny1 = max(y1, tb["y1"] + PAD)
+                    op["x"], op["y"] = max(0, nx0), max(0, ny0)
+                    op["w"], op["h"] = nx1 - op["x"], ny1 - op["y"]
+                    x0, y0, x1, y1 = op["x"], op["y"], op["x"] + op["w"], op["y"] + op["h"]
+        elif t == "circle":
+            cx, cy = op["cx"], op["cy"]
+            rx, ry = op["rx"], op["ry"]
+            # Ellipse bbox.
+            bx0, by0, bx1, by1 = cx - rx, cy - ry, cx + rx, cy + ry
+            for tb in text_boxes:
+                if bx0 - PAD <= tb["cx"] <= bx1 + PAD and by0 - PAD <= tb["cy"] <= by1 + PAD:
+                    # Required half-axes to contain the text's diagonal
+                    # with comfort. We use an inscribed-ellipse rule:
+                    # a text rectangle of width W and height H fits in an
+                    # ellipse iff (W/2/rx)² + (H/2/ry)² <= 1 — so we need
+                    # rx and ry slightly larger than W/sqrt(2) and H/sqrt(2).
+                    half_w = (tb["x1"] - tb["x0"]) / 2 + PAD
+                    half_h = (tb["y1"] - tb["y0"]) / 2 + PAD
+                    # Use 1.1× factor for breathing room.
+                    new_rx = max(rx, int(half_w * 1.42))   # ~sqrt(2)
+                    new_ry = max(ry, int(half_h * 1.42))
+                    op["rx"], op["ry"] = new_rx, new_ry
+                    rx, ry = new_rx, new_ry
+                    bx0, by0, bx1, by1 = cx - rx, cy - ry, cx + rx, cy + ry
+    return plan
 
 
 def _build_user_message(
