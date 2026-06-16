@@ -1,6 +1,28 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Ctrl+V no diálogo de Whiteboard colando o último elemento de tela)
+
+### Sintoma
+- Ao abrir o diálogo de Whiteboard (AI Mode ou modo texto normal) e tentar colar um prompt vindo do clipboard externo (Ctrl+V), o campo recebia o **último elemento de canvas copiado** em vez do texto do clipboard.
+
+### Causa raiz
+- `components/editor/SlideCanvas.jsx` registrava um listener global de `keydown` no `window` que interceptava Ctrl+C / Ctrl+V / Ctrl+D / Delete / Backspace / setas a fim de operar nos elementos do canvas.
+- A única guarda era `!editingElementId` — ela só desliga os atalhos durante a edição inline de texto no canvas, **não** quando o foco está em um input/textarea de um Dialog (Radix portala o diálogo para fora da árvore do canvas, então o `editingElementId` continua `null`).
+- Resultado: pressionar Ctrl+V dentro do input do Whiteboard chamava `preventDefault()` + `onPasteElement()`, colando o elemento de canvas copiado em vez do clipboard externo.
+
+### Implementação
+- `SlideCanvas.handleKeyDown`: nova guarda lendo `document.activeElement` e retornando cedo quando o tag é `input`/`textarea`/`select` ou o elemento é `contentEditable`. `Escape` continua sendo respeitado (para permitir desselecionar). Comentário explicativo apontando o bug e o motivo.
+- Cobre não só Ctrl+V mas também Ctrl+C/D e Delete/Backspace — antes do fix, apertar Backspace para apagar texto enquanto um elemento do canvas estava selecionado **deletava o elemento** em vez de apagar caracteres no input.
+
+### Verificação
+- Playwright in-browser: dispatch sintético de `Ctrl+V` no `window` enquanto `document.activeElement === TEXTAREA` → `defaultPrevented === false` ✅
+- Idem com `Backspace` em textarea com foco → `defaultPrevented === false` ✅
+- Editor segue carregando normalmente (smoke screenshot OK).
+
+
+
+
 ## 2026-02-XX (P0 Fix: PPT Import preencher Presenter Notes)
 
 ### Pedido

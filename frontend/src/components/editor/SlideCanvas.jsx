@@ -378,6 +378,29 @@ const SlideCanvas = ({
   }, [onDeleteElement]);
 
   const handleKeyDown = useCallback((e) => {
+    // BUGFIX (2026-02): when focus is inside a form field (e.g. the
+    // WhiteboardDialog AI-prompt textarea, slide title input, any modal
+    // input), DO NOT intercept Ctrl+C/V/D, Delete, arrows. Otherwise
+    // pasting the OS clipboard into the prompt would instead paste the
+    // last copied canvas element, and Backspace would delete the
+    // selected canvas element while the user is editing text. The
+    // `editingElementId` guard only covers inline-canvas text editing —
+    // it does not protect inputs that live in portaled dialogs.
+    const ae = typeof document !== 'undefined' ? document.activeElement : null;
+    if (ae) {
+      const tag = (ae.tagName || '').toLowerCase();
+      const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || ae.isContentEditable;
+      if (isEditable) {
+        // Still honour Escape so users can deselect even with focus in a field.
+        if (e.key === 'Escape') {
+          onSelectElement(null);
+          setEditingElementId(null);
+          setSelectedAnnotationId(null);
+        }
+        return;
+      }
+    }
+
     // Copy element (Ctrl+C / Cmd+C)
     if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedElementId && !editingElementId) {
       e.preventDefault();
