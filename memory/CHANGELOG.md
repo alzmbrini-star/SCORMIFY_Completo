@@ -1,6 +1,29 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: AI Shapes — espaçamento entre formas e zonas)
+
+### Sintoma
+- Após o fix anterior do autofit, as caixas cresciam corretamente para abraçar o texto, MAS invadiam zonas adjacentes (e.g. caixa esquerda "PowerPoint/PDF/Word" engolia metade do círculo central "SCORMIFY"). Layout poluído e ilegível.
+
+### Causa raiz
+- O LLM gerava fonts grandes demais (fs=70-80) para textos longos (~19 chars), produzindo texto renderizado de ~600-700px de largura.
+- Em um canvas dividido em 3 zonas de ~480px cada (LEFT/CENTER/RIGHT), o autofit não tinha como manter o texto dentro de uma zona — ele só sabia "fit text", não "fit text dentro de uma zona".
+
+### Implementação (pipeline de espaçamento em 4 passos)
+1. **`_cap_text_font_to_zone`** (novo): antes do autofit, reduz iterativamente `font_size` (passo de 4px, piso de 36px) até a largura renderizada caber em `MAX_BOXED_TEXT_WIDTH=420px`. Garante que após autofit + 40px de padding, a caixa não invada a zona vizinha.
+2. **`_autofit_shapes`** (já existente, 2026-02): cresce caixas estreitas para conter texto.
+3. **`_clamp_shapes_to_canvas`** (já existente): impede shapes de extrapolar bordas.
+4. **`_enforce_shape_separation`** (novo): detecta pares de shapes (rect/circle) com AABBs sobrepostas e ENCOLHE a caixa mais próxima do conflito (mínimo 80px de largura, 30px de gap). Não move shapes para não quebrar referências de setas (`x1,y1`→`x2,y2`).
+5. **Prompt do LLM atualizado**: explicitamente declara as 3 zonas X (`LEFT [140,620]`, `CENTER [700,1220]`, `RIGHT [1300,1780]`), a regra de ouro de font_size por largura, e avisa sobre os passes de post-processing.
+
+### Verificação
+- Pytest `tests/test_whiteboard_spacing.py` (5/5 PASSED) + `tests/test_whiteboard_autofit.py` (5/5 PASSED).
+- Simulação local com o exato output que produziu a screenshot poluída → todos shapes ficam separados em suas zonas, **0 overlaps** detectados pelo teste de AABB intersection.
+
+
+
+
 ## 2026-02-XX (Bugfix: Auto-fit do Whiteboard AI Shapes — caixas estreitas em torno de textos largos)
 
 ### Sintoma

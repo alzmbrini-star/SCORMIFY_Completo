@@ -45,9 +45,11 @@ ESPECIFICAÇÃO DO JSON DE SAÍDA:
 
 TIPOS DE OPERAÇÃO PERMITIDOS:
 
-1. {"type": "text", "text": "<conteúdo>", "x": <int>, "y": <int>, "font_size": <int 40-120>, "color": "<#hex|nome>"}
+1. {"type": "text", "text": "<conteúdo>", "x": <int>, "y": <int>, "font_size": <int 36-110>, "color": "<#hex|nome>"}
    - Renderiza o texto à mão escrita. `x,y` é o canto superior-esquerdo.
-   - Use 60-90 como font_size típico.
+   - Default seguro: font_size 60-70 para textos curtos (<10 chars),
+     font_size 40-55 para textos médios (10-20 chars). Veja regras de
+     layout abaixo para fonts que precisam caber em uma zona específica.
 
 2. {"type": "circle", "cx": <int>, "cy": <int>, "rx": <int>, "ry": <int>, "color": "<#hex|nome>", "width": <int 4-10>}
    - Elipse com centro (cx,cy) e raios rx,ry. Para círculo perfeito use rx==ry.
@@ -67,16 +69,30 @@ TIPOS DE OPERAÇÃO PERMITIDOS:
 
 REGRAS DE LAYOUT (CANVAS 1920×1080):
 - Use a área útil: x entre 140 e 1780, y entre 140 e 940.
+- **ZONAS HORIZONTAIS** (use no máximo UMA zona por shape boxed):
+    LEFT zone   : x ∈ [140,  620]   (largura útil ~480px)
+    CENTER zone : x ∈ [700, 1220]   (largura útil ~520px)
+    RIGHT zone  : x ∈ [1300, 1780]  (largura útil ~480px)
+  Os gaps [620,700] e [1220,1300] são RESPIRADOUROS — NÃO coloque
+  shapes que cruzem essas faixas. O sistema vai automaticamente
+  reduzir o font_size do seu texto se ele for largo demais para a
+  zona escolhida, então PREFIRA fonts menores em vez de cruzar zonas.
+- **ESPAÇAMENTO VERTICAL**: shapes empilhadas verticalmente na mesma
+  zona devem ter mínimo 60px entre o `bottom` de uma e o `top` da
+  próxima. Não cole as caixas — respiro entre elas evita poluição.
 - Não sobreponha textos uns aos outros. Use linhas separadas verticalmente
-  (typically ~120-160px entre linhas de texto).
+  (typically ~140-180px entre linhas de texto).
 - A fonte usada é uma manuscrita estilo "Caveat" — bem mais LARGA que
   fontes comuns. Para CALCULAR largura aproximada: cada caractere ocupa
   ~0.55 × font_size em px. Ex.: "PowerPoint/PDF/Word" (19 chars) em
-  font_size=80 ⇒ largura ≈ 19 × 0.55 × 80 = 836px. Reserve espaço!
+  font_size=70 ⇒ largura ≈ 19 × 0.55 × 70 ≈ 731px ❌ (estoura zona de 480px).
+  Para caber em uma zona, use font_size=40 ⇒ 19 × 0.55 × 40 ≈ 418px ✓.
+- **REGRA DE OURO PARA TEXTO EM CAIXA**: font_size ≤ (largura_zona − 80) ÷ (len(texto) × 0.55)
+  Textos longos (>15 chars) em zonas estreitas devem usar font_size 40-55.
+  Textos curtos (<10 chars) podem usar font_size 70-90.
 - Caixas (rectangle) e círculos (circle) que ENVOLVAM um texto devem ser
   pelo menos 30-50px maiores que o texto em cada direção. Em caso de
-  dúvida, GENEROSIDADE > apertado. Ex.: para uma caixa em torno de
-  "PowerPoint/PDF/Word" em font_size 80, use w=900 h=150.
+  dúvida, GENEROSIDADE > apertado.
 - Coloque cada operação de FORMA depois das operações de TEXTO relacionadas
   — a caneta sempre escreve primeiro, depois enfatiza/sublinha/circula.
 - Máximo de 8 formas geométricas. Texto livre não conta para esse limite.
@@ -84,6 +100,15 @@ REGRAS DE LAYOUT (CANVAS 1920×1080):
   use #1f2937 (cinza-escuro) para texto e cores expressivas para destaque
   (vermelho #dc2626 para alertas, azul #2563eb para neutros, verde #16a34a
   para positivos).
+
+POST-PROCESSAMENTO (importante saber):
+- O sistema executa DEPOIS de você um auto-fit que aumenta caixas se o
+  texto não couber. Se você usar font_size muito grande, a caixa vai
+  crescer e invadir a próxima zona, causando sobreposição. **Prefira
+  font_size pequeno** para textos longos.
+- O sistema também aplica um passe de separação que encolhe caixas
+  sobrepostas. Para evitar surpresas, mantenha pelo menos 30px de gap
+  entre AABBs de shapes distintas.
 
 REGRAS CRÍTICAS:
 - NÃO adicione campos extras nos objetos.
@@ -141,16 +166,148 @@ async def generate_render_plan(
 
     plan = _parse_plan(str(resp))
     plan = _normalize_plan(plan, base_color=base_color, allow_color_per_shape=allow_color_per_shape)
-    # Post-LLM safety net: the model can't predict the rendered width
-    # of the Caveat handwriting font (which is ~30-50% wider per char
-    # than a typical sans-serif at the same font_size). Without this
-    # step the LLM-suggested boxes habitually clip text like
-    # "PowerPoint/PDF/Word" out the right side. We measure each text op
-    # with the actual font and grow any shape that's meant to wrap it.
+    # ── Spacing pipeline ────────────────────────────────────────────
+    # 1. Cap each text op's font_size so its rendered width never
+    #    exceeds the available zone (~ canvas/3). Without this guard
+    #    the LLM happily emits "PowerPoint/PDF/Word" at font_size 80
+    #    (rendered width ~700 px) which forces the autofit step to
+    #    grow the surrounding box into the next zone, causing the
+    #    boxes to overlap the central circle.
+    plan = _cap_text_font_to_zone(plan)
+    # 2. Grow shapes to fit (now-correctly-sized) texts.
     plan = _autofit_shapes(plan)
-    # Re-clamp after autofit since growing shapes can push them past the
-    # canvas boundary. Better to clip than to draw off-screen.
+    # 3. Clamp shapes to canvas edges.
     plan = _clamp_shapes_to_canvas(plan)
+    # 4. Enforce a minimum gap between any two non-arrow shapes so the
+    #    composition reads cleanly even when the LLM places elements
+    #    too close together. Shrinks rectangles horizontally when the
+    #    collision can be resolved that way; otherwise leaves them
+    #    alone (better to clip a couple of px than corrupt arrows).
+    plan = _enforce_shape_separation(plan)
+    return plan
+
+
+# ── pre-autofit: clamp text widths to a single zone ─────────────────
+
+# A "zone" is the maximum horizontal slice of canvas that a single
+# labelled box is allowed to occupy. With ~140 px side margins and 80
+# px gutters between zones, ~530 px ≈ canvas/3 keeps boxes inside their
+# zone after autofit grows them by 2×PAD (40 px each side).
+MAX_BOXED_TEXT_WIDTH = 420
+MIN_FONT_SIZE = 36
+SHAPE_MIN_GAP = 30
+
+
+def _cap_text_font_to_zone(plan: dict) -> dict:
+    """For every text op, iteratively reduce font_size until the
+    rendered width fits inside one zone (`MAX_BOXED_TEXT_WIDTH`).
+
+    The reduction stops at `MIN_FONT_SIZE` — below that the text would
+    be illegible at viewing distance. A loud warning is logged in that
+    edge case (it means the LLM picked a label that is just too long
+    for a 3-zone layout; the autofit will then grow the box past the
+    zone, which the user will see, but at least the text stays
+    readable)."""
+    for op in plan.get("ops", []):
+        if op.get("type") != "text":
+            continue
+        text = op.get("text") or ""
+        fs = int(op.get("font_size") or 80)
+        original_fs = fs
+        # Step down by 4 px at a time until the rendered width fits or
+        # we hit the floor.
+        while fs > MIN_FONT_SIZE:
+            w, _ = _measure_text_bbox(text, fs)
+            if w <= MAX_BOXED_TEXT_WIDTH:
+                break
+            fs -= 4
+        if fs != original_fs:
+            logger.info(
+                "whiteboard-plan: scaled font_size for %r from %d → %d (zone-fit)",
+                text[:30], original_fs, fs,
+            )
+        op["font_size"] = fs
+    return plan
+
+
+# ── post-autofit: push shapes apart to avoid clutter ────────────────
+
+
+def _enforce_shape_separation(plan: dict) -> dict:
+    """Detect pairs of non-arrow shapes whose AABBs overlap (or have
+    less than `SHAPE_MIN_GAP` of clearance) and shrink the rectangles
+    horizontally to restore the gap.
+
+    Two reasons we shrink instead of moving:
+      - Arrows reference shape edges by absolute (x1,y1)→(x2,y2). Moving
+        a rectangle would visually disconnect the arrow.
+      - Rectangle-circle pairs are usually intentional (e.g. central
+        circle + side boxes); shrinking the rectangle keeps the
+        composition while restoring spacing.
+    """
+    rect_circle_ops = [op for op in plan.get("ops", [])
+                       if op.get("type") in ("rectangle", "circle")]
+    if len(rect_circle_ops) < 2:
+        return plan
+
+    def aabb(op):
+        if op["type"] == "rectangle":
+            return (op["x"], op["y"], op["x"] + op["w"], op["y"] + op["h"])
+        # circle
+        return (op["cx"] - op["rx"], op["cy"] - op["ry"],
+                op["cx"] + op["rx"], op["cy"] + op["ry"])
+
+    def overlap_dx(a, b):
+        """Return how many pixels the two AABBs overlap horizontally
+        (positive = overlap, negative = gap)."""
+        ax0, ay0, ax1, ay1 = a
+        bx0, by0, bx1, by1 = b
+        # Only relevant when vertical ranges actually intersect.
+        if ay1 <= by0 or by1 <= ay0:
+            return -float("inf")
+        return min(ax1, bx1) - max(ax0, bx0)
+
+    # One pass is enough for the typical 4-8 shape plans.
+    for i, op_a in enumerate(rect_circle_ops):
+        for op_b in rect_circle_ops[i + 1:]:
+            ov = overlap_dx(aabb(op_a), aabb(op_b))
+            # `ov + SHAPE_MIN_GAP` is how much we need to push apart.
+            needed = ov + SHAPE_MIN_GAP
+            if needed <= 0:
+                continue
+            # Prefer shrinking a rectangle (less visible than circle).
+            target = None
+            if op_a["type"] == "rectangle":
+                target = op_a
+            elif op_b["type"] == "rectangle":
+                target = op_b
+            else:
+                # Two circles overlapping — unusual; skip rather than risk damage.
+                continue
+            # Decide which side of `target` to shrink: the side that
+            # faces the other shape.
+            other = op_b if target is op_a else op_a
+            other_box = aabb(other)
+            tx0, _, tx1, _ = aabb(target)
+            ocx = (other_box[0] + other_box[2]) / 2
+            tcx = (tx0 + tx1) / 2
+            shrink = int(needed)
+            # Don't shrink below 80 px wide — would clip text badly.
+            if target["w"] - shrink < 80:
+                shrink = max(0, target["w"] - 80)
+            if shrink <= 0:
+                continue
+            if ocx > tcx:
+                # Other is to the right → trim target's right side.
+                target["w"] -= shrink
+            else:
+                # Other is to the left → trim target's left side (also bump x).
+                target["x"] += shrink
+                target["w"] -= shrink
+            logger.info(
+                "whiteboard-plan: separated overlapping shapes by %dpx (shrunk rect)",
+                shrink,
+            )
     return plan
 
 
