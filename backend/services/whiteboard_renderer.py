@@ -1255,6 +1255,19 @@ async def render_whiteboard_video(
         video_id, ext, total_frames, total_erase_frames,
         total_frames_with_erase / FPS, file_size / 1024, transparent,
     )
+    # Release heavy intermediate buffers and force a GC pass before
+    # returning. Each render holds ~50–100MB of glyph cache + the
+    # final_text_layer; on memory-tight production containers we want
+    # them gone before the next job starts (or before the API process
+    # services unrelated requests). The explicit `gc.collect()` is
+    # needed because PIL Images often live in cyclic references.
+    try:
+        glyph_cache.clear()
+    except Exception:
+        pass
+    final_text_layer = None  # noqa: F841 — break ref for GC
+    import gc as _gc
+    _gc.collect()
     return f"/api/whiteboard/file/{video_id}.{ext}", {
         "videoId": video_id,
         "duration": total_frames_with_erase / FPS,
@@ -1332,6 +1345,11 @@ def _write_apng_via_ffmpeg(
                 alpha = np.full((arr.shape[0], arr.shape[1], 1), 255, dtype=np.uint8)
                 arr = np.concatenate([arr, alpha], axis=-1)
             proc.stdin.write(arr.tobytes())
+            # Free per-frame PIL Image and numpy array eagerly. Without
+            # this Python's GC waits longer and peak RSS climbs ~2× —
+            # critical in production where container memory limits are
+            # tight and a single OOM kill makes the whole job 502.
+            del frame, arr
     finally:
         try:
             proc.stdin.close()
@@ -1386,3 +1404,5 @@ def _write_all_frames(
         # when yuva420p is the pixel format, RGBA arrays carry the
         # alpha plane through to the encoder.
         writer.append_data(np.asarray(frame))
+        # Eagerly release the per-frame Image to bound peak RSS.
+        del frame

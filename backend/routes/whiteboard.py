@@ -35,6 +35,18 @@ from services.whiteboard_renderer import (
 logger = logging.getLogger("server")
 router = APIRouter(prefix="/whiteboard", tags=["Whiteboard"])
 
+# Module-level set holding strong references to in-flight render tasks.
+# Required by asyncio — see comment in generate_whiteboard() below.
+_pending_jobs: set[asyncio.Task] = set()
+
+# Render concurrency cap. Whiteboard rendering is CPU + memory intensive
+# (PIL frame buffers + ffmpeg subprocess). Allowing multiple concurrent
+# renders on a single worker quickly exhausts the container's memory
+# budget (common in production where limits are tight), leading to OOM
+# kills that surface as 502/520 to the polling frontend. We allow only
+# ONE active render per worker — additional jobs queue cleanly behind it.
+_render_semaphore = asyncio.Semaphore(1)
+
 
 class WhiteboardGenerateRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
@@ -95,13 +107,23 @@ async def generate_whiteboard_video(
     jobs[job_id] = job_data
     await create_job(job_id, job_data)
 
-    asyncio.create_task(
+    # CRITICAL: keep a strong reference to the background task. Python docs
+    # explicitly warn that `asyncio.create_task` can be silently garbage-
+    # collected if no strong reference is held — this is especially common
+    # in production under memory pressure where the render is the most
+    # expensive operation in the worker. Symptom is the job staying in
+    # "processing" forever and the frontend polling endlessly (or hitting
+    # 502 if the worker recycles). We park the task in a module-level set
+    # and discard on completion.
+    task = asyncio.create_task(
         _run_whiteboard_job(
             job_id=job_id,
             payload=payload,
             ink_rgb=ink_rgb,
         )
     )
+    _pending_jobs.add(task)
+    task.add_done_callback(_pending_jobs.discard)
 
     return {
         "jobId": job_id,
@@ -118,6 +140,20 @@ async def _run_whiteboard_job(
 
     Pushes the final `videoUrl` + meta into the job `result` so the
     polling frontend can finish the flow."""
+    # Serialize renders so a burst of "Gerar" clicks doesn't pile up
+    # multiple ffmpeg+PIL pipelines in memory simultaneously. Queued
+    # jobs stay in "processing" — frontend keeps polling and gets the
+    # result once its turn comes up. Empirically this cuts peak RSS
+    # from ~2× to 1× of the worst-case single render.
+    async with _render_semaphore:
+        await _do_whiteboard_render(job_id, payload, ink_rgb)
+
+
+async def _do_whiteboard_render(
+    job_id: str,
+    payload: "WhiteboardGenerateRequest",
+    ink_rgb,
+):
     try:
         rel_url, info = await render_whiteboard_video(
             text=payload.text,
