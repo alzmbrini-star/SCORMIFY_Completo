@@ -84,6 +84,7 @@ LEGACY_FONT_PATH = ASSETS_DIR / "Caveat-Regular.ttf"
 PEN_PATH = ASSETS_DIR / "hand.png"
 HAND_PATH = PEN_PATH  # alias — do not change without auditing plan_renderer
 HAND_WITH_PEN_PATH = ASSETS_DIR / "hand_holding_pen.png"
+HAND_REAL_PATH = ASSETS_DIR / "hand_real.png"
 OUTPUT_DIR = Path(os.environ.get("STORAGE_DIR", "/app/backend/storage")) / "whiteboard"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +108,18 @@ TOOL_PROFILES: dict[str, dict] = {
         "height_factor": 3.6,
         "offset_x": -2,
         "offset_y": -6,
-        "label": "Mão",
+        "label": "Mão (cartoon)",
+    },
+    "hand_real": {
+        "path": HAND_REAL_PATH,
+        # Real photo: hand+forearm fills more vertical space, so we
+        # keep a similar height_factor to the cartoon. The pen tip is
+        # already exactly at (0,0) of the cropped PNG (see
+        # `_generate_hand_real.py`), so no offset nudge is needed.
+        "height_factor": 3.6,
+        "offset_x": 0,
+        "offset_y": 0,
+        "label": "Mão real",
     },
 }
 DEFAULT_TOOL = "pen"

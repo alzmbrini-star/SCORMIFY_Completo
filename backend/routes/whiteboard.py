@@ -74,7 +74,7 @@ class WhiteboardGenerateRequest(BaseModel):
     # Drawing implement: "pen" (default minimalist pen) or "hand"
     # (stylized hand holding the pen). Falls back silently to "pen" if
     # the asset for the requested tool is missing on disk.
-    tool: Optional[str] = Field(default="pen", pattern="^(pen|hand)$")
+    tool: Optional[str] = Field(default="pen", pattern="^(pen|hand|hand_real)$")
     # Optional binding — when both are provided, the generated videoUrl
     # is written to the matching slide element so the author doesn't have
     # to manually paste it. When omitted, the URL is just returned.

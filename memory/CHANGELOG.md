@@ -1,6 +1,30 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Whiteboard — terceira opção "Mão real" (foto))
+
+### Pedido
+- Adicionar uma 3ª opção de ferramenta no Whiteboard usando uma **foto real** de uma mão segurando um marcador (referência enviada pelo usuário), em vez da versão cartoon estilizada.
+
+### Implementação
+- **Novo asset** `assets/whiteboard/hand_real.png` (373×651 px), gerado por `_generate_hand_real.py` que processa a foto original do usuário:
+  - Remove o fundo branco do quadro (threshold simples R/G/B > 230).
+  - Remove a faixa cinza/azul da mesa abaixo do quadro (band y > 62% — qualquer pixel que NÃO é tom de pele é descartado).
+  - Remove o texto "o de me" roxo que estava no quadro original (rect mask no canto superior esquerdo, threshold de cor).
+  - Localiza a ponta do marcador automaticamente (topmost-leftmost dark pixel) e recorta o PNG final para que a ponta caia exatamente em (0, 0) — mesmo contrato dos outros assets.
+- **`whiteboard_renderer.py`**: nova entrada `hand_real` em `TOOL_PROFILES` (`height_factor=3.6`, sem offset nudge porque a ponta já está exata). Constante `HAND_REAL_PATH` exportada.
+- **`routes/whiteboard.py`**: regex do campo `tool` virou `^(pen|hand|hand_real)$`.
+- **`WhiteboardDialog.jsx`**: 3ª opção `🤚 Mão realista` no select.
+- **`tests/test_whiteboard_tools.py`**: tests parametrizados agora incluem `hand_real`; verifica que o render produz arquivo > 1MB (fall-back para pen daria <100KB), confirmando que o asset certo foi carregado.
+
+### Verificação
+- Pytest `tests/test_whiteboard_tools.py` (8/8 PASSED).
+- API live: `GET /api/whiteboard/tools` → `[pen, hand, hand_real]` ✅.
+- Render `tool=hand_real` produz APNG com a foto real da mão escrevendo, ponta do marcador alinhada ao texto ✅.
+
+
+
+
 ## 2026-02-XX (Feature: Whiteboard — escolha entre Caneta e Mão)
 
 ### Pedido

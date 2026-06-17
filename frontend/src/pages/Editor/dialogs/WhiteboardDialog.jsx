@@ -810,7 +810,10 @@ export default function WhiteboardDialog({
                     🖊️ Caneta
                   </SelectItem>
                   <SelectItem value="hand" data-testid="tool-opt-hand">
-                    ✋ Mão
+                    ✋ Mão (cartoon)
+                  </SelectItem>
+                  <SelectItem value="hand_real" data-testid="tool-opt-hand-real">
+                    🤚 Mão realista
                   </SelectItem>
                 </SelectContent>
               </Select>

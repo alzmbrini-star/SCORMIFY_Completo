@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from services.whiteboard_renderer import (  # noqa: E402
     DEFAULT_TOOL,
+    HAND_REAL_PATH,
     HAND_WITH_PEN_PATH,
     PEN_PATH,
     TOOL_PROFILES,
@@ -26,6 +27,7 @@ from services.whiteboard_renderer import (  # noqa: E402
 def test_tool_profiles_present():
     assert "pen" in TOOL_PROFILES
     assert "hand" in TOOL_PROFILES
+    assert "hand_real" in TOOL_PROFILES
 
 
 def test_resolve_tool_falls_back_for_unknown():
@@ -38,18 +40,21 @@ def test_resolve_tool_falls_back_for_unknown():
 def test_resolve_tool_returns_correct_assets():
     assert _resolve_tool("pen")["path"] == PEN_PATH
     assert _resolve_tool("hand")["path"] == HAND_WITH_PEN_PATH
+    assert _resolve_tool("hand_real")["path"] == HAND_REAL_PATH
 
 
 def test_list_available_tools_returns_disk_present_only():
     tools = list_available_tools()
     ids = [t["id"] for t in tools]
-    # In CI both assets should ship; if any are missing, the catalog
+    # In CI all three assets should ship; if any are missing, the catalog
     # would silently omit them rather than expose dead choices to the UI.
     assert ids == sorted(ids, key=lambda x: list(TOOL_PROFILES.keys()).index(x))
     if PEN_PATH.exists():
         assert "pen" in ids
     if HAND_WITH_PEN_PATH.exists():
         assert "hand" in ids
+    if HAND_REAL_PATH.exists():
+        assert "hand_real" in ids
 
 
 def test_default_tool_is_pen():
@@ -57,7 +62,7 @@ def test_default_tool_is_pen():
     assert _resolve_tool(DEFAULT_TOOL)["path"] == PEN_PATH
 
 
-@pytest.mark.parametrize("tool", ["pen", "hand"])
+@pytest.mark.parametrize("tool", ["pen", "hand", "hand_real"])
 def test_render_with_each_tool_succeeds(tool):
     """End-to-end: render a short clip with each tool and confirm a
     non-empty file is produced. Catches regressions in offset / scale
@@ -72,10 +77,14 @@ def test_render_with_each_tool_succeeds(tool):
     assert url.startswith("/api/whiteboard/file/")
     assert info["fileSize"] > 1000  # non-trivial PNG
     assert info["frames"] > 0
-    # Hand asset is significantly heavier than the pen because it
-    # contains a much larger drawing — a sanity check that the right
-    # asset was actually loaded.
+    # Heavier assets are sanity-checked by minimum file size — if the
+    # offset/scale plumbing broke and fell back to the small `pen.png`
+    # the file would be far smaller than the expected hand renders.
     if tool == "hand":
         assert info["fileSize"] > 500_000, (
             "hand-tool render unexpectedly small — likely fell back to pen asset"
+        )
+    if tool == "hand_real":
+        assert info["fileSize"] > 1_000_000, (
+            "hand_real-tool render unexpectedly small — likely fell back to pen asset"
         )
