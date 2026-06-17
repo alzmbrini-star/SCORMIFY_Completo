@@ -74,9 +74,59 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "whiteboard"
 FONTS_DIR = ASSETS_DIR / "fonts"
 # Legacy single-font location (kept for fallback compat).
 LEGACY_FONT_PATH = ASSETS_DIR / "Caveat-Regular.ttf"
-HAND_PATH = ASSETS_DIR / "hand.png"
+# Drawing tool assets. Filenames preserved for backward compat:
+# `hand.png` historically contained a minimalist pen drawing (see
+# `_generate_hand.py`). The new `hand_holding_pen.png` adds a
+# stylized arm/hand so authors can pick an "explainer-video" look.
+#   PEN_PATH      → minimalist pen (default + AI-shapes default)
+#   HAND_PATH     → alias of PEN_PATH (kept so plan_renderer keeps working)
+#   HAND_WITH_PEN_PATH → new stylized hand holding the pen
+PEN_PATH = ASSETS_DIR / "hand.png"
+HAND_PATH = PEN_PATH  # alias — do not change without auditing plan_renderer
+HAND_WITH_PEN_PATH = ASSETS_DIR / "hand_holding_pen.png"
 OUTPUT_DIR = Path(os.environ.get("STORAGE_DIR", "/app/backend/storage")) / "whiteboard"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# Per-tool render metadata. The pen tip sits at (0, 0) of each asset,
+# so the renderer translates the image so its (0,0) lands on the
+# current ink coordinate. `height_factor` scales the asset relative to
+# `font_size`; the hand needs more screen presence than the bare pen.
+# `offset_x/y` are fine-tuning nudges (in pixels) applied AFTER the
+# scaling so the tip sits cleanly on the ink rather than 1-2 px above.
+TOOL_PROFILES: dict[str, dict] = {
+    "pen": {
+        "path": PEN_PATH,
+        "height_factor": 2.2,
+        "offset_x": -2,
+        "offset_y": -4,
+        "label": "Caneta",
+    },
+    "hand": {
+        "path": HAND_WITH_PEN_PATH,
+        "height_factor": 3.6,
+        "offset_x": -2,
+        "offset_y": -6,
+        "label": "Mão",
+    },
+}
+DEFAULT_TOOL = "pen"
+
+
+def _resolve_tool(tool: Optional[str]) -> dict:
+    """Look up a TOOL_PROFILES entry, falling back to the default."""
+    if tool and tool in TOOL_PROFILES:
+        return TOOL_PROFILES[tool]
+    return TOOL_PROFILES[DEFAULT_TOOL]
+
+
+def list_available_tools() -> list[dict]:
+    """Return the tool catalog filtered to assets actually present on disk."""
+    out = []
+    for tid, meta in TOOL_PROFILES.items():
+        if meta["path"].exists():
+            out.append({"id": tid, "label": meta["label"]})
+    return out
 
 
 # =====================================================================
@@ -727,6 +777,8 @@ def _render_frame_writing(
     title: Optional[str],
     title_font: Optional[ImageFont.FreeTypeFont],
     transparent: bool = False,
+    hand_offset_x: int = HAND_OFFSET_X,
+    hand_offset_y: int = HAND_OFFSET_Y,
 ) -> Image.Image:
     """Render a single MP4/WebM frame at the given **sub-step** index.
 
@@ -854,8 +906,8 @@ def _render_frame_writing(
 
     # 3) Pen overlay.
     if pen_x is not None and pen_y is not None:
-        tip_x = pen_x + HAND_OFFSET_X
-        tip_y = pen_y + HAND_OFFSET_Y
+        tip_x = pen_x + hand_offset_x
+        tip_y = pen_y + hand_offset_y
         img.paste(hand_img, (tip_x, tip_y), hand_img)
 
     return img
@@ -1098,8 +1150,13 @@ async def render_whiteboard_video(
     text_html: Optional[str] = None,
     erase_at_end: bool = False,
     erase_style: str = "horizontal",
+    tool: Optional[str] = None,
 ) -> tuple[str, dict]:
     """Synthesize a whiteboard video from `text` (or rich `text_html`).
+
+    `tool` picks the drawing implement: "pen" (default minimalist pen)
+    or "hand" (stylized hand holding a pen). Falls back silently to the
+    default if an unknown value is passed.
 
     When `text_html` is provided, inline `<span style="color:#XXX">` and
     `<font color="#XXX">` segments are honored — each character is drawn
@@ -1124,13 +1181,17 @@ async def render_whiteboard_video(
     if title:
         title_font = ImageFont.truetype(str(font_path), int(font_size * 0.9))
 
-    hand_img = Image.open(HAND_PATH).convert("RGBA")
-    hand_target_h = int(font_size * 2.2)
+    # Resolve drawing tool: load the right PNG + apply its size/offset.
+    tool_profile = _resolve_tool(tool)
+    hand_img = Image.open(tool_profile["path"]).convert("RGBA")
+    hand_target_h = int(font_size * tool_profile["height_factor"])
     hand_scale = hand_target_h / hand_img.height
     hand_img = hand_img.resize(
         (int(hand_img.width * hand_scale), hand_target_h),
         Image.LANCZOS,
     )
+    hand_offset_x = tool_profile["offset_x"]
+    hand_offset_y = tool_profile["offset_y"]
 
     # Sub-steps per character control how many distinct pen positions
     # are visible per letter. To FEEL like writing motion the pen has
@@ -1221,6 +1282,7 @@ async def render_whiteboard_video(
             hand_img, title, title_font,
             final_text_layer, stripe_bounds, eraser_w, frames_per_stripe,
             erase_style,
+            hand_offset_x, hand_offset_y,
         )
         info_format = "apng"
     else:
@@ -1244,6 +1306,7 @@ async def render_whiteboard_video(
                 hand_img, title, title_font, False,
                 final_text_layer, stripe_bounds, eraser_w, frames_per_stripe,
                 erase_style,
+                hand_offset_x, hand_offset_y,
             )
         finally:
             writer.close()
@@ -1292,6 +1355,8 @@ def _write_apng_via_ffmpeg(
     eraser_w: int = 0,
     frames_per_stripe: int = 0,
     erase_style: str = "horizontal",
+    hand_offset_x: int = HAND_OFFSET_X,
+    hand_offset_y: int = HAND_OFFSET_Y,
 ) -> None:
     """Encode an animated PNG by piping raw RGBA frames into ffmpeg's
     APNG encoder. APNG preserves the alpha channel losslessly — the only
@@ -1330,6 +1395,8 @@ def _write_apng_via_ffmpeg(
                     char_substeps, char_step_starts, hand_img,
                     title=title, title_font=title_font,
                     transparent=True,
+                    hand_offset_x=hand_offset_x,
+                    hand_offset_y=hand_offset_y,
                 )
             else:
                 # Erase phase
@@ -1369,6 +1436,8 @@ def _write_all_frames(
     eraser_w: int = 0,
     frames_per_stripe: int = 0,
     erase_style: str = "horizontal",
+    hand_offset_x: int = HAND_OFFSET_X,
+    hand_offset_y: int = HAND_OFFSET_Y,
 ) -> None:
     """Synchronous hot loop, offloaded via asyncio.to_thread.
 
@@ -1392,6 +1461,8 @@ def _write_all_frames(
                 char_substeps, char_step_starts, hand_img,
                 title=title, title_font=title_font,
                 transparent=transparent,
+                hand_offset_x=hand_offset_x,
+                hand_offset_y=hand_offset_y,
             )
         else:
             erase_step = f - total_frames

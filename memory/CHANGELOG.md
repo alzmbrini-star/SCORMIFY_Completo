@@ -1,6 +1,26 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Whiteboard — escolha entre Caneta e Mão)
+
+### Pedido
+- Permitir ao autor escolher a ferramenta de desenho no Whiteboard: **caneta** (atual) ou **mão segurando caneta** (estilo VideoScribe / explainer video).
+
+### Implementação
+- **Novo asset**: `assets/whiteboard/hand_holding_pen.png` (274×294 px), gerado proceduralmente por `_generate_hand_holding_pen.py`. Antebraço estilizado + dedos contornando a mesma caneta minimalista existente. Ponta da caneta ancorada em (0,0) para reutilizar o contrato existente do renderer.
+- **`services/whiteboard_renderer.py`**: nova tabela `TOOL_PROFILES` mapeando `pen`/`hand` para `(path, height_factor, offset_x, offset_y, label)`. Função `_resolve_tool(tool)` faz fallback silencioso para "pen" em entradas inválidas. Função `list_available_tools()` retorna só os tools cujos PNGs realmente existem no disco. `render_whiteboard_video(...)` agora aceita `tool: Optional[str]` e plumba `hand_offset_x/y` por todas as funções de frame (`_render_frame_writing`, `_write_apng_via_ffmpeg`, `_write_all_frames`).
+- **`routes/whiteboard.py`**: campo `tool: Optional[str] = Field(default='pen', pattern='^(pen|hand)$')` no `WhiteboardGenerateRequest`. Novo endpoint `GET /api/whiteboard/tools` retorna o catálogo `[{id, label}]` para popular o seletor do frontend.
+- **`pages/Editor/dialogs/WhiteboardDialog.jsx`**: novo estado `tool` persistido em localStorage, novo `<Select data-testid="whiteboard-tool-select">` com opções `🖊️ Caneta` e `✋ Mão`. Payload da chamada `/generate` agora envia `tool`.
+- **Compat**: `HAND_PATH` mantido como alias de `PEN_PATH` (= `hand.png`) para não quebrar `whiteboard_plan_renderer.py` que reusa o asset legado para o AI-shapes flow.
+
+### Verificação
+- Pytest `tests/test_whiteboard_tools.py` (7/7 PASSED): catálogo, fallback, resolução, listagem, render real com cada tool (verifica que o asset certo foi carregado pelo tamanho do arquivo).
+- API live: `GET /api/whiteboard/tools` → `{tools:[{id:pen,label:Caneta},{id:hand,label:Mão}]}` ✅. `POST /generate` com `tool=hand` completa job + render do APNG ✅. `tool=banana` → 422 (Pydantic rejeita) ✅.
+- Smoke screenshot do diálogo no frontend mostra o novo seletor com as 2 opções visíveis.
+
+
+
+
 ## 2026-02-XX (Bugfix: HTML Export ignorando timeline)
 
 ### Sintoma

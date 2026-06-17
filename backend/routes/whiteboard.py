@@ -30,6 +30,7 @@ from routes.deps import db, now_utc, create_job, update_job, jobs
 from routes.auth import require_auth
 from services.whiteboard_renderer import (
     OUTPUT_DIR, render_whiteboard_video, list_available_fonts,
+    list_available_tools,
 )
 
 logger = logging.getLogger("server")
@@ -70,6 +71,10 @@ class WhiteboardGenerateRequest(BaseModel):
     # "zigzag" alternates direction per stripe so the eraser follows a
     # continuous serpentine path — feels more human.
     eraseStyle: Optional[str] = Field(default="horizontal", pattern="^(horizontal|zigzag)$")
+    # Drawing implement: "pen" (default minimalist pen) or "hand"
+    # (stylized hand holding the pen). Falls back silently to "pen" if
+    # the asset for the requested tool is missing on disk.
+    tool: Optional[str] = Field(default="pen", pattern="^(pen|hand)$")
     # Optional binding — when both are provided, the generated videoUrl
     # is written to the matching slide element so the author doesn't have
     # to manually paste it. When omitted, the URL is just returned.
@@ -166,6 +171,7 @@ async def _do_whiteboard_render(
             text_html=payload.textHtml or None,
             erase_at_end=bool(payload.eraseAtEnd),
             erase_style=payload.eraseStyle or "horizontal",
+            tool=payload.tool or "pen",
         )
     except ValueError as e:
         await update_job(job_id, {
@@ -323,6 +329,13 @@ async def whiteboard_fonts():
     """Return the catalog of bundled handwriting/marker fonts available
     for the whiteboard renderer."""
     return {"fonts": list_available_fonts()}
+
+
+@router.get("/tools")
+async def whiteboard_tools():
+    """Return the catalog of drawing implements (pen, hand) available
+    for the whiteboard renderer."""
+    return {"tools": list_available_tools()}
 
 
 @router.get("/health")

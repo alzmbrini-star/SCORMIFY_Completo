@@ -70,6 +70,10 @@ export default function WhiteboardDialog({
   // "zigzag" alternates direction per stripe (serpentine path) — more
   // organic / teacher-like. Only meaningful when eraseAtEnd is ON.
   const [eraseStyle, setEraseStyle] = useState(() => _lsRead('eraseStyle', 'horizontal'));
+  // Drawing implement — "pen" (sleek minimalist pen) or "hand"
+  // (stylized hand holding a pen). Persisted in localStorage so the
+  // author's preference survives across dialog opens.
+  const [tool, setTool] = useState(() => _lsRead('tool', 'pen'));
   const [fonts, setFonts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -173,6 +177,7 @@ export default function WhiteboardDialog({
   useEffect(() => { _lsWrite('transparent', transparent); }, [transparent]);
   useEffect(() => { _lsWrite('eraseAtEnd', eraseAtEnd); }, [eraseAtEnd]);
   useEffect(() => { _lsWrite('eraseStyle', eraseStyle); }, [eraseStyle]);
+  useEffect(() => { _lsWrite('tool', tool); }, [tool]);
   useEffect(() => { _lsWrite('planMode', planMode); }, [planMode]);
   useEffect(() => { _lsWrite('allowColorPerShape', allowColorPerShape); }, [allowColorPerShape]);
 
@@ -238,6 +243,7 @@ export default function WhiteboardDialog({
           transparent: Boolean(transparent),
           eraseAtEnd: Boolean(eraseAtEnd),
           eraseStyle: eraseStyle || 'horizontal',
+          tool: tool || 'pen',
           inkColor: inkColor || null,
           projectId,
           slideId,
@@ -792,20 +798,42 @@ export default function WhiteboardDialog({
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="wb-speed">Velocidade da escrita (caracteres/seg)</Label>
-            <Input
-              id="wb-speed"
-              data-testid="whiteboard-speed-input"
-              type="number"
-              min={2}
-              max={30}
-              value={speed}
-              onChange={(e) => setSpeed(e.target.value)}
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">
-              4 = lento e dramático. 6 = natural (recomendado). 10+ = rápido.
-            </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="wb-tool">Ferramenta de desenho</Label>
+              <Select value={tool} onValueChange={setTool}>
+                <SelectTrigger id="wb-tool" data-testid="whiteboard-tool-select">
+                  <SelectValue placeholder="Escolha a ferramenta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pen" data-testid="tool-opt-pen">
+                    🖊️ Caneta
+                  </SelectItem>
+                  <SelectItem value="hand" data-testid="tool-opt-hand">
+                    ✋ Mão
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                &quot;Mão&quot; mostra uma mão estilizada segurando a caneta (estilo VideoScribe).
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="wb-speed">Velocidade da escrita (caracteres/seg)</Label>
+              <Input
+                id="wb-speed"
+                data-testid="whiteboard-speed-input"
+                type="number"
+                min={2}
+                max={30}
+                value={speed}
+                onChange={(e) => setSpeed(e.target.value)}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                4 = lento e dramático. 6 = natural (recomendado). 10+ = rápido.
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center justify-between p-3 border border-slate-700 rounded-md bg-slate-900/30">
