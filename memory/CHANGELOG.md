@@ -1,6 +1,25 @@
 # Changelog
 
 
+## 2026-02-XX (Improvement: Mão realista em HD com ilustração vetorial)
+
+### Pedido
+- A versão anterior do `hand_real.png` (373×651, derivada de foto JPEG comprimida) ficava pixelada quando ampliada em telas grandes. Usuário enviou uma **ilustração vetorial nova** (`Mao.png`, 621×575, fundo já transparente) com traços muito mais limpos.
+
+### Implementação
+- Novo script `_generate_hand_real_v2.py` (pipeline simplificado já que a fonte tem fundo transparente):
+  1. Detecta a ponta do marcador (topmost-leftmost dark+opaco) — mesmo algoritmo do v1.
+  2. Recorta para que a ponta caia em (0,0).
+  3. **Upscale 1.5×** com filtro LANCZOS → asset final 916×796 (vs. 373×651 antes), 2.45× mais pixels.
+- Asset substitui o `hand_real.png` antigo — sem mudanças no `TOOL_PROFILES`, render code ou frontend. O `height_factor=3.6` continua adequado já que a proporção altura/largura é similar.
+
+### Verificação
+- Pytest `tests/test_whiteboard_tools.py` 8/8 PASSED (mesmo contrato, novo asset).
+- Render visual: traços nítidos sem pixelação, tons de pele suaves, ponta do marcador alinhada perfeitamente ao texto sendo escrito. ✅
+
+
+
+
 ## 2026-02-XX (Feature: Whiteboard — terceira opção "Mão real" (foto))
 
 ### Pedido
