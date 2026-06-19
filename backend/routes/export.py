@@ -277,24 +277,34 @@ async def _run_scorm_export_job(
 
         # ── Merge company brand kit onto project_doc so the loader/branding
         # resolvers can read `project_doc.brandKit` directly. Project-level
-        # `brandKit` (if explicitly set) wins; otherwise we copy from the
-        # owning company. Safe to call multiple times (idempotent).
+        # `brandKit` fields take precedence FIELD-BY-FIELD over the company
+        # defaults — so a project that has its own `primaryColor` but no
+        # `loaderTitle` still inherits the company's loader settings.
         try:
-            if not (project_doc.get("brandKit") or {}).get("primaryColor") and not (project_doc.get("brandKit") or {}).get("loaderTitle"):
-                company_id = project_doc.get("companyId")
-                if company_id:
-                    company = await db.companies.find_one(
-                        {"id": company_id},
-                        {"_id": 0, "brandKit": 1},
+            company_id = project_doc.get("companyId")
+            if company_id:
+                company = await db.companies.find_one(
+                    {"id": company_id},
+                    {"_id": 0, "brandKit": 1},
+                )
+                company_kit = (company or {}).get("brandKit") or {}
+                project_kit = project_doc.get("brandKit") or {}
+                if company_kit:
+                    # Project values WIN — they're applied AFTER the company
+                    # defaults. Empty-string project values do NOT override
+                    # (treat them as "unset" so the company default kicks in).
+                    merged = dict(company_kit)
+                    for k, v in project_kit.items():
+                        if v not in (None, ""):
+                            merged[k] = v
+                    project_doc["brandKit"] = merged
+                    logger.info(
+                        "SCORM export: merged company brand kit (primary=%s, "
+                        "loaderTitle=%s, loaderColor=%s)",
+                        merged.get("primaryColor"),
+                        bool(merged.get("loaderTitle")),
+                        bool(merged.get("loaderColor")),
                     )
-                    if company and company.get("brandKit"):
-                        merged = dict(company["brandKit"])
-                        # Preserve any project-level overrides on top.
-                        merged.update(project_doc.get("brandKit") or {})
-                        project_doc["brandKit"] = merged
-                        logger.info(f"SCORM export: merged company brand kit "
-                                    f"(primary={merged.get('primaryColor')}, "
-                                    f"loaderTitle={bool(merged.get('loaderTitle'))})")
         except Exception as exc:
             logger.warning(f"Could not merge company brand kit (non-fatal): {exc}")
 

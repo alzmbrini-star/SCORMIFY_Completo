@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Loader não aparecia no SCORM quando projeto já tinha brandKit)
+
+### Sintoma
+- Usuário reportou "Não está salvando a configuração do Loader". A configuração ESTAVA sendo salva no banco (PUT /brand-kit), e a UI mostrava os valores ao reabrir. Mas o SCORM exportado **não usava as configurações**.
+
+### Causa raiz
+- `_run_scorm_export_job` (em `routes/export.py`) usava lógica de short-circuit: "se o project_doc já tem `primaryColor` OU `loaderTitle`, pula o merge da brand kit da empresa". A maioria dos projetos JÁ tem `primaryColor` no `project.brandKit` (vem da geração inicial via Agente IA), então o merge nunca rodava → loader vinha do `companies.brandKit` mas nunca chegava no exporter.
+
+### Implementação
+- Merge agora é **per-field**, não all-or-nothing:
+  ```python
+  merged = dict(company_kit)
+  for k, v in project_kit.items():
+      if v not in (None, ""):
+          merged[k] = v
+  ```
+- Project values vencem field-by-field, mas só quando explicitamente setados (não-vazios). Strings vazias são tratadas como "unset" → herdam do company default.
+
+### Verificação
+- Pytest novo `tests/test_brand_kit_merge.py` (5/5 PASSED): herança quando projeto só tem primary, override per-field, empty-string não clobbera, company kit vazio, missing keys.
+- E2E live: salvo `loaderTitle="TESTE FINAL Loader da Empresa…"` + `loaderColor="#dc2626"` na empresa Didaxis, exportei SCORM real do projeto SCORMIFY (que já tem `primaryColor` no project.brandKit), baixei o zip de 76MB, abri `index.html` → todas as 3 verificações passaram ✅.
+
+
+
+
 ## 2026-02-XX (Bugfix + UI: Loader SCORM clássico + Tela de carregamento na Biblioteca de Marca)
 
 ### Pedido
