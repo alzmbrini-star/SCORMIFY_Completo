@@ -1528,6 +1528,177 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     </style>
 </head>
 <body>
+    <!-- ── Initial loading overlay (covers viewport until slide 1 ─────
+         is ready). Especially important for SCORM packages on slow
+         LMS bandwidth: prevents the broken-image flash before the
+         player's JS finishes rendering and the assets cache.  ───── -->
+    <div id="scormify-loader" role="status" aria-label="Carregando curso" data-testid="scorm-initial-loader">
+        <style>
+            #scormify-loader {{
+                position: fixed; inset: 0; z-index: 99999;
+                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                color: #f1f5f9;
+                display: flex; align-items: center; justify-content: center;
+                flex-direction: column;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                transition: opacity 0.5s ease;
+            }}
+            #scormify-loader.hidden {{ opacity: 0; pointer-events: none; }}
+            #scormify-loader .ldr-spin {{
+                width: 64px; height: 64px;
+                border: 4px solid rgba(255,255,255,0.12);
+                border-top-color: #60a5fa;
+                border-radius: 50%;
+                animation: scormify-spin 0.9s linear infinite;
+                margin-bottom: 24px;
+            }}
+            #scormify-loader .ldr-title {{
+                font-size: 18px; font-weight: 600; margin-bottom: 14px;
+                letter-spacing: 0.3px;
+            }}
+            #scormify-loader .ldr-bar-track {{
+                width: min(320px, 60vw); height: 6px;
+                background: rgba(255,255,255,0.12);
+                border-radius: 999px; overflow: hidden;
+            }}
+            #scormify-loader .ldr-bar-fill {{
+                height: 100%; width: 0%;
+                background: linear-gradient(90deg, #3b82f6, #60a5fa);
+                border-radius: 999px;
+                transition: width 0.25s ease;
+            }}
+            #scormify-loader .ldr-percent {{
+                font-size: 13px; opacity: 0.7;
+                margin-top: 10px; font-variant-numeric: tabular-nums;
+            }}
+            @keyframes scormify-spin {{
+                from {{ transform: rotate(0deg); }}
+                to   {{ transform: rotate(360deg); }}
+            }}
+        </style>
+        <div class="ldr-spin" aria-hidden="true"></div>
+        <div class="ldr-title">Carregando curso…</div>
+        <div class="ldr-bar-track" aria-hidden="true">
+            <div class="ldr-bar-fill" id="scormify-loader-bar"></div>
+        </div>
+        <div class="ldr-percent" id="scormify-loader-percent">0%</div>
+    </div>
+    <script>
+        // Initial-load progress tracker. Hides the overlay once the
+        // first slide's <img>/<video> elements finish loading, OR
+        // after a 15 s safety timeout (some LMSes proxy assets through
+        // slow CDNs and individual files may never settle). Watched
+        // resources are sampled progressively as the Player renders
+        // slide 1 — we poll the slide-elements wrapper every 200 ms
+        // for up to 2 s after DOMContentLoaded to pick up assets that
+        // get injected after the script tag.
+        (function() {{
+            var overlay = document.getElementById('scormify-loader');
+            var bar = document.getElementById('scormify-loader-bar');
+            var pctLabel = document.getElementById('scormify-loader-percent');
+            var hidden = false;
+            function setProgress(p) {{
+                p = Math.max(0, Math.min(100, p));
+                if (bar) bar.style.width = p.toFixed(0) + '%';
+                if (pctLabel) pctLabel.textContent = p.toFixed(0) + '%';
+            }}
+            function hide() {{
+                if (hidden) return;
+                hidden = true;
+                setProgress(100);
+                setTimeout(function() {{
+                    if (overlay) {{
+                        overlay.classList.add('hidden');
+                        setTimeout(function() {{
+                            if (overlay && overlay.parentNode) {{
+                                overlay.parentNode.removeChild(overlay);
+                            }}
+                        }}, 600);
+                    }}
+                }}, 180);
+            }}
+
+            function trackAssets() {{
+                // Look at the slide that's currently rendered (slide 1
+                // after Player.init). Includes images, videos and
+                // backgrounds. Track each individually for accurate %.
+                var root = document.getElementById('slide-elements')
+                        || document.getElementById('slide-canvas')
+                        || document.body;
+                var imgs = Array.from(root.querySelectorAll('img'));
+                var vids = Array.from(root.querySelectorAll('video'));
+                var total = imgs.length + vids.length;
+                if (total === 0) {{
+                    // No assets to wait for — give the player a brief
+                    // moment to settle then bail.
+                    setTimeout(hide, 250);
+                    return;
+                }}
+                var loaded = 0;
+                function bump() {{
+                    loaded++;
+                    setProgress((loaded / total) * 95);
+                    if (loaded >= total) hide();
+                }}
+                imgs.forEach(function(im) {{
+                    if (im.complete && im.naturalWidth > 0) {{
+                        bump();
+                    }} else {{
+                        im.addEventListener('load', bump, {{once: true}});
+                        im.addEventListener('error', bump, {{once: true}});
+                    }}
+                }});
+                vids.forEach(function(v) {{
+                    if (v.readyState >= 2) {{
+                        bump();
+                    }} else {{
+                        v.addEventListener('loadeddata', bump, {{once: true}});
+                        v.addEventListener('error', bump, {{once: true}});
+                    }}
+                }});
+            }}
+
+            // Poll for the first slide's DOM up to 2 s after page load.
+            // The Player builds it inside `init` which runs on
+            // DOMContentLoaded — usually it's ready almost immediately,
+            // but on slow LMSes the JS bundle alone can take a beat.
+            var started = false;
+            function tryStart() {{
+                if (started) return;
+                var root = document.getElementById('slide-elements');
+                if (root && root.children.length > 0) {{
+                    started = true;
+                    trackAssets();
+                }}
+            }}
+            var pollHandle = setInterval(function() {{
+                tryStart();
+                if (started) clearInterval(pollHandle);
+            }}, 200);
+            setTimeout(function() {{
+                clearInterval(pollHandle);
+                if (!started) {{
+                    // Player never rendered — hide anyway so the user
+                    // can at least see whatever IS on screen.
+                    hide();
+                }}
+            }}, 2000);
+
+            // Hard safety net: never block the user for more than 15 s,
+            // even if some asset is irrevocably stuck.
+            setTimeout(hide, 15000);
+
+            // Coarse progress while we wait for the first slide to
+            // appear — gives the user a sign of life on very slow
+            // bandwidth.
+            var coarse = 5;
+            var coarseHandle = setInterval(function() {{
+                if (started || hidden) {{ clearInterval(coarseHandle); return; }}
+                coarse = Math.min(coarse + 3, 35);
+                setProgress(coarse);
+            }}, 250);
+        }})();
+    </script>
     <!-- Mobile Orientation Overlay -->
     <div id="orientation-overlay">
         <div class="orientation-content">

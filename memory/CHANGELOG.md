@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Loading overlay no SCORM/HTML para banda estreita)
+
+### Pedido
+- Em LMS com banda estreita, a primeira tela do SCORM mostrava imagens quebradas / placeholders antes dos assets carregarem completamente. O usuário pediu uma tela de loading que cobrisse o player até a primeira página estar pronta.
+
+### Implementação
+- Overlay full-viewport injetado **antes** de qualquer markup do player, em DUAS rotas de export:
+  - **`services/html_exporter.py`** (Player do export HTML / SCORM clássico): overlay + JS rastreia `<img>`/`<video>` dentro do `#slide-elements` (a primeira slide renderizada pelo Player).
+  - **`services/single_page_exporter.py`** (SCORM single-page / scroll): overlay + JS rastreia assets da primeira `<section>`.
+- **Comportamento do JS**:
+  - Mostra spinner + título "Carregando curso…" + barra de progresso + percentual.
+  - Atualiza percentual conforme cada `<img>`/`<video>` da primeira tela termina (load + error events ambos contam para evitar travar em assets quebrados).
+  - Fade-out de 0.5s ao chegar em 100%, remove do DOM após 0.6s para liberar memória.
+  - **Safety net duplo**: hard timeout de 15s (nunca bloqueia o usuário para sempre) + progresso "coarse" de 5%→35% enquanto espera o DOMContentLoaded (sinal de vida em banda muito lenta).
+- CSS self-contained (escopo `#scormify-loader`), sem dependências externas, z-index 99999 para garantir que cobre tudo. Visual: gradient slate escuro com spinner azul vibrante (#3b82f6 → #60a5fa).
+- ARIA: `role="status"` + `aria-label="Carregando curso"` para leitores de tela.
+
+### Verificação
+- Pytest `tests/test_scorm_loading_overlay.py` (4/4 PASSED): markup presente, posição ANTES do player, hooks de progresso (img+video+timeout), zip SCORM real contém o loader.
+- Pytest E2E `tests/test_scorm_loading_overlay_e2e.py` (1/1 PASSED): abre o `index.html` extraído do zip num Chromium real, verifica que o overlay (a) aparece em t=0, (b) some até t=2.5s quando não há assets.
+- Smoke screenshot: viewport 1280×720, todos assets bloqueados via Playwright route abort → loader aparece centralizado, legível e cobrindo 100% da viewport.
+
+
+
+
 ## 2026-02-XX (Improvement: Mão realista em HD com ilustração vetorial)
 
 ### Pedido

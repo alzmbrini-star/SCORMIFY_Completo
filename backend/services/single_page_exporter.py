@@ -1751,6 +1751,138 @@ def _BUILD_PAGE(
 {scorm_script}
 </head>
 <body>
+<!-- ── Initial loading overlay (SCORM single-page): covers viewport
+     until the first section's assets settle. Critical for LMSes on
+     narrow bandwidth — without it the learner sees broken-image
+     placeholders before assets stream in. Self-contained CSS + JS so
+     it works even if the rest of the bundle is still parsing.  ── -->
+<div id="scormify-loader" role="status" aria-label="Carregando curso" data-testid="scorm-initial-loader">
+  <style>
+    #scormify-loader {{
+      position: fixed; inset: 0; z-index: 99999;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #f1f5f9;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: opacity 0.5s ease;
+    }}
+    #scormify-loader.hidden {{ opacity: 0; pointer-events: none; }}
+    #scormify-loader .ldr-spin {{
+      width: 64px; height: 64px;
+      border: 4px solid rgba(255,255,255,0.12);
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: scormify-spin 0.9s linear infinite;
+      margin-bottom: 24px;
+    }}
+    #scormify-loader .ldr-title {{
+      font-size: 18px; font-weight: 600; margin-bottom: 14px;
+    }}
+    #scormify-loader .ldr-bar-track {{
+      width: min(320px, 60vw); height: 6px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px; overflow: hidden;
+    }}
+    #scormify-loader .ldr-bar-fill {{
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }}
+    #scormify-loader .ldr-percent {{
+      font-size: 13px; opacity: 0.7;
+      margin-top: 10px; font-variant-numeric: tabular-nums;
+    }}
+    @keyframes scormify-spin {{
+      from {{ transform: rotate(0deg); }}
+      to   {{ transform: rotate(360deg); }}
+    }}
+  </style>
+  <div class="ldr-spin" aria-hidden="true"></div>
+  <div class="ldr-title">Carregando curso…</div>
+  <div class="ldr-bar-track" aria-hidden="true">
+    <div class="ldr-bar-fill" id="scormify-loader-bar"></div>
+  </div>
+  <div class="ldr-percent" id="scormify-loader-percent">0%</div>
+</div>
+<script>
+  (function() {{
+    var overlay = document.getElementById('scormify-loader');
+    var bar = document.getElementById('scormify-loader-bar');
+    var pctLabel = document.getElementById('scormify-loader-percent');
+    var hidden = false;
+    function setProgress(p) {{
+      p = Math.max(0, Math.min(100, p));
+      if (bar) bar.style.width = p.toFixed(0) + '%';
+      if (pctLabel) pctLabel.textContent = p.toFixed(0) + '%';
+    }}
+    function hide() {{
+      if (hidden) return;
+      hidden = true;
+      setProgress(100);
+      setTimeout(function() {{
+        if (overlay) {{
+          overlay.classList.add('hidden');
+          setTimeout(function() {{
+            if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+          }}, 600);
+        }}
+      }}, 180);
+    }}
+    function firstSectionAssets() {{
+      // The single-page exporter renders each slide as a top-level
+      // <section> (often with class containing "slide" or
+      // "sp-section"). We pick the FIRST section to gate the overlay
+      // — once its images/videos load the user has visible content.
+      var sec = document.querySelector('main section, article section, section.sp-slide, section[data-slide-index], section');
+      if (!sec) return null;
+      var imgs = Array.from(sec.querySelectorAll('img'));
+      var vids = Array.from(sec.querySelectorAll('video'));
+      return {{sec: sec, imgs: imgs, vids: vids}};
+    }}
+    function track() {{
+      var info = firstSectionAssets();
+      if (!info) {{ setTimeout(hide, 250); return; }}
+      var total = info.imgs.length + info.vids.length;
+      if (total === 0) {{ setTimeout(hide, 250); return; }}
+      var loaded = 0;
+      function bump() {{
+        loaded++;
+        setProgress((loaded / total) * 95);
+        if (loaded >= total) hide();
+      }}
+      info.imgs.forEach(function(im) {{
+        if (im.complete && im.naturalWidth > 0) bump();
+        else {{
+          im.addEventListener('load', bump, {{once: true}});
+          im.addEventListener('error', bump, {{once: true}});
+        }}
+      }});
+      info.vids.forEach(function(v) {{
+        if (v.readyState >= 2) bump();
+        else {{
+          v.addEventListener('loadeddata', bump, {{once: true}});
+          v.addEventListener('error', bump, {{once: true}});
+        }}
+      }});
+    }}
+    if (document.readyState === 'loading') {{
+      document.addEventListener('DOMContentLoaded', track);
+    }} else {{
+      track();
+    }}
+    // Hard safety net: never block more than 15 s.
+    setTimeout(hide, 15000);
+    // Coarse progress while waiting for DOMContentLoaded.
+    var coarse = 5;
+    var ph = setInterval(function() {{
+      if (hidden) {{ clearInterval(ph); return; }}
+      coarse = Math.min(coarse + 3, 35);
+      setProgress(coarse);
+    }}, 250);
+  }})();
+</script>
 {bg_layer}
 
 <header class="sp-header" data-testid="sp-header">
