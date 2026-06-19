@@ -51,6 +51,9 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
   const [brandKit, setBrandKit] = useState({
     primaryColor: "", secondaryColor: "", accentColor: "", fontFamily: "", logoUrl: "",
     logoPlacement: "bottom-right", logoSize: 96,
+    // Pré-loader do SCORM/HTML — opcionais. Se vazios, o exporter usa o
+    // primaryColor + título do curso automaticamente.
+    loaderTitle: "", loaderColor: "", loaderAccent: "",
   });
   // Upload form state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -99,6 +102,9 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
         logoUrl: d.logoUrl || "",
         logoPlacement: d.logoPlacement || "bottom-right",
         logoSize: Number.isFinite(d.logoSize) ? d.logoSize : 96,
+        loaderTitle: d.loaderTitle || "",
+        loaderColor: d.loaderColor || "",
+        loaderAccent: d.loaderAccent || "",
       });
     } catch (e) {
       // ignore — empty kit is a normal state
@@ -429,6 +435,60 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                 data-testid="bl-kit-font"
                 className="bg-slate-900 border-slate-700 text-white"
               />
+            </div>
+
+            {/* ── Pré-loader do SCORM/HTML ─────────────────────────────
+                Cor e mensagem da tela de carregamento mostrada ao aluno
+                no LMS antes do curso terminar de carregar. Se deixar
+                em branco, o sistema usa a cor primária + o título do
+                curso automaticamente. ── */}
+            <div className="pt-2 border-t border-slate-700">
+              <h4 className="text-sm font-semibold text-slate-200 mb-1">
+                Tela de carregamento (SCORM/HTML)
+              </h4>
+              <p className="text-xs text-slate-400 mb-3">
+                Aparece no LMS enquanto os assets do curso são baixados — evita imagens quebradas em conexões lentas. Deixe em branco para usar a cor primária e o título do curso automaticamente.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-3">
+                  <Label className="text-slate-300">Mensagem personalizada</Label>
+                  <Input
+                    value={brandKit.loaderTitle}
+                    onChange={(e) => setBrandKit({ ...brandKit, loaderTitle: e.target.value })}
+                    placeholder='Ex.: "Carregando treinamento da Empresa X…"'
+                    maxLength={80}
+                    data-testid="bl-kit-loaderTitle"
+                    className="bg-slate-900 border-slate-700 text-white"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Máximo 80 caracteres. Em branco → &quot;Carregando: &lt;nome do curso&gt;…&quot;.
+                  </p>
+                </div>
+                {[
+                  { key: "loaderColor", label: "Cor principal do loader" },
+                  { key: "loaderAccent", label: "Cor de destaque (barra)" },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <Label className="text-slate-300">{f.label}</Label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="color"
+                        value={brandKit[f.key] || brandKit.primaryColor || "#3b82f6"}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        data-testid={`bl-kit-${f.key}-color`}
+                        className="w-12 h-10 rounded cursor-pointer bg-transparent border border-slate-700"
+                      />
+                      <Input
+                        value={brandKit[f.key] || ""}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        placeholder="vazio → cor primária"
+                        data-testid={`bl-kit-${f.key}-hex`}
+                        className="bg-slate-900 border-slate-700 text-white"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Logo upload — applied as a watermark on the bottom-right of

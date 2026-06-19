@@ -1,6 +1,42 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix + UI: Loader SCORM clássico + Tela de carregamento na Biblioteca de Marca)
+
+### Pedido
+- Usuário exportou para SCORM do Preview e o loader não apareceu.
+- Não encontrou onde configurar o pré-loader em "Identidade das empresas".
+
+### Causa raiz (loader ausente)
+- Existem **3 caminhos** de geração HTML para o SCORM:
+  1. `services/html_exporter.py` (HTML standalone + SCORM legado) — fix anterior cobriu ✅
+  2. `services/single_page_exporter.py` (SCORM single-page scroll) — fix anterior cobriu ✅
+  3. **`services/scorm_exporter.py` (SCORM clássico, default da maioria dos exports) — NÃO foi atualizado** ❌
+- Adicionalmente, o `project_doc` chegava no exporter sem `brandKit` (que mora em `companies`), então mesmo se o loader existisse, ele não usaria a cor da marca.
+
+### Implementação — Backend
+- **`services/export_assets/player_template.html`**: injetado o overlay completo (CSS + JS de tracking) com 3 placeholders `__LOADER_TITLE__`, `__LOADER_PRIMARY__`, `__LOADER_ACCENT__`.
+- **`services/scorm_exporter.py`**: `_build_html` aceita os 3 params do loader e faz `replace()` nos placeholders. `export_scorm_package` chama `resolve_loader_config(project)` para resolvê-los.
+- **`routes/export.py` (`_run_scorm_export_job`)**: novo passo de **merge do brand kit da empresa** no `project_doc.brandKit` antes de chamar os exporters. Idempotente, project-level overrides são preservados.
+- **`services/loader_config.py`**: prioridade estendida para incluir brand-kit-level overrides (`brandKit.loaderTitle`, `loaderColor`, `loaderAccent`) entre o per-course override e os defaults.
+- **`models.py`**: `BrandKitUpdate` ganhou 3 campos opcionais (`loaderTitle`, `loaderColor`, `loaderAccent`).
+
+### Implementação — Frontend
+- **`components/admin/BrandLibraryDialog.jsx`** (aba Identidade da Biblioteca de Marca): nova seção **"Tela de carregamento (SCORM/HTML)"** com:
+  - Input de texto "Mensagem personalizada" (max 80 chars, placeholder exemplificado, hint: vazio → "Carregando: <título>…").
+  - Color picker + input hex para "Cor principal do loader".
+  - Color picker + input hex para "Cor de destaque (barra)".
+  - Texto explicativo curto sobre o propósito + comportamento de fallback.
+- Persistido via PUT existente `/api/companies/{id}/brand-kit` (BrandKitUpdate aceita os novos campos).
+
+### Verificação
+- Pytest novo `test_classic_scorm_loader.py` (5/5 PASSED): SCORM clássico emite overlay, picka primaryColor da marca, honra loaderTitle override, faz fallback para título do curso, loaderColor sobrescreve primaryColor.
+- Pytest existente `test_loader_branding.py` (9/9) + `test_scorm_loading_overlay.py` (4/4) continuam passando. Total: **18/18**.
+- Screenshot real do UI: aba Identidade da Biblioteca de Marca mostra a nova seção logo após "Fonte", com placeholders de cor (laranja da Didaxis em destaque), separador horizontal, e instruções claras em português.
+
+
+
+
 ## 2026-02-XX (Feature: Loading overlay agora customizável por curso/marca)
 
 ### Pedido

@@ -547,6 +547,11 @@ class BrandKitUpdate(BaseModel):
     logoUrl: Optional[str] = None
     logoPlacement: Optional[str] = None
     logoSize: Optional[int] = None
+    # Pre-loader (SCORM/HTML export). Optional — empty values fall back
+    # to the brand colors / course title at export time.
+    loaderTitle: Optional[str] = None
+    loaderColor: Optional[str] = None
+    loaderAccent: Optional[str] = None
 
 
 # Asset categories the UI lets the super_admin file imagery under. The Agent

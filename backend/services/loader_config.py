@@ -57,7 +57,14 @@ def _lighten(hex_color: str, amount: float = 0.25) -> str:
 
 def resolve_loader_config(project: Optional[dict]) -> dict:
     """Return `{title_html, primary, accent}` ready to substitute into
-    the HTML template (the title is already HTML-escaped)."""
+    the HTML template (the title is already HTML-escaped).
+
+    Priority order (each step falls back to the next if absent):
+      1. Per-course override: `project.course.loader.{title,color,accentColor}`
+      2. Brand-kit loader block: `project.brandKit.{loaderTitle,loaderColor,loaderAccent}`
+      3. Brand-kit colors: `project.brandKit.{primaryColor,accentColor}`
+      4. Course/project title for the message, neutral blue palette.
+    """
     project = project or {}
     course = (project.get("course") or {}) if isinstance(project, dict) else {}
     metadata = course.get("metadata") or {}
@@ -66,6 +73,8 @@ def resolve_loader_config(project: Optional[dict]) -> dict:
 
     # ── Title ────────────────────────────────────────────────────────
     raw_title = loader.get("title")
+    if not isinstance(raw_title, str) or not raw_title.strip():
+        raw_title = brand_kit.get("loaderTitle")
     if not isinstance(raw_title, str) or not raw_title.strip():
         course_title = metadata.get("title") or project.get("name") or ""
         if isinstance(course_title, str) and course_title.strip():
@@ -80,9 +89,13 @@ def resolve_loader_config(project: Optional[dict]) -> dict:
     # ── Colors ───────────────────────────────────────────────────────
     primary = _safe_hex(loader.get("color"), "")
     if not primary:
+        primary = _safe_hex(brand_kit.get("loaderColor"), "")
+    if not primary:
         primary = _safe_hex(brand_kit.get("primaryColor"), DEFAULT_PRIMARY)
 
     accent = _safe_hex(loader.get("accentColor"), "")
+    if not accent:
+        accent = _safe_hex(brand_kit.get("loaderAccent"), "")
     if not accent:
         accent = _safe_hex(brand_kit.get("accentColor"), "")
     if not accent:

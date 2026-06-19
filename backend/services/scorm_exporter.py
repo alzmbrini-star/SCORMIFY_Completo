@@ -128,7 +128,14 @@ def _read_asset(filename: str) -> str:
     return (EXPORT_ASSETS_DIR / filename).read_text(encoding='utf-8')
 
 
-def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "", gamification_config: dict = None) -> str:
+def _build_html(
+    title: str, lang: str, width: int, height: int,
+    enable_vlibras: bool = True, backend_url: str = "",
+    gamification_config: dict = None,
+    loader_title: str = "Carregando curso…",
+    loader_primary: str = "#3b82f6",
+    loader_accent: str = "#60a5fa",
+) -> str:
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
     css = _read_asset("player.css")
@@ -145,6 +152,11 @@ def _build_html(title: str, lang: str, width: int, height: int, enable_vlibras: 
     html = html.replace("__LANG__", lang)
     html = html.replace("__SLIDE_WIDTH__", str(width))
     html = html.replace("__SLIDE_HEIGHT__", str(height))
+    # Branded loader placeholders. Title is HTML-escaped before reaching
+    # us, so it's safe to drop straight in.
+    html = html.replace("__LOADER_TITLE__", loader_title)
+    html = html.replace("__LOADER_PRIMARY__", loader_primary)
+    html = html.replace("__LOADER_ACCENT__", loader_accent)
     
     # Conditionally include VLibras
     if enable_vlibras:
@@ -841,6 +853,16 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Generate index.html from template + CSS assets
     enable_vlibras = getattr(project, 'enableVlibras', True)
+    # Resolve branded loader config (title + colors) from the project's
+    # brand kit + per-course override. Falls back to neutral defaults.
+    try:
+        from services.loader_config import resolve_loader_config
+        _proj_dict = project.model_dump() if hasattr(project, "model_dump") else dict(project)
+        _loader_cfg = resolve_loader_config(_proj_dict)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"loader_config resolve failed in classic SCORM (non-fatal): {exc}")
+        _loader_cfg = {"title_html": "Carregando curso…", "primary": "#3b82f6", "accent": "#60a5fa"}
+
     html_content = _build_html(
         title=clean_title,
         lang=course.metadata.language or 'en',
@@ -848,7 +870,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         height=slide_height,
         enable_vlibras=enable_vlibras,
         backend_url=backend_url,
-        gamification_config=gamification_config
+        gamification_config=gamification_config,
+        loader_title=_loader_cfg["title_html"],
+        loader_primary=_loader_cfg["primary"],
+        loader_accent=_loader_cfg["accent"],
     )
     
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:

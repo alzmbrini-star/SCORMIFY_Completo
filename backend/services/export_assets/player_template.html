@@ -12,6 +12,122 @@ __CSS_CONTENT__
     </style>
 </head>
 <body>
+    <!-- ── Initial loading overlay (covers viewport until slide 1 is
+         ready). Critical on LMSes with narrow bandwidth: prevents the
+         broken-image flash before the player wires up. Self-contained
+         CSS + JS so it works even if the JS bundle is still parsing.
+         Title + colors are substituted from the brand kit / per-course
+         override resolved by `loader_config.resolve_loader_config`. ── -->
+    <div id="scormify-loader" role="status" aria-label="__LOADER_TITLE__" data-testid="scorm-initial-loader">
+        <style>
+            #scormify-loader { position: fixed; inset: 0; z-index: 99999;
+                background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                color: #f1f5f9; display: flex; align-items: center;
+                justify-content: center; flex-direction: column;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                transition: opacity 0.5s ease; }
+            #scormify-loader.hidden { opacity: 0; pointer-events: none; }
+            #scormify-loader .ldr-spin { width: 64px; height: 64px;
+                border: 4px solid rgba(255,255,255,0.12);
+                border-top-color: __LOADER_PRIMARY__; border-radius: 50%;
+                animation: scormify-spin 0.9s linear infinite;
+                margin-bottom: 24px; }
+            #scormify-loader .ldr-title { font-size: 18px; font-weight: 600;
+                margin-bottom: 14px; text-align: center; padding: 0 16px;
+                max-width: min(640px, 90vw); }
+            #scormify-loader .ldr-bar-track { width: min(320px, 60vw);
+                height: 6px; background: rgba(255,255,255,0.12);
+                border-radius: 999px; overflow: hidden; }
+            #scormify-loader .ldr-bar-fill { height: 100%; width: 0%;
+                background: linear-gradient(90deg, __LOADER_PRIMARY__, __LOADER_ACCENT__);
+                border-radius: 999px; transition: width 0.25s ease; }
+            #scormify-loader .ldr-percent { font-size: 13px; opacity: 0.7;
+                margin-top: 10px; font-variant-numeric: tabular-nums; }
+            @keyframes scormify-spin { from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); } }
+        </style>
+        <div class="ldr-spin" aria-hidden="true"></div>
+        <div class="ldr-title">__LOADER_TITLE__</div>
+        <div class="ldr-bar-track" aria-hidden="true">
+            <div class="ldr-bar-fill" id="scormify-loader-bar"></div>
+        </div>
+        <div class="ldr-percent" id="scormify-loader-percent">0%</div>
+    </div>
+    <script>
+        (function() {
+            var overlay = document.getElementById('scormify-loader');
+            var bar = document.getElementById('scormify-loader-bar');
+            var pctLabel = document.getElementById('scormify-loader-percent');
+            var hidden = false;
+            function setProgress(p) {
+                p = Math.max(0, Math.min(100, p));
+                if (bar) bar.style.width = p.toFixed(0) + '%';
+                if (pctLabel) pctLabel.textContent = p.toFixed(0) + '%';
+            }
+            function hide() {
+                if (hidden) return; hidden = true; setProgress(100);
+                setTimeout(function() {
+                    if (overlay) {
+                        overlay.classList.add('hidden');
+                        setTimeout(function() {
+                            if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                        }, 600);
+                    }
+                }, 180);
+            }
+            function track() {
+                var root = document.getElementById('slide-elements')
+                        || document.getElementById('slide-canvas')
+                        || document.getElementById('player-container')
+                        || document.body;
+                var imgs = Array.from(root.querySelectorAll('img'));
+                var vids = Array.from(root.querySelectorAll('video'));
+                var total = imgs.length + vids.length;
+                if (total === 0) { setTimeout(hide, 250); return; }
+                var loaded = 0;
+                function bump() {
+                    loaded++;
+                    setProgress((loaded / total) * 95);
+                    if (loaded >= total) hide();
+                }
+                imgs.forEach(function(im) {
+                    if (im.complete && im.naturalWidth > 0) bump();
+                    else {
+                        im.addEventListener('load', bump, {once: true});
+                        im.addEventListener('error', bump, {once: true});
+                    }
+                });
+                vids.forEach(function(v) {
+                    if (v.readyState >= 2) bump();
+                    else {
+                        v.addEventListener('loadeddata', bump, {once: true});
+                        v.addEventListener('error', bump, {once: true});
+                    }
+                });
+            }
+            var started = false;
+            function tryStart() {
+                if (started) return;
+                var root = document.getElementById('slide-elements');
+                if (root && root.children.length > 0) { started = true; track(); }
+            }
+            var pollHandle = setInterval(function() {
+                tryStart();
+                if (started) clearInterval(pollHandle);
+            }, 200);
+            setTimeout(function() {
+                clearInterval(pollHandle);
+                if (!started) hide();
+            }, 2000);
+            setTimeout(hide, 15000);
+            var coarse = 5;
+            var coarseHandle = setInterval(function() {
+                if (started || hidden) { clearInterval(coarseHandle); return; }
+                coarse = Math.min(coarse + 3, 35);
+                setProgress(coarse);
+            }, 250);
+        })();
+    </script>
     <!-- Mobile Orientation Overlay -->
     <div id="orientation-overlay">
         <div class="orientation-content">

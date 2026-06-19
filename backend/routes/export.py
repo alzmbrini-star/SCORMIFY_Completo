@@ -275,6 +275,30 @@ async def _run_scorm_export_job(
 
         await update_job(job_id, {"progress": 10, "message": "Carregando configuracoes..."})
 
+        # ── Merge company brand kit onto project_doc so the loader/branding
+        # resolvers can read `project_doc.brandKit` directly. Project-level
+        # `brandKit` (if explicitly set) wins; otherwise we copy from the
+        # owning company. Safe to call multiple times (idempotent).
+        try:
+            if not (project_doc.get("brandKit") or {}).get("primaryColor") and not (project_doc.get("brandKit") or {}).get("loaderTitle"):
+                company_id = project_doc.get("companyId")
+                if company_id:
+                    company = await db.companies.find_one(
+                        {"id": company_id},
+                        {"_id": 0, "brandKit": 1},
+                    )
+                    if company and company.get("brandKit"):
+                        merged = dict(company["brandKit"])
+                        # Preserve any project-level overrides on top.
+                        merged.update(project_doc.get("brandKit") or {})
+                        project_doc["brandKit"] = merged
+                        logger.info(f"SCORM export: merged company brand kit "
+                                    f"(primary={merged.get('primaryColor')}, "
+                                    f"loaderTitle={bool(merged.get('loaderTitle'))})")
+        except Exception as exc:
+            logger.warning(f"Could not merge company brand kit (non-fatal): {exc}")
+
+
         # Load tutor settings
         tutor_settings = None
         try:
