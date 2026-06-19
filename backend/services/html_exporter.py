@@ -562,6 +562,17 @@ async def generate_standalone_html(
         "globalAudio": processed_global_audio
     }
     
+    # Resolve the branded loading overlay (title + accent color) from
+    # the project's brand kit + course metadata. Stored under a private
+    # `_loader` key on course_data so it survives the trip through
+    # `generate_html_template` without changing the function signature.
+    # Stripped from the JS payload right before serialisation.
+    try:
+        from services.loader_config import resolve_loader_config
+        course_data["_loader"] = resolve_loader_config(project)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"resolve_loader_config failed (non-fatal): {exc}")
+    
     # Add questions for quiz support
     if questions:
         course_data["questions"] = questions
@@ -629,6 +640,22 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     # Create a deep copy and sanitize htmlContent fields to prevent JSON/JS issues
     import copy
     sanitized_data = copy.deepcopy(course_data)
+    
+    # Pull the pre-resolved branded loader config from the course_data
+    # envelope (set by `generate_standalone_html`). Fall back to neutral
+    # defaults if the caller didn't populate it (e.g. legacy paths).
+    from services.loader_config import (
+        resolve_loader_config, DEFAULT_TITLE, DEFAULT_PRIMARY, DEFAULT_ACCENT,
+    )
+    _loader_cfg = course_data.get("_loader") or resolve_loader_config(
+        {"course": {"metadata": course_data.get("metadata") or {}}}
+    )
+    loader_title = _loader_cfg.get("title_html") or DEFAULT_TITLE
+    loader_primary = _loader_cfg.get("primary") or DEFAULT_PRIMARY
+    loader_accent = _loader_cfg.get("accent") or DEFAULT_ACCENT
+    # `_loader` is internal-only — strip it before serialising into the
+    # JS bundle so the runtime payload stays clean.
+    sanitized_data.pop("_loader", None)
     
     for slide in sanitized_data.get('slides', []):
         for element in slide.get('elements', []):
@@ -1547,7 +1574,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             #scormify-loader .ldr-spin {{
                 width: 64px; height: 64px;
                 border: 4px solid rgba(255,255,255,0.12);
-                border-top-color: #60a5fa;
+                border-top-color: {loader_primary};
                 border-radius: 50%;
                 animation: scormify-spin 0.9s linear infinite;
                 margin-bottom: 24px;
@@ -1555,6 +1582,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             #scormify-loader .ldr-title {{
                 font-size: 18px; font-weight: 600; margin-bottom: 14px;
                 letter-spacing: 0.3px;
+                text-align: center; padding: 0 16px; max-width: min(640px, 90vw);
             }}
             #scormify-loader .ldr-bar-track {{
                 width: min(320px, 60vw); height: 6px;
@@ -1563,7 +1591,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
             #scormify-loader .ldr-bar-fill {{
                 height: 100%; width: 0%;
-                background: linear-gradient(90deg, #3b82f6, #60a5fa);
+                background: linear-gradient(90deg, {loader_primary}, {loader_accent});
                 border-radius: 999px;
                 transition: width 0.25s ease;
             }}
@@ -1577,7 +1605,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
         </style>
         <div class="ldr-spin" aria-hidden="true"></div>
-        <div class="ldr-title">Carregando curso…</div>
+        <div class="ldr-title">{loader_title}</div>
         <div class="ldr-bar-track" aria-hidden="true">
             <div class="ldr-bar-fill" id="scormify-loader-bar"></div>
         </div>

@@ -1327,6 +1327,13 @@ def generate_single_page_html(
     slides = course.get("slides", []) or []
     metadata = course.get("metadata", {}) or {}
     course_title = metadata.get("title") or name
+    # Branded loader config (title + accent color) derived from the
+    # project's brand kit + course metadata.
+    from services.loader_config import resolve_loader_config
+    _loader_cfg = resolve_loader_config(project_doc)
+    loader_title = _loader_cfg["title_html"]
+    loader_primary = _loader_cfg["primary"]
+    loader_accent = _loader_cfg["accent"]
     # Strip leading UUID-like prefix from project name (common in PPT-imported projects)
     course_title = re.sub(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_", "", course_title, flags=re.IGNORECASE)
 
@@ -1646,6 +1653,9 @@ def generate_single_page_html(
         gamification_config=gamification_config,
         tutor_config=tutor_config,
         bg_music=bg_music,
+        loader_title=loader_title,
+        loader_primary=loader_primary,
+        loader_accent=loader_accent,
     )
 
 
@@ -1659,6 +1669,9 @@ def _BUILD_PAGE(
     gamification_config: Optional[dict] = None,
     tutor_config: Optional[dict] = None,
     bg_music: Optional[dict] = None,
+    loader_title: str = "Carregando curso…",
+    loader_primary: str = "#3b82f6",
+    loader_accent: str = "#60a5fa",
 ) -> str:
     css = _CSS
     js = _JS.replace("__SECTIONS_INDEX__", sections_index_json) \
@@ -1771,13 +1784,14 @@ def _BUILD_PAGE(
     #scormify-loader .ldr-spin {{
       width: 64px; height: 64px;
       border: 4px solid rgba(255,255,255,0.12);
-      border-top-color: #60a5fa;
+      border-top-color: {loader_primary};
       border-radius: 50%;
       animation: scormify-spin 0.9s linear infinite;
       margin-bottom: 24px;
     }}
     #scormify-loader .ldr-title {{
       font-size: 18px; font-weight: 600; margin-bottom: 14px;
+      text-align: center; padding: 0 16px; max-width: min(640px, 90vw);
     }}
     #scormify-loader .ldr-bar-track {{
       width: min(320px, 60vw); height: 6px;
@@ -1786,7 +1800,7 @@ def _BUILD_PAGE(
     }}
     #scormify-loader .ldr-bar-fill {{
       height: 100%; width: 0%;
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      background: linear-gradient(90deg, {loader_primary}, {loader_accent});
       border-radius: 999px;
       transition: width 0.25s ease;
     }}
@@ -1800,7 +1814,7 @@ def _BUILD_PAGE(
     }}
   </style>
   <div class="ldr-spin" aria-hidden="true"></div>
-  <div class="ldr-title">Carregando curso…</div>
+  <div class="ldr-title">{loader_title}</div>
   <div class="ldr-bar-track" aria-hidden="true">
     <div class="ldr-bar-fill" id="scormify-loader-bar"></div>
   </div>

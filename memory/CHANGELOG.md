@@ -1,6 +1,36 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Loading overlay agora customizável por curso/marca)
+
+### Pedido
+- Permitir personalizar a mensagem e a cor do loader SCORM por curso (ex.: "Carregando: Treinamento da Empresa X…" com a cor primária do branding).
+
+### Implementação
+- **Novo módulo `services/loader_config.py`**: `resolve_loader_config(project)` retorna `{title_html, primary, accent}` com prioridades:
+  1. Override per-curso: `project.course.loader.{title, color, accentColor}`.
+  2. Brand kit: `project.brandKit.primaryColor` (+ `accentColor` se presente).
+  3. Fallback neutro: título do curso ("Carregando: <title>…") + #3b82f6.
+- **Defesa em profundidade**:
+  - Validação rigorosa de hex (`^#[0-9a-fA-F]{3,6}$`) — cores malformadas (ex.: `rgb(...)`, lixo) caem silenciosamente para o fallback.
+  - HTML-escape do título (proteção XSS via nome de curso).
+  - Cap de 80 chars no título (não quebra layout em títulos longos).
+  - Auto-derivação de accent (clarea o primary em 25% para a barra de progresso).
+- **`services/html_exporter.py`**: `generate_standalone_html` injeta o config em `course_data["_loader"]`; `generate_html_template` lê e substitui `{loader_title}`, `{loader_primary}`, `{loader_accent}` na f-string. Strip do campo `_loader` antes de serializar para o JS bundle.
+- **`services/single_page_exporter.py`**: 3 novos params no `_BUILD_PAGE` (`loader_title`, `loader_primary`, `loader_accent`); `generate_single_page_html` computa via `resolve_loader_config` e passa adiante.
+
+### Verificação
+- Pytest `tests/test_loader_branding.py` (9/9 PASSED): brand kit aplica cor, override per-curso vence, cor inválida → fallback, projeto vazio → defaults, XSS escapado, título longo capado, HTML standalone contém a cor da marca, título do curso aparece no loader, zip SCORM real contém ambos.
+- Pytest existing `tests/test_scorm_loading_overlay.py` (4/4 PASSED) — sem regressões no overlay base.
+- Screenshot visual: viewport 1280×720 com `brandKit.primaryColor=#dc2626` e `loader.title="Carregando: Treinamento Acme Corp…"` → spinner vermelho da marca + título personalizado em destaque.
+
+### Como o autor usa
+- **Automático**: basta ter `brandKit.primaryColor` setado no Brand Kit — o loader já adota a cor + título do curso.
+- **Override total** (via Mongo / Editor Chat): `project.course.loader = { title, color, accentColor }`.
+
+
+
+
 ## 2026-02-XX (Feature: Loading overlay no SCORM/HTML para banda estreita)
 
 ### Pedido
