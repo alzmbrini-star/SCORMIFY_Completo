@@ -92,9 +92,16 @@ var QuizController = (function() {
             var questionFontSize = Math.round(baseFontSize * 0.875); // 14px at 16
             var altFontSize = Math.round(baseFontSize * 0.75); // 12px at 16
             var smallFontSize = Math.round(baseFontSize * 0.6875); // 11px at 16
-            
+
+            // Transparent background mode (blends quiz over slide bg)
+            var quizTransparent = quiz.config.transparentBackground === true;
+            var quizPlayBg = quizTransparent ? 'transparent' : '#1e293b';
+            var quizFooterBg = quizTransparent ? 'transparent' : '#1e293b';
+            var quizQuestionColor = quizTransparent ? '#f8fafc' : '#f1f5f9';
+            var quizQuestionShadow = quizTransparent ? 'text-shadow:0 1px 2px rgba(0,0,0,0.6);' : '';
+
             var html = '<style>.quiz-scroll::-webkit-scrollbar{width:4px;height:4px;}.quiz-scroll::-webkit-scrollbar-track{background:transparent;}.quiz-scroll::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.4);border-radius:4px;}.quiz-scroll::-webkit-scrollbar-thumb:hover{background:rgba(100,116,139,0.6);}.quiz-scroll{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.4) transparent;}</style>' +
-                '<div style="display:flex;flex-direction:column;height:100%;background:#1e293b;color:#fff;font-family:system-ui,-apple-system,sans-serif;">' +
+                '<div style="display:flex;flex-direction:column;height:100%;background:' + quizPlayBg + ';color:#fff;font-family:system-ui,-apple-system,sans-serif;">' +
                 // Progress header - compact with question type inline
                 '<div style="padding:10px 16px 8px;border-bottom:1px solid #334155;">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
@@ -111,7 +118,7 @@ var QuizController = (function() {
                 
                 // Question content - compact with thin scrollbar
                 '<div class="quiz-scroll" style="flex:1;padding:12px 16px;overflow:auto;">' +
-                '<h3 style="font-size:' + questionFontSize + 'px;font-weight:600;margin-bottom:12px;color:#f1f5f9;line-height:1.4;">' + question.text + '</h3>' +
+                '<h3 style="font-size:' + questionFontSize + 'px;font-weight:600;margin-bottom:12px;color:' + quizQuestionColor + ';line-height:1.4;' + quizQuestionShadow + '">' + question.text + '</h3>' +
                 
                 // Alternatives in 2x2 grid - smaller
                 '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
@@ -187,7 +194,7 @@ var QuizController = (function() {
             html += '</div>' +
                 
                 // Action footer - compact
-                '<div style="padding:10px 16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;background:#1e293b;">' +
+                '<div style="padding:10px 16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;background:' + quizFooterBg + ';">' +
                 '<button style="padding:6px 12px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:' + altFontSize + 'px;display:flex;align-items:center;gap:4px;" ' + 
                 (quiz.currentIndex === 0 || quiz.showingFeedback ? 'disabled style="padding:6px 12px;background:transparent;border:none;color:#94a3b8;opacity:0.4;cursor:not-allowed;font-size:' + altFontSize + 'px;display:flex;align-items:center;gap:4px;"' : '') + 
                 ' onclick="QuizController.prevQuestion(\'' + elementId + '\')">‹ Anterior</button>';
@@ -307,8 +314,12 @@ var QuizController = (function() {
                 console.error('[QuizController] CoursePlayer NOT available!', typeof CoursePlayer);
             }
             
+            // Transparent background mode for results screen
+            var quizResultsTransparent = quiz.config.transparentBackground === true;
+            var quizResultsOuterBg = quizResultsTransparent ? 'transparent' : 'linear-gradient(135deg,#1e293b,#0f172a)';
+
             var html = '<style>.quiz-scroll::-webkit-scrollbar{width:4px;height:4px;}.quiz-scroll::-webkit-scrollbar-track{background:transparent;}.quiz-scroll::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.4);border-radius:4px;}.quiz-scroll::-webkit-scrollbar-thumb:hover{background:rgba(100,116,139,0.6);}.quiz-scroll{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.4) transparent;}</style>' +
-                '<div class="quiz-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;overflow:auto;">' +
+                '<div class="quiz-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:' + quizResultsOuterBg + ';color:#fff;overflow:auto;">' +
                 '<div style="max-width:360px;width:100%;background:#0f172a;border-radius:12px;padding:20px;text-align:center;">' +
                 
                 // Icon - smaller

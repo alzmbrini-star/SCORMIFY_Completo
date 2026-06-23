@@ -1544,13 +1544,21 @@ var CoursePlayer = (function() {
             case 'quiz':
                 el = document.createElement('div');
                 el.className = 'slide-element quiz-element';
-                el.style.background = 'linear-gradient(135deg, #1e293b, #0f172a)';
-                el.style.borderRadius = '12px';
-                el.style.border = '2px solid rgba(34, 211, 238, 0.3)';
+                var _quizCfg = element.quizConfig || {};
+                var _quizTransparent = _quizCfg.transparentBackground === true;
+                if (_quizTransparent) {
+                    el.style.background = 'transparent';
+                    el.style.borderRadius = '0';
+                    el.style.border = 'none';
+                } else {
+                    el.style.background = 'linear-gradient(135deg, #1e293b, #0f172a)';
+                    el.style.borderRadius = '12px';
+                    el.style.border = '2px solid rgba(34, 211, 238, 0.3)';
+                }
                 el.style.overflow = 'hidden';
                 
                 // Get quiz config
-                var quizConfig = element.quizConfig || {};
+                var quizConfig = _quizCfg;
                 var questionIds = quizConfig.questionIds || [];
                 var quizTitle = quizConfig.title || 'Quiz';
                 var passingScore = quizConfig.passingScore || 60;
@@ -1566,10 +1574,13 @@ var CoursePlayer = (function() {
                 quizContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;';
                 
                 // Placeholder until quiz is initialized
+                var _quizPlaceholderTitleColor = _quizTransparent ? '#e0f2fe' : '#fff';
+                var _quizPlaceholderMetaColor = _quizTransparent ? '#cbd5e1' : '#94a3b8';
+                var _quizPlaceholderTextShadow = _quizTransparent ? 'text-shadow:0 1px 2px rgba(0,0,0,0.6);' : '';
                 quizContainer.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">' +
                     '<div style="font-size:48px;margin-bottom:16px;">📝</div>' +
-                    '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + quizTitle + '</h3>' +
-                    '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + questionIds.length + ' questões</p>' +
+                    '<h3 style="font-size:20px;font-weight:bold;color:' + _quizPlaceholderTitleColor + ';margin-bottom:8px;' + _quizPlaceholderTextShadow + '">' + quizTitle + '</h3>' +
+                    '<p style="color:' + _quizPlaceholderMetaColor + ';font-size:14px;margin-bottom:16px;' + _quizPlaceholderTextShadow + '">' + questionIds.length + ' questões</p>' +
                     '<button class="quiz-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ' +
                     'onclick="QuizController.startQuiz(\'' + element.id + '\')">Iniciar Quiz</button>' +
                     '</div>';

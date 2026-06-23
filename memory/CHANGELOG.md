@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Toggle "Fundo Transparente" no Quiz — Exporters)
+
+### Pedido / Contexto
+- Continuação da iteração anterior: estender o toggle `quizConfig.transparentBackground` para os 3 exporters de modo que o quiz exportado (HTML zip, SCORM, single page) também respeite o flag e renderize com fundo transparente.
+
+### Implementação
+- **`html_exporter.py`** (HTML zip export, JS inline):
+  - **Tela inicial do quiz** (start screen com botão "Iniciar Quiz"): conditional `quizStartBgStyle` baseado em `elem.quizConfig.transparentBackground`. Cores de título/meta também ajustadas + `text-shadow` para legibilidade.
+  - **Tela de questão** (renderQuestion): `quizPlayBg` / `quizFooterBg` / `quizPlayRadius` ficam `transparent` / `0` quando `quiz.config.transparentBackground === true`. Cor da pergunta vira `#f8fafc` com drop-shadow.
+  - **Tela de resultados** (showResults): `quizResultsOuterBg` vira transparent — card interno `#0f172a` permanece opaco para legibilidade do score.
+- **`export_assets/player.js`** (SCORM start): o wrapper `slide-element quiz-element` agora seta `background:'transparent'`, `border:'none'` e `borderRadius:'0'` quando flag é true. Texto do placeholder também ajustado.
+- **`export_assets/quiz-controller.js`** (SCORM play+results): mesmas variáveis condicionais (`quizPlayBg`, `quizFooterBg`, `quizQuestionColor`, `quizResultsOuterBg`). Inner card de resultados continua opaco.
+- **`single_page_exporter.py`** + **`sp_runtime/styles.css`**:
+  - `_render_quiz_element_inner` agora adiciona classe `sp-quiz-transparent` no wrapper quando flag é true.
+  - Novo bloco CSS `.sp-quiz.sp-quiz-transparent { background:transparent!important; border-color:transparent!important; box-shadow:none!important; text-shadow:0 1px 2px rgba(0,0,0,.6) }` e rule equivalente para estado `[data-completed="true"]`. Body interno (`.sp-quiz-body` com perguntas) mantém seu fundo branco original.
+
+### Verificação
+- Pytest novo `tests/test_quiz_transparent_background.py` (7/7 PASSED): cobre `_render_quiz_element_inner` (true/false/omitido), template do `html_exporter` (compila + contém as 3 branches), `player.js` + `quiz-controller.js` (contêm branches), e CSS do `single_page` (regra `.sp-quiz-transparent`).
+- Smoke `generate_html_template` compila para um curso com quiz transparente (154KB output válido).
+- Lint clean nos arquivos modificados (warnings reportados são pré-existentes não relacionados).
+
+### Próximo passo
+- Validação visual end-to-end: exportar um curso SCORM/HTML com quiz transparente e abrir no navegador para confirmar o blend com o slide background. (recomendável usar testing agent para esse fluxo).
+
+
 ## 2026-02-XX (Feature: Toggle "Fundo Transparente" no Quiz — Frontend)
 
 ### Pedido / Contexto

@@ -2343,11 +2343,18 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         }}
                         else if (elem.type === 'quiz' && elem.quizConfig) {{
                             // Quiz element - render container for QuizController
+                            var quizTransparent = elem.quizConfig.transparentBackground === true;
+                            var quizStartBgStyle = quizTransparent
+                                ? 'background:transparent;'
+                                : 'background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;border:2px solid rgba(34,211,238,0.3);';
+                            var quizStartTitleColor = quizTransparent ? '#e0f2fe' : '#fff';
+                            var quizStartMetaColor = quizTransparent ? '#cbd5e1' : '#94a3b8';
+                            var quizStartTextShadow = quizTransparent ? 'text-shadow:0 1px 2px rgba(0,0,0,0.6);' : '';
                             var quizContainer = '<div class="quiz-player-container" data-element-id="' + elem.id + '" data-quiz-config=\\'' + JSON.stringify(elem.quizConfig).replace(/'/g, "\\\\'") + '\\' style="width:100%;height:100%;display:flex;flex-direction:column;">';
-                            quizContainer += '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:12px;border:2px solid rgba(34,211,238,0.3);">';
+                            quizContainer += '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;' + quizStartBgStyle + '">';
                             quizContainer += '<div style="font-size:48px;margin-bottom:16px;">📝</div>';
-                            quizContainer += '<h3 style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">' + (elem.quizConfig.title || 'Quiz') + '</h3>';
-                            quizContainer += '<p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">' + (elem.quizConfig.questionIds ? elem.quizConfig.questionIds.length : 0) + ' questões</p>';
+                            quizContainer += '<h3 style="font-size:20px;font-weight:bold;color:' + quizStartTitleColor + ';margin-bottom:8px;' + quizStartTextShadow + '">' + (elem.quizConfig.title || 'Quiz') + '</h3>';
+                            quizContainer += '<p style="color:' + quizStartMetaColor + ';font-size:14px;margin-bottom:16px;' + quizStartTextShadow + '">' + (elem.quizConfig.questionIds ? elem.quizConfig.questionIds.length : 0) + ' questões</p>';
                             quizContainer += '<button class="quiz-start-btn" style="padding:12px 32px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;" ';
                             quizContainer += 'onclick="QuizController.startQuiz(\\'' + elem.id + '\\')">Iniciar Quiz</button>';
                             quizContainer += '</div></div>';
@@ -3165,8 +3172,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     var current = quiz.currentIndex + 1;
                     var progress = (current / total) * 100;
                     
+                    var quizTransparent = quiz.config && quiz.config.transparentBackground === true;
+                    var quizPlayBg = quizTransparent ? 'transparent' : '#1e293b';
+                    var quizFooterBg = quizTransparent ? 'transparent' : '#1e293b';
+                    var quizPlayRadius = quizTransparent ? '0' : '12px';
+                    var quizQuestionColor = quizTransparent ? '#f8fafc' : '#f1f5f9';
+                    var quizQuestionShadow = quizTransparent ? 'text-shadow:0 1px 2px rgba(0,0,0,0.6);' : '';
                     var html = '<style>.quiz-scroll::-webkit-scrollbar{{width:4px;height:4px;}}.quiz-scroll::-webkit-scrollbar-track{{background:transparent;}}.quiz-scroll::-webkit-scrollbar-thumb{{background:rgba(100,116,139,0.4);border-radius:4px;}}.quiz-scroll{{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,0.4) transparent;}}</style>' +
-                        '<div style="display:flex;flex-direction:column;height:100%;background:#1e293b;color:#fff;font-family:system-ui,-apple-system,sans-serif;border-radius:12px;overflow:hidden;">' +
+                        '<div style="display:flex;flex-direction:column;height:100%;background:' + quizPlayBg + ';color:#fff;font-family:system-ui,-apple-system,sans-serif;border-radius:' + quizPlayRadius + ';overflow:hidden;">' +
                         '<div style="padding:10px 16px 8px;border-bottom:1px solid #334155;">' +
                         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
                         '<div style="display:flex;align-items:center;gap:8px;">' +
@@ -3178,7 +3191,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         '<div style="height:3px;background:#334155;border-radius:2px;overflow:hidden;">' +
                         '<div style="height:100%;width:' + progress + '%;background:#06b6d4;transition:width 0.3s;"></div></div></div>' +
                         '<div class="quiz-scroll" style="flex:1;padding:12px 16px;overflow:auto;">' +
-                        '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#f1f5f9;line-height:1.4;">' + question.text + '</h3>' +
+                        '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:' + quizQuestionColor + ';line-height:1.4;' + quizQuestionShadow + '">' + question.text + '</h3>' +
                         '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
                     
                     question.alternatives.forEach(function(alt) {{
@@ -3243,7 +3256,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     }}
                     
                     html += '</div>' +
-                        '<div style="padding:10px 16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;background:#1e293b;">' +
+                        '<div style="padding:10px 16px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;background:' + quizFooterBg + ';">' +
                         '<button style="padding:6px 12px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:12px;' + 
                         (quiz.currentIndex === 0 || quiz.showingFeedback ? 'opacity:0.4;cursor:not-allowed;' : '') + '" ' + 
                         (quiz.currentIndex === 0 || quiz.showingFeedback ? 'disabled' : '') + 
@@ -3332,8 +3345,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     var score = Math.round(percentage) / 10;
                     var passed = percentage >= (quiz.config.passingScore || 60);
                     
+                    var quizTransparent = quiz.config && quiz.config.transparentBackground === true;
+                    var quizResultsOuterBg = quizTransparent ? 'transparent' : 'linear-gradient(135deg,#1e293b,#0f172a)';
+                    var quizResultsRadius = quizTransparent ? '0' : '12px';
                     var html = '<style>.quiz-scroll::-webkit-scrollbar{{width:4px;}}.quiz-scroll::-webkit-scrollbar-thumb{{background:rgba(100,116,139,0.4);border-radius:4px;}}.quiz-scroll{{scrollbar-width:thin;}}</style>' +
-                        '<div class="quiz-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;overflow:auto;border-radius:12px;">' +
+                        '<div class="quiz-scroll" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;background:' + quizResultsOuterBg + ';color:#fff;overflow:auto;border-radius:' + quizResultsRadius + ';">' +
                         '<div style="max-width:360px;width:100%;background:#0f172a;border-radius:12px;padding:20px;text-align:center;">' +
                         '<div style="width:60px;height:60px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
                         (passed ? 'background:rgba(34,197,94,0.2);' : 'background:rgba(239,68,68,0.2);') + '">' +

@@ -1051,8 +1051,12 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
         })
     qjson = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
     qjson_attr = html.escape(qjson, quote=True)
+    is_transparent = bool(cfg.get("transparentBackground"))
+    quiz_classes = "sp-quiz sp-interactive"
+    if is_transparent:
+        quiz_classes += " sp-quiz-transparent"
     return (
-        f'<div class="sp-quiz sp-interactive" data-interactive="quiz" data-required="true" '
+        f'<div class="{quiz_classes}" data-interactive="quiz" data-required="true" '
         f'data-interactive-id="quiz-{slide_idx}-{el_idx}" '
         f'data-questions="{qjson_attr}">'
         f'<div class="sp-quiz-icon">📝</div>'
