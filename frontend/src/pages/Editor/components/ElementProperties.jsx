@@ -320,6 +320,19 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
                 onChange={(e) => onUpdate({ quizConfig: { ...element.quizConfig, showFeedback: e.target.checked } })} className="w-4 h-4" />
               <label htmlFor="show-feedback" className="text-xs text-muted-foreground cursor-pointer">Mostrar feedback apos resposta</label>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="quiz-transparent-bg"
+                checked={element.quizConfig?.transparentBackground === true}
+                onChange={(e) => onUpdate({ quizConfig: { ...element.quizConfig, transparentBackground: e.target.checked } })}
+                className="w-4 h-4"
+                data-testid="quiz-transparent-bg-checkbox"
+              />
+              <label htmlFor="quiz-transparent-bg" className="text-xs text-muted-foreground cursor-pointer">
+                Fundo transparente (sobre o slide)
+              </label>
+            </div>
             <p className="text-xs text-muted-foreground mt-2">{element.questions?.length || 0} questoes neste quiz</p>
           </div>
         </div>

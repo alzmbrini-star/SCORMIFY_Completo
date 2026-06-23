@@ -200,8 +200,9 @@ const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
   };
 
   // Always render a container div to maintain stable DOM structure
+  const isTransparent = quizConfig?.transparentBackground === true;
   return (
-    <div className="w-full h-full bg-slate-800">
+    <div className={`w-full h-full ${isTransparent ? 'bg-transparent' : 'bg-slate-800'}`}>
       {loading ? (
         <div className="w-full h-full flex items-center justify-center">
           <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
@@ -218,6 +219,7 @@ const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
           onComplete={handleQuizComplete}
           embedded={true}
           darkMode={true}
+          transparentBackground={isTransparent}
         />
       )}
     </div>

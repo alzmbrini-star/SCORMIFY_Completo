@@ -29,6 +29,7 @@ export default function QuizPlayer({
   onComplete,
   embedded = false,
   darkMode = true,
+  transparentBackground = false,
 }) {
   // Quiz state
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -150,7 +151,8 @@ export default function QuizPlayer({
   };
 
   // Styles based on theme
-  const bgColor = darkMode ? 'bg-slate-800' : 'bg-white';
+  const useTransparent = transparentBackground || quizConfig?.transparentBackground === true;
+  const bgColor = useTransparent ? 'bg-transparent' : (darkMode ? 'bg-slate-800' : 'bg-white');
   const textColor = darkMode ? 'text-white' : 'text-slate-900';
   const mutedColor = darkMode ? 'text-slate-400' : 'text-slate-500';
   const borderColor = darkMode ? 'border-slate-600' : 'border-slate-200';

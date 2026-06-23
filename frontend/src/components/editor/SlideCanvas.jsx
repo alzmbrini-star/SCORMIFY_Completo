@@ -1007,14 +1007,22 @@ const SlideCanvas = ({
               )}
 
               {/* Quiz Element */}
-              {element.type === 'quiz' && (
-                <div className={`w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden relative ${element.objectFit === 'cover' ? '' : 'rounded-lg border-2 border-cyan-500/30'}`}>
+              {element.type === 'quiz' && (() => {
+                const isTransparent = element.quizConfig?.transparentBackground === true;
+                const containerBg = isTransparent
+                  ? 'bg-transparent'
+                  : 'bg-gradient-to-br from-slate-800 to-slate-900';
+                const borderCls = element.objectFit === 'cover'
+                  ? ''
+                  : (isTransparent ? 'rounded-lg border-2 border-cyan-500/30 border-dashed' : 'rounded-lg border-2 border-cyan-500/30');
+                return (
+                <div className={`w-full h-full ${containerBg} overflow-hidden relative ${borderCls}`}>
                   <div className={`w-full h-full flex flex-col items-center justify-center ${element.objectFit === 'cover' ? 'p-0' : 'p-6'}`}>
                     <div className="text-6xl mb-4">📝</div>
-                    <h3 className="text-xl font-bold text-white mb-2">
+                    <h3 className={`text-xl font-bold mb-2 ${isTransparent ? 'text-cyan-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]' : 'text-white'}`}>
                       {element.quizConfig?.title || 'Quiz'}
                     </h3>
-                    <p className="text-slate-400 text-sm text-center mb-4">
+                    <p className={`text-sm text-center mb-4 ${isTransparent ? 'text-cyan-100/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]' : 'text-slate-400'}`}>
                       {element.quizConfig?.questionIds?.length || 0} questões selecionadas
                     </p>
                     <div className="flex flex-wrap gap-2 justify-center">
@@ -1033,8 +1041,13 @@ const SlideCanvas = ({
                           Feedback ativo
                         </span>
                       )}
+                      {isTransparent && (
+                        <span className="px-2 py-1 text-xs bg-amber-500/20 text-amber-300 rounded-full">
+                          Fundo transparente
+                        </span>
+                      )}
                     </div>
-                    <div className="mt-4 text-xs text-slate-500">
+                    <div className={`mt-4 text-xs ${isTransparent ? 'text-cyan-100/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]' : 'text-slate-500'}`}>
                       Nota mínima: {element.quizConfig?.passingScore || 60}%
                     </div>
                   </div>
@@ -1049,7 +1062,8 @@ const SlideCanvas = ({
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* Scenario Element */}
               {element.type === 'scenario' && (

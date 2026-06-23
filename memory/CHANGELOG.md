@@ -1,6 +1,25 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Toggle "Fundo Transparente" no Quiz — Frontend)
+
+### Pedido / Contexto
+- Usuário queria que o quiz pudesse ser embarcado sobre o background do slide sem ficar com a caixa escura `bg-gradient from-slate-800 to-slate-900` em volta. Isso permite combinar o quiz visualmente com slides que já têm imagens/cores próprias.
+
+### Implementação (Frontend apenas — exporters será feito em iteração posterior por decisão do usuário)
+- **ElementProperties.jsx**: adicionado checkbox `Fundo transparente (sobre o slide)` na seção `Configuracoes do Quiz`, ligado a `element.quizConfig.transparentBackground`. `data-testid="quiz-transparent-bg-checkbox"`.
+- **SlideCanvas.jsx**: render do elemento `quiz` agora detecta `transparentBackground`. Quando ativo: troca o gradient por `bg-transparent`, usa borda tracejada para indicar o limite no editor, e ajusta cores de texto para `text-cyan-200 / text-cyan-100/90` com `drop-shadow` (legibilidade sobre slides claros).
+- **CoursePreview.jsx** (`QuizPreviewPlayer`): wrapper externo do `QuizPlayer` agora condiciona `bg-slate-800` vs `bg-transparent` baseado em `quizConfig.transparentBackground`. Prop `transparentBackground` é passada ao `QuizPlayer`.
+- **QuizPlayer.jsx**: novo prop `transparentBackground` (default `false`). Quando true (ou `quizConfig.transparentBackground === true`), `bgColor` vira `bg-transparent` para que a tela do quiz, a tela de resultado e a tela de loading sejam todas transparentes.
+
+### Status backend / exporters
+- **NÃO IMPLEMENTADO ainda** (intencionalmente pulado pelo usuário): `html_exporter.py`, `single_page_exporter.py`, `scorm_exporter.py` ainda emitem o background `bg-slate-800`. Será tratado em iteração posterior. No editor e na Preview do app o toggle já funciona.
+
+### Verificação
+- Lint passou nos 4 arquivos modificados (apenas warning pré-existente em `QuizPlayer.jsx:106` não relacionado).
+- Screenshot da home OK (build compila, serviço rodando).
+
+
 ## 2026-02-XX (UX: Mensagens amigáveis no Tutor IA quando o orçamento da Universal Key acaba)
 
 ### Pedido / Contexto
