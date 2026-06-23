@@ -1,6 +1,29 @@
 # Changelog
 
 
+## 2026-02-XX (UX: Mensagens amigáveis no Tutor IA quando o orçamento da Universal Key acaba)
+
+### Pedido / Contexto
+- Usuário recebeu em produção a mensagem técnica `HTTP 500: AI service error: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 68.02..., Max budget: 68.0` no chat do Tutor IA. Esse erro é **operacional** (saldo da Universal Key esgotado), não um bug de código — mas a mensagem técnica não orienta o usuário sobre o que fazer.
+
+### Implementação
+- **Backend** (`routes/admin.py`): nova função pura `_map_tutor_llm_error(exc)` que retorna `(status, friendly_message)` reconhecendo 3 cenários:
+  - **Budget exceeded** → 503 + instrução "Recarregar em Perfil → Universal Key → Add Balance (ou ativar auto top-up)".
+  - **Rate limit / 429** → 429 + "Aguarde alguns segundos e tente novamente".
+  - **Invalid API key / Unauthorized** → 503 + "Verifique a Universal Key em Perfil → Universal Key".
+  - Outros erros → mantém comportamento antigo (raw text), para não esconder falhas novas.
+- **Frontend** (`services/export_assets/tutor.js`): o `.catch` agora parseia o JSON de resposta de erro do backend, extrai o `detail` e mostra **verbatim** quando flagged como `friendly`. Quando não, faz fallback para a mensagem genérica de antes.
+
+### Verificação
+- Pytest novo `tests/test_tutor_friendly_errors.py` (5/5 PASSED): 3 cenários conhecidos mapeiam, erro desconhecido retorna (500, None) para fallback, mensagem de budget contém ação ("Add Balance" + "auto top-up").
+
+### Próximo passo do usuário
+- **Em produção**: precisa recarregar saldo em Perfil → Universal Key → Add Balance OU ativar auto top-up. Depois o Tutor IA volta imediatamente.
+- **Para mostrar a mensagem amigável**: requer redeploy (preview já tem o fix).
+
+
+
+
 ## 2026-02-XX (Bugfix: Loader não aparecia no SCORM quando projeto já tinha brandKit)
 
 ### Sintoma

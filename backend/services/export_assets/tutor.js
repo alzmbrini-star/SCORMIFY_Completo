@@ -218,7 +218,21 @@ var AiTutor = (function() {
         .then(function(res) {
             if (!res.ok) {
                 return res.text().then(function(text) {
-                    throw new Error('HTTP ' + res.status + ': ' + text.substring(0, 200));
+                    // Try to extract a human-friendly `detail` from the
+                    // backend's JSON error envelope. If parsing fails or
+                    // there's no `detail`, fall back to the raw body
+                    // (truncated to keep the chat bubble readable).
+                    var detail = null;
+                    try {
+                        var parsed = JSON.parse(text);
+                        if (parsed && typeof parsed.detail === 'string') {
+                            detail = parsed.detail;
+                        }
+                    } catch (e) { /* ignore */ }
+                    var err = new Error(detail || ('HTTP ' + res.status + ': ' + text.substring(0, 200)));
+                    err.status = res.status;
+                    err.friendly = !!detail;
+                    throw err;
                 });
             }
             return res.json();
@@ -240,9 +254,15 @@ var AiTutor = (function() {
         })
         .catch(function(err) {
             setLoading(false);
-            var errorMsg = 'Desculpe, ocorreu um erro ao conectar com o tutor.';
-            if (err.message) {
-                errorMsg += ' (' + err.message + ')';
+            // When the backend already returned a friendly message
+            // (status 429/503 with text in `detail`), show it verbatim.
+            // Otherwise wrap the technical error in a generic apology.
+            var errorMsg;
+            if (err && err.friendly) {
+                errorMsg = err.message;
+            } else {
+                errorMsg = 'Desculpe, ocorreu um erro ao conectar com o tutor.';
+                if (err && err.message) errorMsg += ' (' + err.message + ')';
             }
             appendMessage('assistant', errorMsg);
             console.error('Tutor error:', err, 'API URL:', config.apiUrl);

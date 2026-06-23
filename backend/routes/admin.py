@@ -305,7 +305,42 @@ CONTEUDO DO CURSO:
         )
     except Exception as e:
         logger.error(f"Tutor chat error: {e}")
+        status, friendly = _map_tutor_llm_error(e)
+        if friendly:
+            raise HTTPException(status_code=status, detail=friendly)
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+
+
+def _map_tutor_llm_error(exc: Exception) -> tuple[int, str | None]:
+    """Map a known LLM-provider exception to (status_code, friendly_message).
+
+    Returns (500, None) when the error is unrecognised — the caller then
+    falls back to the raw `str(exc)` so we don't hide truly novel issues.
+    Mapping is by substring on the lower-cased exception text, which is
+    robust to the wrapper class (litellm/openai/emergentintegrations all
+    surface the upstream message inside `str(e)`).
+    """
+    err_text = str(exc).lower()
+    if "budget has been exceeded" in err_text or "max budget" in err_text:
+        return 503, (
+            "O orçamento da chave de IA do administrador foi atingido. "
+            "Peça ao administrador da plataforma para recarregar o saldo "
+            "em Perfil → Universal Key → Add Balance (ou ativar o "
+            "auto top-up). Assim que o saldo for adicionado, o Tutor IA "
+            "volta a responder normalmente."
+        )
+    if "rate limit" in err_text or "429" in err_text:
+        return 429, (
+            "O Tutor IA está recebendo muitas requisições no momento. "
+            "Aguarde alguns segundos e tente novamente."
+        )
+    if "invalid api key" in err_text or "unauthorized" in err_text:
+        return 503, (
+            "A chave de IA configurada parece inválida. Peça ao "
+            "administrador para verificar a Universal Key em "
+            "Perfil → Universal Key."
+        )
+    return 500, None
 
 
 
