@@ -406,6 +406,37 @@ async def _run_migrate_roles():
 
 
 @app.on_event("startup")
+async def startup_warm_heygen_avatars_cache():
+    """Pre-warm the HeyGen avatars cache so the first user request doesn't
+    block on the slow `/v2/avatars` upstream (~60s response time exceeds
+    gateway timeout). Loads from MongoDB first, then refreshes in background.
+    """
+    from routes.heygen import _load_heygen_avatars_cache_from_db, _refresh_heygen_avatars_cache
+
+    async def _warm():
+        try:
+            loaded = await _load_heygen_avatars_cache_from_db()
+            if loaded:
+                logger.info("HeyGen avatars cache warmed from DB on startup")
+            # Always trigger a refresh in background; we don't await it.
+            refreshed = await _refresh_heygen_avatars_cache(sync_timeout=90.0)
+            if refreshed:
+                logger.info("HeyGen avatars cache refreshed from upstream on startup")
+            elif not loaded:
+                logger.warning(
+                    "HeyGen avatars cache could not be warmed (no DB cache + upstream failed). "
+                    "First user request may trigger a slow live fetch."
+                )
+        except Exception as e:
+            logger.warning(f"HeyGen avatars cache warm-up failed (non-fatal): {e}")
+
+    asyncio.create_task(_warm())
+    logger.info("HeyGen avatars cache warm-up scheduled in background")
+
+
+
+
+@app.on_event("startup")
 async def startup_clear_brand_library_overlays():
     """One-shot migration to clear the Aesthetic-Analyzer "dark" overlay
     from slides where the background was picked from the Brand Library.

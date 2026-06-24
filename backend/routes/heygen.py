@@ -13,8 +13,8 @@ import logging
 
 from routes.deps import (
     db, now_utc, HEYGEN_API_KEY, HEYGEN_BASE_URL, HEYGEN_HEADERS,
-    heygen_credits_cache, heygen_sse_subscribers, PROJECTS_DIR, STORAGE_DIR,
-    get_project_by_id
+    heygen_credits_cache, heygen_avatars_cache, heygen_sse_subscribers,
+    PROJECTS_DIR, STORAGE_DIR, get_project_by_id
 )
 from routes.auth import require_agent_access, get_current_user
 import base64
@@ -51,7 +51,7 @@ async def heygen_request(
             except httpx.RequestError as e:
                 logger.warning(
                     "heygen_request network error attempt=%d url=%s err=%s",
-                    attempt, url, e,
+                    attempt, url, repr(e),
                 )
                 if attempt == max_attempts:
                     raise
@@ -79,49 +79,223 @@ async def heygen_request(
     return last_resp
 
 
+async def _refresh_heygen_avatars_cache(*, sync_timeout: float = 90.0) -> bool:
+    """Fetch /v2/avatars from HeyGen with a long timeout, update the RAM
+    cache and persist to MongoDB. Returns True on success.
+
+    The HeyGen `/v2/avatars` endpoint can take ~60s+ to respond (large
+    payload + Cloudflare on the way). Browsers/gateways won't wait that
+    long, so this runs:
+      - Once on server startup (background task)
+      - Periodically (every 30 min) via background task
+      - On-demand when cache is stale AND we serve stale to the user
+
+    Persisting to Mongo lets us survive pod restarts without a 60s+ cold
+    request on the user's first call.
+    """
+    if not HEYGEN_API_KEY:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=sync_timeout) as client:
+            response = await client.get(
+                f"{HEYGEN_BASE_URL}/v2/avatars",
+                headers=HEYGEN_HEADERS,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "Background HeyGen avatars refresh got status=%d body=%s",
+                    response.status_code, response.text[:200],
+                )
+                return False
+            data = response.json()
+            raw_avatars = data.get("data", {}).get("avatars", [])
+            heygen_avatars_cache["data"] = raw_avatars
+            heygen_avatars_cache["timestamp"] = datetime.now(timezone.utc)
+            logger.info(
+                "Background HeyGen avatars refresh OK: %d avatars cached",
+                len(raw_avatars),
+            )
+            # Persist to MongoDB so the cache survives pod restarts.
+            if db is not None:
+                try:
+                    await db.heygen_cache.update_one(
+                        {"_id": "avatars"},
+                        {"$set": {
+                            "data": raw_avatars,
+                            "timestamp": heygen_avatars_cache["timestamp"].isoformat(),
+                            "count": len(raw_avatars),
+                        }},
+                        upsert=True,
+                    )
+                except Exception as db_exc:
+                    logger.warning(f"Failed to persist HeyGen avatars cache to DB: {db_exc}")
+            return True
+    except Exception as e:
+        logger.warning(f"Background HeyGen avatars refresh failed: {type(e).__name__}: {e!r}")
+        return False
+
+
+async def _load_heygen_avatars_cache_from_db() -> bool:
+    """If RAM cache is empty, try to seed it from MongoDB. Returns True if
+    we loaded something usable."""
+    if heygen_avatars_cache["data"] is not None:
+        return True
+    if db is None:
+        return False
+    try:
+        doc = await db.heygen_cache.find_one({"_id": "avatars"})
+        if not doc or not doc.get("data"):
+            return False
+        heygen_avatars_cache["data"] = doc["data"]
+        ts_str = doc.get("timestamp")
+        if ts_str:
+            try:
+                heygen_avatars_cache["timestamp"] = datetime.fromisoformat(ts_str)
+            except Exception:
+                heygen_avatars_cache["timestamp"] = datetime.now(timezone.utc)
+        else:
+            heygen_avatars_cache["timestamp"] = datetime.now(timezone.utc)
+        logger.info(
+            "Loaded HeyGen avatars cache from DB: %d avatars (ts=%s)",
+            len(doc["data"]), ts_str,
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to load HeyGen avatars cache from DB: {e}")
+        return False
+
+
 @router.get("/heygen/avatars")
-async def list_heygen_avatars(limit: int = 200, gender: Optional[str] = None):
-    """List available HeyGen avatars with optional gender filter"""
+async def list_heygen_avatars(limit: int = 200, gender: Optional[str] = None, force_refresh: bool = False):
+    """List available HeyGen avatars with optional gender filter.
+
+    The HeyGen `/v2/avatars` endpoint is large (~500KB) and takes ~60s+ to
+    respond — that exceeds the 60s gateway timeout, surfacing as 502/500 on
+    the frontend ("Error loading HeyGen data").
+
+    Mitigations:
+      1. **In-memory + MongoDB cache** of the raw avatar list (TTL 30 min).
+         Subsequent calls — including different gender filters — are served
+         instantly from cache.
+      2. **Background refresh on startup + periodic** keeps the cache warm
+         even if HeyGen is slow, so end users never wait for the upstream.
+      3. **Stale-while-revalidate**: if cache is older than TTL we still
+         return it and trigger a background refresh; we only block on a
+         live fetch when there is no cached data at all (cold pod after a
+         long outage).
+      4. **Tight on-demand budget** (1 attempt × 22s) if a live fetch is
+         truly needed, well under the 60s gateway cap.
+    """
     if not HEYGEN_API_KEY:
         raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-    
-    try:
-        response = await heygen_request(
-            "GET", f"{HEYGEN_BASE_URL}/v2/avatars",
+
+    # 1. Seed from DB if RAM cache is empty (handles pod restarts)
+    if heygen_avatars_cache["data"] is None:
+        await _load_heygen_avatars_cache_from_db()
+
+    cached_avatars: Optional[List[Dict[str, Any]]] = None
+    cache_is_fresh = False
+    if heygen_avatars_cache["data"] is not None and heygen_avatars_cache["timestamp"] is not None:
+        cache_age = (datetime.now(timezone.utc) - heygen_avatars_cache["timestamp"]).total_seconds()
+        if cache_age < heygen_avatars_cache["ttl"]:
+            cache_is_fresh = True
+        cached_avatars = heygen_avatars_cache["data"]
+        logger.info(
+            "HeyGen avatars cache HIT (age: %.1fs, fresh=%s, count=%d, force_refresh=%s)",
+            cache_age, cache_is_fresh, len(cached_avatars), force_refresh,
         )
-        if response.status_code != 200:
-            logger.error(f"HeyGen avatars error: {response.status_code} - {response.text[:200]}")
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch avatars from HeyGen")
 
-        data = response.json()
-        avatars = data.get("data", {}).get("avatars", [])
+    raw_avatars: Optional[List[Dict[str, Any]]] = cached_avatars
 
-        # Filter by gender if specified
-        if gender and gender.lower() != 'all':
-            avatars = [a for a in avatars if a.get("gender", "").lower() == gender.lower()]
+    # 2. If user explicitly forced refresh OR no cache at all, do a live fetch
+    must_block_on_fetch = force_refresh or raw_avatars is None
+    served_stale = False
 
-        # Format avatars for frontend
-        formatted_avatars = []
-        for avatar in avatars[:limit]:
-            formatted_avatars.append({
-                "avatar_id": avatar.get("avatar_id"),
-                "avatar_name": avatar.get("avatar_name"),
-                "preview_image_url": avatar.get("preview_image_url"),
-                "preview_video_url": avatar.get("preview_video_url"),
-                "gender": avatar.get("gender"),
-            })
+    if not cache_is_fresh and not force_refresh and raw_avatars is not None:
+        # Stale-while-revalidate: serve stale, refresh in background
+        asyncio.create_task(_refresh_heygen_avatars_cache())
 
-        # Get unique genders for filter options
-        all_genders = list(set(a.get("gender", "unknown") for a in data.get("data", {}).get("avatars", []) if a.get("gender")))
+    if must_block_on_fetch:
+        try:
+            response = await heygen_request(
+                "GET", f"{HEYGEN_BASE_URL}/v2/avatars",
+                timeout=22.0, max_attempts=1,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                raw_avatars = data.get("data", {}).get("avatars", [])
+                heygen_avatars_cache["data"] = raw_avatars
+                heygen_avatars_cache["timestamp"] = datetime.now(timezone.utc)
+                logger.info(f"Refreshed HeyGen avatars cache ({len(raw_avatars)} avatars)")
+                # Persist async (best effort)
+                if db is not None:
+                    try:
+                        await db.heygen_cache.update_one(
+                            {"_id": "avatars"},
+                            {"$set": {
+                                "data": raw_avatars,
+                                "timestamp": heygen_avatars_cache["timestamp"].isoformat(),
+                                "count": len(raw_avatars),
+                            }},
+                            upsert=True,
+                        )
+                    except Exception as db_exc:
+                        logger.warning(f"Failed to persist HeyGen avatars cache to DB: {db_exc}")
+            else:
+                logger.error(f"HeyGen avatars error: {response.status_code} - {response.text[:200]}")
+                if cached_avatars is not None:
+                    raw_avatars = cached_avatars
+                    served_stale = True
+                    logger.warning("Serving STALE HeyGen avatars cache after upstream %d", response.status_code)
+                else:
+                    raise HTTPException(status_code=response.status_code, detail="Failed to fetch avatars from HeyGen")
+        except HTTPException:
+            raise
+        except (httpx.RequestError, Exception) as e:
+            if cached_avatars is not None:
+                raw_avatars = cached_avatars
+                served_stale = True
+                logger.warning(f"Serving STALE HeyGen avatars cache after network error: {type(e).__name__}: {e!r}")
+                # Kick off a background refresh so we eventually self-heal
+                asyncio.create_task(_refresh_heygen_avatars_cache())
+            else:
+                logger.error(f"HeyGen request error: {type(e).__name__}: {e!r}")
+                # No cache at all + upstream is slow → trigger a background
+                # warm-up so subsequent requests will succeed. Return 503 with
+                # a friendly message instead of letting the gateway 502.
+                asyncio.create_task(_refresh_heygen_avatars_cache())
+                raise HTTPException(
+                    status_code=503,
+                    detail="HeyGen avatar catalog is warming up. Please try again in ~1 minute.",
+                )
 
-        return {
-            "avatars": formatted_avatars,
-            "total": len(avatars),
-            "available_genders": sorted(all_genders)
-        }
-    except httpx.RequestError as e:
-        logger.error(f"HeyGen request error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to connect to HeyGen: {str(e)}")
+    avatars = list(raw_avatars or [])
+
+    # Filter by gender if specified
+    if gender and gender.lower() != 'all':
+        avatars = [a for a in avatars if a.get("gender", "").lower() == gender.lower()]
+
+    # Format avatars for frontend
+    formatted_avatars = []
+    for avatar in avatars[:limit]:
+        formatted_avatars.append({
+            "avatar_id": avatar.get("avatar_id"),
+            "avatar_name": avatar.get("avatar_name"),
+            "preview_image_url": avatar.get("preview_image_url"),
+            "preview_video_url": avatar.get("preview_video_url"),
+            "gender": avatar.get("gender"),
+        })
+
+    # Get unique genders for filter options (from the FULL list, not filtered)
+    all_genders = list(set(a.get("gender", "unknown") for a in (raw_avatars or []) if a.get("gender")))
+
+    return {
+        "avatars": formatted_avatars,
+        "total": len(avatars),
+        "available_genders": sorted(all_genders),
+        "cached": cached_avatars is not None and not force_refresh,
+        "stale": served_stale,
+    }
 
 @router.get("/heygen/voices")
 async def list_heygen_voices(language: Optional[str] = None, gender: Optional[str] = None):

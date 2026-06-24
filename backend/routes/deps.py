@@ -136,6 +136,15 @@ heygen_credits_cache: Dict[str, Any] = {
     "ttl": 60
 }
 
+# HeyGen avatars cache (avatar catalog is stable; HeyGen /v2/avatars is slow
+# and Cloudflare frequently times out our egress IP. Cache the raw response
+# for 30 minutes so subsequent requests serve instantly from RAM).
+heygen_avatars_cache: Dict[str, Any] = {
+    "data": None,      # raw `data.get("data", {}).get("avatars", [])` list
+    "timestamp": None, # datetime
+    "ttl": 1800        # 30 minutes
+}
+
 # SSE Event Store for HeyGen webhook notifications
 heygen_sse_subscribers: Dict[str, List[asyncio.Queue]] = {}
 

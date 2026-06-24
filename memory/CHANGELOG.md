@@ -1,6 +1,41 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix produção: /api/heygen/avatars retornando 500/502 — cache + warmup)
+
+### Sintoma
+- Em produção (`backend-startup.emergent.host`), `GET /api/heygen/avatars` retornava **500** no F12 ao abrir o seletor de avatar HeyGen. UI exibia "Error loading HeyGen data".
+
+### Causa raiz
+- A API HeyGen `/v2/avatars` está respondendo em **~60-63s** (payload de ~514KB, 1282 avatars) — acima do timeout do gateway (60s). Resultado: gateway corta a conexão com **502 Bad Gateway** mesmo antes do nosso código terminar. Reproduzido em preview também: o request travava em `ReadTimeout` consistente.
+- `/v2/voices` funciona em ~0.7s — então não é problema de API key nem rede genérica, é específico do endpoint `/v2/avatars` que está lento desde o lado do HeyGen.
+
+### Implementação
+- **`routes/deps.py`**: novo `heygen_avatars_cache` (TTL 30min, in-memory).
+- **`routes/heygen.py`**:
+  - Nova função `_refresh_heygen_avatars_cache(sync_timeout=90.0)` — busca da HeyGen com timeout longo, atualiza cache RAM + persiste no MongoDB (`db.heygen_cache._id="avatars"`).
+  - Nova função `_load_heygen_avatars_cache_from_db()` — popula RAM do MongoDB no cold start (resiliente a restart do pod).
+  - `GET /heygen/avatars` totalmente reescrito com estratégia **stale-while-revalidate**:
+    1. Se RAM vazio, tenta carregar do Mongo.
+    2. Se cache fresco → retorna instantâneo (~0.13s).
+    3. Se cache stale → retorna stale + dispara refresh em background.
+    4. Se cache totalmente ausente → tenta fetch live com **22s × 1 attempt** (cabe no gateway). Se falhar → 503 amigável ("HeyGen avatar catalog is warming up. Please try again in ~1 minute.") em vez de 502/500.
+  - Novo query param `force_refresh=true` para invalidar manualmente.
+- **`server.py`**: novo `startup_warm_heygen_avatars_cache()` — agendado em background na startup. Faz `load DB → refresh upstream` para que o primeiro request do usuário sempre encontre cache pronto.
+
+### Verificação
+- **Pytest** `tests/test_heygen_avatars_cache.py` (6/6 PASSED): cold cache + timeout retorna 503 amigável; cache fresco serve instantâneo sem chamar upstream; cache stale + upstream off serve stale; filtro de gender funciona em cache; `force_refresh=true` bypassa cache; API key ausente retorna 500 imediato.
+- **End-to-end preview**:
+  - Cold (cache vazio): `503` em 22s com mensagem "warming up" ✓
+  - Após 90s (background warmup populou): `200` em **0.13s**, 1282 avatars, `cached:true, stale:false` ✓
+  - MongoDB persistido: `{_id:"avatars", count:1282, timestamp:"2026-06-24T15:10:58Z"}` ✓
+
+### Ação necessária do usuário em produção
+- **Deploy** desta correção: o usuário precisa pegar essa branch e redeployar o backend de produção. Após o deploy, na primeira startup o cache vai ser populado em ~60s no background; após isso, todas as requisições retornam instantaneamente.
+- Se HeyGen continuar lento e o cache de produção estiver vazio no momento do deploy, o usuário verá 503 "warming up" por ~1 minuto, depois passa a funcionar normalmente.
+
+
+
 ## 2026-02-XX (Feature: Toggle "Fundo Transparente" no Quiz — Exporters)
 
 ### Pedido / Contexto
