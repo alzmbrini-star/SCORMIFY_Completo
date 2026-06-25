@@ -14,7 +14,7 @@
 - [x] **Video Export Production Fix**: POST returns instantly, all heavy work in background (2026-03-27)
 - [x] **PPT Import populating Presenter Notes** (2026-02): body text now falls back into `slide.notes` when PPT has no presenter notes; `extractedText` field declared on `Slide` model
 - [ ] **User verification**: Image generation with 23+ slides
-- [ ] **Production OOM 502 on Whiteboard** — code optimized (Semaphore + GC), BLOCKED awaiting Emergent Support pod memory scale-up (ticket aberto pelo usuário)
+- [ ] **Production OOM 502/520 on Whiteboard AND HTML export** — code já otimizado (Semaphore + GC + cache HeyGen), BLOCKED aguardando Suporte Emergent escalar memória do pod (ticket aberto pelo usuário). HTML export confirmado em 2026-06-25 também é vítima do mesmo limite de memória — SCORM continua funcionando normal.
 
 ## P1 - High Priority
 - [ ] SCORM 2004 & xAPI Export (detailed performance data to LMS)
