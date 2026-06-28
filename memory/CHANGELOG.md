@@ -1,6 +1,38 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Whiteboard ignorava "Mão Realista" no modo AI plan)
+
+### Sintoma
+- Mesmo selecionando "Mão realista" (`hand_real`) no dropdown da WhiteboardDialog, o vídeo final usava a caneta minimalista padrão.
+
+### Causa raiz (3 camadas)
+1. **`whiteboard_plan_renderer.py`** (modo AI plan): hard-coded em `HAND_PATH` (que é alias para `hand.png`/caneta). Ignorava completamente a escolha do usuário.
+2. **`routes/whiteboard.py`** (`WhiteboardPlanRenderRequest`): modelo Pydantic não declarava o campo `tool`, então mesmo que o frontend mandasse, era descartado.
+3. **`WhiteboardDialog.jsx`** (`handleRenderFromPlan`): body do POST `/generate-from-plan` não incluía `tool`. O modo "texto direto" (`/generate`) já estava correto.
+
+### Implementação
+- **`whiteboard_plan_renderer.py`**:
+  - Importa `_resolve_tool` (substitui imports `HAND_PATH`, `HAND_OFFSET_X/Y`).
+  - `render_whiteboard_plan` agora aceita `tool: Optional[str]` e resolve via `_resolve_tool(tool)` — pega `path`, `offset_x`, `offset_y` do `TOOL_PROFILES`.
+  - `hand_offset_x/y` threaded através de `_compose_frame`, `_frame_iter`, `_write_apng_plan` e `_write_mp4_plan`.
+- **`routes/whiteboard.py`**:
+  - `WhiteboardPlanRenderRequest` ganhou `tool: Optional[str] = Field(default="pen", pattern="^(pen|hand|hand_real)$")` (mesma validação do `/generate`).
+  - `_do_plan_render` passa `tool=payload.tool` para o renderer.
+  - **Bônus segurança**: `POST /generate-from-plan` agora requer `Depends(require_auth)` — antes era público (sinalizado pelo testing agent como divergência da posture de `/generate`).
+- **`WhiteboardDialog.jsx`**:
+  - `handleRenderFromPlan` agora envia `tool: tool || 'pen'` no body, idêntico ao `handleGenerate` direto.
+
+### Verificação
+- **Testing agent (`iteration_124.json`)**: **9/9 testes PASSED** em 16.28s. Cobre: aceitação dos 3 tools (`pen`/`hand`/`hand_real`) com renders MP4 não-vazios; rejeição 422 para `tool=banana`; backward-compat sem `tool` (default `pen`); regressão no `/generate` para os 3 tools; catalog `GET /tools` lista os 3.
+- **Verificação manual da hardening de auth**: `POST /generate-from-plan` sem token → `401 {"detail":"Not authenticated"}`. Com token → `200` com `jobId`.
+
+### Observações de code review do testing agent (pre-existentes, não bloqueantes)
+- Considerar `Literal['pen','hand','hand_real']` em vez de `pattern=` regex para schema OpenAPI mais limpo.
+- Default 'pen' está duplicado em 4 lugares — vale centralizar em `TOOL_PROFILES`.
+
+
+
 ## 2026-02-XX (Bugfix produção: /api/heygen/avatars retornando 500/502 — cache + warmup)
 
 ### Sintoma

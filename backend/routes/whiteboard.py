@@ -568,12 +568,17 @@ class WhiteboardPlanRenderRequest(BaseModel):
 
 
 @router.post("/generate-from-plan")
-async def generate_from_plan(payload: WhiteboardPlanRenderRequest):
+async def generate_from_plan(
+    payload: WhiteboardPlanRenderRequest,
+    user: dict = Depends(require_auth),
+):
     """Async job to render a Whiteboard from a confirmed plan.
 
     Identical lifecycle to /generate (returns jobId, frontend polls
     /job/{id}) but the worker calls the plan-based renderer instead of
-    the text-only one."""
+    the text-only one. Requires auth — same posture as /generate (this
+    endpoint allocates a heavy render slot and writes files to disk).
+    """
     plan = payload.plan or {}
     ops = plan.get("ops") or []
     if not ops:
