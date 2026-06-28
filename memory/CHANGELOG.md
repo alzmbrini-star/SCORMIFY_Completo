@@ -1,6 +1,32 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Whiteboard AI gerava bullets gigantes em listas coloridas)
+
+### Sintoma
+- Usuário pediu "bullets com cores diferentes para cada item" → AI gerou 5 ovais ENORMES (~150×80px cada) empilhados verticalmente, dwarfando os textos. Print mostra 5 elipses sobrepostas: vermelho, azul, verde, laranja, roxo — todas grandes, com os textos minúsculos ao lado.
+
+### Causa raiz (multi-camada)
+1. **Prompt sem conceito de "bullet"**: o LLM via o request como "envolver cada item em um círculo" e usava `rx=200, ry=80` ao invés de marcadores pequenos.
+2. **`_autofit_shapes` inflando bullets**: ao matchear texto + círculo (vertical_match com PAD=40), expandia bullets de 16px pra envolver os textos — virando os ovais gigantes.
+3. **`_normalize_plan` com clamp mínimo de 20px** em rx/ry — impedia o AI de gerar bullets realmente pequenos mesmo se quisesse.
+4. **`_clamp_shapes_to_canvas` re-inflando** com `max(20, op["rx"])`.
+
+### Implementação (4 cirúrgicas em `whiteboard_ai_plan.py`)
+- **Prompt update**: nova seção explícita "BULLETS / MARCADORES DE LISTA" instruindo o AI a usar `circle` MUITO PEQUENO (rx=ry entre **12 e 22 px**) à ESQUERDA do texto correspondente, com exemplo concreto.
+- **Guard em `_autofit_shapes`**: se `rx ≤ 25 AND ry ≤ 25`, `continue` — pula completamente a expansão. Bullets ficam intocados; círculos grandes (enclosing) continuam expandindo normalmente.
+- **`_normalize_plan`** clamp mínimo rx/ry: **20 → 10**, permitindo bullets de 10px se o AI escolher.
+- **`_clamp_shapes_to_canvas`** mínimo idem: **20 → 10**.
+
+### Verificação (`/app/test_reports/iteration_125.json`)
+- **testing_agent_v3_fork: 9/9 PASSED** — guard preserva bullets (rx=16 → fica em 16); círculos grandes ainda crescem (100→531 para envolver "Resultado Importante"); clamp aceita rx=10; SYSTEM_PROMPT contém a guidance esperada; pipeline completo (_cap_text → _autofit → _clamp → _enforce_separation) preserva tamanhos; render end-to-end com `tool=hand_real` + bullet produz MP4 não-vazio.
+
+### Observações pre-existentes do testing agent
+- `whiteboard_ai_plan.py` chegou a 583 linhas — considerar split em `whiteboard_plan_postprocess.py` no próximo ciclo (não bloqueante).
+- O 25px é magic number — vale extrair para `BULLET_RADIUS_THRESHOLD = 25` em refactor futuro.
+
+
+
 ## 2026-02-XX (Bugfix: Whiteboard ignorava "Mão Realista" no modo AI plan)
 
 ### Sintoma
