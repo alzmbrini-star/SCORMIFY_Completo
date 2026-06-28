@@ -54,6 +54,16 @@ TIPOS DE OPERAÇÃO PERMITIDOS:
 2. {"type": "circle", "cx": <int>, "cy": <int>, "rx": <int>, "ry": <int>, "color": "<#hex|nome>", "width": <int 4-10>}
    - Elipse com centro (cx,cy) e raios rx,ry. Para círculo perfeito use rx==ry.
    - Use principalmente para CIRCULAR palavras-chave dentro do texto.
+   - **BULLETS / MARCADORES DE LISTA**: quando o autor pedir "bullets",
+     "itens", "marcadores", "lista colorida" ou similar, use circle MUITO
+     PEQUENO (rx=ry entre **12 e 22 px**) posicionado à ESQUERDA do
+     texto correspondente (gap horizontal ~30-50px). NUNCA use um circle
+     grande tentando "envolver" cada item de lista — o efeito visual fica
+     poluído e os círculos se sobrepõem. O bullet é um marcador discreto,
+     não uma moldura.
+     Exemplo: para um item "Compatível com LMS" em (x=300, y=400, font_size=60),
+     o bullet correspondente seria:
+       {"type": "circle", "cx": 250, "cy": 420, "rx": 16, "ry": 16, "color": "#dc2626", "width": 6}
 
 3. {"type": "rectangle", "x": <int>, "y": <int>, "w": <int>, "h": <int>, "color": "<#hex|nome>", "width": <int 4-10>}
    - Retângulo com canto superior-esquerdo (x,y) e largura/altura.
@@ -325,8 +335,10 @@ def _clamp_shapes_to_canvas(plan: dict) -> dict:
             # Pull centers in if the ellipse would extend off-canvas.
             op["rx"] = min(op["rx"], min(op["cx"], CANVAS_W - op["cx"]))
             op["ry"] = min(op["ry"], min(op["cy"], CANVAS_H - op["cy"]))
-            op["rx"] = max(20, op["rx"])
-            op["ry"] = max(20, op["ry"])
+            # Min 10px (was 20) so bullets / small markers survive the
+            # clamp without being inflated.
+            op["rx"] = max(10, op["rx"])
+            op["ry"] = max(10, op["ry"])
     return plan
 
 
@@ -415,6 +427,15 @@ def _autofit_shapes(plan: dict) -> dict:
         elif t == "circle":
             cx, cy = op["cx"], op["cy"]
             rx, ry = op["rx"], op["ry"]
+            # GUARD: Small circles (≤25px both radii) are bullets / list
+            # markers / decorative dots — they should NEVER grow to
+            # "enclose" nearby text. Without this guard, the autofit
+            # would balloon a tiny 16x16 bullet up to 200x80 to wrap
+            # around the item's text label, producing huge overlapping
+            # ovals stacked vertically (the exact bug from the user
+            # screenshot 2026-02).
+            if rx <= 25 and ry <= 25:
+                continue
             # Ellipse bbox.
             bx0, by0, bx1, by1 = cx - rx, cy - ry, cx + rx, cy + ry
             for tb in text_boxes:
@@ -509,8 +530,11 @@ def _normalize_plan(
             cleaned.update({
                 "cx": _clamp_int(op.get("cx"), 0, CANVAS_W),
                 "cy": _clamp_int(op.get("cy"), 0, CANVAS_H),
-                "rx": _clamp_int(op.get("rx", 80), 20, CANVAS_W // 2),
-                "ry": _clamp_int(op.get("ry", op.get("rx", 80)), 20, CANVAS_H // 2),
+                # Min radius lowered from 20 → 10 so the AI can output
+                # tiny bullets / list markers without the clamp forcing
+                # them to grow.
+                "rx": _clamp_int(op.get("rx", 80), 10, CANVAS_W // 2),
+                "ry": _clamp_int(op.get("ry", op.get("rx", 80)), 10, CANVAS_H // 2),
                 "width": _clamp_int(op.get("width", 6), 3, 12),
             })
         elif t == "rectangle":

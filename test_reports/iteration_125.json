@@ -1,0 +1,32 @@
+{
+  "summary": "Backend regression tests for whiteboard bullet-sizing fix. Created /app/backend/tests/test_whiteboard_bullet_sizing.py with 9 tests covering: (a) _autofit_shapes guard skipping small bullets (rx<=25 AND ry<=25); (b) large enclosing circles still grow correctly (100→531 rx); (c) _normalize_plan clamp lowered to 10 (rx=10 stays at 10, rx=5 clamped up to 10); (d) _clamp_shapes_to_canvas keeps bullets at 16px; (e) SYSTEM_PROMPT contains 'BULLETS / MARCADORES' and 'rx=ry entre **12 e 22 px**'; (f) full pipeline (_cap_text_font_to_zone → _autofit_shapes → _clamp_shapes_to_canvas → _enforce_shape_separation) on mixed bullets+container plan preserves bullet sizes AND grows container while keeping all ops; (g) end-to-end render smoke via POST /api/whiteboard/generate-from-plan with bullet (rx=16) + hand_real tool completes and returns a non-empty file. ALL 9/9 PASSED.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_whiteboard_bullet_sizing.py",
+    "/app/test_reports/pytest/whiteboard_bullet_sizing.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "whiteboard_ai_plan.py is now 583 lines — approaching the 700-line ceiling. Consider splitting the post-processing helpers (_cap_text_font_to_zone, _autofit_shapes, _clamp_shapes_to_canvas, _enforce_shape_separation, _measure_text_bbox) into a `whiteboard_plan_postprocess.py` module before the next iteration.",
+    "The 25-px threshold in _autofit_shapes is a magic number. Extracting it to a module-level constant (e.g. `BULLET_RADIUS_THRESHOLD = 25`) would make the intent self-documenting and align with the 22-px upper bound from the prompt.",
+    "_normalize_plan clamps rx individually with min=10 but ry defaults to `op.get('ry', op.get('rx', 80))` — if the LLM omits ry but supplies rx=10, the fallback grabs the *raw* rx (still 10). Works today but fragile; consider taking ry default from the *clamped* rx value."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_whiteboard_bullet_sizing.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "n/a (backend-only request)"},
+  "test_credentials": "admin@scormify.com / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — all tests use synthetic plan dicts or hit the render endpoint with a tiny in-memory plan.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_whiteboard_bullet_sizing.py is fully self-contained; reuse for future regressions on the AI-plan post-processing pipeline. It imports `_autofit_shapes`, `_clamp_shapes_to_canvas`, `_enforce_shape_separation`, `_cap_text_font_to_zone`, `_normalize_plan`, `SYSTEM_PROMPT` from services.whiteboard_ai_plan. The end-to-end render call uses /api/whiteboard/generate-from-plan + /api/job/{id} polling (same lifecycle as test_whiteboard_tool_propagation.py).",
+  "rca of the issue": "Confirmed: the four-layer fix (prompt guidance + 25-px guard in _autofit_shapes + clamp min lowered from 20→10 in both _normalize_plan and _clamp_shapes_to_canvas) correctly preserves small bullet markers throughout the pipeline. Bullet at rx=16 ry=16 stays at 16x16 after the full chain. The large-enclosing-circle case is also intact: a 100x50 circle around 'Resultado Importante' (font 80) grows to rx=531 ry=116, comfortably enclosing the text."
+}

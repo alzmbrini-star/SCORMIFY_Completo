@@ -192,3 +192,4 @@ credentials.json
 .env
 .env.*
 *.env
+backend/storage/whiteboard/wb_02fba196e84c.png
