@@ -1,0 +1,35 @@
+{
+  "summary": "Verified the 3-layer fix for the Whiteboard 'Mão realista' tool propagation bug on the AI-plan render path. Created /app/backend/tests/test_whiteboard_tool_propagation.py with 9 regression tests covering: (a) POST /api/whiteboard/generate-from-plan accepts and propagates `tool` for all three values (pen, hand, hand_real) and produces non-empty MP4 files; (b) invalid tool values are rejected with HTTP 422; (c) backward-compat — request body without `tool` still works and defaults to 'pen'; (d) regression smoke on the text-only POST /api/whiteboard/generate for all three tools; (e) GET /api/whiteboard/tools catalog lists pen, hand and hand_real. All 9 tests passed in 16.28s. Frontend testing was explicitly out of scope per the request (testing_type: backend only).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_whiteboard_tool_propagation.py",
+    "/app/test_reports/pytest/whiteboard_tool_propagation.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Inconsistency: POST /api/whiteboard/generate requires `Depends(require_auth)` while POST /api/whiteboard/generate-from-plan does NOT. The AI-plan render path is therefore publicly callable (a paid-render endpoint that allocates a render slot and writes files to disk). Add `Depends(require_auth)` to `generate_from_plan` and `_run_whiteboard_plan_job` callers to match the auth posture of /generate.",
+    "The `tool` Pydantic Field uses `pattern=` regex validation — works, but consider switching to a `Literal['pen','hand','hand_real']` for clearer OpenAPI/schema docs and to avoid divergence between the two routes when a new tool is added.",
+    "Default tool value 'pen' is duplicated across WhiteboardGenerateRequest, WhiteboardPlanRenderRequest, the renderer signatures and the frontend body — consider centralizing the default + valid set in services/whiteboard_renderer.TOOL_PROFILES so adding a new tool only requires one edit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_whiteboard_tool_propagation.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (out of scope)"
+  },
+  "test_credentials": "admin@scormify.com / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "none — tests submit ephemeral tiny plans (one text op 'hi'); render output files land in /app/backend/storage/whiteboard/ but are harmless (wb_plan_*.mp4, ~7-9KB each, served by the existing file endpoint).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend whiteboard render endpoints honor the `tool` field on BOTH /api/whiteboard/generate and /api/whiteboard/generate-from-plan. Renders are serialized via a Semaphore(1) — only 1 concurrent render per worker; tests with multiple renders must poll-and-wait. Tiny plan {'ops':[{'type':'text','text':'hi','x':100,'y':100,'font_size':80}]} renders in ~2s. The new test file is parametrized for [pen, hand, hand_real] on both routes so adding a 4th tool only needs the parametrize list + asset to be updated. NOTE: /generate-from-plan does NOT require auth (see code-review comment) — main agent may want to fix.",
+  "rca of the issue": "Already fixed by main agent in 3 places (renderer hardcoded HAND_PATH, missing `tool` on WhiteboardPlanRenderRequest, frontend body missing `tool`). This iteration only validated the fix end-to-end via API."
+}

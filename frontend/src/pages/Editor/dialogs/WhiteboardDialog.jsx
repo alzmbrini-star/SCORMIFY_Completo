@@ -374,6 +374,7 @@ export default function WhiteboardDialog({
           fontFamily: fontFamily || null,
           transparent: Boolean(transparent),
           title: title.trim() || null,
+          tool: tool || 'pen',
           projectId,
           slideId,
         }),

@@ -29,8 +29,8 @@ import numpy as np
 import imageio
 
 from .whiteboard_renderer import (
-    CANVAS_W, CANVAS_H, FPS, HAND_OFFSET_X, HAND_OFFSET_Y,
-    OUTPUT_DIR, HAND_PATH,
+    CANVAS_W, CANVAS_H, FPS,
+    OUTPUT_DIR, _resolve_tool,
     _resolve_ffmpeg_binary, _resolve_font_path,
 )
 from . import whiteboard_shapes as ws
@@ -49,11 +49,18 @@ async def render_whiteboard_plan(
     *,
     font_family: Optional[str] = None,
     transparent: bool = False,
+    tool: Optional[str] = None,
 ) -> tuple[str, dict]:
     """Render the plan and return (relative URL, metadata dict).
 
     Mirrors the contract of `render_whiteboard_video` so the route
-    layer can swap between the two transparently."""
+    layer can swap between the two transparently.
+
+    `tool` picks the drawing implement: "pen" (default minimalist pen),
+    "hand" (cartoon hand holding a pen) or "hand_real" (photo of a
+    real hand in HD). Falls back to "pen" if the requested asset is
+    missing on disk.
+    """
     ops = plan.get("ops") or []
     if not ops:
         raise ValueError("plan has no operations")
@@ -62,13 +69,18 @@ async def render_whiteboard_plan(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Pre-cache hand sprite and font (font reused per text op).
-    hand_img = Image.open(HAND_PATH).convert("RGBA")
+    # Honor the user-selected tool (pen / hand / hand_real). Falls
+    # back silently to the default if the asset is missing on disk.
+    tool_profile = _resolve_tool(tool)
+    hand_img = Image.open(tool_profile["path"]).convert("RGBA")
     hand_target_h = 130
     hand_scale = hand_target_h / hand_img.height
     hand_img = hand_img.resize(
         (int(hand_img.width * hand_scale), hand_target_h),
         Image.Resampling.LANCZOS,
     )
+    hand_offset_x = tool_profile["offset_x"]
+    hand_offset_y = tool_profile["offset_y"]
 
     font_path = _resolve_font_path(font_family)
 
@@ -99,11 +111,13 @@ async def render_whiteboard_plan(
         await asyncio.to_thread(
             _write_apng_plan,
             out_path, op_specs, accumulator, hand_img,
+            hand_offset_x, hand_offset_y,
         )
     else:
         await asyncio.to_thread(
             _write_mp4_plan,
             out_path, op_specs, accumulator, hand_img,
+            hand_offset_x, hand_offset_y,
         )
 
     file_size = out_path.stat().st_size if out_path.exists() else 0
@@ -184,6 +198,8 @@ def _compose_frame(
     op_spec: dict,
     progress: float,
     hand_img: Image.Image,
+    hand_offset_x: int,
+    hand_offset_y: int,
 ) -> Image.Image:
     """Build a single frame: background + already-completed ops (from
     accumulator) + the partial current op + hand sprite."""
@@ -224,8 +240,8 @@ def _compose_frame(
 
     # Place hand at pen tip.
     if pen_tip is not None:
-        tip_x = int(pen_tip[0]) + HAND_OFFSET_X
-        tip_y = int(pen_tip[1]) + HAND_OFFSET_Y
+        tip_x = int(pen_tip[0]) + hand_offset_x
+        tip_y = int(pen_tip[1]) + hand_offset_y
         frame.paste(hand_img, (tip_x, tip_y), hand_img)
 
     return frame
@@ -246,7 +262,13 @@ def _commit_op(accumulator: Image.Image, op_spec: dict) -> None:
 # ── encoders ────────────────────────────────────────────────────────
 
 
-def _frame_iter(op_specs: list, accumulator: Image.Image, hand_img: Image.Image):
+def _frame_iter(
+    op_specs: list,
+    accumulator: Image.Image,
+    hand_img: Image.Image,
+    hand_offset_x: int,
+    hand_offset_y: int,
+):
     """Yield every frame of the entire plan in chronological order.
 
     Implemented as a generator so we never hold more than one frame in
@@ -255,7 +277,10 @@ def _frame_iter(op_specs: list, accumulator: Image.Image, hand_img: Image.Image)
         n = max(1, spec["frames"])
         for i in range(n):
             progress = (i + 1) / n
-            yield _compose_frame(accumulator, spec, progress, hand_img)
+            yield _compose_frame(
+                accumulator, spec, progress, hand_img,
+                hand_offset_x, hand_offset_y,
+            )
         # Finalize this op into the accumulator before moving on.
         _commit_op(accumulator, spec)
         # Hold a few frames showing the completed state.
@@ -271,6 +296,8 @@ def _write_apng_plan(
     op_specs: list,
     accumulator: Image.Image,
     hand_img: Image.Image,
+    hand_offset_x: int,
+    hand_offset_y: int,
 ) -> None:
     ffmpeg_bin = _resolve_ffmpeg_binary()
     # `-c:v apng -f apng` forces ffmpeg to use the APNG muxer regardless
@@ -290,7 +317,7 @@ def _write_apng_plan(
         stdin=subprocess.PIPE,
     )
     try:
-        for frame in _frame_iter(op_specs, accumulator, hand_img):
+        for frame in _frame_iter(op_specs, accumulator, hand_img, hand_offset_x, hand_offset_y):
             arr = np.asarray(frame, dtype=np.uint8)
             if arr.shape[-1] == 3:
                 alpha = np.full((arr.shape[0], arr.shape[1], 1), 255, dtype=np.uint8)
@@ -307,6 +334,8 @@ def _write_mp4_plan(
     op_specs: list,
     accumulator: Image.Image,
     hand_img: Image.Image,
+    hand_offset_x: int,
+    hand_offset_y: int,
 ) -> None:
     # MP4 path uses imageio's ffmpeg writer (matches whiteboard_renderer
     # for the non-transparent case — no alpha channel).
@@ -316,7 +345,7 @@ def _write_mp4_plan(
         macro_block_size=1,
     )
     try:
-        for frame in _frame_iter(op_specs, accumulator, hand_img):
+        for frame in _frame_iter(op_specs, accumulator, hand_img, hand_offset_x, hand_offset_y):
             # Flatten alpha against white background for MP4 output.
             bg = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
             bg.paste(frame, (0, 0), frame)

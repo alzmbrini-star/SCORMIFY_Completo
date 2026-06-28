@@ -560,6 +560,11 @@ class WhiteboardPlanRenderRequest(BaseModel):
     slideId: Optional[str] = None
     # Friendly element name surfaced in the Layers panel.
     title: Optional[str] = Field(default=None, max_length=120)
+    # Drawing implement: "pen" (default minimalist pen), "hand" (cartoon)
+    # or "hand_real" (HD photo of a real hand). Matches the param on
+    # the text-only /generate route — when the user picks a tool in the
+    # WhiteboardDialog, the same choice now also applies to AI plans.
+    tool: Optional[str] = Field(default="pen", pattern="^(pen|hand|hand_real)$")
 
 
 @router.post("/generate-from-plan")
@@ -616,6 +621,7 @@ async def _do_plan_render(
             payload.plan,
             font_family=payload.fontFamily or None,
             transparent=bool(payload.transparent),
+            tool=payload.tool or "pen",
         )
     except Exception as e:
         logger.exception("whiteboard-plan render failed: %s", e)
