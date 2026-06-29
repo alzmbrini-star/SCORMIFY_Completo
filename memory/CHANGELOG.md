@@ -1,6 +1,42 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Tutor IA — Feedback persistido + Gráfico de sessão do aluno)
+
+### Pedido
+- Persistir feedback 👍/👎 do widget exportado em Mongo para análise futura.
+- Adicionar gráfico DENTRO do Tutor IA (visível para o aluno) com estatísticas da sessão dele.
+
+### Implementação
+**Backend** (`/app/backend/routes/admin.py`):
+- Novo `POST /api/tutor/feedback` PÚBLICO (sem auth — é chamado da página exportada que roda em LMS de terceiros). Body: `{sessionId, messageId, rating: 'up'|'down'|null, projectId, companyId, question, answer}`. Persiste em `tutor_feedback` Mongo collection com upsert keyed em `(sessionId, messageId)` — toggling thumbs sobrescreve em vez de criar duplicatas. `createdAt` no `$setOnInsert`, `updatedAt` em todo update.
+- `OPTIONS /api/tutor/feedback` → 204 (CORS preflight).
+- Validação: sessionId/messageId obrigatórios → 400; rating ∉ {up, down, null} → 400; JSON inválido → 400.
+- Pelos princípios de defensive design: question truncada em 1000 chars, answer em 4000.
+
+**Frontend** (`tutor.js` + `tutor.css`):
+- **Novo state**: `isStatsOpen`, `lastQuestion` (pareia com próxima resposta para contexto do feedback), `msgIdToQA` (lookup pra POST), `stats` (`{startedAt, questionTimestamps[], perSlide{}, ratings{up,down}}`).
+- **`send()`** agora registra timestamp + incrementa `stats.perSlide[currentSlideIndex]` a cada pergunta. Se a aba de stats está aberta, re-renderiza ao vivo.
+- **`rateMessage()`** agora dispara `fetch(apiUrl + '/api/tutor/feedback')` best-effort (try/catch + .catch silencioso + `keepalive:true` pra sobreviver navegação) + recomputa rolling counts pro donut.
+- **Novo botão** `tutor-stats-button` no header (SVG bar-chart icon, ao lado de Maximizar/Fechar). Toggle estado `active` quando aberto.
+- **Novo `tutor-stats-pane`** que substitui temporariamente `tutor-messages` (display:none) quando ativo. Conteúdo:
+  - 3 KPI tiles: total de perguntas, perguntas por minuto, total avaliações
+  - Donut SVG de % de satisfação (verde 👍/total) — só renderiza se houver ≥1 rating
+  - Bar chart SVG horizontal de perguntas por slide (top 6, gradient indigo→cyan)
+  - Empty state amigável "Faça perguntas e o gráfico aparece aqui ✨" quando perSlide é vazio
+- **API pública expandida**: `toggleStats` adicionado em `AiTutor.{}`.
+
+### Verificação (`testing_agent_v3_fork` → `iteration_127.json`)
+- **Backend 100% (9/9 pytest)**: happy path POST persiste em Mongo, upsert por (sessionId, messageId), rating=null limpa, todas as 4 validações 400 com mensagens corretas, OPTIONS 204, HTML export inlinea todos os 5 marcadores novos (`tutor-stats-button`, `data-testid="tutor-stats-pane"`, `toggleStats`, `/api/tutor/feedback`, `tutor-stats-bar-chart`).
+- **Frontend 100% (Playwright em `/tutor_test/` harness)**: stats button visível, toggle mostra pane + esconde messages, empty state renderiza com 0 perguntas, segundo clique restaura, `rateMessage()` dispara POST com payload esperado, todos os 12 testids de regressão da iteration 126 ainda presentes.
+
+### Observações pre-existentes (não bloqueante)
+- `tutor_feedback` Mongo não tem índice composto declarado em código — admin migration recomendada quando escalar.
+- Endpoint é público por design (LMS context). Recomendação OOO: rate-limit no gateway.
+- `companyId` do config pode chegar vazio do exporter — backend grava `null` sem erro.
+
+
+
 ## 2026-02-XX (Feature: Tutor IA com botão Maximizar (modal blur) + ações de mensagem)
 
 ### Pedido
