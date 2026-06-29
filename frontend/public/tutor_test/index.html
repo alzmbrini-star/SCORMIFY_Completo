@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tutor IA Test Harness</title>
+<link rel="stylesheet" href="tutor.css">
+<style>body{margin:0;background:#0b1020;color:#e2e8f0;font-family:-apple-system,sans-serif;padding:24px;}h1{margin:0;font-size:18px}</style>
+</head>
+<body>
+<h1>Tutor IA Maximize/Actions Test Harness</h1>
+<p>This standalone harness loads the production tutor.js + tutor.css used by exported courses.</p>
+<script src="tutor.js"></script>
+<script>
+AiTutor.init({
+  enabled: true,
+  cssInlined: true,
+  tutorName: 'Tutor IA',
+  courseTopic: 'Curso de Teste',
+  apiUrl: 'http://localhost-disabled',
+  messageLimit: 50,
+  suggestedQuestions: ['Pergunta 1','Pergunta 2'],
+  slideContexts: ['Conteudo slide 1']
+});
+</script>
+</body>
+</html>
