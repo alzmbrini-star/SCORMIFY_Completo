@@ -1,7 +1,7 @@
 """Admin settings, reports and AI tutor routes"""
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse, Response
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import uuid
 import os
@@ -604,4 +604,111 @@ async def get_tutor_course_detail(project_id: str, request: Request, user: dict 
         "uniqueQuestions": len(question_counts),
         "topQuestions": top_questions[:30],
         "recentLogs": logs[:50],
+    }
+
+
+
+@router.get("/admin/tutor/feedback-stats")
+async def get_tutor_feedback_stats(
+    projectId: Optional[str] = None,
+    limit: int = 10,
+    user: dict = Depends(require_auth),
+):
+    """Aggregate 👍/👎 feedback from exported courses' Tutor IA widgets.
+
+    Authoring tool for course authors: shows where students are flagging
+    answers as bad so the author can refine the systemPrompt or the slide
+    content for that area.
+
+    - Super admin: can query any project (or all if no projectId)
+    - Company admin: limited to projects owned by their company
+    - `limit` caps the size of the topNegative + topPositive arrays.
+    Returns 0-counts gracefully if no feedback exists yet.
+    """
+    role = user.get("role")
+    company_id = user.get("companyId")
+    if role not in ("super_admin", "company_admin"):
+        raise HTTPException(403, "Acesso negado")
+
+    match_filter: Dict[str, Any] = {}
+    if projectId:
+        match_filter["projectId"] = projectId
+    if role == "company_admin" and company_id:
+        match_filter["companyId"] = company_id
+
+    # Pull docs once and aggregate in Python — the volume per course is
+    # small enough (one row per assistant-message rating per student
+    # session) that this is simpler + cheaper than a Mongo aggregation
+    # pipeline for what we display today.
+    cursor = db.tutor_feedback.find(match_filter, {"_id": 0}).sort("updatedAt", -1)
+    docs = await cursor.to_list(length=5000)
+
+    up_total = 0
+    down_total = 0
+    # Group by `question` text so we can rank "questions whose answer is
+    # consistently rated down" (the author's most actionable signal).
+    by_question: Dict[str, Dict[str, Any]] = {}
+    for d in docs:
+        rating = d.get("rating")
+        if rating == "up":
+            up_total += 1
+        elif rating == "down":
+            down_total += 1
+        # nulls (cleared ratings) are excluded from both totals — student
+        # explicitly removed their opinion.
+
+        q = (d.get("question") or "").strip()
+        if not q:
+            continue
+        key = q[:200].lower()
+        bucket = by_question.setdefault(key, {
+            "question": q[:200],
+            "lastAnswer": "",
+            "up": 0, "down": 0, "lastRatedAt": None,
+        })
+        if rating == "up":
+            bucket["up"] += 1
+        elif rating == "down":
+            bucket["down"] += 1
+        # Track the most recent answer + timestamp for context.
+        ts = d.get("updatedAt") or d.get("createdAt")
+        if ts and (bucket["lastRatedAt"] is None or ts > bucket["lastRatedAt"]):
+            bucket["lastRatedAt"] = ts
+            bucket["lastAnswer"] = (d.get("answer") or "")[:500]
+
+    questions = list(by_question.values())
+    top_negative = sorted(
+        [q for q in questions if q["down"] > 0],
+        key=lambda q: (-q["down"], -q["up"]),
+    )[:limit]
+    top_positive = sorted(
+        [q for q in questions if q["up"] > 0],
+        key=lambda q: (-q["up"], -q["down"]),
+    )[:limit]
+
+    rated_total = up_total + down_total
+    satisfaction_pct = round((up_total / rated_total) * 100) if rated_total > 0 else None
+
+    # Recent feedback entries (last 20, regardless of rating, for the
+    # "Avaliações recentes" timeline in the UI).
+    recent = []
+    for d in docs[:20]:
+        recent.append({
+            "rating": d.get("rating"),
+            "question": (d.get("question") or "")[:200],
+            "answer": (d.get("answer") or "")[:300],
+            "updatedAt": d.get("updatedAt") or d.get("createdAt"),
+            "sessionId": (d.get("sessionId") or "")[:40],
+        })
+
+    return {
+        "projectId": projectId,
+        "scope": "course" if projectId else "all",
+        "upTotal": up_total,
+        "downTotal": down_total,
+        "ratedTotal": rated_total,
+        "satisfactionPct": satisfaction_pct,
+        "topNegative": top_negative,
+        "topPositive": top_positive,
+        "recent": recent,
     }

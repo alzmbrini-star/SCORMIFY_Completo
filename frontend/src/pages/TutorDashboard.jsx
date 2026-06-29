@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import {
   MessageSquare, BookOpen, Building2, TrendingUp, Clock,
   Loader2, ArrowLeft, RefreshCw, BarChart3, HelpCircle,
-  ChevronDown, ChevronUp, Search, Hash,
+  ChevronDown, ChevronUp, Search, Hash, ThumbsUp, ThumbsDown, Smile,
 } from 'lucide-react';
 
 const API = getApiUrl();
@@ -24,6 +24,8 @@ export default function TutorDashboard() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [expandedCompanies, setExpandedCompanies] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [feedbackStats, setFeedbackStats] = useState(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -55,6 +57,24 @@ export default function TutorDashboard() {
       toast.error('Erro ao carregar detalhes');
     }
     setLoadingDetail(false);
+    // Feedback fetched in parallel — silently empty if there are no
+    // ratings yet (most common case for fresh courses).
+    fetchFeedbackStats(projectId);
+  };
+
+  const fetchFeedbackStats = async (projectId) => {
+    setFeedbackLoading(true);
+    setFeedbackStats(null);
+    try {
+      const res = await fetch(
+        `${API}/api/admin/tutor/feedback-stats?projectId=${encodeURIComponent(projectId)}&limit=5`,
+        { headers: authHeaders() },
+      );
+      if (res.ok) setFeedbackStats(await res.json());
+    } catch {
+      /* silent — feedback is auxiliary, no toast spam */
+    }
+    setFeedbackLoading(false);
   };
 
   const toggleCompany = (name) => {
@@ -66,7 +86,7 @@ export default function TutorDashboard() {
     return (
       <div className="space-y-6" data-testid="tutor-course-detail">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => { setSelectedCourse(null); setCourseDetail(null); }} data-testid="back-to-dashboard">
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedCourse(null); setCourseDetail(null); setFeedbackStats(null); }} data-testid="back-to-dashboard">
             <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
           </Button>
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -127,6 +147,133 @@ export default function TutorDashboard() {
               </div>
             ) : (
               <p className="text-sm text-slate-500 text-center py-4">Nenhuma pergunta registrada</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Student feedback (👍/👎) — aggregated from the in-widget
+            ratings students give to assistant answers. Shows up only if
+            there's at least one rating; until then we render a friendly
+            empty state telling the author where this data comes from. */}
+        <Card className="bg-slate-900/50 border-slate-800" data-testid="tutor-feedback-panel">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Smile className="w-4 h-4 text-emerald-400" />
+              Feedback dos Alunos
+              {feedbackLoading && <Loader2 className="w-3 h-3 ml-auto animate-spin text-slate-500" />}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!feedbackLoading && feedbackStats && feedbackStats.ratedTotal === 0 && (
+              <div className="text-center py-6 space-y-1">
+                <p className="text-sm text-slate-400" data-testid="feedback-empty-state">
+                  Ainda não há avaliações dos alunos para este curso.
+                </p>
+                <p className="text-xs text-slate-500">
+                  Após exportar e os alunos abrirem o curso, eles podem clicar em 👍 ou 👎
+                  em cada resposta do Tutor IA. Os dados aparecem aqui.
+                </p>
+              </div>
+            )}
+
+            {!feedbackLoading && feedbackStats && feedbackStats.ratedTotal > 0 && (
+              <div className="space-y-4" data-testid="feedback-stats-loaded">
+                {/* KPI tiles */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-emerald-600/10 border border-emerald-600/30 rounded-lg p-3 text-center" data-testid="kpi-thumbs-up">
+                    <div className="flex items-center justify-center gap-1 text-emerald-300">
+                      <ThumbsUp className="w-3.5 h-3.5" />
+                      <span className="text-xl font-bold">{feedbackStats.upTotal}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">positivos</p>
+                  </div>
+                  <div className="bg-rose-600/10 border border-rose-600/30 rounded-lg p-3 text-center" data-testid="kpi-thumbs-down">
+                    <div className="flex items-center justify-center gap-1 text-rose-300">
+                      <ThumbsDown className="w-3.5 h-3.5" />
+                      <span className="text-xl font-bold">{feedbackStats.downTotal}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">negativos</p>
+                  </div>
+                  <div className="bg-indigo-600/10 border border-indigo-600/30 rounded-lg p-3 text-center" data-testid="kpi-satisfaction">
+                    <div className="text-xl font-bold text-indigo-300">{feedbackStats.satisfactionPct}%</div>
+                    <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">satisfação</p>
+                  </div>
+                </div>
+
+                {/* Satisfaction bar — visual cue alongside the % tile */}
+                <div className="space-y-1">
+                  <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden flex">
+                    <div
+                      className="h-full bg-emerald-500"
+                      style={{ width: `${(feedbackStats.upTotal / feedbackStats.ratedTotal) * 100}%` }}
+                      data-testid="satisfaction-bar-positive"
+                    />
+                    <div
+                      className="h-full bg-rose-500"
+                      style={{ width: `${(feedbackStats.downTotal / feedbackStats.ratedTotal) * 100}%` }}
+                      data-testid="satisfaction-bar-negative"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 text-right">
+                    {feedbackStats.ratedTotal} {feedbackStats.ratedTotal === 1 ? 'avaliação' : 'avaliações'} no total
+                  </p>
+                </div>
+
+                {/* Top NEGATIVE questions — the actionable signal: which
+                    answers are consistently rated bad. Author should
+                    refine the systemPrompt or the slide content. */}
+                {feedbackStats.topNegative && feedbackStats.topNegative.length > 0 && (
+                  <div data-testid="top-negative-list">
+                    <h5 className="text-xs font-semibold uppercase tracking-wide text-rose-300 mb-2 flex items-center gap-1">
+                      <ThumbsDown className="w-3 h-3" /> Respostas que receberam 👎
+                    </h5>
+                    <div className="space-y-2">
+                      {feedbackStats.topNegative.map((q, i) => (
+                        <div
+                          key={`neg-${i}`}
+                          className="p-3 bg-rose-950/20 border border-rose-900/30 rounded-lg space-y-1"
+                          data-testid={`negative-item-${i}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm text-white flex-1">{q.question}</p>
+                            <Badge className="text-[10px] bg-rose-600/20 text-rose-300 shrink-0">
+                              <ThumbsDown className="w-2.5 h-2.5 mr-0.5" />{q.down}x
+                            </Badge>
+                          </div>
+                          {q.lastAnswer && (
+                            <p className="text-[11px] text-slate-400 line-clamp-2 italic">
+                              &ldquo;{q.lastAnswer}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top POSITIVE — secondary, just for completeness */}
+                {feedbackStats.topPositive && feedbackStats.topPositive.length > 0 && (
+                  <div data-testid="top-positive-list">
+                    <h5 className="text-xs font-semibold uppercase tracking-wide text-emerald-300 mb-2 flex items-center gap-1">
+                      <ThumbsUp className="w-3 h-3" /> Respostas que receberam 👍
+                    </h5>
+                    <div className="space-y-1.5">
+                      {feedbackStats.topPositive.slice(0, 3).map((q, i) => (
+                        <div
+                          key={`pos-${i}`}
+                          className="px-3 py-2 bg-emerald-950/20 border border-emerald-900/30 rounded-md flex items-center justify-between gap-2"
+                          data-testid={`positive-item-${i}`}
+                        >
+                          <p className="text-xs text-slate-200 flex-1 truncate">{q.question}</p>
+                          <Badge className="text-[10px] bg-emerald-600/20 text-emerald-300 shrink-0">
+                            <ThumbsUp className="w-2.5 h-2.5 mr-0.5" />{q.up}x
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
