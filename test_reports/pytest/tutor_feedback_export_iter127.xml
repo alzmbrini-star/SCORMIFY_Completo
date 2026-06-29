@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="124.177" timestamp="2026-06-29T17:34:21.710390+00:00" hostname="agent-env-b2d547b5-f9ff-4abe-95f8-8bb493dbbdd2"><testcase classname="backend.tests.test_tutor_feedback.TestExportInliningStats" name="test_export_contains_stats_markers" time="124.028"><failure message="AssertionError: Export never completed&#10;assert None">backend/tests/test_tutor_feedback.py:252: in test_export_contains_stats_markers
+    assert download_url, "Export never completed"
+E   AssertionError: Export never completed
+E   assert None</failure></testcase></testsuite></testsuites>

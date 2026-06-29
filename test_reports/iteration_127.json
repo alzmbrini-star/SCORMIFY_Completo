@@ -1,0 +1,30 @@
+{
+  "summary": "Validated new Tutor IA feedback persistence + stats chart feature end-to-end. Backend: 9/9 pytest passed (happy path POST persists in Mongo tutor_feedback collection, upsert keyed on sessionId+messageId, rating clear to null, all 4 validation errors return 400 with correct detail messages, OPTIONS preflight returns 204, exported HTML inlines all 5 required new markers: tutor-stats-button / data-testid=\\\"tutor-stats-pane\\\" / toggleStats / /api/tutor/feedback / tutor-stats-bar-chart). Frontend Playwright on /tutor_test/ harness: tutor-stats-button visible, toggleStats() correctly shows tutor-stats-pane + hides tutor-messages, empty state tutor-stats-empty renders when no questions asked, second click restores messages, rateMessage() fires a POST to /api/tutor/feedback with the expected JSON payload (sessionId, messageId, rating, projectId, companyId, question, answer), all regression testids from iteration 126 still present (FAB, panel, maximize, backdrop, close, copy, thumbs up/down, input, send, messages, counter). All tests pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_tutor_feedback.py",
+    "/app/test_reports/pytest/tutor_feedback_iter127.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin.py:382/384 — 400s use raw FastAPI HTTPException; tests assert on detail substring 'sessionId'/'messageId'/'rating' which matches. Good.",
+    "tutor.js rateMessage() POST is best-effort with try/catch + .catch + keepalive:true — exactly the right pattern for SCORM/LMS-hosted widgets where the parent frame may unload mid-request.",
+    "feedbackStore is still in-memory client-side — server is source of truth via upsert. If the user closes the course mid-session, only the last clicked rating is persisted (which is correct).",
+    "tutor_feedback Mongo collection has no index on (sessionId, messageId) declared in code — for a future scaling concern, an admin migration should add a compound unique index. Not blocking.",
+    "rateMessage payload includes companyId from config but the harness/exporter doesn't currently set config.companyId — backend gracefully stores null. Verified in test.",
+    "/api/tutor/feedback is public by design (no auth) — appropriate given the SCORM/LMS context. Recommend gateway-level rate limiting (out of code scope)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_tutor_feedback.py (new — 9 tests covering happy path, upsert, clear, 4x validation, CORS preflight, export inlining)",
+    "/app/frontend/public/tutor_test/tutor.js (refreshed copy from /app/backend/services/export_assets/tutor.js)",
+    "/app/frontend/public/tutor_test/tutor.css (refreshed copy from /app/backend/services/export_assets/tutor.css)"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "100% (all assertions: stats button, toggle, empty state, restore, POST capture, regression testids, backdrop)"},
+  "test_credentials": "admin@scormify.com / admin123",
+  "seed_data_creation": "All test docs use TEST_sess_<uuid> sessionIds and are deleted by per-test try/finally cleanup. Frontend test uses harness /tutor_test/ which loads refreshed export_assets copies.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Refreshed /app/frontend/public/tutor_test/{tutor.js,tutor.css} from export_assets/ — always re-copy before running the harness. Harness apiUrl is intentionally http://localhost-disabled to prevent real backend fetches during UI tests; monkey-patch window.fetch to capture rateMessage() POSTs. Backend pytest now hits the public preview URL with REACT_APP_BACKEND_URL loaded via python-dotenv (added since BASE_URL isn't naturally in the shell). Mongo verification uses sync pymongo instead of motor to keep things simple. The export_html job is polled via GET /api/job/{job_id}, completed status carries result.downloadUrl (relative path that needs BASE_URL prefix).",
+  "rca_of_the_issue": "N/A — feature passed all tests on first full run after fixing test scaffolding (env loading + sync mongo)."
+}

@@ -345,6 +345,81 @@ def _map_tutor_llm_error(exc: Exception) -> tuple[int, str | None]:
 
 
 # =============================================================================
+# TUTOR FEEDBACK (thumbs up/down on assistant messages — public endpoint
+# called from the exported course widget; no auth required since exported
+# courses run outside the admin domain).
+# =============================================================================
+
+@router.options("/tutor/feedback")
+async def tutor_feedback_options():
+    """CORS preflight for SCORM/LMS-hosted feedback POSTs."""
+    return Response(status_code=204)
+
+
+@router.post("/tutor/feedback")
+async def tutor_feedback(request: Request):
+    """Persist a 👍 / 👎 rating from an exported course's Tutor IA widget.
+
+    Stored in the `tutor_feedback` collection with this shape:
+        {
+          projectId, companyId, sessionId, messageId,
+          rating: "up" | "down" | null,  # null clears prior rating
+          question, answer,              # captured client-side for context
+          createdAt, updatedAt,
+        }
+    Upserted by (sessionId, messageId) so a student toggling thumbs simply
+    overwrites the previous rating instead of creating duplicate rows.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    session_id = (data.get("sessionId") or "").strip()
+    message_id = (data.get("messageId") or "").strip()
+    rating = data.get("rating")  # "up" | "down" | None
+    if not session_id or not message_id:
+        raise HTTPException(status_code=400, detail="sessionId and messageId are required")
+    if rating not in (None, "up", "down"):
+        raise HTTPException(status_code=400, detail="rating must be 'up', 'down', or null")
+
+    project_id = (data.get("projectId") or "").strip() or None
+    company_id = (data.get("companyId") or "").strip() or None
+    # Trim long bodies — the LLM answer can be very long; we cap to keep
+    # the doc reasonable. Truncation here is purely defensive.
+    question = (data.get("question") or "")[:1000]
+    answer = (data.get("answer") or "")[:4000]
+
+    now = datetime.now(timezone.utc).isoformat()
+    update_doc = {
+        "$set": {
+            "projectId": project_id,
+            "companyId": company_id,
+            "sessionId": session_id,
+            "messageId": message_id,
+            "rating": rating,
+            "question": question,
+            "answer": answer,
+            "updatedAt": now,
+        },
+        "$setOnInsert": {
+            "createdAt": now,
+        },
+    }
+    try:
+        await db.tutor_feedback.update_one(
+            {"sessionId": session_id, "messageId": message_id},
+            update_doc,
+            upsert=True,
+        )
+    except Exception as e:
+        logger.error(f"Failed to persist tutor feedback: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save feedback")
+
+    return JSONResponse(content={"ok": True, "rating": rating})
+
+
+# =============================================================================
 # TUTOR ANALYTICS DASHBOARD
 # =============================================================================
 

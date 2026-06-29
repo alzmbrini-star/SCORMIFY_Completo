@@ -11,10 +11,21 @@ var AiTutor = (function() {
     var isOpen = false;
     var isLoading = false;
     var isMaximized = false;
+    var isStatsOpen = false;
     var currentSlideIndex = 0;
     var slideContexts = [];
     var msgCounter = 0;
     var feedbackStore = {};  // messageId -> 'up' | 'down'
+    var lastQuestion = '';   // text of the last user question (paired with next assistant reply)
+    var msgIdToQA = {};       // assistantMsgId -> { question, answer } for feedback context
+
+    // Session stats tracked locally for the in-widget chart.
+    var stats = {
+        startedAt: Date.now(),
+        questionTimestamps: [],            // [ts1, ts2, ...] one per user question
+        perSlide: {},                      // { slideIdx: count }
+        ratings: { up: 0, down: 0 },       // counts (rolling, reflects current feedbackStore)
+    };
 
     function init(tutorConfig) {
         config = tutorConfig || {};
@@ -69,6 +80,9 @@ var AiTutor = (function() {
                     '<h3>' + escapeHtml(tutorName) + '</h3>' +
                     '<p>Assistente do curso</p>' +
                 '</div>' +
+                '<button class="tutor-stats-btn" data-testid="tutor-stats-button" onclick="AiTutor.toggleStats()" title="Estatísticas da sessão">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' +
+                '</button>' +
                 '<button class="tutor-maximize" data-testid="tutor-maximize-button" onclick="AiTutor.toggleMaximize()" title="Maximizar">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>' +
                 '</button>' +
@@ -79,6 +93,7 @@ var AiTutor = (function() {
             '<div class="tutor-messages" id="tutor-messages" data-testid="tutor-messages">' +
                 '<div class="tutor-typing" id="tutor-typing"><span></span><span></span><span></span></div>' +
             '</div>' +
+            '<div class="tutor-stats-pane" id="tutor-stats-pane" data-testid="tutor-stats-pane" hidden></div>' +
             '<div class="tutor-counter" id="tutor-counter" data-testid="tutor-counter"></div>' +
             '<div class="tutor-input-area">' +
                 '<input class="tutor-input" id="tutor-input" data-testid="tutor-input" placeholder="Pergunte sobre este slide..." />' +
@@ -213,6 +228,9 @@ var AiTutor = (function() {
 
         // Action toolbar (copy + feedback) — only on assistant messages.
         if (role === 'assistant') {
+            // Remember the (question, answer) pair for this assistant
+            // message so the feedback POST has the full context.
+            msgIdToQA[msgId] = { question: lastQuestion, answer: text };
             var actions = document.createElement('div');
             actions.className = 'tutor-msg-actions';
             actions.setAttribute('data-testid', 'tutor-msg-actions-' + msgCounter);
@@ -275,9 +293,7 @@ var AiTutor = (function() {
 
     function rateMessage(msgId, rating, btn) {
         // Toggle: clicking the same rating twice clears it. Clicking the
-        // opposite rating switches sides. Feedback is kept only in the
-        // session (no backend submit for now — the data-testid hooks let
-        // future tooling capture it).
+        // opposite rating switches sides.
         var previous = feedbackStore[msgId];
         var wrap = document.getElementById(msgId);
         if (!wrap) return;
@@ -288,12 +304,131 @@ var AiTutor = (function() {
         if (upBtn) upBtn.classList.remove('rated');
         if (downBtn) downBtn.classList.remove('rated');
 
+        var nextRating;
         if (previous === rating) {
             delete feedbackStore[msgId];
+            nextRating = null;
         } else {
             feedbackStore[msgId] = rating;
             if (btn) btn.classList.add('rated');
+            nextRating = rating;
         }
+
+        // Recompute rolling rating counts for the stats chart.
+        stats.ratings.up = 0;
+        stats.ratings.down = 0;
+        for (var k in feedbackStore) {
+            if (feedbackStore[k] === 'up') stats.ratings.up++;
+            else if (feedbackStore[k] === 'down') stats.ratings.down++;
+        }
+        if (isStatsOpen) renderStatsChart();
+
+        // Persist to backend (best-effort, fire-and-forget). Failure is
+        // silent — the in-memory feedbackStore still drives the UI.
+        var qa = msgIdToQA[msgId] || {};
+        var payload = {
+            sessionId: sessionId,
+            messageId: msgId,
+            rating: nextRating,
+            projectId: config.projectId || '',
+            companyId: config.companyId || '',
+            question: qa.question || '',
+            answer: qa.answer || '',
+        };
+        try {
+            fetch(config.apiUrl + '/api/tutor/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                keepalive: true,
+            }).catch(function(e) { console.warn('Tutor feedback POST failed:', e); });
+        } catch (e) { /* swallow */ }
+    }
+
+    // ===== Stats / Chart =====
+
+    function toggleStats() {
+        isStatsOpen = !isStatsOpen;
+        var pane = document.getElementById('tutor-stats-pane');
+        var messages = document.getElementById('tutor-messages');
+        var btn = document.querySelector('.tutor-stats-btn');
+        if (pane) pane.hidden = !isStatsOpen;
+        if (messages) messages.style.display = isStatsOpen ? 'none' : '';
+        if (btn) btn.classList.toggle('active', isStatsOpen);
+        if (isStatsOpen) renderStatsChart();
+    }
+
+    function renderStatsChart() {
+        var pane = document.getElementById('tutor-stats-pane');
+        if (!pane) return;
+        var totalQuestions = stats.questionTimestamps.length;
+        var elapsedMs = Date.now() - stats.startedAt;
+        var elapsedMin = Math.max(1, Math.round(elapsedMs / 60000));
+        var avgPerMin = (totalQuestions / elapsedMin).toFixed(1);
+        var totalRated = stats.ratings.up + stats.ratings.down;
+        var satisfactionPct = totalRated > 0
+            ? Math.round((stats.ratings.up / totalRated) * 100)
+            : null;
+
+        // Build the per-slide bar chart (top 6 slides by question count).
+        var perSlideEntries = [];
+        for (var k in stats.perSlide) perSlideEntries.push([parseInt(k, 10), stats.perSlide[k]]);
+        perSlideEntries.sort(function(a, b) { return b[1] - a[1]; });
+        perSlideEntries = perSlideEntries.slice(0, 6);
+        var maxCount = perSlideEntries.reduce(function(m, e) { return Math.max(m, e[1]); }, 0) || 1;
+
+        var chartW = 280, barH = 22, gap = 8, padL = 70, padR = 30, padT = 8;
+        var chartH = perSlideEntries.length * (barH + gap) + padT * 2;
+        var barChartSvg = '';
+        if (perSlideEntries.length > 0) {
+            var barsHtml = '';
+            for (var i = 0; i < perSlideEntries.length; i++) {
+                var entry = perSlideEntries[i];
+                var slideIdx = entry[0];
+                var count = entry[1];
+                var w = Math.round((count / maxCount) * (chartW - padL - padR));
+                var y = padT + i * (barH + gap);
+                barsHtml +=
+                    '<text x="' + (padL - 8) + '" y="' + (y + barH / 2 + 4) + '" text-anchor="end" fill="#cbd5e1" font-size="11">Slide ' + (slideIdx + 1) + '</text>' +
+                    '<rect x="' + padL + '" y="' + y + '" width="' + w + '" height="' + barH + '" rx="4" fill="url(#tutor-bar-grad)"></rect>' +
+                    '<text x="' + (padL + w + 6) + '" y="' + (y + barH / 2 + 4) + '" fill="#e2e8f0" font-size="11" font-weight="600">' + count + '</text>';
+            }
+            barChartSvg =
+                '<svg class="tutor-stats-svg" width="100%" viewBox="0 0 ' + chartW + ' ' + chartH + '" data-testid="tutor-stats-bar-chart">' +
+                    '<defs><linearGradient id="tutor-bar-grad" x1="0" x2="1" y1="0" y2="0">' +
+                        '<stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#06b6d4"/>' +
+                    '</linearGradient></defs>' +
+                    barsHtml +
+                '</svg>';
+        } else {
+            barChartSvg = '<div class="tutor-stats-empty" data-testid="tutor-stats-empty">Faça perguntas e o gráfico aparece aqui ✨</div>';
+        }
+
+        // Render satisfaction donut (only when at least one rating exists).
+        var satisfactionHtml = '';
+        if (satisfactionPct !== null) {
+            var dash = Math.round(satisfactionPct * 1.51);  // out of ~151 (2πr at r=24)
+            satisfactionHtml =
+                '<div class="tutor-stats-donut-wrap">' +
+                    '<svg class="tutor-stats-donut" width="64" height="64" viewBox="0 0 64 64" data-testid="tutor-stats-donut">' +
+                        '<circle cx="32" cy="32" r="24" fill="none" stroke="rgba(148,163,184,0.25)" stroke-width="8"/>' +
+                        '<circle cx="32" cy="32" r="24" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" transform="rotate(-90 32 32)" stroke-dasharray="' + dash + ' 151"/>' +
+                        '<text x="32" y="37" text-anchor="middle" font-size="14" font-weight="700" fill="#f1f5f9">' + satisfactionPct + '%</text>' +
+                    '</svg>' +
+                    '<div class="tutor-stats-donut-label">satisfação</div>' +
+                '</div>';
+        }
+
+        pane.innerHTML =
+            '<h4 class="tutor-stats-title">Sua sessão</h4>' +
+            '<div class="tutor-stats-grid">' +
+                '<div class="tutor-stats-tile"><div class="tutor-stats-num" data-testid="tutor-stats-total">' + totalQuestions + '</div><div class="tutor-stats-lbl">perguntas</div></div>' +
+                '<div class="tutor-stats-tile"><div class="tutor-stats-num">' + avgPerMin + '</div><div class="tutor-stats-lbl">por minuto</div></div>' +
+                '<div class="tutor-stats-tile"><div class="tutor-stats-num">' + (stats.ratings.up + stats.ratings.down) + '</div><div class="tutor-stats-lbl">avaliações</div></div>' +
+            '</div>' +
+            satisfactionHtml +
+            '<h5 class="tutor-stats-sub">Perguntas por slide</h5>' +
+            barChartSvg;
     }
 
     function showTyping(show) {
@@ -329,6 +464,12 @@ var AiTutor = (function() {
         history.push({ role: 'user', content: text });
         messagesUsed++;
         updateCounter();
+
+        // Stats tracking — record one entry per user question.
+        lastQuestion = text;
+        stats.questionTimestamps.push(Date.now());
+        stats.perSlide[currentSlideIndex] = (stats.perSlide[currentSlideIndex] || 0) + 1;
+        if (isStatsOpen) renderStatsChart();
 
         // Hide suggestions after first message
         var sugg = document.getElementById('tutor-suggestions');
@@ -439,6 +580,7 @@ var AiTutor = (function() {
         init: init,
         toggle: togglePanel,
         toggleMaximize: toggleMaximize,
+        toggleStats: toggleStats,
         send: send,
         sendSuggestion: sendSuggestion,
         copyMessage: copyMessage,
