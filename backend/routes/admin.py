@@ -508,7 +508,45 @@ async def get_tutor_dashboard(request: Request, user: dict = Depends(require_aut
             "totalCostUSD": round(r.get("totalCostUSD", 0), 6),
             "totalInputTokens": r.get("totalInputTokens", 0),
             "totalOutputTokens": r.get("totalOutputTokens", 0),
+            # Filled in below via a single bulk lookup so we don't fan out
+            # one query per course (N+1).
+            "feedbackSummary": {"upTotal": 0, "downTotal": 0, "satisfactionPct": None},
         })
+
+    # Bulk-enrich each course with its 👍/👎 summary in a single Mongo
+    # query. The Tutor IA widget POSTs ratings to `tutor_feedback` from
+    # exported courses (collected by sessionId+messageId+rating). Showing
+    # these counts inline removes the need for the author to drill into
+    # the per-course detail view just to discover "is anyone rating my
+    # answers?" — the most common navigation friction.
+    project_ids = [c["projectId"] for c in courses if c.get("projectId")]
+    if project_ids:
+        fb_match: Dict[str, Any] = {"projectId": {"$in": project_ids}}
+        if role == "company_admin" and company_id:
+            fb_match["companyId"] = company_id
+        fb_cursor = db.tutor_feedback.find(fb_match, {"_id": 0, "projectId": 1, "rating": 1})
+        fb_docs = await fb_cursor.to_list(length=10000)
+        by_project: Dict[str, Dict[str, int]] = {}
+        for d in fb_docs:
+            pid = d.get("projectId") or ""
+            bucket = by_project.setdefault(pid, {"up": 0, "down": 0})
+            r_val = d.get("rating")
+            if r_val == "up":
+                bucket["up"] += 1
+            elif r_val == "down":
+                bucket["down"] += 1
+        for c in courses:
+            pid = c.get("projectId") or ""
+            agg = by_project.get(pid)
+            if not agg:
+                continue
+            up_t, down_t = agg["up"], agg["down"]
+            rated_t = up_t + down_t
+            c["feedbackSummary"] = {
+                "upTotal": up_t,
+                "downTotal": down_t,
+                "satisfactionPct": round((up_t / rated_t) * 100) if rated_t > 0 else None,
+            }
 
     # Summary stats
     USD_TO_BRL = 5.50
@@ -545,6 +583,7 @@ async def get_tutor_dashboard(request: Request, user: dict = Depends(require_aut
             "totalCostUSD": c["totalCostUSD"],
             "topQuestions": c["topQuestions"][:5],
             "recentQuestions": c["recentQuestions"][:10],
+            "feedbackSummary": c.get("feedbackSummary"),
         })
 
     # Round company-level costs and convert to BRL for the UI.

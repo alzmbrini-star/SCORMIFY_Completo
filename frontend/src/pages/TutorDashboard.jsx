@@ -453,7 +453,22 @@ export default function TutorDashboard() {
                                       <BookOpen className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                                       <span className="text-xs font-medium truncate">{cs.courseName}</span>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
+                                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                                      {cs.feedbackSummary && (cs.feedbackSummary.upTotal > 0 || cs.feedbackSummary.downTotal > 0) && (
+                                        <div className="flex items-center gap-1" data-testid={`tutor-company-${i}-course-${ci}-feedback-inline`}>
+                                          <Badge className="text-[10px] bg-emerald-600/15 text-emerald-300 px-1.5 py-0.5">
+                                            <ThumbsUp className="w-2.5 h-2.5 mr-0.5" />{cs.feedbackSummary.upTotal}
+                                          </Badge>
+                                          <Badge className="text-[10px] bg-rose-600/15 text-rose-300 px-1.5 py-0.5">
+                                            <ThumbsDown className="w-2.5 h-2.5 mr-0.5" />{cs.feedbackSummary.downTotal}
+                                          </Badge>
+                                          {cs.feedbackSummary.satisfactionPct !== null && (
+                                            <Badge className="text-[10px] bg-indigo-600/15 text-indigo-300 px-1.5 py-0.5">
+                                              {cs.feedbackSummary.satisfactionPct}% sat.
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      )}
                                       {cs.totalCostUSD > 0 && (
                                         <Badge className="text-[10px] bg-emerald-600/10 text-emerald-300">
                                           US$ {cs.totalCostUSD.toFixed(4)}
@@ -463,8 +478,8 @@ export default function TutorDashboard() {
                                       {cs.projectId && (
                                         <Button
                                           size="sm"
-                                          variant="ghost"
-                                          className="h-6 px-2 text-[10px] text-blue-300 hover:text-blue-200"
+                                          variant="outline"
+                                          className="h-7 px-2.5 text-[10px] border-blue-500/40 text-blue-300 hover:bg-blue-500/10 hover:text-blue-200"
                                           onClick={(ev) => { ev.stopPropagation(); fetchCourseDetail(cs.projectId); }}
                                           data-testid={`tutor-company-${i}-course-${ci}-detail`}
                                         >
@@ -565,6 +580,21 @@ export default function TutorDashboard() {
                       <p className="text-lg font-bold text-blue-400">{course.totalQuestions}</p>
                       <p className="text-[10px] text-slate-500">perguntas</p>
                       <p className="text-[10px] text-slate-500 mt-1">{course.uniqueQuestions} unicas</p>
+                      {course.feedbackSummary && (course.feedbackSummary.upTotal > 0 || course.feedbackSummary.downTotal > 0) && (
+                        <div className="mt-2 flex flex-col items-end gap-0.5" data-testid={`tutor-search-card-feedback-${course.projectId}`}>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-emerald-300 flex items-center gap-0.5">
+                              <ThumbsUp className="w-2.5 h-2.5" />{course.feedbackSummary.upTotal}
+                            </span>
+                            <span className="text-[10px] text-rose-300 flex items-center gap-0.5">
+                              <ThumbsDown className="w-2.5 h-2.5" />{course.feedbackSummary.downTotal}
+                            </span>
+                          </div>
+                          {course.feedbackSummary.satisfactionPct !== null && (
+                            <p className="text-[9px] text-indigo-300">{course.feedbackSummary.satisfactionPct}% sat.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

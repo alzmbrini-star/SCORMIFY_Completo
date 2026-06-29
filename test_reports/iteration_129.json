@@ -1,0 +1,32 @@
+{
+  "summary": "Validated iteration 129: bulk feedbackSummary enrichment on GET /api/admin/tutor-dashboard. Backend: 6/6 pytest tests pass (top-level courses[], companies[].courseList[], zero-default for no-feedback courses, cross-project isolation, backward-compat with /admin/tutor/feedback-stats, <2s perf). Frontend: inline badges 👍 4 / 👎 2 / 67% sat. render correctly on the Didaxis-expanded 'Teste de Seguranca' row; 'Ver detalhes →' button confirmed using outline variant (border-blue-500 class present); detail-view feedback panel still works with matching KPIs; bottom search-list card also renders tutor-search-card-feedback-test-project-129 with the same values; no crash on Voltar.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_tutor_dashboard_feedback_enrichment.py",
+    "/app/test_reports/pytest/tutor_dashboard_enrich_iter129.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin.py bulk enrichment uses one Mongo find with $in on projectIds — good (avoids N+1). Tests confirm <2s response time.",
+    "Default feedbackSummary {upTotal:0, downTotal:0, satisfactionPct:null} is always present on every course; frontend uses (upTotal>0 || downTotal>0) guard so badges are conditional — correct.",
+    "TutorDashboard.jsx renders the same feedbackSummary in two places (company-expanded row + bottom search card); both verified via data-testid in UI tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_tutor_dashboard_feedback_enrichment.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (all assertions passed)"},
+  "test_credentials": "admin@scormify.com / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Seeded one tutor_log (projectId=test-project-129, companyId=company_didaxis001, courseTopic='Teste de Seguranca', testTag=iter129-ui) and 4 up + 2 down feedbacks via POST /api/tutor/feedback. Pytest fixtures seeded their own logs/feedback for PID_MAIN=test-project-129, PID_ISO_A=isolation-A-129, PID_ISO_B=isolation-B-129. All test data cleaned up after run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iteration 129 fully validated. The dashboard enrichment correctly populates feedbackSummary in BOTH the top-level courses[] and the per-company courseList[]. UI testids confirmed: tutor-company-{i}-course-{ci}-feedback-inline and tutor-search-card-feedback-{projectId}. Note: there can be multiple 'Teste de Seguranca' rows in the Didaxis expanded view because the Mongo aggregation groups by (projectId, companyId, courseTopic) — the legacy seed has empty projectId so it has no badges (as designed); our seeded row with projectId='test-project-129' shows the badges. This is correct behavior.",
+  "rca of the issue": "Not applicable — this iteration was a feature addition, not a bug fix. Original user pain point ('Não estou vendo os cards') is resolved: feedback badges now appear inline in the company-expanded view without needing to click 'Ver detalhes →' first."
+}
