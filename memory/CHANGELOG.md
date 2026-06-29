@@ -1,6 +1,33 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Tutor IA com botão Maximizar (modal blur) + ações de mensagem)
+
+### Pedido
+- Adicionar botão "maximizar" no header do Tutor IA do curso exportado abrindo modal com fundo blur (referência: screenshot do widget Didaxis).
+- Adicionar ícones de copiar / 👍 / 👎 em cada resposta do assistente para que o aluno possa ajudar a melhorar as respostas.
+
+### Implementação (`export_assets/tutor.js` + `tutor.css`)
+- **Botão Maximizar** no header (`data-testid="tutor-maximize-button"`): SVG de "expand" no estado normal, troca pra ícone "shrink" no estado maximizado. Tooltips dinâmicos ("Maximizar" / "Restaurar").
+- **Backdrop blur** (`#tutor-backdrop`, `data-testid="tutor-backdrop"`): `position:fixed;inset:0; backdrop-filter:blur(8px); background:rgba(15,23,42,.55)`. Clique no backdrop → restaura panel pra modo compacto. Z-index empilhado: backdrop=10000, panel.maximized=10002.
+- **Modo maximizado**: `.tutor-panel.maximized` centralizado com `width:min(960px,92vw)` x `height:min(720px,88vh)`. Animação suave via transition opacity no backdrop.
+- **Auto-restore ao fechar**: fechar o panel também sai do modo maximizado pra próxima abertura começar compacto.
+- **Toolbar de ações por mensagem** (apenas em respostas do assistente):
+  - `tutor-msg-copy`: usa `navigator.clipboard.writeText()` com fallback via textarea + `execCommand('copy')` (robusto pra SCORM em iframes onde Clipboard API costuma estar bloqueada). Mostra checkmark verde por 1.6s ao copiar.
+  - `tutor-msg-thumbs-up` / `tutor-msg-thumbs-down`: toggle exclusivo armazenado em `feedbackStore` (em memória). Clicar de novo no mesmo rating limpa; clicar no oposto troca de lado. Estado visual via classe `.rated`.
+  - Texto cru preservado em `data-raw` no DOM da mensagem (cópia retorna texto plano, não HTML renderizado).
+- API pública estendida: `toggleMaximize`, `copyMessage`, `rateMessage` exportados em `AiTutor.{}`.
+
+### Verificação (`/app/test_reports/iteration_126.json`)
+- **Backend 100% (1/1)**: export HTML inlinea todos os 5 marcadores novos (`.tutor-backdrop`, `.tutor-panel.maximized`, `toggleMaximize`, `data-testid="tutor-maximize-button"`, `data-testid="tutor-msg-copy"`).
+- **Frontend 100% (25/25 assertions Playwright)**: FAB abre → maximize aplica class+backdrop visível+panel >600px largura → clique no backdrop restaura → thumbs toggle on/off → thumbs up e down mutuamente exclusivos → copy aplica classe `.copied` por ~1.6s → todos os testids regression (input, send, messages, counter, close) presentes.
+
+### Observações pre-existentes do testing agent
+- `feedbackStore` é só em memória (sem submit pra backend). Aceitável — testids estão prontos pra capturar quando você quiser persistir feedback em analytics no futuro.
+- `tutor_test/` harness criado em `/app/frontend/public/` permite testar widgets só-exportados (tutor, vlibras) sem precisar exportar curso e baixar HTML toda vez. Atalho útil pra desenvolvimento.
+
+
+
 ## 2026-02-XX (Bugfix: Whiteboard AI gerava bullets gigantes em listas coloridas)
 
 ### Sintoma
