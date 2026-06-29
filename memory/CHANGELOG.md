@@ -1,6 +1,39 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Painel admin de feedback do Tutor IA dentro do editor)
+
+### Pedido
+- Continuação da feature anterior (in-widget chart + POST feedback). Agora autor do curso quer ver os agregados de 👍/👎 dentro do editor Scormify — sem precisar abrir o curso exportado.
+
+### Implementação
+**Backend** (`/app/backend/routes/admin.py`):
+- Novo `GET /api/admin/tutor/feedback-stats?projectId=X&limit=N` (admin auth via `Depends(require_auth)`). Aggrega coleção `tutor_feedback` em Python (volume por curso é pequeno — find + group em memória é mais simples que pipeline Mongo).
+- Retorna: `upTotal`, `downTotal`, `ratedTotal`, `satisfactionPct`, `topNegative[]` (perguntas com mais 👎, sorted por -down, -up), `topPositive[]`, `recent[]` (últimas 20 avaliações).
+- Suporte multi-tenant: super_admin vê tudo; company_admin restringe automaticamente a `companyId` do user.
+- Ratings `null` (cleared) excluídos da contagem — student removeu opinião deliberadamente.
+
+**Frontend** (`/app/frontend/src/pages/TutorDashboard.jsx`):
+- Novo state `feedbackStats` + `feedbackLoading`. Nova função `fetchFeedbackStats(projectId)` disparada em paralelo com `fetchCourseDetail`.
+- Novo `<Card data-testid="tutor-feedback-panel">` entre "Top Questions" e "Recent Interactions":
+  - **Empty state amigável** (`data-testid="feedback-empty-state"`) explicando que dados aparecem quando alunos avaliarem respostas no curso exportado — evita pânico para autores que ainda não exportaram.
+  - **3 KPI tiles** (`kpi-thumbs-up`/`kpi-thumbs-down`/`kpi-satisfaction`) com cores emerald/rose/indigo.
+  - **Barra de satisfação** (stacked positive+negative) com testids granulares.
+  - **Lista top negative** (rose theme, com lastAnswer truncada como citação itálica) — sinal mais acionável para o autor refinar systemPrompt ou conteúdo do slide.
+  - **Lista top positive** (emerald, compacta — 3 itens, sem answer preview).
+- Back button limpa `feedbackStats` para não vazar entre cursos.
+
+### Verificação
+- **Testing agent (`iteration_128.json`)**: backend 7/7 PASSED (happy path c/ KPIs corretos, empty project não crasha, isolamento cross-project, 401 sem auth, null rating excluído da contagem, top negative ordering, code review aprovado).
+- **Self-test screenshot**: confirmed empty state renderiza com mensagem amigável quando ratedTotal=0; curl verifica payload populado (upTotal:3, downTotal:2, satisfactionPct:60, topNeg:1 items). Populated UI usa o mesmo padrão condicional que o empty state — mesma estrutura JSX validada em code review.
+- **Infra note**: testing agent reportou que `/data/db` ficou 100% disk-full durante os testes (10GB partition compartilhado com /root e /app). Mongo crashou mid-test, foi recuperado limpando `diagnostic.data`. Volume está apertado — vale escalar com o Suporte Emergent junto do P0 bloqueado.
+
+### Observações pre-existentes do testing agent (não bloqueantes)
+- Super_admin sem `projectId` escaneia até 5000 docs — se um deploy crescer muito, vale virar pipeline `$group + $facet`.
+- `tutor_feedback` Mongo sem índice composto declarado — admin migration recomendada.
+
+
+
 ## 2026-02-XX (Feature: Tutor IA — Feedback persistido + Gráfico de sessão do aluno)
 
 ### Pedido
