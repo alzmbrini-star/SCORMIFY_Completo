@@ -1,6 +1,37 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix CRÍTICO: Tutor IA não gravava attribution → dashboard admin vazio)
+
+### Sintoma (relatado pelo usuário)
+- "Tutor não está gravando no Preview na parte Administrador as informações de 'Conteúdo bom' apesar de eu ter clicado no Curso depois de exportado para o meu LMS"
+- Aluno clicava 👍 no widget do Tutor IA do curso exportado em LMS → admin dashboard do Scormify continuava mostrando 0 feedback para aquele curso.
+
+### Causa raiz (2 camadas)
+**Camada 1 — Exporter (iteração 130)**: `routes/export.py` construía `tutor_settings` SEM incluir `projectId` e `companyId`. O config do widget no curso exportado tinha `projectId=''`. Fixado em iter 130.
+
+**Camada 2 — Widget chat (iteração 131)**: mesmo após iter 130 popular o config, o widget `export_assets/tutor.js` enviava o POST de `/api/tutor/chat` SEM os campos `projectId/companyId` no body. Resultado: cada conversa virava uma row em `tutor_logs` com `projectId=''`. Como o `/api/admin/tutor-dashboard` agrega por `projectId`, TODAS as conversas de TODOS os cursos exportados caíam em um único bucket sintético com chave vazia que nunca matchava com `tutor_feedback`. Por isso o `feedbackSummary` nunca aparecia para curso nenhum.
+
+### Implementação (iter 131)
+- **`services/export_assets/tutor.js`** (linha 484-497): payload do chat agora inclui `projectId: config.projectId || ''` e `companyId: config.companyId || ''`. Combinado com a iter 130 (que popula `config.projectId/companyId` no momento do export), fecha a corrente.
+- Backend `/api/tutor/chat` (admin.py L222-223, L287-291) **já lia e gravava** esses campos desde iter 130 — só estava recebendo string vazia porque o widget não enviava. Nenhuma mudança no backend nessa iteração.
+
+### Verificação (`testing_agent_v3_fork` → `iteration_131.json`)
+- **Backend 7/7 pytest PASSED em 36.6s**: E2E completo (chat com projectId → tutor_logs com projectId → feedback → dashboard mostra courses[] com feedbackSummary populado), regressões em export HTML/SCORM stampam tutorConfig, /api/tutor/chat backward-compat (sem projectId continua respondendo 200), /api/tutor/feedback validações intactas, /api/admin/tutor/feedback-stats continua funcionando.
+- **Frontend smoke 100%**: `/admin` → Dashboard Tutor → Didaxis expandido → row "Projeto SCORMIFY" mostra inline badges 👍 3 / 👎 0 / 100% sat. — comportamento exato esperado.
+- **Manual smoke (curl)**: confirmou fluxo completo no preview com `feedbackSummary: {upTotal:3, downTotal:0, satisfactionPct:100}`.
+
+### Ação operacional necessária (PRODUÇÃO)
+- **Redeploy de produção** é REQUERIDO para a correção entrar no live (`backend-startup.emergent.host`).
+- **Re-exportar os cursos** já enviados ao LMS: pacotes SCORM/HTML que já estão no LMS contêm o widget ANTIGO e continuarão sem gravar attribution até serem re-exportados após o redeploy.
+- Feedback histórico no Mongo de produção com `projectId=''` continua órfão (não dá pra reattribuir retroativamente sem chave de join). Só novos exports após redeploy terão attribution correta.
+
+### Observações pre-existentes do testing agent
+- React console warning "duplicate keys" no listing — cosmético, baixa prioridade (sugestão: usar `${companyId}-${projectId}` como key).
+- `admin.py` chegou a 754 linhas — vale split de rotas de tutor em router próprio (P3).
+
+
+
 ## 2026-02-XX (Bugfix UX: feedback do Tutor IA agora aparece INLINE no dashboard)
 
 ### Sintoma
