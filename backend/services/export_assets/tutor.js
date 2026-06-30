@@ -486,7 +486,14 @@ var AiTutor = (function() {
             courseTopic: config.courseTopic || '',
             courseContext: fullContext,
             history: history,
-            sessionId: sessionId
+            sessionId: sessionId,
+            // CRITICAL attribution: without these the chat lands in
+            // tutor_logs with an empty projectId, which means the admin
+            // dashboard aggregation buckets every student question under
+            // the SAME empty key and can never enrich it with the
+            // matching feedback rows. (Bug 2026-06-30 part 2.)
+            projectId: config.projectId || '',
+            companyId: config.companyId || ''
         };
 
         fetch(config.apiUrl + '/api/tutor/chat', {

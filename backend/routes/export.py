@@ -321,7 +321,15 @@ async def _run_scorm_export_job(
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
                     'courseTopic': (project_doc.get("course") or {}).get("metadata", {}).get("title")
-                                    or project_doc.get("name", "")
+                                    or project_doc.get("name", ""),
+                    # CRITICAL: stamp projectId + companyId into the widget
+                    # config so feedback POSTs from the exported course are
+                    # attributable. Without these, /api/admin/tutor-dashboard
+                    # cannot join the feedback rows back to a specific course
+                    # and the admin dashboard appears empty even though
+                    # students are clicking 👍/👎. (Bug 2026-06-29.)
+                    'projectId': project_id,
+                    'companyId': project_doc.get('companyId', '') or '',
                 }
         except Exception as e:
             logger.warning(f"Tutor settings load failed (non-fatal): {e}")
@@ -592,7 +600,13 @@ async def _run_html_export_job(
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
                     'courseTopic': course_data.get('metadata', {}).get('title', '') or project_doc.get('name', ''),
-                    'courseContext': "\n---\n".join(course_context_parts)[:8000]
+                    'courseContext': "\n---\n".join(course_context_parts)[:8000],
+                    # Attribution fields — see comment in the other tutor_settings
+                    # block above. Without these, feedback POSTs end up
+                    # orphaned (projectId="") in tutor_feedback and the admin
+                    # dashboard can't surface them.
+                    'projectId': project_id,
+                    'companyId': project_doc.get('companyId', '') or '',
                 }
 
                 # Per-slide contexts

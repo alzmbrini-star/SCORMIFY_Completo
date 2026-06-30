@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 131 — Verified the second-root-cause fix for the user-reported bug: widget chat POST now includes projectId+companyId, so tutor_logs entries carry attribution and the admin dashboard's aggregation can match feedback to exported courses. All 7 backend tests pass (e2e + regressions + new-widget HTML/SCORM stamping). Frontend smoke-test on /admin → Dashboard Tutor → Didaxis shows 'Projeto SCORMIFY' row with inline 👍 3 / 👎 0 / 100% sat. badge — exactly the behavior the user expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/admin Dashboard Tutor",
+        "issues": [
+          "React console warning: 'Encountered two children with the same key' fires 3x while rendering the company/course list. Not visually broken (badges still render correctly) but indicates duplicate keys in a .map() — likely projectId collision across the 'Sem empresa' bucket where projectId can be empty. Low priority."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_tutor_e2e_attribution_iter131.py",
+    "/app/test_reports/pytest/iter131_results.xml"
+  ],
+  "action_items": [
+    "(optional) Fix duplicate React key warning in admin Dashboard Tutor course list — likely use `${companyId}-${projectId}` instead of just projectId as the .map() key.",
+    "Operationally: user must redeploy production and re-export existing courses from production so already-uploaded SCORM packages in their LMS pick up the new widget that sends projectId. Already-exported zips ship the OLD widget and will continue not attributing chats."
+  ],
+  "critical_code_review_comments": [
+    "Widget change in /app/backend/services/export_assets/tutor.js L484-497 is minimal & correct — adds `projectId: config.projectId || ''` and `companyId: config.companyId || ''` to chat fetch payload. Falls back to empty string so legacy configs don't 500.",
+    "Backend route /api/tutor/chat (admin.py L222-223, L287-291) already extracted+persisted these fields since iter 130 — no change needed there.",
+    "Admin dashboard aggregation (admin.py L444-549) correctly groups by projectId and bulk-joins feedback in one query — no N+1.",
+    "tutor.js source file is now 598 lines — fine. admin.py is 754 lines which exceeds the 700-line guideline; consider splitting tutor sub-routes into their own router module in a future cleanup."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_tutor_e2e_attribution_iter131.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 pytest tests passed in 36.6s)",
+    "frontend": "100% smoke (dashboard renders, badges visible, Projeto SCORMIFY entry present with correct counts)"
+  },
+  "test_credentials": "admin@scormify.com / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test creates real tutor_logs + tutor_feedback docs for projectId=d550fe43-... tagged with sessionId prefix 'e2eflow131-'. Module-scope teardown deletes them on completion. Verified no leaks (re-running tests shows expected feedback counts ~3-4 from prior preview-environment manual smoke + this run, then cleaned up).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 131 fix is verified end-to-end. The new pytest file /app/backend/tests/test_tutor_e2e_attribution_iter131.py is now the canonical regression for the whole 'tutor attribution → dashboard join' chain and supersedes the partially-broken iter130 file (which had a regex bug & wrong SCORM extraction location). Both export tests in iter131 use substring search (not regex) and confirmed working on HTML+SCORM zips ~few MB. Use BASE_URL from REACT_APP_BACKEND_URL. Cleanup of seeded e2eflow131-* docs is automatic via fixture teardown. The duplicate React key warning is the only remaining cosmetic issue — not blocking.",
+  "rca_of_the_issue": "Two-root-cause bug. (a) Iter 130 fixed the exporter side: routes/export.py now stamps projectId+companyId into tutorConfig dict so the embedded HTML/SCORM widget knows its own identity. (b) Iter 131 fixes the widget side: services/export_assets/tutor.js was building the /api/tutor/chat payload WITHOUT those fields, so even after iter 130 every chat from any exported course landed in tutor_logs with projectId=''. The aggregation in /api/admin/tutor-dashboard groups by projectId, so all empty-projectId rows collapsed into one synthetic bucket that could never be enriched with feedbackSummary for the real course. Adding `projectId: config.projectId || ''` and `companyId: config.companyId || ''` to the chat fetch body restores the chain: export → chat(projectId) → tutor_logs(projectId) → feedback(projectId) → dashboard joins by projectId → courses[] + companies[].courseList[] both show the entry with feedbackSummary populated. Reproduction (post-fix): see test_e2e_chat_with_projectid_persisted_and_joined_in_dashboard — POSTs a chat with attribution, asserts Mongo persistence, POSTs an up-rating feedback, fetches /api/admin/tutor-dashboard, asserts the project is in courses[] with upTotal>=1 and satisfactionPct populated, and is also present under companies[].courseList[]. Mitigation for production: redeploy + re-export courses; old in-the-wild SCORM packages continue not reporting until re-exported."
+}

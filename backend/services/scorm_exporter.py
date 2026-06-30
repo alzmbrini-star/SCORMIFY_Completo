@@ -793,7 +793,12 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             'slideContexts': per_slide_contexts,
             'tutorName': tutor_config.get('tutorName', 'Tutor IA'),
             'messageLimit': tutor_config.get('messageLimit', 50),
-            'suggestedQuestions': tutor_config.get('suggestedQuestions', [])
+            'suggestedQuestions': tutor_config.get('suggestedQuestions', []),
+            # Forward attribution so the in-widget feedback POSTs include
+            # projectId + companyId — required for the admin dashboard
+            # enrichment to join the rows back to the right course.
+            'projectId': tutor_config.get('projectId', '') or project.id or '',
+            'companyId': tutor_config.get('companyId', '') or (getattr(project, 'companyId', '') or ''),
         }
         logger.info(
             f"AI Tutor enabled for SCORM package with {len(slide_summaries)} slide summaries "

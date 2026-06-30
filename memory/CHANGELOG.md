@@ -1,6 +1,35 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix UX: feedback do Tutor IA agora aparece INLINE no dashboard)
+
+### Sintoma
+- Usuário não conseguia ver o card "Feedback dos Alunos" que foi adicionado na iteração 128 porque ele só renderizava DENTRO da view de detalhe (`selectedCourse`), acessível só clicando em "Ver detalhes →" — um botão `variant="ghost"` minúsculo de 24px facilmente perdido. Print do usuário: "Não estou vendo os cards que menciona!"
+
+### Causa raiz
+- Discoverability ruim: dados de feedback existiam mas eram invisíveis até clicar 2 níveis de profundidade (expandir empresa → clicar detalhes → ver painel).
+- Botão "Ver detalhes" era ghost variant (text-only) — facilmente confundido com label decorativo.
+
+### Implementação
+**Backend** (`/app/backend/routes/admin.py`):
+- `GET /api/admin/tutor-dashboard` agora enriquece cada course com `feedbackSummary: {upTotal, downTotal, satisfactionPct}` via **uma única query Mongo bulk** (`tutor_feedback.find({projectId: {$in: [...]}})`). Sem N+1.
+- Default `feedbackSummary` sempre presente (zeros + null) em todos os courses — frontend nunca vê undefined.
+- O campo é propagado para `companies[].courseList[]` também (estrutura usada na view expandida da empresa).
+
+**Frontend** (`/app/frontend/src/pages/TutorDashboard.jsx`):
+- Na view expandida da empresa, cada course row agora renderiza badges inline `👍 X | 👎 Y | X% sat.` com testid `tutor-company-{i}-course-{ci}-feedback-inline`. Cores: emerald/rose/indigo. Condicional: só aparece se `upTotal + downTotal > 0`.
+- Mesma coisa na lista de busca do bottom: `tutor-search-card-feedback-{projectId}`.
+- Botão "Ver detalhes →" promovido de `variant="ghost"` (h-6, text-only) → `variant="outline"` (h-7, bordered blue) — agora é claramente clickable.
+
+### Verificação (`testing_agent_v3_fork` → `iteration_129.json`)
+- **Backend 6/6 PASSED**: enrichment no top-level `courses[]`, propagação no `companies[].courseList[]`, default zero quando sem feedback, isolamento cross-project, backward-compat com `/admin/tutor/feedback-stats`, perf <2s para 23 cursos.
+- **Frontend 100%**: badges 👍 4 / 👎 2 / 67% sat. visíveis na row "Teste de Seguranca" sem clicar em nada; botão outline com `border-blue-500` confirmado; detail view continua funcionando (regressão segura); search-list cards também mostram badges.
+
+### Observações pre-existentes
+- Tutor_logs com `projectId` vazio (dados antigos) não recebem enrichment — comportamento correto (não é dado meu, não tem chave de join).
+
+
+
 ## 2026-02-XX (Feature: Painel admin de feedback do Tutor IA dentro do editor)
 
 ### Pedido
