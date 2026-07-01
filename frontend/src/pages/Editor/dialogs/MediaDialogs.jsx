@@ -39,10 +39,12 @@ export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleA
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Add Video</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Adicionar Vídeo</DialogTitle></DialogHeader>
         <div className="py-4">
-          <Input placeholder="YouTube or Vimeo URL" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} data-testid="video-url-input" />
-          <p className="text-xs text-muted-foreground mt-2">Paste a YouTube or Vimeo URL to embed the video</p>
+          <Input placeholder="YouTube, Vimeo ou Bunny Stream (URL ou iframe)" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} data-testid="video-url-input" />
+          <p className="text-xs text-muted-foreground mt-2">
+            Cole uma URL do YouTube, Vimeo ou Bunny Stream. Para o Bunny, também aceitamos o snippet <code>&lt;iframe&gt;</code> completo copiado do painel.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

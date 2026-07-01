@@ -365,8 +365,11 @@ export default function TutorDashboard() {
         </Button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Summary cards — 3 KPIs (perguntas/cursos/empresas) +
+          2 KPIs de feedback (👍 / 👎) que respondem direto à dor relatada
+          pelo autor: "quero ver de relance os feedbacks de conteúdo
+          bom/ruim sem precisar abrir curso por curso". */}
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-blue-400">{dashboard.totalQuestions}</p>
@@ -383,6 +386,48 @@ export default function TutorDashboard() {
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-amber-400">{dashboard.companies?.length || 0}</p>
             <p className="text-xs text-slate-400 mt-1">Empresas Ativas</p>
+          </CardContent>
+        </Card>
+
+        {/* Conteúdo bom */}
+        <Card
+          className="bg-gradient-to-br from-emerald-950/40 to-slate-900/50 border-emerald-700/40"
+          data-testid="kpi-good-feedback-card"
+        >
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <ThumbsUp className="w-5 h-5 text-emerald-400" />
+              <p className="text-3xl font-bold text-emerald-300" data-testid="kpi-good-feedback-count">
+                {dashboard.totalUpFeedback || 0}
+              </p>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Conteúdo Bom</p>
+            {dashboard.globalSatisfactionPct !== null && dashboard.globalSatisfactionPct !== undefined && (
+              <p className="text-[10px] text-emerald-400/70 mt-0.5">
+                {dashboard.globalSatisfactionPct}% satisfação
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Conteúdo ruim */}
+        <Card
+          className="bg-gradient-to-br from-rose-950/40 to-slate-900/50 border-rose-700/40"
+          data-testid="kpi-bad-feedback-card"
+        >
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <ThumbsDown className="w-5 h-5 text-rose-400" />
+              <p className="text-3xl font-bold text-rose-300" data-testid="kpi-bad-feedback-count">
+                {dashboard.totalDownFeedback || 0}
+              </p>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Conteúdo Ruim</p>
+            {(dashboard.totalRatedFeedback || 0) > 0 && (
+              <p className="text-[10px] text-rose-400/70 mt-0.5">
+                {dashboard.totalRatedFeedback} avaliações no total
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

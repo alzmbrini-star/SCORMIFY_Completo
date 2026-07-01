@@ -50,7 +50,7 @@ const getAssetUrl = (src, projectId) => {
   return src;
 };
 
-// Ensure embed URLs always have autoplay=1 and correct audio params
+// Ensure embed URLs always have autoplay and correct audio params
 const ensureEmbedAutoplay = (url) => {
   if (!url) return url;
   // YouTube
@@ -66,6 +66,14 @@ const ensureEmbedAutoplay = (url) => {
     }
     // Fix muted=1 to muted=0
     url = url.replace('muted=1', 'muted=0');
+  }
+  // Bunny Stream
+  if (url.includes('iframe.mediadelivery.net/')) {
+    if (!url.includes('autoplay=')) {
+      url += (url.includes('?') ? '&' : '?') + 'autoplay=true';
+    }
+    // Prefer unmuted playback when browsers allow it
+    url = url.replace('muted=true', 'muted=false');
   }
   return url;
 };

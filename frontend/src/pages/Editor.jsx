@@ -687,19 +687,36 @@ export default function Editor() {
       
       let embedUrl = videoUrl;
       let embedType = 'youtube';
-      
+
+      // If user pasted a full <iframe ...> snippet (Bunny/Vimeo dashboards give this),
+      // extract just the src URL so the downstream regexes match cleanly.
+      const iframeSrcMatch = videoUrl.match(/<iframe[^>]+src=["']([^"']+)["']/i);
+      const parsedUrl = iframeSrcMatch ? iframeSrcMatch[1] : videoUrl;
+
       // Parse YouTube URL
-      const youtubeMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+      const youtubeMatch = parsedUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
       if (youtubeMatch) {
         embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}?autoplay=1&rel=0`;
         embedType = 'youtube';
       }
-      
+
       // Parse Vimeo URL
-      const vimeoMatch = videoUrl.match(/vimeo\.com\/(\d+)/);
+      const vimeoMatch = parsedUrl.match(/vimeo\.com\/(\d+)/);
       if (vimeoMatch) {
         embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
         embedType = 'vimeo';
+      }
+
+      // Parse Bunny Stream URL
+      // Accepts: https://iframe.mediadelivery.net/embed/{lib}/{guid}
+      //          https://iframe.mediadelivery.net/play/{lib}/{guid}
+      //          <iframe src="https://iframe.mediadelivery.net/embed/{lib}/{guid}?..." ...>
+      const bunnyMatch = parsedUrl.match(/iframe\.mediadelivery\.net\/(?:embed|play)\/(\d+)\/([a-f0-9-]+)/i);
+      if (bunnyMatch) {
+        const libraryId = bunnyMatch[1];
+        const videoGuid = bunnyMatch[2];
+        embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoGuid}?autoplay=true&loop=false&muted=false&preload=true&responsive=true`;
+        embedType = 'bunny';
       }
 
       // Get slide dimensions - video fills 100% of slide

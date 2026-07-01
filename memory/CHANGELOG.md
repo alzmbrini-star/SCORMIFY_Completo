@@ -1,6 +1,29 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: suporte a Bunny Stream player no Editor)
+
+### Solicitação do usuário
+- "Preciso de um ajuste na funcionalidade de inserir vídeos do Editor, que seja incluído o player para o Bunny."
+
+### Implementação
+- **`pages/Editor.jsx` (`handleAddMedia`)**: parser agora aceita URL do Bunny (`iframe.mediadelivery.net/embed/{lib}/{guid}` ou `/play/{lib}/{guid}`) e também o snippet `<iframe>` completo copiado do painel do Bunny. Extrai `src=` do iframe antes das regexes. Normaliza para `https://iframe.mediadelivery.net/embed/{lib}/{guid}?autoplay=true&loop=false&muted=false&preload=true&responsive=true` com `embedType='bunny'`.
+- **`Editor/dialogs/MediaDialogs.jsx` (`MediaDialog`)**: título "Adicionar Vídeo", placeholder e hint atualizados para mencionar "YouTube, Vimeo ou Bunny Stream (URL ou iframe)".
+- **`components/editor/CoursePreview.jsx` (`ensureEmbedAutoplay`)**: garante `autoplay=true` para URLs do Bunny e força `muted=false` para preservar áudio.
+- **`components/editor/SlideCanvas.jsx`**: badge de vídeo agora exibe "Bunny" quando `embedType==='bunny'`.
+- **`services/export_assets/player.js`** (runtime SCORM/HTML): nova branch `isBunny` com iframe absolutamente posicionado (mirror da branch do Vimeo), autoplay/preload/responsive garantidos, `allowfullscreen`, `loading="lazy"`.
+- **`services/html_exporter.py`** (JS inline do slide renderer): mesma branch `isBunny` para consistência em pacotes HTML exportados.
+
+### Testes
+- `backend/tests/test_bunny_video_embed.py` — 2/2 PASSED (valida branch Bunny em `html_exporter.py` e em `export_assets/player.js`, verificando presença de `autoplay=true` e `position:absolute`).
+- Smoke test manual via Playwright: dialog abre com novo copy, colar URL bruta do Bunny cria elemento `video` com badge "Bunny" e iframe do `iframe.mediadelivery.net` renderiza no canvas. Confirmado via inspeção do DOM (`'Bunny' in body`).
+
+### Notas
+- Comportamento de export para `single_page_exporter.py` inalterado (esse exporter já não suporta `embedUrl` para YouTube/Vimeo/Bunny — usa apenas `<video src>` local; limitação preexistente fora do escopo desta task).
+- Aceita ambos os formatos que o Bunny fornece: `embed/{lib}/{guid}` (default) e `play/{lib}/{guid}` (Direct Play URL).
+
+
+
 ## 2026-02-XX (Bugfix CRÍTICO: Tutor IA não gravava attribution → dashboard admin vazio)
 
 ### Sintoma (relatado pelo usuário)

@@ -2218,6 +2218,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 var videoId = '';
                                 var isYouTube = embedUrl.indexOf('youtube') !== -1 || embedUrl.indexOf('youtu.be') !== -1;
                                 var isVimeo = embedUrl.indexOf('vimeo') !== -1;
+                                var isBunny = embedUrl.indexOf('iframe.mediadelivery.net') !== -1;
                                 
                                 if (isYouTube) {{
                                     // Extract YouTube video ID
@@ -2229,7 +2230,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 }}
                                 
                                 // Create container for video
-                                html += '<div class="video-embed-container" data-embed-url="' + embedUrl + '" data-video-id="' + videoId + '" data-is-youtube="' + isYouTube + '" data-is-vimeo="' + isVimeo + '" style="width:100%;height:100%;position:relative;overflow:hidden;background:#000;">';
+                                html += '<div class="video-embed-container" data-embed-url="' + embedUrl + '" data-video-id="' + videoId + '" data-is-youtube="' + isYouTube + '" data-is-vimeo="' + isVimeo + '" data-is-bunny="' + isBunny + '" style="width:100%;height:100%;position:relative;overflow:hidden;background:#000;">';
                                 
                                 // For YouTube: Use iframe embed directly
                                 if (isYouTube && videoId) {{
@@ -2242,6 +2243,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     var sep = iframeUrl.indexOf('?') !== -1 ? '&' : '?';
                                     iframeUrl += sep + 'autoplay=1&muted=0&background=0&dnt=1&title=0&byline=0&portrait=0';
                                     html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
+                                }} else if (isBunny) {{
+                                    // Bunny Stream player
+                                    var bunnyUrl = embedUrl;
+                                    if (bunnyUrl.indexOf('autoplay=') === -1) {{
+                                        bunnyUrl += (bunnyUrl.indexOf('?') !== -1 ? '&' : '?') + 'autoplay=true';
+                                    }}
+                                    if (bunnyUrl.indexOf('preload=') === -1) bunnyUrl += '&preload=true';
+                                    if (bunnyUrl.indexOf('responsive=') === -1) bunnyUrl += '&responsive=true';
+                                    bunnyUrl = bunnyUrl.replace('muted=true', 'muted=false');
+                                    html += '<iframe class="video-iframe" src="' + bunnyUrl + '" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else {{
                                     // Other embeds
                                     html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';

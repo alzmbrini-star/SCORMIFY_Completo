@@ -1243,6 +1243,7 @@ var CoursePlayer = (function() {
                     var videoId = '';
                     var isYouTube = embedUrl.indexOf('youtube') !== -1 || embedUrl.indexOf('youtu.be') !== -1;
                     var isVimeo = embedUrl.indexOf('vimeo') !== -1;
+                    var isBunny = embedUrl.indexOf('iframe.mediadelivery.net') !== -1;
                     
                     if (isYouTube) {
                         var ytMatch = embedUrl.match(/(?:embed\/|v=|youtu\.be\/)([^?&"'>]+)/);
@@ -1284,6 +1285,30 @@ var CoursePlayer = (function() {
                         iframe.src = embedUrl;
                         iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
                         iframe.allowFullscreen = true;
+                        iframe.frameBorder = '0';
+                        iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
+                        el.appendChild(iframe);
+                    } else if (isBunny) {
+                        // Bunny Stream: iframe.mediadelivery.net embed player
+                        el.style.position = 'relative';
+                        el.style.background = '#000';
+                        el.style.overflow = 'hidden';
+
+                        // Guarantee autoplay/unmuted flags (Bunny uses true/false, not 1/0)
+                        var bunnyUrl = embedUrl;
+                        if (bunnyUrl.indexOf('autoplay=') === -1) {
+                            bunnyUrl += (bunnyUrl.indexOf('?') !== -1 ? '&' : '?') + 'autoplay=true';
+                        }
+                        if (bunnyUrl.indexOf('preload=') === -1) bunnyUrl += '&preload=true';
+                        if (bunnyUrl.indexOf('responsive=') === -1) bunnyUrl += '&responsive=true';
+                        bunnyUrl = bunnyUrl.replace('muted=true', 'muted=false');
+
+                        var iframe = document.createElement('iframe');
+                        iframe.src = bunnyUrl;
+                        iframe.allow = 'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;';
+                        iframe.allowFullscreen = true;
+                        iframe.setAttribute('allowfullscreen', 'true');
+                        iframe.setAttribute('loading', 'lazy');
                         iframe.frameBorder = '0';
                         iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
                         el.appendChild(iframe);

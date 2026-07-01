@@ -823,7 +823,7 @@ const SlideCanvas = ({
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z"/>
                       </svg>
-                      {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : 'Video'}
+                      {element.embedType === 'youtube' ? 'YouTube' : element.embedType === 'vimeo' ? 'Vimeo' : element.embedType === 'bunny' ? 'Bunny' : 'Video'}
                     </div>
                   )}
                   {/* Selected state info */}

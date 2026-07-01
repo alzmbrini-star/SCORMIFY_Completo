@@ -553,6 +553,13 @@ async def get_tutor_dashboard(request: Request, user: dict = Depends(require_aut
     total_questions = sum(c["totalQuestions"] for c in courses)
     total_courses = len(courses)
     total_cost_usd = sum(c["totalCostUSD"] for c in courses)
+    # Aggregate 👍/👎 across ALL courses for the top-of-dashboard KPI tiles.
+    # Cheap because the bulk feedback lookup above already grouped everything
+    # by projectId — we just sum the per-course counters.
+    total_up = sum(c.get("feedbackSummary", {}).get("upTotal", 0) for c in courses)
+    total_down = sum(c.get("feedbackSummary", {}).get("downTotal", 0) for c in courses)
+    total_rated = total_up + total_down
+    global_satisfaction_pct = round((total_up / total_rated) * 100) if total_rated > 0 else None
 
     # Company summary (for super admin) — includes cost + course list for
     # the expand-to-detail UI. Each company entry now carries the full
@@ -599,6 +606,11 @@ async def get_tutor_dashboard(request: Request, user: dict = Depends(require_aut
         "totalCostUSD": round(total_cost_usd, 4),
         "totalCostBRL": round(total_cost_usd * USD_TO_BRL, 2),
         "currency": {"USD_TO_BRL": USD_TO_BRL},
+        # Aggregate feedback KPIs for the top-of-dashboard tiles.
+        "totalUpFeedback": total_up,
+        "totalDownFeedback": total_down,
+        "totalRatedFeedback": total_rated,
+        "globalSatisfactionPct": global_satisfaction_pct,
         "companies": companies_payload,
         "courses": courses,
     }
