@@ -318,6 +318,7 @@ async def _run_scorm_export_job(
                     'enabled': True,
                     'apiUrl': external_url or settings_doc.get('apiUrl', '').strip(),
                     'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
+                    'avatarUrl': settings_doc.get('avatarUrl', '') or '',
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
                     'courseTopic': (project_doc.get("course") or {}).get("metadata", {}).get("title")
@@ -597,6 +598,7 @@ async def _run_html_export_job(
                     'enabled': True,
                     'apiUrl': base_url,
                     'tutorName': settings_doc.get('tutorName', 'Tutor IA'),
+                    'avatarUrl': settings_doc.get('avatarUrl', '') or '',
                     'messageLimit': settings_doc.get('messageLimit', 50),
                     'suggestedQuestions': settings_doc.get('suggestedQuestions', []),
                     'courseTopic': course_data.get('metadata', {}).get('title', '') or project_doc.get('name', ''),

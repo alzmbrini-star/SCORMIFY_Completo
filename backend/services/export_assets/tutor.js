@@ -75,7 +75,11 @@ var AiTutor = (function() {
 
         panel.innerHTML =
             '<div class="tutor-header">' +
-                '<div class="tutor-avatar">&#x1F393;</div>' +
+                '<div class="tutor-avatar" id="tutor-avatar-el">' +
+                    (config.avatarUrl
+                        ? '<img src="' + escapeHtml(config.avatarUrl) + '" alt="' + escapeHtml(tutorName) + '" />'
+                        : '&#x1F393;') +
+                '</div>' +
                 '<div class="tutor-header-info">' +
                     '<h3>' + escapeHtml(tutorName) + '</h3>' +
                     '<p>Assistente do curso</p>' +
@@ -87,6 +91,19 @@ var AiTutor = (function() {
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>' +
                 '</button>' +
                 '<button class="tutor-close" data-testid="tutor-close-button" onclick="AiTutor.toggle()" title="Fechar">&#x2715;</button>' +
+            '</div>' +
+            // Accessibility bar — font size (A+/A-) and contrast presets.
+            // Choices are saved in localStorage so the student's preference
+            // survives across slides and reload.
+            '<div class="tutor-a11y-bar" data-testid="tutor-a11y-bar">' +
+                '<span class="tutor-a11y-label">ACESSIBILIDADE:</span>' +
+                '<button class="tutor-a11y-btn tutor-a11y-font-up" data-testid="tutor-a11y-font-up" onclick="AiTutor.changeFontSize(1)" title="Aumentar fonte"><span style="font-weight:700;font-size:15px">A+</span></button>' +
+                '<button class="tutor-a11y-btn tutor-a11y-font-down" data-testid="tutor-a11y-font-down" onclick="AiTutor.changeFontSize(-1)" title="Diminuir fonte"><span style="font-weight:500;font-size:12px">A-</span></button>' +
+                '<span class="tutor-a11y-sep"></span>' +
+                '<span class="tutor-a11y-label">CONTRASTE:</span>' +
+                '<button class="tutor-a11y-btn tutor-a11y-contrast" data-contrast="dark" data-testid="tutor-a11y-contrast-dark" onclick="AiTutor.setContrast(\'dark\')" title="Contraste escuro"><span class="tutor-contrast-swatch dark"></span></button>' +
+                '<button class="tutor-a11y-btn tutor-a11y-contrast" data-contrast="light" data-testid="tutor-a11y-contrast-light" onclick="AiTutor.setContrast(\'light\')" title="Contraste claro"><span class="tutor-contrast-swatch light"></span></button>' +
+                '<button class="tutor-a11y-btn tutor-a11y-contrast" data-contrast="high" data-testid="tutor-a11y-contrast-high" onclick="AiTutor.setContrast(\'high\')" title="Alto contraste"><span class="tutor-contrast-swatch high"></span></button>' +
             '</div>' +
             '<div class="tutor-slide-indicator" id="tutor-slide-indicator" data-testid="tutor-slide-indicator"></div>' +
             suggestionsHtml +
@@ -130,6 +147,59 @@ var AiTutor = (function() {
 
         updateCounter();
         updateSlideIndicator();
+        applyA11yPrefs();
+    }
+
+    // Accessibility preferences — persisted in localStorage so student
+    // choice survives across slides and page reloads.
+    var FONT_STEPS = ['small', 'default', 'large', 'xlarge'];  // 4 levels
+    function loadA11yPrefs() {
+        try {
+            return {
+                font: localStorage.getItem('tutor-a11y-font') || 'default',
+                contrast: localStorage.getItem('tutor-a11y-contrast') || 'dark',
+            };
+        } catch (e) {
+            return { font: 'default', contrast: 'dark' };
+        }
+    }
+    function saveA11yPrefs(prefs) {
+        try {
+            localStorage.setItem('tutor-a11y-font', prefs.font);
+            localStorage.setItem('tutor-a11y-contrast', prefs.contrast);
+        } catch (e) { /* private mode / disabled — best effort */ }
+    }
+    function applyA11yPrefs() {
+        var panel = document.getElementById('tutor-panel');
+        if (!panel) return;
+        var prefs = loadA11yPrefs();
+        // Clear then apply font class
+        FONT_STEPS.forEach(function(s) { panel.classList.remove('tutor-font-' + s); });
+        panel.classList.add('tutor-font-' + prefs.font);
+        // Clear then apply contrast class
+        ['dark', 'light', 'high'].forEach(function(c) { panel.classList.remove('tutor-contrast-' + c); });
+        panel.classList.add('tutor-contrast-' + prefs.contrast);
+        // Mark active contrast button
+        var buttons = panel.querySelectorAll('.tutor-a11y-contrast');
+        for (var i = 0; i < buttons.length; i++) {
+            var btn = buttons[i];
+            btn.classList.toggle('active', btn.getAttribute('data-contrast') === prefs.contrast);
+        }
+    }
+    function changeFontSize(delta) {
+        var prefs = loadA11yPrefs();
+        var idx = FONT_STEPS.indexOf(prefs.font);
+        if (idx === -1) idx = 1;  // 'default'
+        idx = Math.max(0, Math.min(FONT_STEPS.length - 1, idx + delta));
+        prefs.font = FONT_STEPS[idx];
+        saveA11yPrefs(prefs);
+        applyA11yPrefs();
+    }
+    function setContrast(mode) {
+        var prefs = loadA11yPrefs();
+        prefs.contrast = mode;
+        saveA11yPrefs(prefs);
+        applyA11yPrefs();
     }
 
     function addWelcomeMessage() {
@@ -592,6 +662,8 @@ var AiTutor = (function() {
         sendSuggestion: sendSuggestion,
         copyMessage: copyMessage,
         rateMessage: rateMessage,
-        onSlideChange: onSlideChange
+        onSlideChange: onSlideChange,
+        changeFontSize: changeFontSize,
+        setContrast: setContrast
     };
 })();

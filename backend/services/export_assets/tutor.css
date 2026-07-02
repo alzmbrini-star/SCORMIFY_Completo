@@ -70,6 +70,14 @@
     align-items: center;
     justify-content: center;
     font-size: 18px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.tutor-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 .tutor-header-info h3 {
     margin: 0;
@@ -451,4 +459,226 @@
         border-radius: 0;
     }
     .tutor-fab { bottom: 16px; right: 16px; width: 48px; height: 48px; }
+}
+
+
+/* -------------------------------------------------------------------------
+ * Accessibility bar — sits just below the header. A+/A- for font size and
+ * three swatches for contrast (dark / light / high). Persisted in localStorage.
+ * ---------------------------------------------------------------------- */
+.tutor-a11y-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f4f4f6;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    color: #1e1e2e;
+    font-size: 10px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.tutor-a11y-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #4a4a5e;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+.tutor-a11y-btn {
+    background: rgba(0,0,0,0.04);
+    border: 1px solid rgba(0,0,0,0.1);
+    color: #1e1e2e;
+    width: 28px;
+    height: 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+}
+.tutor-a11y-btn:hover {
+    background: rgba(0,0,0,0.10);
+    transform: translateY(-1px);
+}
+.tutor-a11y-btn.active {
+    border-color: #6366f1;
+    background: rgba(99,102,241,0.12);
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.18);
+}
+.tutor-a11y-sep {
+    width: 1px;
+    height: 16px;
+    background: rgba(0,0,0,0.12);
+    margin: 0 4px;
+}
+.tutor-contrast-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 1px solid rgba(0,0,0,0.25);
+}
+.tutor-contrast-swatch.dark  { background: #0a0a0f; }
+.tutor-contrast-swatch.light { background: #ffffff; }
+.tutor-contrast-swatch.high  { background: #2563eb; }
+
+/* --------------------------------------------------------------------------
+ * Font-size classes — applied to the panel, cascade down to every text node.
+ * -------------------------------------------------------------------------- */
+.tutor-panel.tutor-font-small .tutor-msg { font-size: 12px; line-height: 1.5; }
+.tutor-panel.tutor-font-small .tutor-input { font-size: 12px; }
+.tutor-panel.tutor-font-small .tutor-suggestion-btn { font-size: 11px; }
+.tutor-panel.tutor-font-small .tutor-slide-indicator { font-size: 11px; }
+
+.tutor-panel.tutor-font-default .tutor-msg { font-size: 13px; }
+.tutor-panel.tutor-font-default .tutor-input { font-size: 13px; }
+
+.tutor-panel.tutor-font-large .tutor-msg { font-size: 15px; line-height: 1.55; }
+.tutor-panel.tutor-font-large .tutor-input { font-size: 15px; }
+.tutor-panel.tutor-font-large .tutor-suggestion-btn { font-size: 13px; }
+.tutor-panel.tutor-font-large .tutor-slide-indicator { font-size: 13px; }
+
+.tutor-panel.tutor-font-xlarge .tutor-msg { font-size: 17px; line-height: 1.6; }
+.tutor-panel.tutor-font-xlarge .tutor-input { font-size: 17px; padding: 12px 16px; }
+.tutor-panel.tutor-font-xlarge .tutor-suggestion-btn { font-size: 14px; padding: 8px 14px; }
+.tutor-panel.tutor-font-xlarge .tutor-slide-indicator { font-size: 14px; }
+.tutor-panel.tutor-font-xlarge .tutor-header-info h3 { font-size: 17px; }
+
+/* --------------------------------------------------------------------------
+ * Contrast themes — dark is the baseline (existing look).
+ * -------------------------------------------------------------------------- */
+/* LIGHT: white background with dark text (WCAG AA contrast). */
+.tutor-panel.tutor-contrast-light {
+    background: #ffffff;
+}
+.tutor-panel.tutor-contrast-light .tutor-slide-indicator {
+    background: #eef2ff;
+    color: #3730a3;
+    border-bottom-color: #e5e7eb;
+}
+.tutor-panel.tutor-contrast-light .tutor-suggestions {
+    border-bottom-color: #e5e7eb;
+}
+.tutor-panel.tutor-contrast-light .tutor-suggestion-btn {
+    border-color: #c7d2fe;
+    color: #4f46e5;
+}
+.tutor-panel.tutor-contrast-light .tutor-suggestion-btn:hover {
+    background: #6366f1;
+    color: #fff;
+}
+.tutor-panel.tutor-contrast-light .tutor-messages::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+}
+.tutor-panel.tutor-contrast-light .tutor-msg.assistant {
+    background: #f3f4f6;
+    color: #111827;
+}
+.tutor-panel.tutor-contrast-light .tutor-msg.assistant strong { color: #4338ca; }
+.tutor-panel.tutor-contrast-light .tutor-msg.assistant code {
+    background: #e5e7eb;
+    color: #111827;
+}
+.tutor-panel.tutor-contrast-light .tutor-input-area {
+    background: #f9fafb;
+    border-top-color: #e5e7eb;
+}
+.tutor-panel.tutor-contrast-light .tutor-input {
+    background: #ffffff;
+    border-color: #d1d5db;
+    color: #111827;
+}
+.tutor-panel.tutor-contrast-light .tutor-input::placeholder { color: #9ca3af; }
+.tutor-panel.tutor-contrast-light .tutor-counter {
+    background: #f9fafb;
+    color: #6b7280;
+}
+.tutor-panel.tutor-contrast-light .tutor-typing {
+    background: #f3f4f6;
+}
+.tutor-panel.tutor-contrast-light .tutor-msg-action {
+    background: rgba(0,0,0,0.04);
+    border-color: rgba(0,0,0,0.08);
+    color: #4b5563;
+}
+.tutor-panel.tutor-contrast-light .tutor-msg-action:hover {
+    background: rgba(0,0,0,0.08);
+    color: #111827;
+}
+
+/* HIGH CONTRAST: black background, white/yellow text, sharp borders.
+ * Target WCAG AAA for low-vision users. */
+.tutor-panel.tutor-contrast-high {
+    background: #000000;
+}
+.tutor-panel.tutor-contrast-high .tutor-header {
+    background: #000000;
+    border-bottom: 2px solid #fbbf24;
+}
+.tutor-panel.tutor-contrast-high .tutor-a11y-bar {
+    background: #ffffff;
+    color: #000000;
+    border-bottom: 2px solid #fbbf24;
+}
+.tutor-panel.tutor-contrast-high .tutor-slide-indicator {
+    background: #0a0a0a;
+    color: #fbbf24;
+    border-bottom-color: #fbbf24;
+}
+.tutor-panel.tutor-contrast-high .tutor-suggestion-btn {
+    background: transparent;
+    color: #fbbf24;
+    border-color: #fbbf24;
+}
+.tutor-panel.tutor-contrast-high .tutor-suggestion-btn:hover {
+    background: #fbbf24;
+    color: #000000;
+}
+.tutor-panel.tutor-contrast-high .tutor-messages { background: #000000; }
+.tutor-panel.tutor-contrast-high .tutor-msg.assistant {
+    background: #000000;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+}
+.tutor-panel.tutor-contrast-high .tutor-msg.assistant strong { color: #fbbf24; }
+.tutor-panel.tutor-contrast-high .tutor-msg.user {
+    background: #fbbf24;
+    color: #000000;
+    border: 2px solid #ffffff;
+}
+.tutor-panel.tutor-contrast-high .tutor-input-area {
+    background: #000000;
+    border-top: 2px solid #fbbf24;
+}
+.tutor-panel.tutor-contrast-high .tutor-input {
+    background: #000000;
+    border-color: #ffffff;
+    color: #ffffff;
+}
+.tutor-panel.tutor-contrast-high .tutor-input::placeholder { color: #d1d5db; }
+.tutor-panel.tutor-contrast-high .tutor-send {
+    background: #fbbf24;
+    color: #000000;
+}
+.tutor-panel.tutor-contrast-high .tutor-send:hover { background: #f59e0b; }
+.tutor-panel.tutor-contrast-high .tutor-counter {
+    background: #000000;
+    color: #d1d5db;
+}
+.tutor-panel.tutor-contrast-high .tutor-typing {
+    background: #000000;
+    border: 2px solid #ffffff;
+}
+.tutor-panel.tutor-contrast-high .tutor-msg-action {
+    background: #000000;
+    border-color: #ffffff;
+    color: #ffffff;
+}
+.tutor-panel.tutor-contrast-high .tutor-msg-action:hover {
+    background: #fbbf24;
+    color: #000000;
 }

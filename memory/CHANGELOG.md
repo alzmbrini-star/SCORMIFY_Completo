@@ -1,6 +1,87 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Acessibilidade e Avatar customizado no widget Tutor IA)
+
+### Solicitação do usuário
+- "Ajuste no layout do Tutor IA que permita alterar no próprio widget o contraste e o tamanho da fonte. E coloque a possibilidade de inserir uma imagem com a cara do Tutor."
+- Referência: screenshot da assistente "Duda" com barra "ACESSIBILIDADE: A+ / A- CONTRASTE: (dark/light/high)".
+
+### Implementação
+- **`services/export_assets/tutor.js`**:
+  - Nova barra `.tutor-a11y-bar` renderizada logo abaixo do header, com A+/A- para tamanho de fonte e três swatches para contraste.
+  - Funções públicas `changeFontSize(delta)` e `setContrast(mode)` expostas em `AiTutor.*`.
+  - Preferências persistidas em `localStorage` (`tutor-a11y-font`, `tutor-a11y-contrast`).
+  - Header renderiza `<img src="config.avatarUrl">` quando definido, com fallback para o emoji 🎓 padrão.
+- **`services/export_assets/tutor.css`**:
+  - `.tutor-avatar img { object-fit: cover }` para foto redonda sem distorção.
+  - 4 níveis de fonte: `.tutor-font-small/default/large/xlarge`.
+  - 3 temas: `.tutor-contrast-dark/light/high` (dark = default, light = WCAG AA, high = WCAG AAA com amarelo #fbbf24 sobre preto).
+- **`routes/admin.py`**: default do doc `settings.tutor` inclui `avatarUrl: ""`.
+- **`routes/export.py`**: ambos blocos `tutor_settings` propagam `avatarUrl` para o widget config.
+- **`services/scorm_exporter.py`**: `tutorConfig['avatarUrl']` incluído. `html_exporter._generate_tutor_block` herda via spread.
+- **`pages/Admin.jsx`** (Tutor IA tab): nova seção "Foto/Avatar do Tutor" com preview redondo 80x80, "Escolher imagem" (aceita PNG/JPG/WEBP até 2 MB), "Remover". Handler converte para data URI via `FileReader.readAsDataURL`.
+
+### Decisão de arquitetura
+Optado por **data URI no config** em vez de upload endpoint dedicado. Motivos: (1) ZIP SCORM self-contained, funciona offline em LMSs com whitelist restritiva; (2) sem I/O de rede no runtime; (3) sem cleanup órfão. Trade-off: cap de 2 MB.
+
+### Testes
+- `backend/tests/test_tutor_accessibility_and_avatar.py` — **5/5 PASSED**.
+- Curl E2E: PUT/GET `/api/admin/tutor-settings` grava e retorna `avatarUrl` (282 bytes SVG dataURI).
+- Smoke Playwright em `/admin` → Tutor IA: seção renderiza com preview da imagem, botões OK.
+
+### ⚠️ Nota de infraestrutura
+Durante os testes detectei que `/app` estava **100% cheio** (1.5 GB em `storage/exports/`, 841 MB em `storage/whiteboard/`). Liberei 430 MB removendo `frontend/node_modules/.cache` (regenerado no próximo build). **Recomendado**: limpar exports antigos ou solicitar volume maior ao Suporte Emergent — senão exports grandes (whiteboard, HTML) vão continuar falhando com "No space left on device".
+
+
+
+## 2026-02-XX (Feature: Acessibilidade e Avatar customizado no widget Tutor IA)
+
+### Solicitação do usuário
+- "Ajuste no layout do Tutor IA que permita alterar no próprio widget o contraste e o tamanho da fonte. E coloque a possibilidade de inserir uma imagem com a cara do Tutor."
+- Referência: screenshot da assistente "Duda" com barra "ACESSIBILIDADE: A+ / A- CONTRASTE: (dark/light/high)" abaixo do header.
+
+### Implementação
+- **`services/export_assets/tutor.js`**:
+  - Nova barra `.tutor-a11y-bar` renderizada logo abaixo do header do painel, com botões `A+`/`A-` para tamanho de fonte e três swatches para contraste (escuro / claro / alto contraste).
+  - Funções públicas `changeFontSize(delta)` e `setContrast(mode)` expostas em `AiTutor.*`.
+  - Preferências persistidas em `localStorage` (`tutor-a11y-font`, `tutor-a11y-contrast`) — sobrevivem entre slides, sessões e reload.
+  - Header agora renderiza `<img src="config.avatarUrl">` quando definido, com fallback para o emoji 🎓 padrão.
+- **`services/export_assets/tutor.css`**:
+  - `.tutor-avatar img { object-fit: cover }` para foto redonda sem distorção.
+  - 4 níveis de fonte: `.tutor-font-small / default / large / xlarge` — escala mensagens, input, sugestões e indicador de slide.
+  - 3 temas de contraste: `.tutor-contrast-dark` (default, mantém look atual), `.tutor-contrast-light` (branco WCAG AA), `.tutor-contrast-high` (preto + amarelo/branco, borda 2px, WCAG AAA).
+  - Botão de contraste ativo ganha ring indigo.
+- **`routes/admin.py`**: default do doc `settings.tutor` agora inclui `avatarUrl: ""`.
+- **`routes/export.py`**: ambos os blocos de `tutor_settings` (Modo Fiel e Editor) leem `avatarUrl` do doc de settings e propagam para o widget config.
+- **`services/scorm_exporter.py`**: `course_data['tutorConfig']` inclui `avatarUrl` — via `_generate_tutor_block` do `html_exporter.py` já herdado via spread.
+- **`pages/Admin.jsx`** (Tutor IA tab):
+  - Nova seção "Foto/Avatar do Tutor" com preview redondo (80x80), botão "Escolher imagem" (input file oculto), botão "Remover".
+  - Handler `handleAvatarUpload` converte o arquivo para data URI via `FileReader.readAsDataURL` — a imagem viaja embutida no SCORM/HTML exportado (funciona offline em qualquer LMS, sem chamadas externas).
+  - Validações: apenas `image/*`, cap de 2 MB.
+
+### Decisão de arquitetura
+Optado por **data URI dentro do config** em vez de URL externa/upload endpoint dedicado. Vantagens:
+- Zero I/O de rede no runtime do curso (LMSs corporativos com whitelist restritiva funcionam).
+- ZIP SCORM self-contained — sem quebras se o Scormify sair do ar.
+- Sem cleanup órfão de imagens no storage.
+- Trade-off aceito: cap de 2 MB no upload (settings doc fica ~2.7 MB base64, bem dentro do limite Mongo 16 MB).
+
+### Testes
+- `backend/tests/test_tutor_accessibility_and_avatar.py` — **5/5 PASSED**:
+  1. Widget expõe `changeFontSize`/`setContrast` no API público.
+  2. `config.avatarUrl` é lido no header e renderiza `<img>`.
+  3. Todas as classes de tema/tamanho existem no CSS.
+  4. `avatarUrl` propaga através de `export.py` (2 lugares) e `scorm_exporter.py`.
+  5. Default do `settings.tutor` inclui `avatarUrl`.
+- Curl E2E confirmou PUT/GET `/api/admin/tutor-settings` gravando data URI.
+- Smoke Playwright no `/admin` → Tutor IA: seção de avatar renderiza, preview mostra imagem uploaded, botões "Escolher imagem" e "Remover" presentes com `data-testid`.
+
+### Nota de infraestrutura
+Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/exports/` = 1.5 GB, `whiteboard/` = 841 MB). O teste E2E `test_tutor_maximize_export.py` falha com "No space left on device" — não é bug de código, mas vale limpar exports antigos ou solicitar volume maior ao Suporte Emergent.
+
+
+
 ## 2026-02-XX (Feature: suporte a Bunny Stream player no Editor)
 
 ### Solicitação do usuário
@@ -1052,37 +1133,4 @@
 - **Applied in**: `server.py` (middleware), `routes/admin.py` (endpoint handlers)
 - **Status**: Tested ✅ (preview) — User must **re-deploy and re-export SCORM** to test in production
 
-### Bug Fix: Washed-Out Slide Thumbnails
-- **Root Cause**: HTML element placeholders in thumbnails were empty transparent divs, hiding the actual slide content. AI-generated slides use HTML elements as main visual content covering the full area.
-- **Fix**: Replaced empty placeholder with sandboxed `<iframe>` (`sandbox="allow-scripts"`, no `allow-same-origin`) that renders the actual HTML content safely without CSS leaking
-- **Applied in**: `SlideThumbnailContent.jsx`
-- **Status**: Verified ✅ — thumbnails now show full slide content (text, images, tables, buttons)
-
-### CRITICAL Bug Fix: AI HTML CSS Leaking to Editor UI
-- **Root Cause**: `SlideThumbnailContent.jsx` rendered HTML elements using `dangerouslySetInnerHTML` directly in the editor DOM (no iframe isolation). AI-generated HTML contains `<style>` tags with global CSS rules (e.g., `button { background: gradient(...) }`, `body { background: white }`) that cascade to ALL elements on the page, breaking toolbar icons, button visibility, and the dark theme.
-- **Fix**: Replaced `dangerouslySetInnerHTML` with a safe placeholder (`</> HTML`) for HTML elements in thumbnails. Also removed `allow-same-origin` from all iframe sandboxes and added `contain: strict; isolation: isolate` on iframe containers.
-- **Applied in**: `frontend/src/pages/Editor/components/SlideThumbnailContent.jsx`, `frontend/src/components/editor/SlideCanvas.jsx`, `CoursePreview.jsx`, `SplitPreview.jsx`, `Editor.jsx`
-- **Status**: Tested ✅ — toolbar clean, dark theme restored, HTML renders correctly in iframe
-
-### Feature: AI-Powered HTML Generation in Editor
-- **What**: "Gerar com IA" tab in HTML dialog with prompt → preview → edit → insert
-- **Backend**: `POST /api/generate-html` using Gemini
-- **Status**: Tested ✅ (iteration_78)
-
-### Bug Fix: Full HTML Documents Breaking iframe CSS
-- **Fix**: Auto-detect `<!DOCTYPE html>` and render directly as srcDoc without wrapper
-- **Applied in**: SlideCanvas, CoursePreview, SplitPreview, player.js, html_exporter.py
-- **Status**: Tested ✅
-
-### Bug Fix: AI Tutor 404 in Production SCORM Exports
-- **Fix**: `_get_external_url()` now uses X-Forwarded headers from K8s proxy
-- **Status**: Tested ✅ (iteration_77)
-
-### CRITICAL Bug Fix: Missing Route Registrations
-- **Fix**: Added 8 missing route modules to server.py
-- **Status**: Tested ✅ (iteration_76)
-
-## Previous Sessions
-- SCORM completion, HTML scenario, deployment, background images, login fixes
-- Before/After Preview + Undo, AI improvements layout fix
-- Gamification, AI Agent scenario fix, Fix Simulators button
+### Bug Fix: Washed-Out 

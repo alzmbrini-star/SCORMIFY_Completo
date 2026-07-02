@@ -792,6 +792,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             'courseContext': course_context,
             'slideContexts': per_slide_contexts,
             'tutorName': tutor_config.get('tutorName', 'Tutor IA'),
+            'avatarUrl': tutor_config.get('avatarUrl', '') or '',
             'messageLimit': tutor_config.get('messageLimit', 50),
             'suggestedQuestions': tutor_config.get('suggestedQuestions', []),
             # Forward attribution so the in-widget feedback POSTs include

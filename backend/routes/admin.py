@@ -59,7 +59,8 @@ async def get_tutor_settings():
         settings = {
             "key": "tutor", "enabled": True, "messageLimit": 50,
             "suggestedQuestions": [], "systemPrompt": "", "tutorName": "Tutor IA",
-            "apiUrl": ""  # Empty means use default BASE_URL
+            "apiUrl": "",  # Empty means use default BASE_URL
+            "avatarUrl": ""  # data URI or absolute URL for the header avatar
         }
     return settings
 

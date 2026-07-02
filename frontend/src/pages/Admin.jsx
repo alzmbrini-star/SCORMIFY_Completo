@@ -31,6 +31,8 @@ import {
   Sparkles,
   Activity,
   Database,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
@@ -66,6 +68,7 @@ export default function Admin() {
   const [tutorSettings, setTutorSettings] = useState({
     enabled: true,
     tutorName: 'Tutor IA',
+    avatarUrl: '',
     messageLimit: 50,
     suggestedQuestions: [],
     systemPrompt: '',
@@ -73,6 +76,7 @@ export default function Admin() {
   });
   const [newSuggestion, setNewSuggestion] = useState('');
   const [tutorLoading, setTutorLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   
   // Reports states
   const [reports, setReports] = useState([]);
@@ -131,6 +135,44 @@ export default function Admin() {
       else toast.error('Erro ao salvar configuracoes');
     } catch (e) { toast.error('Erro ao salvar'); }
     finally { setTutorLoading(false); }
+  };
+
+  // Convert an uploaded image into a data-URI so it can be embedded straight
+  // into exported SCORM/HTML packages (no external host needed — works
+  // offline inside any LMS). Cap at ~2MB to keep the settings doc small.
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Envie um arquivo de imagem (PNG, JPG, WEBP)');
+      return;
+    }
+    const MAX_BYTES = 2 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast.error('Imagem muito grande (máx. 2 MB)');
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const dataUri = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('read-error'));
+        reader.readAsDataURL(file);
+      });
+      setTutorSettings(prev => ({ ...prev, avatarUrl: dataUri }));
+      toast.success('Avatar carregado. Clique em Salvar para aplicar.');
+    } catch (err) {
+      toast.error('Não foi possível ler o arquivo');
+    } finally {
+      setAvatarUploading(false);
+      // Allow re-selecting the same file
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const removeAvatar = () => {
+    setTutorSettings(prev => ({ ...prev, avatarUrl: '' }));
   };
 
   const fetchReports = async () => {
@@ -708,6 +750,56 @@ export default function Admin() {
                 placeholder="Ex: Tutor IA, Professor Virtual"
                 data-testid="tutor-name-input"
               />
+            </div>
+
+            {/* Tutor Avatar */}
+            <div data-testid="tutor-avatar-section">
+              <label className="block text-sm text-slate-300 mb-2">Foto/Avatar do Tutor</label>
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-20 h-20 rounded-full overflow-hidden bg-slate-700 border-2 border-slate-600 flex items-center justify-center shrink-0"
+                  data-testid="tutor-avatar-preview"
+                >
+                  {tutorSettings.avatarUrl ? (
+                    <img src={tutorSettings.avatarUrl} alt="Avatar do Tutor" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-slate-500" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-sm cursor-pointer transition-colors disabled:opacity-50"
+                      data-testid="tutor-avatar-upload-label"
+                    >
+                      {avatarUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      {avatarUploading ? 'Carregando...' : 'Escolher imagem'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarUpload}
+                        disabled={avatarUploading}
+                        data-testid="tutor-avatar-input"
+                      />
+                    </label>
+                    {tutorSettings.avatarUrl && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={removeAvatar}
+                        data-testid="tutor-avatar-remove"
+                      >
+                        <X className="w-3 h-3 mr-1" /> Remover
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    PNG, JPG ou WEBP até 2 MB. A imagem é embutida no curso exportado (funciona offline em qualquer LMS).
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Message Limit */}
