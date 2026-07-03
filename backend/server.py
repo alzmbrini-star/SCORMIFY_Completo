@@ -878,12 +878,13 @@ async def shutdown():
 print("[STARTUP] server.py: Ready to accept connections.", flush=True)
 
 
-# ── CORS for /api/tutor/chat ──
+# ── CORS for /api/tutor/* (chat + feedback) ──
 # In production, Cloudflare strips "Access-Control-Allow-Origin: *" from POST
 # responses (but keeps specific origins). So we can't rely on CORSMiddleware's
-# wildcard for this endpoint.
+# wildcard for these endpoints — they are called cross-origin from exported
+# courses hosted inside any LMS.
 #
-# Solution: ASGI wrapper that for /api/tutor/chat:
+# Solution: ASGI wrapper that for /api/tutor/chat and /api/tutor/feedback:
 #   • OPTIONS -> return 204 with reflected origin (bypasses CORSMiddleware).
 #   • POST    -> let the app handle the request, then replace any
 #                Access-Control-Allow-Origin header with the reflected origin
@@ -891,12 +892,20 @@ print("[STARTUP] server.py: Ready to accept connections.", flush=True)
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 
+# Paths that need reflected-origin CORS. These are all called cross-origin from
+# an exported course's <script> hosted in a third-party LMS (Moodle, TalentLMS,
+# SAP SF, ...), so `Access-Control-Allow-Origin: *` gets stripped by Cloudflare
+# and we must echo back the concrete Origin header instead.
+_TUTOR_CORS_PATHS = ("/tutor/chat", "/tutor/feedback")
+
+
 class _TutorCorsASGI:
     def __init__(self, inner: ASGIApp):
         self.inner = inner
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or "/tutor/chat" not in scope.get("path", ""):
+        path = scope.get("path", "") if scope.get("type") == "http" else ""
+        if not any(p in path for p in _TUTOR_CORS_PATHS):
             await self.inner(scope, receive, send)
             return
 

@@ -1,6 +1,45 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix CRÍTICO em PRODUÇÃO: CORS derruba feedback do Tutor em cursos hospedados em LMS)
+
+### Sintoma
+Aluno clica 👍 dentro de curso SCORM exportado hospedado num LMS terceiro (Moodle, TalentLMS, ...) e o Admin Dashboard mostra `Conteúdo Bom: 0`, mesmo o widget local mostrando "1 avaliação, 100% satisfação".
+
+### Causa raiz
+`server.py` linha 899 tinha um wrapper ASGI `_TutorCorsASGI` cuja finalidade é REFLETIR a origem cross-origin (`https://moodle.example.com`) no header `Access-Control-Allow-Origin` — porque Cloudflare em produção **strippa o `*` wildcard** dos POST responses. Sem esse wrapper, o browser bloqueia a resposta com erro CORS e o POST nunca chega no Mongo.
+
+**Bug**: o wrapper só cobria `/tutor/chat` (`if "/tutor/chat" not in scope.get("path", "")`). O endpoint `/tutor/feedback` foi esquecido, resultando em:
+- `/tutor/chat` → funciona, chat persiste em `tutor_logs`
+- `/tutor/feedback` → Cloudflare tira o `*` → browser bloqueia → 👍 nunca chega no `tutor_feedback` → Dashboard mostra 0
+
+### Reprodução (produção)
+```
+curl -sI -X POST "https://backend-startup.emergent.host/api/tutor/feedback" \
+  -H "Origin: https://moodle.example.com" ...
+# Resposta:
+# vary: Origin
+# access-control-allow-methods: ...
+# access-control-allow-origin: <MISSING>   ← Cloudflare stripou o "*"
+```
+Para `/tutor/chat` na mesma condição, o `access-control-allow-origin: https://moodle.example.com` aparece corretamente (é o wrapper agindo).
+
+### Fix (`server.py`)
+- Substituída checagem hardcoded `if "/tutor/chat" not in path` por whitelist `_TUTOR_CORS_PATHS = ("/tutor/chat", "/tutor/feedback")` + `any(p in path for p in _TUTOR_CORS_PATHS)`.
+- Isso garante que ambos os endpoints recebam o mesmo tratamento de reflexão de origem em produção.
+
+### Testes
+- `backend/tests/test_tutor_cors_wrapper.py` — 2/2 PASSED. Valida presença literal do path na whitelist e uso de checagem iterativa (para não regredir para hardcoded).
+- Curl E2E no preview confirmou 200 + `{"ok":true,"rating":"up"}` com CORS headers corretos.
+
+### ⚠️ Ação necessária do usuário
+Como o fix é em `server.py`, o **redeploy** do backend é obrigatório para aplicar em produção. Após o redeploy:
+1. Não precisa re-exportar o curso — os ZIPs já existentes já POSTam para o endpoint correto.
+2. Basta o aluno clicar 👍 novamente no LMS e o dashboard vai refletir.
+3. Feedbacks perdidos ANTES do fix não são recuperáveis (o browser nunca entregou o POST ao servidor).
+
+
+
 ## 2026-02-XX (Feature: Acessibilidade e Avatar customizado no widget Tutor IA)
 
 ### Solicitação do usuário
