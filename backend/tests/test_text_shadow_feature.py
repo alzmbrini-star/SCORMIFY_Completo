@@ -69,3 +69,43 @@ def test_exporter_render_layers_carry_textshadow():
     assert "text-shadow" in html_ex.lower()
     player = Path("/app/backend/services/export_assets/player.js").read_text()
     assert "textShadow" in player
+
+
+def test_html_element_type_included_in_bulk_apply():
+    """Bug fix: originally bulk-apply only touched type==='text' elements, so
+    AI/PPT-imported slides (which use type==='html' RichText) were skipped
+    and users saw "nothing happens" when toggling the slide shadow."""
+    slide = (FRONTEND / "pages/Editor/components/SlideProperties.jsx").read_text()
+    assert "el.type !== 'text' && el.type !== 'html'" in slide, (
+        "SlideProperties bulk-apply must iterate BOTH text and html elements"
+    )
+    editor = (FRONTEND / "pages/Editor.jsx").read_text()
+    assert "el.type !== 'text' && el.type !== 'html'" in editor, (
+        "Editor project-wide apply must iterate BOTH text and html elements"
+    )
+
+
+def test_html_iframe_renderers_inject_textshadow_css():
+    """Iframe-based renderers (SlideCanvas + CoursePreview + player.js +
+    html_exporter) must inject a CSS rule for element.style.textShadow so
+    it also applies to RichText/RTF content."""
+    canvas = (FRONTEND / "components/editor/SlideCanvas.jsx").read_text()
+    assert "element.style?.textShadow" in canvas and "text-shadow:" in canvas.lower()
+    preview = (FRONTEND / "components/editor/CoursePreview.jsx").read_text()
+    assert "element.style?.textShadow" in preview and "text-shadow:" in preview.lower()
+    html_ex = Path("/app/backend/services/html_exporter.py").read_text()
+    assert "elem.style.textShadow" in html_ex
+    assert "body,body *" in html_ex  # broad selector for RichText
+    player = Path("/app/backend/services/export_assets/player.js").read_text()
+    assert "body,body *" in player
+
+
+def test_single_page_exporter_scopes_shadow_correctly():
+    """Single-page exporter (no iframe for inline HTML branches) must NOT
+    leak text-shadow to sibling elements — must scope via inline style on
+    wrapper div."""
+    src = Path("/app/backend/services/single_page_exporter.py").read_text()
+    assert 'inline_style' in src
+    assert 'text-shadow:' in src
+    # And use body,body * only inside iframe scope
+    assert 'body,body *' in src

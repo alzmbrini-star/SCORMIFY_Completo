@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: Sombra do texto não afetava elementos RichText/RTF)
+
+### Sintoma reportado
+Usuário aplicou sombra amarela (blur 16px, offset X 10px, offset Y 2px) no toggle "Sombra dos Textos" do slide, mas o texto "Meu texto com sombra" continuou sem efeito visual. Só a preview "Exemplo" mostrava sombra.
+
+### Causa raiz
+O bulk-apply em `SlideProperties.jsx` e `Editor.jsx` filtrava por `el.type !== 'text'`, ignorando elementos `type === 'html'` (RichText/RTF) — que é o formato usado pela maioria dos slides gerados por IA e importados de PPT. Além disso, mesmo se o campo `style.textShadow` fosse gravado no elemento `html`, os renderers embutiam-no dentro de um `<iframe srcdoc>` com CSS próprio, sem propagar a regra `text-shadow`.
+
+### Fix
+- **Bulk-apply** (`SlideProperties.jsx` + `Editor.jsx`): condição alterada de `el.type !== 'text'` para `el.type !== 'text' && el.type !== 'html'` — agora ambos são atingidos, preservando `hasExplicit`.
+- **`ElementProperties.jsx`**: seção "Sombra do Texto" dedicada para elementos `html` (RichText) — mesma UI do texto plano.
+- **`SlideCanvas.jsx` + `CoursePreview.jsx`**: iframe do RichText agora injeta `text-shadow: ${element.style.textShadow}` no `<style>` do `srcdoc` quando o campo está setado.
+- **`html_exporter.py` + `player.js`**: mesma injeção no CSS inline do iframe do runtime SCORM/HTML, com selector amplo `body,body *{text-shadow:X !important;}` (seguro por estar dentro do iframe, sem vazar).
+- **`single_page_exporter.py`**: dois branches distintos:
+  - Branch iframe (has_global_styles): mesmo `body,body *` no `reset_css`.
+  - Branch inline (`sp-html`, `sp-interactive`): usa `style="text-shadow:X"` inline no wrapper `<div>` para **escopar** e evitar vazamento pros irmãos.
+
+### Testes
+- `test_text_shadow_feature.py` — expandido para **9/9 PASSED**. Novos testes: `test_html_element_type_included_in_bulk_apply`, `test_html_iframe_renderers_inject_textshadow_css`, `test_single_page_exporter_scopes_shadow_correctly`.
+
+### Ação necessária
+Após redeploy, o usuário precisa **desmarcar e re-marcar** o toggle no slide (para disparar o novo código que agora inclui elementos `html` no bulk-apply). Elementos com sombra explícita anterior são preservados.
+
+
+
 ## 2026-02-XX (Feature: Sombra de texto em 3 níveis — elemento / slide / curso)
 
 ### Solicitação do usuário

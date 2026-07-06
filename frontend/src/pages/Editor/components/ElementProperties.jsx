@@ -148,6 +148,19 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
         </div>
       )}
 
+      {/* Text shadow for RichText (html) elements — AI/PPT-imported slides
+          use type==='html' heavily, so the per-element control must be
+          available for them too. Renders `text-shadow` inside the iframe. */}
+      {element.type === 'html' && (
+        <div className="panel-section" data-testid="html-text-shadow-section">
+          <h4 className="text-sm font-medium mb-2">Sombra do Texto</h4>
+          <TextShadowControls
+            value={style.textShadow}
+            onChange={(next) => handleStyleChange('textShadow', next || '')}
+          />
+        </div>
+      )}
+
       {element.type === 'text' && (
         <div className="panel-section">
           <h4 className="text-sm font-medium mb-3">Text</h4>

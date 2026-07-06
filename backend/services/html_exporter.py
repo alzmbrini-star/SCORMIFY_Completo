@@ -2345,6 +2345,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 'th{{background:linear-gradient(to bottom,#475569,#334155);border-bottom:2px solid #22d3ee;padding:0.75rem 1rem;font-weight:600;text-align:left;color:#f1f5f9;}}' +
                                 'td{{border-bottom:1px solid #334155;padding:0.75rem 1rem;background:#1e293b;color:#e2e8f0;}}' +
                                 'tr:nth-child(even) td{{background:#1a2433;}}' +
+                                // Text-shadow — set from element.style.textShadow.
+                                // Wins over anything above via !important + broad
+                                // selector so RichText / RTF content also picks it up.
+                                (elem.style && elem.style.textShadow ?
+                                    'body,body *{{text-shadow:' + elem.style.textShadow + '!important;}}' : '') +
                                 '</style></head><body>' + htmlContent + '</body></html>';
                             }}
                             html += '<iframe srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';

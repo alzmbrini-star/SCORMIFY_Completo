@@ -1740,13 +1740,16 @@ export default function Editor() {
                       onUpdate={(data) => updateSlide(currentSlide.id, data)}
                       project={currentProject}
                       onApplyShadowToAllSlides={(shadowValue) => {
-                        // Bulk-apply shadow to every text element in every slide
-                        // of the course. Preserves elements with their own
-                        // explicit textShadow. Silent on failure (best-effort).
+                        // Bulk-apply shadow to every text-carrying element in
+                        // every slide of the course. Preserves elements with
+                        // their own explicit textShadow. Silent on failure.
+                        // Handles BOTH `text` (plain) and `html` (RichText/RTF)
+                        // element types — the latter is heavily used by
+                        // AI/PPT-imported slides.
                         const allSlides = currentProject?.course?.slides || [];
                         allSlides.forEach((s) => {
                           const nextElements = (s.elements || []).map((el) => {
-                            if (el.type !== 'text') return el;
+                            if (el.type !== 'text' && el.type !== 'html') return el;
                             const st = el.style || {};
                             const hasExplicit = st.textShadow && st.textShadow !== '' && st.textShadow !== 'none';
                             if (hasExplicit && shadowValue) return el;   // keep explicit shadows

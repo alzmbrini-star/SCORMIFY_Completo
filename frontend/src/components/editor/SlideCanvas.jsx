@@ -907,6 +907,7 @@ const SlideCanvas = ({
                             html, body { 
                               overflow: hidden;
                               background: transparent !important;
+                              ${element.style?.textShadow ? `text-shadow: ${element.style.textShadow};` : ''}
                               ${element.objectFit === 'cover' ? 'display: flex; align-items: center; justify-content: center;' : ''}
                             }
                             .content-wrapper {

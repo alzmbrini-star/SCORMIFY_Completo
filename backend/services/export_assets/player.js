@@ -1482,6 +1482,10 @@ var CoursePlayer = (function() {
                     'th{background:linear-gradient(to bottom,#475569,#334155);border-bottom:2px solid #22d3ee;padding:0.75rem 1rem;font-weight:600;text-align:left;color:#f1f5f9;}' +
                     'td{border-bottom:1px solid #334155;padding:0.75rem 1rem;background:#1e293b;color:#e2e8f0;}' +
                     'tr:nth-child(even) td{background:#1a2433;}' +
+                    // Text-shadow — from element.style.textShadow.
+                    // Broad selector + !important so RichText / RTF also picks up.
+                    (element.style && element.style.textShadow ?
+                        'body,body *{text-shadow:' + element.style.textShadow + '!important;}' : '') +
                     '</style></head><body>' + htmlContent + '</body></html>';
                 }
                 htmlIframe.srcdoc = wrappedHtml;

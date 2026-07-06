@@ -951,6 +951,11 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
                                  slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
+    # Element-level text-shadow — captured here so each branch below (iframe
+    # / inline interactive / direct-inline) can apply it in the correct scope.
+    shadow_value = ((el.get("style") or {}).get("textShadow") or "").strip()
+    if shadow_value == "none":
+        shadow_value = ""
     has_global_styles = bool(re.search(r"<\s*(style|script|body|html|head)\b", raw, re.IGNORECASE))
     # Respect the element's authored height when available — keeps thin headers
     # (e.g. 60px gradient bars) from ballooning to 540px in Single Page export.
@@ -995,6 +1000,11 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
                 'span,div,p{white-space:nowrap;overflow:visible}'
                 '</style>'
             )
+        # Iframe scope — safe to use body,body * because it's self-contained.
+        if shadow_value:
+            reset_css += (
+                '<style>body,body *{text-shadow:' + shadow_value + ' !important;}</style>'
+            )
         if "<meta" not in raw.lower() and "charset" not in raw.lower():
             raw_with_meta = '<meta charset="utf-8">\n' + reset_css + raw
         else:
@@ -1013,15 +1023,19 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             f'</div>'
         )
     is_interactive = bool(re.search(r"<button|<details|onclick=", raw, re.IGNORECASE))
+    # Inline branches (no iframe) — apply shadow as an inline style on the
+    # wrapper div. This scopes the effect to just this HTML block, avoiding
+    # any leak to sibling elements in the parent single-page document.
+    inline_style = f' style="text-shadow:{shadow_value};"' if shadow_value else ''
     if is_interactive:
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true" '
-            f'onclick="window.SP&&SP.markClicked(this)">'
+            f'onclick="window.SP&&SP.markClicked(this)"{inline_style}>'
             f'{raw}'
             f'<div class="sp-html-hint">👆 Clique aqui para liberar a próxima seção</div>'
             f'</div>'
         )
-    return f'<div class="sp-html">{raw}</div>'
+    return f'<div class="sp-html"{inline_style}>{raw}</div>'
 
 
 def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_lookup: Dict[str, dict]) -> str:

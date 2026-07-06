@@ -877,6 +877,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                             body {
                               padding: ${element.objectFit === 'cover' ? '0' : '8px'};
                               overflow: ${element.objectFit === 'cover' ? 'hidden' : 'auto'};
+                              ${element.style?.textShadow ? `text-shadow: ${element.style.textShadow};` : ''}
                               ${element.objectFit === 'cover' ? 'width: 100%; height: 100%;' : ''}
                             }
                             html {

@@ -155,11 +155,13 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
           value={slide.textShadowDefault || ''}
           onChange={(next) => {
             // 1) Store on the slide (source of truth for bulk-apply / re-render)
-            // 2) Stamp on every text element that does NOT have an explicit
-            //    override (empty string counts as "not set" here so users
-            //    can toggle in-slide). Keep explicit shadows untouched.
+            // 2) Stamp on every text-carrying element that does NOT have an
+            //    explicit override (empty string counts as "not set" here so
+            //    users can toggle in-slide). Keep explicit shadows untouched.
+            //    We handle BOTH plain text elements AND RichText (html) blocks
+            //    because AI/PPT-imported slides use `type === 'html'` heavily.
             const nextElements = (slide.elements || []).map((el) => {
-              if (el.type !== 'text') return el;
+              if (el.type !== 'text' && el.type !== 'html') return el;
               const s = el.style || {};
               const hasExplicit = s.textShadow && s.textShadow !== '' && s.textShadow !== 'none';
               // Only overwrite when the element wasn't explicitly styled.
