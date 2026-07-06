@@ -1,6 +1,30 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Duplicação de curso — Admin only)
+
+### Solicitação do usuário
+- "Funcionalidade muito útil: duplicação de um curso. Somente os Admins podem ver."
+
+### Implementação
+- **Novo endpoint `POST /api/projects/{project_id}/duplicate`** em `routes/projects_crud.py`:
+  - RBAC: `super_admin` duplica qualquer curso; `company_admin` só cursos da própria empresa (usa `load_authorized_project` que já enforça); outros roles → 403.
+  - Deep-copy via `copy.deepcopy` + regeneração de todos os UUIDs (project.id, cada slide.id, cada element.id) — evita colisão se o autor abrir original + cópia simultaneamente.
+  - Nome recebe sufixo `" (Cópia)"`, `source = "duplicate"`.
+  - `userId` e `companyId` refletem o **caller** (não o dono original) — assim um super_admin pode duplicar entre empresas e ficar dono da cópia.
+  - Copia diretório de assets via `shutil.copytree` (best-effort — não faz rollback se falhar).
+- **Frontend `Dashboard.jsx`**:
+  - Novo item "Duplicar" no `DropdownMenu` do card do curso, gated por `isSuperAdmin || isCompanyAdmin`.
+  - Handler `handleDuplicateProject` chama o endpoint, mostra toast de loading→sucesso, recarrega a lista via `fetchProjects()`.
+  - Ícone `Copy` do lucide-react.
+
+### Testes
+- `backend/tests/test_duplicate_project.py` — **8/8 PASSED**. Cobre: endpoint registrado, RBAC admin-only, regeneração de IDs (project + slides + elements), sufixo + source tag, cópia de assets, reassinatura de ownership, uso do `load_authorized_project`, gating do frontend em role de admin.
+- E2E via curl: duplicação retornou 200 com todos os slides/elementos + IDs regenerados; contador 67→68→67 (cleanup ok).
+- Smoke Playwright: dropdown mostra "Duplicar" → clique → toast "criado com sucesso" → card `(Cópia)` aparece no topo.
+
+
+
 ## 2026-02-XX (Bugfix: Sombra do texto não afetava elementos RichText/RTF)
 
 ### Sintoma reportado

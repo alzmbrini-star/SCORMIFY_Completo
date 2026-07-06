@@ -202,6 +202,92 @@ async def delete_project(project_id: str, user: dict = Depends(require_auth)):
 # Static simulator repair (legacy helper for old AI-generated courses)
 # ---------------------------------------------------------------------------
 
+@router.post("/projects/{project_id}/duplicate", response_model=dict)
+async def duplicate_project(project_id: str, user: dict = Depends(require_auth)):
+    """Deep-copy a project into a new one (admins only).
+
+    RBAC:
+      • super_admin  → may duplicate any project.
+      • company_admin → only projects in their own company; the copy is also
+        tagged with the caller's company.
+      • other roles → 403.
+
+    What gets copied:
+      • The full course tree (slides, elements, quizzes, animations, etc.)
+      • The project's assets directory (uploaded media, background images).
+
+    What gets regenerated (to avoid collisions when both projects are open):
+      • project.id
+      • every slide.id
+      • every element.id
+      • timestamps
+      • name gains " (Cópia)" suffix
+      • createdBy/companyId reflect the CALLER, not the original owner —
+        so a super_admin duplicating a course into their own company for
+        editing does not accidentally leave the original ownership metadata.
+    """
+    role = user.get("role")
+    if role not in ("super_admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Somente admins podem duplicar cursos")
+
+    # Reuse the same access check the rest of the app uses so we don't leak
+    # projects across companies.
+    original = await load_authorized_project(project_id, user)
+    if not original:
+        raise HTTPException(status_code=404, detail="Curso não encontrado")
+
+    # Deep copy — Mongo docs are dicts of JSON-serializable primitives, so
+    # a json round-trip is the safest way to avoid shared references.
+    import copy
+    import json as _json
+    from datetime import datetime, timezone as _tz
+    new_doc = copy.deepcopy(original)
+    # Drop any residual _id in case load_authorized_project ever starts
+    # including it (currently it doesn't).
+    new_doc.pop("_id", None)
+
+    new_project_id = str(uuid.uuid4())
+    new_doc["id"] = new_project_id
+    new_doc["name"] = f"{original.get('name', 'Curso')} (Cópia)"
+    new_doc["source"] = "duplicate"
+    new_doc["userId"] = user.get("user_id")
+    new_doc["companyId"] = await resolve_company_id_for_creation(user, None)
+    now_iso = datetime.now(_tz.utc).isoformat()
+    new_doc["createdAt"] = now_iso
+    new_doc["updatedAt"] = now_iso
+    if isinstance(new_doc.get("course"), dict):
+        new_doc["course"]["createdAt"] = now_iso
+        new_doc["course"]["updatedAt"] = now_iso
+        # Regenerate slide/element ids so cross-project undo/history or
+        # in-memory caches in the editor don't collide.
+        for slide in new_doc["course"].get("slides") or []:
+            slide["id"] = str(uuid.uuid4())
+            for el in slide.get("elements") or []:
+                el["id"] = str(uuid.uuid4())
+
+    await db.projects.insert_one(new_doc)
+
+    # Best-effort asset directory copy. If it fails, we don't roll back —
+    # the duplicated course will just miss its uploaded media until re-added.
+    try:
+        src_dir = PROJECTS_DIR / project_id
+        dst_dir = PROJECTS_DIR / new_project_id
+        if src_dir.exists():
+            shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+        else:
+            (dst_dir / "assets").mkdir(parents=True, exist_ok=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[duplicate {project_id}->{new_project_id}] asset copy failed: {e}")
+
+    logger.info(
+        f"[duplicate] user={user.get('user_id')} role={role} "
+        f"src={project_id} -> dst={new_project_id}"
+    )
+    # Round-trip through serialize_doc to strip any residual ObjectId
+    return serialize_doc(new_doc)
+
+
+
 @router.post("/projects/{project_id}/fix-simulators")
 async def fix_simulators(project_id: str, user: dict = Depends(require_auth)):
     """Detect and fix static simulators in a course by adding JavaScript interactivity."""

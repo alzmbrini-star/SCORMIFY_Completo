@@ -49,6 +49,7 @@ import {
   Filter,
   Search,
   X,
+  Copy,
 } from 'lucide-react';
 import axios from 'axios';
 import TutorialImportDialog from '../components/dashboard/TutorialImportDialog';
@@ -289,6 +290,28 @@ export default function Dashboard() {
     setRenameProjectName(project.name);
     setRenameProjectCompanyId(project.companyId || '');
     setShowRenameDialog(true);
+  };
+
+  const handleDuplicateProject = async (projectId, e) => {
+    // Admin-only feature — the DropdownMenuItem is only rendered for
+    // super_admin/company_admin, but the backend also enforces RBAC.
+    e.stopPropagation();
+    const tId = toast.loading('Duplicando curso...');
+    try {
+      const res = await axios.post(
+        `${API_URL}/api/projects/${projectId}/duplicate`,
+        {},
+      );
+      const dup = res.data;
+      toast.dismiss(tId);
+      toast.success(`"${dup.name}" criado com sucesso!`);
+      // Reload the project list so the duplicate appears immediately.
+      await fetchProjects();
+    } catch (err) {
+      toast.dismiss(tId);
+      const msg = err.response?.data?.detail || err.message;
+      toast.error(`Erro ao duplicar: ${msg}`);
+    }
   };
 
   const handleRenameProject = async () => {
@@ -747,6 +770,17 @@ export default function Dashboard() {
                           <Pencil className="w-4 h-4 mr-2" />
                           Renomear
                         </DropdownMenuItem>
+                        {/* Duplicate — visible only to super_admin and
+                            company_admin. Backend also enforces RBAC. */}
+                        {(isSuperAdmin || isCompanyAdmin) && (
+                          <DropdownMenuItem
+                            onClick={(e) => handleDuplicateProject(project.id, e)}
+                            data-testid={`duplicate-project-${project.id}`}
+                          >
+                            <Copy className="w-4 h-4 mr-2" />
+                            Duplicar
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive"
