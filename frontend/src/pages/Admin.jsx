@@ -33,6 +33,7 @@ import {
   Database,
   Upload,
   Image as ImageIcon,
+  Package,
 } from 'lucide-react';
 
 import { getApiUrl } from '../utils/apiUrl';
@@ -42,6 +43,7 @@ import CostReportPanel from '../components/admin/CostReportPanel';
 import DataMigrationPanel from '../components/admin/DataMigrationPanel';
 import PlatesCleanupPanel from '../components/admin/PlatesCleanupPanel';
 import BrandLibraryDialog from '../components/admin/BrandLibraryDialog';
+import BatchExportPanel from '../components/admin/BatchExportPanel';
 import { Palette, Eraser } from 'lucide-react';
 const API_URL = getApiUrl();
 
@@ -515,7 +517,22 @@ export default function Admin() {
               Limpeza
             </Button>
           )}
+          {/* Batch SCORM export — visible to super_admin (all courses) and
+              company_admin (only their company's courses). Backend RBAC does
+              the filtering — this is only a visibility gate. */}
+          <Button
+            variant={activeTab === 'batch_export' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('batch_export')}
+            className="gap-2"
+            data-testid="tab-batch-export"
+          >
+            <Package className="w-4 h-4" />
+            Exportação em Lote
+          </Button>
         </div>
+
+        {/* Batch SCORM Export Tab */}
+        {activeTab === 'batch_export' && <BatchExportPanel />}
 
         {/* Cost Report Tab */}
         {activeTab === 'cost_report' && isSuperAdmin && <CostReportPanel />}

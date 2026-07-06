@@ -1,6 +1,51 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Exportação SCORM em Lote — Admin only)
+
+### Solicitação do usuário
+- "Uma função para exportar Cursos para SCORM em Lote, somente o Super Admin poderá ver esta tela e os Admins de cada empresa também apenas para os seus cursos."
+
+### Implementação
+- **Novo endpoint `POST /api/admin/batch-export-scorm`** (`routes/export.py`):
+  - Aceita `{"projectIds": [id1, id2, ...]}` (cap 100 por lote).
+  - RBAC: `super_admin` exporta qualquer curso; `company_admin` só cursos onde `companyId == user.companyId`; outros roles → 403.
+  - Silent-drop de IDs não autorizados no campo `denied` (evita enumeração de IDs entre empresas). 403 só quando **todos** os IDs são negados.
+  - Cria 1 job SCORM por curso via `create_job` e dispara `asyncio.create_task(_run_batch_scorm(...))`.
+- **`_run_batch_scorm` supervisor**:
+  - Roda `_run_scorm_export_job` **sequencialmente** (não em paralelo) — decisão crítica dado o bloqueador P1 de OOM 502/520 em produção. Whiteboard renderer + base64 embedding pode ir a >500MB por projeto.
+  - Isolamento de falha: exceção em um curso não bloqueia o resto.
+- **Novo componente `frontend/src/components/admin/BatchExportPanel.jsx`**:
+  - Lista cursos via `GET /api/projects` (já filtrado por role no backend).
+  - Busca, "Selecionar todos", contador dinâmico no botão "Exportar SCORM (N)".
+  - Envia POST e faz polling paralelo de cada `jobId` a cada 3s (usa infra de jobs já existente, sem endpoint novo).
+  - Renderiza barra de progresso + link "Baixar" quando `status === completed`.
+- **Aba "Exportação em Lote"** adicionada em `Admin.jsx`, visível para super_admin **E** company_admin (o gate real é no backend).
+
+### Design decisions
+- **Não criei coleção nova de batch state**: cada job filho vive em `jobs` (Mongo) com `batchId + projectId` como campos extras. A UI descobre progresso via GET `/api/job/{id}` já existente.
+- **Sequencial > paralelo**: memória > velocidade. Um lote de 20 cursos leva ~1 min, mas não derruba o pod.
+- **Sem novo endpoint de listagem**: `/api/projects` já retorna o subset correto por role.
+
+### Testes
+- `backend/tests/test_batch_scorm_export.py` — **6/6 PASSED**. Cobre: endpoint registrado, RBAC, cap 100, execução sequencial, isolamento de falha, stamping de batchId/projectId.
+- Curl E2E: batch de 2 cursos → jobs completaram sequencialmente, downloadUrls prontos.
+- Smoke Playwright: UI renderiza 66 cursos, checkbox seleciona 2, botão "Exportar SCORM (2)" ativo.
+
+### Endpoint reference
+```
+POST /api/admin/batch-export-scorm
+Body: {"projectIds": ["uuid-1", "uuid-2"]}
+Response: {
+  "batchId": "uuid",
+  "total": 2,
+  "denied": [],
+  "jobs": [{"projectId": "...", "jobId": "...", "name": "..."}]
+}
+```
+
+
+
 ## 2026-02-XX (Bugfix CRÍTICO em PRODUÇÃO: CORS derruba feedback do Tutor em cursos hospedados em LMS)
 
 ### Sintoma

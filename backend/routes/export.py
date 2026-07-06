@@ -475,6 +475,168 @@ async def _run_scorm_export_job(
             'message': str(e)[:500],
         })
 
+
+# =============================================================================
+# BATCH SCORM EXPORT (Admin only)
+# =============================================================================
+
+@router.post("/admin/batch-export-scorm")
+async def batch_export_scorm(request: Request, user: dict = Depends(require_auth)):
+    """Kick off a batch SCORM export across multiple projects.
+
+    RBAC:
+      • super_admin  → may export ANY projectIds in the payload.
+      • company_admin → only projectIds where project.companyId matches the
+        caller's company; foreign IDs are silently dropped so a malicious
+        admin can't discover projects from other companies.
+      • other roles → 403.
+
+    Payload:  {"projectIds": ["id1", "id2", ...]}
+
+    Response:
+        {
+          "batchId": "<uuid>",
+          "total": <n>,
+          "denied": [<projectId>, ...],  # ids the caller can't export
+          "jobs":  [ {"projectId": "...", "jobId": "...", "name": "..."}, ... ]
+        }
+
+    Design decisions:
+      • Each project becomes an independent SCORM job that reuses the SAME
+        `_run_scorm_export_job` code path used by the single-project endpoint.
+        Frontend polls each `/api/job/{jobId}` — no new polling infrastructure.
+      • Jobs run SEQUENTIALLY inside a single supervisor task (not in
+        parallel) to avoid Out-Of-Memory crashes in production. The whiteboard
+        renderer + base64 asset embedding can each spike >500MB per project.
+        Running 10 in parallel would OOM the pod (recurring P1 bug from the
+        handoff).
+      • Failure isolation: if one project fails, the rest continue.
+    """
+    role = user.get("role")
+    if role not in ("super_admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Somente admins podem exportar em lote")
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Corpo JSON inválido")
+
+    project_ids = body.get("projectIds") or []
+    if not isinstance(project_ids, list) or not project_ids:
+        raise HTTPException(status_code=400, detail="projectIds deve ser uma lista não-vazia")
+    # Cap batch size to avoid a super_admin accidentally triggering 500+
+    # exports at once.
+    if len(project_ids) > 100:
+        raise HTTPException(status_code=400, detail="Máximo 100 cursos por lote")
+
+    external_url = _get_external_url(request)
+
+    # Fetch project docs in one shot; drop ones the caller isn't allowed to
+    # export. Silent denial (vs 403) prevents ID enumeration attacks.
+    project_docs = await db.projects.find(
+        {"id": {"$in": project_ids}}, {"_id": 0}
+    ).to_list(length=len(project_ids))
+    project_map = {p["id"]: p for p in project_docs if p.get("id")}
+
+    caller_company = user.get("companyId")
+    is_super = role == "super_admin"
+    allowed_docs: list[dict] = []
+    denied: list[str] = []
+    for pid in project_ids:
+        doc = project_map.get(pid)
+        if not doc:
+            denied.append(pid)
+            continue
+        if not is_super:
+            # company_admin — must match company. Legacy projects without
+            # companyId are only visible to super_admin per existing rules.
+            if not caller_company or doc.get("companyId") != caller_company:
+                denied.append(pid)
+                continue
+        allowed_docs.append(doc)
+
+    if not allowed_docs:
+        raise HTTPException(status_code=403, detail="Nenhum curso autorizado para exportação")
+
+    # Create one child SCORM job per allowed project, upfront, so the client
+    # can start rendering the progress table immediately.
+    batch_id = str(uuid.uuid4())
+    child_jobs: list[dict] = []
+    for doc in allowed_docs:
+        job_id = str(uuid.uuid4())
+        job_data = {
+            "id": job_id,
+            "type": "scorm_export",
+            "status": "queued",
+            "progress": 0,
+            "message": "Aguardando na fila do lote...",
+            "result": None,
+            "batchId": batch_id,
+            "projectId": doc["id"],
+        }
+        jobs[job_id] = job_data
+        await create_job(job_id, job_data)
+        child_jobs.append({
+            "projectId": doc["id"],
+            "jobId": job_id,
+            "name": doc.get("name", "Curso"),
+        })
+
+    # Kick off the supervisor task that runs the jobs sequentially.
+    asyncio.create_task(_run_batch_scorm(batch_id, child_jobs, allowed_docs, external_url))
+
+    return {
+        "batchId": batch_id,
+        "total": len(child_jobs),
+        "denied": denied,
+        "jobs": child_jobs,
+    }
+
+
+async def _run_batch_scorm(
+    batch_id: str,
+    child_jobs: list[dict],
+    project_docs: list[dict],
+    external_url: str,
+) -> None:
+    """Sequentially execute each SCORM export job in the batch.
+
+    Runs `_run_scorm_export_job` one at a time to keep memory pressure low.
+    Any exception in a single project's export is contained so the rest of
+    the batch still runs.
+    """
+    logger.info(f"[batch-scorm {batch_id}] starting {len(child_jobs)} exports")
+    doc_by_id = {p["id"]: p for p in project_docs}
+    for idx, entry in enumerate(child_jobs):
+        job_id = entry["jobId"]
+        pid = entry["projectId"]
+        doc = doc_by_id.get(pid)
+        if not doc:
+            await update_job(job_id, {"status": "failed", "message": "Projeto não encontrado"})
+            continue
+        try:
+            await update_job(job_id, {
+                "status": "processing",
+                "message": f"Exportando ({idx + 1}/{len(child_jobs)})...",
+            })
+            use_single_page = bool(doc.get("singlePageMode", False))
+            await _run_scorm_export_job(
+                job_id=job_id,
+                project_id=pid,
+                project_doc=doc,
+                use_single_page=use_single_page,
+                external_url=external_url,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"[batch-scorm {batch_id}] job {job_id} raised: {exc}")
+            try:
+                await update_job(job_id, {"status": "failed", "message": str(exc)[:500]})
+            except Exception:
+                pass
+    logger.info(f"[batch-scorm {batch_id}] finished")
+
+
+
 # HTML Standalone Export
 
 @router.post("/course/{project_id}/export-html")
