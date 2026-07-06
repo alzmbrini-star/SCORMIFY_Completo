@@ -5,6 +5,7 @@ import { Button } from '../../../components/ui/button';
 import { Layers, ImagePlus, X as XIcon, Sparkles } from 'lucide-react';
 import BrandLibraryPicker from '../dialogs/BrandLibraryPicker';
 import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
+import TextShadowControls from '../../../components/editor/TextShadowControls';
 import {
   pickReadableTextColor,
   buildSuggestionHtml,
@@ -12,7 +13,7 @@ import {
 } from '../../../lib/densityApplyHelpers';
 import { getApiUrl } from '../../../utils/apiUrl';
 
-export function SlideProperties({ slide, onUpdate, project }) {
+export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSlides }) {
   const extractSlideText = () => {
     const texts = (slide.elements || [])
       .filter(el => el.type === 'text' && el.content)
@@ -141,6 +142,58 @@ export function SlideProperties({ slide, onUpdate, project }) {
           </div>
         </div>
       </div>
+
+      {/* Text shadow controls — applies to text elements in this slide, or
+          optionally propagates to ALL slides in the project. Solves the
+          "yellow text on busy image = unreadable" case in one click. */}
+      <div className="panel-section" data-testid="slide-text-shadow-section">
+        <h4 className="text-sm font-medium mb-2">Sombra dos Textos</h4>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Aplica sombra a todos os textos deste slide. Elementos com sombra própria mantêm o valor.
+        </p>
+        <TextShadowControls
+          value={slide.textShadowDefault || ''}
+          onChange={(next) => {
+            // 1) Store on the slide (source of truth for bulk-apply / re-render)
+            // 2) Stamp on every text element that does NOT have an explicit
+            //    override (empty string counts as "not set" here so users
+            //    can toggle in-slide). Keep explicit shadows untouched.
+            const nextElements = (slide.elements || []).map((el) => {
+              if (el.type !== 'text') return el;
+              const s = el.style || {};
+              const hasExplicit = s.textShadow && s.textShadow !== '' && s.textShadow !== 'none';
+              // Only overwrite when the element wasn't explicitly styled.
+              // This preserves per-element customization from ElementProperties.
+              if (hasExplicit) return el;
+              return { ...el, style: { ...s, textShadow: next || '' } };
+            });
+            onUpdate({ textShadowDefault: next || '', elements: nextElements });
+          }}
+        />
+        {onApplyShadowToAllSlides && (
+          <div className="mt-3 flex flex-col gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const val = slide.textShadowDefault || '';
+                const label = val ? 'aplicar esta sombra a TODOS os textos do curso' : 'REMOVER a sombra de TODOS os textos do curso';
+                if (!window.confirm(`Deseja ${label}?\n\nElementos com sombra própria personalizada serão preservados.`)) return;
+                onApplyShadowToAllSlides(val);
+              }}
+              data-testid="apply-shadow-all-slides"
+            >
+              Aplicar em TODOS os slides do curso
+            </Button>
+            <p className="text-[10px] text-muted-foreground">
+              Sombras aplicadas manualmente em elementos específicos são preservadas.
+            </p>
+          </div>
+        )}
+      </div>
+
+
 
       {/* Brand Library — per-slide picker + override of project-wide setting */}
       <div className="panel-section" data-testid="brand-library-slide-section">

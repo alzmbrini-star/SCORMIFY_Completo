@@ -1739,6 +1739,28 @@ export default function Editor() {
                       slide={currentSlide}
                       onUpdate={(data) => updateSlide(currentSlide.id, data)}
                       project={currentProject}
+                      onApplyShadowToAllSlides={(shadowValue) => {
+                        // Bulk-apply shadow to every text element in every slide
+                        // of the course. Preserves elements with their own
+                        // explicit textShadow. Silent on failure (best-effort).
+                        const allSlides = currentProject?.course?.slides || [];
+                        allSlides.forEach((s) => {
+                          const nextElements = (s.elements || []).map((el) => {
+                            if (el.type !== 'text') return el;
+                            const st = el.style || {};
+                            const hasExplicit = st.textShadow && st.textShadow !== '' && st.textShadow !== 'none';
+                            if (hasExplicit && shadowValue) return el;   // keep explicit shadows
+                            return { ...el, style: { ...st, textShadow: shadowValue || '' } };
+                          });
+                          updateSlide(s.id, {
+                            textShadowDefault: shadowValue || '',
+                            elements: nextElements,
+                          });
+                        });
+                        toast.success(shadowValue
+                          ? `Sombra aplicada em ${allSlides.length} slide(s)`
+                          : `Sombra removida de ${allSlides.length} slide(s)`);
+                      }}
                     />
                   ) : (
                     <div className="p-4 text-center text-muted-foreground">

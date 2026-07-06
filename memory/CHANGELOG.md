@@ -1,6 +1,31 @@
 # Changelog
 
 
+## 2026-02-XX (Feature: Sombra de texto em 3 níveis — elemento / slide / curso)
+
+### Solicitação do usuário
+- "Colocar o efeito de sombra nos textos para realçar melhor" (screenshot: texto amarelo sobre imagem de cérebro com detalhes cyan — ilegível).
+- Escolhido: **todas as camadas** (por elemento + por slide + por curso) e **controle total** (color-picker + intensidade).
+
+### Implementação
+- **Novo `components/editor/TextShadowControls.jsx`**: componente reutilizável com toggle enable, color picker, blur (0-30px), offset X/Y (-10..10px) e preview live. Exporta helpers `parseShadow()` e `buildShadow()`.
+- **Nível ELEMENTO** (`Editor/components/ElementProperties.jsx`): seção "Sombra do Texto" no painel do elemento de texto — grava em `element.style.textShadow` (renderers já leem esse campo em SlideCanvas/CoursePreview/SplitPreview/html_exporter/player.js — plumbing pré-existente).
+- **Nível SLIDE** (`Editor/components/SlideProperties.jsx`): nova seção "Sombra dos Textos" com os mesmos controles + gravação em `slide.textShadowDefault` E stamping automático em todo `element.style.textShadow` de textos do slide **que não têm sombra própria explícita**. Preserva customizações manuais.
+- **Nível CURSO** (`Editor.jsx`): botão "Aplicar em TODOS os slides do curso" chama callback que itera `currentProject.course.slides` via `updateSlide()`, replicando a lógica de "preservar explícitos". Toast confirma quantos slides foram afetados.
+
+### Cascade / semantics
+- Não há resolução de cascade em runtime — a decisão foi **materializar o valor no elemento** no momento em que o autor aplica a sombra do slide/curso. Vantagem: renderers permanecem simples (todos já leem `element.style.textShadow`), exports ficam self-contained.
+- Elementos com sombra própria (setada via ElementProperties) são **preservados** durante bulk-apply — controlado pelo flag `hasExplicit` em ambos os handlers (slide-level e project-level).
+
+### Testes
+- `backend/tests/test_text_shadow_feature.py` — **6/6 PASSED**. Cobre: existência dos controles + helpers, wiring em ElementProperties, wiring em SlideProperties (com bulk-apply + preservação de explícitos), callback no Editor, plumbing dos render layers frontend e backend.
+- Smoke Playwright: seção "Sombra dos Textos" renderiza no Properties do slide com Cor / Blur / Offset X / Offset Y / preview "Exemplo" / botão "Aplicar em TODOS os slides do curso".
+
+### Ação necessária
+Redeploy para propagar em produção (junto com CORS fix `/tutor/feedback` e Batch SCORM Export das rodadas anteriores).
+
+
+
 ## 2026-02-XX (Feature: Exportação SCORM em Lote — Admin only)
 
 ### Solicitação do usuário

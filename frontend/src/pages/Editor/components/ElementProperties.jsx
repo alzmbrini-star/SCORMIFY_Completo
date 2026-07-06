@@ -4,6 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Maximize2, Sparkles, Scissors, RotateCcw } from 'lucide-react';
 import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import RemoveBackgroundDialog from '../dialogs/RemoveBackgroundDialog';
+import TextShadowControls from '../../../components/editor/TextShadowControls';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
@@ -228,6 +229,16 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
                   Transparent
                 </label>
               </div>
+            </div>
+
+            {/* Text shadow — full color-picker + blur/offset controls.
+                Solves the "yellow text on busy background = unreadable"
+                use case. Rendered by SlideCanvas/CoursePreview/exporters. */}
+            <div className="pt-2 border-t border-border/50">
+              <TextShadowControls
+                value={style.textShadow}
+                onChange={(next) => handleStyleChange('textShadow', next || '')}
+              />
             </div>
           </div>
         </div>
