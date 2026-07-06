@@ -984,7 +984,9 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         # The default body margin:8px would push content past the iframe edges and
         # force a vertical scrollbar that bleeds into a horizontal one too.
         reset_css = (
-            '<style>html,body{margin:0 !important;padding:0 !important;'
+            '<style>'
+            "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');"
+            'html,body{margin:0 !important;padding:0 !important;'
             'height:100%;overflow:hidden;box-sizing:border-box}'
             '*{box-sizing:border-box}</style>'
         )

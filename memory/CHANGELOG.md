@@ -1,6 +1,42 @@
 # Changelog
 
 
+## 2026-02-XX (Bugfix: "Aplicar Tema Visual" não mostrava diferença entre modelos)
+
+### Sintoma
+Usuário aplicava diferentes temas ("Corporativo Clássico", "Educacional Moderno", "Tech & Inovação", "Criativo Bold", "Elegante Premium", "Minimalista") no dialog "Aplicar Tema Visual" mas todos os slides ficavam visualmente idênticos no Preview.
+
+### Investigação
+Via curl confirmei que:
+1. Backend está aplicando as mudanças corretamente — `slide.background` muda de `#f0fdf4` (educacional) para `#111827` (tech) para `#fdf4ff` (criativo) etc.
+2. Backend está atualizando `font-family` inline nos `htmlContent` via regex.
+3. Endpoint retorna `templateName` correto no response.
+
+### Causa raiz
+Os iframes que renderizam RichText (elementos `type === 'html'`) **não carregavam nenhuma Google Font**. Os templates usam fontes como Playfair Display, Nunito, JetBrains Mono, Poppins, Lato, Georgia — nenhuma delas nativa do OS. Sem carregar via `@import`, o browser caía no fallback `sans-serif`/`serif`/`monospace` genérico, deixando todos os temas indistinguíveis apesar do CSS estar correto.
+
+Notei que o `index.html` do app JÁ carrega essas fontes na página pai, mas **iframes não herdam** fontes do parent — cada iframe precisa importar por conta própria.
+
+### Fix
+Adicionei `@import url('...')` da Google Fonts em **4 pontos** onde iframes de RichText são construídos:
+1. **`frontend/src/utils/htmlUtils.js`** — `getRtfContentStyles` (usado por SlideCanvas + CoursePreview no Editor)
+2. **`backend/services/html_exporter.py`** — CSS inline dos iframes no HTML exportado
+3. **`backend/services/export_assets/player.js`** — CSS inline dos iframes construídos dinamicamente no runtime SCORM
+4. **`backend/services/single_page_exporter.py`** — CSS `reset_css` do iframe branch (has_global_styles)
+
+Fontes incluídas: Inter, Lato, Merriweather, Montserrat, Nunito, Oswald, Playfair Display, Poppins, Raleway, Outfit, JetBrains Mono, Georgia.
+
+### Testes
+- `backend/tests/test_design_template_visual.py` — **6/6 PASSED**. Guarda contra futuras remoções do @import em qualquer dos 4 arquivos, e valida que o catálogo de templates tem paletas/fontes distintas (senão nem com fontes carregadas o usuário veria diferença).
+
+### Verificação
+Curl E2E confirmou que os slides mudam de background entre templates (educacional=#f0fdf4, tech=#111827, criativo=#fdf4ff, elegante=#fefce8). O @import está em todos os 4 arquivos. Após redeploy, a diferença tipográfica entre os 6 templates ficará plenamente visível (fontes serifadas do Corporativo Clássico e Elegante Premium contra as arredondadas do Educacional Moderno / Criativo Bold, monospace do Tech & Inovação, etc).
+
+### Ação necessária
+Redeploy pra produção. **Não** precisa re-aplicar tema em cursos existentes — o carregamento de fontes é no runtime, então basta abrir/reabrir qualquer curso após o deploy.
+
+
+
 ## 2026-02-XX (Feature: Duplicação de curso — Admin only)
 
 ### Solicitação do usuário

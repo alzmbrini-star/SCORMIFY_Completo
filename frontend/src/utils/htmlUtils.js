@@ -101,6 +101,12 @@ export const getRtfContentStyles = (options = {}) => {
   const { textColor = 'inherit', backgroundColor = 'transparent' } = options;
   
   return `
+    /* Google Fonts — required for the design-template feature. Without this
+       import the iframe falls back to system sans-serif and every "Aplicar
+       Tema Visual" preset looks identical because Nunito / Playfair Display /
+       JetBrains Mono / Poppins / etc are not shipped by any OS. */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Source+Sans+3:wght@300;400;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Georgia&display=swap');
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%;

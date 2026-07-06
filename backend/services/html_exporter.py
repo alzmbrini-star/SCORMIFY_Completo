@@ -2344,6 +2344,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 'table{{border-collapse:separate;border-spacing:0;width:100%;margin:1rem 0;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);}}' +
                                 'th{{background:linear-gradient(to bottom,#475569,#334155);border-bottom:2px solid #22d3ee;padding:0.75rem 1rem;font-weight:600;text-align:left;color:#f1f5f9;}}' +
                                 'td{{border-bottom:1px solid #334155;padding:0.75rem 1rem;background:#1e293b;color:#e2e8f0;}}' +
+                                // Google Fonts — REQUIRED for design-template
+                                // fonts to be visible (Nunito, Playfair,
+                                // JetBrains Mono, etc). Without this every
+                                // theme falls back to sans-serif.
+                                '@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");' +
                                 'tr:nth-child(even) td{{background:#1a2433;}}' +
                                 // Text-shadow — set from element.style.textShadow.
                                 // Wins over anything above via !important + broad
