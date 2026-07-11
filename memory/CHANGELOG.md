@@ -1328,3 +1328,13 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Status**: Tested ✅ (preview) — User must **re-deploy and re-export SCORM** to test in production
 
 ### Bug Fix: Washed-Out 
+## 2026-07-11 — Whiteboard Production OOM Hardening
+
+### Fix: Whiteboard 502/520 em Produção (isolamento em subprocesso + saída 720p)
+- **Root Cause**: O render (PIL+ffmpeg) rodava DENTRO do processo do backend. Em produção (memória limitada), o OOM killer matava o backend inteiro → 502/520 globais. Além disso, CPython nunca devolve heap ao SO, mantendo RSS inflado após cada render.
+- **Fix 1 — Subprocess isolation**: Novo worker CLI `services/whiteboard_worker.py`. As rotas `/whiteboard/generate` e `/generate-from-plan` agora executam o render via `_render_in_subprocess()` (em `routes/whiteboard.py`): processo filho de vida curta, timeout de 600s (`WHITEBOARD_RENDER_TIMEOUT`), memória 100% devolvida ao SO no exit. Se o kernel matar o filho (rc<0/137), o job falha graciosamente com mensagem amigável PT-BR e o backend continua vivo.
+- **Fix 2 — Saída 1280x720**: Layout/composição continua em 1920x1080 lógico, mas os frames são reduzidos para 1280x720 antes do encode (`OUT_W/OUT_H`, `_to_output()` em `whiteboard_renderer.py`) — ~2.25x menos buffers no ffmpeg. Override via env `WHITEBOARD_OUTPUT_HEIGHT` (ex.: 1080).
+- **Fix 3 — x264 leve**: `-preset veryfast -threads 2` nos writers MP4 (renderer + plan_renderer) reduzindo o pool de buffers do encoder.
+- **Medição**: worker peak RSS ~80MB (Python) para vídeo de 39s com erase; MP4/APNG/plan renders OK a 1280x720; kill -9 simulado → job "failed" com mensagem amigável, backend respondendo 200.
+- **Testes**: `tests/test_whiteboard_subprocess_isolation.py` (4 passed) + regressão dos 5 arquivos de teste whiteboard existentes (36 passed).
+- **Nota produção**: usuário precisa RE-DEPLOYAR para o fix valer em produção.

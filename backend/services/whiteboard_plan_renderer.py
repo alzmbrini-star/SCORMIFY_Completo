@@ -29,8 +29,8 @@ import numpy as np
 import imageio
 
 from .whiteboard_renderer import (
-    CANVAS_W, CANVAS_H, FPS,
-    OUTPUT_DIR, _resolve_tool,
+    CANVAS_W, CANVAS_H, OUT_W, OUT_H, FPS,
+    OUTPUT_DIR, _resolve_tool, _to_output,
     _resolve_ffmpeg_binary, _resolve_font_path,
 )
 from . import whiteboard_shapes as ws
@@ -134,6 +134,7 @@ async def render_whiteboard_plan(
 
     return f"/api/whiteboard/file/{video_id}.{ext}", {
         "videoId": video_id,
+        "resolution": f"{OUT_W}x{OUT_H}",
         "duration": duration,
         "frames": total_frames,
         "fileSize": file_size,
@@ -308,7 +309,7 @@ def _write_apng_plan(
         [
             ffmpeg_bin, "-y", "-loglevel", "error",
             "-f", "rawvideo", "-pix_fmt", "rgba",
-            "-s", f"{CANVAS_W}x{CANVAS_H}", "-r", str(FPS),
+            "-s", f"{OUT_W}x{OUT_H}", "-r", str(FPS),
             "-i", "-",
             "-c:v", "apng", "-f", "apng", "-plays", "1",
             "-pred", "mixed",
@@ -318,12 +319,13 @@ def _write_apng_plan(
     )
     try:
         for frame in _frame_iter(op_specs, accumulator, hand_img, hand_offset_x, hand_offset_y):
-            arr = np.asarray(frame, dtype=np.uint8)
+            out_frame = _to_output(frame)
+            arr = np.asarray(out_frame, dtype=np.uint8)
             if arr.shape[-1] == 3:
                 alpha = np.full((arr.shape[0], arr.shape[1], 1), 255, dtype=np.uint8)
                 arr = np.concatenate([arr, alpha], axis=-1)
             proc.stdin.write(arr.tobytes())
-            del frame, arr
+            del frame, out_frame, arr
     finally:
         proc.stdin.close()
         proc.wait()
@@ -343,13 +345,14 @@ def _write_mp4_plan(
         str(out_path),
         fps=FPS, codec="libx264", quality=8, pixelformat="yuv420p",
         macro_block_size=1,
+        output_params=["-preset", "veryfast", "-threads", "2"],
     )
     try:
         for frame in _frame_iter(op_specs, accumulator, hand_img, hand_offset_x, hand_offset_y):
             # Flatten alpha against white background for MP4 output.
             bg = Image.new("RGB", (CANVAS_W, CANVAS_H), (255, 255, 255))
             bg.paste(frame, (0, 0), frame)
-            writer.append_data(np.asarray(bg, dtype=np.uint8))
+            writer.append_data(np.asarray(_to_output(bg), dtype=np.uint8))
             del frame, bg
     finally:
         writer.close()

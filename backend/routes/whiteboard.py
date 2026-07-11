@@ -17,7 +17,11 @@ the frontend only needs to wait for `result` to be populated."""
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
+import sys
+import tempfile
 import uuid as _uuid
 from pathlib import Path
 from typing import Optional
@@ -29,8 +33,7 @@ from pydantic import BaseModel, Field
 from routes.deps import db, now_utc, create_job, update_job, jobs
 from routes.auth import require_auth
 from services.whiteboard_renderer import (
-    OUTPUT_DIR, render_whiteboard_video, list_available_fonts,
-    list_available_tools,
+    OUTPUT_DIR, list_available_fonts, list_available_tools,
 )
 
 logger = logging.getLogger("server")
@@ -47,6 +50,62 @@ _pending_jobs: set[asyncio.Task] = set()
 # kills that surface as 502/520 to the polling frontend. We allow only
 # ONE active render per worker — additional jobs queue cleanly behind it.
 _render_semaphore = asyncio.Semaphore(1)
+
+# Subprocess render isolation. Each render runs in a short-lived child
+# python process so (a) an OOM kill only takes the child down — the API
+# keeps serving and the job fails gracefully instead of the whole pod
+# 502/520ing, and (b) every byte of render memory is returned to the OS
+# on exit (CPython arenas never shrink in-process).
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_WORKER_PATH = _BACKEND_DIR / "services" / "whiteboard_worker.py"
+_RENDER_TIMEOUT = int(os.environ.get("WHITEBOARD_RENDER_TIMEOUT", "600"))
+
+_OOM_MSG = (
+    "memória insuficiente no servidor para este render — tente um texto "
+    "menor, desative 'apagar ao final' ou gere novamente em instantes"
+)
+
+
+async def _render_in_subprocess(kind: str, params: dict) -> tuple[str, dict]:
+    """Run a whiteboard render in an isolated child process.
+
+    Returns (rel_url, info) — same contract as calling the renderer
+    directly. Raises ValueError for input errors and RuntimeError for
+    render/OOM/timeout failures."""
+    with tempfile.TemporaryDirectory(prefix="wbjob_") as td:
+        spec_path = Path(td) / "spec.json"
+        result_path = Path(td) / "result.json"
+        spec_path.write_text(
+            json.dumps({"kind": kind, "params": params}), encoding="utf-8",
+        )
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, str(_WORKER_PATH),
+            str(spec_path), str(result_path),
+            cwd=str(_BACKEND_DIR),
+        )
+        try:
+            rc = await asyncio.wait_for(proc.wait(), timeout=_RENDER_TIMEOUT)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise RuntimeError(
+                "tempo limite de renderização excedido — tente um texto menor"
+            )
+        if result_path.exists():
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+            if data.get("ok"):
+                return data["url"], data["info"]
+            err = data.get("error") or "falha na renderização"
+            if data.get("errorType") == "ValueError":
+                raise ValueError(err)
+            raise RuntimeError(err)
+        # No result file: the child was killed before it could report.
+        # Negative rc = terminated by signal (SIGKILL -9 == kernel OOM
+        # killer on cgroup limit); 137 = 128+9 shell convention.
+        if rc is not None and (rc < 0 or rc == 137):
+            logger.error("whiteboard worker killed (rc=%s) — likely OOM", rc)
+            raise RuntimeError(_OOM_MSG)
+        raise RuntimeError(f"renderização falhou (rc={rc})")
 
 
 class WhiteboardGenerateRequest(BaseModel):
@@ -160,19 +219,19 @@ async def _do_whiteboard_render(
     ink_rgb,
 ):
     try:
-        rel_url, info = await render_whiteboard_video(
-            text=payload.text,
-            title=payload.title or None,
-            font_size=payload.fontSize or 84,
-            chars_per_second=payload.charsPerSecond or 6.0,
-            font_family=payload.fontFamily or None,
-            transparent=bool(payload.transparent),
-            ink_color=ink_rgb,
-            text_html=payload.textHtml or None,
-            erase_at_end=bool(payload.eraseAtEnd),
-            erase_style=payload.eraseStyle or "horizontal",
-            tool=payload.tool or "pen",
-        )
+        rel_url, info = await _render_in_subprocess("text", {
+            "text": payload.text,
+            "title": payload.title or None,
+            "font_size": payload.fontSize or 84,
+            "chars_per_second": payload.charsPerSecond or 6.0,
+            "font_family": payload.fontFamily or None,
+            "transparent": bool(payload.transparent),
+            "ink_color": list(ink_rgb) if ink_rgb else None,
+            "text_html": payload.textHtml or None,
+            "erase_at_end": bool(payload.eraseAtEnd),
+            "erase_style": payload.eraseStyle or "horizontal",
+            "tool": payload.tool or "pen",
+        })
     except ValueError as e:
         await update_job(job_id, {
             "status": "failed",
@@ -621,13 +680,12 @@ async def _do_plan_render(
     payload: "WhiteboardPlanRenderRequest",
 ):
     try:
-        from services.whiteboard_plan_renderer import render_whiteboard_plan
-        rel_url, info = await render_whiteboard_plan(
-            payload.plan,
-            font_family=payload.fontFamily or None,
-            transparent=bool(payload.transparent),
-            tool=payload.tool or "pen",
-        )
+        rel_url, info = await _render_in_subprocess("plan", {
+            "plan": payload.plan,
+            "font_family": payload.fontFamily or None,
+            "transparent": bool(payload.transparent),
+            "tool": payload.tool or "pen",
+        })
     except Exception as e:
         logger.exception("whiteboard-plan render failed: %s", e)
         await update_job(job_id, {

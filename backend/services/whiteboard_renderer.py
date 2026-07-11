@@ -210,7 +210,22 @@ def list_available_fonts() -> list[dict]:
     return out
 
 # Canvas dimensions — 1920x1080 matches SCORM export aspect ratio.
+# Layout/composition always happens at this logical resolution; the
+# encoded OUTPUT is downscaled to OUT_W×OUT_H (default 1280x720) which
+# cuts ffmpeg's encode buffers ~2.25x — critical on memory-tight
+# production pods. Override via WHITEBOARD_OUTPUT_HEIGHT (e.g. 1080).
 CANVAS_W, CANVAS_H = 1920, 1080
+OUT_H = max(360, min(1080, int(os.environ.get("WHITEBOARD_OUTPUT_HEIGHT", "720"))))
+OUT_W = int(round(OUT_H * CANVAS_W / CANVAS_H / 2)) * 2
+_DOWNSCALE_OUTPUT = (OUT_W, OUT_H) != (CANVAS_W, CANVAS_H)
+
+
+def _to_output(frame: Image.Image) -> Image.Image:
+    """Downscale a composed frame to the encode resolution (no-op at 1080p)."""
+    if _DOWNSCALE_OUTPUT:
+        return frame.resize((OUT_W, OUT_H), Image.BILINEAR)
+    return frame
+
 MARGIN_X, MARGIN_Y = 140, 140
 FONT_SIZE_DEFAULT = 84
 LINE_SPACING = 1.25  # multiplier of font size
@@ -1288,7 +1303,7 @@ async def render_whiteboard_video(
         ffmpeg_bin = _resolve_ffmpeg_binary()
         await asyncio.to_thread(
             _write_apng_via_ffmpeg,
-            ffmpeg_bin, out_path, CANVAS_W, CANVAS_H, FPS,
+            ffmpeg_bin, out_path, OUT_W, OUT_H, FPS,
             total_frames, total_anim_frames, total_substeps,
             chars, glyph_cache, char_substeps, char_step_starts,
             hand_img, title, title_font,
@@ -1308,7 +1323,13 @@ async def render_whiteboard_video(
             codec="libx264", pixelformat="yuv420p",
             macro_block_size=None,
             ffmpeg_log_level="error",
-            output_params=["-movflags", "+faststart"],
+            # veryfast preset + capped threads cut x264's frame-buffer
+            # pool substantially (memory-tight production pods).
+            output_params=[
+                "-movflags", "+faststart",
+                "-preset", "veryfast",
+                "-threads", "2",
+            ],
         )
         try:
             await asyncio.to_thread(
@@ -1345,6 +1366,7 @@ async def render_whiteboard_video(
     _gc.collect()
     return f"/api/whiteboard/file/{video_id}.{ext}", {
         "videoId": video_id,
+        "resolution": f"{OUT_W}x{OUT_H}",
         "duration": total_frames_with_erase / FPS,
         "frames": total_frames_with_erase,
         "totalChars": total,
@@ -1418,12 +1440,16 @@ def _write_apng_via_ffmpeg(
                     final_text_layer, title, title_font, transparent=True,
                     erase_style=erase_style,
                 )
-            arr = np.asarray(frame, dtype=np.uint8)
+            out_frame = frame if frame.size == (width, height) else frame.resize(
+                (width, height), Image.BILINEAR,
+            )
+            arr = np.asarray(out_frame, dtype=np.uint8)
             # Ensure 4-channel RGBA.
             if arr.shape[-1] == 3:
                 alpha = np.full((arr.shape[0], arr.shape[1], 1), 255, dtype=np.uint8)
                 arr = np.concatenate([arr, alpha], axis=-1)
             proc.stdin.write(arr.tobytes())
+            del out_frame
             # Free per-frame PIL Image and numpy array eagerly. Without
             # this Python's GC waits longer and peak RSS climbs ~2× —
             # critical in production where container memory limits are
@@ -1486,6 +1512,6 @@ def _write_all_frames(
         # imageio's FFMPEG writer accepts both RGB and RGBA arrays —
         # when yuva420p is the pixel format, RGBA arrays carry the
         # alpha plane through to the encoder.
-        writer.append_data(np.asarray(frame))
+        writer.append_data(np.asarray(_to_output(frame)))
         # Eagerly release the per-frame Image to bound peak RSS.
         del frame
