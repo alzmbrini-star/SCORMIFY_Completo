@@ -65,6 +65,33 @@ _OOM_MSG = (
     "menor, desative 'apagar ao final' ou gere novamente em instantes"
 )
 
+# MongoDB persistence namespace for rendered whiteboard files. Production
+# pods have ephemeral / non-shared filesystems: the pod that renders is
+# not necessarily the pod that serves the GET — without persisting to
+# Mongo the file 404s. Mirrors the project-wide asset_store pattern.
+_WB_ASSET_NS = "whiteboard"
+_WB_PERSIST_MAX_BYTES = 12 * 1024 * 1024  # Mongo doc limit is 16MB (b64 +33%)
+
+
+async def _persist_wb_output(rel_url: str) -> None:
+    """Persist a rendered whiteboard file to MongoDB so any pod can serve it."""
+    try:
+        name = rel_url.rsplit("/", 1)[-1]
+        path = OUTPUT_DIR / name
+        if not path.exists():
+            return
+        size = path.stat().st_size
+        if size > _WB_PERSIST_MAX_BYTES:
+            logger.warning(
+                "whiteboard output %s too large to persist in MongoDB (%d bytes)",
+                name, size,
+            )
+            return
+        from services.asset_store import store_asset_async
+        await store_asset_async(db, _WB_ASSET_NS, name, str(path))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("failed to persist whiteboard output %s: %s", rel_url, e)
+
 
 async def _render_in_subprocess(kind: str, params: dict) -> tuple[str, dict]:
     """Run a whiteboard render in an isolated child process.
@@ -246,6 +273,10 @@ async def _do_whiteboard_render(
         })
         return
 
+    # Persist to MongoDB BEFORE completing the job — in production the
+    # GET may land on a different pod than the one that rendered.
+    await _persist_wb_output(rel_url)
+
     # Bind to slide if requested (same logic as the previous sync flow).
     if payload.projectId and payload.slideId:
         project = await db.projects.find_one(
@@ -370,7 +401,15 @@ async def serve_whiteboard_file(name: str):
         raise HTTPException(404, "invalid name")
     path = OUTPUT_DIR / name
     if not path.exists():
-        raise HTTPException(404, "video not found")
+        # Production: the render may have happened on another pod (or the
+        # local disk was recycled). Restore from MongoDB and cache to disk.
+        from services.asset_store import retrieve_asset_async
+        data, _ct = await retrieve_asset_async(db, _WB_ASSET_NS, name)
+        if data:
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        else:
+            raise HTTPException(404, "video not found")
     if name.endswith(".webm"):
         media_type = "video/webm"
     elif name.endswith(".png"):
@@ -693,6 +732,8 @@ async def _do_plan_render(
             "message": f"falha ao renderizar: {e}",
         })
         return
+
+    await _persist_wb_output(rel_url)
 
     # Bind to slide if requested — atomic $push (same pattern as /generate
     # to dodge concurrent-write races).

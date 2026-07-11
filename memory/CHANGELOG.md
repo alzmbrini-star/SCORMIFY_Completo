@@ -1338,3 +1338,10 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Medição**: worker peak RSS ~80MB (Python) para vídeo de 39s com erase; MP4/APNG/plan renders OK a 1280x720; kill -9 simulado → job "failed" com mensagem amigável, backend respondendo 200.
 - **Testes**: `tests/test_whiteboard_subprocess_isolation.py` (4 passed) + regressão dos 5 arquivos de teste whiteboard existentes (36 passed).
 - **Nota produção**: usuário precisa RE-DEPLOYAR para o fix valer em produção.
+
+### Fix follow-up: Whiteboard 404 em Produção (arquivo gerado mas não encontrado)
+- **Sintoma**: Após o fix do OOM, produção gerava o whiteboard sem 502, mas o GET `/api/whiteboard/file/wb_*.png` retornava 404 (imagem quebrada no editor).
+- **Root Cause**: Filesystem de produção é efêmero/não compartilhado entre processos — o pod que renderiza não é necessariamente o que serve o GET. Os arquivos do whiteboard nunca entraram no sistema de persistência de assets (project_assets no MongoDB) porque a feature nunca havia funcionado em produção.
+- **Fix** (`routes/whiteboard.py`): (1) `_persist_wb_output()` grava o arquivo renderizado no MongoDB (namespace `project_id="whiteboard"`, limite 12MB) antes de marcar o job como completed, nos dois fluxos (texto e plano IA). (2) `serve_whiteboard_file` faz fallback: se o arquivo não está no disco, restaura do MongoDB via `retrieve_asset_async` e cacheia de volta no disco.
+- **Testado**: APNG 941KB gerado → removido do disco (simulando outro pod) → GET retornou 200 com bytes idênticos, arquivo restaurado no disco. Documento confirmado em `project_assets`. 4 testes subprocess passando.
+- **Nota**: usuário precisa RE-DEPLOYAR novamente.
