@@ -1826,6 +1826,29 @@ export default function Editor() {
                                   data-testid="bg-opacity-slider"
                                 />
                               </div>
+                              {/* Overlay scrim control — the AI wizard may add a
+                                  light/dark veil for text contrast; authors can
+                                  remove or change it here per-slide. */}
+                              <div className="flex items-center gap-1 mt-1.5">
+                                <span className="text-[10px] text-muted-foreground shrink-0">Overlay</span>
+                                {['none', 'dark', 'light'].map((o) => (
+                                  <button
+                                    key={o}
+                                    onClick={() => {
+                                      updateSlide(currentSlide.id, {
+                                        backgroundImageOverlay: o === 'none' ? null : o,
+                                        backgroundImageOverlayForce: o !== 'none',
+                                      }).then(() => {
+                                        toast.success(o === 'none' ? 'Overlay removido — somente a imagem' : `Overlay "${o === 'dark' ? 'escurecer' : 'clarear'}" aplicado`);
+                                      }).catch(() => toast.error('Erro ao salvar o overlay do fundo'));
+                                    }}
+                                    className={`flex-1 text-[10px] h-6 rounded border transition-colors ${((currentSlide.backgroundImageOverlay || 'none') === o) ? 'bg-blue-600/30 text-blue-400 border-blue-500/50' : 'bg-muted text-muted-foreground hover:text-foreground border-border'}`}
+                                    data-testid={`editor-bg-overlay-${o}`}
+                                  >
+                                    {o === 'none' ? 'Sem overlay' : o === 'dark' ? 'Escurecer' : 'Clarear'}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         </div>

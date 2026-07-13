@@ -1363,3 +1363,9 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Root Cause**: o slider disparava um PUT `/projects/{id}/slides/{slideId}` a CADA tick sem debounce e sem catch — qualquer falha (ex.: projeto excluído/substituído em outra aba, slide dessincronizado) virava unhandled promise rejection.
 - **Fix** (`Editor.jsx`): draft local `bgOpacityDraft` + debounce de 400ms no PUT + `.catch` com toast amigável (mensagem específica para 404: "Projeto ou slide não encontrado — pode ter sido excluído ou substituído").
 - **Testado E2E** (Playwright): caminho feliz salva sem overlay; projeto deletado no meio → toast amigável, sem crash.
+
+### Feature/Fix: Controle de Overlay do Background no Editor
+- **Sintoma**: cursos do Agente IA vinham com véu branco ("Clarear") sobre a imagem de fundo mesmo quando o autor queria só a imagem — o overlay era sugerido pela análise de contraste do wizard (`backgroundImageOverlay='light'`) e NÃO havia como remover no Editor.
+- **Fix** (`Editor.jsx`, aba Layers → "Imagem de Fundo"): botões "Sem overlay / Escurecer / Clarear" (data-testid `editor-bg-overlay-{none|dark|light}`) que gravam `backgroundImageOverlay` + `backgroundImageOverlayForce` por slide (afeta Editor, Preview e todos os exports que já leem esses campos).
+- **Dados corrigidos**: overlays removidos dos 10 slides de cada um dos 2 projetos "Excelência no Atendimento e Vendas" a pedido do usuário.
+- **Testado E2E** (Playwright): véu visível com 'light' → clique "Sem overlay" → imagem nítida + toast.
