@@ -182,6 +182,23 @@ def _prepare_op(op: dict, font_path: Path) -> dict:
             "bbox": (op["x"], op["y"], op["x"] + text_w, op["y"] + text_h + 10),
             "color": color,
         }
+    # Icon drawings: multi-stroke line-art traced by the pen.
+    if t == "icon":
+        from .whiteboard_icons import icon_strokes
+        strokes = icon_strokes(op["name"], float(op["x"]), float(op["y"]), float(op.get("size") or 220))
+        total_pts = sum(len(s) for s in strokes)
+        if total_pts < 2:
+            # Unknown/empty icon — render nothing but keep timing sane.
+            return {"kind": "icon", "frames": 1, "strokes": [], "color": color, "stroke_width": 5}
+        frames = max(30, min(150, total_pts // 4))
+        return {
+            "kind": "icon",
+            "frames": frames,
+            "strokes": strokes,
+            "color": color,
+            "stroke_width": int(op.get("width") or 5),
+        }
+
     # Shapes
     path = ws.path_for_op(op)
     substeps = ws.shape_substeps(t)
@@ -231,6 +248,20 @@ def _compose_frame(
         # Pen tip rides the sweep front, centered vertically on the text.
         pen_tip = (sweep_x, (y0 + y1) / 2)
 
+    elif op_spec["kind"] == "icon":
+        if op_spec["strokes"]:
+            icon_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+            tip = ws.draw_partial_multi(
+                icon_layer,
+                op_spec["strokes"],
+                progress,
+                color=op_spec["color"],
+                width=op_spec["stroke_width"],
+            )
+            frame.alpha_composite(icon_layer)
+            icon_layer.close()
+            pen_tip = tip
+
     else:  # shape
         # Draw partial path onto a transient layer to avoid mutating accumulator.
         shape_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
@@ -259,6 +290,12 @@ def _commit_op(accumulator: Image.Image, op_spec: dict) -> None:
     frames keep showing it."""
     if op_spec["kind"] == "text":
         accumulator.alpha_composite(op_spec["layer"])
+    elif op_spec["kind"] == "icon":
+        if op_spec["strokes"]:
+            ws.draw_partial_multi(
+                accumulator, op_spec["strokes"], 1.0,
+                color=op_spec["color"], width=op_spec["stroke_width"],
+            )
     else:
         ws.draw_partial(
             accumulator, op_spec["path"], 1.0,

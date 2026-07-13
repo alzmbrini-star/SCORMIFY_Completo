@@ -207,6 +207,47 @@ def draw_partial(
 # ── plan helpers ────────────────────────────────────────────────────
 
 
+def draw_partial_multi(
+    img: Image.Image,
+    strokes: Sequence[Sequence[Point]],
+    progress: float,
+    *,
+    color: tuple[int, int, int] = (0, 0, 0),
+    width: int = 5,
+) -> tuple[float, float]:
+    """Multi-stroke variant of draw_partial for icon drawings: strokes
+    are independent polylines (pen lifts between them). Progress spans
+    the TOTAL point count so the pen speed stays uniform. Returns the
+    current pen tip."""
+    total = sum(len(s) for s in strokes)
+    if total == 0:
+        return (0.0, 0.0)
+    progress = max(0.0, min(1.0, progress))
+    cut = max(1, int(progress * total))
+    draw = ImageDraw.Draw(img)
+    rgba = (color[0], color[1], color[2], 255)
+    r = max(1, width // 2)
+    tip: tuple[float, float] = strokes[0][0]
+    acc = 0
+    for s in strokes:
+        if acc >= cut:
+            break
+        take = min(len(s), cut - acc)
+        if take >= 2:
+            sub = list(s[:take])
+            draw.line(sub, fill=rgba, width=width, joint="curve")
+            for end in (sub[0], sub[-1]):
+                draw.ellipse(
+                    [(end[0] - r, end[1] - r), (end[0] + r, end[1] + r)],
+                    fill=rgba,
+                )
+            tip = sub[-1]
+        elif take == 1:
+            tip = s[0]
+        acc += len(s)
+    return tip
+
+
 def shape_substeps(shape_type: str) -> int:
     """How many animation substeps a shape consumes. Longer paths get
     more substeps so the pen speed stays roughly constant across shapes.

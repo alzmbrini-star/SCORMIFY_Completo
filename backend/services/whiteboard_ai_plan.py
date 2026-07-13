@@ -78,6 +78,32 @@ TIPOS DE OPERAÇÃO PERMITIDOS:
    - Sublinhado horizontal. y2 fica igual a y1.
    - Use para enfatizar palavras-chave já escritas.
 
+6. {"type": "icon", "name": "<nome-em-ingles>", "x": <int>, "y": <int>, "size": <int 100-400>, "color": "<#hex|nome>", "width": <int 3-8>}
+   - Desenha um OBJETO em line-art traçado pela caneta (árvore, cadeira,
+     casa, pessoa...). x,y são o CENTRO do desenho; size é a largura total.
+   - Use SEMPRE que o autor pedir para "desenhar" um objeto do mundo real.
+   - "name" em inglês kebab-case do catálogo Lucide. Exemplos disponíveis:
+     tree-deciduous, tree-pine, trees, armchair, rocking-chair, house,
+     building, factory, store, school, hospital, church, car, truck, bus,
+     plane, rocket, sailboat, bike, train-front, user, users, baby, brain,
+     heart, hand, eye, ear, footprints, dog, cat, bird, fish, rabbit,
+     turtle, bug, lightbulb, laptop, smartphone, monitor, tv, camera,
+     printer, keyboard, mouse, headphones, mic, book-open, notebook-pen,
+     graduation-cap, pencil, briefcase, banknote, coins, credit-card,
+     piggy-bank, wallet, chart-column, chart-pie, trending-up, target,
+     trophy, medal, award, crown, shield, settings, wrench, hammer, key,
+     lock, mail, phone, clock, calendar, hourglass, bell, music, star,
+     sun, moon, cloud, cloud-rain, umbrella, snowflake, flame, leaf,
+     flower, sprout, apple, coffee, pizza, utensils, cake, shopping-cart,
+     gift, package, map, map-pin, globe, compass, flag, search, thumbs-up,
+     smile, frown, stethoscope, pill, syringe, dumbbell, gamepad-2,
+     handshake, scale, gavel, anchor, sword, wand — e qualquer outro nome
+     válido do catálogo Lucide (o sistema faz correspondência aproximada).
+   - Deixe um espaço livre de pelo menos size×size na posição escolhida;
+     não sobreponha icons a textos ou outras formas.
+   - Combine com um "text" LOGO ABAIXO do desenho como legenda
+     (y do texto ≈ y + size/2 + 40) quando fizer sentido.
+
 REGRAS DE LAYOUT (CANVAS 1920×1080):
 - Use a área útil: x entre 140 e 1780, y entre 140 e 940.
 - **ZONAS HORIZONTAIS** (use no máximo UMA zona por shape boxed):
@@ -533,7 +559,7 @@ def _normalize_plan(
         ops_in = []
     summary = (plan.get("summary") or "").strip()[:400]
 
-    allowed_types = {"text", "circle", "rectangle", "arrow", "underline"}
+    allowed_types = {"text", "circle", "rectangle", "arrow", "underline", "icon"}
     ops_out: list[dict] = []
     for op in ops_in[:MAX_OPS]:
         if not isinstance(op, dict):
@@ -584,6 +610,19 @@ def _normalize_plan(
                 "x1": _clamp_int(op.get("x1"), 0, CANVAS_W),
                 "y1": y,
                 "x2": _clamp_int(op.get("x2"), 0, CANVAS_W),
+                "width": _clamp_int(op.get("width", 5), 3, 10),
+            })
+        elif t == "icon":
+            from .whiteboard_icons import resolve_icon_name
+            resolved = resolve_icon_name(op.get("name"))
+            if not resolved:
+                continue
+            size = _clamp_int(op.get("size", 220), 80, 500)
+            cleaned.update({
+                "name": resolved,
+                "x": _clamp_int(op.get("x"), size // 2, CANVAS_W - size // 2),
+                "y": _clamp_int(op.get("y"), size // 2, CANVAS_H - size // 2),
+                "size": size,
                 "width": _clamp_int(op.get("width", 5), 3, 10),
             })
         # Color: if shape-specific colors disabled, force base_color.
@@ -750,7 +789,16 @@ def _retract_arrows_from_shapes(plan: dict) -> dict:
     """Pull arrow endpoints out of any shape they pierce, stopping at
     the border + ARROW_GAP. Keeps the arrow's direction intact."""
     ops = plan.get("ops") or []
-    shapes = [op for op in ops if op.get("type") in ("rectangle", "circle")]
+
+    def _as_container(sh: dict) -> dict:
+        # Icons occupy a size×size box centered at (x, y).
+        if sh["type"] == "icon":
+            s = sh.get("size") or 220
+            return {"type": "rectangle", "x": sh["x"] - s / 2, "y": sh["y"] - s / 2, "w": s, "h": s}
+        return sh
+
+    shapes = [_as_container(op) for op in ops
+              if op.get("type") in ("rectangle", "circle", "icon")]
     if not shapes:
         return plan
     for op in ops:

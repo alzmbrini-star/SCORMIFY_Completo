@@ -1374,3 +1374,13 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Sintoma**: no whiteboard gerado por IA, textos vazavam das caixas/círculos e setas terminavam DENTRO das formas.
 - **Fix** (`whiteboard_ai_plan.py`): novo `polish_plan_geometry()` determinístico com 2 passes: (1) `_fit_and_center_texts_in_shapes` — associa texto↔shape por sobreposição (>30% da área), reduz font até caber (elipse: regra do retângulo inscrito; rect: pad interno 22px) e RECENTRALIZA pelo ink width real (`_text_metrics`); (2) `_retract_arrows_from_shapes` — recorta endpoints de setas na borda do shape inflado por 16px (Liang-Barsky p/ rects, quadrática p/ elipses), preservando direção e comprimento mínimo. Aplicado no pipeline de geração E no início de `render_whiteboard_plan` (corrige planos já salvos ao re-renderizar). Prompt do LLM reforçado (setas ≥25px fora das bordas).
 - **Testes**: `tests/test_whiteboard_plan_geometry.py` (4 casos, incl. repro exato da screenshot) + 40 testes whiteboard de regressão = 44 passed. Frame final renderizado inspecionado visualmente: textos centrados, setas nas bordas.
+
+## 2026-07-13 (2) — Whiteboard IA: Desenhos de Objetos (Catálogo Line-Art)
+
+### Feature: op "icon" — a caneta desenha objetos reais (árvore, cadeira, casa...)
+- **Catálogo**: 1.995 ícones line-art (lucide-static, ISC) offline em `assets/whiteboard/icons/` (~8MB SVGs).
+- **Novo módulo** `services/whiteboard_icons.py`: `resolve_icon_name()` (exato → alias PT/EN ~120 termos → prefixo → fuzzy difflib) e `icon_strokes()` (parse SVG via `svgelements`, amostra subpaths em polylines, escala/centra no canvas; lru_cache).
+- **Renderer** (`whiteboard_plan_renderer.py` + `whiteboard_shapes.draw_partial_multi`): kind "icon" com traçado multi-stroke — a caneta levanta entre traços e desenha o objeto de verdade.
+- **Plano IA** (`whiteboard_ai_plan.py`): op 6 `{"type":"icon","name","x","y","size","color","width"}` no SYSTEM_PROMPT com ~120 nomes curados; `_normalize_plan` resolve/valida nome; `_retract_arrows_from_shapes` trata bbox do ícone como obstáculo (setas param na borda).
+- **Dependência**: `svgelements` (pip, requirements.txt atualizado).
+- **Testes**: `tests/test_whiteboard_icons.py` (5) + 44 regressão = 49 passed. Render visual inspecionado (árvore/cadeira/casa com legendas e seta recuada). Fluxo LLM real validado: "desenhe uma árvore e uma casa" → ops icon corretos.
