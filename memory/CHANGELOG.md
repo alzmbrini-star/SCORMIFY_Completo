@@ -1345,3 +1345,15 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Fix** (`routes/whiteboard.py`): (1) `_persist_wb_output()` grava o arquivo renderizado no MongoDB (namespace `project_id="whiteboard"`, limite 12MB) antes de marcar o job como completed, nos dois fluxos (texto e plano IA). (2) `serve_whiteboard_file` faz fallback: se o arquivo não está no disco, restaura do MongoDB via `retrieve_asset_async` e cacheia de volta no disco.
 - **Testado**: APNG 941KB gerado → removido do disco (simulando outro pod) → GET retornou 200 com bytes idênticos, arquivo restaurado no disco. Documento confirmado em `project_assets`. 4 testes subprocess passando.
 - **Nota**: usuário precisa RE-DEPLOYAR novamente.
+
+## 2026-07-13 — Reabrir Curso do Agente IA em Qualquer Etapa
+
+### Feature: Retomar/Modificar curso do Agente IA sem recriar do zero
+- **O que faz**: cursos criados pelo Agente IA podem ser reabertos no wizard em qualquer etapa (Conteúdo → Análise → Configurar → Estrutura → Storyboard → Mídia → Gerar Curso) para modificar e regenerar a partir dali.
+- **Backend** (`routes/agent.py`):
+  - `analyze?force=1`, `generate-structure` body `{force:true}`, `generate-storyboard?force=1` — bypass do cache para redo explícito; caches agora reconhecem qualquer step pós-etapa (analyzed/configured/structured/storyboarded/generated) para sessões retomadas não re-cobrarem LLM.
+  - `generate-course` aceita body `{mode:'new'|'replace'}`: 'new' cria novo projeto (antigo intacto); 'replace' gera novo e EXCLUI o projeto antigo (projects + project_assets + dir) após sucesso. Sem mode → already_done (compat).
+- **Frontend**:
+  - `Agent.jsx`: `hydrateWizardFromSession()` restaura toda a sessão (análise, config, estrutura, storyboard, mídia, brand library, companyId); `?resume={projectId}` reabre o wizard na etapa Mídia; stepper do topo clicável (`canJumpToStep`, data-testid `step-nav-*`); botão "Reanalisar Conteúdo" com confirm; confirms de regeneração em estrutura/storyboard; Dialog `generate-choice-dialog` (novo curso vs substituir) quando sessão já gerou curso; botão "Reabrir no Assistente" (`reopen-wizard-{id}`) nos cards agent do modo Editar Curso.
+  - `Dashboard.jsx`: item de menu "Reabrir no Assistente IA" (`reopen-agent-{id}`) em cards com `createdByAgent`.
+- **Testes**: testing_agent iteração 132 (backend 10/10 via `tests/test_agent_reopen_wizard.py`) e 133 (frontend 6/6 Playwright). Bug intermediário (useState faltando → page crash) corrigido na 133.
