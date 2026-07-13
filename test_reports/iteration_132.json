@@ -1,0 +1,60 @@
+{
+  "summary": "Tested the 'Reopen course from AI Agent' feature. Backend contracts (cache vs force/mode) all pass. Frontend Dashboard 'Reabrir no Assistente IA' menu item renders correctly. CRITICAL: the Agent wizard page (/agent and /agent?resume=<pid>) is completely broken by a ReferenceError — `generateChoiceOpen is not defined` — the state variable is used in JSX and callbacks (Agent.jsx lines 879, 893, 1410) but never declared with useState. React crashes the whole <Agent> component, rendering a blank page. This blocks 100% of the frontend feature (resume flow, stepper, reopen from edit-mode course list, Reanalisar confirm, generate-choice dialog).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "pages/Agent.jsx",
+        "issue": "Missing useState declaration for `generateChoiceOpen`. Runtime ReferenceError crashes the <Agent> component -> blank page for /agent and /agent?resume=<pid>. Add: `const [generateChoiceOpen, setGenerateChoiceOpen] = useState(false);` alongside the other useState hooks near the top of the component.",
+        "selector": "N/A (page crash)",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "pages/Agent.jsx -> CourseListPanel (edit-mode course list)",
+        "issue": "The `onReopenWizard` prop is passed into CourseListPanel but is NEVER USED inside the panel. Cards for source=='agent' do not render any `data-testid=reopen-wizard-{courseId}` button. Feature described in the review request (Agente IA -> Editar Curso -> cursos source=agent têm botão 'Reabrir no Assistente' data-testid reopen-wizard-{courseId}) is missing from the JSX.",
+        "selector": "[data-testid^='reopen-wizard-']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "/agent?resume={projectId} hydrateWizardFromSession",
+        "issue": "API calls succeed (GET /api/agent/sessions/by-project/<pid> -> 200 and GET /api/agent/sessions/<sid>?full=1 -> 200), but the ReferenceError above prevents any UI from rendering, so the stepper (step-nav-*), toast 'Curso reaberto no assistente' and analyze-btn (Reanalisar) cannot be exercised.",
+        "affected_selectors": ["[data-testid^='step-nav-']", "[data-testid='analyze-btn']", "[data-testid='generate-choice-dialog']", "[data-testid='generate-new-course-btn']", "[data-testid='generate-replace-course-btn']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_agent_reopen_wizard.py",
+    "/app/test_reports/pytest/pytest_reopen_wizard.xml"
+  ],
+  "action_items": [
+    "URGENT: Declare `const [generateChoiceOpen, setGenerateChoiceOpen] = useState(false);` in Agent.jsx (top of component alongside other useStates). Currently `setGenerateChoiceOpen` is called on lines 879, 893 and the value is read on line 1410, but no useState declaration exists. This ReferenceError is thrown on component mount and blanks out the entire /agent page.",
+    "Implement the 'Reabrir no Assistente' button inside CourseListPanel (Agent.jsx ~line 2058) for cards where course.source === 'agent'. Wire it to the already-provided `onReopenWizard` prop and give it data-testid=`reopen-wizard-${course.id}`. Currently the prop is received but never rendered as a button.",
+    "After both fixes, re-run frontend Playwright validation for: (a) /agent?resume=<pid> lands on Media step (currentStep=5) with toast, (b) stepper items are clickable per canJumpToStep, (c) analyze-btn shows window.confirm, (d) edit-mode course list shows reopen-wizard-<id>."
+  ],
+  "critical_code_review_comments": [
+    "Agent.jsx has a ReferenceError bug that fully breaks the newly added feature — indicates the change was not smoke-tested in the browser after wiring the Dialog. Add a runtime smoke test or React strict-mode boundary log.",
+    "onReopenWizard prop plumbing is dead code inside CourseListPanel — either drop the prop or (better) render the button as intended.",
+    "Agent.jsx is 2095 lines — should be split into smaller focused modules (WizardStepper, CourseListPanel, GenerateChoiceDialog, MediaConfig, etc.). Large size increases the likelihood of missed state declarations exactly like this bug.",
+    "hydrateWizardFromSession lands on step 5 whenever storyboard+projectId exist. When step==='generated' this is correct, but for step==='storyboarded' (project not yet generated) it also lands on 5 which is intended per canJumpToStep — worth documenting in a comment."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_agent_reopen_wizard.py (NEW — 10 pytest cases, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests pass)",
+    "frontend": "~15% (only Dashboard reopen-agent menu item verified; /agent page crashes on load)"
+  },
+  "test_credentials": "admin@scormify.com / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Backend tests create ephemeral synthetic docs in Mongo (agent_sessions + projects with TEST_ prefixed IDs) and delete them at teardown. No lingering state. Used existing real project ebe2ac7b-5565-4d7f-a486-17910291f36a (createdByAgent=True, agentSessionId=e5d36dfb-70f2-4501-8a22-2bb86710bbb4, step=generated) for frontend resume smoke tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent adds the useState declaration for generateChoiceOpen and renders the reopen-wizard-* button in CourseListPanel, re-run frontend Playwright covering: /agent?resume=<pid> landing on media step, stepper clickability per canJumpToStep, analyze-btn confirm dismiss, edit-mode reopen-wizard button click hydrates the wizard, and generate-choice dialog buttons (generate-new-course-btn, generate-replace-course-btn) fire without triggering full LLM (dismiss dialogs). Backend regression tests already in /app/backend/tests/test_agent_reopen_wizard.py — keep running them.",
+  "rca_of_the_issue": "Root cause of the frontend blackout: Agent.jsx introduced a new <Dialog open={generateChoiceOpen} ...> (line 1410) and two callers setGenerateChoiceOpen(true|false) (lines 879, 893) but forgot to declare the corresponding React state hook. On mount React evaluates the JSX and throws ReferenceError: generateChoiceOpen is not defined, caught by React's default error handling and the whole component is unmounted. Console shows: 'PAGEERROR: generateChoiceOpen is not defined' + React warning 'An error occurred in the <Agent> component.' Fix is trivial: add `const [generateChoiceOpen, setGenerateChoiceOpen] = useState(false);` in the state block near the top of the Agent component."
+}

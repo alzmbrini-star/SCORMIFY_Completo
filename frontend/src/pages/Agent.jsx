@@ -26,6 +26,7 @@ import {
   PaintBucket, Target, Code, ExternalLink, BookOpenCheck, Volume2, Type, LogOut,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 
 const API = getApiUrl();
 
@@ -261,6 +262,82 @@ export default function Agent() {
     setChatMessages(prev => [...prev, { role, text, ts: new Date().toISOString() }]);
   }, []);
 
+  // Rehydrate the whole wizard from a persisted agent session — used by
+  // the "Reabrir no Assistente" flows (?resume={projectId} or course list).
+  const hydrateWizardFromSession = async (lightSession) => {
+    let session = lightSession;
+    try {
+      const fr = await fetch(`${API}/api/agent/sessions/${lightSession.id}?full=1`, { headers: authHeaders() });
+      if (fr.ok) session = await fr.json();
+    } catch { /* fall back to the light session */ }
+    setSessionId(session.id);
+    setMode('create');
+    setFileName(session.fileName || '');
+    setContentText(session.contentText || '');
+    if (session.analysis) setAnalysis(session.analysis);
+    if (session.config && Object.keys(session.config).length > 0) {
+      setConfig(prev => ({ ...prev, ...session.config }));
+    }
+    setStructure(session.structure || null);
+    setStoryboard(session.storyboard || null);
+    setMediaConfig(session.mediaConfig || {});
+    setBgConfig(session.bgConfig || {});
+    setGlobalTextColor(session.globalTextColor || '');
+    setGlobalFontSize(session.globalFontSize || '');
+    setGlobalAnimation(session.globalAnimation || '');
+    setUseBrandLibrary(!!session.useBrandLibrary);
+    setBrandLibraryMode(session.brandLibraryMode || 'preferred');
+    if (session.companyId) setAgentCompanyId(session.companyId);
+    setResumedProjectId(session.projectId || null);
+    if (session.courseResult) setGeneratedProject({ ...session.courseResult, status: 'done' });
+    const landing = session.storyboard ? (session.projectId ? 5 : 4)
+      : session.structure ? 3 : session.analysis ? 2 : 1;
+    setCurrentStep(landing);
+    addChatMsg('agent', 'Sessão do curso recarregada! Clique nas etapas no topo para navegar. Você pode modificar e re-executar qualquer fase — as etapas seguintes serão refeitas na sequência normal.');
+  };
+
+  // Handle ?resume={projectId} — reopen the wizard for an existing course.
+  useEffect(() => {
+    const resumeProjectId = searchParams.get('resume');
+    if (!resumeProjectId || mode) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API}/api/agent/sessions/by-project/${resumeProjectId}`, { headers: authHeaders() });
+        if (!res.ok) { toast.error('Sessão do Agente IA não encontrada para este curso'); return; }
+        await hydrateWizardFromSession(await res.json());
+        toast.success('Curso reaberto no assistente');
+      } catch { toast.error('Erro ao carregar sessão'); }
+      finally { setLoading(false); }
+    })();
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReopenWizard = async (course) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/agent/sessions/by-project/${course.id}`, { headers: authHeaders() });
+      if (!res.ok) { toast.error('Sessão do Agente IA não encontrada para este curso'); return; }
+      await hydrateWizardFromSession(await res.json());
+      toast.success('Curso reaberto no assistente');
+    } catch { toast.error('Erro ao carregar sessão'); }
+    finally { setLoading(false); }
+  };
+
+  // Which wizard steps the author can jump to directly via the stepper.
+  const canJumpToStep = (i) => {
+    if (mode !== 'create' || editMediaProjectId) return false;
+    switch (i) {
+      case 0: return true;
+      case 1: return !!sessionId;
+      case 2: return !!analysis;
+      case 3: return !!structure;
+      case 4: return !!storyboard;
+      case 5: return !!storyboard;
+      case 6: return !!generatedProject;
+      default: return false;
+    }
+  };
+
   // Load templates on mount
   useEffect(() => {
     fetchRetry(`${API}/api/agent/templates`, { headers: authHeaders() })
@@ -472,11 +549,15 @@ export default function Agent() {
     throw new Error('Timeout aguardando processamento');
   };
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (forceRegen = false) => {
+    if (forceRegen) {
+      const ok = window.confirm('Refazer a análise com IA? As etapas seguintes (estrutura, storyboard) continuarão disponíveis, mas deverão ser regeradas para refletir a nova análise.');
+      if (!ok) return;
+    }
     setLoading(true);
-    addChatMsg('agent', 'Analisando o conteudo com IA...');
+    addChatMsg('agent', forceRegen ? 'Reanalisando o conteudo com IA...' : 'Analisando o conteudo com IA...');
     try {
-      const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/analyze`, { method: 'POST', headers: authHeaders() });
+      const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/analyze${forceRegen ? '?force=1' : ''}`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) {
         // Parse backend error message if possible
         let errMsg = `Erro ${res.status} na analise`;
@@ -517,6 +598,10 @@ export default function Agent() {
   };
 
   const handleGenerateStructure = async () => {
+    if (structure) {
+      const ok = window.confirm('Já existe uma estrutura gerada. Deseja REGENERAR a estrutura com as configurações atuais? (Cancelar mantém a estrutura existente)');
+      if (!ok) { setCurrentStep(3); return; }
+    }
     setLoading(true);
     addChatMsg('agent', selectedTemplate ? `Gerando estrutura usando template "${selectedTemplate.name}"...` : 'Gerando a estrutura pedagogica...');
     try {
@@ -526,6 +611,7 @@ export default function Agent() {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(configToSend),
       });
       const body = selectedTemplate ? { templateId: selectedTemplate.id } : {};
+      if (structure) body.force = true;
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-structure`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
       });
@@ -787,13 +873,29 @@ export default function Agent() {
       const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
       const heygenMsg = heygenCount > 0 ? ` ${heygenCount} vídeos avatar HeyGen serão gerados em segundo plano (~1-3 min cada).` : '';
       addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares.${heygenMsg}${aiImageCount > 0 ? ' A geração de imagens pode levar alguns minutos.' : ''}`);
-      setCurrentStep(6);
-      handleGenerateCourse();
+      if (resumedProjectId) {
+        // This session already generated a course — let the author choose
+        // between creating a new project or replacing the existing one.
+        setGenerateChoiceOpen(true);
+      } else {
+        setCurrentStep(6);
+        handleGenerateCourse();
+      }
     } catch (err) { toast.error(err.message || 'Erro ao salvar mídia'); addChatMsg('agent', `Erro: ${err.message || 'Erro ao salvar configuração de mídia.'}`); }
     finally { setLoading(false); }
   };
 
-  const handleGenerateCourse = async () => {
+  const handleGenerateChoice = (choiceMode) => {
+    if (choiceMode === 'replace') {
+      const ok = window.confirm('Tem certeza? O curso gerado anteriormente será EXCLUÍDO permanentemente (incluindo edições manuais feitas no Editor).');
+      if (!ok) return;
+    }
+    setGenerateChoiceOpen(false);
+    setCurrentStep(6);
+    handleGenerateCourse(choiceMode);
+  };
+
+  const handleGenerateCourse = async (genMode = null) => {
     setLoading(true);
     setGenerationStartTime(Date.now());
     const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
@@ -810,7 +912,11 @@ export default function Agent() {
 
     addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
     try {
-      const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/generate-course`, { method: 'POST', headers: authHeaders() });
+      const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/generate-course`, {
+        method: 'POST',
+        headers: authHeaders(genMode ? { 'Content-Type': 'application/json' } : undefined),
+        ...(genMode ? { body: JSON.stringify({ mode: genMode }) } : {}),
+      });
       if (!res.ok) throw new Error('Falha ao iniciar geração');
       const initData = await res.json();
       
@@ -861,6 +967,7 @@ export default function Agent() {
             if (statusData.status === 'done') {
               setGenerationPhases(prev => prev.map(p => ({ ...p, status: 'done' })));
               setGeneratedProject(statusData);
+              if (statusData.projectId) setResumedProjectId(statusData.projectId);
               const heygenMsg = statusData.heygenPending > 0 ? ` ${statusData.heygenPending} vídeos HeyGen em processamento.` : '';
               const narrationMsg = statusData.narrationPending > 0 ? ` ${statusData.narrationPending} narrações em geração.` : '';
               addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${statusData.quizCount} perguntas.${heygenMsg}${narrationMsg}`);
@@ -1270,8 +1377,16 @@ export default function Agent() {
               const Icon = step.icon;
               const active = i === currentStep;
               const done = i < currentStep;
+              const clickable = !loading && i !== currentStep && canJumpToStep(i);
               return (
-                <div key={step.id} className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${active ? 'bg-emerald-600/20 text-emerald-400' : done ? 'text-emerald-500/60' : 'text-slate-500'}`}>
+                <div
+                  key={step.id}
+                  onClick={clickable ? () => setCurrentStep(i) : undefined}
+                  role={clickable ? 'button' : undefined}
+                  title={clickable ? `Ir para ${step.label}` : undefined}
+                  data-testid={`step-nav-${step.id}`}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${active ? 'bg-emerald-600/20 text-emerald-400' : done ? 'text-emerald-500/60' : 'text-slate-500'} ${clickable ? 'cursor-pointer hover:bg-slate-800 hover:text-emerald-300 transition-colors' : ''}`}
+                >
                   {done ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
                   <span className="hidden lg:inline">{step.label}</span>
                   {i < steps.length - 1 && <ChevronRight className="w-3 h-3 text-slate-600 ml-1" />}
@@ -1290,6 +1405,26 @@ export default function Agent() {
           </Button>
         )}
       </header>
+
+      {/* Regenerate choice dialog for resumed sessions */}
+      <Dialog open={generateChoiceOpen} onOpenChange={setGenerateChoiceOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white" data-testid="generate-choice-dialog">
+          <DialogHeader>
+            <DialogTitle>Este curso já foi gerado</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Você está gerando novamente um curso que já existe. Como deseja prosseguir?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 pt-2">
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 justify-start" onClick={() => handleGenerateChoice('new')} data-testid="generate-new-course-btn">
+              <Plus className="w-4 h-4 mr-2" /> Criar um NOVO curso (o atual permanece intacto)
+            </Button>
+            <Button variant="destructive" className="w-full justify-start" onClick={() => handleGenerateChoice('replace')} data-testid="generate-replace-course-btn">
+              <RefreshCw className="w-4 h-4 mr-2" /> SUBSTITUIR o curso existente (o antigo será excluído)
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Main content */}
       <div className="flex-1 flex min-h-0">
@@ -1315,7 +1450,7 @@ export default function Agent() {
               {mode === 'create' && currentStep === 6 && generatedProject && <GeneratedPanel project={generatedProject} navigate={navigate} sessionId={sessionId} />}
 
               {/* EDIT MODE */}
-              {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} />}
+              {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} onReopenWizard={handleReopenWizard} />}
               {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
               {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
@@ -1589,18 +1724,17 @@ function AnalyzePanel({ analysis, loading, onAnalyze, sessionId, apiBase }) {
       )}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2"><Brain className="w-5 h-5 text-emerald-400" /> Análise do Conteúdo</h2>
-        {!analysis && (
-          <Button
-            onClick={onAnalyze}
-            disabled={loading || pdfProcessing}
-            title={pdfProcessing ? 'Aguarde a extracao do PDF terminar' : undefined}
-            className="bg-emerald-600 hover:bg-emerald-700"
-            data-testid="analyze-btn"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
-            {pdfProcessing ? 'Aguardando PDF...' : 'Analisar Conteúdo'}
-          </Button>
-        )}
+        <Button
+          onClick={() => onAnalyze(!!analysis)}
+          disabled={loading || pdfProcessing}
+          title={pdfProcessing ? 'Aguarde a extracao do PDF terminar' : undefined}
+          variant={analysis ? 'outline' : 'default'}
+          className={analysis ? 'border-amber-500/40 text-amber-300 hover:bg-amber-600/10' : 'bg-emerald-600 hover:bg-emerald-700'}
+          data-testid="analyze-btn"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : analysis ? <RefreshCw className="w-4 h-4 mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
+          {pdfProcessing ? 'Aguardando PDF...' : analysis ? 'Reanalisar Conteúdo' : 'Analisar Conteúdo'}
+        </Button>
       </div>
       {analysis && (
         <div className="grid gap-4">
@@ -1865,7 +1999,7 @@ function GeneratingProgressPanel({ phases, startTime, config, storyboard, mediaC
 }
 
 
-function CourseListPanel({ courses, loading, onSelect, onRefresh }) {
+function CourseListPanel({ courses, loading, onSelect, onRefresh, onReopenWizard }) {
   const [filter, setFilter] = useState('all'); // all | agent | imported
   const gradients = [
     'from-blue-600/80 to-cyan-500/80',

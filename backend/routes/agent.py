@@ -556,7 +556,7 @@ async def _convert_api_extract(file_name: str, file_bytes: bytes, ext: str) -> s
 
 
 @router.post("/agent/sessions/{session_id}/analyze")
-async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
+async def agent_analyze(session_id: str, background_tasks: BackgroundTasks, force: bool = False):
     """Step 1: Analyze content with AI (async background processing to avoid 504 timeout)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
@@ -581,8 +581,12 @@ async def agent_analyze(session_id: str, background_tasks: BackgroundTasks):
             )
         raise HTTPException(400, "Nenhum conteudo recebido para analisar.")
 
-    # If already analyzed, return cached result
-    if s.get("step") == "analyzed" and s.get("analysis"):
+    # If already analyzed, return cached result — unless the author asked
+    # for a redo (?force=1, wizard "Reanalisar"). Any post-analysis step
+    # counts as cached so resumed sessions don't re-bill the LLM.
+    if (not force and s.get("analysis")
+            and s.get("step") in ("analyzed", "configured", "structured",
+                                  "storyboarded", "generated")):
         return s["analysis"]
 
     # If already analyzing, check if stuck (> 3 min)
@@ -656,8 +660,19 @@ async def agent_generate_structure(session_id: str, request: Request):
     if not s:
         raise HTTPException(404, "Session not found")
 
-    # If already structured, return cached result
-    if s.get("step") == "structured" and s.get("structure"):
+    # Body may contain a templateId and/or a force flag (wizard redo).
+    template_id = None
+    force = False
+    try:
+        body = await request.json()
+        template_id = body.get("templateId")
+        force = bool(body.get("force"))
+    except Exception:
+        pass
+
+    # If already structured, return cached result (unless forced redo).
+    if (not force and s.get("structure")
+            and s.get("step") in ("structured", "storyboarded", "generated")):
         return s["structure"]
 
     # If already generating, check if stuck (> 3 min)
@@ -673,14 +688,6 @@ async def agent_generate_structure(session_id: str, request: Request):
                 return {"status": "processing", "message": "Gerando estrutura..."}
         except Exception:
             return {"status": "processing", "message": "Gerando estrutura..."}
-
-    # Check if body contains a templateId
-    template_id = None
-    try:
-        body = await request.json()
-        template_id = body.get("templateId")
-    except Exception:
-        pass
 
     # Mark as processing
     await db.agent_sessions.update_one(
@@ -729,7 +736,7 @@ async def agent_generate_structure(session_id: str, request: Request):
     return {"status": "processing", "message": "Gerando estrutura em segundo plano..."}
 
 @router.post("/agent/sessions/{session_id}/generate-storyboard")
-async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks):
+async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks, force: bool = False):
     """Step 3: Generate detailed storyboard (runs in thread pool to avoid blocking event loop)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
@@ -737,8 +744,9 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     if not s.get("structure"):
         raise HTTPException(400, "Structure not generated yet")
 
-    # If storyboard already exists, return it
-    if s.get("step") == "storyboarded" and s.get("storyboard"):
+    # If storyboard already exists, return it (unless forced redo).
+    if (not force and s.get("storyboard")
+            and s.get("step") in ("storyboarded", "generated")):
         return {"status": "already_done", "message": "Storyboard already generated"}
 
     # If already generating, don't start another thread
@@ -1700,7 +1708,7 @@ async def agent_cost_estimate(session_id: str):
 
 
 @router.post("/agent/sessions/{session_id}/generate-course")
-async def agent_generate_course(session_id: str):
+async def agent_generate_course(session_id: str, request: Request):
     """Step 5: Generate actual Scormfy project from storyboard with media (background thread)."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
@@ -1711,9 +1719,24 @@ async def agent_generate_course(session_id: str):
     # If already generating, don't start another
     if s.get("step") == "generating_course":
         return {"status": "processing", "message": "Geração do curso já em andamento..."}
-    # If already done
-    if s.get("step") == "generated" and s.get("projectId"):
+
+    # Optional body: {"mode": "new"|"replace"} — used when regenerating a
+    # course from a resumed session. "new" keeps the old project intact;
+    # "replace" deletes the old project after the new one is generated.
+    mode = None
+    try:
+        body = await request.json()
+        mode = (body.get("mode") or "").lower() or None
+    except Exception:
+        pass
+
+    # If already done and the author didn't ask for a redo, return cached.
+    if s.get("step") == "generated" and s.get("projectId") and mode not in ("new", "replace"):
         return {"status": "already_done", "projectId": s["projectId"]}
+
+    # Server-side only: the project deleted after a successful "replace"
+    # regeneration. Always taken from the session, never from the client.
+    replace_project_id = s.get("projectId") if mode == "replace" else None
 
     # Mark as processing
     await db.agent_sessions.update_one(
@@ -1927,6 +1950,18 @@ async def agent_generate_course(session_id: str):
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }}
             ))
+
+            # "Substituir": the author chose to replace the previously
+            # generated project — delete it now that the new one is live.
+            if replace_project_id and replace_project_id != project.id:
+                try:
+                    loop.run_until_complete(_db.projects.delete_one({"id": replace_project_id}))
+                    loop.run_until_complete(_db.project_assets.delete_many({"project_id": replace_project_id}))
+                    import shutil as _shutil
+                    _shutil.rmtree(str(PROJECTS_DIR / replace_project_id), ignore_errors=True)
+                    logger.info(f"Replaced project {replace_project_id} with {project.id} (session {session_id})")
+                except Exception as e:
+                    logger.warning(f"Failed to delete replaced project {replace_project_id}: {e}")
 
             # Trigger background tasks (HeyGen, narration, suggestions) in their own threads
             if heygen_pending and HEYGEN_API_KEY:

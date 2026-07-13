@@ -781,6 +781,16 @@ export default function Dashboard() {
                             Duplicar
                           </DropdownMenuItem>
                         )}
+                        {/* Reopen the AI Agent wizard for agent-created courses */}
+                        {(project.createdByAgent || project.agentSessionId) && (
+                          <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); navigate(`/agent?resume=${project.id}`); }}
+                            data-testid={`reopen-agent-${project.id}`}
+                          >
+                            <Brain className="w-4 h-4 mr-2" />
+                            Reabrir no Assistente IA
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive"
