@@ -1357,3 +1357,9 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
   - `Agent.jsx`: `hydrateWizardFromSession()` restaura toda a sessão (análise, config, estrutura, storyboard, mídia, brand library, companyId); `?resume={projectId}` reabre o wizard na etapa Mídia; stepper do topo clicável (`canJumpToStep`, data-testid `step-nav-*`); botão "Reanalisar Conteúdo" com confirm; confirms de regeneração em estrutura/storyboard; Dialog `generate-choice-dialog` (novo curso vs substituir) quando sessão já gerou curso; botão "Reabrir no Assistente" (`reopen-wizard-{id}`) nos cards agent do modo Editar Curso.
   - `Dashboard.jsx`: item de menu "Reabrir no Assistente IA" (`reopen-agent-{id}`) em cards com `createdByAgent`.
 - **Testes**: testing_agent iteração 132 (backend 10/10 via `tests/test_agent_reopen_wizard.py`) e 133 (frontend 6/6 Playwright). Bug intermediário (useState faltando → page crash) corrigido na 133.
+
+### Bug Fix: Erro não tratado ao mudar transparência do background (Editor)
+- **Sintoma**: overlay "Uncaught runtime errors: AxiosError 404" ao arrastar o slider de Transparência da imagem de fundo (aba Layers do Editor).
+- **Root Cause**: o slider disparava um PUT `/projects/{id}/slides/{slideId}` a CADA tick sem debounce e sem catch — qualquer falha (ex.: projeto excluído/substituído em outra aba, slide dessincronizado) virava unhandled promise rejection.
+- **Fix** (`Editor.jsx`): draft local `bgOpacityDraft` + debounce de 400ms no PUT + `.catch` com toast amigável (mensagem específica para 404: "Projeto ou slide não encontrado — pode ter sido excluído ou substituído").
+- **Testado E2E** (Playwright): caminho feliz salva sem overlay; projeto deletado no meio → toast amigável, sem crash.

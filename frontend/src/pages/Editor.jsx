@@ -278,6 +278,11 @@ export default function Editor() {
 
   // ── Local State ──
   const [showMediaDialog, setShowMediaDialog] = useState(false);
+  // Background opacity slider: local draft + debounced save. Without this
+  // every 1% tick fired a PUT and any failure (e.g. project deleted in
+  // another tab) surfaced as an uncaught runtime error overlay.
+  const [bgOpacityDraft, setBgOpacityDraft] = useState(null); // { slideId, value }
+  const bgOpacityTimer = useRef(null);
   const [mediaType, setMediaType] = useState('image');
   const [videoUrl, setVideoUrl] = useState('');
   const [annotationMode, setAnnotationMode] = useState(null);
@@ -1778,7 +1783,11 @@ export default function Editor() {
                   {(currentSlide?.elements?.length > 0 || currentSlide?.annotations?.length > 0 || currentSlide?.backgroundImage) ? (
                     <div className="p-2 space-y-1">
                       {/* Background Image Layer - Opacity Control */}
-                      {currentSlide?.backgroundImage && (
+                      {currentSlide?.backgroundImage && (() => {
+                        const effOpacity = (bgOpacityDraft && bgOpacityDraft.slideId === currentSlide.id)
+                          ? bgOpacityDraft.value
+                          : (currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1);
+                        return (
                         <div className="mb-3">
                           <div className="text-xs font-medium text-muted-foreground px-2 py-1">Imagem de Fundo</div>
                           <div className="flex items-center gap-2 p-2 rounded bg-muted/50 border border-border/50">
@@ -1787,7 +1796,7 @@ export default function Editor() {
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-sm truncate">Background</span>
                                 <span className="text-[10px] text-muted-foreground font-mono" data-testid="bg-opacity-value">
-                                  {Math.round((currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1) * 100)}%
+                                  {Math.round(effOpacity * 100)}%
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1796,10 +1805,22 @@ export default function Editor() {
                                   type="range"
                                   min="0"
                                   max="100"
-                                  value={Math.round((currentSlide.backgroundImageOpacity != null ? currentSlide.backgroundImageOpacity : 1) * 100)}
+                                  value={Math.round(effOpacity * 100)}
                                   onChange={(e) => {
                                     const opacity = parseInt(e.target.value) / 100;
-                                    updateSlide(currentSlide.id, { backgroundImageOpacity: opacity });
+                                    const slideId = currentSlide.id;
+                                    setBgOpacityDraft({ slideId, value: opacity });
+                                    clearTimeout(bgOpacityTimer.current);
+                                    bgOpacityTimer.current = setTimeout(() => {
+                                      updateSlide(slideId, { backgroundImageOpacity: opacity })
+                                        .catch((err) => {
+                                          const st = err?.response?.status;
+                                          toast.error(st === 404
+                                            ? 'Projeto ou slide não encontrado — ele pode ter sido excluído ou substituído. Volte ao Dashboard e reabra o curso.'
+                                            : 'Erro ao salvar a transparência do fundo. Tente novamente.');
+                                        })
+                                        .finally(() => setBgOpacityDraft(null));
+                                    }, 400);
                                   }}
                                   className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
                                   data-testid="bg-opacity-slider"
@@ -1808,7 +1829,8 @@ export default function Editor() {
                             </div>
                           </div>
                         </div>
-                      )}
+                        );
+                      })()}
                       
                       {/* Elements - Sortable */}
                       {currentSlide.elements?.length > 0 && (
