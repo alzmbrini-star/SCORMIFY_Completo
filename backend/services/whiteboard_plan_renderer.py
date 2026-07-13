@@ -65,6 +65,12 @@ async def render_whiteboard_plan(
     if not ops:
         raise ValueError("plan has no operations")
 
+    # Deterministic geometry cleanup — also fixes previously-saved plans
+    # (texts centered inside their shapes, arrows stopping at borders).
+    from .whiteboard_ai_plan import polish_plan_geometry
+    plan = polish_plan_geometry(plan)
+    ops = plan.get("ops") or []
+
     video_id = f"wb_plan_{uuid.uuid4().hex[:12]}"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

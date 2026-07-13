@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from typing import Optional
@@ -120,6 +121,11 @@ POST-PROCESSAMENTO (importante saber):
   sobrepostas. Para evitar surpresas, mantenha pelo menos 30px de gap
   entre AABBs de shapes distintas.
 
+- Setas NUNCA devem entrar em caixas ou círculos: cada endpoint da seta
+  deve ficar a pelo menos 25px FORA da borda das formas que conecta.
+  O sistema recorta automaticamente setas que invadem formas, mas
+  prefira acertar de primeira.
+
 REGRAS CRÍTICAS:
 - NÃO adicione campos extras nos objetos.
 - Coordenadas SEMPRE inteiros.
@@ -194,6 +200,25 @@ async def generate_render_plan(
     #    collision can be resolved that way; otherwise leaves them
     #    alone (better to clip a couple of px than corrupt arrows).
     plan = _enforce_shape_separation(plan)
+    # 5-6. Final geometric polish: center/fit texts inside their shapes
+    #    and retract arrow endpoints to shape borders (never inside).
+    plan = polish_plan_geometry(plan)
+    return plan
+
+
+def polish_plan_geometry(plan: dict) -> dict:
+    """Deterministic geometry cleanup, safe to run on ANY plan (new or a
+    previously-saved one being re-rendered):
+
+    1. Texts associated with a rectangle/circle are font-shrunk until
+       they FIT inside the shape and are re-centered in it — fixes
+       labels bleeding out of their boxes/ellipses.
+    2. Arrow endpoints that land inside a shape are retracted along the
+       arrow's direction to the shape border + gap — arrows connect
+       edge-to-edge instead of piercing the shapes.
+    """
+    plan = _fit_and_center_texts_in_shapes(plan)
+    plan = _retract_arrows_from_shapes(plan)
     return plan
 
 
@@ -580,3 +605,171 @@ def _clamp_int(v, lo: int, hi: int) -> int:
     except (TypeError, ValueError):
         i = lo
     return max(lo, min(hi, i))
+
+
+# ── geometry polish: text-in-shape fitting + arrow retraction ────────
+
+TEXT_INNER_PAD = 22      # min clearance between text and shape border
+ARROW_GAP = 16           # arrows stop this many px BEFORE a shape border
+MIN_ARROW_LEN = 30       # don't retract an arrow into nothingness
+MIN_FIT_FONT = 24        # never shrink boxed text below this
+
+
+def _shape_aabb_poly(sh: dict) -> tuple[float, float, float, float]:
+    if sh["type"] == "rectangle":
+        return (sh["x"], sh["y"], sh["x"] + sh["w"], sh["y"] + sh["h"])
+    return (sh["cx"] - sh["rx"], sh["cy"] - sh["ry"],
+            sh["cx"] + sh["rx"], sh["cy"] + sh["ry"])
+
+
+def _shape_center(sh: dict) -> tuple[float, float]:
+    if sh["type"] == "rectangle":
+        return (sh["x"] + sh["w"] / 2.0, sh["y"] + sh["h"] / 2.0)
+    return (float(sh["cx"]), float(sh["cy"]))
+
+
+def _text_fits_shape(sh: dict, tw: float, th: float, pad: float) -> bool:
+    if sh["type"] == "rectangle":
+        return tw + 2 * pad <= sh["w"] and th + 2 * pad <= sh["h"]
+    rx, ry = max(1.0, sh["rx"] - pad), max(1.0, sh["ry"] - pad)
+    # A centered w×h rect fits in an ellipse iff (w/2/rx)² + (h/2/ry)² ≤ 1.
+    return (tw / 2 / rx) ** 2 + (th / 2 / ry) ** 2 <= 1.0
+
+
+def _text_metrics(text: str, font_size: int) -> tuple[int, int, int]:
+    """(ink_width, ink_height, top_offset) with the real whiteboard font.
+    `top_offset` is the gap between the draw anchor (top-left of the em
+    box, what PIL's draw.text uses) and the first ink pixel — needed to
+    center the VISIBLE glyphs, not the em box."""
+    try:
+        from PIL import ImageFont
+        from .whiteboard_renderer import _resolve_font_path  # type: ignore
+        font = ImageFont.truetype(str(_resolve_font_path(None)), font_size)
+        bbox = font.getbbox(text)
+        w = max(int(font.getlength(text)), bbox[2] - bbox[0])
+        return w, bbox[3] - bbox[1], bbox[1]
+    except Exception:
+        return int(len(text) * font_size * 0.55), int(font_size * 0.75), int(font_size * 0.2)
+
+
+def _fit_and_center_texts_in_shapes(plan: dict) -> dict:
+    """Shrink + re-center each text inside the shape it belongs to."""
+    ops = plan.get("ops") or []
+    shapes = [
+        op for op in ops
+        if op.get("type") in ("rectangle", "circle")
+        # Tiny circles are bullets/markers — never treat as containers.
+        and not (op["type"] == "circle" and op.get("rx", 0) <= 25 and op.get("ry", 0) <= 25)
+    ]
+    if not shapes:
+        return plan
+    for top in ops:
+        if top.get("type") != "text" or not top.get("text"):
+            continue
+        tw, th = _measure_text_bbox(top["text"], top["font_size"])
+        tx0, ty0 = top["x"], top["y"]
+        # Associate with the shape it overlaps the most.
+        best, best_area = None, 0.0
+        for sh in shapes:
+            bx0, by0, bx1, by1 = _shape_aabb_poly(sh)
+            ix = max(0.0, min(bx1, tx0 + tw) - max(bx0, tx0))
+            iy = max(0.0, min(by1, ty0 + th) - max(by0, ty0))
+            if ix * iy > best_area:
+                best, best_area = sh, ix * iy
+        # Meaningful overlap only (>30% of the text area) — otherwise the
+        # text is a free-standing label near, not inside, the shape.
+        if not best or best_area < 0.3 * (tw * th):
+            continue
+        fs = int(top["font_size"])
+        while fs > MIN_FIT_FONT:
+            tw, th = _measure_text_bbox(top["text"], fs)
+            if _text_fits_shape(best, tw, th, TEXT_INNER_PAD):
+                break
+            fs -= 3
+        if fs != top["font_size"]:
+            logger.info(
+                "whiteboard-plan: shrunk %r %d → %d to fit its shape",
+                top["text"][:30], top["font_size"], fs,
+            )
+        top["font_size"] = fs
+        ink_w, ink_h, top_off = _text_metrics(top["text"], fs)
+        scx, scy = _shape_center(best)
+        top["x"] = int(round(scx - ink_w / 2.0))
+        top["y"] = int(round(scy - ink_h / 2.0 - top_off))
+    return plan
+
+
+def _entry_t(a: tuple[float, float], b: tuple[float, float], sh: dict, gap: float):
+    """First intersection t∈(0,1) of segment a→b with the border of the
+    gap-inflated shape, entering from outside. None if no clean entry."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    if sh["type"] == "rectangle":
+        x0, y0 = sh["x"] - gap, sh["y"] - gap
+        x1, y1 = sh["x"] + sh["w"] + gap, sh["y"] + sh["h"] + gap
+        t_enter, t_exit = 0.0, 1.0
+        for p, q in ((-dx, a[0] - x0), (dx, x1 - a[0]), (-dy, a[1] - y0), (dy, y1 - a[1])):
+            if abs(p) < 1e-9:
+                if q < 0:
+                    return None
+                continue
+            t = q / p
+            if p < 0:
+                t_enter = max(t_enter, t)
+            else:
+                t_exit = min(t_exit, t)
+        if t_enter >= t_exit or t_enter <= 0.0 or t_enter >= 1.0:
+            return None
+        return t_enter
+    # ellipse (circle op)
+    rx, ry = sh["rx"] + gap, sh["ry"] + gap
+    fx, fy = (a[0] - sh["cx"]) / rx, (a[1] - sh["cy"]) / ry
+    gx, gy = dx / rx, dy / ry
+    A = gx * gx + gy * gy
+    B = 2 * (fx * gx + fy * gy)
+    C = fx * fx + fy * fy - 1.0
+    if A < 1e-12:
+        return None
+    disc = B * B - 4 * A * C
+    if disc <= 0:
+        return None
+    t1 = (-B - math.sqrt(disc)) / (2 * A)
+    if 0.0 < t1 < 1.0:
+        return t1
+    return None
+
+
+def _point_in_shape(p: tuple[float, float], sh: dict, gap: float) -> bool:
+    if sh["type"] == "rectangle":
+        return (sh["x"] - gap <= p[0] <= sh["x"] + sh["w"] + gap
+                and sh["y"] - gap <= p[1] <= sh["y"] + sh["h"] + gap)
+    rx, ry = sh["rx"] + gap, sh["ry"] + gap
+    return ((p[0] - sh["cx"]) / rx) ** 2 + ((p[1] - sh["cy"]) / ry) ** 2 <= 1.0
+
+
+def _retract_arrows_from_shapes(plan: dict) -> dict:
+    """Pull arrow endpoints out of any shape they pierce, stopping at
+    the border + ARROW_GAP. Keeps the arrow's direction intact."""
+    ops = plan.get("ops") or []
+    shapes = [op for op in ops if op.get("type") in ("rectangle", "circle")]
+    if not shapes:
+        return plan
+    for op in ops:
+        if op.get("type") != "arrow":
+            continue
+        p1 = (float(op["x1"]), float(op["y1"]))
+        p2 = (float(op["x2"]), float(op["y2"]))
+        for sh in shapes:
+            if _point_in_shape(p2, sh, ARROW_GAP) and not _point_in_shape(p1, sh, ARROW_GAP):
+                t = _entry_t(p1, p2, sh, ARROW_GAP)
+                if t is not None:
+                    p2 = (p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t)
+            if _point_in_shape(p1, sh, ARROW_GAP) and not _point_in_shape(p2, sh, ARROW_GAP):
+                t = _entry_t(p2, p1, sh, ARROW_GAP)
+                if t is not None:
+                    p1 = (p2[0] + (p1[0] - p2[0]) * t, p2[1] + (p1[1] - p2[1]) * t)
+        if math.hypot(p2[0] - p1[0], p2[1] - p1[1]) >= MIN_ARROW_LEN:
+            if (int(round(p1[0])), int(round(p1[1])), int(round(p2[0])), int(round(p2[1]))) != (op["x1"], op["y1"], op["x2"], op["y2"]):
+                logger.info("whiteboard-plan: retracted arrow to shape borders")
+            op["x1"], op["y1"] = int(round(p1[0])), int(round(p1[1]))
+            op["x2"], op["y2"] = int(round(p2[0])), int(round(p2[1]))
+    return plan
