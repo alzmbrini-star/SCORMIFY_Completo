@@ -1458,6 +1458,41 @@ def apply_brand_logo_to_slides(project_slides: list, brand_kit: dict) -> int:
 
 
 
+def _hex_luminance(color: str) -> float:
+    """Relative luminance (0..1) of a #rrggbb color. 1.0 on parse failure."""
+    try:
+        c = color.strip().lstrip("#")
+        if len(c) == 3:
+            c = "".join(ch * 2 for ch in c)
+        r, g, b = int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+    except Exception:
+        return 1.0
+
+
+def _palette_for_slide(base_palette: dict, custom_bg: dict, has_global_text: bool) -> dict:
+    """Auto-contrast: when the author picked a custom solid/gradient
+    background whose darkness conflicts with the template mode, flip the
+    slide's tokens (and text color, unless explicitly chosen) so text is
+    always readable. Fixes dark-on-dark / light-on-light covers."""
+    hint = None
+    btype = (custom_bg or {}).get("type")
+    if btype == "solid" and custom_bg.get("color"):
+        hint = custom_bg["color"]
+    elif btype == "gradient":
+        hint = custom_bg.get("color1", "#1e293b")
+    if not hint or str(hint).startswith("linear"):
+        return base_palette
+    is_dark = _hex_luminance(hint) < 0.45
+    mode = "dark" if is_dark else "light"
+    if mode == base_palette.get("mode"):
+        return base_palette
+    adjusted = {**base_palette, "mode": mode}
+    if not has_global_text:
+        adjusted["text"] = "#f4f4f5" if is_dark else "#1c1917"
+    return adjusted
+
+
 async def generate_course_from_storyboard(session_id: str, storyboard: dict, config: dict, project_dir: str = "", project_id: str = "", media_config: dict = None, bg_config: dict = None, global_text_color: str = "", global_font_size: str = "", global_animation: str = "", design_template_id: str = "", company_id: str = "", use_brand_library: bool = False, brand_library_mode: str = "preferred") -> dict:
     """Convert storyboard into Scormfy project data with professional visuals and configurable media.
 
@@ -1722,9 +1757,15 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         # Run all image tasks concurrently (semaphore limits concurrency to 5)
         await asyncio.gather(*[_generate_one_image(idx, kw, src) for idx, kw, src in ai_image_tasks])
 
+    base_palette = palette
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
         module_name = sb_slide.get("moduleName", "")
+
+        # Slide-level auto-contrast: a custom background (bgConfig) may be
+        # darker/lighter than the template — derive per-slide tokens.
+        slide_custom_bg = bg_config.get(str(i), {})
+        palette = _palette_for_slide(base_palette, slide_custom_bg, bool(global_text_color))
 
         # Process quiz questions FIRST (before building slide elements)
         slide_question_ids = []

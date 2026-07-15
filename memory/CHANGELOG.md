@@ -1397,3 +1397,7 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Google Fonts novas** (Manrope, Sora, Fraunces, Source Serif 4, Space Grotesk, IBM Plex Sans, Archivo) registradas em: htmlUtils.js (iframes RichText), html_exporter (x2), single_page_exporter, player_template.html, frontend/public/index.html.
 - **Testes**: test_design_template_visual (6) + test_font_family_export (corrigido p/ nomes URL-encoded, 10 passed); smoke dos 7 tipos de slide nos 6 temas sem exceção; inspeção visual Editor light + dark aprovada.
 - **Compat**: "Aplicar Tema Visual" usa os mesmos templates; ids antigos caem no default clean-light.
+
+### Fix: Capa com fundo escuro + fontes escuras (auto-contraste por slide)
+- **Sintoma**: quando o autor definia um fundo personalizado escuro (bgConfig do wizard, ex. cor herdada de sessão retomada) com tema claro, o texto ficava escuro sobre escuro (invisível).
+- **Fix** (`ai_agent.py`): `_palette_for_slide()` + `_hex_luminance()` — por slide, se o fundo custom (solid/gradient) conflita com o mode do template, os tokens viram (mode flip) e a cor do texto ajusta automaticamente (respeitando `global_text_color` explícito). Testado nos 2 sentidos + gradiente (3 casos OK) + 6 testes de template.
