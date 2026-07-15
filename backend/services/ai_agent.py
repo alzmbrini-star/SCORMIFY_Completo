@@ -624,64 +624,70 @@ PARA TODOS OS SLIDES:
 
 DESIGN_TEMPLATES = [
     {
-        "id": "corporativo",
-        "name": "Corporativo Clássico",
-        "description": "Profissional e elegante, ideal para treinamentos empresariais",
-        "preview": "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
-        "palette": {"primary": "#0f172a", "accent": "#c9a227", "accentLight": "#fef3c7", "contentBg": "#f8fafc", "text": "#1e293b"},
-        "fonts": {"heading": "'Georgia', 'Times New Roman', serif", "body": "'Inter', sans-serif"},
-        "headerStyle": "solid",
-        "cornerRadius": "4px",
+        "id": "clean-light",
+        "name": "Minimal Claro",
+        "description": "Despoluído e moderno: fundo claro, tipografia grande e muito respiro",
+        "preview": "linear-gradient(135deg, #fafaf9 0%, #e7e5e4 100%)",
+        "mode": "light",
+        "palette": {"primary": "#1c1917", "accent": "#2563eb", "accentLight": "#dbeafe", "contentBg": "#fafaf9", "coverBg": "#fafaf9", "text": "#1c1917"},
+        "fonts": {"heading": "'Manrope', 'Segoe UI', sans-serif", "body": "'Source Sans 3', 'Segoe UI', sans-serif"},
+        "headerStyle": "clean",
+        "cornerRadius": "14px",
     },
     {
-        "id": "educacional",
-        "name": "Educacional Moderno",
-        "description": "Acolhedor e didático, perfeito para cursos de capacitação",
-        "preview": "linear-gradient(135deg, #065f46 0%, #10b981 100%)",
-        "palette": {"primary": "#065f46", "accent": "#10b981", "accentLight": "#d1fae5", "contentBg": "#f0fdf4", "text": "#1e293b"},
-        "fonts": {"heading": "'Nunito', 'Segoe UI', sans-serif", "body": "'Nunito', sans-serif"},
-        "headerStyle": "rounded",
+        "id": "clean-slate",
+        "name": "Minimal Slate",
+        "description": "Neutro e sofisticado com destaque teal, ideal para treinamentos corporativos",
+        "preview": "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+        "mode": "light",
+        "palette": {"primary": "#0f172a", "accent": "#0d9488", "accentLight": "#ccfbf1", "contentBg": "#f8fafc", "coverBg": "#f8fafc", "text": "#0f172a"},
+        "fonts": {"heading": "'Sora', 'Segoe UI', sans-serif", "body": "'Source Sans 3', sans-serif"},
+        "headerStyle": "clean",
+        "cornerRadius": "14px",
+    },
+    {
+        "id": "editorial",
+        "name": "Editorial",
+        "description": "Tipografia serifada estilo revista, elegante e altamente legível",
+        "preview": "linear-gradient(135deg, #fffef9 0%, #f5f0e4 100%)",
+        "mode": "light",
+        "palette": {"primary": "#292524", "accent": "#b45309", "accentLight": "#fef3c7", "contentBg": "#fffef9", "coverBg": "#fffef9", "text": "#292524"},
+        "fonts": {"heading": "'Fraunces', 'Georgia', serif", "body": "'Source Serif 4', 'Georgia', serif"},
+        "headerStyle": "clean",
+        "cornerRadius": "10px",
+    },
+    {
+        "id": "corporate-clean",
+        "name": "Corporativo Clean",
+        "description": "Branco puro com azul profundo: formal, direto e despoluído",
+        "preview": "linear-gradient(135deg, #ffffff 0%, #dbeafe 100%)",
+        "mode": "light",
+        "palette": {"primary": "#1e293b", "accent": "#1d4ed8", "accentLight": "#dbeafe", "contentBg": "#ffffff", "coverBg": "#ffffff", "text": "#1e293b"},
+        "fonts": {"heading": "'Archivo', 'Segoe UI', sans-serif", "body": "'Source Sans 3', sans-serif"},
+        "headerStyle": "clean",
         "cornerRadius": "12px",
     },
     {
-        "id": "minimalista",
-        "name": "Minimalista",
-        "description": "Limpo e focado, com bastante espaço em branco",
-        "preview": "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
-        "palette": {"primary": "#334155", "accent": "#64748b", "accentLight": "#f1f5f9", "contentBg": "#ffffff", "text": "#334155"},
-        "fonts": {"heading": "'Outfit', 'Helvetica Neue', sans-serif", "body": "'Outfit', sans-serif"},
-        "headerStyle": "minimal",
-        "cornerRadius": "2px",
+        "id": "clean-dark",
+        "name": "Escuro Elegante",
+        "description": "Escuro neutro sem neon, com verde-menta discreto",
+        "preview": "linear-gradient(135deg, #121417 0%, #1f2937 100%)",
+        "mode": "dark",
+        "palette": {"primary": "#121417", "accent": "#34d399", "accentLight": "#064e3b", "contentBg": "#121417", "coverBg": "#121417", "text": "#f4f4f5"},
+        "fonts": {"heading": "'Space Grotesk', 'Segoe UI', sans-serif", "body": "'IBM Plex Sans', sans-serif"},
+        "headerStyle": "clean",
+        "cornerRadius": "14px",
     },
     {
-        "id": "tech",
-        "name": "Tech & Inovação",
-        "description": "Moderno e futurista, ideal para TI e tecnologia",
-        "preview": "linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%)",
-        "palette": {"primary": "#0a0a0a", "accent": "#06b6d4", "accentLight": "#164e63", "contentBg": "#111827", "text": "#e2e8f0"},
-        "fonts": {"heading": "'JetBrains Mono', 'Fira Code', monospace", "body": "'Inter', sans-serif"},
-        "headerStyle": "neon",
-        "cornerRadius": "8px",
-    },
-    {
-        "id": "criativo",
-        "name": "Criativo Bold",
-        "description": "Ousado e vibrante, para conteúdos dinâmicos",
-        "preview": "linear-gradient(135deg, #4c1d95 0%, #ec4899 100%)",
-        "palette": {"primary": "#4c1d95", "accent": "#ec4899", "accentLight": "#fce7f3", "contentBg": "#fdf4ff", "text": "#1e293b"},
-        "fonts": {"heading": "'Poppins', 'Montserrat', sans-serif", "body": "'Poppins', sans-serif"},
-        "headerStyle": "gradient",
-        "cornerRadius": "16px",
-    },
-    {
-        "id": "elegante",
-        "name": "Elegante Premium",
-        "description": "Sofisticado e refinado, para apresentações de alto nível",
-        "preview": "linear-gradient(135deg, #1c1917 0%, #78350f 100%)",
-        "palette": {"primary": "#1c1917", "accent": "#d97706", "accentLight": "#fef3c7", "contentBg": "#fefce8", "text": "#292524"},
-        "fonts": {"heading": "'Playfair Display', 'Georgia', serif", "body": "'Lato', 'Helvetica', sans-serif"},
-        "headerStyle": "elegant",
-        "cornerRadius": "6px",
+        "id": "clean-dark-blue",
+        "name": "Escuro Profundo",
+        "description": "Azul-noite com destaque celeste, moderno e confortável",
+        "preview": "linear-gradient(135deg, #0f1524 0%, #1e293b 100%)",
+        "mode": "dark",
+        "palette": {"primary": "#0f1524", "accent": "#60a5fa", "accentLight": "#1e3a5f", "contentBg": "#0f1524", "coverBg": "#0f1524", "text": "#e2e8f0"},
+        "fonts": {"heading": "'Manrope', sans-serif", "body": "'IBM Plex Sans', sans-serif"},
+        "headerStyle": "clean",
+        "cornerRadius": "14px",
     },
 ]
 
@@ -694,7 +700,7 @@ def get_design_template_by_id(template_id: str) -> dict:
     for t in DESIGN_TEMPLATES:
         if t["id"] == template_id:
             return t
-    return DESIGN_TEMPLATES[1]  # default: educacional
+    return DESIGN_TEMPLATES[0]  # default: clean-light
 
 # Legacy palettes (kept for backward compatibility, mapped from design templates)
 _COURSE_PALETTES = [t["palette"] for t in DESIGN_TEMPLATES]
@@ -825,45 +831,45 @@ async def _fetch_picsum_image(keyword: str, project_dir: str, project_id: str) -
     return None
 
 
-def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list) -> dict:
-    """Build a visually rich title/cover slide with template-specific styling."""
-    from models import generate_id
+def _tokens(palette: dict) -> dict:
+    """Design tokens derived from the palette. All builders read colors
+    from here so light/dark themes stay consistent everywhere."""
+    mode = palette.get("mode", "light")
     accent = palette["accent"]
-    primary = palette.get("primary", "#0f172a")
-    header_style = palette.get("headerStyle", "solid")
-    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
-    font_body = palette.get("fontBody", "'Inter', sans-serif")
+    if mode == "dark":
+        return {
+            "mode": "dark", "accent": accent,
+            "text": palette.get("text", "#f4f4f5"),
+            "muted": "rgba(244,244,245,0.62)",
+            "faint": "rgba(244,244,245,0.38)",
+            "card_bg": "rgba(255,255,255,0.045)",
+            "card_border": "rgba(255,255,255,0.10)",
+            "heading": palette.get("fontHeading", "'Manrope', sans-serif"),
+            "body": palette.get("fontBody", "'Source Sans 3', sans-serif"),
+            "radius": palette.get("cornerRadius", "14px"),
+        }
+    text = palette.get("text", "#1c1917")
+    return {
+        "mode": "light", "accent": accent,
+        "text": text,
+        "muted": f"{text}b3",   # ~70%
+        "faint": f"{text}66",   # ~40%
+        "card_bg": "#ffffff",
+        "card_border": "rgba(0,0,0,0.08)",
+        "heading": palette.get("fontHeading", "'Manrope', sans-serif"),
+        "body": palette.get("fontBody", "'Source Sans 3', sans-serif"),
+        "radius": palette.get("cornerRadius", "14px"),
+    }
+
+
+def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list) -> dict:
+    """Clean, modern cover slide: big left-aligned typography, one accent
+    detail, generous whitespace. Only 2 simple elements → easy to edit."""
+    from models import generate_id
+    tk = _tokens(palette)
+    accent = tk["accent"]
     elements = []
 
-    # Top decorative element - varies by template
-    if header_style == "neon":
-        elements.append({
-            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 8,
-            "htmlContent": f'<div style="width:100%;height:100%;background:{accent};box-shadow:0 0 20px {accent}66;"></div>',
-            "style": {}, "startTime": 0, "animations": [],
-        })
-    elif header_style == "gradient":
-        elements.append({
-            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 12,
-            "htmlContent": f'<div style="width:100%;height:100%;background:linear-gradient(90deg, {primary}, {accent}, {primary});"></div>',
-            "style": {}, "startTime": 0, "animations": [],
-        })
-    elif header_style == "minimal":
-        pass  # No top bar for minimal
-    elif header_style == "elegant":
-        elements.append({
-            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 6,
-            "htmlContent": f'<div style="width:100%;height:100%;background:linear-gradient(90deg, transparent, {accent}, transparent);"></div>',
-            "style": {}, "startTime": 0, "animations": [],
-        })
-    else:
-        elements.append({
-            "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 8,
-            "htmlContent": f'<div style="width:100%;height:100%;background:{accent};"></div>',
-            "style": {}, "startTime": 0, "animations": [],
-        })
-
-    # Title text
     title_text = sb_slide.get("title", course_title)
     elements_html = sb_slide.get("elements", [])
     subtitle = ""
@@ -876,45 +882,29 @@ def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_
                 subtitle = p_match.group(1).strip()
                 break
 
-    # Style-specific title alignment and decoration
-    title_align = "center" if header_style not in ("minimal",) else "left"
-    divider_html = ""
-    if header_style == "neon":
-        divider_html = f'<div style="width:120px;height:3px;background:{accent};margin:{"0 auto" if title_align=="center" else "0"} 30px {"auto" if title_align=="center" else "0"};box-shadow:0 0 10px {accent};border-radius:2px;"></div>'
-    elif header_style == "elegant":
-        divider_html = f'<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:30px;"><div style="width:60px;height:1px;background:{accent}88;"></div><div style="width:8px;height:8px;border:1px solid {accent};transform:rotate(45deg);"></div><div style="width:60px;height:1px;background:{accent}88;"></div></div>'
-    elif header_style == "minimal":
-        divider_html = f'<div style="width:40px;height:2px;background:{accent};margin-bottom:30px;"></div>'
-    else:
-        divider_html = f'<div style="width:80px;height:4px;background:{accent};margin:{"0 auto" if title_align=="center" else "0"} 30px {"auto" if title_align=="center" else "0"};border-radius:2px;"></div>'
-
-    title_html = f'''<div style="text-align:{title_align};padding:20px;">
-<h1 style="font-family:{font_heading};font-size:48px;font-weight:800;color:#ffffff;margin:0 0 20px 0;line-height:1.2;">{title_text}</h1>
-{f'<p style="font-family:{font_body};font-size:20px;color:rgba(255,255,255,0.75);margin:0 0 30px 0;max-width:900px;{"margin-left:auto;margin-right:auto;" if title_align=="center" else ""}line-height:1.5;">{subtitle}</p>' if subtitle else ''}
-{divider_html}
+    title_html = f'''<div style="text-align:left;padding:8px 0;">
+<div style="width:52px;height:4px;background:{accent};border-radius:2px;margin-bottom:36px;"></div>
+<h1 style="font-family:{tk["heading"]};font-size:62px;font-weight:700;letter-spacing:-1.5px;color:{tk["text"]};margin:0 0 24px 0;line-height:1.12;max-width:1240px;">{title_text}</h1>
+{f'<p style="font-family:{tk["body"]};font-size:22px;color:{tk["muted"]};margin:0;max-width:880px;line-height:1.6;">{subtitle}</p>' if subtitle else ''}
 </div>'''
     elements.append({
-        "id": generate_id(), "type": "html", "x": 160, "y": 120, "width": 1600, "height": 400,
+        "id": generate_id(), "type": "html", "x": 160, "y": 170, "width": 1600, "height": 380,
         "htmlContent": title_html,
-        "style": {"fontFamily": font_body}, "startTime": 0,
+        "style": {"fontFamily": tk["body"]}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.6, "delay": 0}],
     })
 
-    # Module list
+    # Module list — quiet numbered index, no chips/borders.
     if module_names:
-        modules_html = f'<div style="text-align:{title_align};"><p style="font-family:{font_heading};font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:12px;text-transform:uppercase;letter-spacing:2px;">Trilha do Curso</p>'
+        modules_html = f'<div style="text-align:left;"><p style="font-family:{tk["heading"]};font-size:13px;font-weight:600;color:{tk["faint"]};margin:0 0 18px 0;text-transform:uppercase;letter-spacing:2.5px;">Trilha do Curso</p>'
+        modules_html += '<div style="display:flex;flex-wrap:wrap;gap:10px 44px;">'
         for idx, mn in enumerate(module_names):
-            if header_style == "neon":
-                modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:4px;background:rgba(255,255,255,0.03);color:{accent};font-size:13px;border:1px solid {accent}44;font-family:{font_body};">{idx+1}. {mn}</span>'
-            elif header_style == "elegant":
-                modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:2px;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.7);font-size:13px;border-bottom:1px solid {accent}44;font-family:{font_body};">{idx+1}. {mn}</span>'
-            else:
-                modules_html += f'<span style="display:inline-block;padding:6px 16px;margin:4px;border-radius:20px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:13px;border:1px solid rgba(255,255,255,0.1);font-family:{font_body};">{idx+1}. {mn}</span>'
-        modules_html += '</div>'
+            modules_html += f'<div style="display:flex;align-items:baseline;gap:10px;"><span style="font-family:{tk["heading"]};font-size:14px;font-weight:700;color:{accent};">{idx+1:02d}</span><span style="font-family:{tk["body"]};font-size:16px;color:{tk["muted"]};">{mn}</span></div>'
+        modules_html += '</div></div>'
         elements.append({
-            "id": generate_id(), "type": "html", "x": 160, "y": 540, "width": 1600, "height": 200,
+            "id": generate_id(), "type": "html", "x": 160, "y": 580, "width": 1600, "height": 180,
             "htmlContent": modules_html,
-            "style": {"fontFamily": font_body}, "startTime": 0,
+            "style": {"fontFamily": tk["body"]}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.4}],
         })
 
@@ -922,37 +912,16 @@ def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_
 
 
 def _build_header_bar(palette: dict, left_text: str, right_text: str = "") -> str:
-    """Build a header bar HTML with style variation based on design template."""
-    accent = palette["accent"]
-    primary = palette.get("primary", "#0f172a")
-    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
-    style = palette.get("headerStyle", "solid")
-    right_part = f'<span style="color:rgba(255,255,255,0.6);font-size:12px;margin-left:auto;font-family:{font_heading};">{right_text}</span>' if right_text else ''
-
-    if style == "rounded":
-        return f'''<div style="width:calc(100% - 40px);height:100%;margin:0 20px;background:{accent};border-radius:0 0 16px 16px;display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
-{right_part}</div>'''
-    elif style == "minimal":
-        return f'''<div style="width:100%;height:100%;display:flex;align-items:flex-end;padding:0 30px 8px 30px;border-bottom:2px solid {accent}40;">
-<span style="color:{accent};font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
-{right_part.replace("rgba(255,255,255,0.6)", accent+"99") if right_part else ''}</div>'''
-    elif style == "neon":
-        return f'''<div style="width:100%;height:100%;background:{primary};display:flex;align-items:center;padding:0 30px;border-bottom:2px solid {accent};box-shadow:0 2px 12px {accent}44;">
-<span style="color:{accent};font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:{font_heading};text-shadow:0 0 8px {accent}66;">{left_text}</span>
-{right_part.replace("rgba(255,255,255,0.6)", accent+"88") if right_part else ''}</div>'''
-    elif style == "gradient":
-        return f'''<div style="width:100%;height:100%;background:linear-gradient(90deg, {primary}, {accent});display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
-{right_part}</div>'''
-    elif style == "elegant":
-        return f'''<div style="width:100%;height:100%;background:{primary};display:flex;align-items:center;padding:0 30px;border-bottom:3px solid {accent};">
-<div style="width:4px;height:24px;background:{accent};border-radius:2px;margin-right:12px;"></div>
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
-{right_part}</div>'''
-    else:  # solid (default)
-        return f'''<div style="width:100%;height:100%;background:{accent};display:flex;align-items:center;padding:0 30px;">
-<span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:{font_heading};">{left_text}</span>
+    """Minimal 'eyebrow' header: small uppercase module label with an
+    accent tick — no bars, gradients or filled backgrounds."""
+    tk = _tokens(palette)
+    right_part = (
+        f'<span style="color:{tk["faint"]};font-size:12px;margin-left:auto;'
+        f'font-family:{tk["body"]};">{right_text}</span>'
+    ) if right_text else ''
+    return f'''<div style="width:100%;height:100%;display:flex;align-items:center;">
+<div style="width:22px;height:3px;background:{tk["accent"]};border-radius:2px;margin-right:14px;"></div>
+<span style="color:{tk["accent"]};font-size:13px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;font-family:{tk["heading"]};">{left_text}</span>
 {right_part}</div>'''
 
 
@@ -967,7 +936,7 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     # Header bar (template-specific style)
     header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html,
         "style": {}, "startTime": 0, "animations": [],
     })
@@ -981,32 +950,25 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
 
     # If we have an image, use two-column layout
     if image_url:
-        # Text on the left (55% width)
         styled_text = _style_content_html(text_content, palette["text"], palette)
         elements.append({
-            "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1050, "height": 700,
+            "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 960, "height": 660,
             "htmlContent": styled_text,
             "style": {"fontFamily": font_body}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
-        # Image on the right
+        # Image on the right — soft radius, no decorations
         elements.append({
-            "id": generate_id(), "type": "image", "x": 1160, "y": 90, "width": 700, "height": 440,
+            "id": generate_id(), "type": "image", "x": 1160, "y": 110, "width": 640, "height": 430,
             "src": image_url, "content": image_url,
             "style": {"borderRadius": corner_radius}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
         })
-        # Accent bar under image
-        elements.append({
-            "id": generate_id(), "type": "html", "x": 1160, "y": 545, "width": 700, "height": 4,
-            "htmlContent": f'<div style="width:100%;height:100%;background:{accent};border-radius:2px;"></div>',
-            "style": {}, "startTime": 0, "animations": [],
-        })
     else:
-        # Full-width text layout
+        # Comfortable reading column (not edge-to-edge)
         styled_text = _style_content_html(text_content, palette["text"], palette)
         elements.append({
-            "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
+            "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 1280, "height": 660,
             "htmlContent": styled_text,
             "style": {"fontFamily": font_body}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1026,21 +988,20 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     # Header bar (template-specific)
     header_html = _build_header_bar(palette, f"QUIZ - {module_name}")
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html,
         "style": {}, "startTime": 0, "animations": [],
     })
 
-    # Quiz intro text
-    quiz_html = f'''<div style="text-align:center;padding:20px;">
-<div style="display:inline-block;padding:8px 24px;border-radius:24px;background:{accent}22;border:1px solid {accent}44;">
-<span style="color:{accent};font-size:14px;font-weight:600;font-family:{font_heading};">Hora de Praticar!</span>
-</div>
-<h2 style="font-family:{font_heading};font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">Teste seus Conhecimentos</h2>
-<p style="font-family:{font_body};font-size:16px;color:rgba(255,255,255,0.6);">Responda as perguntas para verificar seu aprendizado sobre {module_name}</p>
+    # Quiz intro — clean, left-aligned, token colors (light/dark aware)
+    tk = _tokens(palette)
+    quiz_html = f'''<div style="text-align:left;padding:4px 0;">
+<span style="display:inline-block;padding:6px 18px;border-radius:999px;background:{palette.get("accentLight", accent + "22")};color:{accent};font-size:13px;font-weight:600;letter-spacing:0.5px;font-family:{font_heading};">Hora de praticar</span>
+<h2 style="font-family:{font_heading};font-size:34px;font-weight:700;letter-spacing:-0.5px;color:{tk["text"]};margin:18px 0 10px 0;">Teste seus conhecimentos</h2>
+<p style="font-family:{font_body};font-size:19px;color:{tk["muted"]};margin:0;max-width:900px;line-height:1.6;">Responda às perguntas para verificar seu aprendizado sobre {module_name}.</p>
 </div>'''
     elements.append({
-        "id": generate_id(), "type": "html", "x": 160, "y": 60, "width": 1600, "height": 200,
+        "id": generate_id(), "type": "html", "x": 120, "y": 100, "width": 1500, "height": 190,
         "htmlContent": quiz_html,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1083,21 +1044,20 @@ def _build_scenario_slide(sb_slide: dict, palette: dict, module_name: str, scena
     # Header bar
     header_html = _build_header_bar(palette, f"CENÁRIO - {module_name}")
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html,
         "style": {}, "startTime": 0, "animations": [],
     })
 
-    # Scenario intro text
-    scenario_html = f'''<div style="text-align:center;padding:20px;">
-<div style="display:inline-block;padding:8px 24px;border-radius:24px;background:{accent}22;border:1px solid {accent}44;">
-<span style="color:{accent};font-size:14px;font-weight:600;font-family:{font_heading};">Simulação Interativa</span>
-</div>
-<h2 style="font-family:{font_heading};font-size:28px;font-weight:700;color:#ffffff;margin:20px 0 10px 0;">{scenario_data.get('title', 'Cenário de Aprendizagem')}</h2>
-<p style="font-family:{font_body};font-size:16px;color:rgba(255,255,255,0.6);">{scenario_data.get('description', 'Tome decisões e veja as consequências em uma simulação realista')}</p>
+    # Scenario intro — clean, left-aligned, token colors
+    tk = _tokens(palette)
+    scenario_html = f'''<div style="text-align:left;padding:4px 0;">
+<span style="display:inline-block;padding:6px 18px;border-radius:999px;background:{palette.get("accentLight", accent + "22")};color:{accent};font-size:13px;font-weight:600;letter-spacing:0.5px;font-family:{font_heading};">Simulação interativa</span>
+<h2 style="font-family:{font_heading};font-size:34px;font-weight:700;letter-spacing:-0.5px;color:{tk["text"]};margin:18px 0 10px 0;">{scenario_data.get('title', 'Cenário de Aprendizagem')}</h2>
+<p style="font-family:{font_body};font-size:19px;color:{tk["muted"]};margin:0;max-width:900px;line-height:1.6;">{scenario_data.get('description', 'Tome decisões e veja as consequências em uma simulação realista.')}</p>
 </div>'''
     elements.append({
-        "id": generate_id(), "type": "html", "x": 160, "y": 60, "width": 1600, "height": 200,
+        "id": generate_id(), "type": "html", "x": 120, "y": 100, "width": 1500, "height": 190,
         "htmlContent": scenario_html,
         "style": {}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1125,7 +1085,7 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
     # Header (template-specific)
     header_html = _build_header_bar(palette, f"RESUMO - {module_name}")
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html,
         "style": {}, "startTime": 0, "animations": [],
     })
@@ -1139,7 +1099,7 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
 
     styled_text = _style_summary_html(text_content, accent, palette)
     elements.append({
-        "id": generate_id(), "type": "html", "x": 160, "y": 80, "width": 1600, "height": 700,
+        "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 1440, "height": 660,
         "htmlContent": styled_text,
         "style": {"fontFamily": font_body}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1149,38 +1109,34 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
 
 
 def _style_content_html(raw_html: str, text_color: str, palette: dict = None) -> str:
-    """Apply professional styling to content HTML with template fonts."""
+    """Clean typographic scale for content HTML (light/dark aware)."""
     import re
-    font_heading = palette.get("fontHeading", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
-    font_body = palette.get("fontBody", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
+    tk = _tokens(palette or {"accent": "#2563eb", "text": text_color, "mode": "light"})
+    text = text_color or tk["text"]
+    muted = tk["muted"] if palette else f"{text}b3"
     styled = raw_html
-    # Style headings with heading font
-    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{font_heading};font-size:36px;font-weight:800;color:{text_color};margin:0 0 16px 0;line-height:1.2;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{font_heading};font-size:28px;font-weight:700;color:{text_color};margin:0 0 14px 0;line-height:1.3;">', styled)
-    styled = re.sub(r'<h3([^>]*)>', f'<h3\\1 style="font-family:{font_heading};font-size:22px;font-weight:600;color:{text_color};margin:0 0 10px 0;line-height:1.3;">', styled)
-    # Style paragraphs with body font
-    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{font_body};font-size:17px;color:{text_color}cc;line-height:1.7;margin:0 0 12px 0;">', styled)
-    # Style lists
-    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="padding-left:20px;margin:8px 0;">', styled)
-    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{font_body};font-size:16px;color:{text_color}cc;line-height:1.6;margin-bottom:6px;">', styled)
-    # Style bold
-    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{text_color};font-weight:700;">', styled)
-    return f'<div style="padding:10px;font-family:{font_body};">{styled}</div>'
+    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{tk["heading"]};font-size:40px;font-weight:700;letter-spacing:-0.5px;color:{text};margin:0 0 22px 0;line-height:1.2;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{tk["heading"]};font-size:32px;font-weight:700;letter-spacing:-0.3px;color:{text};margin:0 0 18px 0;line-height:1.25;">', styled)
+    styled = re.sub(r'<h3([^>]*)>', f'<h3\\1 style="font-family:{tk["heading"]};font-size:24px;font-weight:600;color:{text};margin:0 0 14px 0;line-height:1.3;">', styled)
+    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{tk["body"]};font-size:21px;color:{muted};line-height:1.65;margin:0 0 16px 0;max-width:920px;">', styled)
+    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:12px 0;max-width:920px;">', styled)
+    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{tk["body"]};font-size:20px;color:{muted};line-height:1.6;margin-bottom:12px;padding-left:26px;position:relative;"><span style="position:absolute;left:0;top:0.62em;width:14px;height:3px;border-radius:2px;background:{tk["accent"]};"></span>', styled)
+    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{text};font-weight:600;">', styled)
+    return f'<div style="padding:6px 0;font-family:{tk["body"]};">{styled}</div>'
 
 
 def _style_summary_html(raw_html: str, accent: str, palette: dict = None) -> str:
-    """Apply professional styling to summary HTML with template fonts."""
+    """Clean summary styling: left-aligned headings + light key-point cards."""
     import re
-    font_heading = palette.get("fontHeading", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
-    font_body = palette.get("fontBody", "'Inter', sans-serif") if palette else "'Inter', sans-serif"
+    tk = _tokens(palette or {"accent": accent, "text": "#1c1917", "mode": "light"})
     styled = raw_html
-    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{font_heading};font-size:32px;font-weight:800;color:#ffffff;margin:0 0 20px 0;text-align:center;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{font_heading};font-size:26px;font-weight:700;color:#ffffff;margin:20px 0 14px 0;text-align:center;">', styled)
-    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{font_body};font-size:17px;color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 12px 0;text-align:center;">', styled)
-    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:16px auto;max-width:800px;">', styled)
-    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{font_body};font-size:16px;color:rgba(255,255,255,0.8);padding:10px 16px;margin-bottom:8px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:3px solid {accent};">', styled)
-    styled = re.sub(r'<strong([^>]*)>', '<strong\\1 style="color:#ffffff;">', styled)
-    return f'<div style="padding:20px;font-family:{font_body};">{styled}</div>'
+    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{tk["heading"]};font-size:36px;font-weight:700;letter-spacing:-0.5px;color:{tk["text"]};margin:0 0 24px 0;text-align:left;">', styled)
+    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{tk["heading"]};font-size:28px;font-weight:700;color:{tk["text"]};margin:24px 0 16px 0;text-align:left;">', styled)
+    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{tk["body"]};font-size:20px;color:{tk["muted"]};line-height:1.65;margin:0 0 14px 0;text-align:left;max-width:920px;">', styled)
+    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:18px 0;max-width:980px;">', styled)
+    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{tk["body"]};font-size:19px;color:{tk["muted"]};line-height:1.55;padding:16px 22px;margin-bottom:12px;background:{tk["card_bg"]};border:1px solid {tk["card_border"]};border-left:3px solid {tk["accent"]};border-radius:12px;">', styled)
+    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{tk["text"]};font-weight:600;">', styled)
+    return f'<div style="padding:6px 0;font-family:{tk["body"]};">{styled}</div>'
 
 
 def _parse_video_url(url: str) -> Optional[dict]:
@@ -1209,12 +1165,9 @@ def _build_video_element(video_info: dict, palette: dict) -> dict:
     platform = "YouTube" if video_type == "youtube" else "Vimeo"
 
     return {
-        "id": generate_id(), "type": "html", "x": 1120, "y": 80, "width": 740, "height": 460,
-        "htmlContent": f'''<div style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;">
-<iframe src="{embed_url}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay; encrypted-media"></iframe>
-<div style="position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
-<span style="color:rgba(255,255,255,0.6);font-size:11px;">{platform}</span>
-</div>
+        "id": generate_id(), "type": "html", "x": 1120, "y": 110, "width": 740, "height": 440,
+        "htmlContent": f'''<div style="width:100%;height:100%;border-radius:14px;overflow:hidden;background:#000;">
+<iframe src="{embed_url}" title="{platform}" style="width:100%;height:100%;border:none;" allowfullscreen allow="autoplay; encrypted-media"></iframe>
 </div>''',
         "style": {}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
@@ -1229,7 +1182,7 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
     # Header bar (template-specific)
     header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
     })
 
@@ -1240,7 +1193,7 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
             text_content = el["content"]
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
-        "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
+        "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 960, "height": 660,
         "htmlContent": styled_text,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1255,17 +1208,16 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
 def _build_heygen_processing_element(slide_id: str) -> dict:
     """Build an HTML element showing HeyGen video processing state."""
     from models import generate_id
-    html = f'''<div data-heygen-slide="{slide_id}" style="width:100%;height:100%;border-radius:12px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);display:flex;align-items:center;justify-content:center;border:1px solid rgba(139,92,246,0.3);overflow:hidden;position:relative;">
-<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(139,92,246,0.08) 0%,transparent 70%);"></div>
-<div style="text-align:center;position:relative;z-index:1;">
-<div style="width:48px;height:48px;border:3px solid rgba(139,92,246,0.3);border-top-color:#8b5cf6;border-radius:50%;margin:0 auto 16px;animation:spin 1s linear infinite;"></div>
-<p style="color:#c4b5fd;font-size:15px;font-weight:600;margin:0 0 6px;">Gerando vídeo com Avatar IA...</p>
-<p style="color:rgba(196,181,253,0.5);font-size:12px;margin:0;">Isso pode levar 1-3 minutos</p>
+    html = f'''<div data-heygen-slide="{slide_id}" style="width:100%;height:100%;border-radius:14px;background:rgba(127,127,127,0.06);display:flex;align-items:center;justify-content:center;border:1px dashed rgba(127,127,127,0.35);overflow:hidden;">
+<div style="text-align:center;">
+<div style="width:44px;height:44px;border:3px solid rgba(127,127,127,0.25);border-top-color:#8b5cf6;border-radius:50%;margin:0 auto 16px;animation:spin 1s linear infinite;"></div>
+<p style="color:#8b5cf6;font-size:15px;font-weight:600;margin:0 0 6px;font-family:sans-serif;">Gerando vídeo com Avatar IA...</p>
+<p style="color:rgba(127,127,127,0.7);font-size:12px;margin:0;font-family:sans-serif;">Isso pode levar 1-3 minutos</p>
 </div>
 <style>@keyframes spin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}</style>
 </div>'''
     return {
-        "id": generate_id(), "type": "html", "x": 1120, "y": 80, "width": 740, "height": 460,
+        "id": generate_id(), "type": "html", "x": 1120, "y": 110, "width": 740, "height": 440,
         "htmlContent": html, "style": {}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
     }
@@ -1279,7 +1231,7 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
     # Header bar (template-specific)
     header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
     })
 
@@ -1290,7 +1242,7 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
             text_content = el["content"]
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
-        "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 1010, "height": 700,
+        "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 960, "height": 660,
         "htmlContent": styled_text,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1310,7 +1262,7 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
     # Header bar (template-specific)
     header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
     })
 
@@ -1321,7 +1273,7 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
             text_content = el["content"]
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
-        "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 700,
+        "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 1280, "height": 660,
         "htmlContent": styled_text,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1337,7 +1289,7 @@ def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: 
     # Header bar (template-specific)
     header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
     })
 
@@ -1348,7 +1300,7 @@ def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: 
             text_content = el["content"]
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
-        "id": generate_id(), "type": "html", "x": 60, "y": 80, "width": 850, "height": 700,
+        "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 800, "height": 660,
         "htmlContent": styled_text,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1387,7 +1339,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
     # Header bar (template-specific)
     header_html = _build_header_bar(palette, module_name, sb_slide.get("title", ""))
     elements.append({
-        "id": generate_id(), "type": "html", "x": 0, "y": 0, "width": 1920, "height": 50,
+        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
         "htmlContent": header_html, "style": {}, "startTime": 0, "animations": [],
     })
 
@@ -1398,7 +1350,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
             text_content = el["content"]
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
-        "id": generate_id(), "type": "html", "x": 80, "y": 80, "width": 1760, "height": 560,
+        "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 1280, "height": 540,
         "htmlContent": styled_text,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
@@ -1410,11 +1362,11 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
     btn_color = media.get("buttonColor", accent)
     button_html = f'''<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
 <a href="{btn_url}" target="_blank" rel="noopener noreferrer"
-   style="display:inline-flex;align-items:center;gap:8px;padding:14px 40px;background:{btn_color};color:#ffffff;
-   font-size:16px;font-weight:600;border-radius:8px;text-decoration:none;
-   box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;"
-   onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.4)'"
-   onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 15px rgba(0,0,0,0.3)'">
+   style="display:inline-flex;align-items:center;gap:10px;padding:14px 44px;background:{btn_color};color:#ffffff;
+   font-size:17px;font-weight:600;border-radius:999px;text-decoration:none;
+   box-shadow:0 1px 3px rgba(0,0,0,0.12);transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;"
+   onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,0.18)'"
+   onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.12)'">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
 {btn_text}
 </a></div>'''
@@ -1536,13 +1488,13 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         design_token = get_design_template_by_id(design_template_id)
     
     if design_token:
-        palette = design_token["palette"]
+        palette = dict(design_token["palette"])  # copy: never mutate the module-level template
         font_heading = design_token["fonts"]["heading"]
         font_body = design_token["fonts"]["body"]
     else:
         # Legacy: select palette by title hash
         title_hash = int(hashlib.md5(config.get("title", "curso").encode(), usedforsecurity=False).hexdigest()[:8], 16)
-        palette = _COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)]
+        palette = dict(_COURSE_PALETTES[title_hash % len(_COURSE_PALETTES)])
         font_heading = "'Inter', sans-serif"
         font_body = "'Inter', sans-serif"
 
@@ -1553,8 +1505,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     # Inject font info into palette for use by builder functions
     palette["fontHeading"] = font_heading
     palette["fontBody"] = font_body
-    palette["headerStyle"] = design_token.get("headerStyle", "solid") if design_token else "solid"
-    palette["cornerRadius"] = design_token.get("cornerRadius", "12px") if design_token else "12px"
+    palette["headerStyle"] = design_token.get("headerStyle", "clean") if design_token else "clean"
+    palette["cornerRadius"] = design_token.get("cornerRadius", "14px") if design_token else "14px"
+    palette["mode"] = design_token.get("mode", "light") if design_token else "light"
 
     # Brand Kit: when the project opts into the company's brand library AND
     # the company has a configured BrandKit, override the palette colors and
@@ -1791,13 +1744,13 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_question_ids.append(qid)
 
         if stype == "title":
-            bg = palette["primary"]
+            bg = palette.get("coverBg", palette["primary"])
             slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names)
         elif stype == "quiz":
-            bg = palette["primary"]
+            bg = palette.get("coverBg", palette["primary"])
             slide_elements = _build_quiz_slide(sb_slide, palette, module_name, slide_question_ids)
         elif stype == "scenario":
-            bg = palette["primary"]
+            bg = palette.get("coverBg", palette["primary"])
             # Generate scenario via AI - extract config from storyboard
             scenario_config = {}
             for el in sb_slide.get("elements", []):
@@ -1856,7 +1809,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 # Fallback to content slide
                 slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
         elif stype == "summary":
-            bg = palette["primary"]
+            bg = palette.get("coverBg", palette["primary"])
             slide_elements = _build_summary_slide(sb_slide, palette, module_name)
         elif stype == "simulator":
             bg = palette.get("contentBg", "#ffffff")

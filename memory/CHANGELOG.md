@@ -1384,3 +1384,16 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - **Plano IA** (`whiteboard_ai_plan.py`): op 6 `{"type":"icon","name","x","y","size","color","width"}` no SYSTEM_PROMPT com ~120 nomes curados; `_normalize_plan` resolve/valida nome; `_retract_arrows_from_shapes` trata bbox do ícone como obstáculo (setas param na borda).
 - **Dependência**: `svgelements` (pip, requirements.txt atualizado).
 - **Testes**: `tests/test_whiteboard_icons.py` (5) + 44 regressão = 49 passed. Render visual inspecionado (árvore/cadeira/casa com legendas e seta recuada). Fluxo LLM real validado: "desenhe uma árvore e uma casa" → ops icon corretos.
+
+## 2026-07-14 — Design System "Clean" para o Agente IA
+
+### Feature: Novo visual moderno/despoluído dos slides gerados (substitui o antigo)
+- **Motivação**: usuário insatisfeito com visual "dark tech" datado (gradientes, neon, HTML aninhado difícil de editar).
+- **6 novos DESIGN_TEMPLATES** (substituem os antigos): clean-light (Minimal Claro, default), clean-slate (teal), editorial (Fraunces serif), corporate-clean, clean-dark (Escuro Elegante), clean-dark-blue. Cada um com campo `mode` (light|dark) e `coverBg`.
+- **`_tokens(palette)`** em `ai_agent.py`: tokens derivados (text/muted/faint/card_bg/card_border/accent/fonts/radius) usados por TODOS os builders — capa, conteúdo, quiz, cenário, resumo, vídeo, botão, HeyGen.
+- **Builders reescritos clean**: capa alinhada à esquerda (título 62px, trilha numerada discreta), header vira "eyebrow" minimalista (tick accent + módulo uppercase 13px, sem barras), escala tipográfica (h1 40/h2 32/h3 24/p 21 lh1.65 max-width 920px), bullets com traço accent, summary com cards leves, margens 120px, sem gradientes/glow/accent-bars. Slides = 2-4 elementos simples (fácil editar).
+- **Fix de bug pré-existente**: palette do template global era MUTADA (agora copiada).
+- **Backgrounds**: capa/quiz/cenário/resumo usam `coverBg` (claro nos temas light) em vez de `primary` escuro fixo.
+- **Google Fonts novas** (Manrope, Sora, Fraunces, Source Serif 4, Space Grotesk, IBM Plex Sans, Archivo) registradas em: htmlUtils.js (iframes RichText), html_exporter (x2), single_page_exporter, player_template.html, frontend/public/index.html.
+- **Testes**: test_design_template_visual (6) + test_font_family_export (corrigido p/ nomes URL-encoded, 10 passed); smoke dos 7 tipos de slide nos 6 temas sem exceção; inspeção visual Editor light + dark aprovada.
+- **Compat**: "Aplicar Tema Visual" usa os mesmos templates; ids antigos caem no default clean-light.

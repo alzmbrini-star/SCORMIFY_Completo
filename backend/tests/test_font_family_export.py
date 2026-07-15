@@ -26,8 +26,8 @@ class TestFontFamilyExport:
         # Check for Google Fonts link
         assert "fonts.googleapis.com" in content, "Google Fonts link not found in player_template.html"
         
-        # Check for specific fonts
-        fonts_to_check = ["Inter", "Poppins", "Roboto", "Merriweather", "Playfair Display"]
+        # Check for specific fonts (URL-encoded in the css2 link)
+        fonts_to_check = ["Inter", "Poppins", "Roboto", "Merriweather", "Playfair+Display", "Manrope", "Sora", "Space+Grotesk"]
         for font in fonts_to_check:
             assert font in content, f"Font '{font}' not found in player_template.html"
         
@@ -44,8 +44,8 @@ class TestFontFamilyExport:
         # Check for Google Fonts link
         assert "fonts.googleapis.com" in content, "Google Fonts link not found in index.html"
         
-        # Check for specific fonts
-        fonts_to_check = ["Inter", "Poppins", "Roboto", "Merriweather", "Playfair Display"]
+        # Check for specific fonts (URL-encoded in the css2 link)
+        fonts_to_check = ["Inter", "Poppins", "Roboto", "Merriweather", "Playfair+Display", "Manrope", "Sora"]
         for font in fonts_to_check:
             assert font in content, f"Font '{font}' not found in index.html"
         
