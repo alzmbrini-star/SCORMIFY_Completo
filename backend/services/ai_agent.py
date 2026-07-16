@@ -1458,6 +1458,38 @@ def apply_brand_logo_to_slides(project_slides: list, brand_kit: dict) -> int:
 
 
 
+# Auto-fit wrapper for interactive HTML slides (simulator, infographic,
+# flashcard, timeline, case study). The LLM designs content for a 960x540
+# stage; this snippet moves the body into a stage div, centers it and
+# scales it to fill the slide viewport — content is always centered and
+# sized to the slide, in the Editor, preview and every export.
+_FIT_SNIPPET = (
+    "<style>html,body{margin:0!important;padding:0!important;width:100%;height:100%;"
+    "overflow:hidden!important;}body{display:flex!important;align-items:center!important;"
+    "justify-content:center!important;}</style>"
+    "<script>(function(){function b(){var bd=document.body;"
+    "if(!bd||document.getElementById('__stage'))return;"
+    "var st=document.createElement('div');st.id='__stage';"
+    "st.style.cssText='width:960px;flex:0 0 auto;position:relative;transform-origin:center center;';"
+    "while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);"
+    "function fit(){var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);"
+    "var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);"
+    "st.style.transform='scale('+s+')';}"
+    "window.addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}"
+    "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',b);}"
+    "else{b();}})();</script>"
+)
+
+
+def _wrap_interactive_fullbleed(html_content: str) -> str:
+    """Inject the auto-fit snippet into interactive HTML (idempotent)."""
+    if "__stage" in html_content:
+        return html_content
+    if "</body>" in html_content:
+        return html_content.replace("</body>", _FIT_SNIPPET + "</body>", 1)
+    return html_content + _FIT_SNIPPET
+
+
 def _hex_luminance(color: str) -> float:
     """Relative luminance (0..1) of a #rrggbb color. 1.0 on parse failure."""
     try:
@@ -1871,11 +1903,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
-                    "htmlContent": html_content,
+                    "htmlContent": _wrap_interactive_fullbleed(html_content),
                     "x": 0,
                     "y": 0,
-                    "width": 960,
-                    "height": 540,
+                    "width": 1920,
+                    "height": 820,
                     "zIndex": 1,
                 }]
             else:
@@ -1899,11 +1931,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
-                    "htmlContent": html_content,
+                    "htmlContent": _wrap_interactive_fullbleed(html_content),
                     "x": 0,
                     "y": 0,
-                    "width": 960,
-                    "height": 540,
+                    "width": 1920,
+                    "height": 820,
                     "zIndex": 1,
                 }]
             else:
