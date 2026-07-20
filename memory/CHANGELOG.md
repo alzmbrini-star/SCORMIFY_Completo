@@ -1401,3 +1401,15 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 ### Fix: Capa com fundo escuro + fontes escuras (auto-contraste por slide)
 - **Sintoma**: quando o autor definia um fundo personalizado escuro (bgConfig do wizard, ex. cor herdada de sessão retomada) com tema claro, o texto ficava escuro sobre escuro (invisível).
 - **Fix** (`ai_agent.py`): `_palette_for_slide()` + `_hex_luminance()` — por slide, se o fundo custom (solid/gradient) conflita com o mode do template, os tokens viram (mode flip) e a cor do texto ajusta automaticamente (respeitando `global_text_color` explícito). Testado nos 2 sentidos + gradiente (3 casos OK) + 6 testes de template.
+
+## 2026-07-20 — Fix: Objetos HTML interativos (simuladores) pequenos/desalinhados
+
+### Fix: Auto-fit render-time para HTML full-document (todas as superfícies)
+- **Sintoma**: simuladores/interativos gerados pela IA renderizavam menores que o slide e fora do centro. Novas gerações já recebiam o `_FIT_SNIPPET` (`__stage`) no backend, mas slides legados (sem o snippet) continuavam quebrados.
+- **Fix**: wrap idempotente aplicado em RUNTIME (sem migração de DB):
+  - `frontend/src/utils/htmlUtils.js` → novo `wrapInteractiveFullbleed()` (espelha `_FIT_SNIPPET` do `ai_agent.py`; skip se `__stage` já presente).
+  - Aplicado no branch `isFullDoc` de: `SlideCanvas.jsx`, `CoursePreview.jsx`, `SplitPreview.jsx`, `SlideThumbnailContent.jsx`.
+  - `services/html_exporter.py` → runtime JS do player exportado injeta o snippet quando `__stage` ausente (usado por HTML e SCORM export). Snippet usa concat `'</scr'+'ipt>'` para não fechar o script externo.
+  - `services/single_page_exporter.py` → `_render_simulator_element_inner` aplica `_wrap_interactive_fullbleed` (import lazy de ai_agent, sem circular import).
+- **Testado**: editor (slide legado 1920x820 sem __stage agora preenche o canvas), export HTML gerado (JS validado com node --check, render centralizado via screenshot), single_page (snippet presente no base64 do iframe).
+- **Nota**: espaço em branco interno de alguns cards é o design do próprio LLM (ex. `.wrap{height:500px}`), não bug de layout.

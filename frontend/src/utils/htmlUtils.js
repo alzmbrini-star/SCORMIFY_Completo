@@ -89,6 +89,33 @@ export const resolveAssetUrls = (htmlContent) => {
   return result;
 };
 
+// Auto-fit wrapper for full-document interactive HTML (simulators, infographics,
+// etc). Mirrors backend _FIT_SNIPPET in services/ai_agent.py — content designed
+// for a 960x540 stage is centered and scaled to fill the element viewport.
+// Idempotent: skips content that already contains the #__stage wrapper.
+const FIT_SNIPPET =
+  '<style>html,body{margin:0!important;padding:0!important;width:100%;height:100%;' +
+  'overflow:hidden!important;}body{display:flex!important;align-items:center!important;' +
+  'justify-content:center!important;}</style>' +
+  "<script>(function(){function b(){var bd=document.body;" +
+  "if(!bd||document.getElementById('__stage'))return;" +
+  "var st=document.createElement('div');st.id='__stage';" +
+  "st.style.cssText='width:960px;flex:0 0 auto;position:relative;transform-origin:center center;';" +
+  'while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);' +
+  'function fit(){var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);' +
+  'var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);' +
+  "st.style.transform='scale('+s+')';}" +
+  "window.addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}" +
+  "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',b);}" +
+  'else{b();}})();</scr' + 'ipt>';
+
+export const wrapInteractiveFullbleed = (html) => {
+  if (!html || typeof html !== 'string' || html.includes('__stage')) return html;
+  const idx = html.toLowerCase().lastIndexOf('</body>');
+  if (idx !== -1) return html.slice(0, idx) + FIT_SNIPPET + html.slice(idx);
+  return html + FIT_SNIPPET;
+};
+
 /**
  * Generate inline CSS styles for RTF content rendering in iframes
  * This is needed because iframes don't have access to external stylesheets

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
 import { Trash2, Move, RotateCw } from 'lucide-react';
-import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
+import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
 import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransition } from '../../lib/animations';
 
 import { getApiUrl } from '../../utils/apiUrl';
@@ -878,7 +878,7 @@ const SlideCanvas = ({
                       const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
                       if (isFullDoc) {
-                        return raw;
+                        return wrapInteractiveFullbleed(raw);
                       }
                       // Choose default text color based on slide background luminance.
                       // Without this, <h3>/<p>/<li> tags WITHOUT inline color inherit

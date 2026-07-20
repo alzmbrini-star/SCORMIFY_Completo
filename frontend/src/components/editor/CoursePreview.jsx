@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import QuizPlayer from '../quiz/QuizPlayer';
 import ScenarioPlayer from '../scenario/ScenarioPlayer';
-import { sanitizeHtmlForDisplay, getRtfContentStyles } from '../../utils/htmlUtils';
+import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
 const API_URL = getApiUrl();
@@ -867,7 +867,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                     srcDoc={(() => {
                       const raw = processHtmlContent(element.htmlContent, projectId);
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-                      if (isFullDoc) return raw;
+                      if (isFullDoc) return wrapInteractiveFullbleed(raw);
                       return `
                       <html>
                         <head>

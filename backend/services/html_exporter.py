@@ -2304,6 +2304,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             var wrappedHtml;
                             if (isFullDoc) {{
                                 wrappedHtml = htmlContent;
+                                // Auto-fit legacy interactive docs missing the __stage
+                                // wrapper: center + scale a 960x540 design to the element.
+                                if (wrappedHtml.indexOf('__stage') === -1) {{
+                                    var fitSnippet = '<style>html,body{{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}}body{{display:flex!important;align-items:center!important;justify-content:center!important;}}</style>' +
+                                        '<scr' + 'ipt>(function(){{function b(){{var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;flex:0 0 auto;position:relative;transform-origin:center center;";while(bd.firstChild){{st.appendChild(bd.firstChild);}}bd.appendChild(st);function fit(){{var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);st.style.transform="scale("+s+")";}}window.addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}}if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",b);}}else{{b();}}}})();</scr' + 'ipt>';
+                                    var fitBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</bo' + 'dy>');
+                                    wrappedHtml = fitBodyIdx !== -1 ? wrappedHtml.slice(0, fitBodyIdx) + fitSnippet + wrappedHtml.slice(fitBodyIdx) : wrappedHtml + fitSnippet;
+                                }}
                             }} else {{
                             wrappedHtml = '<html><head><style>' +
                                 (isFullscreen ? 

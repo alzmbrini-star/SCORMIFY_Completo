@@ -1293,6 +1293,10 @@ def _inject_contrast_safety_net(html: str) -> str:
 def _render_simulator_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, slide_idx: int, el_idx: int) -> str:
     sim_html = el.get("htmlContent") or el.get("content") or ""
     sim_html = _inline_assets_in_html(sim_html, project_id, assets_dir, base_url)
+    # Auto-fit legacy interactive docs missing the __stage wrapper so the
+    # 960x540 design centers and scales to the export iframe.
+    from services.ai_agent import _wrap_interactive_fullbleed
+    sim_html = _wrap_interactive_fullbleed(sim_html)
     if "<meta" not in sim_html.lower() and "charset" not in sim_html.lower():
         sim_html = '<meta charset="utf-8">\n' + sim_html
     # Inject the contrast safety-net so simulators with white-on-white
