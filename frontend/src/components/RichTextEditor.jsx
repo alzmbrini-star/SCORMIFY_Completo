@@ -14,8 +14,30 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-// Available fonts
+// Available fonts — Google Fonts (same set used by the AI Agent design
+// templates, loaded in index.html) followed by classic system fonts.
 const FONTS = [
+  { name: 'Inter', value: 'Inter, sans-serif' },
+  { name: 'Manrope', value: 'Manrope, sans-serif' },
+  { name: 'Sora', value: 'Sora, sans-serif' },
+  { name: 'Space Grotesk', value: '"Space Grotesk", sans-serif' },
+  { name: 'IBM Plex Sans', value: '"IBM Plex Sans", sans-serif' },
+  { name: 'Archivo', value: 'Archivo, sans-serif' },
+  { name: 'Outfit', value: 'Outfit, sans-serif' },
+  { name: 'Poppins', value: 'Poppins, sans-serif' },
+  { name: 'Montserrat', value: 'Montserrat, sans-serif' },
+  { name: 'Nunito', value: 'Nunito, sans-serif' },
+  { name: 'Lato', value: 'Lato, sans-serif' },
+  { name: 'Open Sans', value: '"Open Sans", sans-serif' },
+  { name: 'Raleway', value: 'Raleway, sans-serif' },
+  { name: 'Roboto', value: 'Roboto, sans-serif' },
+  { name: 'Source Sans 3', value: '"Source Sans 3", sans-serif' },
+  { name: 'Oswald', value: 'Oswald, sans-serif' },
+  { name: 'Fraunces', value: 'Fraunces, serif' },
+  { name: 'Source Serif 4', value: '"Source Serif 4", serif' },
+  { name: 'Playfair Display', value: '"Playfair Display", serif' },
+  { name: 'Merriweather', value: 'Merriweather, serif' },
+  { name: 'JetBrains Mono', value: '"JetBrains Mono", monospace' },
   { name: 'Arial', value: 'Arial, sans-serif' },
   { name: 'Helvetica', value: 'Helvetica, sans-serif' },
   { name: 'Verdana', value: 'Verdana, sans-serif' },
@@ -1050,7 +1072,7 @@ export const RichTextEditor = ({
           <PopoverContent className="w-48 bg-slate-800 border-slate-700 p-2">
             <div className="space-y-1">
               <Label className="text-xs text-slate-400">Selecionar Fonte</Label>
-              <div className="max-h-48 overflow-y-auto space-y-1">
+              <div className="max-h-64 overflow-y-auto space-y-1">
                 {FONTS.map((font) => (
                   <button
                     key={font.name}

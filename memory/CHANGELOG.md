@@ -1413,3 +1413,8 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
   - `services/single_page_exporter.py` → `_render_simulator_element_inner` aplica `_wrap_interactive_fullbleed` (import lazy de ai_agent, sem circular import).
 - **Testado**: editor (slide legado 1920x820 sem __stage agora preenche o canvas), export HTML gerado (JS validado com node --check, render centralizado via screenshot), single_page (snippet presente no base64 do iframe).
 - **Nota**: espaço em branco interno de alguns cards é o design do próprio LLM (ex. `.wrap{height:500px}`), não bug de layout.
+
+## 2026-07-21 — Feature: Novas fontes no editor de texto (Criar Texto com IA)
+- `RichTextEditor.jsx`: lista FONTS ampliada com as fontes Google do design system do Agente IA (Inter, Manrope, Sora, Space Grotesk, IBM Plex Sans, Archivo, Outfit, Poppins, Montserrat, Nunito, Lato, Open Sans, Raleway, Roboto, Source Sans 3, Oswald, Fraunces, Source Serif 4, Playfair Display, Merriweather, JetBrains Mono) + fontes clássicas de sistema. Dropdown com preview da própria fonte (max-h-64).
+- `ElementProperties.jsx`: select "Font Family" atualizado com as mesmas fontes (optgroups Sans/Serif/Mono).
+- Fontes já carregadas em `index.html` (Google Fonts) e injetadas nos iframes via `getRtfContentStyles`. Testado via screenshot do dropdown no dialog.

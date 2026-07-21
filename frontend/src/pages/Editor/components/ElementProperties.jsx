@@ -176,31 +176,40 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
               >
                 <option value="">Padrao</option>
                 <optgroup label="Sans-Serif">
+                  <option value="Archivo" style={{fontFamily: 'Archivo'}}>Archivo</option>
                   <option value="Arial" style={{fontFamily: 'Arial'}}>Arial</option>
                   <option value="Helvetica" style={{fontFamily: 'Helvetica'}}>Helvetica</option>
+                  <option value="IBM Plex Sans" style={{fontFamily: 'IBM Plex Sans'}}>IBM Plex Sans</option>
                   <option value="Inter" style={{fontFamily: 'Inter'}}>Inter</option>
                   <option value="Lato" style={{fontFamily: 'Lato'}}>Lato</option>
+                  <option value="Manrope" style={{fontFamily: 'Manrope'}}>Manrope</option>
                   <option value="Montserrat" style={{fontFamily: 'Montserrat'}}>Montserrat</option>
                   <option value="Nunito" style={{fontFamily: 'Nunito'}}>Nunito</option>
                   <option value="Open Sans" style={{fontFamily: 'Open Sans'}}>Open Sans</option>
                   <option value="Oswald" style={{fontFamily: 'Oswald'}}>Oswald</option>
+                  <option value="Outfit" style={{fontFamily: 'Outfit'}}>Outfit</option>
                   <option value="Poppins" style={{fontFamily: 'Poppins'}}>Poppins</option>
                   <option value="PT Sans" style={{fontFamily: 'PT Sans'}}>PT Sans</option>
                   <option value="Raleway" style={{fontFamily: 'Raleway'}}>Raleway</option>
                   <option value="Roboto" style={{fontFamily: 'Roboto'}}>Roboto</option>
+                  <option value="Sora" style={{fontFamily: 'Sora'}}>Sora</option>
                   <option value="Source Sans 3" style={{fontFamily: 'Source Sans 3'}}>Source Sans 3</option>
+                  <option value="Space Grotesk" style={{fontFamily: 'Space Grotesk'}}>Space Grotesk</option>
                   <option value="Trebuchet MS" style={{fontFamily: 'Trebuchet MS'}}>Trebuchet MS</option>
                   <option value="Ubuntu" style={{fontFamily: 'Ubuntu'}}>Ubuntu</option>
                   <option value="Verdana" style={{fontFamily: 'Verdana'}}>Verdana</option>
                 </optgroup>
                 <optgroup label="Serif">
+                  <option value="Fraunces" style={{fontFamily: 'Fraunces'}}>Fraunces</option>
                   <option value="Georgia" style={{fontFamily: 'Georgia'}}>Georgia</option>
                   <option value="Merriweather" style={{fontFamily: 'Merriweather'}}>Merriweather</option>
                   <option value="Playfair Display" style={{fontFamily: 'Playfair Display'}}>Playfair Display</option>
+                  <option value="Source Serif 4" style={{fontFamily: 'Source Serif 4'}}>Source Serif 4</option>
                   <option value="Times New Roman" style={{fontFamily: 'Times New Roman'}}>Times New Roman</option>
                 </optgroup>
                 <optgroup label="Monospace">
                   <option value="Courier New" style={{fontFamily: 'Courier New'}}>Courier New</option>
+                  <option value="JetBrains Mono" style={{fontFamily: 'JetBrains Mono'}}>JetBrains Mono</option>
                 </optgroup>
               </select>
             </div>
