@@ -4,8 +4,9 @@ Single endpoint to upload images/audio/video to a project's assets. Images
 are optimised automatically (resize + quality compression) to keep the
 final course download small.
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Body
 from pathlib import Path
+import asyncio
 import uuid
 import io
 import logging
@@ -25,7 +26,7 @@ async def upload_media(project_id: str, file: UploadFile = File(...), user: dict
     """Upload media file (image, audio, video) with automatic image optimization."""
     await load_authorized_project(project_id, user)
 
-    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp3', '.wav', '.ogg', '.mp4', '.webm'}
+    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp3', '.wav', '.ogg', '.mp4', '.webm', '.pdf'}
     ext = Path(file.filename).suffix.lower()
     if ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}")
@@ -115,3 +116,74 @@ async def upload_media(project_id: str, file: UploadFile = File(...), user: dict
         "optimized": optimized,
         "type": ext[1:]
     }
+
+
+@router.post("/projects/{project_id}/pdf-pages")
+async def render_pdf_pages(project_id: str, payload: dict = Body(...), user: dict = Depends(require_auth)):
+    """Render pages of an uploaded project PDF as PNG images (assets).
+    Body: {"filename": "<uuid>.pdf", "pages": "all" | "1-3,5"}. Max 30 pages."""
+    await load_authorized_project(project_id, user)
+    filename = (payload.get("filename") or "").strip()
+    pages_spec = (payload.get("pages") or "all").strip().lower()
+    if not filename.endswith('.pdf') or '/' in filename or '..' in filename:
+        raise HTTPException(status_code=400, detail="Nome de arquivo PDF inválido")
+
+    pdf_path = PROJECTS_DIR / project_id / "assets" / filename
+    if not pdf_path.exists():
+        try:
+            from services.asset_store import retrieve_asset_async
+            data, _ct = await retrieve_asset_async(db, project_id, filename)
+            if data:
+                pdf_path.parent.mkdir(parents=True, exist_ok=True)
+                pdf_path.write_bytes(data)
+        except Exception as e:
+            logger.warning(f"PDF restore from MongoDB failed: {e}")
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF não encontrado")
+
+    def _render():
+        import fitz
+        doc = fitz.open(str(pdf_path))
+        total = doc.page_count
+        if pages_spec in ("all", "todas", ""):
+            nums = list(range(1, total + 1))
+        else:
+            nums = []
+            for part in pages_spec.split(","):
+                part = part.strip()
+                if "-" in part:
+                    a, b = part.split("-", 1)
+                    nums.extend(range(int(a), int(b) + 1))
+                elif part:
+                    nums.append(int(part))
+            nums = sorted(set(nums))
+        nums = [p for p in nums if 1 <= p <= total][:30]
+        results = []
+        stem = Path(filename).stem
+        for p in nums:
+            pix = doc.load_page(p - 1).get_pixmap(matrix=fitz.Matrix(2, 2))
+            out_name = f"{stem}_p{p}.png"
+            pix.save(str(pdf_path.parent / out_name))
+            results.append((p, out_name))
+        doc.close()
+        return total, results
+
+    try:
+        total, results = await asyncio.to_thread(_render)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de páginas inválido. Use 'all' ou ex.: 1-3,5")
+    except Exception as e:
+        logger.error(f"PDF page render failed: {e}")
+        raise HTTPException(status_code=500, detail="Falha ao renderizar páginas do PDF")
+    if not results:
+        raise HTTPException(status_code=400, detail="Nenhuma página válida selecionada")
+
+    from services.asset_store import store_asset_async
+    pages = []
+    for p, out_name in results:
+        try:
+            await store_asset_async(db, project_id, out_name, str(pdf_path.parent / out_name))
+        except Exception as e:
+            logger.warning(f"Failed to persist PDF page in MongoDB (non-fatal): {e}")
+        pages.append({"page": p, "url": f"/api/projects/{project_id}/assets/{out_name}"})
+    return {"pageCount": total, "pages": pages}

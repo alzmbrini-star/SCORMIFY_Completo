@@ -1510,9 +1510,22 @@ var CoursePlayer = (function() {
                     flipIframe.style.border = 'none';
                     flipIframe.allow = 'fullscreen';
                     el.appendChild(flipIframe);
+                } else if (element.flipbookType === 'pdf' && element.pdfDisplay === 'pages' && element.pdfPages && element.pdfPages.length > 0) {
+                    // Pages-only mode: render pre-converted page images, no PDF chrome
+                    var pdfPagesWrap = document.createElement('div');
+                    pdfPagesWrap.style.cssText = 'width:100%;height:100%;overflow:auto;background:transparent;';
+                    element.pdfPages.forEach(function(pu) {
+                        var pimg = document.createElement('img');
+                        pimg.src = pu;
+                        pimg.style.cssText = 'width:100%;height:auto;display:block;margin-bottom:8px;';
+                        pdfPagesWrap.appendChild(pimg);
+                    });
+                    el.appendChild(pdfPagesWrap);
                 } else if (element.flipbookType === 'pdf' && element.flipbookUrl) {
                     var pdfIframe = document.createElement('iframe');
-                    pdfIframe.src = element.flipbookUrl;
+                    var pdfViewerSrc = element.flipbookUrl;
+                    if (element.pdfDisplay === 'clean') { pdfViewerSrc += '#toolbar=0&navpanes=0&scrollbar=0'; }
+                    pdfIframe.src = pdfViewerSrc;
                     pdfIframe.style.width = '100%';
                     pdfIframe.style.height = '100%';
                     pdfIframe.style.border = 'none';

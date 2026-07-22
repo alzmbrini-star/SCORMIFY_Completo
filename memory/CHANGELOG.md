@@ -1418,3 +1418,20 @@ Durante testes descobri que `/app` está **100% cheio** (`/app/backend/storage/e
 - `RichTextEditor.jsx`: lista FONTS ampliada com as fontes Google do design system do Agente IA (Inter, Manrope, Sora, Space Grotesk, IBM Plex Sans, Archivo, Outfit, Poppins, Montserrat, Nunito, Lato, Open Sans, Raleway, Roboto, Source Sans 3, Oswald, Fraunces, Source Serif 4, Playfair Display, Merriweather, JetBrains Mono) + fontes clássicas de sistema. Dropdown com preview da própria fonte (max-h-64).
 - `ElementProperties.jsx`: select "Font Family" atualizado com as mesmas fontes (optgroups Sans/Serif/Mono).
 - Fontes já carregadas em `index.html` (Google Fonts) e injetadas nos iframes via `getRtfContentStyles`. Testado via screenshot do dropdown no dialog.
+
+## 2026-07-22 — Feature: Inserir arquivo PDF no slide (upload + viewer embutido)
+- **Editor**: novo botão "Adicionar PDF" (ícone FileText vermelho, `add-pdf-btn`) + `PdfDialog` (MediaDialogs.jsx) com upload do computador (máx 100MB). Cria elemento `flipbook` com `flipbookType:'pdf'` e `flipbookUrl` relativo (60% x 88% do slide).
+- **Backend**: `.pdf` aceito em `projects_media.py` (POST /projects/{id}/media). Servido com mime application/pdf via serve_asset (com fallback MongoDB).
+- **Exports**:
+  - SCORM (`scorm_exporter.py`): PDF copiado para `assets/` do pacote + `flipbookUrl` reescrito relativo (fallback restore MongoDB). Validado: zip contém o pdf e course.json com URL relativa.
+  - HTML standalone (`html_exporter.py`): PDF embutido como data URI; runtime converte para blob URL (compatível com todos os navegadores). JS validado com node --check.
+  - Single Page (`single_page_exporter.py`): novo `_render_flipbook_element_inner` (pdf=blob viewer 640px, external=iframe, images=lista). Blob URL confirmado via playwright.
+- **Nota**: headless Chromium não renderiza PDFs (baixa o arquivo) — o iframe aparece branco nos screenshots, mas navegadores reais de desktop renderizam nativamente. Mobile Android baixa o PDF (limitação nativa do navegador).
+- **Incidente**: um search_replace no Editor.jsx corrompeu o EOF (bloco duplicado órfão) — corrigido; botão da toolbar re-aplicado.
+
+## 2026-07-22 (2) — Feature: Modos de exibição do PDF no slide
+- **PdfDialog**: 3 modos — "Visualizador completo" (controles do player), "Visualizador limpo" (iframe + `#toolbar=0&navpanes=0&scrollbar=0`), "Somente página(s)" (páginas convertidas em PNG, visual limpo, ideal para texto ao lado). Campo de seleção de páginas ("all" ou "1-3,5", máx 30).
+- **Backend**: novo `POST /api/projects/{id}/pdf-pages` (projects_media.py) — PyMuPDF (fitz) renderiza páginas a 2x em PNG via asyncio.to_thread, salva como assets + persiste Mongo. Validação de page-spec (400 em formato inválido).
+- **Elemento**: campos extras `pdfDisplay` ('full'|'clean'|'pages') e `pdfPages` [urls] (SlideElement tem extra=allow).
+- **Renderers atualizados**: SlideCanvas, CoursePreview, SplitPreview (pages→imgs empilhadas; clean→suffix toolbar=0), player.js (SCORM), html_exporter (runtime + embed pdfPages/flipbookPages como data URI), single_page_exporter (sp-pdf-pages; blob+suffix clean), scorm_exporter (rewrite de pdfPages/flipbookPages para assets/ + restore Mongo).
+- **Testado**: endpoint pdf-pages (all/2/erro), fluxo e2e no editor (modo pages → imagem limpa no canto esquerdo do slide), SCORM zip (PNGs no pacote + URLs relativas), standalone (data URIs), single page (sp-pdf-pages).

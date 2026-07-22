@@ -5,7 +5,7 @@ import {
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
-import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash2 } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash2, FileText, Upload } from 'lucide-react';
 import RichTextEditor from '../../../components/RichTextEditor';
 
 // Gallery image with auto-retry on load failure
@@ -498,6 +498,113 @@ export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryL
             </button>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function PdfDialog({ open, onOpenChange, pdfUploading, handleAddPdf }) {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [displayMode, setDisplayMode] = useState('full');
+  const [pagesSpec, setPagesSpec] = useState('all');
+  const fileInputRef = React.useRef(null);
+
+  const reset = () => {
+    setSelectedFile(null); setDisplayMode('full'); setPagesSpec('all');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const MODES = [
+    { id: 'full', title: 'Visualizador completo', desc: 'Com controles do player (zoom, download, imprimir)' },
+    { id: 'clean', title: 'Visualizador limpo', desc: 'Sem barra de controles — apenas navegação por rolagem' },
+    { id: 'pages', title: 'Somente página(s)', desc: 'Páginas viram imagens limpas — ideal para texto ao lado' },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-red-400" />
+            Adicionar PDF ao Slide
+          </DialogTitle>
+          <DialogDescription>Envie um arquivo PDF e escolha como exibi-lo dentro do slide</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            data-testid="pdf-file-input"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full border-2 border-dashed border-slate-600 hover:border-red-400/60 rounded-lg p-5 flex flex-col items-center gap-2 transition-colors"
+            data-testid="pdf-dropzone"
+          >
+            <Upload className="w-6 h-6 text-slate-400" />
+            {selectedFile ? (
+              <div className="text-center">
+                <p className="text-sm font-medium text-red-300" data-testid="pdf-selected-name">{selectedFile.name}</p>
+                <p className="text-xs text-muted-foreground">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-sm font-medium">Clique para selecionar o PDF</p>
+                <p className="text-xs text-muted-foreground">Máx. 100MB — armazenado no projeto e incluído nos exports</p>
+              </div>
+            )}
+          </button>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Modo de exibição</label>
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setDisplayMode(m.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                  displayMode === m.id ? 'border-red-400/70 bg-red-500/10' : 'border-slate-700 hover:border-slate-500'
+                }`}
+                data-testid={`pdf-mode-${m.id}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${displayMode === m.id ? 'border-red-400 bg-red-400' : 'border-slate-500'}`} />
+                  <div>
+                    <p className="text-sm font-medium">{m.title}</p>
+                    <p className="text-xs text-muted-foreground">{m.desc}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {displayMode === 'pages' && (
+            <div>
+              <label className="text-sm font-medium">Páginas a exibir</label>
+              <Input
+                placeholder='"all" para todas, ou ex.: 1-3,5'
+                value={pagesSpec}
+                onChange={(e) => setPagesSpec(e.target.value)}
+                data-testid="pdf-pages-input"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Máx. 30 páginas. As páginas viram imagens em alta resolução.</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }} data-testid="pdf-cancel-btn">Cancelar</Button>
+          <Button
+            onClick={async () => { await handleAddPdf(selectedFile, { display: displayMode, pages: pagesSpec }); reset(); }}
+            disabled={!selectedFile || pdfUploading}
+            data-testid="confirm-add-pdf"
+          >
+            {pdfUploading ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processando...</>) : 'Adicionar ao Slide'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

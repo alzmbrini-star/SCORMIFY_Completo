@@ -978,9 +978,15 @@ const SlideCanvas = ({
                       title="Flipbook"
                       style={{ pointerEvents: 'none' }}
                     />
+                  ) : element.flipbookType === 'pdf' && element.pdfDisplay === 'pages' && element.pdfPages?.length > 0 ? (
+                    <div className="w-full h-full overflow-auto" style={{ pointerEvents: 'none', background: 'transparent' }} data-testid={`pdf-pages-${element.id}`}>
+                      {element.pdfPages.map((p, i) => (
+                        <img key={i} src={p} alt={`Página ${i + 1}`} className="w-full h-auto block" style={{ marginBottom: 8, borderRadius: 6 }} />
+                      ))}
+                    </div>
                   ) : element.flipbookType === 'pdf' && element.flipbookUrl ? (
                     <iframe
-                      src={element.flipbookUrl}
+                      src={element.flipbookUrl + (element.pdfDisplay === 'clean' ? '#toolbar=0&navpanes=0&scrollbar=0' : '')}
                       className="w-full h-full border-0"
                       title="PDF Viewer"
                       style={{ pointerEvents: 'none' }}

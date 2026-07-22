@@ -42,7 +42,7 @@ def _b64_data_uri(file_path: str) -> Optional[str]:
             "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
             "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
             "mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg",
-            "mp4": "video/mp4", "webm": "video/webm",
+            "mp4": "video/mp4", "webm": "video/webm", "pdf": "application/pdf",
         }
         mime = mime_map.get(ext, "application/octet-stream")
         data = base64.b64encode(p.read_bytes()).decode("ascii")
@@ -211,9 +211,65 @@ def _render_element(el: dict, project_id: str, assets_dir: str, base_url: str,
         rendered = _render_button_element_inner(el, slide_idx, el_idx)
     elif etype == "shape":
         rendered = _render_shape_element_inner(el)
+    elif etype == "flipbook":
+        rendered = _render_flipbook_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
     else:
         return ""
     return _maybe_wrap_with_timeline(rendered, el)
+
+
+def _render_flipbook_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
+                                   slide_idx: int, el_idx: int) -> str:
+    """Render a flipbook element. PDFs are embedded as base64 and loaded via a
+    blob URL at runtime so the single-page export works fully offline."""
+    ftype = (el.get("flipbookType") or "external").lower()
+    url = el.get("flipbookUrl") or ""
+    if ftype == "pdf":
+        display = (el.get("pdfDisplay") or "full").lower()
+        # Pages-only mode: pre-converted page images, clean visual
+        if display == "pages" and el.get("pdfPages"):
+            imgs = "".join(
+                f'<img src="{_esc(_resolve_asset_url(p, project_id, assets_dir, base_url))}" loading="lazy" '
+                f'style="max-width:100%;height:auto;border-radius:8px;margin-bottom:8px;display:block;'
+                f'box-shadow:0 4px 14px rgba(0,0,0,.12)" />'
+                for p in el["pdfPages"] if p
+            )
+            return f'<div class="sp-pdf-pages">{imgs}</div>' if imgs else ""
+        if url:
+            clean_suffix = '#toolbar=0&navpanes=0&scrollbar=0' if display == "clean" else ''
+            resolved = _resolve_asset_url(url, project_id, assets_dir, base_url)
+            if resolved.startswith("data:application/pdf"):
+                b64 = resolved.split(",", 1)[1]
+                iframe_id = f"sp-pdf-{slide_idx}-{el_idx}"
+                return (
+                    f'<div class="sp-pdf" style="margin:0 0 8px 0">'
+                    f'<iframe id="{iframe_id}" title="Documento PDF" '
+                    f'style="width:100%;height:640px;border:0;border-radius:12px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.18)"></iframe>'
+                    f'<script>(function(){{var b="{b64}";var bin=atob(b);var u=new Uint8Array(bin.length);'
+                    f'for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);'
+                    f'document.getElementById("{iframe_id}").src=URL.createObjectURL(new Blob([u],{{type:"application/pdf"}}))+"{clean_suffix}";}})();</scr'
+                    f'ipt></div>'
+                )
+            if resolved:
+                return (
+                    f'<iframe src="{_esc(resolved + clean_suffix)}" title="Documento PDF" '
+                    f'style="width:100%;height:640px;border:0;border-radius:12px;background:#fff"></iframe>'
+                )
+        return ""
+    if ftype == "external" and url:
+        return (
+            f'<iframe src="{_esc(url)}" title="Flipbook" allow="fullscreen" '
+            f'style="width:100%;height:640px;border:0;border-radius:12px;background:#fff"></iframe>'
+        )
+    if ftype == "images":
+        pages = el.get("flipbookPages") or []
+        imgs = "".join(
+            f'<img src="{_esc(_resolve_asset_url(p, project_id, assets_dir, base_url))}" loading="lazy" '
+            f'style="max-width:100%;height:auto;border-radius:8px;margin-bottom:8px" />'
+            for p in pages if p
+        )
+        return f'<div class="sp-flipbook-images">{imgs}</div>' if imgs else ""
+    return ""
 
 
 def _render_button_element_inner(el: dict, slide_idx: int, el_idx: int) -> str:

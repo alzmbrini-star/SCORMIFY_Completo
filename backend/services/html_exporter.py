@@ -490,6 +490,37 @@ async def generate_standalone_html(
                 )
                 logger.info("Processed HTML element content for embedded images")
             
+            # Process flipbook/PDF elements - embed local PDF as data URI so
+            # the standalone HTML works offline (runtime converts to blob URL)
+            if element.get('type') == 'flipbook':
+                if element.get('flipbookUrl'):
+                    fb = element['flipbookUrl']
+                    if isinstance(fb, str) and not fb.startswith(('http', 'data:')) and '/assets/' in fb:
+                        fb_name = fb.split('/assets/')[-1].split('?')[0].split('/')[-1]
+                        fb_local = os.path.join(assets_dir, fb_name)
+                        fb_b64 = file_to_base64(fb_local) if os.path.exists(fb_local) else None
+                        if not fb_b64 and base_url:
+                            fb_b64 = await url_to_base64(f"{base_url.rstrip('/')}{fb}")
+                        if fb_b64:
+                            processed_element['flipbookUrl'] = fb_b64
+                            logger.info(f"Embedded flipbook asset as data URI: {fb_name}")
+                # Embed PDF page images / flipbook page images as data URIs
+                for _list_key in ('pdfPages', 'flipbookPages'):
+                    _lst = element.get(_list_key)
+                    if isinstance(_lst, list) and _lst:
+                        _new = []
+                        for _u in _lst:
+                            if isinstance(_u, str) and not _u.startswith(('http', 'data:')) and '/assets/' in _u:
+                                _nm = _u.split('/assets/')[-1].split('?')[0].split('/')[-1]
+                                _lp = os.path.join(assets_dir, _nm)
+                                _b64 = file_to_base64(_lp) if os.path.exists(_lp) else None
+                                if not _b64 and base_url:
+                                    _b64 = await url_to_base64(f"{base_url.rstrip('/')}{_u}")
+                                _new.append(_b64 or _u)
+                            else:
+                                _new.append(_u)
+                        processed_element[_list_key] = _new
+
             processed_elements.append(processed_element)
         
         processed_slide['elements'] = processed_elements
@@ -2368,7 +2399,19 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             html += '<iframe srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
-                            html += '<iframe src="' + elem.flipbookUrl + '" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>';
+                            var fbUrl = elem.flipbookUrl;
+                            // Embedded PDFs arrive as data URIs — convert to a blob
+                            // URL so every browser renders them in the iframe viewer.
+                            if (fbUrl.indexOf('data:application/pdf') === 0) {{
+                                try {{
+                                    var fbB64 = fbUrl.split(',')[1];
+                                    var fbBin = atob(fbB64);
+                                    var fbBytes = new Uint8Array(fbBin.length);
+                                    for (var fbI = 0; fbI < fbBin.length; fbI++) {{ fbBytes[fbI] = fbBin.charCodeAt(fbI); }}
+                                    fbUrl = URL.createObjectURL(new Blob([fbBytes], {{type: 'application/pdf'}}));
+                                }} catch(fbErr) {{ console.error('PDF blob conversion failed:', fbErr); }}
+                            }}
+                            html += '<iframe src="' + fbUrl + '" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>';
                         }}
                         else if (elem.type === 'quiz' && elem.quizConfig) {{
                             // Quiz element - render container for QuizController

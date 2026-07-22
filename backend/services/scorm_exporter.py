@@ -640,6 +640,50 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                     logger.warning(f"Video download skipped (non-fatal): {e}")
                     # Keep original URL as fallback so the element still works online
 
+            # Flipbook/PDF elements: rewrite flipbookUrl to package-relative
+            # path. The file was copied with the bulk asset copy above; if it
+            # is missing (ephemeral prod storage), restore it from MongoDB.
+            fb_url = element.get('flipbookUrl') or ''
+            if fb_url and isinstance(fb_url, str) and '/assets/' in fb_url and not fb_url.startswith(('http', 'data:')):
+                fb_raw = fb_url.split('/assets/')[-1].split('?')[0]
+                fb_name = fb_raw.split('/')[-1] if '/' in fb_raw else fb_raw
+                if fb_name:
+                    if not (package_assets / fb_name).exists():
+                        try:
+                            from services.asset_store import retrieve_asset_sync
+                            mongo_url = os.environ.get('MONGO_URL')
+                            db_name = os.environ.get('DB_NAME')
+                            if mongo_url and db_name:
+                                retrieve_asset_sync(mongo_url, db_name, project.id, fb_name, str(package_assets / fb_name))
+                        except Exception as e:
+                            logger.warning(f"Flipbook asset restore failed for {fb_name}: {e}")
+                    element['flipbookUrl'] = f"assets/{fb_name}"
+
+            # Rewrite PDF page images / flipbook page images to package paths
+            for _list_key in ('pdfPages', 'flipbookPages'):
+                _lst = element.get(_list_key)
+                if isinstance(_lst, list) and _lst:
+                    _new = []
+                    for _u in _lst:
+                        if isinstance(_u, str) and '/assets/' in _u and not _u.startswith(('http', 'data:')):
+                            _nm = _u.split('/assets/')[-1].split('?')[0].split('/')[-1]
+                            if _nm:
+                                if not (package_assets / _nm).exists():
+                                    try:
+                                        from services.asset_store import retrieve_asset_sync
+                                        mongo_url = os.environ.get('MONGO_URL')
+                                        db_name = os.environ.get('DB_NAME')
+                                        if mongo_url and db_name:
+                                            retrieve_asset_sync(mongo_url, db_name, project.id, _nm, str(package_assets / _nm))
+                                    except Exception as e:
+                                        logger.warning(f"Flipbook page restore failed for {_nm}: {e}")
+                                _new.append(f"assets/{_nm}")
+                            else:
+                                _new.append(_u)
+                        else:
+                            _new.append(_u)
+                    element[_list_key] = _new
+
             # Process HTML elements - fix image URLs inside htmlContent
             if elem_type == 'html':
                 html_content = element.get('htmlContent') or ''

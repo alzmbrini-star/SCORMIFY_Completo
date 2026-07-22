@@ -13,5 +13,6 @@ export {
   DesignTemplateDialog,
   ImageGalleryDialog,
   FlipbookDialog,
+  PdfDialog,
   RichTextDialog,
 } from './MediaDialogs';

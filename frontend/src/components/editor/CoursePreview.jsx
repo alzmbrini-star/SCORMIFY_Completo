@@ -959,14 +959,20 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 )}
                 
                 {/* Flipbook */}
-                {element.type === 'flipbook' && element.flipbookUrl && (
+                {element.type === 'flipbook' && element.pdfDisplay === 'pages' && element.pdfPages?.length > 0 ? (
+                  <div className="w-full h-full overflow-auto" style={{ background: 'transparent' }}>
+                    {element.pdfPages.map((p, i) => (
+                      <img key={i} src={getAssetUrl(p, projectId)} alt={`Página ${i + 1}`} className="w-full h-auto block" style={{ marginBottom: 8, borderRadius: 6 }} />
+                    ))}
+                  </div>
+                ) : element.type === 'flipbook' && element.flipbookUrl ? (
                   <iframe
-                    src={getAssetUrl(element.flipbookUrl, projectId)}
+                    src={getAssetUrl(element.flipbookUrl, projectId) + (element.pdfDisplay === 'clean' ? '#toolbar=0&navpanes=0&scrollbar=0' : '')}
                     className="w-full h-full border-0 bg-gray-100 rounded"
                     allow="fullscreen"
                     title="Flipbook"
                   />
-                )}
+                ) : null}
                 
                 {/* Quiz - Interactive in preview */}
                 {element.type === 'quiz' && element.quizConfig && (

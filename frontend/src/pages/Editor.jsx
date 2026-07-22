@@ -150,7 +150,7 @@ import {
   ExportDialog, HeygenDialog, SlideVideoDialog, VideoLibraryDialog,
   TTSDialog, MediaDialog, AudioDialog, ButtonDialog, HtmlDialog,
   BulkTextColorDialog, DesignTemplateDialog, ImageGalleryDialog,
-  FlipbookDialog, RichTextDialog, WhiteboardDialog,
+  FlipbookDialog, PdfDialog, RichTextDialog, WhiteboardDialog,
 } from './Editor/dialogs';
 
 export default function Editor() {
@@ -295,6 +295,8 @@ export default function Editor() {
   const [showButtonDialog, setShowButtonDialog] = useState(false);
   const [showHtmlDialog, setShowHtmlDialog] = useState(false);
   const [showFlipbookDialog, setShowFlipbookDialog] = useState(false);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [pdfUploading, setPdfUploading] = useState(false);
   // Whiteboard / Hand-writer dialog (2026-06-15 — self-hosted feature)
   const [showWhiteboardDialog, setShowWhiteboardDialog] = useState(false);
   const [showBulkTextColorDialog, setShowBulkTextColorDialog] = useState(false);
@@ -976,6 +978,50 @@ export default function Editor() {
     }
   };
 
+  const handleAddPdf = async (file, options = {}) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Selecione um arquivo PDF válido');
+      return;
+    }
+    const display = options.display || 'full';
+    setPdfUploading(true);
+    try {
+      const media = await uploadMedia(file);
+      let pdfPages = [];
+      if (display === 'pages') {
+        const resp = await axios.post(
+          `${API_URL}/api/projects/${currentProject.id}/pdf-pages`,
+          { filename: media.filename, pages: options.pages || 'all' }
+        );
+        pdfPages = (resp.data.pages || []).map((p) => p.url);
+        if (pdfPages.length === 0) throw new Error('Nenhuma página convertida');
+      }
+      const sw = currentSlide?.width || 1920;
+      const sh = currentSlide?.height || 820;
+      // Pages mode: place on the left half, leaving room for text beside it
+      const isPages = display === 'pages';
+      await addElement(currentSlide.id, {
+        type: 'flipbook',
+        x: Math.round(sw * (isPages ? 0.04 : 0.2)),
+        y: Math.round(sh * 0.06),
+        width: Math.round(sw * (isPages ? 0.45 : 0.6)),
+        height: Math.round(sh * 0.88),
+        flipbookType: 'pdf',
+        flipbookUrl: media.url,
+        flipbookPages: [],
+        pdfDisplay: display,
+        pdfPages,
+      });
+      setShowPdfDialog(false);
+      toast.success(isPages ? `PDF adicionado (${pdfPages.length} página${pdfPages.length > 1 ? 's' : ''} como imagem)` : 'PDF adicionado ao slide');
+    } catch (err) {
+      toast.error('Falha ao enviar PDF: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setPdfUploading(false);
+    }
+  };
+
   // Add Quiz element
   const handleQuizCreated = async (quizData) => {
     try {
@@ -1374,6 +1420,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Adicionar Flipbook</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-red-400 hover:text-red-300"
+                    onClick={() => setShowPdfDialog(true)}
+                    data-testid="add-pdf-btn"
+                  >
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Adicionar PDF</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -2204,6 +2265,11 @@ export default function Editor() {
           handleAddFlipbook={handleAddFlipbook}
         />
 
+        <PdfDialog
+          open={showPdfDialog} onOpenChange={setShowPdfDialog}
+          pdfUploading={pdfUploading} handleAddPdf={handleAddPdf}
+        />
+
         <WhiteboardDialog
           open={showWhiteboardDialog}
           onOpenChange={setShowWhiteboardDialog}
@@ -2480,4 +2546,5 @@ export default function Editor() {
 }
 
 // ElementProperties and SlideProperties are now imported from ./Editor/components/
+
 
