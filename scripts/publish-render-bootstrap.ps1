@@ -35,6 +35,11 @@ $files = @(
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_llm_compat.py",
     "frontend/.env.example",
+    "frontend/src/App.js",
+    "frontend/src/contexts/AuthContext.jsx",
+    "frontend/src/pages/ChangePassword.jsx",
+    "frontend/src/pages/Dashboard.jsx",
+    "frontend/src/utils/authFetch.js",
     "frontend/src/utils/apiUrl.js",
     "scripts/configure-local-secrets.ps1",
     "scripts/publish-render-bootstrap.ps1"

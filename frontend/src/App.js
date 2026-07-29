@@ -10,6 +10,7 @@ import Agent from './pages/Agent';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
 import AuthCallback from './pages/AuthCallback';
+import ChangePassword from './pages/ChangePassword';
 import './index.css';
 
 // Protected Route component
@@ -67,6 +68,11 @@ function AppRouter() {
       <Route path="/agent" element={
         <ProtectedRoute>
           <Agent />
+        </ProtectedRoute>
+      } />
+      <Route path="/change-password" element={
+        <ProtectedRoute>
+          <ChangePassword />
         </ProtectedRoute>
       } />
       <Route path="/editor/:projectId" element={

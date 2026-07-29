@@ -39,6 +39,7 @@ import {
   Clock,
   Loader2,
   Settings,
+  KeyRound,
   LogOut,
   User,
   Pencil,
@@ -404,6 +405,11 @@ export default function Dashboard() {
                     Administração
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => navigate('/change-password')}>
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Trocar senha
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-red-500">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sair
