@@ -26,49 +26,59 @@ router = APIRouter(tags=["Export"])
 
 
 def _get_external_url(request: Request = None) -> str:
-    """Get the external-facing URL for the app.
-    Priority: X-Forwarded headers > Referer > BASE_URL > REACT_APP_BACKEND_URL.
-    Using request headers ensures production exports use the production URL."""
-    from urllib.parse import urlparse
-    
+    """Return the public backend URL that exported courses must call.
+
+    The browser ``Referer`` is deliberately ignored here: exports are started
+    by the React static site, so using it would stamp the frontend hostname
+    into ``tutorConfig.apiUrl``.  The Tutor then tries to POST to a static
+    service and fails with ``TypeError: Failed to fetch``.
+    """
     if request:
-        # Try 1: X-Forwarded-Host + X-Forwarded-Proto (set by Kubernetes ingress/proxy)
-        fwd_host = (request.headers.get('x-forwarded-host') or '').strip()
-        fwd_proto = (request.headers.get('x-forwarded-proto') or 'https').strip()
+        # Proxies may return comma-separated forwarding chains.  The first
+        # value is the original public host/protocol.
+        fwd_host = (request.headers.get('x-forwarded-host') or '').split(',', 1)[0].strip()
+        fwd_proto = (request.headers.get('x-forwarded-proto') or '').split(',', 1)[0].strip()
         if fwd_host:
-            return f"{fwd_proto}://{fwd_host}"
-        
-        # Try 2: Referer header (preserved through proxy)
-        referer = (request.headers.get('referer') or '').strip()
-        if referer and referer.startswith('http'):
-            parsed = urlparse(referer)
-            if parsed.scheme and parsed.netloc:
-                return f"{parsed.scheme}://{parsed.netloc}"
-    
-    # Try 3: backend .env BASE_URL
+            return f"{fwd_proto or 'https'}://{fwd_host}".rstrip('/')
+
+        # Render preserves the backend Host header even when no
+        # X-Forwarded-Host is present.  request.url therefore identifies the
+        # API service, unlike Referer/Origin which identify the React site.
+        request_host = (request.headers.get('host') or request.url.netloc or '').strip()
+        if request_host:
+            request_proto = fwd_proto or request.url.scheme or 'https'
+            return f"{request_proto}://{request_host}".rstrip('/')
+
+    # Explicit runtime values are the safest fallback for background jobs and
+    # direct function calls without an HTTP request.
+    for env_name in ('PUBLIC_BACKEND_URL', 'RENDER_EXTERNAL_URL', 'BASE_URL', 'REACT_APP_BACKEND_URL'):
+        value = (os.environ.get(env_name) or '').strip().rstrip('/')
+        if value:
+            return value
+
+    # Local development fallback: backend .env BASE_URL.
     try:
         backend_env = Path(__file__).parent.parent / '.env'
         for line in backend_env.read_text().splitlines():
             if line.startswith('BASE_URL='):
-                val = line.split('=', 1)[1].strip().strip('"').strip("'")
+                val = line.split('=', 1)[1].strip().strip('"').strip("'").rstrip('/')
                 if val:
                     return val
     except Exception:
         pass
-    
-    # Try 4: frontend .env REACT_APP_BACKEND_URL
+
+    # Legacy local-development fallback.
     try:
         frontend_env = Path(__file__).parent.parent.parent / 'frontend' / '.env'
         for line in frontend_env.read_text().splitlines():
             if line.startswith('REACT_APP_BACKEND_URL='):
-                val = line.split('=', 1)[1].strip().strip('"').strip("'")
+                val = line.split('=', 1)[1].strip().strip('"').strip("'").rstrip('/')
                 if val:
                     return val
     except Exception:
         pass
-    
-    # Try 5: os.environ fallback
-    return os.environ.get('BASE_URL', '') or os.environ.get('REACT_APP_BACKEND_URL', '')
+
+    return ''
 
 
 def _cleanup_old_exports(exports_dir: str, max_age_hours: int = 24, max_total_bytes: int = 5 * 1024 * 1024 * 1024):
