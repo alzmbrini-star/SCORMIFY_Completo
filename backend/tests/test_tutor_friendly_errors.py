@@ -29,9 +29,9 @@ _UNKNOWN_EXC = Exception("Some completely novel failure mode the LLM came up wit
 
 
 @pytest.mark.parametrize("exc,expected_status,expected_substring", [
-    (_BUDGET_EXC, 503, "Universal Key"),
+    (_BUDGET_EXC, 503, "OpenAI"),
     (_RATE_LIMIT_EXC, 429, "muitas requisições"),
-    (_INVALID_KEY_EXC, 503, "chave de IA"),
+    (_INVALID_KEY_EXC, 503, "chave OpenAI"),
 ])
 def test_known_errors_map_to_friendly_messages(exc, expected_status, expected_substring):
     status, friendly = _map_tutor_llm_error(exc)
@@ -55,5 +55,5 @@ def test_unknown_error_returns_none_so_caller_can_fallback():
 def test_budget_message_contains_actionable_step():
     """Budget message must tell the admin exactly where to top up."""
     _, friendly = _map_tutor_llm_error(_BUDGET_EXC)
-    assert "Add Balance" in friendly
-    assert "auto top-up" in friendly
+    assert "Billing" in friendly
+    assert "Usage" in friendly

@@ -74,7 +74,11 @@ export default function Admin() {
     messageLimit: 50,
     suggestedQuestions: [],
     systemPrompt: '',
-    apiUrl: ''
+    apiUrl: '',
+    provider: 'openai',
+    model: '',
+    configured: false,
+    publicEnabled: false
   });
   const [newSuggestion, setNewSuggestion] = useState('');
   const [tutorLoading, setTutorLoading] = useState(false);
@@ -741,6 +745,36 @@ export default function Admin() {
           </div>
 
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 space-y-6">
+            <div
+              className={`rounded-lg border p-4 ${
+                tutorSettings.configured && tutorSettings.publicEnabled
+                  ? 'border-emerald-500/40 bg-emerald-500/10'
+                  : 'border-amber-500/40 bg-amber-500/10'
+              }`}
+              data-testid="tutor-openai-status"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-white font-medium">Integração OpenAI</h3>
+                  <p className="text-sm text-slate-300 mt-1">
+                    {tutorSettings.configured && tutorSettings.publicEnabled
+                      ? `Conectada e ativa — modelo ${tutorSettings.model || 'configurado no servidor'}`
+                      : 'Aguardando OPENAI_API_KEY e ativação do Tutor no backend'}
+                  </p>
+                </div>
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                  tutorSettings.configured && tutorSettings.publicEnabled
+                    ? 'bg-emerald-500/20 text-emerald-300'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  {tutorSettings.configured && tutorSettings.publicEnabled ? 'Pronto' : 'Configuração pendente'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">
+                A chave permanece somente no Render e nunca é incluída no curso exportado.
+              </p>
+            </div>
+
             {/* Enable/Disable */}
             <div className="flex items-center justify-between">
               <div>

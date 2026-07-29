@@ -5,7 +5,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     SKIP_SYSTEM_DEPS=1 \
     ENABLE_LEGACY_AI_ROUTES=0 \
-    ENABLE_PUBLIC_TUTOR=0
+    ENABLE_PUBLIC_TUTOR=1 \
+    OPENAI_TUTOR_MODEL=gpt-5.6-luna
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

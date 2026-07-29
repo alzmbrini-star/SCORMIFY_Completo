@@ -36,12 +36,15 @@ $files = @(
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_llm_compat.py",
+    "backend/tests/test_openai_tutor.py",
+    "backend/tests/test_tutor_friendly_errors.py",
     "frontend/.env.example",
     "frontend/src/App.js",
     "frontend/src/contexts/AuthContext.jsx",
     "frontend/src/components/editor/AestheticsPanel.jsx",
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
+    "frontend/src/pages/Admin.jsx",
     "frontend/src/utils/authFetch.js",
     "frontend/src/utils/apiUrl.js",
     "scripts/configure-local-secrets.ps1",
@@ -130,7 +133,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Improve aesthetic analyzer contrast repair"
+        message = "Enable OpenAI-powered AI Tutor"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
