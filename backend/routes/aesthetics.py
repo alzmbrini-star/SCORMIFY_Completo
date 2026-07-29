@@ -14,7 +14,7 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Depends
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from routes.deps import db
 from routes.auth import get_current_user, require_auth
 from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -24,8 +24,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Aesthetics"])
 
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
-MODEL = ("gemini", "gemini-3-flash-preview")
-FALLBACK = ("openai", "gpt-4o")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
+
+# Each provider must receive its own credential.  The historical
+# EMERGENT_LLM_KEY is kept only as a backwards-compatible broker key; an
+# OpenAI key must never be sent to Gemini (or vice-versa).
+ANALYSIS_MODELS = (
+    ("gemini", "gemini-3-flash-preview", GEMINI_KEY or EMERGENT_KEY),
+    ("openai", "gpt-4o", OPENAI_KEY or EMERGENT_KEY),
+)
 
 
 def _extract_json(text: str):
@@ -359,10 +367,18 @@ async def analyze_aesthetics(project_id: str, request: Request, user: dict = Dep
     # Call AI
     prompt = ANALYSIS_PROMPT.format(slides_data=slides_data)
 
-    for provider, model in [MODEL, FALLBACK]:
+    configured_models = [item for item in ANALYSIS_MODELS if item[2]]
+    if not configured_models:
+        raise HTTPException(
+            503,
+            "Nenhuma chave de IA configurada para o Analisador de Estetica. "
+            "Cadastre OPENAI_API_KEY ou GEMINI_API_KEY no backend.",
+        )
+
+    for provider, model, api_key in configured_models:
         try:
             chat = LlmChat(
-                api_key=EMERGENT_KEY,
+                api_key=api_key,
                 session_id=f"aesthetics_{project_id}_{uuid.uuid4().hex[:6]}",
                 system_message="Voce e um especialista em Design Visual e UX. Responda sempre em JSON valido.",
             ).with_model(provider, model)
@@ -405,7 +421,29 @@ def _effective_bg_for_element(slide: dict, element: Optional[dict] = None) -> tu
     instead of LIGHT.
     """
     has_image = bool(slide.get("backgroundImage"))
-    # 1) Best signal: per-element region luminance
+    # 1) Best signal: an intentional surface painted by the element itself.
+    # This is the missing case behind the production screenshots: a text box
+    # can sit on a blue `backgroundColor` while the slide itself is white.
+    # Comparing against the slide made the analyzer keep dark text on blue.
+    if element is not None:
+        style = element.get("style") or {}
+        candidates = (
+            style.get("textBackgroundColor"),
+            style.get("backgroundColor"),
+            style.get("background"),
+            element.get("backgroundColor"),
+        )
+        # A shape carrying text uses fill as its visible surface.  Do not use
+        # fill for ordinary text because some importers store the glyph color
+        # there.
+        if element.get("type") in ("shape", "button", "card"):
+            candidates = candidates + (style.get("fill"), element.get("fill"))
+        for candidate in candidates:
+            normalized = _normalise_css_color(candidate)
+            if normalized:
+                return normalized, has_image
+
+    # 2) Per-element background-image region luminance.
     if element is not None:
         region = element.get("_bgRegionLuminance")
         if isinstance(region, dict) and "luminance" in region:
@@ -415,7 +453,7 @@ def _effective_bg_for_element(slide: dict, element: Optional[dict] = None) -> tu
                 return f"#{lum_byte:02x}{lum_byte:02x}{lum_byte:02x}", has_image
             except (TypeError, ValueError):
                 pass
-    # 2) Fallback: solid color
+    # 3) Fallback: solid slide color
     bg_color = (slide.get("background") or "#ffffff").strip()
     return bg_color, has_image
 
@@ -905,11 +943,11 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
 
     Plate policy (2026-05-19): the user explicitly rejected ALL background
     plates behind text elements. This function therefore:
-      1. Strips any banned plate keys (`backgroundColor`,
-         `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`,
-         `textShadow`) from BOTH the incoming `changes` AND any existing
-         residue on `element.style`. Defense-in-depth in case an upstream
-         LLM ignored the prompt prohibition.
+      1. Rejects new plate keys (`backgroundColor`, `textBackgroundColor`,
+         `padding`, `borderRadius`, `boxShadow`, `textShadow`) proposed by
+         the LLM. Existing author-created card/banner backgrounds are
+         preserved: they are the surface against which contrast must be
+         measured, not analyzer residue to delete.
       2. Defensive coercion: any fontColor change is validated against the
          effective background. If contrast is below WCAG AA (4.5:1), we
          silently force a high-contrast color. This catches the case the
@@ -940,17 +978,9 @@ def _apply_style_fix(element: dict, slide: dict, changes: dict) -> bool:
     if element.get("type") == "html" and changes:
         TYPOGRAPHY_BLOCKED_FOR_HTML = {"fontSize", "fontWeight", "lineHeight"}
         changes = {k: v for k, v in changes.items() if k not in TYPOGRAPHY_BLOCKED_FOR_HTML}
-    # Strip pre-existing plate residue so applying ANY style fix also
-    # purges legacy plates the LLM might have left behind earlier.
-    stripped_any = False
-    for k in BANNED_STYLE_KEYS:
-        if k in style:
-            style.pop(k, None)
-            stripped_any = True
-
     bg_color, has_image = _effective_bg_for_element(slide, element)
 
-    applied_any = stripped_any
+    applied_any = False
     for key, val in (changes or {}).items():
         if val in (None, ""):
             continue
@@ -1357,6 +1387,303 @@ def _auto_fix_html_contrast(html: str) -> str:
     return " ".join(overrides)
 
 
+_CSS_NAMED_COLORS = {
+    "black": "#000000",
+    "white": "#ffffff",
+    "navy": "#000080",
+    "blue": "#0000ff",
+    "red": "#ff0000",
+    "green": "#008000",
+    "gray": "#808080",
+    "grey": "#808080",
+    "silver": "#c0c0c0",
+    "maroon": "#800000",
+    "purple": "#800080",
+    "teal": "#008080",
+    "yellow": "#ffff00",
+}
+
+
+def _normalise_css_color(value, variables: Optional[dict] = None):
+    """Return a WCAG-parseable CSS color token or ``None``.
+
+    The generated simulators frequently use CSS variables and shorthand
+    backgrounds.  The old analyzer handed the entire declaration to
+    ``wcag.contrast_ratio`` which silently treated values such as
+    ``var(--surface)`` or ``background: 0 0 / cover #fff`` as unknown.
+    """
+    if not value or not isinstance(value, str):
+        return None
+    raw = re.sub(r"\s*!important\s*$", "", value.strip(), flags=re.IGNORECASE)
+    if not raw or raw.lower() in ("transparent", "inherit", "initial", "unset", "none", "currentcolor"):
+        return None
+
+    var_match = re.search(
+        r"var\(\s*(--[\w-]+)\s*(?:,\s*([^)]+))?\)",
+        raw,
+        re.IGNORECASE,
+    )
+    if var_match:
+        var_name = var_match.group(1)
+        resolved = (variables or {}).get(var_name) or var_match.group(2)
+        return _normalise_css_color(resolved, variables)
+
+    token = re.search(
+        r"(#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?|rgba?\([^)]+\))",
+        raw,
+        re.IGNORECASE,
+    )
+    if token:
+        candidate = token.group(1)
+        return candidate if wcag.parse_hex(candidate) else None
+
+    named = re.search(
+        r"\b(" + "|".join(re.escape(name) for name in _CSS_NAMED_COLORS) + r")\b",
+        raw,
+        re.IGNORECASE,
+    )
+    if named:
+        return _CSS_NAMED_COLORS[named.group(1).lower()]
+    return None
+
+
+def _parse_css_declarations(block: str):
+    """Small declaration parser for color/background/opacity cascade work."""
+    declarations = []
+    for chunk in (block or "").split(";"):
+        if ":" not in chunk:
+            continue
+        prop, value = chunk.split(":", 1)
+        prop = prop.strip().lower()
+        value = value.strip()
+        if not prop or not value:
+            continue
+        important = bool(re.search(r"\s*!important\s*$", value, re.IGNORECASE))
+        value = re.sub(r"\s*!important\s*$", "", value, flags=re.IGNORECASE).strip()
+        declarations.append((prop, value, important))
+    return declarations
+
+
+def _selector_specificity(selector: str) -> int:
+    """Approximate CSS specificity, sufficient for generated course HTML."""
+    selector = re.sub(r":{1,2}[\w-]+(?:\([^)]*\))?", "", selector or "")
+    ids = len(re.findall(r"#[\w-]+", selector))
+    classes = len(re.findall(r"\.[\w-]+|\[[^\]]+\]", selector))
+    tags = len(re.findall(r"(?<![.#\w-])[a-zA-Z][\w-]*", selector))
+    return ids * 100 + classes * 10 + tags
+
+
+def _repair_html_document_contrast(html: str, fallback_bg: str = "#ffffff"):
+    """Repair contrast from the DOM's *actual inherited contexts*.
+
+    Rule-only analysis cannot see ``body {color:white}`` inherited by a
+    paragraph inside ``.card {background:white}``.  This routine applies the
+    generated CSS cascade to real DOM nodes, resolves inherited foreground
+    and nearest painted ancestor background, then marks only failing text
+    nodes.  A high-specificity, reversible style block fixes the marked
+    nodes without flattening the simulator's whole palette.
+
+    Returns ``(new_html, issue_count)``.
+    """
+    if not html:
+        return html, 0
+
+    cleaned = _clean_aesthetic_fixes_from_html(html)
+    try:
+        soup = BeautifulSoup(cleaned, "html.parser")
+    except Exception as exc:
+        logger.warning(f"DOM contrast parse failed: {exc}")
+        return cleaned, 0
+
+    # Property cascade keyed by object identity:
+    # {id(tag): {property: (priority, order, value)}}.
+    cascaded = {}
+    variables = {}
+    order = 0
+
+    def _store(tag, prop, value, priority, declaration_order):
+        bucket = cascaded.setdefault(id(tag), {})
+        previous = bucket.get(prop)
+        candidate = (priority, declaration_order, value)
+        if previous is None or candidate[:2] >= previous[:2]:
+            bucket[prop] = candidate
+
+    # Author style sheets, excluding previous analyzer output.
+    for style_tag in soup.find_all("style"):
+        if style_tag.get("data-aesthetic-fix") == "1":
+            continue
+        css = re.sub(r"/\*[\s\S]*?\*/", "", style_tag.get_text() or "")
+        for match in _CSS_RULE_RE.finditer(css):
+            selector_group = match.group(1).strip()
+            if selector_group.startswith("@"):
+                continue
+            declarations = _parse_css_declarations(match.group(2))
+            if not declarations:
+                continue
+            for selector in [s.strip() for s in selector_group.split(",") if s.strip()]:
+                # Pseudo-elements do not represent real BeautifulSoup nodes.
+                # They remain covered by the legacy rule-level analyzer.
+                if "::" in selector or re.search(r":(?:hover|focus|active|visited|disabled)\b", selector):
+                    continue
+                try:
+                    matches = soup.select(selector)
+                except Exception:
+                    continue
+                specificity = _selector_specificity(selector)
+                for prop, value, important in declarations:
+                    order += 1
+                    if prop.startswith("--") and selector in (":root", "html", "body"):
+                        variables[prop] = value
+                    if prop not in ("color", "background", "background-color", "opacity") and not prop.startswith("--"):
+                        continue
+                    priority = specificity + (10000 if important else 0)
+                    for tag in matches:
+                        _store(tag, prop, value, priority, order)
+
+    # Inline styles and legacy <font color> beat author styles.
+    for tag in soup.find_all(True):
+        for prop, value, important in _parse_css_declarations(tag.get("style", "") or ""):
+            if prop.startswith("--"):
+                variables[prop] = value
+            if prop not in ("color", "background", "background-color", "opacity") and not prop.startswith("--"):
+                continue
+            order += 1
+            _store(tag, prop, value, 1000 + (10000 if important else 0), order)
+        if tag.name == "font" and tag.get("color"):
+            order += 1
+            _store(tag, "color", str(tag.get("color")), 1000, order)
+
+    fallback = _normalise_css_color(fallback_bg, variables) or "#ffffff"
+
+    def _own(tag, prop):
+        entry = cascaded.get(id(tag), {}).get(prop)
+        return entry[2] if entry else None
+
+    def _foreground(tag):
+        current = tag
+        while current is not None and getattr(current, "name", None):
+            color = _normalise_css_color(_own(current, "color"), variables)
+            if color:
+                return color
+            current = current.parent
+        return "#000000"
+
+    def _background(tag):
+        current = tag
+        while current is not None and getattr(current, "name", None):
+            value = _own(current, "background-color") or _own(current, "background")
+            color = _normalise_css_color(value, variables)
+            if color:
+                return color
+            current = current.parent
+        return fallback
+
+    def _has_visible_text(tag):
+        if tag.name in ("input", "textarea", "select"):
+            return bool(tag.get("placeholder") or tag.get("value"))
+        return any(
+            isinstance(child, NavigableString) and child.strip()
+            for child in tag.children
+        )
+
+    text_tags = {
+        "h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "li",
+        "td", "th", "strong", "b", "em", "i", "div", "label", "a",
+        "button", "small", "blockquote", "dd", "dt", "legend", "summary",
+        "input", "textarea", "select", "option",
+    }
+    fixed = 0
+    for tag in soup.find_all(text_tags):
+        if not _has_visible_text(tag):
+            continue
+        fg = _foreground(tag)
+        bg = _background(tag)
+        try:
+            ratio = wcag.contrast_ratio(fg, bg)
+        except Exception:
+            continue
+        opacity_value = _own(tag, "opacity")
+        try:
+            low_opacity = opacity_value is not None and float(opacity_value) < 0.75
+        except (TypeError, ValueError):
+            low_opacity = False
+        if ratio >= 4.5 and not low_opacity:
+            continue
+        polarity = "light" if wcag.is_dark_background(bg) else "dark"
+        tag["data-aesthetic-contrast-fix"] = polarity
+        fixed += 1
+
+    targeted_css = _auto_fix_html_contrast(cleaned)
+    targeted_count = targeted_css.count("{")
+    if not fixed and not targeted_css:
+        return cleaned, 0
+
+    marker_css = (
+        'html body [data-aesthetic-contrast-fix="dark"]'
+        f'{{color:{wcag.DARK_FALLBACK} !important;opacity:1 !important;}}'
+        'html body [data-aesthetic-contrast-fix="light"]'
+        f'{{color:{wcag.LIGHT_FALLBACK} !important;opacity:1 !important;}}'
+    )
+    style_tag = soup.new_tag("style", attrs={"data-aesthetic-fix": "1"})
+    style_tag.string = " ".join(part for part in (targeted_css, marker_css) if part)
+    if soup.head:
+        soup.head.append(style_tag)
+    elif soup.body:
+        soup.body.insert(0, style_tag)
+    else:
+        soup.insert(0, style_tag)
+    return str(soup), fixed + targeted_count
+
+
+def _repair_element_contrast(element: dict, slide: dict) -> int:
+    """Repair one editor element and return the number of detected failures."""
+    if not isinstance(element, dict):
+        return 0
+    is_textual = (
+        element.get("type") in ("text", "html", "paragraph", "title", "heading")
+        or element.get("content")
+        or element.get("htmlContent")
+    )
+    if not is_textual:
+        return 0
+
+    bg, _ = _effective_bg_for_element(slide, element)
+    if element.get("type") == "html" and element.get("htmlContent"):
+        original_html = element.get("htmlContent") or ""
+        repaired, count = _repair_html_document_contrast(
+            original_html,
+            fallback_bg=bg,
+        )
+        if count and repaired != original_html:
+            element["htmlContent"] = repaired
+            return count
+        return 0
+
+    style = element.setdefault("style", {})
+    current = (
+        style.get("fontColor")
+        or style.get("color")
+        or (style.get("fill") if element.get("type") in ("text", "paragraph", "title", "heading") else None)
+        or "#000000"
+    )
+    try:
+        fails = wcag.contrast_ratio(str(current), bg) < 4.5
+    except Exception:
+        fails = False
+    try:
+        low_opacity = float(style.get("opacity", 1)) < 0.75
+    except (TypeError, ValueError):
+        low_opacity = False
+    if not fails and not low_opacity:
+        return 0
+    forced = wcag.pick_high_contrast_color(bg)
+    style["fontColor"] = forced
+    style["color"] = forced
+    if low_opacity:
+        style["opacity"] = 1
+    return 1
+
+
 def _strip_universal_selectors(css: str) -> str:
     """Remove rule blocks whose selector list contains any UNIVERSAL or
     overreaching selector. Used in `preserve_html_typography=True` mode to
@@ -1569,6 +1896,11 @@ _AESTHETIC_PLATE_ATTR_RE = re.compile(
     re.IGNORECASE,
 )
 
+_AESTHETIC_CONTRAST_ATTR_RE = re.compile(
+    r'\s+data-aesthetic-contrast-fix\s*=\s*[\"\'](?:dark|light)[\"\']',
+    re.IGNORECASE,
+)
+
 
 def _clean_aesthetic_fixes_from_html(html: str) -> str:
     """Remove every `<style data-aesthetic-fix="1">...</style>` tag AND
@@ -1581,10 +1913,15 @@ def _clean_aesthetic_fixes_from_html(html: str) -> str:
     """
     if not html:
         return html
-    if "data-aesthetic-fix" not in html and "data-aesthetic-plate" not in html:
+    if (
+        "data-aesthetic-fix" not in html
+        and "data-aesthetic-plate" not in html
+        and "data-aesthetic-contrast-fix" not in html
+    ):
         return html
     html = _AESTHETIC_FIX_TAG_RE.sub("", html)
     html = _AESTHETIC_PLATE_ATTR_RE.sub("", html)
+    html = _AESTHETIC_CONTRAST_ATTR_RE.sub("", html)
     return html
 
 
@@ -1929,6 +2266,23 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             else:
                 outcome["reason"] = f"unhandled fix_type='{fix_type}' or elIdx={el_idx} out of range"
 
+            # Deterministic contrast guardrail for the exact element selected
+            # by the analysis.  This runs after the LLM change and resolves
+            # inherited HTML colors against nested card/banner backgrounds.
+            # It also handles ordinary editor text boxes whose own
+            # backgroundColor differs from the slide background.
+            if 0 <= el_idx < len(els) and (
+                issue.get("category") in ("contraste", "legibilidade_html")
+                or fix_type in ("style", "text_plate", "html_style", "strip_container_bg")
+            ):
+                repaired_count = _repair_element_contrast(els[el_idx], slide)
+                if repaired_count:
+                    outcome["contrastRepairs"] = repaired_count
+                    if not outcome["applied"]:
+                        applied += 1
+                        outcome["applied"] = True
+                        outcome["reason"] = ""
+
             # After-state capture for elements we touched.
             if 0 <= el_idx < len(els):
                 post = els[el_idx]
@@ -1945,7 +2299,16 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             outcome["reason"] = f"exception: {type(e).__name__}: {e}"
         issue_outcomes.append(outcome)
 
-    if applied > 0:
+    # "Aplicar todas" must be reliable even when the LLM misses an inherited
+    # contrast problem entirely.  Sweep the full course deterministically;
+    # only elements that actually change are counted.
+    global_contrast_repairs = 0
+    if apply_all:
+        for slide in slides:
+            for element in slide.get("elements") or []:
+                global_contrast_repairs += _repair_element_contrast(element, slide)
+
+    if applied > 0 or global_contrast_repairs > 0:
         # Strip scratch-only `_bgRegionLuminance` info before persisting —
         # it's recomputed on demand and bloats the DB otherwise.
         for s in slides:
@@ -1966,7 +2329,7 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
             {"$set": {
                 "projectId": project_id,
                 "slidesBefore": snapshot_slides,
-                "appliedCount": applied,
+                "appliedCount": applied + global_contrast_repairs,
                 "appliedAt": datetime.now(timezone.utc).isoformat(),
                 "userId": user.get("user_id", ""),
             }},
@@ -1975,9 +2338,13 @@ async def apply_aesthetic_fix(project_id: str, request: Request, user: dict = De
 
     return {
         "applied": applied,
+        "contrastFixed": global_contrast_repairs,
         "total": len(to_apply),
-        "message": f"{applied} correcoes aplicadas",
-        "canRevert": applied > 0,
+        "message": (
+            f"{applied} correcoes da analise aplicadas; "
+            f"{global_contrast_repairs} problemas adicionais de contraste corrigidos"
+        ),
+        "canRevert": applied > 0 or global_contrast_repairs > 0,
         # Diagnostic breakdown — surfaces in DevTools so we can see exactly
         # what each issue did/didn't do. Helps catch stale-index bugs where
         # the analyzer reports applied=N but visually nothing changes.
@@ -2333,13 +2700,14 @@ async def force_high_contrast_all_slides(project_id: str, user: dict = Depends(r
 
 @router.post("/aesthetics/auto-fix-contrast/{project_id}")
 async def auto_fix_html_contrast(project_id: str, user: dict = Depends(require_auth)):
-    """Deterministic, LLM-independent contrast auto-fix for ALL HTML
-    simulators in the project.
+    """Deterministic, LLM-independent contrast auto-fix for ALL text in the
+    project, including nested HTML simulators and ordinary editor text boxes.
 
-    For every `<style>` block inside every HTML element, parses the CSS
-    rules and computes WCAG ratio for each `color` value against its
-    effective background. When ratio < 4.5 (AA fail), emits a TARGETED
-    override `selector { color: <opposite-polarity> !important }`.
+    HTML is evaluated against the real DOM inheritance chain: a color
+    inherited from ``body`` is checked against the nearest card/banner
+    background actually painted behind each text node. Ordinary elements
+    are checked against their own backgroundColor/textBackgroundColor before
+    falling back to the slide background.
 
     This is the escape hatch when the LLM keeps suggesting universal
     selectors that get stripped — we don't need the LLM at all here.
@@ -2360,43 +2728,16 @@ async def auto_fix_html_contrast(project_id: str, user: dict = Depends(require_a
     issues_total = 0
     for slide in slides:
         for el in slide.get("elements", []) or []:
-            if el.get("type") != "html":
-                continue
-            html = el.get("htmlContent") or ""
-            if not html:
-                continue
-
-            # First, strip any existing aesthetic-fix tags to start fresh
-            cleaned = _clean_aesthetic_fixes_from_html(html)
-
-            # Analyze the cleaned html for contrast failures
-            override_css = _auto_fix_html_contrast(cleaned)
-            if not override_css:
-                # No issues found in this simulator
-                if cleaned != html:
-                    el["htmlContent"] = cleaned
-                    fixed_count += 1
-                continue
-
-            # Inject the targeted override
-            new_html = cleaned
-            style_tag = f'<style data-aesthetic-fix="1">{override_css}</style>'
-            if "</head>" in new_html:
-                new_html = new_html.replace("</head>", f"{style_tag}</head>", 1)
-            elif "</body>" in new_html:
-                new_html = new_html.replace("</body>", f"{style_tag}</body>", 1)
-            else:
-                new_html = f"{style_tag}{new_html}"
-            el["htmlContent"] = new_html
-            fixed_count += 1
-            # Count overrides emitted (rough proxy for issues fixed)
-            issues_total += override_css.count("{ color")
+            repaired = _repair_element_contrast(el, slide)
+            if repaired:
+                fixed_count += 1
+                issues_total += repaired
 
     if fixed_count == 0:
         return {
             "fixed": 0,
             "issuesFixed": 0,
-            "message": "Nenhum problema de contraste detectado nos simuladores",
+            "message": "Nenhum problema de contraste detectado nos slides",
         }
 
     await db.projects.update_one(
@@ -2422,6 +2763,9 @@ async def auto_fix_html_contrast(project_id: str, user: dict = Depends(require_a
     return {
         "fixed": fixed_count,
         "issuesFixed": issues_total,
-        "message": f"{issues_total} regra(s) de contraste corrigida(s) em {fixed_count} simulador(es)",
+        "message": (
+            f"{issues_total} problema(s) de contraste corrigido(s) "
+            f"em {fixed_count} elemento(s)"
+        ),
         "canRevert": True,
     }

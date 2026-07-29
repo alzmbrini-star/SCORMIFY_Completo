@@ -27,16 +27,19 @@ $files = @(
     "backend/emergentintegrations/llm/__init__.py",
     "backend/emergentintegrations/llm/chat.py",
     "backend/routes/export.py",
+    "backend/routes/aesthetics.py",
     "backend/routes/admin.py",
     "backend/routes/auth.py",
     "backend/routes/projects_crud.py",
     "backend/routes/whiteboard.py",
     "backend/server.py",
     "backend/tests/test_job_tenant_access.py",
+    "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_llm_compat.py",
     "frontend/.env.example",
     "frontend/src/App.js",
     "frontend/src/contexts/AuthContext.jsx",
+    "frontend/src/components/editor/AestheticsPanel.jsx",
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
     "frontend/src/utils/authFetch.js",
@@ -127,7 +130,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Deploy secure SCORMIFY backend on Render"
+        message = "Improve aesthetic analyzer contrast repair"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

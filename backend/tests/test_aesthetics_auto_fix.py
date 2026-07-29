@@ -12,6 +12,10 @@ from routes.aesthetics import (
     _parse_html_css_rules,
     _resolve_background_for_selector,
     _auto_fix_html_contrast,
+    _repair_html_document_contrast,
+    _repair_element_contrast,
+    _clean_aesthetic_fixes_from_html,
+    _apply_style_fix,
 )
 
 
@@ -162,3 +166,94 @@ class TestAutoFixHtmlContrast:
         css = _auto_fix_html_contrast(html)
         # Should only emit one rule for .x
         assert css.count(".x {") == 1 or css.count(".x{") == 1
+
+
+class TestDomAwareContrastRepair:
+    def test_inherited_white_text_inside_white_cards_is_repaired(self):
+        """Regression for the blank white cards in the user's screenshot.
+
+        The foreground is inherited from the dark body while the white
+        background is painted by a nested card. Rule-only analysis cannot
+        pair those two declarations; DOM-aware analysis must.
+        """
+        html = (
+            "<html><head><style>"
+            "body{background:#1c1917;color:#ffffff}"
+            ".summary-card{background:#ffffff;border-radius:8px}"
+            "</style></head><body>"
+            "<div class='summary-card'><p>Conceito-chave visivel</p></div>"
+            "</body></html>"
+        )
+        repaired, count = _repair_html_document_contrast(html, "#1c1917")
+        assert count >= 1
+        assert 'data-aesthetic-contrast-fix="dark"' in repaired
+        assert "#0f172a" in repaired
+
+    def test_inherited_dark_text_inside_dark_blue_banner_is_repaired(self):
+        """Regression for the dark text on the blue pill/banner screenshot."""
+        html = (
+            "<html><head><style>"
+            "body{background:#ffffff;color:#0f172a}"
+            ".insight{background:#23456b;border-radius:24px}"
+            "</style></head><body>"
+            "<div class='insight'><span>Identifique seu nivel de confianca</span></div>"
+            "</body></html>"
+        )
+        repaired, count = _repair_html_document_contrast(html, "#ffffff")
+        assert count >= 1
+        assert 'data-aesthetic-contrast-fix="light"' in repaired
+        assert "#f8fafc" in repaired
+
+    def test_nested_dark_card_preserves_good_white_text(self):
+        html = (
+            "<html><head><style>"
+            "body{background:#ffffff;color:#0f172a}"
+            ".quiz{background:#111827;color:#f8fafc}"
+            "</style></head><body>"
+            "<div class='quiz'><p>Quiz legivel</p></div>"
+            "</body></html>"
+        )
+        repaired, count = _repair_html_document_contrast(html, "#ffffff")
+        assert count == 0
+        assert "data-aesthetic-contrast-fix" not in repaired
+
+    def test_cleanup_removes_dom_markers_and_fix_style(self):
+        html = (
+            '<style data-aesthetic-fix="1">x{color:black}</style>'
+            '<p data-aesthetic-contrast-fix="dark">Texto</p>'
+        )
+        cleaned = _clean_aesthetic_fixes_from_html(html)
+        assert "data-aesthetic-fix" not in cleaned
+        assert "data-aesthetic-contrast-fix" not in cleaned
+
+    def test_regular_text_uses_its_own_banner_background(self):
+        element = {
+            "type": "text",
+            "content": "Sabia que?",
+            "style": {
+                "fontColor": "#0f172a",
+                "backgroundColor": "#23456b",
+            },
+        }
+        slide = {"background": "#ffffff", "elements": [element]}
+        assert _repair_element_contrast(element, slide) == 1
+        assert element["style"]["fontColor"] == "#f8fafc"
+        # The authored blue banner is a real design surface, not a disposable
+        # analyzer plate, and must be preserved.
+        assert element["style"]["backgroundColor"] == "#23456b"
+
+    def test_style_fix_does_not_delete_authored_background(self):
+        element = {
+            "type": "text",
+            "content": "Faixa informativa",
+            "style": {
+                "fontColor": "#0f172a",
+                "backgroundColor": "#23456b",
+                "borderRadius": 24,
+            },
+        }
+        slide = {"background": "#ffffff", "elements": [element]}
+        assert _apply_style_fix(element, slide, {"fontWeight": 600})
+        assert element["style"]["backgroundColor"] == "#23456b"
+        assert element["style"]["borderRadius"] == 24
+        assert element["style"]["fontColor"] == "#f8fafc"

@@ -240,7 +240,7 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
         throw new Error(err.detail || `Erro ${res.status}`);
       }
       const data = await res.json();
-      toast.success(`${data.applied} correcoes aplicadas!`);
+      toast.success(data.message || `${data.applied} correcoes aplicadas!`);
       if (data.canRevert) setCanRevert(true);
       if (onFixApplied) onFixApplied();
     } catch (e) {
@@ -527,10 +527,10 @@ export default function AestheticsPanel({ projectId, onFixApplied, onClose, expa
               disabled={autoFixing}
               className="w-full text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
               data-testid="aesthetics-auto-fix-contrast"
-              title="Analisa o CSS de cada simulador HTML e corrige automaticamente regras com contraste WCAG insuficiente"
+              title="Corrige contraste WCAG em textos, cartões, faixas e simuladores HTML, incluindo cores herdadas"
             >
               {autoFixing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
-              Auto-corrigir contrastes nos simuladores
+              Auto-corrigir contrastes do curso
             </Button>
 
             {/* NUCLEAR OPTION: force every textual element on every slide
