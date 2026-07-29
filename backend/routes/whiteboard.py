@@ -186,6 +186,11 @@ async def generate_whiteboard_video(
         from services.whiteboard_renderer import _parse_color
         ink_rgb = _parse_color(payload.inkColor)
 
+    project = None
+    if payload.projectId:
+        from routes.projects_common import load_authorized_project
+        project = await load_authorized_project(payload.projectId, user)
+
     job_id = str(_uuid.uuid4())
     job_data = {
         "id": job_id,
@@ -194,6 +199,9 @@ async def generate_whiteboard_video(
         "progress": 0,
         "message": "Renderizando whiteboard...",
         "result": None,
+        "projectId": payload.projectId,
+        "companyId": (project or {}).get("companyId") or user.get("companyId"),
+        "userId": user.get("user_id"),
     }
     jobs[job_id] = job_data
     await create_job(job_id, job_data)
@@ -540,12 +548,12 @@ async def generate_whiteboard_text(
     # Build context from the slide (if provided).
     slide_context = ""
     if payload.projectId and payload.slideId:
-        project = await db.projects.find_one({"id": payload.projectId}, {"_id": 0})
-        if project:
-            slides = (project.get("course") or {}).get("slides") or []
-            slide = next((s for s in slides if s.get("id") == payload.slideId), None)
-            if slide:
-                slide_context = _extract_slide_context(slide)
+        from routes.projects_common import load_authorized_project
+        project = await load_authorized_project(payload.projectId, user)
+        slides = (project.get("course") or {}).get("slides") or []
+        slide = next((s for s in slides if s.get("id") == payload.slideId), None)
+        if slide:
+            slide_context = _extract_slide_context(slide)
 
     user_prompt = (payload.userPrompt or "").strip()
     max_chars = payload.maxChars
@@ -628,7 +636,10 @@ class WhiteboardPlanRequest(BaseModel):
 
 
 @router.post("/ai-plan")
-async def generate_whiteboard_plan(payload: WhiteboardPlanRequest):
+async def generate_whiteboard_plan(
+    payload: WhiteboardPlanRequest,
+    user: dict = Depends(require_auth),
+):
     """Generate a structured render plan from a natural-language
     description. Returns the plan (summary + ops list) for the UI to
     show as a preview before the user commits to actually rendering."""
@@ -682,6 +693,11 @@ async def generate_from_plan(
     if not ops:
         raise HTTPException(400, "plan.ops vazio — nada para renderizar")
 
+    project = None
+    if payload.projectId:
+        from routes.projects_common import load_authorized_project
+        project = await load_authorized_project(payload.projectId, user)
+
     job_id = str(_uuid.uuid4())
     job_data = {
         "id": job_id,
@@ -690,6 +706,9 @@ async def generate_from_plan(
         "progress": 0,
         "message": "Renderizando whiteboard com IA...",
         "result": None,
+        "projectId": payload.projectId,
+        "companyId": (project or {}).get("companyId") or user.get("companyId"),
+        "userId": user.get("user_id"),
     }
     jobs[job_id] = job_data
     await create_job(job_id, job_data)

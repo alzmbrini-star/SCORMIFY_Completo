@@ -358,6 +358,17 @@ async def _run_create_indexes():
             background=True,
         )
         await db.image_gallery.create_index([("companyId", 1), ("createdAt", -1)], background=True)
+        # Tenant-first indexes keep the most frequent dashboards and access
+        # checks efficient as the number of companies grows.
+        await db.projects.create_index([("companyId", 1), ("createdAt", -1)], background=True)
+        await db.projects.create_index([("companyId", 1), ("id", 1)], background=True)
+        await db.users.create_index([("companyId", 1), ("isActive", 1)], background=True)
+        await db.company_assets_meta.create_index(
+            [("companyId", 1), ("createdAt", -1)], background=True
+        )
+        await db.usage_logs.create_index(
+            [("companyId", 1), ("createdAt", -1)], background=True
+        )
         await db.agent_sessions.create_index([("id", 1)], unique=True, background=True)
         # apply_jobs: TTL on createdAtDate (auto-delete done/error jobs after 24h)
         await db.apply_jobs.create_index(

@@ -10,8 +10,12 @@
 // The env var is only used as a fallback for SSR / Node-side rendering
 // where `window` isn't defined.
 export const getApiUrl = () => {
+  const configuredUrl = (process.env.REACT_APP_BACKEND_URL || '').trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, '');
+  }
   if (typeof window !== 'undefined' && window.location && window.location.origin) {
     return window.location.origin;
   }
-  return process.env.REACT_APP_BACKEND_URL || '';
+  return '';
 };

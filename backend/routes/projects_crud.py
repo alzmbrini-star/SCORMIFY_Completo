@@ -18,7 +18,13 @@ from routes.deps import (
     PROJECTS_DIR, UPLOADS_DIR, jobs, create_job, get_job
 )
 from routes.auth import require_auth, has_role
-from routes.projects_common import load_authorized_project, process_ppt_upload, resolve_company_id_for_creation, can_change_project_company
+from routes.projects_common import (
+    load_authorized_project,
+    process_ppt_upload,
+    resolve_company_id_for_creation,
+    can_change_project_company,
+    can_access_project,
+)
 from models import (
     Project, ProjectCreate, ProjectUpdate, Slide, JobStatus
 )
@@ -460,11 +466,29 @@ async def save_course(project_id: str, course_data: dict, user: dict = Depends(r
 # ---------------------------------------------------------------------------
 
 @router.get("/job/{job_id}", response_model=JobStatus)
-async def get_job_status(job_id: str):
-    """Get job status - checks local cache and MongoDB"""
+async def get_job_status(job_id: str, user: dict = Depends(require_auth)):
+    """Get a job only when it belongs to the caller's tenant."""
     job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    if not has_role(user, "super_admin"):
+        allowed = False
+        user_company = user.get("companyId")
+        job_company = job.get("companyId")
+
+        if user_company and job_company:
+            allowed = user_company == job_company
+        elif job.get("projectId"):
+            project = await get_project_by_id(job["projectId"])
+            allowed = bool(project and can_access_project(user, project))
+        elif job.get("userId"):
+            allowed = job.get("userId") == user.get("user_id")
+
+        if not allowed:
+            # Do not reveal whether a job from another tenant exists.
+            raise HTTPException(status_code=404, detail="Job not found")
+
     return JobStatus(**job)
 
 
@@ -520,6 +544,7 @@ async def upload_chunk(
     upload_id: str,
     chunk: UploadFile = File(...),
     chunk_index: int = 0,
+    user: dict = Depends(require_auth),
 ):
     """Upload a single chunk of a PPT file"""
     meta_key = f"upload_{upload_id}"
@@ -538,6 +563,8 @@ async def upload_chunk(
                     'receivedSize': mongo_meta.get('receivedSize', 0),
                     'chunkCount': mongo_meta.get('chunkCount', 0),
                     'path': str(upload_path),
+                    'userId': mongo_meta.get('userId'),
+                    'companyId': mongo_meta.get('companyId'),
                 }
                 jobs[meta_key] = meta
                 logger.info(f"Recovered upload state from MongoDB: {upload_id}")
@@ -546,6 +573,15 @@ async def upload_chunk(
 
     if not meta:
         raise HTTPException(status_code=410, detail="Upload expirado ou servidor reiniciou. Por favor, tente importar o arquivo novamente.")
+
+    if not has_role(user, "super_admin"):
+        if (
+            not meta.get("companyId")
+            or meta.get("companyId") != user.get("companyId")
+            or not meta.get("userId")
+            or meta.get("userId") != user.get("user_id")
+        ):
+            raise HTTPException(status_code=404, detail="Upload não encontrado")
 
     content = await chunk.read()
     chunk_path = Path(meta['path']) / f"chunk_{chunk_index:04d}"
@@ -563,6 +599,7 @@ async def complete_chunked_upload(
     upload_id: str,
     background_tasks: BackgroundTasks,
     project_name: Optional[str] = None,
+    user: dict = Depends(require_auth),
 ):
     """Complete a chunked upload and start processing"""
     meta_key = f"upload_{upload_id}"
@@ -588,6 +625,15 @@ async def complete_chunked_upload(
 
     if not meta:
         raise HTTPException(status_code=410, detail="Upload expirado. Por favor, tente importar novamente.")
+
+    if not has_role(user, "super_admin"):
+        if (
+            not meta.get("companyId")
+            or meta.get("companyId") != user.get("companyId")
+            or not meta.get("userId")
+            or meta.get("userId") != user.get("user_id")
+        ):
+            raise HTTPException(status_code=404, detail="Upload não encontrado")
 
     filename = meta['filename']
     chunk_dir = Path(meta['path'])
@@ -649,10 +695,14 @@ async def complete_chunked_upload(
     job_id = str(uuid.uuid4())
     job_data = {
         'id': job_id,
+        'type': 'ppt_import',
         'status': 'pending',
         'progress': 0,
         'message': 'Upload completo, iniciando processamento...',
-        'result': None
+        'result': None,
+        'projectId': project.id,
+        'companyId': project_dict.get('companyId'),
+        'userId': project_dict.get('userId'),
     }
     jobs[job_id] = job_data
     await create_job(job_id, job_data)

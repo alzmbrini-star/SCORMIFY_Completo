@@ -25,6 +25,14 @@ backend/tests/
 # Test reports
 test_reports/
 
+# Local environments and secrets
+backend/.venv/
+frontend/node_modules/
+backend/.env
+frontend/.env
+.npm-cache/
+.yarn-cache/
+
 # Misc
 .emergent/
 Imagens/

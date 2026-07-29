@@ -38,6 +38,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.npm-cache/
+.yarn-cache/
+.corepack/
 dump.rdb
 
 # System files
@@ -192,6 +195,8 @@ credentials.json
 .env
 .env.*
 *.env
+!backend/.env.example
+!frontend/.env.example
 backend/storage/whiteboard/wb_02fba196e84c.png
 backend/storage/exports/Projeto_SCORMIFY_20260629_164718.html
 backend/storage/exports/Projeto_SCORMIFY_20260629_164134.html

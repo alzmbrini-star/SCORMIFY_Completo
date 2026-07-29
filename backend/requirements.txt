@@ -23,7 +23,8 @@ docutils==0.22.4
 ecdsa==0.19.1
 elevenlabs==2.35.0
 email-validator==2.3.0
-emergentintegrations==0.1.1
+# Replaced by the local compatibility package in backend/emergentintegrations.
+# The original package is private and is not available from public PyPI.
 fastapi==0.110.1
 fastuuid==0.14.0
 filelock==3.20.3

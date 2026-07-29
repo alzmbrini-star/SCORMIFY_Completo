@@ -17,6 +17,7 @@ from routes.deps import (
     create_job, update_job, get_job
 )
 from routes.auth import require_auth
+from routes.projects_common import load_authorized_project
 from models import Project
 
 logger = logging.getLogger("server")
@@ -175,7 +176,12 @@ async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
 
 
 @router.post("/course/{project_id}/export-scorm")
-async def export_scorm(project_id: str, request: Request, background_tasks: BackgroundTasks):
+async def export_scorm(
+    project_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_auth),
+):
     """Export project as SCORM 1.2 package — ASYNC JOB pattern.
 
     Returns `{jobId}` IMMEDIATELY (~100ms). The heavy ZIP/base64 work is
@@ -190,9 +196,7 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
     Body (optional JSON):
       {"singlePage": true|false}  # overrides project.singlePageMode
     """
-    project_doc = await get_project_by_id(project_id)
-    if not project_doc:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project_doc = await load_authorized_project(project_id, user)
 
     # Decide presentation mode (request body > project setting > default false)
     single_page_override: Optional[bool] = None
@@ -218,6 +222,9 @@ async def export_scorm(project_id: str, request: Request, background_tasks: Back
         'progress': 0,
         'message': 'Iniciando geracao do pacote SCORM...',
         'result': None,
+        'projectId': project_id,
+        'companyId': project_doc.get('companyId'),
+        'userId': user.get('user_id'),
     }
     jobs[job_id] = job_data
     await create_job(job_id, job_data)
@@ -573,6 +580,8 @@ async def batch_export_scorm(request: Request, user: dict = Depends(require_auth
             "result": None,
             "batchId": batch_id,
             "projectId": doc["id"],
+            "companyId": doc.get("companyId"),
+            "userId": user.get("user_id"),
         }
         jobs[job_id] = job_data
         await create_job(job_id, job_data)
@@ -640,7 +649,12 @@ async def _run_batch_scorm(
 # HTML Standalone Export
 
 @router.post("/course/{project_id}/export-html")
-async def export_html(project_id: str, request: Request, background_tasks: BackgroundTasks):
+async def export_html(
+    project_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_auth),
+):
     """Export project as standalone HTML — ASYNC JOB pattern.
 
     Returns `{jobId}` IMMEDIATELY. Heavy HTML/asset embedding work runs in a
@@ -649,9 +663,7 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
     Body (optional JSON):
       {"singlePage": true|false}
     """
-    project_doc = await get_project_by_id(project_id)
-    if not project_doc:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project_doc = await load_authorized_project(project_id, user)
 
     single_page_override: Optional[bool] = None
     try:
@@ -673,6 +685,9 @@ async def export_html(project_id: str, request: Request, background_tasks: Backg
         'progress': 0,
         'message': 'Iniciando geracao do HTML...',
         'result': None,
+        'projectId': project_id,
+        'companyId': project_doc.get('companyId'),
+        'userId': user.get('user_id'),
     }
     jobs[job_id] = job_data
     await create_job(job_id, job_data)
@@ -1019,14 +1034,16 @@ async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)
 
 
 @router.get("/course/{project_id}/slides-data")
-async def get_slides_data(project_id: str, default_duration: float = 5.0):
+async def get_slides_data(
+    project_id: str,
+    default_duration: float = 5.0,
+    user: dict = Depends(require_auth),
+):
     """Return raw slide data for client-side rendering with html2canvas.
     Much lighter than export-video-frames (no PIL image generation).
     The browser renders the slides itself, producing WYSIWYG output."""
 
-    project_doc = await get_project_by_id(project_id)
-    if not project_doc:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project_doc = await load_authorized_project(project_id, user)
 
     course = project_doc.get('course', {})
     slides = course.get('slides', [])
@@ -1125,15 +1142,17 @@ async def get_slides_data(project_id: str, default_duration: float = 5.0):
 
 
 @router.post("/course/{project_id}/export-video-frames")
-async def export_video_frames(project_id: str, request: Request):
+async def export_video_frames(
+    project_id: str,
+    request: Request,
+    user: dict = Depends(require_auth),
+):
     """Return all slide images as base64 for client-side video generation.
     Also includes video element metadata (HeyGen, YouTube) for overlay.
     This avoids FFmpeg on the server — the browser creates the video using Canvas + MediaRecorder."""
     import base64
 
-    project_doc = await get_project_by_id(project_id)
-    if not project_doc:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project_doc = await load_authorized_project(project_id, user)
 
     body = await request.json()
     default_duration = float(body.get('default_duration', 5.0))
@@ -1340,7 +1359,12 @@ async def proxy_video(url: str):
 # Legacy Video Export (FFmpeg-based, kept for environments where FFmpeg works)
 
 @router.post("/course/{project_id}/export-video")
-async def export_video_endpoint(project_id: str, request: Request, background_tasks: BackgroundTasks):
+async def export_video_endpoint(
+    project_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_auth),
+):
     """Export project as video (MP4 or WebM).
     Returns jobId INSTANTLY (<100ms) — all heavy work runs in background.
     This prevents Cloudflare/Nginx proxy timeouts (502/504) in production."""
@@ -1350,6 +1374,7 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
     if video_format not in ('mp4', 'webm'):
         video_format = 'mp4'
     default_duration = float(body.get('default_duration', 5.0))
+    project_doc = await load_authorized_project(project_id, user)
 
     # Create job IMMEDIATELY and return — no DB fetch, no FFmpeg check, no imports
     job_id = str(uuid.uuid4())
@@ -1358,7 +1383,10 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
         'status': 'processing',
         'progress': 0,
         'message': 'Exportação em fila, preparando...',
-        'result': None
+        'result': None,
+        'projectId': project_id,
+        'companyId': project_doc.get('companyId'),
+        'userId': user.get('user_id'),
     }
     jobs[job_id] = job_data
     # Await MongoDB persistence to ensure job exists before polling starts
@@ -1386,14 +1414,9 @@ async def export_video_endpoint(project_id: str, request: Request, background_ta
                 await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
                 return
 
-            # Step 3: Fetch project from DB
+            # Step 3: The project was loaded and tenant-authorized before
+            # scheduling this background task.
             await update_job(job_id, {'message': 'Carregando projeto...', 'progress': 5})
-            project_doc = await get_project_by_id(project_id)
-            if not project_doc:
-                jobs[job_id]['status'] = 'failed'
-                jobs[job_id]['message'] = 'Projeto não encontrado.'
-                await update_job(job_id, {'status': 'failed', 'message': jobs[job_id]['message']})
-                return
 
             # Step 4: Run the actual export with global timeout
             def on_progress(progress, message):
