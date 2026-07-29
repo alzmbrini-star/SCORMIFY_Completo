@@ -35,6 +35,7 @@ $files = @(
     "backend/server.py",
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_aesthetics_auto_fix.py",
+    "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
     "backend/tests/test_tutor_friendly_errors.py",
@@ -133,7 +134,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Enable OpenAI-powered AI Tutor"
+        message = "Fix Tutor API URL in exported courses"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
