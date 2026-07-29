@@ -6,10 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY bootstrap-requirements.txt .
+COPY backend/bootstrap-requirements.txt .
 RUN pip install --no-cache-dir -r bootstrap-requirements.txt
 
-COPY bootstrap_app.py .
+COPY backend/bootstrap_app.py .
 
 EXPOSE 10000
 

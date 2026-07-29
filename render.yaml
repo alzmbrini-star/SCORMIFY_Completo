@@ -5,6 +5,6 @@ services:
     plan: free
     region: virginia
     dockerfilePath: ./backend/Dockerfile.bootstrap
-    dockerContext: ./backend
+    dockerContext: .
     healthCheckPath: /health
     autoDeployTrigger: off

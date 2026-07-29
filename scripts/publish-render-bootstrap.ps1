@@ -39,7 +39,7 @@ $files = @(
 function Invoke-GitHubApi {
     param(
         [Parameter(Mandatory = $true)][string]$Endpoint,
-        [ValidateSet("GET", "POST")][string]$Method = "GET",
+        [ValidateSet("GET", "POST", "PATCH")][string]$Method = "GET",
         [object]$Body = $null
     )
 
@@ -79,9 +79,9 @@ foreach ($relativePath in $files) {
     }
 }
 
-Write-Host "Criando atualização segura no GitHub..."
+Write-Host "Atualizando a branch segura no GitHub..."
 
-$baseRef = Invoke-GitHubApi -Endpoint "repos/$repository/git/ref/heads/$baseBranch"
+$baseRef = Invoke-GitHubApi -Endpoint "repos/$repository/git/ref/heads/$targetBranch"
 $baseCommitSha = $baseRef.object.sha
 $baseCommit = Invoke-GitHubApi -Endpoint "repos/$repository/git/commits/$baseCommitSha"
 $baseTreeSha = $baseCommit.tree.sha
@@ -118,17 +118,17 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Prepare safe Render bootstrap and tenant isolation"
+        message = "Fix Render bootstrap build context"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
 
 Invoke-GitHubApi `
-    -Endpoint "repos/$repository/git/refs" `
-    -Method "POST" `
+    -Endpoint "repos/$repository/git/refs/heads/$targetBranch" `
+    -Method "PATCH" `
     -Body @{
-        ref = "refs/heads/$targetBranch"
         sha = $commit.sha
+        force = $false
     } | Out-Null
 
 Write-Host "PUBLICAÇÃO_CONCLUÍDA"
