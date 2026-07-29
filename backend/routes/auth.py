@@ -384,7 +384,7 @@ async def get_me(request: Request):
 
 
 @router.get("/debug-db")
-async def debug_db():
+async def debug_db(user: Dict[str, Any] = Depends(require_super_admin)):
     """Debug endpoint to check database connectivity"""
     try:
         # Test database connection

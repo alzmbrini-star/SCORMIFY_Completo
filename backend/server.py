@@ -68,6 +68,21 @@ print("[STARTUP] server.py: Creating FastAPI app...", flush=True)
 # Create FastAPI app
 app = FastAPI(title="Scormify API")
 
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    """Read an opt-in boolean environment flag.
+
+    Potentially expensive legacy integrations stay disabled in production
+    until their tenant-isolation review is complete.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+enable_legacy_ai_routes = _env_flag("ENABLE_LEGACY_AI_ROUTES", default=False)
+
 # CORS configuration - always allow all origins (SCORM tutor needs cross-origin access)
 cors_origins_str = os.environ.get("CORS_ORIGINS", "*")
 origins = [o.strip() for o in cors_origins_str.split(",") if o.strip()] if cors_origins_str and cors_origins_str != "*" else ["*"]
@@ -160,17 +175,24 @@ app.include_router(export_routes.router, prefix="/api")
 from routes import gamification as gamification_routes
 app.include_router(gamification_routes.router, prefix="/api")
 
-from routes import agent as agent_routes
-app.include_router(agent_routes.router, prefix="/api")
+if enable_legacy_ai_routes:
+    from routes import agent as agent_routes
+    app.include_router(agent_routes.router, prefix="/api")
 
-from routes import agent_approvals as agent_approvals_routes
-app.include_router(agent_approvals_routes.router, prefix="/api")
+    from routes import agent_approvals as agent_approvals_routes
+    app.include_router(agent_approvals_routes.router, prefix="/api")
+else:
+    logger.warning(
+        "Legacy AI Agent routes are disabled. "
+        "Set ENABLE_LEGACY_AI_ROUTES=true only after tenant-security review."
+    )
 
 from routes import pdf_import as pdf_import_routes
 app.include_router(pdf_import_routes.router, prefix="/api")
 
-from routes import ai_gen as ai_gen_routes
-app.include_router(ai_gen_routes.router, prefix="/api")
+if enable_legacy_ai_routes:
+    from routes import ai_gen as ai_gen_routes
+    app.include_router(ai_gen_routes.router, prefix="/api")
 
 from routes import admin as admin_routes
 app.include_router(admin_routes.router, prefix="/api")
@@ -224,23 +246,26 @@ app.include_router(density_routes.router, prefix="/api")
 from routes import users as users_routes
 app.include_router(users_routes.router, prefix="/api")
 
-from routes import elevenlabs as elevenlabs_routes
-app.include_router(elevenlabs_routes.router, prefix="/api")
+if enable_legacy_ai_routes:
+    from routes import elevenlabs as elevenlabs_routes
+    app.include_router(elevenlabs_routes.router, prefix="/api")
 
 from routes import gallery as gallery_routes
 app.include_router(gallery_routes.router, prefix="/api")
 
-from routes import heygen as heygen_routes
-app.include_router(heygen_routes.router, prefix="/api")
+if enable_legacy_ai_routes:
+    from routes import heygen as heygen_routes
+    app.include_router(heygen_routes.router, prefix="/api")
 
 from routes import whiteboard as whiteboard_routes
 app.include_router(whiteboard_routes.router, prefix="/api")
 
-from routes import questions as questions_routes
-app.include_router(questions_routes.router, prefix="/api")
+if enable_legacy_ai_routes:
+    from routes import questions as questions_routes
+    app.include_router(questions_routes.router, prefix="/api")
 
-from routes import scenarios as scenarios_routes
-app.include_router(scenarios_routes.router, prefix="/api")
+    from routes import scenarios as scenarios_routes
+    app.include_router(scenarios_routes.router, prefix="/api")
 
 from routes import vlibras as vlibras_routes
 app.include_router(vlibras_routes.router, prefix="/api")
@@ -602,11 +627,26 @@ async def _run_ensure_admin():
         return
     import bcrypt
     try:
-        admin_email = "admin@scormify.com"
+        admin_email = os.environ.get("BOOTSTRAP_ADMIN_EMAIL", "").strip().lower()
+        admin_password = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD", "")
+        if not admin_email or not admin_password:
+            logger.warning(
+                "Bootstrap admin creation skipped: BOOTSTRAP_ADMIN_EMAIL and "
+                "BOOTSTRAP_ADMIN_PASSWORD are not both configured"
+            )
+            return
+        if len(admin_password) < 16:
+            logger.error(
+                "Bootstrap admin creation skipped: BOOTSTRAP_ADMIN_PASSWORD "
+                "must contain at least 16 characters"
+            )
+            return
         existing_admin = await db.users.find_one({"email": admin_email})
         if not existing_admin:
-            logger.info("Creating default super admin user...")
-            password_hash = bcrypt.hashpw("admin123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            logger.info("Creating configured bootstrap super admin user...")
+            password_hash = bcrypt.hashpw(
+                admin_password.encode("utf-8"), bcrypt.gensalt()
+            ).decode("utf-8")
             await db.users.insert_one({
                 "user_id": "user_superadmin001",
                 "email": admin_email,
@@ -614,6 +654,7 @@ async def _run_ensure_admin():
                 "picture": None,
                 "companyId": None,
                 "role": "super_admin",
+                "roles": ["super_admin"],
                 "passwordHash": password_hash,
                 "isActive": True,
                 "createdAt": datetime.now(timezone.utc),

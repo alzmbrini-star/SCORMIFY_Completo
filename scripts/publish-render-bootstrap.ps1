@@ -17,14 +17,18 @@ $files = @(
     "MULTI_TENANT_DEPLOYMENT.md",
     "render.yaml",
     "backend/.env.example",
+    "backend/Dockerfile",
     "backend/Dockerfile.bootstrap",
     "backend/bootstrap-requirements.txt",
     "backend/bootstrap_app.py",
+    "backend/requirements-production.txt",
     "backend/requirements.txt",
     "backend/emergentintegrations/__init__.py",
     "backend/emergentintegrations/llm/__init__.py",
     "backend/emergentintegrations/llm/chat.py",
     "backend/routes/export.py",
+    "backend/routes/admin.py",
+    "backend/routes/auth.py",
     "backend/routes/projects_crud.py",
     "backend/routes/whiteboard.py",
     "backend/server.py",
@@ -118,7 +122,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix Render bootstrap build context"
+        message = "Deploy secure SCORMIFY backend on Render"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

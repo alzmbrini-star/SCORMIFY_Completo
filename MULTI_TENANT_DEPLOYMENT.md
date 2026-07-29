@@ -81,3 +81,29 @@ O código preparado localmente já protege projetos, criação e consulta de job
 uploads PPT em partes, exportações e renders de whiteboard por `companyId`.
 Isso reduz os pontos críticos, mas não representa ainda uma certificação de
 segurança do sistema inteiro.
+
+## Modo seguro inicial no Render
+
+O contêiner de produção inicia com os módulos legados de IA desativados:
+
+```dotenv
+ENABLE_LEGACY_AI_ROUTES=false
+ENABLE_PUBLIC_TUTOR=false
+```
+
+Nesse modo, autenticação, empresas, usuários, projetos e os módulos já
+revisados ficam disponíveis, mas Agent, Quiz, Cenários, HeyGen e outras rotas
+legadas de geração permanecem fechadas. Ative-as somente depois de concluir os
+testes de isolamento entre tenants.
+
+O primeiro administrador também não usa mais senha padrão. A criação só
+acontece quando as duas variáveis abaixo estiverem configuradas, e a senha
+precisa ter pelo menos 16 caracteres:
+
+```dotenv
+BOOTSTRAP_ADMIN_EMAIL=admin@scormify.com
+BOOTSTRAP_ADMIN_PASSWORD=<segredo forte armazenado no Render>
+```
+
+Depois do primeiro acesso e da troca de senha, remova
+`BOOTSTRAP_ADMIN_PASSWORD` do ambiente.

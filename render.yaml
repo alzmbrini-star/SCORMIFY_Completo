@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: scormify-api-bootstrap
+    name: scormify-api
     runtime: docker
     plan: free
     region: virginia
-    dockerfilePath: ./backend/Dockerfile.bootstrap
+    dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /health
     autoDeployTrigger: off

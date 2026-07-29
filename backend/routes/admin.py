@@ -8,7 +8,7 @@ import os
 import logging
 
 from routes.deps import db, now_utc
-from routes.auth import require_auth
+from routes.auth import require_auth, require_super_admin, has_role
 
 logger = logging.getLogger("server")
 
@@ -21,21 +21,37 @@ router = APIRouter(tags=["Admin"])
 
 
 @router.get("/dashboard/metrics")
-async def get_dashboard_metrics():
+async def get_dashboard_metrics(user: dict = Depends(require_auth)):
     """Get dashboard metrics: total courses, total slides, total exports"""
     try:
-        total_projects = await db.projects.count_documents({})
+        project_query = {}
+        export_query = {}
+        if not has_role(user, "super_admin"):
+            company_id = user.get("companyId")
+            if not company_id:
+                return {
+                    "totalCourses": 0,
+                    "totalSlides": 0,
+                    "totalExports": 0,
+                }
+            project_query = {"companyId": company_id}
+            export_query = {"companyId": company_id}
+
+        total_projects = await db.projects.count_documents(project_query)
         
         # Count total slides across all projects
-        pipeline = [
+        pipeline = []
+        if project_query:
+            pipeline.append({"$match": project_query})
+        pipeline.extend([
             {"$project": {"slideCount": {"$size": {"$ifNull": ["$course.slides", []]}}}},
             {"$group": {"_id": None, "total": {"$sum": "$slideCount"}}}
-        ]
+        ])
         slide_result = await db.projects.aggregate(pipeline).to_list(1)
         total_slides = slide_result[0]["total"] if slide_result else 0
         
         # Count exports from the exports tracking collection
-        total_exports = await db.export_logs.count_documents({})
+        total_exports = await db.export_logs.count_documents(export_query)
         
         return {
             "totalCourses": total_projects,
@@ -53,7 +69,7 @@ async def get_dashboard_metrics():
 
 
 @router.get("/admin/tutor-settings")
-async def get_tutor_settings():
+async def get_tutor_settings(user: dict = Depends(require_super_admin)):
     settings = await db.settings.find_one({"key": "tutor"}, {"_id": 0})
     if not settings:
         settings = {
@@ -66,7 +82,10 @@ async def get_tutor_settings():
 
 
 @router.put("/admin/tutor-settings")
-async def update_tutor_settings(request: Request):
+async def update_tutor_settings(
+    request: Request,
+    user: dict = Depends(require_super_admin),
+):
     data = await request.json()
     data["key"] = "tutor"
     await db.settings.update_one({"key": "tutor"}, {"$set": data}, upsert=True)
@@ -214,6 +233,10 @@ async def tutor_chat_options():
 
 @router.post("/tutor/chat")
 async def tutor_chat(request: Request):
+    if os.environ.get("ENABLE_PUBLIC_TUTOR", "").strip().lower() not in {
+        "1", "true", "yes", "on"
+    }:
+        raise HTTPException(status_code=503, detail="AI Tutor is not enabled")
     data = await request.json()
     user_message = data.get("message", "")
     course_topic = data.get("courseTopic", "")
