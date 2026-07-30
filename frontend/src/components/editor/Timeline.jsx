@@ -50,6 +50,7 @@ const Timeline = ({
   const [dragItemType, setDragItemType] = useState(null); // 'element', 'annotation', or 'audio'
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState({ start: 0, end: 0 });
+  const [dragPreview, setDragPreview] = useState(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubTime, setScrubTime] = useState(0);
   const timelineRef = useRef(null);
@@ -57,6 +58,8 @@ const Timeline = ({
   const animationRef = useRef(null);
   const audioRefs = useRef({});
   const throttleRef = useRef(null);
+  const dragAnimationRef = useRef(null);
+  const dragPreviewRef = useRef(null);
 
   // Use external time/play state if provided, otherwise use local state
   const currentTime = isScrubbing ? scrubTime : (externalTime !== undefined ? externalTime : localTime);
@@ -147,6 +150,9 @@ const Timeline = ({
       if (throttleRef.current) {
         cancelAnimationFrame(throttleRef.current);
       }
+      if (dragAnimationRef.current) {
+        cancelAnimationFrame(dragAnimationRef.current);
+      }
     };
   }, []);
 
@@ -195,6 +201,20 @@ const Timeline = ({
     return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
   };
 
+  const getDisplayTiming = (itemId, itemType, startTime, endTime) => {
+    if (
+      dragPreview
+      && dragPreview.id === itemId
+      && dragPreview.itemType === itemType
+    ) {
+      return {
+        startTime: dragPreview.startTime,
+        endTime: dragPreview.endTime,
+      };
+    }
+    return { startTime, endTime };
+  };
+
   const getTimeFromX = useCallback((clientX) => {
     if (!tracksRef.current) return 0;
     const rect = tracksRef.current.getBoundingClientRect();
@@ -216,13 +236,24 @@ const Timeline = ({
   const handleClipMouseDown = (e, item, type, itemType = 'element') => {
     e.stopPropagation();
     e.preventDefault();
+    if (isPlaying) {
+      setIsPlaying(false);
+    }
+    const initialPreview = {
+      id: item.id,
+      itemType,
+      startTime: item.startTime || 0,
+      endTime: item.endTime ?? duration,
+    };
+    dragPreviewRef.current = initialPreview;
+    setDragPreview(initialPreview);
     setIsDraggingClip(item.id);
     setDragType(type);
     setDragItemType(itemType);
     setDragStartX(e.clientX);
     setDragStartTime({
-      start: item.startTime || 0,
-      end: item.endTime ?? duration,
+      start: initialPreview.startTime,
+      end: initialPreview.endTime,
     });
   };
 
@@ -232,17 +263,6 @@ const Timeline = ({
     const rect = tracksRef.current.getBoundingClientRect();
     const deltaX = e.clientX - dragStartX;
     const deltaTime = (deltaX / rect.width) * duration;
-
-    // Find the item (element, annotation, or audio)
-    let item;
-    if (dragItemType === 'annotation') {
-      item = annotations.find(a => a.id === isDraggingClip);
-    } else if (dragItemType === 'audio') {
-      item = audioList.find(a => a.id === isDraggingClip);
-    } else {
-      item = elements.find(el => el.id === isDraggingClip);
-    }
-    if (!item) return;
 
     const minDuration = 0.5; // Minimum clip duration
 
@@ -259,43 +279,99 @@ const Timeline = ({
       newEndTime = Math.max(dragStartTime.start + minDuration, Math.min(duration, dragStartTime.end + deltaTime));
     }
 
-    // Throttle API updates to avoid excessive calls during drag
-    if (throttleRef.current) {
-      cancelAnimationFrame(throttleRef.current);
+    // Keep drag feedback local. Persisting every mouse move allows slower API
+    // responses to arrive out of order and visually roll the clip backwards.
+    const nextPreview = {
+      id: isDraggingClip,
+      itemType: dragItemType,
+      startTime: newStartTime,
+      endTime: newEndTime,
+    };
+    dragPreviewRef.current = nextPreview;
+
+    if (dragAnimationRef.current) {
+      cancelAnimationFrame(dragAnimationRef.current);
     }
-    throttleRef.current = requestAnimationFrame(() => {
-      // Update timing based on item type
-      if (dragItemType === 'annotation' && onUpdateAnnotation) {
-        onUpdateAnnotation(item.id, {
-          startTime: parseFloat(newStartTime.toFixed(2)),
-          endTime: parseFloat(newEndTime.toFixed(2)),
-        });
-      } else if (dragItemType === 'audio' && onUpdateAudio) {
-        const newDuration = parseFloat((newEndTime - newStartTime).toFixed(2));
-        onUpdateAudio(item.id, {
-          startTime: parseFloat(newStartTime.toFixed(2)),
-          duration: newDuration,
-        });
-      } else if (onUpdateElement) {
-        onUpdateElement(item.id, {
-          startTime: parseFloat(newStartTime.toFixed(2)),
-          endTime: parseFloat(newEndTime.toFixed(2)),
-        });
-      }
+    dragAnimationRef.current = requestAnimationFrame(() => {
+      setDragPreview(dragPreviewRef.current);
+      dragAnimationRef.current = null;
     });
-  }, [isDraggingClip, dragType, dragItemType, dragStartX, dragStartTime, duration, elements, annotations, audioList, onUpdateElement, onUpdateAnnotation, onUpdateAudio]);
+  }, [isDraggingClip, dragType, dragItemType, dragStartX, dragStartTime, duration]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragAnimationRef.current) {
+      cancelAnimationFrame(dragAnimationRef.current);
+      dragAnimationRef.current = null;
+    }
+
+    const finalPreview = dragPreviewRef.current;
+    const timingChanged = finalPreview && (
+      Math.abs(finalPreview.startTime - dragStartTime.start) > 0.0001
+      || Math.abs(finalPreview.endTime - dragStartTime.end) > 0.0001
+    );
+
+    if (timingChanged) {
+      const startTime = parseFloat(finalPreview.startTime.toFixed(2));
+      const endTime = parseFloat(finalPreview.endTime.toFixed(2));
+      const pendingPreview = {
+        ...finalPreview,
+        startTime,
+        endTime,
+        saving: true,
+      };
+      let updatePromise;
+
+      // Keep the clip at its final position until the server response updates
+      // the project state. Otherwise it briefly jumps back to the stored value.
+      setDragPreview(pendingPreview);
+
+      if (finalPreview.itemType === 'annotation' && onUpdateAnnotation) {
+        updatePromise = onUpdateAnnotation(finalPreview.id, { startTime, endTime });
+      } else if (finalPreview.itemType === 'audio' && onUpdateAudio) {
+        updatePromise = onUpdateAudio(finalPreview.id, {
+          startTime,
+          duration: parseFloat((endTime - startTime).toFixed(2)),
+        });
+      } else if (onUpdateElement) {
+        updatePromise = onUpdateElement(finalPreview.id, { startTime, endTime });
+      }
+
+      if (updatePromise && typeof updatePromise.catch === 'function') {
+        updatePromise
+          .catch((error) => {
+            console.error('Failed to save timeline position:', error);
+          })
+          .finally(() => {
+            setDragPreview((currentPreview) => (
+              currentPreview === pendingPreview ? null : currentPreview
+            ));
+          });
+      } else {
+        setDragPreview(null);
+      }
+    } else {
+      setDragPreview(null);
+    }
+
+    dragPreviewRef.current = null;
     setIsDraggingClip(null);
     setDragType(null);
     setDragItemType(null);
-  }, []);
+  }, [
+    dragStartTime,
+    onUpdateElement,
+    onUpdateAnnotation,
+    onUpdateAudio,
+  ]);
 
   useEffect(() => {
     if (isDraggingClip) {
+      const previousUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = 'none';
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
       return () => {
+        document.body.style.userSelect = previousUserSelect;
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
       };
@@ -531,6 +607,7 @@ const Timeline = ({
           ref={tracksRef}
           className="flex-1 relative overflow-x-auto"
           onClick={handleTrackClick}
+          data-testid="timeline-tracks"
         >
           {/* Time ruler */}
           <div className="h-5 border-b border-border bg-muted/20 flex sticky top-0 z-10">
@@ -547,9 +624,13 @@ const Timeline = ({
 
           {/* Audio Tracks */}
           {audioList.map((audio) => {
-            const startTime = audio.startTime || 0;
-            const clipDuration = audio.duration || duration;
-            const endTime = startTime + clipDuration;
+            const storedStartTime = audio.startTime || 0;
+            const storedEndTime = storedStartTime + (audio.duration || duration);
+            const {
+              startTime,
+              endTime,
+            } = getDisplayTiming(audio.id, 'audio', storedStartTime, storedEndTime);
+            const clipDuration = endTime - startTime;
             const startPercent = (startTime / duration) * 100;
             const widthPercent = Math.min((clipDuration / duration) * 100, 100 - startPercent);
             const isActive = currentTime >= startTime && currentTime < endTime;
@@ -632,8 +713,15 @@ const Timeline = ({
 
           {/* Element Tracks */}
           {elements.map((element, elemIndex) => {
-            const startTime = element.startTime || 0;
-            const endTime = element.endTime ?? duration;
+            const {
+              startTime,
+              endTime,
+            } = getDisplayTiming(
+              element.id,
+              'element',
+              element.startTime || 0,
+              element.endTime ?? duration,
+            );
             const startPercent = (startTime / duration) * 100;
             const widthPercent = ((endTime - startTime) / duration) * 100;
             const isActive = currentTime >= startTime && currentTime < endTime;
@@ -707,8 +795,15 @@ const Timeline = ({
 
           {/* Annotation Tracks */}
           {annotations.map((annotation) => {
-            const startTime = annotation.startTime || 0;
-            const endTime = annotation.endTime ?? duration;
+            const {
+              startTime,
+              endTime,
+            } = getDisplayTiming(
+              annotation.id,
+              'annotation',
+              annotation.startTime || 0,
+              annotation.endTime ?? duration,
+            );
             const startPercent = (startTime / duration) * 100;
             const widthPercent = ((endTime - startTime) / duration) * 100;
             const isActive = currentTime >= startTime && currentTime < endTime;

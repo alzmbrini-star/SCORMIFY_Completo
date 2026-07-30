@@ -53,6 +53,8 @@ $files = @(
     "frontend/src/App.js",
     "frontend/src/contexts/AuthContext.jsx",
     "frontend/src/components/editor/AestheticsPanel.jsx",
+    "frontend/src/components/editor/Timeline.jsx",
+    "frontend/src/components/editor/Timeline.test.jsx",
     "frontend/src/components/scenario/ScenarioCreator.jsx",
     "frontend/src/pages/Editor/hooks/useEditorAI.js",
     "frontend/src/pages/ChangePassword.jsx",
@@ -146,7 +148,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix Editor AI, Scenarios and Whiteboard exports"
+        message = "Make Timeline dragging smooth and race-free"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
