@@ -643,7 +643,14 @@ async def generate_whiteboard_plan(
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.exception("whiteboard ai-plan failed: %s", e)
-        raise HTTPException(502, f"falha ao gerar plano: {e}")
+        message = str(e).lower()
+        if "não configurada" in message or "not configured" in message:
+            raise HTTPException(503, "Whiteboard IA sem chave OpenAI configurada")
+        if "quota" in message or "billing" in message:
+            raise HTTPException(503, "Limite ou saldo da OpenAI indisponível")
+        if "rate" in message and "limit" in message:
+            raise HTTPException(429, "Muitas solicitações à OpenAI; tente novamente")
+        raise HTTPException(502, "Falha ao gerar o plano com IA")
     if not plan.get("ops"):
         raise HTTPException(422, "plano gerado vazio — refine a descrição")
     return plan
@@ -681,6 +688,8 @@ async def generate_from_plan(
     ops = plan.get("ops") or []
     if not ops:
         raise HTTPException(400, "plan.ops vazio — nada para renderizar")
+    from services.whiteboard_ai_plan import prepare_render_plan
+    payload.plan = prepare_render_plan(plan)
 
     project = None
     if payload.projectId:

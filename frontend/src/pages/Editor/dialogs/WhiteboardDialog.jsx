@@ -17,6 +17,7 @@ import {
 import { Loader2, Sparkles, Wand2, Palette, Eraser, Bold, Underline, AlignLeft, AlignCenter, AlignRight, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 
 const SIZE_PRESETS = [
   { value: 64, label: 'Pequeno (64)' },
@@ -32,6 +33,68 @@ const PALETTE = [
   '#1a1a1a', '#FF0000', '#E11D48', '#F59E0B', '#16A34A',
   '#0EA5E9', '#2563EB', '#7C3AED', '#DB2777', '#0D9488',
 ];
+
+function WhiteboardPlanPreview({ plan }) {
+  const operations = plan?.ops || [];
+  return (
+    <div className="rounded-md overflow-hidden border border-slate-700 bg-white">
+      <svg
+        viewBox="0 0 1920 1080"
+        role="img"
+        aria-label="Prévia visual do plano do Whiteboard"
+        className="block w-full aspect-video"
+      >
+        <defs>
+          <marker id="wb-plan-arrow" markerWidth="14" markerHeight="14" refX="11" refY="5" orient="auto">
+            <path d="M 0 0 L 12 5 L 0 10 z" fill="#334155" />
+          </marker>
+        </defs>
+        <rect width="1920" height="1080" fill="#fff" />
+        {operations.map((op, index) => {
+          const color = op.color || '#1f2937';
+          const key = op.id || `${op.type}-${index}`;
+          if (op.type === 'text') {
+            return (
+              <text
+                key={key}
+                x={op.x}
+                y={op.y}
+                fill={color}
+                fontSize={op.font_size || 80}
+                dominantBaseline="hanging"
+                fontFamily="'Caveat', 'Segoe Print', cursive"
+              >
+                {op.text}
+              </text>
+            );
+          }
+          if (op.type === 'rectangle') {
+            return <rect key={key} x={op.x} y={op.y} width={op.w} height={op.h} fill="none" stroke={color} strokeWidth={op.width || 6} rx="8" />;
+          }
+          if (op.type === 'circle') {
+            return <ellipse key={key} cx={op.cx} cy={op.cy} rx={op.rx} ry={op.ry} fill="none" stroke={color} strokeWidth={op.width || 6} />;
+          }
+          if (op.type === 'arrow') {
+            return <line key={key} x1={op.x1} y1={op.y1} x2={op.x2} y2={op.y2} stroke={color} strokeWidth={op.width || 7} markerEnd="url(#wb-plan-arrow)" />;
+          }
+          if (op.type === 'underline') {
+            return <line key={key} x1={op.x1} y1={op.y1} x2={op.x2} y2={op.y1} stroke={color} strokeWidth={op.width || 5} />;
+          }
+          if (op.type === 'icon') {
+            const size = op.size || 220;
+            return (
+              <g key={key}>
+                <rect x={op.x - size / 2} y={op.y - size / 2} width={size} height={size} fill="none" stroke={color} strokeWidth={op.width || 5} strokeDasharray="18 12" rx="20" />
+                <text x={op.x} y={op.y} fill={color} fontSize="34" textAnchor="middle" dominantBaseline="middle">{op.name}</text>
+              </g>
+            );
+          }
+          return null;
+        })}
+      </svg>
+    </div>
+  );
+}
 
 export default function WhiteboardDialog({
   open,
@@ -81,7 +144,7 @@ export default function WhiteboardDialog({
   const [showAi, setShowAi] = useState(false);
   // AI render-plan mode: instead of writing text linearly, the author
   // describes the scene in natural language ("escreva X, faça círculo
-  // vermelho em volta, seta para Y...") and the backend asks Claude
+  // vermelho em volta, seta para Y...") and the backend asks OpenAI
   // to produce a structured plan with shape ops. Preview the plan
   // before rendering so unexpected layouts can be caught early.
   const [planMode, setPlanMode] = useState(() => _lsRead('planMode', false));
@@ -157,7 +220,10 @@ export default function WhiteboardDialog({
   // Fetch the available fonts on dialog open.
   useEffect(() => {
     if (!open) return;
-    fetch(`${getApiUrl()}/api/whiteboard/fonts`, { credentials: 'include' })
+    fetch(`${getApiUrl()}/api/whiteboard/fonts`, {
+      credentials: 'include',
+      headers: authHeaders(),
+    })
       .then((r) => r.ok ? r.json() : { fonts: [] })
       .then((d) => setFonts(d.fonts || []))
       .catch(() => setFonts([]));
@@ -186,7 +252,7 @@ export default function WhiteboardDialog({
     try {
       const res = await fetch(`${getApiUrl()}/api/whiteboard/generate-text`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           userPrompt: aiPrompt.trim() || null,
@@ -231,7 +297,7 @@ export default function WhiteboardDialog({
       );
       const res = await fetch(`${getApiUrl()}/api/whiteboard/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           text: text.trim(),
@@ -271,6 +337,7 @@ export default function WhiteboardDialog({
         try {
           sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, {
             credentials: 'include',
+            headers: authHeaders(),
           });
         } catch (netErr) {
           // Network blip — keep trying. Cloudflare may briefly drop the
@@ -336,7 +403,7 @@ export default function WhiteboardDialog({
     try {
       const res = await fetch(`${getApiUrl()}/api/whiteboard/ai-plan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           description: planDescription.trim(),
@@ -367,7 +434,7 @@ export default function WhiteboardDialog({
     try {
       const res = await fetch(`${getApiUrl()}/api/whiteboard/generate-from-plan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           plan: aiPlan,
@@ -399,7 +466,10 @@ export default function WhiteboardDialog({
         await new Promise((r) => setTimeout(r, 2000));
         let sres;
         try {
-          sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, { credentials: 'include' });
+          sres = await fetch(`${getApiUrl()}/api/job/${jobId}`, {
+            credentials: 'include',
+            headers: authHeaders(),
+          });
         } catch {
           consecutiveErrors += 1;
           if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
@@ -447,7 +517,7 @@ export default function WhiteboardDialog({
           <div className="flex items-center justify-between p-3 border border-amber-700/40 rounded-md bg-amber-950/20">
             <div className="flex-1 pr-3">
               <Label htmlFor="wb-plan-mode" className="flex items-center gap-2 cursor-pointer">
-                <Wand2 className="w-4 h-4 text-amber-400" /> Modo IA + Formas (experimental)
+                <Wand2 className="w-4 h-4 text-amber-400" /> Modo IA + Formas
               </Label>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Descreva em português o que quer desenhar — a IA cria um plano
@@ -485,7 +555,10 @@ export default function WhiteboardDialog({
                   data-testid="whiteboard-plan-description-input"
                   placeholder="Ex.: Escreva 'Vendas Q4' no topo. Faça um círculo vermelho em volta. Embaixo, escreva 'Meta: R$ 1M' em verde. Desenhe uma seta azul apontando do círculo até o valor."
                   value={planDescription}
-                  onChange={(e) => setPlanDescription(e.target.value)}
+                  onChange={(e) => {
+                    setPlanDescription(e.target.value);
+                    setAiPlan(null);
+                  }}
                   rows={5}
                   maxLength={2000}
                   disabled={planBusy || busy}
@@ -493,13 +566,16 @@ export default function WhiteboardDialog({
                 />
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-[10px] text-muted-foreground">
-                    {planDescription.length}/2000 — Claude Sonnet 4.5 vai interpretar
+                    {planDescription.length}/2000 — OpenAI vai interpretar e validar a geometria
                   </span>
                   <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer">
                     <Switch
                       data-testid="whiteboard-plan-multicolor-toggle"
                       checked={allowColorPerShape}
-                      onCheckedChange={setAllowColorPerShape}
+                      onCheckedChange={(checked) => {
+                        setAllowColorPerShape(checked);
+                        setAiPlan(null);
+                      }}
                       className="scale-75"
                     />
                     Cores diferentes por forma
@@ -517,7 +593,7 @@ export default function WhiteboardDialog({
                 {planBusy ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando plano...</>
                 ) : (
-                  <><Sparkles className="w-4 h-4 mr-2" /> Gerar plano</>
+                  <><Sparkles className="w-4 h-4 mr-2" /> Gerar plano preciso</>
                 )}
               </Button>
 
@@ -527,6 +603,19 @@ export default function WhiteboardDialog({
                     <strong className="text-amber-300">Plano:</strong>
                     <span className="text-slate-200 ml-1">{aiPlan.summary}</span>
                   </div>
+                  <WhiteboardPlanPreview plan={aiPlan} />
+                  {aiPlan.quality && (
+                    <div className="text-[10px] text-slate-300 flex flex-wrap items-center gap-2">
+                      <span className={aiPlan.quality.score >= 88 ? 'text-emerald-400' : 'text-amber-300'}>
+                        Qualidade geométrica: {aiPlan.quality.score}/100
+                      </span>
+                      {(aiPlan.quality.warnings || []).map((warning) => (
+                        <span key={warning} className="rounded bg-amber-950/60 px-1.5 py-0.5 text-amber-200">
+                          {warning}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <details className="text-[10px] text-slate-400">
                     <summary className="cursor-pointer hover:text-slate-200">
                       Operações ({aiPlan.ops?.length || 0})

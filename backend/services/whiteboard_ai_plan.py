@@ -1,7 +1,7 @@
 """AI-generated render plan for the Whiteboard.
 
-Given a natural-language description from the author, asks Claude
-Sonnet 4.5 (via the Emergent LLM Key) to return a structured
+Given a natural-language description from the author, asks OpenAI
+(with a legacy provider fallback) to return a structured
 "render plan" the renderer can execute — a sequence of text + shape
 operations placed on the 1920×1080 canvas.
 
@@ -21,6 +21,7 @@ import logging
 import math
 import os
 import re
+import uuid
 from typing import Optional
 
 logger = logging.getLogger("server.whiteboard_ai")
@@ -29,6 +30,30 @@ CANVAS_W = 1920
 CANVAS_H = 1080
 MARGIN = 140
 MAX_OPS = 12   # 4 text + 8 shapes worst case
+
+
+def _whiteboard_ai_credentials() -> tuple[str, str, str]:
+    """Resolve the configured provider without breaking legacy installs."""
+    openai_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    if openai_key:
+        model = (
+            os.environ.get("OPENAI_WHITEBOARD_MODEL")
+            or os.environ.get("OPENAI_TEXT_MODEL")
+            or "gpt-4o"
+        ).strip()
+        return openai_key, "openai", model
+
+    legacy_key = (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
+    if legacy_key:
+        model = (
+            os.environ.get("WHITEBOARD_LEGACY_MODEL")
+            or "claude-sonnet-4-5-20250929"
+        ).strip()
+        return legacy_key, "anthropic", model
+
+    raise RuntimeError(
+        "OPENAI_API_KEY não configurada para o Whiteboard IA"
+    )
 
 SYSTEM_PROMPT = """\
 Você é um especialista em layout de lousa didática (whiteboard).
@@ -153,7 +178,15 @@ POST-PROCESSAMENTO (importante saber):
   prefira acertar de primeira.
 
 REGRAS CRÍTICAS:
-- NÃO adicione campos extras nos objetos.
+- Cada operação DEVE ter um `id` curto e único (ex.: "conceito_a",
+  "caixa_a", "seta_a").
+- Texto dentro de uma forma DEVE informar `container_id` com o id da
+  rectangle/circle correspondente.
+- Seta conectando elementos DEVE informar `from_id` e `to_id`.
+- Sublinhado DEVE informar `target_id` com o id do texto sublinhado.
+- Textos devem ser objetivos; prefira uma linha com até 48 caracteres.
+- Não adicione outros campos além dos especificados e dos vínculos
+  semânticos `id`, `container_id`, `from_id`, `to_id`, `target_id`.
 - Coordenadas SEMPRE inteiros.
 - Cores SEMPRE como "#RRGGBB" ou nome básico em inglês.
 - Retorne APENAS o JSON, sem markdown, sem ```json fences, sem texto antes/depois.
@@ -164,10 +197,10 @@ EXEMPLO DE SAÍDA:
 {
   "summary": "Vou escrever 'Vendas Q4' centralizado, fazer um círculo vermelho em volta, e desenhar uma seta apontando para baixo até o valor 'R$ 1M'.",
   "ops": [
-    {"type": "text", "text": "Vendas Q4", "x": 720, "y": 280, "font_size": 90, "color": "#1f2937"},
-    {"type": "circle", "cx": 950, "cy": 320, "rx": 280, "ry": 80, "color": "#dc2626", "width": 6},
-    {"type": "text", "text": "R$ 1M", "x": 820, "y": 660, "font_size": 110, "color": "#16a34a"},
-    {"type": "arrow", "x1": 960, "y1": 420, "x2": 960, "y2": 640, "color": "#2563eb", "width": 7}
+    {"id": "vendas", "type": "text", "text": "Vendas Q4", "x": 720, "y": 280, "font_size": 90, "color": "#1f2937", "container_id": "destaque_vendas"},
+    {"id": "destaque_vendas", "type": "circle", "cx": 950, "cy": 320, "rx": 280, "ry": 80, "color": "#dc2626", "width": 6},
+    {"id": "meta", "type": "text", "text": "R$ 1M", "x": 820, "y": 660, "font_size": 110, "color": "#16a34a"},
+    {"id": "fluxo", "type": "arrow", "x1": 960, "y1": 420, "x2": 960, "y2": 640, "color": "#2563eb", "width": 7, "from_id": "destaque_vendas", "to_id": "meta"}
   ]
 }
 """
@@ -179,7 +212,7 @@ async def generate_render_plan(
     base_color: Optional[str] = None,
     allow_color_per_shape: bool = True,
 ) -> dict:
-    """Ask Claude Sonnet 4.5 to produce a render plan for the given
+    """Ask the configured LLM to produce a render plan for the given
     natural-language description.
 
     Returns a dict {"summary": str, "ops": list[dict]}. Raises on any
@@ -188,9 +221,7 @@ async def generate_render_plan(
     if not description or not description.strip():
         raise ValueError("description is required")
 
-    key = os.environ.get("EMERGENT_LLM_KEY")
-    if not key:
-        raise RuntimeError("EMERGENT_LLM_KEY not configured")
+    key, provider, model = _whiteboard_ai_credentials()
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
 
@@ -198,16 +229,39 @@ async def generate_render_plan(
 
     chat = LlmChat(
         api_key=key,
-        session_id=f"wb-plan-{abs(hash(description)) & 0xFFFFFF:06x}",
+        session_id=f"wb-plan-{uuid.uuid4().hex}",
         system_message=SYSTEM_PROMPT,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+    ).with_model(provider, model)
+    if provider == "openai":
+        chat = chat.with_params(
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
 
     resp = await chat.send_message(UserMessage(text=user_msg))
     if not resp:
         raise RuntimeError("LLM returned empty response")
 
     plan = _parse_plan(str(resp))
-    plan = _normalize_plan(plan, base_color=base_color, allow_color_per_shape=allow_color_per_shape)
+    return prepare_render_plan(
+        plan,
+        base_color=base_color,
+        allow_color_per_shape=allow_color_per_shape,
+    )
+
+
+def prepare_render_plan(
+    plan: dict,
+    *,
+    base_color: Optional[str] = None,
+    allow_color_per_shape: bool = True,
+) -> dict:
+    """Normalize and deterministically improve any AI or saved plan."""
+    plan = _normalize_plan(
+        plan,
+        base_color=base_color,
+        allow_color_per_shape=allow_color_per_shape,
+    )
     # ── Spacing pipeline ────────────────────────────────────────────
     # 1. Cap each text op's font_size so its rendered width never
     #    exceeds the available zone (~ canvas/3). Without this guard
@@ -229,6 +283,7 @@ async def generate_render_plan(
     # 5-6. Final geometric polish: center/fit texts inside their shapes
     #    and retract arrow endpoints to shape borders (never inside).
     plan = polish_plan_geometry(plan)
+    plan["quality"] = _plan_quality_report(plan)
     return plan
 
 
@@ -244,6 +299,10 @@ def polish_plan_geometry(plan: dict) -> dict:
        edge-to-edge instead of piercing the shapes.
     """
     plan = _fit_and_center_texts_in_shapes(plan)
+    plan = _separate_free_texts(plan)
+    plan = _clamp_texts_to_canvas(plan)
+    plan = _align_underlines_to_targets(plan)
+    plan = _resolve_linked_arrows(plan)
     plan = _retract_arrows_from_shapes(plan)
     return plan
 
@@ -443,6 +502,7 @@ def _autofit_shapes(plan: dict) -> dict:
             continue
         tw, th = _measure_text_bbox(op["text"], op["font_size"])
         text_boxes.append({
+            "op": op,
             "x0": op["x"], "y0": op["y"],
             "x1": op["x"] + tw, "y1": op["y"] + th,
             "cx": op["x"] + tw // 2, "cy": op["y"] + th // 2,
@@ -455,6 +515,9 @@ def _autofit_shapes(plan: dict) -> dict:
             x0, y0 = op["x"], op["y"]
             x1, y1 = x0 + op["w"], y0 + op["h"]
             for tb in text_boxes:
+                linked_id = tb["op"].get("container_id")
+                if linked_id and linked_id != op.get("id"):
+                    continue
                 # MATCH STRATEGY (2026-02 fix): the previous "text center
                 # inside box" rule broke when the LLM produced a NARROW
                 # box around WIDE text — the text's center fell off the
@@ -467,7 +530,9 @@ def _autofit_shapes(plan: dict) -> dict:
                 # box, regardless of how wrong the LLM's width was".
                 vertical_match = (y0 - PAD) <= tb["cy"] <= (y1 + PAD)
                 horizontal_overlap = not (tb["x1"] < x0 - PAD or tb["x0"] > x1 + PAD)
-                if vertical_match and horizontal_overlap:
+                if (linked_id and linked_id == op.get("id")) or (
+                    vertical_match and horizontal_overlap
+                ):
                     nx0 = min(x0, tb["x0"] - PAD)
                     ny0 = min(y0, tb["y0"] - PAD)
                     nx1 = max(x1, tb["x1"] + PAD)
@@ -490,9 +555,14 @@ def _autofit_shapes(plan: dict) -> dict:
             # Ellipse bbox.
             bx0, by0, bx1, by1 = cx - rx, cy - ry, cx + rx, cy + ry
             for tb in text_boxes:
+                linked_id = tb["op"].get("container_id")
+                if linked_id and linked_id != op.get("id"):
+                    continue
                 vertical_match = (by0 - PAD) <= tb["cy"] <= (by1 + PAD)
                 horizontal_overlap = not (tb["x1"] < bx0 - PAD or tb["x0"] > bx1 + PAD)
-                if vertical_match and horizontal_overlap:
+                if (linked_id and linked_id == op.get("id")) or (
+                    vertical_match and horizontal_overlap
+                ):
                     # Required half-axes to contain the text's diagonal
                     # with comfort. We use an inscribed-ellipse rule:
                     # a text rectangle of width W and height H fits in an
@@ -568,6 +638,9 @@ def _normalize_plan(
         if t not in allowed_types:
             continue
         cleaned = {"type": t}
+        op_id = _safe_id(op.get("id"))
+        if op_id:
+            cleaned["id"] = op_id
         if t == "text":
             cleaned.update({
                 "text": str(op.get("text") or "").strip()[:240],
@@ -575,6 +648,9 @@ def _normalize_plan(
                 "y": _clamp_int(op.get("y"), MARGIN, CANVAS_H - MARGIN),
                 "font_size": _clamp_int(op.get("font_size", 80), 36, 140),
             })
+            container_id = _safe_id(op.get("container_id"))
+            if container_id:
+                cleaned["container_id"] = container_id
             if not cleaned["text"]:
                 continue
         elif t == "circle":
@@ -604,6 +680,12 @@ def _normalize_plan(
                 "y2": _clamp_int(op.get("y2"), 0, CANVAS_H),
                 "width": _clamp_int(op.get("width", 7), 3, 12),
             })
+            from_id = _safe_id(op.get("from_id"))
+            to_id = _safe_id(op.get("to_id"))
+            if from_id:
+                cleaned["from_id"] = from_id
+            if to_id:
+                cleaned["to_id"] = to_id
         elif t == "underline":
             y = _clamp_int(op.get("y1"), 0, CANVAS_H)
             cleaned.update({
@@ -612,6 +694,9 @@ def _normalize_plan(
                 "x2": _clamp_int(op.get("x2"), 0, CANVAS_W),
                 "width": _clamp_int(op.get("width", 5), 3, 10),
             })
+            target_id = _safe_id(op.get("target_id"))
+            if target_id:
+                cleaned["target_id"] = target_id
         elif t == "icon":
             from .whiteboard_icons import resolve_icon_name
             resolved = resolve_icon_name(op.get("name"))
@@ -636,6 +721,11 @@ def _normalize_plan(
         ops_out.append(cleaned)
 
     return {"summary": summary, "ops": ops_out}
+
+
+def _safe_id(value) -> str:
+    candidate = re.sub(r"[^A-Za-z0-9_-]+", "_", str(value or "").strip())
+    return candidate.strip("_")[:64]
 
 
 def _clamp_int(v, lo: int, hi: int) -> int:
@@ -702,19 +792,22 @@ def _fit_and_center_texts_in_shapes(plan: dict) -> dict:
     ]
     if not shapes:
         return plan
+    shape_by_id = {sh.get("id"): sh for sh in shapes if sh.get("id")}
     for top in ops:
         if top.get("type") != "text" or not top.get("text"):
             continue
         tw, th = _measure_text_bbox(top["text"], top["font_size"])
         tx0, ty0 = top["x"], top["y"]
         # Associate with the shape it overlaps the most.
-        best, best_area = None, 0.0
-        for sh in shapes:
-            bx0, by0, bx1, by1 = _shape_aabb_poly(sh)
-            ix = max(0.0, min(bx1, tx0 + tw) - max(bx0, tx0))
-            iy = max(0.0, min(by1, ty0 + th) - max(by0, ty0))
-            if ix * iy > best_area:
-                best, best_area = sh, ix * iy
+        best = shape_by_id.get(top.get("container_id"))
+        best_area = float(tw * th) if best else 0.0
+        if best is None:
+            for sh in shapes:
+                bx0, by0, bx1, by1 = _shape_aabb_poly(sh)
+                ix = max(0.0, min(bx1, tx0 + tw) - max(bx0, tx0))
+                iy = max(0.0, min(by1, ty0 + th) - max(by0, ty0))
+                if ix * iy > best_area:
+                    best, best_area = sh, ix * iy
         # Meaningful overlap only (>30% of the text area) — otherwise the
         # text is a free-standing label near, not inside, the shape.
         if not best or best_area < 0.3 * (tw * th):
@@ -736,6 +829,150 @@ def _fit_and_center_texts_in_shapes(plan: dict) -> dict:
         top["x"] = int(round(scx - ink_w / 2.0))
         top["y"] = int(round(scy - ink_h / 2.0 - top_off))
     return plan
+
+
+def _text_aabb(op: dict) -> tuple[float, float, float, float]:
+    ink_w, ink_h, top_off = _text_metrics(op["text"], int(op["font_size"]))
+    x0 = float(op["x"])
+    y0 = float(op["y"] + top_off)
+    return x0, y0, x0 + ink_w, y0 + ink_h
+
+
+def _separate_free_texts(plan: dict) -> dict:
+    """Move independent labels just enough to prevent visible overlap."""
+    texts = [
+        op for op in plan.get("ops", [])
+        if op.get("type") == "text" and not op.get("container_id")
+    ]
+    texts.sort(key=lambda op: (op.get("y", 0), op.get("x", 0)))
+    gap = 22
+    for index, current in enumerate(texts):
+        for previous in texts[:index]:
+            ax0, ay0, ax1, ay1 = _text_aabb(previous)
+            bx0, by0, bx1, by1 = _text_aabb(current)
+            horizontal_overlap = min(ax1, bx1) - max(ax0, bx0)
+            vertical_overlap = min(ay1, by1) - max(ay0, by0)
+            if horizontal_overlap <= 0 or vertical_overlap <= 0:
+                continue
+            shift = int(math.ceil(ay1 + gap - by0))
+            candidate = current["y"] + shift
+            _, _, _, candidate_bottom = _text_aabb({**current, "y": candidate})
+            if candidate_bottom <= CANVAS_H - MARGIN:
+                current["y"] = candidate
+            else:
+                current["y"] = max(MARGIN, int(ay0 - gap - (by1 - by0)))
+    return plan
+
+
+def _clamp_texts_to_canvas(plan: dict) -> dict:
+    """Keep the visible ink, rather than only the text anchor, on canvas."""
+    for op in plan.get("ops", []):
+        if op.get("type") != "text":
+            continue
+        x0, y0, x1, y1 = _text_aabb(op)
+        if x0 < MARGIN:
+            op["x"] += int(math.ceil(MARGIN - x0))
+        elif x1 > CANVAS_W - MARGIN:
+            op["x"] -= int(math.ceil(x1 - (CANVAS_W - MARGIN)))
+        x0, y0, x1, y1 = _text_aabb(op)
+        if y0 < MARGIN:
+            op["y"] += int(math.ceil(MARGIN - y0))
+        elif y1 > CANVAS_H - MARGIN:
+            op["y"] -= int(math.ceil(y1 - (CANVAS_H - MARGIN)))
+    return plan
+
+
+def _align_underlines_to_targets(plan: dict) -> dict:
+    """Derive exact underline geometry from its referenced text."""
+    ops = plan.get("ops", [])
+    by_id = {op.get("id"): op for op in ops if op.get("id")}
+    for op in ops:
+        if op.get("type") != "underline" or not op.get("target_id"):
+            continue
+        target = by_id.get(op["target_id"])
+        if not target or target.get("type") != "text":
+            continue
+        x0, _, x1, y1 = _text_aabb(target)
+        op["x1"] = _clamp_int(x0, 0, CANVAS_W)
+        op["x2"] = _clamp_int(x1, 0, CANVAS_W)
+        op["y1"] = _clamp_int(y1 + 10, 0, CANVAS_H)
+    return plan
+
+
+def _operation_center(op: dict) -> Optional[tuple[float, float]]:
+    op_type = op.get("type")
+    if op_type in ("rectangle", "circle"):
+        return _shape_center(op)
+    if op_type == "icon":
+        return float(op["x"]), float(op["y"])
+    if op_type == "text":
+        x0, y0, x1, y1 = _text_aabb(op)
+        return (x0 + x1) / 2, (y0 + y1) / 2
+    return None
+
+
+def _resolve_linked_arrows(plan: dict) -> dict:
+    """Place linked arrow endpoints at element centers before edge clipping."""
+    ops = plan.get("ops", [])
+    by_id = {op.get("id"): op for op in ops if op.get("id")}
+    for op in ops:
+        if op.get("type") != "arrow":
+            continue
+        source = by_id.get(op.get("from_id"))
+        target = by_id.get(op.get("to_id"))
+        source_center = _operation_center(source) if source else None
+        target_center = _operation_center(target) if target else None
+        if source_center:
+            op["x1"], op["y1"] = map(lambda v: int(round(v)), source_center)
+        if target_center:
+            op["x2"], op["y2"] = map(lambda v: int(round(v)), target_center)
+    return plan
+
+
+def _aabb_overlap(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+) -> float:
+    return max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(
+        0.0, min(a[3], b[3]) - max(a[1], b[1])
+    )
+
+
+def _plan_quality_report(plan: dict) -> dict:
+    """Return concise, deterministic quality signals for the author preview."""
+    ops = plan.get("ops", [])
+    warnings: list[str] = []
+    ids = {op.get("id") for op in ops if op.get("id")}
+
+    for op in ops:
+        for field in ("container_id", "from_id", "to_id", "target_id"):
+            if op.get(field) and op[field] not in ids:
+                warnings.append(f"Referência ausente: {op[field]}")
+
+    texts = [op for op in ops if op.get("type") == "text"]
+    for index, first in enumerate(texts):
+        for second in texts[index + 1:]:
+            if first.get("container_id") and first.get("container_id") == second.get("container_id"):
+                continue
+            if _aabb_overlap(_text_aabb(first), _text_aabb(second)) > 8:
+                warnings.append("Há textos sobrepostos")
+                break
+
+    for op in texts:
+        x0, y0, x1, y1 = _text_aabb(op)
+        if x0 < 0 or y0 < 0 or x1 > CANVAS_W or y1 > CANVAS_H:
+            warnings.append("Há texto fora da área visível")
+            break
+
+    for op in ops:
+        if op.get("type") == "arrow":
+            length = math.hypot(op["x2"] - op["x1"], op["y2"] - op["y1"])
+            if length < MIN_ARROW_LEN:
+                warnings.append("Há uma seta curta demais")
+
+    unique_warnings = list(dict.fromkeys(warnings))
+    score = max(0, 100 - 12 * len(unique_warnings))
+    return {"score": score, "warnings": unique_warnings}
 
 
 def _entry_t(a: tuple[float, float], b: tuple[float, float], sh: dict, gap: float):

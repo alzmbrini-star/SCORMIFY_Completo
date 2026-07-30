@@ -67,8 +67,8 @@ async def render_whiteboard_plan(
 
     # Deterministic geometry cleanup — also fixes previously-saved plans
     # (texts centered inside their shapes, arrows stopping at borders).
-    from .whiteboard_ai_plan import polish_plan_geometry
-    plan = polish_plan_geometry(plan)
+    from .whiteboard_ai_plan import prepare_render_plan
+    plan = prepare_render_plan(plan)
     ops = plan.get("ops") or []
 
     video_id = f"wb_plan_{uuid.uuid4().hex[:12]}"
@@ -169,9 +169,7 @@ def _prepare_op(op: dict, font_path: Path) -> dict:
         d = ImageDraw.Draw(layer)
         d.text((op["x"], op["y"]), text, font=font, fill=(*color, 255))
         # Bounding box of the rendered text (so sweep mask is tight).
-        bbox = font.getbbox(text)
-        text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
+        bbox = d.textbbox((op["x"], op["y"]), text, font=font)
         # Substep / frame counts derived from char count.
         chars = max(1, len(text))
         frames = chars * TEXT_FRAMES_PER_CHAR
@@ -179,7 +177,12 @@ def _prepare_op(op: dict, font_path: Path) -> dict:
             "kind": "text",
             "frames": frames,
             "layer": layer,
-            "bbox": (op["x"], op["y"], op["x"] + text_w, op["y"] + text_h + 10),
+            "bbox": (
+                max(0, bbox[0] - 4),
+                max(0, bbox[1] - 4),
+                min(CANVAS_W, bbox[2] + 4),
+                min(CANVAS_H, bbox[3] + 8),
+            ),
             "color": color,
         }
     # Icon drawings: multi-stroke line-art traced by the pen.
