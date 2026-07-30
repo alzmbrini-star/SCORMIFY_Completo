@@ -152,13 +152,41 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
           use type==='html' heavily, so the per-element control must be
           available for them too. Renders `text-shadow` inside the iframe. */}
       {element.type === 'html' && (
-        <div className="panel-section" data-testid="html-text-shadow-section">
-          <h4 className="text-sm font-medium mb-2">Sombra do Texto</h4>
-          <TextShadowControls
-            value={style.textShadow}
-            onChange={(next) => handleStyleChange('textShadow', next || '')}
-          />
-        </div>
+        <>
+          <div className="panel-section" data-testid="html-display-mode-section">
+            <h4 className="text-sm font-medium mb-2">Exibição do HTML</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={(element.htmlDisplayMode || 'page') === 'page' ? 'default' : 'outline'}
+                onClick={() => onUpdate({ htmlDisplayMode: 'page' })}
+                data-testid="html-display-page"
+              >
+                Página
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={element.htmlDisplayMode === 'fit' ? 'default' : 'outline'}
+                onClick={() => onUpdate({ htmlDisplayMode: 'fit' })}
+                data-testid="html-display-fit"
+              >
+                Ajustar tudo
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Página mantém o tamanho original e permite rolagem. Ajustar tudo reduz o conteúdo para caber.
+            </p>
+          </div>
+          <div className="panel-section" data-testid="html-text-shadow-section">
+            <h4 className="text-sm font-medium mb-2">Sombra do Texto</h4>
+            <TextShadowControls
+              value={style.textShadow}
+              onChange={(next) => handleStyleChange('textShadow', next || '')}
+            />
+          </div>
+        </>
       )}
 
       {element.type === 'text' && (

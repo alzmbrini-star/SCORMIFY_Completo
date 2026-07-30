@@ -89,10 +89,21 @@ export const resolveAssetUrls = (htmlContent) => {
   return result;
 };
 
-// Auto-fit wrapper for full-document interactive HTML (simulators, infographics,
-// etc). Mirrors backend _FIT_SNIPPET in services/ai_agent.py — content designed
-// for a 960x540 stage is centered and scaled to fill the element viewport.
-// Idempotent: skips content that already contains the #__stage wrapper.
+// Full HTML documents pasted into the Editor are web pages, not screenshots.
+// Page mode keeps the iframe as a real viewport with its own vertical scroll.
+// Fit mode remains available for fixed 960x540 simulations/infographics.
+const PAGE_VIEWPORT_SNIPPET =
+  '<style id="__scormify_page_mode">' +
+  'html{margin:0!important;padding:0!important;width:100%!important;height:100%!important;' +
+  'overflow-x:hidden!important;overflow-y:auto!important;scrollbar-gutter:stable;}' +
+  'body{margin:0!important;width:100%!important;min-width:0!important;min-height:100%!important;' +
+  'height:auto!important;overflow:visible!important;transform:none!important;}' +
+  'body>*{max-width:100%;box-sizing:border-box;}' +
+  'img,video,canvas,svg{max-width:100%;}' +
+  '</style>';
+
+// Auto-fit wrapper for fixed-stage interactive HTML (simulators, infographics,
+// etc). Content designed for a 960x540 stage is centered and scaled.
 const FIT_SNIPPET =
   '<style>html,body{margin:0!important;padding:0!important;width:100%;height:100%;' +
   'overflow:hidden!important;}body{display:flex!important;align-items:center!important;' +
@@ -109,11 +120,18 @@ const FIT_SNIPPET =
   "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',b);}" +
   'else{b();}})();</scr' + 'ipt>';
 
-export const wrapInteractiveFullbleed = (html) => {
-  if (!html || typeof html !== 'string' || html.includes('__stage')) return html;
-  const idx = html.toLowerCase().lastIndexOf('</body>');
-  if (idx !== -1) return html.slice(0, idx) + FIT_SNIPPET + html.slice(idx);
-  return html + FIT_SNIPPET;
+const injectDocumentSnippet = (html, snippet) => {
+  const headIdx = html.toLowerCase().lastIndexOf('</head>');
+  if (headIdx !== -1) return html.slice(0, headIdx) + snippet + html.slice(headIdx);
+  const bodyIdx = html.toLowerCase().lastIndexOf('</body>');
+  if (bodyIdx !== -1) return html.slice(0, bodyIdx) + snippet + html.slice(bodyIdx);
+  return html + snippet;
+};
+
+export const wrapInteractiveFullbleed = (html, mode = 'page') => {
+  if (!html || typeof html !== 'string') return html;
+  if (html.includes('__stage') || html.includes('__scormify_page_mode')) return html;
+  return injectDocumentSnippet(html, mode === 'fit' ? FIT_SNIPPET : PAGE_VIEWPORT_SNIPPET);
 };
 
 /**

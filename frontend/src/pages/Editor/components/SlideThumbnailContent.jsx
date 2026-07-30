@@ -135,7 +135,9 @@ const SlideThumbnailContent = ({ slide }) => {
             return <div key={el.id} style={{ ...baseStyle, pointerEvents: 'none' }} />;
           }
           const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-          const srcDoc = isFullDoc ? wrapInteractiveFullbleed(raw) : `<html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style></head><body>${raw}</body></html>`;
+          const srcDoc = isFullDoc
+            ? wrapInteractiveFullbleed(raw, el.htmlDisplayMode || 'page')
+            : `<html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style></head><body>${raw}</body></html>`;
           return (
             <div key={el.id} style={{ ...baseStyle, pointerEvents: 'none', background: 'transparent', contain: 'strict', isolation: 'isolate' }}>
               <iframe

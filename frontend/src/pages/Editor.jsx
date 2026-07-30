@@ -692,13 +692,17 @@ export default function Editor() {
         return;
       }
       
-      let embedUrl = videoUrl;
+      let embedUrl = videoUrl.trim();
       let embedType = 'youtube';
 
       // If user pasted a full <iframe ...> snippet (Bunny/Vimeo dashboards give this),
-      // extract just the src URL so the downstream regexes match cleanly.
+      // extract just the src URL so the downstream regexes match cleanly. HTML snippets
+      // encode query separators as &amp;, which must be decoded before storing the URL.
       const iframeSrcMatch = videoUrl.match(/<iframe[^>]+src=["']([^"']+)["']/i);
-      const parsedUrl = iframeSrcMatch ? iframeSrcMatch[1] : videoUrl;
+      const parsedUrl = (iframeSrcMatch ? iframeSrcMatch[1] : videoUrl)
+        .trim()
+        .replace(/&amp;/gi, '&');
+      embedUrl = parsedUrl;
 
       // Parse YouTube URL
       const youtubeMatch = parsedUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
@@ -720,9 +724,10 @@ export default function Editor() {
       //          <iframe src="https://iframe.mediadelivery.net/embed/{lib}/{guid}?..." ...>
       const bunnyMatch = parsedUrl.match(/iframe\.mediadelivery\.net\/(?:embed|play)\/(\d+)\/([a-f0-9-]+)/i);
       if (bunnyMatch) {
-        const libraryId = bunnyMatch[1];
-        const videoGuid = bunnyMatch[2];
-        embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoGuid}?autoplay=true&loop=false&muted=false&preload=true&responsive=true`;
+        // Keep the exact Bunny URL supplied by the user. Protected Bunny embeds carry
+        // short-lived `token` and `expires` query parameters; rebuilding the URL here
+        // removed them and caused the Bunny player to answer with HTTP 403.
+        embedUrl = parsedUrl;
         embedType = 'bunny';
       }
 
@@ -834,6 +839,7 @@ export default function Editor() {
         width: 400,
         height: 300,
         htmlContent: htmlConfig.content,
+        htmlDisplayMode: 'page',
       });
       setShowHtmlDialog(false);
       setHtmlConfig({ content: '' });
@@ -903,6 +909,7 @@ export default function Editor() {
         width: 400,
         height: 300,
         htmlContent: aiHtmlResult,
+        htmlDisplayMode: 'page',
       });
       setShowHtmlDialog(false);
       setHtmlConfig({ content: '' });
@@ -2557,4 +2564,3 @@ export default function Editor() {
 }
 
 // ElementProperties and SlideProperties are now imported from ./Editor/components/
-

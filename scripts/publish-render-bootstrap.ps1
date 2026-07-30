@@ -44,7 +44,10 @@ $files = @(
     "backend/services/scorm_exporter.py",
     "backend/services/scorm_single_page_exporter.py",
     "backend/services/scenario_service.py",
+    "backend/services/single_page_exporter.py",
+    "backend/services/html_exporter.py",
     "backend/services/export_assets/player.js",
+    "backend/tests/test_bunny_video_embed.py",
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
@@ -63,6 +66,9 @@ $files = @(
     "frontend/src/App.js",
     "frontend/src/contexts/AuthContext.jsx",
     "frontend/src/components/editor/AestheticsPanel.jsx",
+    "frontend/src/components/editor/SlideCanvas.jsx",
+    "frontend/src/components/editor/CoursePreview.jsx",
+    "frontend/src/components/editor/SplitPreview.jsx",
     "frontend/src/components/editor/Timeline.jsx",
     "frontend/src/components/editor/Timeline.test.jsx",
     "frontend/src/components/quiz/QuizGenerator.jsx",
@@ -72,11 +78,14 @@ $files = @(
     "frontend/src/components/scenario/ScenarioCreator.jsx",
     "frontend/src/pages/Editor/hooks/useEditorAI.js",
     "frontend/src/pages/Editor/hooks/useEditorExport.js",
+    "frontend/src/pages/Editor/components/ElementProperties.jsx",
+    "frontend/src/pages/Editor/components/SlideThumbnailContent.jsx",
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
     "frontend/src/pages/Admin.jsx",
     "frontend/src/utils/authFetch.js",
     "frontend/src/utils/apiUrl.js",
+    "frontend/src/utils/htmlUtils.js",
     "scripts/configure-local-secrets.ps1",
     "scripts/publish-render-bootstrap.ps1"
 )
@@ -163,7 +172,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Connect Editor quiz generation to OpenAI"
+        message = "Fix protected Bunny embeds and HTML page rendering"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

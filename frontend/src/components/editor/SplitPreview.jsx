@@ -374,7 +374,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                   {element.type === 'video' && (
                     <div className="w-full h-full rounded overflow-hidden" style={{ background: 'transparent' }}>
                       {element.embedUrl ? (
-                        <iframe src={getAssetUrl(element.embedUrl, projectId)} className="w-full h-full border-0" style={{ background: 'transparent' }} allow="autoplay; fullscreen; encrypted-media" allowFullScreen title="Video" />
+                        <iframe src={getAssetUrl(element.embedUrl, projectId)} className="w-full h-full border-0" style={{ background: 'transparent' }} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen loading="lazy" referrerPolicy="strict-origin-when-cross-origin" title="Video" />
                       ) : element.src ? (
                         <video src={getAssetUrl(element.src, projectId)} autoPlay loop muted playsInline className="w-full h-full" style={{ objectFit: element.objectFit || 'contain', background: 'transparent' }} />
                       ) : (
@@ -400,7 +400,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                       srcDoc={(() => {
                         const raw = processHtmlContent(element.htmlContent, projectId);
                         const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-                        if (isFullDoc) return wrapInteractiveFullbleed(raw);
+                        if (isFullDoc) return wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page');
                         return `<html><head><style>
                         ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
                         body { padding: ${isFullscreen ? '0' : '8px'}; overflow: ${isFullscreen ? 'hidden' : 'auto'}; }

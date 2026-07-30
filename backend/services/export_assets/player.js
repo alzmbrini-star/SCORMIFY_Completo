@@ -1294,21 +1294,15 @@ var CoursePlayer = (function() {
                         el.style.background = '#000';
                         el.style.overflow = 'hidden';
 
-                        // Guarantee autoplay/unmuted flags (Bunny uses true/false, not 1/0)
-                        var bunnyUrl = embedUrl;
-                        if (bunnyUrl.indexOf('autoplay=') === -1) {
-                            bunnyUrl += (bunnyUrl.indexOf('?') !== -1 ? '&' : '?') + 'autoplay=true';
-                        }
-                        if (bunnyUrl.indexOf('preload=') === -1) bunnyUrl += '&preload=true';
-                        if (bunnyUrl.indexOf('responsive=') === -1) bunnyUrl += '&responsive=true';
-                        bunnyUrl = bunnyUrl.replace('muted=true', 'muted=false');
-
                         var iframe = document.createElement('iframe');
-                        iframe.src = bunnyUrl;
+                        // Preserve the original URL byte-for-byte. Secure Bunny embeds
+                        // depend on their token/expires pair and must not be reconstructed.
+                        iframe.src = embedUrl;
                         iframe.allow = 'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;';
                         iframe.allowFullscreen = true;
                         iframe.setAttribute('allowfullscreen', 'true');
                         iframe.setAttribute('loading', 'lazy');
+                        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
                         iframe.frameBorder = '0';
                         iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
                         el.appendChild(iframe);
@@ -1440,6 +1434,35 @@ var CoursePlayer = (function() {
                 var wrappedHtml;
                 if (isFullDoc) {
                     wrappedHtml = htmlContent;
+                    // Full HTML added through the Editor is a real page viewport,
+                    // not a tall screenshot squeezed into the element. Fixed-stage
+                    // simulations may explicitly opt into "fit".
+                    if (wrappedHtml.indexOf('__stage') === -1 &&
+                        wrappedHtml.indexOf('__scormify_page_mode') === -1 &&
+                        (element.htmlDisplayMode || 'page') !== 'fit') {
+                        var pageViewportStyle = '<style id="__scormify_page_mode">' +
+                            'html{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow-x:hidden!important;overflow-y:auto!important;scrollbar-gutter:stable;}' +
+                            'body{margin:0!important;width:100%!important;min-width:0!important;min-height:100%!important;height:auto!important;overflow:visible!important;transform:none!important;}' +
+                            'body>*{max-width:100%;box-sizing:border-box;}img,video,canvas,svg{max-width:100%;}' +
+                            '</style>';
+                        var pageHeadIdx = wrappedHtml.toLowerCase().lastIndexOf('</head>');
+                        var pageBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
+                        if (pageHeadIdx !== -1) {
+                            wrappedHtml = wrappedHtml.slice(0, pageHeadIdx) + pageViewportStyle + wrappedHtml.slice(pageHeadIdx);
+                        } else if (pageBodyIdx !== -1) {
+                            wrappedHtml = wrappedHtml.slice(0, pageBodyIdx) + pageViewportStyle + wrappedHtml.slice(pageBodyIdx);
+                        } else {
+                            wrappedHtml += pageViewportStyle;
+                        }
+                    } else if (wrappedHtml.indexOf('__stage') === -1 &&
+                               (element.htmlDisplayMode || 'page') === 'fit') {
+                        var fixedStageSnippet = '<style>html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}body{display:flex!important;align-items:center!important;justify-content:center!important;}</style>' +
+                            '<script>(function(){function b(){var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;flex:0 0 auto;position:relative;transform-origin:center center;";while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);function fit(){var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);st.style.transform="scale("+s+")";}window.addEventListener("resize",fit);fit();setTimeout(fit,300);}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",b);}else{b();}})();<\/script>';
+                        var fitBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
+                        wrappedHtml = fitBodyIdx !== -1
+                            ? wrappedHtml.slice(0, fitBodyIdx) + fixedStageSnippet + wrappedHtml.slice(fitBodyIdx)
+                            : wrappedHtml + fixedStageSnippet;
+                    }
                 } else {
                 wrappedHtml = '<html><head><style>' +
                     (isHtmlFullscreen ? 

@@ -790,8 +790,10 @@ const SlideCanvas = ({
                         <iframe
                           src={element.embedUrl}
                           className="w-full h-full border-0"
-                          allow="autoplay; fullscreen; encrypted-media"
+                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
                           allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
                           title="Video"
                           style={{ pointerEvents: 'none', objectFit: element.objectFit || 'contain' }}
                         />
@@ -878,7 +880,7 @@ const SlideCanvas = ({
                       const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
                       if (isFullDoc) {
-                        return wrapInteractiveFullbleed(raw);
+                        return wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page');
                       }
                       // Choose default text color based on slide background luminance.
                       // Without this, <h3>/<p>/<li> tags WITHOUT inline color inherit
@@ -943,25 +945,30 @@ const SlideCanvas = ({
                       </html>`;
                     })()}
                     className="border-0"
-                    sandbox="allow-scripts"
-                    title="HTML Content"
+                    sandbox="allow-scripts allow-forms"
+                    title="Página HTML interativa"
                     style={{
                       width: `${element.width || 100}px`,
                       height: `${element.height || 100}px`,
                       transform: `scale(${scale})`,
                       transformOrigin: 'top left',
-                      pointerEvents: 'none',
+                      pointerEvents: isSelected ? 'auto' : 'none',
                       background: 'transparent',
                     }}
                   />
                   {/* Overlay to capture mouse events for drag/resize */}
                   <div 
                     className="absolute inset-0 bg-transparent"
-                    style={{ zIndex: 1, cursor: isSelected ? 'grab' : 'pointer' }}
+                    style={{
+                      zIndex: 1,
+                      cursor: 'pointer',
+                      pointerEvents: isSelected ? 'none' : 'auto',
+                    }}
                   />
                   {isSelected && element.objectFit !== 'cover' && (
                     <div className="absolute top-2 left-2 px-2 py-1 bg-blue-600/90 text-white text-xs rounded flex items-center gap-1 pointer-events-none z-10">
-                      <span className="font-mono">&lt;/&gt;</span> HTML
+                      <span className="font-mono">&lt;/&gt;</span>
+                      {element.htmlDisplayMode === 'fit' ? 'HTML ajustado' : 'Página HTML · role para navegar'}
                     </div>
                   )}
                 </div>

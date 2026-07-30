@@ -554,6 +554,23 @@ def _is_heygen_avatar_url(url: str) -> bool:
 
 
 def _render_video_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str, idx: int) -> str:
+    embed_url = (el.get("embedUrl") or "").strip()
+    if embed_url:
+        # Bunny and other hosted players must remain iframes. In particular,
+        # Bunny's token/expires query pair is security-sensitive and must be
+        # preserved exactly rather than converted to a <video> source.
+        return (
+            f'<div class="sp-video sp-interactive" data-interactive="video" data-required="true" '
+            f'data-interactive-id="video-{idx}">'
+            f'<iframe src="{_esc(embed_url)}" title="Vídeo" loading="lazy" '
+            f'allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" '
+            f'allowfullscreen referrerpolicy="strict-origin-when-cross-origin" '
+            f'style="width:100%;height:min(68vh,540px);border:0;display:block" '
+            f'onload="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></iframe>'
+            f'<div class="sp-video-hint">▶ Reproduza o vídeo para continuar</div>'
+            f'</div>'
+        )
+
     src = el.get("src") or el.get("videoUrl") or el.get("content") or ""
     src = _resolve_asset_url(src, project_id, assets_dir, base_url)
     # Avatar HeyGen detectado via URL → fundo transparente, sem card amarelo
@@ -2046,4 +2063,3 @@ def _BUILD_PAGE(
 _RUNTIME_DIR = Path(__file__).parent / 'sp_runtime'
 _CSS = (_RUNTIME_DIR / 'styles.css').read_text(encoding='utf-8')
 _JS = (_RUNTIME_DIR / 'runtime.js').read_text(encoding='utf-8')
-

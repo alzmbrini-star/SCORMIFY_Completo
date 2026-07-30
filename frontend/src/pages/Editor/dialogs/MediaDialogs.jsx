@@ -45,6 +45,9 @@ export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleA
           <p className="text-xs text-muted-foreground mt-2">
             Cole uma URL do YouTube, Vimeo ou Bunny Stream. Para o Bunny, também aceitamos o snippet <code>&lt;iframe&gt;</code> completo copiado do painel.
           </p>
+          <p className="text-xs text-amber-500/90 mt-2">
+            Bunny protegido: cole o iframe completo para preservar <code>token</code> e <code>expires</code>. Se aparecer 403 apenas no Editor, autorize <code>scormify-app.onrender.com</code> (e seu domínio personalizado, se houver) em Stream → Security → Allowed domains.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

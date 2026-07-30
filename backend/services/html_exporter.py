@@ -2275,15 +2275,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     iframeUrl += sep + 'autoplay=1&muted=0&background=0&dnt=1&title=0&byline=0&portrait=0';
                                     html += '<iframe class="video-iframe" src="' + iframeUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else if (isBunny) {{
-                                    // Bunny Stream player
-                                    var bunnyUrl = embedUrl;
-                                    if (bunnyUrl.indexOf('autoplay=') === -1) {{
-                                        bunnyUrl += (bunnyUrl.indexOf('?') !== -1 ? '&' : '?') + 'autoplay=true';
-                                    }}
-                                    if (bunnyUrl.indexOf('preload=') === -1) bunnyUrl += '&preload=true';
-                                    if (bunnyUrl.indexOf('responsive=') === -1) bunnyUrl += '&responsive=true';
-                                    bunnyUrl = bunnyUrl.replace('muted=true', 'muted=false');
-                                    html += '<iframe class="video-iframe" src="' + bunnyUrl + '" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
+                                    // Preserve token/expires and every original Bunny query
+                                    // parameter. Rebuilding a protected URL causes HTTP 403.
+                                    html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else {{
                                     // Other embeds
                                     html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
@@ -2335,13 +2329,22 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             var wrappedHtml;
                             if (isFullDoc) {{
                                 wrappedHtml = htmlContent;
-                                // Auto-fit legacy interactive docs missing the __stage
-                                // wrapper: center + scale a 960x540 design to the element.
+                                // Full documents are page viewports by default. Fixed
+                                // 960x540 simulations may explicitly request fit mode.
                                 if (wrappedHtml.indexOf('__stage') === -1) {{
-                                    var fitSnippet = '<style>html,body{{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}}body{{display:flex!important;align-items:center!important;justify-content:center!important;}}</style>' +
-                                        '<scr' + 'ipt>(function(){{function b(){{var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;flex:0 0 auto;position:relative;transform-origin:center center;";while(bd.firstChild){{st.appendChild(bd.firstChild);}}bd.appendChild(st);function fit(){{var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);st.style.transform="scale("+s+")";}}window.addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}}if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",b);}}else{{b();}}}})();</scr' + 'ipt>';
-                                    var fitBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</bo' + 'dy>');
-                                    wrappedHtml = fitBodyIdx !== -1 ? wrappedHtml.slice(0, fitBodyIdx) + fitSnippet + wrappedHtml.slice(fitBodyIdx) : wrappedHtml + fitSnippet;
+                                    var documentSnippet;
+                                    var insertTag;
+                                    if ((elem.htmlDisplayMode || 'page') === 'fit') {{
+                                        documentSnippet = '<style>html,body{{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}}body{{display:flex!important;align-items:center!important;justify-content:center!important;}}</style>' +
+                                            '<scr' + 'ipt>(function(){{function b(){{var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;flex:0 0 auto;position:relative;transform-origin:center center;";while(bd.firstChild){{st.appendChild(bd.firstChild);}}bd.appendChild(st);function fit(){{var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);st.style.transform="scale("+s+")";}}window.addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}}if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",b);}}else{{b();}}}})();</scr' + 'ipt>';
+                                        insertTag = '</bo' + 'dy>';
+                                    }} else {{
+                                        documentSnippet = '<style id="__scormify_page_mode">html{{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow-x:hidden!important;overflow-y:auto!important;scrollbar-gutter:stable;}}body{{margin:0!important;width:100%!important;min-width:0!important;min-height:100%!important;height:auto!important;overflow:visible!important;transform:none!important;}}body>*{{max-width:100%;box-sizing:border-box;}}img,video,canvas,svg{{max-width:100%;}}</style>';
+                                        insertTag = '</he' + 'ad>';
+                                    }}
+                                    var insertIdx = wrappedHtml.toLowerCase().lastIndexOf(insertTag);
+                                    if (insertIdx === -1) insertIdx = wrappedHtml.toLowerCase().lastIndexOf('</bo' + 'dy>');
+                                    wrappedHtml = insertIdx !== -1 ? wrappedHtml.slice(0, insertIdx) + documentSnippet + wrappedHtml.slice(insertIdx) : wrappedHtml + documentSnippet;
                                 }}
                             }} else {{
                             wrappedHtml = '<html><head><style>' +

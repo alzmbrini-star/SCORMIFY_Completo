@@ -53,6 +53,9 @@ const getAssetUrl = (src, projectId) => {
 // Ensure embed URLs always have autoplay and correct audio params
 const ensureEmbedAutoplay = (url) => {
   if (!url) return url;
+  // Never mutate Bunny URLs. Secure embeds may contain a signed token/expires
+  // pair and must reach the iframe exactly as supplied by Bunny.
+  if (url.includes('iframe.mediadelivery.net/')) return url;
   // YouTube
   if (url.includes('youtube.com/embed/') || url.includes('youtu.be/')) {
     if (!url.includes('autoplay=')) {
@@ -66,14 +69,6 @@ const ensureEmbedAutoplay = (url) => {
     }
     // Fix muted=1 to muted=0
     url = url.replace('muted=1', 'muted=0');
-  }
-  // Bunny Stream
-  if (url.includes('iframe.mediadelivery.net/')) {
-    if (!url.includes('autoplay=')) {
-      url += (url.includes('?') ? '&' : '?') + 'autoplay=true';
-    }
-    // Prefer unmuted playback when browsers allow it
-    url = url.replace('muted=true', 'muted=false');
   }
   return url;
 };
@@ -811,6 +806,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                         style={{ background: 'transparent' }}
                         allow="autoplay; fullscreen; encrypted-media"
                         allowFullScreen
+                        loading="lazy"
+                        referrerPolicy="strict-origin-when-cross-origin"
                         title="Video"
                       />
                     ) : element.src ? (
@@ -867,7 +864,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                     srcDoc={(() => {
                       const raw = processHtmlContent(element.htmlContent, projectId);
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-                      if (isFullDoc) return wrapInteractiveFullbleed(raw);
+                      if (isFullDoc) return wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page');
                       return `
                       <html>
                         <head>
