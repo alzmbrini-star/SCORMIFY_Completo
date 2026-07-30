@@ -1426,15 +1426,14 @@ var CoursePlayer = (function() {
                 
                 // Wrap in full HTML with proper CSS for text wrapping around images
                 var isMobileView = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 1024;
-                var mobileCSS = isMobileView ? 
-                    'body{font-size:16px!important;padding:12px!important;overflow-x:hidden!important;}' +
-                    'h1{font-size:1.3rem!important;}' +
-                    'h2{font-size:1.15rem!important;}' +
-                    'h3{font-size:1.05rem!important;}' +
-                    'p,li{font-size:15px!important;line-height:1.5!important;}' +
+                // The whole 1920x1080 slide is already scaled by
+                // updateSlideScale(). Do not reduce typography again inside
+                // HTML iframes on mobile: doing both made authored text roughly
+                // half the intended visual size and discarded inline font sizes.
+                var mobileCSS = isMobileView ?
+                    'body{padding:12px!important;overflow-x:hidden!important;}' +
                     'img{float:none!important;display:block!important;max-width:100%!important;width:auto!important;height:auto!important;margin:12px auto!important;clear:both!important;position:relative!important;left:0!important;right:0!important;}' +
-                    'div[style*="float"]{float:none!important;width:100%!important;}' +
-                    'span[style*="font-size"]{font-size:inherit!important;}'
+                    'div[style*="float"]{float:none!important;width:100%!important;}'
                     : '';
                 // Detect if content is a full HTML document (AI-generated)
                 var isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(htmlContent);

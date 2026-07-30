@@ -41,6 +41,7 @@ $files = @(
     "backend/services/scorm_exporter.py",
     "backend/services/scorm_single_page_exporter.py",
     "backend/services/scenario_service.py",
+    "backend/services/export_assets/player.js",
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
@@ -50,6 +51,7 @@ $files = @(
     "backend/tests/test_tutor_friendly_errors.py",
     "backend/tests/test_scorm_whiteboard_asset.py",
     "backend/tests/test_scenario_generation_reliability.py",
+    "backend/tests/test_scorm_mobile_typography.py",
     "backend/tests/test_whiteboard_export_persistence.py",
     "backend/tests/test_whiteboard_semantic_geometry.py",
     "frontend/.env.example",
@@ -152,7 +154,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Improve AI whiteboard geometry and OpenAI integration"
+        message = "Preserve authored font sizes on mobile SCORM"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

@@ -464,31 +464,31 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         )
     
     # Write scripts (read from export_assets directory)
-    with open(package_dir / "scripts" / "scorm-api.js", 'w') as f:
+    with open(package_dir / "scripts" / "scorm-api.js", 'w', encoding='utf-8') as f:
         f.write(_read_asset("scorm-api.js"))
     
-    with open(package_dir / "scripts" / "player.js", 'w') as f:
+    with open(package_dir / "scripts" / "player.js", 'w', encoding='utf-8') as f:
         f.write(_read_asset("player.js"))
     
     # Write quiz controller script
-    with open(package_dir / "scripts" / "quiz-controller.js", 'w') as f:
+    with open(package_dir / "scripts" / "quiz-controller.js", 'w', encoding='utf-8') as f:
         f.write(_read_asset("quiz-controller.js"))
     
     # Write scenario controller script
-    with open(package_dir / "scripts" / "scenario-controller.js", 'w') as f:
+    with open(package_dir / "scripts" / "scenario-controller.js", 'w', encoding='utf-8') as f:
         f.write(_read_asset("scenario-controller.js"))
     
     # Write AI tutor files if tutor is enabled
     if tutor_config and tutor_config.get('enabled'):
         (package_dir / "styles").mkdir(exist_ok=True)
-        with open(package_dir / "scripts" / "tutor.js", 'w') as f:
+        with open(package_dir / "scripts" / "tutor.js", 'w', encoding='utf-8') as f:
             f.write(_read_asset("tutor.js"))
-        with open(package_dir / "styles" / "tutor.css", 'w') as f:
+        with open(package_dir / "styles" / "tutor.css", 'w', encoding='utf-8') as f:
             f.write(_read_asset("tutor.css"))
     
     # Write gamification files if enabled
     if gamification_config and gamification_config.get('enabled'):
-        with open(package_dir / "scripts" / "gamification.js", 'w') as f:
+        with open(package_dir / "scripts" / "gamification.js", 'w', encoding='utf-8') as f:
             f.write(_read_asset("gamification.js"))
     
     # Prepare course.json - Fix asset URLs for SCORM package
