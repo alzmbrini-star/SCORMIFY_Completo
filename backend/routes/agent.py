@@ -1,6 +1,6 @@
 """AI Instructional Design Agent routes"""
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends, BackgroundTasks
-from pydantic import BaseModel, ConfigDict as PydanticConfigDict
+from pydantic import BaseModel, ConfigDict as PydanticConfigDict, Field
 from typing import Optional, List, Dict, Any
 import uuid
 import os
@@ -87,8 +87,8 @@ class AgentSessionCreate(BaseModel):
     companyId: Optional[str] = None
 
 class GenerateHtmlRequest(BaseModel):
-    prompt: str
-    courseContext: Optional[str] = None
+    prompt: str = Field(min_length=3, max_length=5000)
+    courseContext: Optional[str] = Field(default=None, max_length=8000)
 
 class AgentConfigUpdate(BaseModel):
     model_config = PydanticConfigDict(extra="allow")
@@ -220,18 +220,64 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
 
 
 
+def _html_generation_credentials() -> tuple[str, str]:
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    model = (
+        os.environ.get("OPENAI_HTML_MODEL", "").strip()
+        or os.environ.get("OPENAI_TEXT_MODEL", "").strip()
+        or "gpt-4o"
+    )
+    return api_key, model
+
+
+_HTML_FENCE_RE = re.compile(r"^```(?:html)?\s*|\s*```$", re.IGNORECASE)
+_UNSAFE_HTML_PATTERNS = (
+    (re.compile(r"<iframe\b[^>]*>.*?</iframe\s*>", re.IGNORECASE | re.DOTALL), ""),
+    (re.compile(r"<(?:object|embed)\b[^>]*>.*?</(?:object|embed)\s*>", re.IGNORECASE | re.DOTALL), ""),
+    (re.compile(r"<script\b[^>]*\bsrc\s*=[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL), ""),
+    (re.compile(r"<link\b[^>]*\brel\s*=\s*[\"']?stylesheet[\"']?[^>]*>", re.IGNORECASE), ""),
+)
+_UNSAFE_JS_TOKEN_RE = re.compile(
+    r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(|"
+    r"\b(?:localStorage|sessionStorage|document\.cookie)\b|"
+    r"\bwindow\.(?:parent|top|opener)\b",
+    re.IGNORECASE,
+)
+
+
+def _clean_generated_interactive_html(value: object) -> str:
+    """Keep interactive inline JS while removing network/embedding escape hatches."""
+    html_code = _HTML_FENCE_RE.sub("", str(value or "").strip()).strip()
+    for pattern, replacement in _UNSAFE_HTML_PATTERNS:
+        html_code = pattern.sub(replacement, html_code)
+    if _UNSAFE_JS_TOKEN_RE.search(html_code):
+        raise ValueError(
+            "O HTML gerado tentou acessar recursos externos ou dados do navegador"
+        )
+    if not re.search(r"<(?:!doctype|html|div|section|main)\b", html_code, re.IGNORECASE):
+        raise ValueError("A IA não retornou um documento HTML válido")
+    if len(html_code) > 200_000:
+        raise ValueError("O HTML gerado excedeu o tamanho permitido")
+    return html_code
+
+
 @router.post("/generate-html")
-async def generate_html_with_ai(body: GenerateHtmlRequest, request: Request):
-    """Generate interactive HTML+JS content from a text prompt using Gemini."""
+async def generate_html_with_ai(
+    body: GenerateHtmlRequest,
+    _user: dict = Depends(require_auth),
+):
+    """Generate safe, offline-friendly interactive HTML with OpenAI."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Não autenticado")
-    
-    emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
-    if not emergent_key:
-        raise HTTPException(status_code=500, detail="Chave de IA não configurada")
+
+    api_key, model = _html_generation_credentials()
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "A geração de HTML ainda não possui uma chave OpenAI "
+                "configurada. Cadastre OPENAI_API_KEY no backend do Render."
+            ),
+        )
     
     system_msg = """Você é um especialista em desenvolvimento web front-end.
 Sua tarefa é gerar código HTML completo, autocontido, com CSS e JavaScript embutidos.
@@ -243,10 +289,13 @@ REGRAS OBRIGATÓRIAS:
 - Use cores vibrantes e profissionais
 - O JavaScript DEVE ser funcional e interativo
 - Inclua animações CSS quando apropriado
-- Use fontes do Google Fonts quando necessário (via link CDN)
+- Use apenas fontes seguras do sistema, sem dependências externas
 - Todo texto deve ser em português brasileiro
 - O conteúdo deve caber em um container de ~800x500px
-- NÃO use bibliotecas externas pesadas, apenas vanilla JS, CSS e CDNs leves
+- Use apenas HTML, CSS e JavaScript vanilla totalmente inline
+- NÃO use fetch, XMLHttpRequest, WebSocket, iframe, script src, formulários
+  externos, localStorage, cookies ou acesso a window.parent/window.top
+- O conteúdo deve funcionar offline dentro de um pacote SCORM
 - Inclua tratamento de erros no JavaScript
 - Use flexbox/grid para layouts modernos"""
 
@@ -262,27 +311,32 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
 
     try:
         chat = LlmChat(
-            api_key=emergent_key,
+            api_key=api_key,
             session_id=f"html-gen-{uuid.uuid4().hex[:8]}",
             system_message=system_msg,
-        ).with_model("gemini", "gemini-3-flash-preview")
-        
+        ).with_model("openai", model).with_params(temperature=0.3)
+
         resp = await chat.send_message(UserMessage(text=prompt))
-        html_code = resp.strip() if isinstance(resp, str) else str(resp).strip()
-        
-        # Clean up markdown wrappers if the model wraps in ```html blocks
-        if html_code.startswith("```"):
-            lines = html_code.split("\n")
-            if lines[0].strip().startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            html_code = "\n".join(lines)
-        
+        html_code = _clean_generated_interactive_html(resp)
+
         return {"html": html_code}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning("HTML generation rejected unsafe/invalid output: %s", e)
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A IA retornou um HTML inválido ou inseguro. "
+                "Reformule o pedido e tente novamente."
+            ),
+        )
     except Exception as e:
         logger.error(f"HTML generation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar HTML: {str(e)}")
+        from routes.ai_gen import _friendly_text_generation_error
+
+        status_code, detail = _friendly_text_generation_error(e)
+        raise HTTPException(status_code=status_code, detail=detail)
 
 
 @router.get("/agent/check-access")
@@ -4754,5 +4808,3 @@ async def resume_from_approval(session_id: str, request: Request, user: dict = D
         }}
     )
     return {"status": "ok", "step": "storyboarded"}
-
-

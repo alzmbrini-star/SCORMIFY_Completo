@@ -200,9 +200,12 @@ export function HtmlDialog({
                   placeholder="Ex: Um quiz interativo sobre segurança do trabalho..."
                   value={aiHtmlPrompt} onChange={(e) => setAiHtmlPrompt(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && !aiHtmlLoading) handleGenerateHtmlAI(); }}
+                  maxLength={5000}
                   data-testid="ai-html-prompt" />
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-muted-foreground">Ctrl+Enter para gerar.</p>
+                  <p className="text-xs text-muted-foreground">
+                    OpenAI configurada no backend · funciona offline no SCORM · {aiHtmlPrompt.length}/5000
+                  </p>
                   <Button size="sm" onClick={handleGenerateHtmlAI} disabled={aiHtmlLoading || !aiHtmlPrompt.trim()} data-testid="ai-html-generate-btn">
                     {aiHtmlLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
                     {aiHtmlLoading ? 'Gerando...' : 'Gerar HTML'}

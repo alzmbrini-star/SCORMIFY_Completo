@@ -27,6 +27,7 @@ $files = @(
     "backend/emergentintegrations/llm/__init__.py",
     "backend/emergentintegrations/llm/chat.py",
     "backend/routes/export.py",
+    "backend/routes/agent.py",
     "backend/routes/ai_gen.py",
     "backend/routes/aesthetics.py",
     "backend/routes/admin.py",
@@ -45,6 +46,7 @@ $files = @(
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
+    "backend/tests/test_ai_html_generation_openai.py",
     "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
@@ -61,6 +63,8 @@ $files = @(
     "frontend/src/components/editor/Timeline.jsx",
     "frontend/src/components/editor/Timeline.test.jsx",
     "frontend/src/pages/Editor/dialogs/WhiteboardDialog.jsx",
+    "frontend/src/pages/Editor/dialogs/MediaDialogs.jsx",
+    "frontend/src/pages/Editor.jsx",
     "frontend/src/components/scenario/ScenarioCreator.jsx",
     "frontend/src/pages/Editor/hooks/useEditorAI.js",
     "frontend/src/pages/Editor/hooks/useEditorExport.js",
@@ -155,7 +159,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Recover SCORM export when old whiteboards are unavailable"
+        message = "Connect custom HTML generation to OpenAI"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

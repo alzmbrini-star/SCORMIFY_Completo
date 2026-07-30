@@ -854,13 +854,24 @@ export default function Editor() {
     }
     setAiHtmlLoading(true);
     try {
+      const slideContext = (currentSlide?.elements || [])
+        .map((element) => element.content || element.text || element.htmlContent || '')
+        .filter(Boolean)
+        .map((value) => String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .join(' | ');
+      const courseContext = [
+        currentProject?.name || currentProject?.title,
+        currentSlide?.title,
+        slideContext,
+      ].filter(Boolean).join(' — ').slice(0, 8000);
       const res = await fetch(`${API_URL}/api/generate-html`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({
           prompt: aiHtmlPrompt,
-          courseContext: currentProject?.title || '',
+          courseContext,
         }),
       });
       if (!res.ok) {
@@ -2546,5 +2557,4 @@ export default function Editor() {
 }
 
 // ElementProperties and SlideProperties are now imported from ./Editor/components/
-
 
