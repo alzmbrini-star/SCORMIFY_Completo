@@ -23,6 +23,7 @@ $files = @(
     "backend/bootstrap_app.py",
     "backend/requirements-production.txt",
     "backend/requirements.txt",
+    "backend/models.py",
     "backend/emergentintegrations/__init__.py",
     "backend/emergentintegrations/llm/__init__.py",
     "backend/emergentintegrations/llm/chat.py",
@@ -33,6 +34,7 @@ $files = @(
     "backend/routes/admin.py",
     "backend/routes/auth.py",
     "backend/routes/projects_crud.py",
+    "backend/routes/questions.py",
     "backend/routes/scenarios.py",
     "backend/routes/whiteboard.py",
     "backend/server.py",
@@ -47,6 +49,7 @@ $files = @(
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
     "backend/tests/test_ai_html_generation_openai.py",
+    "backend/tests/test_ai_quiz_generation_openai.py",
     "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
@@ -62,6 +65,7 @@ $files = @(
     "frontend/src/components/editor/AestheticsPanel.jsx",
     "frontend/src/components/editor/Timeline.jsx",
     "frontend/src/components/editor/Timeline.test.jsx",
+    "frontend/src/components/quiz/QuizGenerator.jsx",
     "frontend/src/pages/Editor/dialogs/WhiteboardDialog.jsx",
     "frontend/src/pages/Editor/dialogs/MediaDialogs.jsx",
     "frontend/src/pages/Editor.jsx",
@@ -159,7 +163,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Connect custom HTML generation to OpenAI"
+        message = "Connect Editor quiz generation to OpenAI"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

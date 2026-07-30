@@ -446,12 +446,15 @@ class QuizQuestionUpdate(BaseModel):
 class QuizGenerateRequest(BaseModel):
     """Request to generate quiz questions using AI"""
     projectId: Optional[str] = None
-    source: str  # 'prompt' or 'document'
-    prompt: Optional[str] = None  # For AI generation from prompt
-    context: Optional[str] = None  # Additional context
-    documentContent: Optional[str] = None  # Extracted text from .doc file
-    questionType: str = "multiple_choice"  # 'multiple_choice', 'true_false', 'mixed'
-    count: int = 5  # Number of questions to generate
+    source: str = Field(pattern="^(prompt|document)$")
+    prompt: Optional[str] = Field(default=None, max_length=4000)
+    context: Optional[str] = Field(default=None, max_length=8000)
+    documentContent: Optional[str] = Field(default=None, max_length=60000)
+    questionType: str = Field(
+        default="multiple_choice",
+        pattern="^(multiple_choice|true_false|mixed)$",
+    )
+    count: int = Field(default=5, ge=1, le=20)
 
 class QuizSubmitRequest(BaseModel):
     """Submit quiz answers"""

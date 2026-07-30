@@ -1,13 +1,16 @@
 """Quiz questions CRUD, generation and submission routes"""
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from typing import List, Optional, Any
 import uuid
 import os
 import json
 import logging
+import re
 import aiofiles
 
 from routes.deps import db, now_utc, serialize_doc, UPLOADS_DIR
+from routes.auth import require_auth
+from routes.projects_common import load_authorized_project
 from models import (
     QuizQuestion, QuizQuestionCreate, QuizQuestionUpdate, QuizAlternative,
     QuizConfig, QuizAttempt, QuizGenerateRequest, QuizSubmitRequest
@@ -16,6 +19,123 @@ from models import (
 logger = logging.getLogger("server")
 
 router = APIRouter(tags=["Questions"])
+
+
+def _quiz_generation_credentials() -> tuple[str, str]:
+    """Use the OpenAI secret already configured for the Editor and Tutor."""
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    model = (
+        os.environ.get("OPENAI_QUIZ_MODEL", "").strip()
+        or os.environ.get("OPENAI_TEXT_MODEL", "").strip()
+        or "gpt-4o"
+    )
+    return api_key, model
+
+
+def _extract_quiz_json(value: object) -> dict:
+    """Extract one JSON object without trusting surrounding model prose."""
+    text = str(value or "").strip()
+    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
+    if fenced:
+        text = fenced.group(1).strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start < 0 or end <= start:
+            raise ValueError("A OpenAI não retornou um objeto JSON")
+        parsed = json.loads(text[start:end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError("A resposta da OpenAI não contém um objeto JSON")
+    return parsed
+
+
+def _clean_quiz_text(value: Any, max_length: int) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()[:max_length]
+
+
+def _normalize_generated_questions(
+    payload: dict,
+    requested_type: str,
+    requested_count: int,
+) -> list[dict]:
+    """Validate AI output before any generated question is persisted."""
+    raw_questions = payload.get("questions")
+    if not isinstance(raw_questions, list):
+        raise ValueError("A resposta não contém uma lista de questões")
+
+    normalized: list[dict] = []
+    for raw in raw_questions[:requested_count]:
+        if not isinstance(raw, dict):
+            continue
+        text = _clean_quiz_text(raw.get("text") or raw.get("questionText"), 1000)
+        explanation = _clean_quiz_text(raw.get("explanation"), 3000)
+        if not text:
+            continue
+
+        raw_type = str(raw.get("type") or "").strip()
+        q_type = requested_type if requested_type != "mixed" else raw_type
+        if q_type not in ("multiple_choice", "true_false"):
+            continue
+
+        raw_alternatives = raw.get("alternatives")
+        if not isinstance(raw_alternatives, list):
+            continue
+        alternatives = []
+        for raw_alt in raw_alternatives:
+            if not isinstance(raw_alt, dict):
+                continue
+            alt_text = _clean_quiz_text(raw_alt.get("text"), 500)
+            if alt_text:
+                alternatives.append(
+                    {"text": alt_text, "isCorrect": raw_alt.get("isCorrect") is True}
+                )
+
+        expected_alternatives = 2 if q_type == "true_false" else 4
+        if len(alternatives) != expected_alternatives:
+            continue
+        if sum(1 for alt in alternatives if alt["isCorrect"]) != 1:
+            continue
+
+        if q_type == "true_false":
+            true_alt = next(
+                (
+                    alt
+                    for alt in alternatives
+                    if alt["text"].casefold() in ("verdadeiro", "true")
+                ),
+                None,
+            )
+            false_alt = next(
+                (
+                    alt
+                    for alt in alternatives
+                    if alt["text"].casefold() in ("falso", "false")
+                ),
+                None,
+            )
+            if not true_alt or not false_alt:
+                continue
+            correct_is_true = true_alt["isCorrect"]
+            alternatives = [
+                {"text": "Verdadeiro", "isCorrect": correct_is_true},
+                {"text": "Falso", "isCorrect": not correct_is_true},
+            ]
+
+        normalized.append(
+            {
+                "type": q_type,
+                "text": text,
+                "alternatives": alternatives,
+                "explanation": explanation,
+            }
+        )
+
+    if len(normalized) != requested_count:
+        raise ValueError(
+            f"A OpenAI retornou {len(normalized)} de {requested_count} questões válidas"
+        )
+    return normalized
 
 
 @router.get("/questions")
@@ -77,79 +197,138 @@ async def delete_question(question_id: str):
 
 
 @router.post("/questions/generate")
-async def generate_questions_with_ai(request: QuizGenerateRequest):
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
-    if not emergent_key:
-        raise HTTPException(status_code=500, detail="AI API key not configured")
+async def generate_questions_with_ai(
+    request: QuizGenerateRequest,
+    user: dict = Depends(require_auth),
+):
+    project = None
+    if request.projectId:
+        project = await load_authorized_project(request.projectId, user)
+
+    api_key, model = _quiz_generation_credentials()
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "A geração de questões ainda não possui uma chave OpenAI "
+                "configurada. Cadastre OPENAI_API_KEY no backend do Render."
+            ),
+        )
+
+    prompt_text = (request.prompt or "").strip()
+    document_text = (request.documentContent or "").strip()
+    if request.source == "document" and not document_text:
+        raise HTTPException(status_code=400, detail="Envie um documento com conteúdo.")
+    if request.source == "prompt" and not prompt_text:
+        raise HTTPException(status_code=400, detail="Informe o tema das questões.")
+
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         if request.questionType == "true_false":
-            type_instruction = """Gere APENAS questoes de Verdadeiro ou Falso. Cada questao DEVE ter type "true_false" e exatamente 2 alternativas: "Verdadeiro" e "Falso"."""
+            type_instruction = """Gere apenas questões de Verdadeiro ou Falso. Cada questão deve ter type "true_false" e exatamente 2 alternativas: "Verdadeiro" e "Falso"."""
         elif request.questionType == "multiple_choice":
-            type_instruction = """Gere APENAS questoes de Multipla Escolha. Cada questao deve ter exatamente 4 alternativas, sendo apenas 1 correta."""
+            type_instruction = """Gere apenas questões de múltipla escolha. Cada questão deve ter exatamente 4 alternativas, sendo apenas 1 correta."""
         else:
-            type_instruction = """Gere uma mistura de questoes de Multipla Escolha e Verdadeiro/Falso."""
-        system_message = f"""Voce e um especialista em criar questoes de quiz educacionais.
+            type_instruction = """Gere uma mistura de questões de múltipla escolha e Verdadeiro/Falso."""
+        system_message = f"""Você é um especialista em avaliação educacional.
 {type_instruction}
-REGRAS: 1. SEMPRE responda em portugues brasileiro 2. Crie questoes claras e objetivas 3. Inclua explicacao para cada resposta correta
-FORMATO DE RESPOSTA (JSON valido):
+Crie exatamente {request.count} questões.
+REGRAS:
+1. Responda em português brasileiro.
+2. Crie questões claras, objetivas e baseadas somente no tema/contexto fornecido.
+3. Evite ambiguidades, pegadinhas e alternativas obviamente incorretas.
+4. Inclua uma explicação didática para cada resposta correta.
+5. Cada questão deve ter exatamente uma alternativa correta.
+6. Retorne somente JSON válido, sem Markdown ou comentários.
+
+FORMATO:
 {{"questions": [
-  {{"type": "multiple_choice", "text": "Qual e a capital?", "alternatives": [{{"text": "A", "isCorrect": false}}, {{"text": "B", "isCorrect": true}}, {{"text": "C", "isCorrect": false}}, {{"text": "D", "isCorrect": false}}], "explanation": "..."}},
-  {{"type": "true_false", "text": "O sol e uma estrela.", "alternatives": [{{"text": "Verdadeiro", "isCorrect": true}}, {{"text": "Falso", "isCorrect": false}}], "explanation": "..."}}
+  {{"type": "multiple_choice", "text": "Pergunta", "alternatives": [{{"text": "Alternativa A", "isCorrect": false}}, {{"text": "Alternativa B", "isCorrect": true}}, {{"text": "Alternativa C", "isCorrect": false}}, {{"text": "Alternativa D", "isCorrect": false}}], "explanation": "Explicação"}},
+  {{"type": "true_false", "text": "Afirmação", "alternatives": [{{"text": "Verdadeiro", "isCorrect": true}}, {{"text": "Falso", "isCorrect": false}}], "explanation": "Explicação"}}
 ]}}
-IMPORTANTE: Questoes true_false DEVEM SEMPRE ter o campo "alternatives" com "Verdadeiro" e "Falso".
-RESPONDA APENAS COM O JSON, SEM TEXTO ADICIONAL."""
-        chat = LlmChat(api_key=emergent_key, session_id=f"quiz-gen-{uuid.uuid4()}", system_message=system_message).with_model("openai", "gpt-4o")
+"""
+        chat = (
+            LlmChat(
+                api_key=api_key,
+                session_id=f"quiz-gen-{uuid.uuid4()}",
+                system_message=system_message,
+            )
+            .with_model("openai", model)
+            .with_params(temperature=0.2)
+        )
         if request.source == "document" and request.documentContent:
-            full_prompt = f"Com base no seguinte conteudo, gere {request.count} questoes:\n\n{request.documentContent}"
+            full_prompt = (
+                f"Gere {request.count} questões com base exclusivamente neste documento:\n\n"
+                f"{document_text}"
+            )
         else:
-            full_prompt = f"Gere {request.count} questoes sobre: {request.prompt}"
+            full_prompt = f"Gere {request.count} questões sobre: {prompt_text}"
             if request.context:
-                full_prompt += f"\n\nContexto: {request.context}"
+                full_prompt += f"\n\nContexto adicional: {request.context.strip()}"
+        if project:
+            project_title = _clean_quiz_text(
+                project.get("name") or project.get("title"), 300
+            )
+            if project_title:
+                full_prompt += f"\n\nCurso: {project_title}"
+
         response = await chat.send_message(UserMessage(text=full_prompt))
-        cleaned_response = response.strip()
-        if cleaned_response.startswith("```"):
-            cleaned_response = cleaned_response.split("```")[1]
-            if cleaned_response.startswith("json"):
-                cleaned_response = cleaned_response[4:]
-        if cleaned_response.endswith("```"):
-            cleaned_response = cleaned_response[:-3]
-        parsed = json.loads(cleaned_response.strip())
-        questions_data = parsed.get("questions", [])
-        saved_questions = []
+        parsed = _extract_quiz_json(response)
+        questions_data = _normalize_generated_questions(
+            parsed,
+            request.questionType,
+            request.count,
+        )
+
+        prepared_questions = []
+        company_id = project.get("companyId") if project else user.get("companyId")
         for q_data in questions_data:
-            alternatives = []
-            q_type = q_data.get("type", "multiple_choice")
-            # Force correct type when user explicitly requested true_false
-            if request.questionType == "true_false":
-                q_type = "true_false"
-            for alt in q_data.get("alternatives", []):
-                alternatives.append(QuizAlternative(text=alt.get("text", ""), isCorrect=alt.get("isCorrect", False)).model_dump())
-            # Fallback: ensure true_false always has Verdadeiro/Falso alternatives
-            if q_type == "true_false" and len(alternatives) < 2:
-                # Try to detect correct answer from the question context
-                correct_answer = q_data.get("answer", q_data.get("correct", ""))
-                is_true = str(correct_answer).lower() in ("true", "verdadeiro", "v")
-                alternatives = [
-                    QuizAlternative(text="Verdadeiro", isCorrect=is_true).model_dump(),
-                    QuizAlternative(text="Falso", isCorrect=not is_true).model_dump(),
-                ]
-            question = QuizQuestion(projectId=request.projectId, type=q_type, text=q_data.get("text", ""), alternatives=alternatives, explanation=q_data.get("explanation"), tags=["ai-generated"])
+            alternatives = [
+                QuizAlternative(**alt).model_dump()
+                for alt in q_data["alternatives"]
+            ]
+            question = QuizQuestion(
+                projectId=request.projectId,
+                type=q_data["type"],
+                text=q_data["text"],
+                alternatives=alternatives,
+                explanation=q_data["explanation"],
+                tags=["ai-generated"],
+            )
             question_dict = question.model_dump()
-            question_dict['createdAt'] = question.createdAt.isoformat()
-            question_dict['updatedAt'] = question.updatedAt.isoformat()
+            question_dict["createdAt"] = question.createdAt.isoformat()
+            question_dict["updatedAt"] = question.updatedAt.isoformat()
+            if company_id:
+                question_dict["companyId"] = company_id
+            prepared_questions.append(question_dict)
+
+        saved_questions = []
+        for question_dict in prepared_questions:
             await db.questions.insert_one(question_dict)
             saved_questions.append(serialize_doc(question_dict))
         return {"success": True, "questions": saved_questions, "count": len(saved_questions)}
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="AI returned invalid format. Please try again.")
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Quiz generation returned invalid data: %s", exc)
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A OpenAI retornou questões em formato incompleto. "
+                "Tente novamente ou descreva o tema com mais detalhes."
+            ),
+        )
     except ImportError:
-        raise HTTPException(status_code=500, detail="AI integration library not available")
+        raise HTTPException(
+            status_code=500,
+            detail="A integração de IA não está disponível no servidor.",
+        )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Quiz generation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate questions: {str(e)}")
+        from routes.ai_gen import _friendly_text_generation_error
+
+        status_code, detail = _friendly_text_generation_error(e)
+        raise HTTPException(status_code=status_code, detail=detail)
 
 
 @router.post("/questions/parse-doc")

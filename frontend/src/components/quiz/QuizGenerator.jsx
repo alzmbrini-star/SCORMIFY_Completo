@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 
 import { getApiUrl } from '../../utils/apiUrl';
+import { authHeaders } from '../../contexts/AuthContext';
 const API_URL = getApiUrl();
 
 export default function QuizGenerator({ 
@@ -107,7 +108,10 @@ export default function QuizGenerator({
     setQuestionsLoading(true);
     try {
       // Load all questions (global bank) - user can filter if needed
-      const response = await axios.get(`${API_URL}/api/questions`);
+      const response = await axios.get(`${API_URL}/api/questions`, {
+        headers: authHeaders(),
+        withCredentials: true,
+      });
       setQuestions(response.data);
     } catch (err) {
       console.error('Failed to load questions:', err);
@@ -130,9 +134,12 @@ export default function QuizGenerator({
         source: docText ? 'document' : 'prompt',
         prompt: aiPrompt,
         context: aiContext,
-        documentContent: docText,
+        documentContent: docText.slice(0, 60000),
         questionType,
         count: questionCount,
+      }, {
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        withCredentials: true,
       });
 
       if (response.data.success) {
@@ -145,7 +152,7 @@ export default function QuizGenerator({
       }
     } catch (err) {
       console.error('Failed to generate questions:', err);
-      toast.error('Erro ao gerar questões. Tente novamente.');
+      toast.error(err.response?.data?.detail || 'Erro ao gerar questões. Tente novamente.');
     } finally {
       setGenerating(false);
     }
@@ -168,7 +175,8 @@ export default function QuizGenerator({
       formData.append('file', file);
 
       const response = await axios.post(`${API_URL}/api/questions/parse-doc`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: authHeaders(),
+        withCredentials: true,
       });
 
       if (response.data.success) {
@@ -202,7 +210,10 @@ export default function QuizGenerator({
 
   const handleDeleteQuestion = async (questionId) => {
     try {
-      await axios.delete(`${API_URL}/api/questions/${questionId}`);
+      await axios.delete(`${API_URL}/api/questions/${questionId}`, {
+        headers: authHeaders(),
+        withCredentials: true,
+      });
       toast.success('Questão excluída');
       await loadQuestions();
       setSelectedQuestionIds(prev => prev.filter(id => id !== questionId));
@@ -237,6 +248,9 @@ export default function QuizGenerator({
         alternatives: validAlts,
         explanation: manualQuestion.explanation,
         tags: ['manual'],
+      }, {
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        withCredentials: true,
       });
 
       toast.success('Questão criada com sucesso!');
@@ -360,6 +374,7 @@ export default function QuizGenerator({
                     placeholder="Ex: Segurança no trabalho, EPIs, primeiros socorros..."
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
+                    maxLength={4000}
                     data-testid="quiz-ai-prompt"
                   />
                 </div>
@@ -370,9 +385,13 @@ export default function QuizGenerator({
                     placeholder="Informações adicionais para contextualizar as questões..."
                     value={aiContext}
                     onChange={(e) => setAiContext(e.target.value)}
+                    maxLength={8000}
                     rows={3}
                     data-testid="quiz-ai-context"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    OpenAI configurada no backend · questões validadas antes de salvar
+                  </p>
                 </div>
 
                 <Separator />
