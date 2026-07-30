@@ -1,7 +1,4 @@
-"""
-Scenario AI Generation Service
-Uses Gemini to generate interactive decision-tree learning scenarios.
-"""
+"""AI generation of interactive decision-tree learning scenarios."""
 import os
 import json
 import uuid
@@ -28,9 +25,26 @@ async def generate_scenario_with_ai(config: dict) -> dict:
     """
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
-    if not emergent_key:
-        raise ValueError("EMERGENT_LLM_KEY not configured")
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    legacy_key = os.environ.get("EMERGENT_LLM_KEY", "").strip()
+    if openai_key:
+        provider = "openai"
+        model = (
+            os.environ.get("OPENAI_SCENARIO_MODEL", "").strip()
+            or os.environ.get("OPENAI_TEXT_MODEL", "").strip()
+            or "gpt-4o"
+        )
+        api_key = openai_key
+    elif gemini_key or legacy_key:
+        provider = "gemini"
+        model = os.environ.get("GEMINI_SCENARIO_MODEL", "").strip() or "gemini-2.5-flash"
+        api_key = gemini_key or legacy_key
+    else:
+        raise ValueError(
+            "Nenhuma chave de IA configurada. Cadastre OPENAI_API_KEY "
+            "no backend do Render."
+        )
 
     theme = config.get("theme", "")
     objectives = config.get("objectives", "")
@@ -130,10 +144,15 @@ IMPORTANTE:
 
     try:
         chat = LlmChat(
-            api_key=emergent_key,
+            api_key=api_key,
             session_id=f"scenario-gen-{uuid.uuid4()}",
             system_message=system_message
-        ).with_model("gemini", "gemini-2.5-flash")
+        ).with_model(provider, model)
+        if provider == "openai":
+            chat = chat.with_params(
+                temperature=0.4,
+                response_format={"type": "json_object"},
+            )
 
         user_message = UserMessage(text=prompt)
         response = await chat.send_message(user_message)

@@ -58,6 +58,7 @@ async def test_scorm_export_embeds_whiteboard_video_and_apng(tmp_path):
     slides = [{
         "id": "slide-1",
         "title": "Whiteboard MP4",
+        "videoUrl": f"/api/whiteboard/file/{mp4_file.name}",
         "elements": elements_slide_1,
         "backgroundColor": "#d23a1f",
     }]
@@ -110,6 +111,9 @@ async def test_scorm_export_embeds_whiteboard_video_and_apng(tmp_path):
         wb_el = slide_0["elements"][0]
         assert wb_el["src"] == f"assets/{mp4_file.name}", (
             f"Element src not rewritten: {wb_el['src']}"
+        )
+        assert slide_0["videoUrl"] == f"assets/{mp4_file.name}", (
+            f"Slide-level Whiteboard URL not rewritten: {slide_0['videoUrl']}"
         )
         # 3. APNG flow (when available)
         if png_file is not None:

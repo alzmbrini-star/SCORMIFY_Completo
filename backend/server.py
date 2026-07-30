@@ -265,8 +265,8 @@ if enable_legacy_ai_routes:
     from routes import questions as questions_routes
     app.include_router(questions_routes.router, prefix="/api")
 
-    from routes import scenarios as scenarios_routes
-    app.include_router(scenarios_routes.router, prefix="/api")
+from routes import scenarios as scenarios_routes
+app.include_router(scenarios_routes.router, prefix="/api")
 
 from routes import vlibras as vlibras_routes
 app.include_router(vlibras_routes.router, prefix="/api")

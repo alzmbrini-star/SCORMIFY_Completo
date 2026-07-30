@@ -2,6 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 import { sanitizeHtmlContent, stripDomainFromAssetUrls, resolveAssetUrls } from '../../../utils/htmlUtils';
 
 export function useEditorAI({ currentProject, currentSlide, addElement, updateElement, fetchProject }) {
@@ -18,7 +19,26 @@ export function useEditorAI({ currentProject, currentSlide, addElement, updateEl
   const generateTextWithAI = async (prompt) => {
     setRichTextGenerating(true);
     try {
-      const response = await axios.post(`${API_URL}/api/ai/generate-text`, { prompt, format: 'html' });
+      const slideContext = [
+        currentProject?.name,
+        currentSlide?.title,
+        ...(currentSlide?.elements || []).map((element) =>
+          element?.htmlContent || element?.content || element?.text || ''
+        ),
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 3000);
+      const response = await axios.post(
+        `${API_URL}/api/ai/generate-text`,
+        { prompt, context: slideContext || undefined, format: 'html' },
+        {
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          withCredentials: true,
+        },
+      );
       if (response.data.success && response.data.content) {
         setRichTextContent(response.data.content);
         toast.success('Texto gerado com sucesso!');

@@ -222,6 +222,14 @@ def export_single_page_scorm_package(
     if not os.path.exists(assets_dir):
         assets_dir = os.path.join(storage_dir, project_id)
 
+    # The route materializes GridFS files before calling this synchronous
+    # exporter. Keep a defensive preflight here too so direct callers can
+    # never receive a SCORM whose Whiteboard silently falls back to a live URL.
+    from services.whiteboard_store import assert_local_whiteboards_available
+
+    storage_root = Path(__file__).resolve().parent.parent / "storage"
+    assert_local_whiteboards_available(project_doc, storage_root)
+
     # Generate single-page HTML in SCORM mode (injects scorm-api hooks)
     # The HTML's <script src="scorm-api.js"> reference is rewritten to scripts/scorm-api.js for LMS folder convention
     html_content = generate_single_page_html(

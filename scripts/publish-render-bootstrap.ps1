@@ -27,22 +27,34 @@ $files = @(
     "backend/emergentintegrations/llm/__init__.py",
     "backend/emergentintegrations/llm/chat.py",
     "backend/routes/export.py",
+    "backend/routes/ai_gen.py",
     "backend/routes/aesthetics.py",
     "backend/routes/admin.py",
     "backend/routes/auth.py",
     "backend/routes/projects_crud.py",
+    "backend/routes/scenarios.py",
     "backend/routes/whiteboard.py",
     "backend/server.py",
+    "backend/services/whiteboard_store.py",
+    "backend/services/scorm_exporter.py",
+    "backend/services/scorm_single_page_exporter.py",
+    "backend/services/scenario_service.py",
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_aesthetics_auto_fix.py",
+    "backend/tests/test_ai_text_generation_openai.py",
     "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
     "backend/tests/test_tutor_friendly_errors.py",
+    "backend/tests/test_scorm_whiteboard_asset.py",
+    "backend/tests/test_scenario_generation_reliability.py",
+    "backend/tests/test_whiteboard_export_persistence.py",
     "frontend/.env.example",
     "frontend/src/App.js",
     "frontend/src/contexts/AuthContext.jsx",
     "frontend/src/components/editor/AestheticsPanel.jsx",
+    "frontend/src/components/scenario/ScenarioCreator.jsx",
+    "frontend/src/pages/Editor/hooks/useEditorAI.js",
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
     "frontend/src/pages/Admin.jsx",
@@ -134,7 +146,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix Tutor API URL in exported courses"
+        message = "Fix Editor AI, Scenarios and Whiteboard exports"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

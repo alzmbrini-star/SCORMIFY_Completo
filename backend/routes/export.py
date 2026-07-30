@@ -383,6 +383,20 @@ async def _run_scorm_export_job(
         await update_job(job_id, {"progress": 25, "message": "Gerando pacote SCORM..."})
 
         # Generate package — runs in a thread pool to avoid blocking the event loop
+        # Render disks are ephemeral and Whiteboards can exceed MongoDB's
+        # single-document limit. Restore every referenced file from GridFS
+        # before entering either exporter.
+        from services.whiteboard_store import ensure_whiteboards_for_export
+
+        restored_whiteboards = await ensure_whiteboards_for_export(
+            project_doc, db, STORAGE_DIR
+        )
+        if restored_whiteboards:
+            logger.info(
+                "Restored %d Whiteboard asset(s) for SCORM export",
+                len(restored_whiteboards),
+            )
+
         if use_single_page:
             from services.scorm_single_page_exporter import export_single_page_scorm_package
             from services.company_asset_export import prepare_company_assets_for_export
@@ -824,6 +838,19 @@ async def _run_html_export_job(
             logger.warning(f"Tutor settings load for HTML export failed (non-fatal): {e}")
 
         await update_job(job_id, {"progress": 35, "message": "Gerando HTML..."})
+
+        # Standalone HTML must also remain self-contained after a Render
+        # restart, so materialize its Whiteboards before generating markup.
+        from services.whiteboard_store import ensure_whiteboards_for_export
+
+        restored_whiteboards = await ensure_whiteboards_for_export(
+            project_doc, db, STORAGE_DIR
+        )
+        if restored_whiteboards:
+            logger.info(
+                "Restored %d Whiteboard asset(s) for HTML export",
+                len(restored_whiteboards),
+            )
 
         # Generate HTML — heavy work in thread pool
         if use_single_page:

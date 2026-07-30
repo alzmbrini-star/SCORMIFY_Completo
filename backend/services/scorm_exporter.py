@@ -528,6 +528,29 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         if not isinstance(slide, dict):
             continue
 
+        # Older courses also keep the opaque Whiteboard MP4 at slide level.
+        # Package and rewrite it even when an element reference is absent.
+        slide_video_url = slide.get('videoUrl') or ''
+        if (
+            isinstance(slide_video_url, str)
+            and '/api/whiteboard/file/' in slide_video_url
+        ):
+            wb_name = slide_video_url.split('/api/whiteboard/file/')[-1].split('?')[0].split('/')[0]
+            wb_source = STORAGE_DIR / "whiteboard" / wb_name
+            if not wb_source.exists():
+                from services.whiteboard_store import (
+                    WhiteboardAssetUnavailableError,
+                )
+
+                raise WhiteboardAssetUnavailableError(
+                    "Não foi possível exportar porque o Whiteboard do curso "
+                    f"não está disponível: {wb_name}. Gere novamente esse "
+                    "Whiteboard no Editor e tente exportar outra vez."
+                )
+            (package_dir / "assets").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(wb_source), str(package_dir / "assets" / wb_name))
+            slide['videoUrl'] = f"assets/{wb_name}"
+
         # Fix background image URL - EMBED AS DATA URI
         bg_url = slide.get('backgroundImage') or ''
         if bg_url and isinstance(bg_url, str):
@@ -576,11 +599,19 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                             element['src'] = f"assets/{wb_name}"
                             logger.info(f"Copied whiteboard asset to package: {wb_name}")
                         except Exception as e:
-                            logger.warning(f"Failed to copy whiteboard asset {wb_name}: {e}")
-                            element['src'] = f"assets/{wb_name}"
+                            raise RuntimeError(
+                                f"Falha ao incluir o Whiteboard {wb_name} no pacote SCORM"
+                            ) from e
                     else:
-                        logger.warning(f"Whiteboard source file not found: {wb_source}")
-                        element['src'] = f"assets/{wb_name}"
+                        from services.whiteboard_store import (
+                            WhiteboardAssetUnavailableError,
+                        )
+
+                        raise WhiteboardAssetUnavailableError(
+                            "Não foi possível exportar porque o Whiteboard do curso "
+                            f"não está disponível: {wb_name}. Gere novamente esse "
+                            "Whiteboard no Editor e tente exportar outra vez."
+                        )
             elif elem_src and isinstance(elem_src, str) and '/assets/' in elem_src:
                 raw = elem_src.split('/assets/')[-1].split('?')[0]
                 filename = raw.split('/')[-1] if '/' in raw else raw

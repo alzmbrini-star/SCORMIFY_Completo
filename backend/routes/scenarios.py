@@ -2,14 +2,17 @@
 Scenario routes - CRUD and AI generation for interactive learning scenarios
 Uses MongoDB for task persistence (works across multiple workers in production).
 """
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import uuid
 import asyncio
 import logging
+from datetime import timedelta
 
 from routes.deps import db, now_utc
+from routes.auth import require_auth
+from routes.projects_common import load_authorized_project
 
 logger = logging.getLogger("server")
 router = APIRouter(prefix="/scenarios", tags=["Scenarios"])
@@ -20,12 +23,12 @@ router = APIRouter(prefix="/scenarios", tags=["Scenarios"])
 class ScenarioGenerateRequest(BaseModel):
     """Request to generate a scenario via AI"""
     project_id: str
-    theme: str
-    objectives: str
-    audience: str = ""
+    theme: str = Field(min_length=3, max_length=500)
+    objectives: str = Field(min_length=3, max_length=4000)
+    audience: str = Field(default="", max_length=1000)
     complexity: str = "intermediate"
-    industry: str = ""
-    duration_minutes: int = 15
+    industry: str = Field(default="", max_length=500)
+    duration_minutes: int = Field(default=15, ge=5, le=60)
     language: str = "pt-BR"
 
 
@@ -35,11 +38,11 @@ class ScenarioCreateRequest(BaseModel):
     title: str
     description: str = ""
     context: str = ""
-    characters: List[Dict[str, Any]] = []
-    learning_objectives: List[str] = []
-    competencies_evaluated: List[str] = []
-    nodes: List[Dict[str, Any]] = []
-    config: Dict[str, Any] = {}
+    characters: List[Dict[str, Any]] = Field(default_factory=list)
+    learning_objectives: List[str] = Field(default_factory=list)
+    competencies_evaluated: List[str] = Field(default_factory=list)
+    nodes: List[Dict[str, Any]] = Field(default_factory=list)
+    config: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ScenarioUpdateRequest(BaseModel):
@@ -57,10 +60,19 @@ class ScenarioUpdateRequest(BaseModel):
 # ── Generation Routes (async with MongoDB-persisted tasks) ──
 
 @router.post("/generate")
-async def generate_scenario(req: ScenarioGenerateRequest):
+async def generate_scenario(
+    req: ScenarioGenerateRequest,
+    user: dict = Depends(require_auth),
+):
     """Start async scenario generation. Returns task_id for polling."""
+    project = await load_authorized_project(req.project_id, user)
     task_id = str(uuid.uuid4())
     now = now_utc().isoformat()
+
+    # Terminal task results remain available for retries/reloads. Prune old
+    # records opportunistically instead of deleting them during the first poll.
+    cutoff = (now_utc() - timedelta(hours=24)).isoformat()
+    await db.generation_tasks.delete_many({"created_at": {"$lt": cutoff}})
 
     # Persist task status in MongoDB (survives multi-worker deployments)
     await db.generation_tasks.insert_one({
@@ -68,6 +80,8 @@ async def generate_scenario(req: ScenarioGenerateRequest):
         "status": "processing",
         "scenario_id": None,
         "error": None,
+        "user_id": user.get("user_id"),
+        "company_id": project.get("companyId"),
         "created_at": now,
     })
 
@@ -137,11 +151,18 @@ async def _run_generation(task_id: str, req: ScenarioGenerateRequest):
 
 
 @router.get("/task/{task_id}")
-async def get_generation_status(task_id: str):
+async def get_generation_status(
+    task_id: str,
+    user: dict = Depends(require_auth),
+):
     """Poll for scenario generation status"""
     task = await db.generation_tasks.find_one({"task_id": task_id}, {"_id": 0})
     if not task:
         raise HTTPException(status_code=404, detail="Task não encontrada")
+    roles = set(user.get("roles") or [user.get("role")])
+    owner_id = task.get("user_id")
+    if owner_id and owner_id != user.get("user_id") and "super_admin" not in roles:
+        raise HTTPException(status_code=403, detail="Acesso negado a esta tarefa")
 
     result = {"task_id": task_id, "status": task["status"]}
 
@@ -152,14 +173,37 @@ async def get_generation_status(task_id: str):
         )
         result["success"] = True
         result["scenario"] = scenario
-        # Clean up task record
-        await db.generation_tasks.delete_one({"task_id": task_id})
     elif task["status"] == "failed":
         result["success"] = False
-        result["error"] = task.get("error", "Erro desconhecido")
-        await db.generation_tasks.delete_one({"task_id": task_id})
+        result["error"] = _friendly_generation_error(
+            task.get("error", "Erro desconhecido")
+        )
 
     return result
+
+
+def _friendly_generation_error(error: object) -> str:
+    """Return an actionable message without exposing provider internals."""
+    text = str(error or "")
+    lowered = text.lower()
+    if "nenhuma chave" in lowered or "not configured" in lowered:
+        return (
+            "A geração de cenários ainda não possui uma chave OpenAI "
+            "configurada no servidor."
+        )
+    if "insufficient_quota" in lowered or "budget" in lowered:
+        return (
+            "O saldo ou limite de uso da OpenAI foi atingido. "
+            "Verifique Billing e Usage e tente novamente."
+        )
+    if "rate limit" in lowered or "429" in lowered:
+        return (
+            "A OpenAI está recebendo muitas solicitações. "
+            "Aguarde alguns segundos e tente novamente."
+        )
+    if "invalid api key" in lowered or "unauthorized" in lowered:
+        return "A chave OpenAI configurada parece inválida."
+    return "Não foi possível gerar o cenário. Tente novamente em alguns instantes."
 
 
 # ── CRUD Routes ──

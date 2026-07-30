@@ -21,6 +21,7 @@ import {
 } from '../ui/select';
 import { Loader2, Sparkles, GitBranch, Users, Target, Building2 } from 'lucide-react';
 import { getApiUrl } from '../../utils/apiUrl';
+import { authHeaders } from '../../contexts/AuthContext';
 
 const API_URL = getApiUrl();
 
@@ -48,16 +49,24 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
     setGenerating(true);
     try {
       // Step 1: Start async generation
-      const startRes = await axios.post(`${API_URL}/api/scenarios/generate`, {
-        project_id: projectId,
-        theme: form.theme,
-        objectives: form.objectives,
-        audience: form.audience,
-        complexity: form.complexity,
-        industry: form.industry,
-        duration_minutes: form.duration_minutes,
-        language: 'pt-BR',
-      });
+      const requestConfig = {
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        withCredentials: true,
+      };
+      const startRes = await axios.post(
+        `${API_URL}/api/scenarios/generate`,
+        {
+          project_id: projectId,
+          theme: form.theme,
+          objectives: form.objectives,
+          audience: form.audience,
+          complexity: form.complexity,
+          industry: form.industry,
+          duration_minutes: form.duration_minutes,
+          language: 'pt-BR',
+        },
+        requestConfig,
+      );
 
       const taskId = startRes.data.task_id;
       if (!taskId) throw new Error('Falha ao iniciar geração');
@@ -69,27 +78,32 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
         await new Promise(r => setTimeout(r, 2000));
         attempts++;
 
+        let pollRes;
         try {
-          const pollRes = await axios.get(`${API_URL}/api/scenarios/task/${taskId}`);
-          const { status, scenario, error } = pollRes.data;
-
-          if (status === 'completed' && scenario) {
-            toast.success(`Cenário "${scenario.title}" gerado com ${scenario.nodes?.length || 0} cenas!`);
-            onScenarioCreated(scenario);
-            onOpenChange(false);
-            setForm({ theme: '', objectives: '', audience: '', complexity: 'intermediate', industry: '', duration_minutes: 15 });
-            return;
-          } else if (status === 'failed') {
-            throw new Error(error || 'Falha na geração do cenário');
-          }
-          // status === 'processing' -> continue polling
+          pollRes = await axios.get(
+            `${API_URL}/api/scenarios/task/${taskId}`,
+            requestConfig,
+          );
         } catch (pollErr) {
-          // 404 can happen briefly while MongoDB propagates - tolerate a few
-          if (pollErr.response?.status === 404 && attempts > 5) {
-            throw new Error('Tarefa de geração não encontrada');
-          }
-          // Network error or early 404 during poll -> retry
+          // Tolerate only brief propagation/network errors. Authentication,
+          // authorization and persistent 404 responses must reach the user.
+          if (pollErr.response?.status === 404 && attempts <= 5) continue;
+          if (!pollErr.response && attempts <= 3) continue;
+          throw pollErr;
         }
+
+        const { status, scenario, error } = pollRes.data;
+        if (status === 'completed' && scenario) {
+          toast.success(`Cenário "${scenario.title}" gerado com ${scenario.nodes?.length || 0} cenas!`);
+          await onScenarioCreated(scenario);
+          onOpenChange(false);
+          setForm({ theme: '', objectives: '', audience: '', complexity: 'intermediate', industry: '', duration_minutes: 15 });
+          return;
+        }
+        if (status === 'failed') {
+          throw new Error(error || 'Falha na geração do cenário');
+        }
+        // status === 'processing' -> continue polling
       }
 
       throw new Error('Tempo limite excedido. Tente novamente.');

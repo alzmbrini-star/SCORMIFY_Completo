@@ -1,7 +1,7 @@
 """AI text/image generation routes"""
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 import os
@@ -11,6 +11,7 @@ import base64
 import json
 
 from routes.deps import db, now_utc, serialize_doc, STORAGE_DIR, PROJECTS_DIR, UPLOADS_DIR
+from routes.auth import require_auth
 
 logger = logging.getLogger("server")
 
@@ -52,17 +53,87 @@ async def serve_global_asset(filename: str):
 
 
 class AITextGenerateRequest(BaseModel):
-    prompt: str
-    context: Optional[str] = None
+    prompt: str = Field(min_length=3, max_length=4000)
+    context: Optional[str] = Field(default=None, max_length=8000)
     format: str = "html"  # html, plain, markdown
 
+
+def _text_generation_credentials() -> tuple[str, str]:
+    """Use the same OpenAI secret already configured for the Tutor IA."""
+    api_key = (
+        os.environ.get("OPENAI_API_KEY", "").strip()
+        or os.environ.get("EMERGENT_LLM_KEY", "").strip()
+    )
+    model = (
+        os.environ.get("OPENAI_TEXT_MODEL", "").strip()
+        or os.environ.get("OPENAI_TUTOR_MODEL", "").strip()
+        or "gpt-4o"
+    )
+    return api_key, model
+
+
+def _clean_generated_html(value: object) -> str:
+    """Remove common Markdown wrappers while preserving the generated HTML."""
+    text = str(value or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].strip().lower() in ("```", "```html"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
+def _friendly_text_generation_error(exc: Exception) -> tuple[int, str]:
+    error = str(exc).lower()
+    if (
+        "insufficient_quota" in error
+        or "budget has been exceeded" in error
+        or ("billing" in error and "quota" in error)
+    ):
+        return 503, (
+            "O saldo ou limite de uso da conta OpenAI foi atingido. "
+            "Verifique Billing e Usage na plataforma OpenAI."
+        )
+    if "rate limit" in error or "429" in error:
+        return 429, (
+            "A OpenAI está recebendo muitas solicitações. "
+            "Aguarde alguns segundos e tente novamente."
+        )
+    if "invalid api key" in error or "unauthorized" in error or "401" in error:
+        return 503, (
+            "A chave OpenAI configurada parece inválida. "
+            "Verifique OPENAI_API_KEY no ambiente seguro do Render."
+        )
+    return 502, (
+        "Não foi possível gerar o texto com IA agora. "
+        "Tente novamente em alguns instantes."
+    )
+
+
 @router.post("/ai/generate-text")
-async def generate_text_with_ai(request: AITextGenerateRequest):
-    """Generate formatted text content using AI (GPT-4o)"""
-    
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
-    if not emergent_key:
-        raise HTTPException(status_code=500, detail="AI API key not configured")
+async def generate_text_with_ai(
+    request: AITextGenerateRequest,
+    _user: dict = Depends(require_auth),
+):
+    """Generate formatted educational content with the configured OpenAI key."""
+
+    api_key, model = _text_generation_credentials()
+    prompt_text = request.prompt.strip()
+    if not prompt_text:
+        raise HTTPException(
+            status_code=400,
+            detail="Descreva o texto que deseja gerar.",
+        )
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "A geração de texto ainda não possui uma chave OpenAI "
+                "configurada. Cadastre OPENAI_API_KEY no backend do Render."
+            ),
+        )
     
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -90,19 +161,21 @@ Exemplo de resposta formatada:
 
         # Initialize chat with GPT-4o
         chat = LlmChat(
-            api_key=emergent_key,
+            api_key=api_key,
             session_id=f"text-gen-{uuid.uuid4()}",
             system_message=system_message
-        ).with_model("openai", "gpt-4o")
+        ).with_model("openai", model)
         
         # Build the prompt
-        full_prompt = f"Gere conteúdo formatado sobre: {request.prompt}"
+        full_prompt = f"Gere conteúdo formatado sobre: {prompt_text}"
         if request.context:
             full_prompt += f"\n\nContexto adicional: {request.context}"
         
         # Send message and get response
         user_message = UserMessage(text=full_prompt)
-        response = await chat.send_message(user_message)
+        response = _clean_generated_html(await chat.send_message(user_message))
+        if not response:
+            raise RuntimeError("empty response from OpenAI")
         
         logger.info(f"AI text generated successfully for prompt: {request.prompt[:50]}...")
         
@@ -112,12 +185,18 @@ Exemplo de resposta formatada:
             "format": request.format
         }
         
+    except HTTPException:
+        raise
     except ImportError:
         logger.error("emergentintegrations library not installed")
-        raise HTTPException(status_code=500, detail="AI integration library not available")
+        raise HTTPException(
+            status_code=500,
+            detail="A integração de IA não está disponível no servidor.",
+        )
     except Exception as e:
         logger.error(f"AI text generation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate text: {str(e)}")
+        status_code, detail = _friendly_text_generation_error(e)
+        raise HTTPException(status_code=status_code, detail=detail)
 
 
 # AI Image Generation Endpoint
