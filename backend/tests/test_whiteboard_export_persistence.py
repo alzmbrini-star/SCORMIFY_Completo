@@ -152,6 +152,45 @@ async def test_missing_whiteboard_stops_export_with_actionable_message(tmp_path)
         )
 
 
+def test_omits_only_missing_whiteboard_from_export_copy():
+    project = _project_doc("wb_missing_old.mp4")
+    slide = project["course"]["slides"][0]
+    slide["elements"].append({
+        "id": "regular-image",
+        "type": "image",
+        "src": "/api/assets/regular.png",
+    })
+
+    status = whiteboard_store.omit_missing_whiteboards_from_export(
+        project, ["wb_missing_old.mp4"]
+    )
+
+    assert status["missing"] == ["wb_missing_old.mp4"]
+    assert status["removedElements"] == 1
+    assert slide["videoUrl"] is None
+    assert [element["id"] for element in slide["elements"]] == ["regular-image"]
+
+
+@pytest.mark.asyncio
+async def test_prepare_export_omits_irrecoverable_whiteboard(tmp_path, monkeypatch):
+    project = _project_doc("wb_gone_after_redeploy.mp4")
+
+    async def cannot_restore(_db, _name, _destination):
+        return False
+
+    monkeypatch.setattr(
+        whiteboard_store, "restore_whiteboard_file", cannot_restore
+    )
+
+    status = await whiteboard_store.prepare_whiteboards_for_export(
+        project, object(), tmp_path
+    )
+
+    assert status["restored"] == []
+    assert status["missing"] == ["wb_gone_after_redeploy.mp4"]
+    assert project["course"]["slides"][0]["elements"] == []
+
+
 def test_traditional_scorm_never_emits_broken_whiteboard_reference(tmp_path):
     project_doc = _project_doc("wb_missing_traditional.mp4")
     project = Project(

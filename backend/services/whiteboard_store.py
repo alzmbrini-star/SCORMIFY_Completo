@@ -217,3 +217,82 @@ async def ensure_whiteboards_for_export(
 
     assert_local_whiteboards_available(project_doc, storage_dir)
     return restored
+
+
+def omit_missing_whiteboards_from_export(
+    project_doc: dict,
+    missing_names: Iterable[str],
+) -> dict:
+    """Remove irrecoverable Whiteboard references from an export-only copy.
+
+    The caller must never persist this mutated document. This allows the rest
+    of a course to be exported after an old Render filesystem was recycled,
+    while making the omission explicit in the export result.
+    """
+    missing = set(missing_names)
+    removed_elements = 0
+    cleared_slide_fields = 0
+    if not missing:
+        return {
+            "missing": [],
+            "removedElements": 0,
+            "clearedSlideFields": 0,
+        }
+
+    def references_missing(value: object) -> bool:
+        return bool(set(_names_from_value(value)) & missing)
+
+    course = (project_doc or {}).get("course") or {}
+    for slide in course.get("slides") or []:
+        if not isinstance(slide, dict):
+            continue
+        for field in ("videoUrl", "src", "url"):
+            if references_missing(slide.get(field)):
+                slide[field] = None
+                cleared_slide_fields += 1
+
+        kept_elements = []
+        for element in slide.get("elements") or []:
+            if not isinstance(element, dict):
+                kept_elements.append(element)
+                continue
+            has_missing_ref = any(
+                references_missing(element.get(field))
+                for field in ("src", "videoUrl", "url", "content")
+            )
+            is_media = element.get("type") in ("video", "image")
+            if has_missing_ref and (element.get("isWhiteboard") or is_media):
+                removed_elements += 1
+                continue
+            kept_elements.append(element)
+        slide["elements"] = kept_elements
+
+    return {
+        "missing": sorted(missing),
+        "removedElements": removed_elements,
+        "clearedSlideFields": cleared_slide_fields,
+    }
+
+
+async def prepare_whiteboards_for_export(
+    project_doc: dict,
+    db,
+    storage_dir: str | Path,
+) -> dict:
+    """Restore available files and safely omit only irrecoverable references."""
+    storage_dir = Path(storage_dir)
+    whiteboard_dir = storage_dir / "whiteboard"
+    restored: list[str] = []
+    for name in extract_whiteboard_names(project_doc):
+        destination = whiteboard_dir / name
+        if destination.is_file():
+            continue
+        if await restore_whiteboard_file(db, name, destination):
+            restored.append(name)
+
+    missing = missing_local_whiteboard_names(project_doc, storage_dir)
+    omission = omit_missing_whiteboards_from_export(project_doc, missing)
+    return {
+        "restored": restored,
+        **omission,
+    }

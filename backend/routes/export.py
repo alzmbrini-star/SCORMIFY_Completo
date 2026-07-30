@@ -271,6 +271,7 @@ async def _run_scorm_export_job(
     """Heavy SCORM export work — runs as an asyncio task so the original
     POST returns in ~100ms. Updates the job document throughout."""
     try:
+        export_warnings: list[dict] = []
         # Collect all question IDs from quiz elements
         question_ids = set()
         for slide in (project_doc.get("course") or {}).get("slides", []) or []:
@@ -386,15 +387,30 @@ async def _run_scorm_export_job(
         # Render disks are ephemeral and Whiteboards can exceed MongoDB's
         # single-document limit. Restore every referenced file from GridFS
         # before entering either exporter.
-        from services.whiteboard_store import ensure_whiteboards_for_export
+        from services.whiteboard_store import prepare_whiteboards_for_export
 
-        restored_whiteboards = await ensure_whiteboards_for_export(
+        whiteboard_status = await prepare_whiteboards_for_export(
             project_doc, db, STORAGE_DIR
         )
+        restored_whiteboards = whiteboard_status["restored"]
         if restored_whiteboards:
             logger.info(
                 "Restored %d Whiteboard asset(s) for SCORM export",
                 len(restored_whiteboards),
+            )
+        if whiteboard_status["missing"]:
+            export_warnings.append({
+                "code": "missing_whiteboards_omitted",
+                "message": (
+                    "O SCORM foi exportado, mas Whiteboards antigos e "
+                    "irrecuperáveis foram omitidos. Gere-os novamente no Editor."
+                ),
+                "files": whiteboard_status["missing"],
+            })
+            logger.warning(
+                "SCORM export omitted %d unavailable Whiteboard(s): %s",
+                len(whiteboard_status["missing"]),
+                ", ".join(whiteboard_status["missing"]),
             )
 
         if use_single_page:
@@ -468,15 +484,21 @@ async def _run_scorm_export_job(
             'downloadUrl': f"/api/exports/{export_filename}",
             'filename': export_filename,
             'mode': 'single_page' if use_single_page else 'traditional',
+            'warnings': export_warnings,
         }
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
-        jobs[job_id]['message'] = 'Pacote SCORM pronto'
+        completion_message = (
+            'Pacote SCORM pronto com avisos'
+            if export_warnings else
+            'Pacote SCORM pronto'
+        )
+        jobs[job_id]['message'] = completion_message
         jobs[job_id]['result'] = result
         await update_job(job_id, {
             'status': 'completed',
             'progress': 100,
-            'message': 'Pacote SCORM pronto',
+            'message': completion_message,
             'result': result,
         })
 
@@ -742,6 +764,7 @@ async def _run_html_export_job(
 ):
     """Heavy HTML standalone export work — runs as an asyncio task."""
     try:
+        export_warnings: list[dict] = []
         from services.html_exporter import generate_standalone_html
         assets_dir = str(PROJECTS_DIR / project_id / "assets")
         base_url = external_url
@@ -841,16 +864,26 @@ async def _run_html_export_job(
 
         # Standalone HTML must also remain self-contained after a Render
         # restart, so materialize its Whiteboards before generating markup.
-        from services.whiteboard_store import ensure_whiteboards_for_export
+        from services.whiteboard_store import prepare_whiteboards_for_export
 
-        restored_whiteboards = await ensure_whiteboards_for_export(
+        whiteboard_status = await prepare_whiteboards_for_export(
             project_doc, db, STORAGE_DIR
         )
+        restored_whiteboards = whiteboard_status["restored"]
         if restored_whiteboards:
             logger.info(
                 "Restored %d Whiteboard asset(s) for HTML export",
                 len(restored_whiteboards),
             )
+        if whiteboard_status["missing"]:
+            export_warnings.append({
+                "code": "missing_whiteboards_omitted",
+                "message": (
+                    "O HTML foi exportado, mas Whiteboards antigos e "
+                    "irrecuperáveis foram omitidos. Gere-os novamente no Editor."
+                ),
+                "files": whiteboard_status["missing"],
+            })
 
         # Generate HTML — heavy work in thread pool
         if use_single_page:
@@ -938,15 +971,19 @@ async def _run_html_export_job(
             'downloadUrl': f"/api/exports/{filename}",
             'filename': filename,
             'mode': 'single_page' if use_single_page else 'traditional',
+            'warnings': export_warnings,
         }
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
-        jobs[job_id]['message'] = 'HTML pronto'
+        completion_message = (
+            'HTML pronto com avisos' if export_warnings else 'HTML pronto'
+        )
+        jobs[job_id]['message'] = completion_message
         jobs[job_id]['result'] = result
         await update_job(job_id, {
             'status': 'completed',
             'progress': 100,
-            'message': 'HTML pronto',
+            'message': completion_message,
             'result': result,
         })
 

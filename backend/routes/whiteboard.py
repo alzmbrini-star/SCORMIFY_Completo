@@ -69,20 +69,22 @@ _OOM_MSG = (
 # pods have ephemeral / non-shared filesystems: the pod that renders is
 # not necessarily the pod that serves the GET — without persisting to
 # Mongo the file 404s. Mirrors the project-wide asset_store pattern.
-async def _persist_wb_output(rel_url: str) -> None:
+async def _persist_wb_output(rel_url: str) -> bool:
     """Persist a rendered Whiteboard in GridFS so any pod can serve it."""
     try:
         name = rel_url.rsplit("/", 1)[-1]
         path = OUTPUT_DIR / name
         if not path.exists():
-            return
+            return False
         from services.whiteboard_store import persist_whiteboard_file
 
         persisted = await persist_whiteboard_file(db, name, path)
         if not persisted:
             logger.warning("whiteboard output was not persisted: %s", name)
+        return bool(persisted)
     except Exception as e:  # noqa: BLE001
         logger.warning("failed to persist whiteboard output %s: %s", rel_url, e)
+        return False
 
 
 async def _render_in_subprocess(kind: str, params: dict) -> tuple[str, dict]:
@@ -275,7 +277,15 @@ async def _do_whiteboard_render(
 
     # Persist to MongoDB BEFORE completing the job — in production the
     # GET may land on a different pod than the one that rendered.
-    await _persist_wb_output(rel_url)
+    if not await _persist_wb_output(rel_url):
+        await update_job(job_id, {
+            "status": "failed",
+            "message": (
+                "O Whiteboard foi renderizado, mas não pôde ser salvo no "
+                "armazenamento persistente. Tente novamente."
+            ),
+        })
+        return
 
     # Bind to slide if requested (same logic as the previous sync flow).
     if payload.projectId and payload.slideId:
@@ -750,7 +760,15 @@ async def _do_plan_render(
         })
         return
 
-    await _persist_wb_output(rel_url)
+    if not await _persist_wb_output(rel_url):
+        await update_job(job_id, {
+            "status": "failed",
+            "message": (
+                "O Whiteboard foi renderizado, mas não pôde ser salvo no "
+                "armazenamento persistente. Tente novamente."
+            ),
+        })
+        return
 
     # Bind to slide if requested — atomic $push (same pattern as /generate
     # to dodge concurrent-write races).
@@ -807,7 +825,10 @@ async def _do_plan_render(
                 update_ops: dict = {
                     "$push": {f"course.slides.{slide_idx}.elements": new_el},
                     "$set": {
-                        f"course.slides.{slide_idx}.whiteboardMeta": info,
+                        f"course.slides.{slide_idx}.whiteboardMeta": {
+                            **info,
+                            "renderPlan": payload.plan,
+                        },
                         "updatedAt": now_utc().isoformat(),
                     },
                 }

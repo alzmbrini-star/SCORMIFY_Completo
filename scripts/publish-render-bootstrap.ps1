@@ -63,6 +63,7 @@ $files = @(
     "frontend/src/pages/Editor/dialogs/WhiteboardDialog.jsx",
     "frontend/src/components/scenario/ScenarioCreator.jsx",
     "frontend/src/pages/Editor/hooks/useEditorAI.js",
+    "frontend/src/pages/Editor/hooks/useEditorExport.js",
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
     "frontend/src/pages/Admin.jsx",
@@ -154,7 +155,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Preserve authored font sizes on mobile SCORM"
+        message = "Recover SCORM export when old whiteboards are unavailable"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

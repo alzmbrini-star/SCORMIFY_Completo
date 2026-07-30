@@ -16,6 +16,21 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
 
   const API_URL = getApiUrl();
 
+  const notifyExportReady = (format, modeLabel, payload = {}) => {
+    const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+    const missing = warnings
+      .filter((warning) => warning?.code === 'missing_whiteboards_omitted')
+      .flatMap((warning) => warning.files || []);
+    if (missing.length) {
+      toast.warning(
+        `${format} (${modeLabel}) pronto, mas ${missing.length} Whiteboard antigo foi omitido. Gere novamente no Editor: ${missing.join(', ')}`,
+        { duration: 12000 },
+      );
+      return;
+    }
+    toast.success(`${format} (${modeLabel}) pronto!`);
+  };
+
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
@@ -71,7 +86,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       if (startResp?.downloadUrl && !startResp.jobId) {
         setDownloadUrl(`${API_URL}${startResp.downloadUrl}`);
         const modeLabel = startResp?.mode === 'single_page' ? 'Página Única' : 'Tradicional';
-        toast.success(`SCORM (${modeLabel}) pronto!`);
+        notifyExportReady('SCORM', modeLabel, startResp);
         return;
       }
       // New async-job pattern
@@ -86,7 +101,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       if (!result.downloadUrl) throw new Error('Download URL ausente na resposta');
       setDownloadUrl(`${API_URL}${result.downloadUrl}`);
       const modeLabel = result?.mode === 'single_page' ? 'Página Única' : 'Tradicional';
-      toast.success(`SCORM (${modeLabel}) pronto!`);
+      notifyExportReady('SCORM', modeLabel, result);
     } catch (err) {
       console.error('SCORM export error:', err);
       toast.error('Falha na exportacao: ' + (err.message || 'Erro desconhecido'));
@@ -112,7 +127,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       if (startResp.downloadUrl && !startResp.jobId) {
         setDownloadUrl(`${API_URL}${startResp.downloadUrl}`);
         const modeLabel = startResp?.mode === 'single_page' ? 'Página Única' : 'Tradicional';
-        toast.success(`HTML (${modeLabel}) pronto!`);
+        notifyExportReady('HTML', modeLabel, startResp);
         return;
       }
       if (!startResp.jobId) throw new Error('Resposta inesperada do servidor');
@@ -126,7 +141,7 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       if (!result.downloadUrl) throw new Error('Download URL ausente na resposta');
       setDownloadUrl(`${API_URL}${result.downloadUrl}`);
       const modeLabel = result?.mode === 'single_page' ? 'Página Única' : 'Tradicional';
-      toast.success(`HTML (${modeLabel}) pronto!`);
+      notifyExportReady('HTML', modeLabel, result);
     } catch (err) {
       console.error('HTML export error:', err);
       toast.error('Falha na exportacao: ' + (err.response?.data?.detail || err.message));
