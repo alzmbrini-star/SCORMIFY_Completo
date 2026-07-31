@@ -186,7 +186,10 @@ const SlideCanvas = ({
     if (typeof e.button === 'number' && e.button !== 0) return;
     
     e.stopPropagation();
-    e.preventDefault();
+    // Do not cancel a mouse pointerdown: canceling it suppresses the browser's
+    // native click/double-click sequence, which text elements use to enter
+    // editing mode. Touch and pen still need preventDefault to avoid scrolling.
+    if (e.pointerType !== 'mouse') e.preventDefault();
     capturePointer(e);
     
     onSelectElement(element.id);
@@ -784,6 +787,7 @@ const SlideCanvas = ({
               opacity: displayElement.visible === false ? Math.max(0.3, displayElement.style?.opacity ?? 1) : (displayElement.style?.opacity ?? 1),
               cursor: isDragging && isSelected ? 'grabbing' : 'grab',
               touchAction: 'none',
+              userSelect: isEditing ? 'text' : 'none',
               ...animStyle,
               transition: animTransition || undefined,
             }}

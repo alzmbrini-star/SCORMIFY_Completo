@@ -173,7 +173,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Capture pointer during slide element drag and resize"
+        message = "Fix slide pointer capture and text double-click editing"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

@@ -232,7 +232,35 @@ describe('SlideCanvas element interactions', () => {
       );
     });
 
-    const element = container.querySelector('[data-testid="element-element-1"]');
+    const element = enablePointerCapture(
+      container.querySelector('[data-testid="element-element-1"]'),
+    );
+
+    const dispatchMouseClick = () => {
+      const down = pointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 60,
+        clientY: 60,
+        button: 0,
+      });
+      act(() => element.dispatchEvent(down));
+      expect(down.defaultPrevented).toBe(false);
+      act(() => window.dispatchEvent(pointerEvent('pointerup', {
+        bubbles: true,
+        buttons: 0,
+      })));
+      act(() => element.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 60,
+        clientY: 60,
+        button: 0,
+      })));
+    };
+
+    dispatchMouseClick();
+    dispatchMouseClick();
     act(() => {
       element.dispatchEvent(new MouseEvent('dblclick', {
         bubbles: true,
