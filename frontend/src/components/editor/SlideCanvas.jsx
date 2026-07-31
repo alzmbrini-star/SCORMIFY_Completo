@@ -87,13 +87,16 @@ const SlideCanvas = ({
   const [annotationPoints, setAnnotationPoints] = useState([]);
   // Track pending update for final save
   const pendingUpdateRef = useRef(null);
-  // Mouse-up must stop the interaction synchronously. Persisting the final
+  // Pointer-up must stop the interaction synchronously. Persisting the final
   // coordinates can take a moment, and React state alone leaves a window in
-  // which later mousemove events keep dragging the element after release.
+  // which later pointermove events keep dragging the element after release.
   const interactionActiveRef = useRef(false);
   const interactionSequenceRef = useRef(0);
   const activeElementIdRef = useRef(null);
   const interactionStartRef = useRef(null);
+  // HTML elements render inside iframes. Native pointer capture keeps the
+  // editor receiving move/up events even when the cursor crosses that iframe.
+  const capturedPointerRef = useRef({ target: null, pointerId: null });
   const [editingElementId, setEditingElementId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const textareaRef = useRef(null);
@@ -147,11 +150,44 @@ const SlideCanvas = ({
     };
   }, [canvasWidth]);
 
-  const handleElementMouseDown = useCallback((e, element) => {
+  const capturePointer = useCallback((e) => {
+    if (typeof e.pointerId !== 'number' || !e.currentTarget?.setPointerCapture) return;
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      capturedPointerRef.current = {
+        target: e.currentTarget,
+        pointerId: e.pointerId,
+      };
+    } catch {
+      // Some embedded browsers do not implement pointer capture completely.
+      // The window listeners below remain as a safe fallback.
+      capturedPointerRef.current = { target: null, pointerId: null };
+    }
+  }, []);
+
+  const releaseCapturedPointer = useCallback(() => {
+    const { target, pointerId } = capturedPointerRef.current;
+    capturedPointerRef.current = { target: null, pointerId: null };
+
+    if (target && typeof pointerId === 'number' && target.releasePointerCapture) {
+      try {
+        if (!target.hasPointerCapture || target.hasPointerCapture(pointerId)) {
+          target.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // Pointer capture may already have been released automatically.
+      }
+    }
+  }, []);
+
+  const handleElementPointerDown = useCallback((e, element) => {
     if (annotationMode || element.locked) return;
+    if (typeof e.button === 'number' && e.button !== 0) return;
     
     e.stopPropagation();
     e.preventDefault();
+    capturePointer(e);
     
     onSelectElement(element.id);
     
@@ -180,11 +216,13 @@ const SlideCanvas = ({
       width: element.width,
       height: element.height,
     });
-  }, [annotationMode, getCanvasCoords, onSelectElement]);
+  }, [annotationMode, capturePointer, getCanvasCoords, onSelectElement]);
 
-  const handleResizeMouseDown = useCallback((e, element, handle) => {
+  const handleResizePointerDown = useCallback((e, element, handle) => {
+    if (typeof e.button === 'number' && e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
+    capturePointer(e);
     
     const coords = getCanvasCoords(e);
     interactionSequenceRef.current += 1;
@@ -211,12 +249,19 @@ const SlideCanvas = ({
       width: element.width,
       height: element.height,
     });
-  }, [getCanvasCoords]);
+  }, [capturePointer, getCanvasCoords]);
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     if (!canvasRef.current) return;
 
-    // Ignore every move received after mouse-up, even while the asynchronous
+    const activePointerId = capturedPointerRef.current.pointerId;
+    if (
+      typeof activePointerId === 'number'
+      && typeof e.pointerId === 'number'
+      && e.pointerId !== activePointerId
+    ) return;
+
+    // Ignore every move received after pointer-up, even while the asynchronous
     // save from the previous interaction is still pending.
     if ((isDragging || isResizing || isDrawing) && !interactionActiveRef.current) return;
     
@@ -332,7 +377,15 @@ const SlideCanvas = ({
     getCanvasCoords
   ]);
 
-  const handleMouseUp = useCallback(async () => {
+  const handlePointerUp = useCallback(async (e) => {
+    const activePointerId = capturedPointerRef.current.pointerId;
+    if (
+      interactionActiveRef.current
+      && typeof activePointerId === 'number'
+      && typeof e?.pointerId === 'number'
+      && e.pointerId !== activePointerId
+    ) return;
+
     const endedSequence = interactionSequenceRef.current;
     const endedElementId = activeElementIdRef.current || selectedElementId;
     const finalElementUpdate = pendingUpdateRef.current;
@@ -363,6 +416,7 @@ const SlideCanvas = ({
     setResizeHandle(null);
     setIsDrawing(false);
     setAnnotationPoints([]);
+    releaseCapturedPointer();
 
     // Ensure final position is saved when drag/resize ends - only ONE API call here
     if (shouldSaveElement) {
@@ -400,10 +454,12 @@ const SlideCanvas = ({
         console.error('Failed to save annotation:', err);
       }
     }
-  }, [isDragging, isResizing, isDrawing, annotationMode, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement]);
+  }, [isDragging, isResizing, isDrawing, annotationMode, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement, releaseCapturedPointer]);
 
-  const handleCanvasMouseDown = useCallback((e) => {
+  const handleCanvasPointerDown = useCallback((e) => {
     if (annotationMode) {
+      if (typeof e.button === 'number' && e.button !== 0) return;
+      capturePointer(e);
       const coords = getCanvasCoords(e);
       interactionSequenceRef.current += 1;
       interactionActiveRef.current = true;
@@ -416,7 +472,7 @@ const SlideCanvas = ({
       setEditingElementId(null);
       setSelectedAnnotationId(null); // Deselect annotation when clicking on canvas
     }
-  }, [annotationMode, getCanvasCoords, onSelectElement]);
+  }, [annotationMode, capturePointer, getCanvasCoords, onSelectElement]);
 
   const handleDoubleClick = useCallback((e, element) => {
     e.stopPropagation();
@@ -551,21 +607,24 @@ const SlideCanvas = ({
   }, [handleKeyDown]);
 
   useEffect(() => {
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('blur', handleMouseUp);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('blur', handlePointerUp);
     return () => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('blur', handleMouseUp);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('blur', handlePointerUp);
     };
-  }, [handleMouseUp, handleMouseMove]);
+  }, [handlePointerUp, handlePointerMove]);
 
   useEffect(() => () => {
     interactionActiveRef.current = false;
     activeElementIdRef.current = null;
     interactionStartRef.current = null;
-  }, []);
+    releaseCapturedPointer();
+  }, [releaseCapturedPointer]);
 
   if (!slide) {
     return (
@@ -592,7 +651,7 @@ const SlideCanvas = ({
           : { backgroundColor: slide.background || '#FFFFFF' }),
         cursor: annotationMode ? 'crosshair' : 'default',
       }}
-      onMouseDown={handleCanvasMouseDown}
+      onPointerDown={handleCanvasPointerDown}
       data-testid="slide-canvas"
     >
       {/* Background Image Layer */}
@@ -724,10 +783,11 @@ const SlideCanvas = ({
               zIndex: (displayElement.zIndex || 0) + 1,
               opacity: displayElement.visible === false ? Math.max(0.3, displayElement.style?.opacity ?? 1) : (displayElement.style?.opacity ?? 1),
               cursor: isDragging && isSelected ? 'grabbing' : 'grab',
+              touchAction: 'none',
               ...animStyle,
               transition: animTransition || undefined,
             }}
-            onMouseDown={(e) => handleElementMouseDown(e, displayElement)}
+            onPointerDown={(e) => handleElementPointerDown(e, displayElement)}
             onDoubleClick={(e) => handleDoubleClick(e, element)}
             data-testid={`element-${element.id}`}
           >
@@ -768,9 +828,9 @@ const SlideCanvas = ({
                     value={editingText}
                     onChange={handleTextChange}
                     onBlur={handleTextBlur}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onMouseMove={(e) => e.stopPropagation()}
-                    onMouseUp={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerMove={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => {
                       e.stopPropagation();
@@ -1210,7 +1270,7 @@ const SlideCanvas = ({
                 {/* Delete Button */}
                 <button
                   className="absolute -top-10 right-0 w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg transition-colors z-50"
-                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => handleDeleteElement(e, element.id)}
                   title="Delete element (Del)"
                   data-testid={`delete-element-${element.id}`}
@@ -1221,7 +1281,7 @@ const SlideCanvas = ({
                 {/* Move indicator */}
                 <div
                   className="absolute -top-10 left-0 px-2 py-1 bg-slate-500 text-white text-xs rounded flex items-center gap-1 z-50 cursor-move select-none"
-                  onMouseDown={(e) => handleElementMouseDown(e, displayElement)}
+                  onPointerDown={(e) => handleElementPointerDown(e, displayElement)}
                   data-testid={`move-handle-${element.id}`}
                 >
                   <Move className="w-3 h-3" />
@@ -1231,44 +1291,44 @@ const SlideCanvas = ({
                 {/* Corner Resize Handles - Larger and easier to grab */}
                 <div
                   className="absolute -top-2 -left-2 w-4 h-4 bg-slate-500 rounded-full cursor-nw-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'nw')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'nw')}
                   data-testid={`resize-nw-${element.id}`}
                 />
                 <div
                   className="absolute -top-2 -right-2 w-4 h-4 bg-slate-500 rounded-full cursor-ne-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'ne')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'ne')}
                   data-testid={`resize-ne-${element.id}`}
                 />
                 <div
                   className="absolute -bottom-2 -left-2 w-4 h-4 bg-slate-500 rounded-full cursor-sw-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'sw')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'sw')}
                   data-testid={`resize-sw-${element.id}`}
                 />
                 <div
                   className="absolute -bottom-2 -right-2 w-4 h-4 bg-slate-500 rounded-full cursor-se-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'se')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'se')}
                   data-testid={`resize-se-${element.id}`}
                 />
 
                 {/* Edge Resize Handles - Larger */}
                 <div
                   className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-slate-500 rounded cursor-n-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'n')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'n')}
                   data-testid={`resize-n-${element.id}`}
                 />
                 <div
                   className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-slate-500 rounded cursor-s-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 's')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 's')}
                   data-testid={`resize-s-${element.id}`}
                 />
                 <div
                   className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-8 bg-slate-500 rounded cursor-w-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'w')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'w')}
                   data-testid={`resize-w-${element.id}`}
                 />
                 <div
                   className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-8 bg-slate-500 rounded cursor-e-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'e')}
+                  onPointerDown={(e) => handleResizePointerDown(e, displayElement, 'e')}
                   data-testid={`resize-e-${element.id}`}
                 />
               </>
@@ -1503,7 +1563,7 @@ const SlideCanvas = ({
               left: `${(minX - 15) * scale}px`,
               top: `${(minY - 15) * scale}px`,
             }}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation(); // Prevent canvas mousedown from deselecting
             }}
             onClick={async (e) => {
