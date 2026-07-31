@@ -67,6 +67,7 @@ $files = @(
     "frontend/src/contexts/AuthContext.jsx",
     "frontend/src/components/editor/AestheticsPanel.jsx",
     "frontend/src/components/editor/SlideCanvas.jsx",
+    "frontend/src/components/editor/SlideCanvas.test.jsx",
     "frontend/src/components/editor/CoursePreview.jsx",
     "frontend/src/components/editor/SplitPreview.jsx",
     "frontend/src/components/editor/Timeline.jsx",
@@ -172,7 +173,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix protected Bunny embeds and HTML page rendering"
+        message = "Fix slide element drag and resize release handling"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

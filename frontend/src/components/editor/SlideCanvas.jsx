@@ -87,6 +87,13 @@ const SlideCanvas = ({
   const [annotationPoints, setAnnotationPoints] = useState([]);
   // Track pending update for final save
   const pendingUpdateRef = useRef(null);
+  // Mouse-up must stop the interaction synchronously. Persisting the final
+  // coordinates can take a moment, and React state alone leaves a window in
+  // which later mousemove events keep dragging the element after release.
+  const interactionActiveRef = useRef(false);
+  const interactionSequenceRef = useRef(0);
+  const activeElementIdRef = useRef(null);
+  const interactionStartRef = useRef(null);
   const [editingElementId, setEditingElementId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const textareaRef = useRef(null);
@@ -149,7 +156,23 @@ const SlideCanvas = ({
     onSelectElement(element.id);
     
     const coords = getCanvasCoords(e);
+    interactionSequenceRef.current += 1;
+    interactionActiveRef.current = true;
+    activeElementIdRef.current = element.id;
+    interactionStartRef.current = {
+      dragStart: coords,
+      elementStart: {
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+      },
+      resizeHandle: null,
+    };
+    pendingUpdateRef.current = null;
     setIsDragging(true);
+    setIsResizing(false);
+    setResizeHandle(null);
     setDragStart(coords);
     setElementStart({
       x: element.x,
@@ -164,6 +187,21 @@ const SlideCanvas = ({
     e.preventDefault();
     
     const coords = getCanvasCoords(e);
+    interactionSequenceRef.current += 1;
+    interactionActiveRef.current = true;
+    activeElementIdRef.current = element.id;
+    interactionStartRef.current = {
+      dragStart: coords,
+      elementStart: {
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+      },
+      resizeHandle: handle,
+    };
+    pendingUpdateRef.current = null;
+    setIsDragging(false);
     setIsResizing(true);
     setResizeHandle(handle);
     setDragStart(coords);
@@ -177,6 +215,10 @@ const SlideCanvas = ({
 
   const handleMouseMove = useCallback((e) => {
     if (!canvasRef.current) return;
+
+    // Ignore every move received after mouse-up, even while the asynchronous
+    // save from the previous interaction is still pending.
+    if ((isDragging || isResizing || isDrawing) && !interactionActiveRef.current) return;
     
     const coords = getCanvasCoords(e);
 
@@ -196,66 +238,71 @@ const SlideCanvas = ({
     }
 
     // Dragging element - use local state only, API call happens on mouseUp
-    if (isDragging && selectedElementId) {
-      const deltaX = coords.x - dragStart.x;
-      const deltaY = coords.y - dragStart.y;
+    const activeElementId = activeElementIdRef.current || selectedElementId;
+    const activeDragStart = interactionStartRef.current?.dragStart || dragStart;
+    const activeElementStart = interactionStartRef.current?.elementStart || elementStart;
+    const activeResizeHandle = interactionStartRef.current?.resizeHandle || resizeHandle;
+
+    if (isDragging && activeElementId) {
+      const deltaX = coords.x - activeDragStart.x;
+      const deltaY = coords.y - activeDragStart.y;
       
-      const newX = Math.max(0, Math.min(canvasWidth - elementStart.width, elementStart.x + deltaX));
-      const newY = Math.max(0, Math.min(canvasHeight - elementStart.height, elementStart.y + deltaY));
+      const newX = Math.max(0, Math.min(canvasWidth - activeElementStart.width, activeElementStart.x + deltaX));
+      const newY = Math.max(0, Math.min(canvasHeight - activeElementStart.height, activeElementStart.y + deltaY));
       
       // Store pending update for mouseUp and update local state immediately (no API call)
       pendingUpdateRef.current = { x: newX, y: newY };
       setLocalElementUpdates(prev => ({
         ...prev,
-        [selectedElementId]: { ...prev[selectedElementId], x: newX, y: newY }
+        [activeElementId]: { ...prev[activeElementId], x: newX, y: newY }
       }));
     }
 
     // Resizing element - use local state only, API call happens on mouseUp
-    if (isResizing && selectedElementId) {
-      const deltaX = coords.x - dragStart.x;
-      const deltaY = coords.y - dragStart.y;
+    if (isResizing && activeElementId) {
+      const deltaX = coords.x - activeDragStart.x;
+      const deltaY = coords.y - activeDragStart.y;
       const minSize = 30;
 
-      let newX = elementStart.x;
-      let newY = elementStart.y;
-      let newWidth = elementStart.width;
-      let newHeight = elementStart.height;
+      let newX = activeElementStart.x;
+      let newY = activeElementStart.y;
+      let newWidth = activeElementStart.width;
+      let newHeight = activeElementStart.height;
 
-      switch (resizeHandle) {
+      switch (activeResizeHandle) {
         case 'se':
-          newWidth = Math.max(minSize, elementStart.width + deltaX);
-          newHeight = Math.max(minSize, elementStart.height + deltaY);
+          newWidth = Math.max(minSize, activeElementStart.width + deltaX);
+          newHeight = Math.max(minSize, activeElementStart.height + deltaY);
           break;
         case 'sw':
-          newX = Math.min(elementStart.x + elementStart.width - minSize, elementStart.x + deltaX);
-          newWidth = Math.max(minSize, elementStart.width - deltaX);
-          newHeight = Math.max(minSize, elementStart.height + deltaY);
+          newX = Math.min(activeElementStart.x + activeElementStart.width - minSize, activeElementStart.x + deltaX);
+          newWidth = Math.max(minSize, activeElementStart.width - deltaX);
+          newHeight = Math.max(minSize, activeElementStart.height + deltaY);
           break;
         case 'ne':
-          newY = Math.min(elementStart.y + elementStart.height - minSize, elementStart.y + deltaY);
-          newWidth = Math.max(minSize, elementStart.width + deltaX);
-          newHeight = Math.max(minSize, elementStart.height - deltaY);
+          newY = Math.min(activeElementStart.y + activeElementStart.height - minSize, activeElementStart.y + deltaY);
+          newWidth = Math.max(minSize, activeElementStart.width + deltaX);
+          newHeight = Math.max(minSize, activeElementStart.height - deltaY);
           break;
         case 'nw':
-          newX = Math.min(elementStart.x + elementStart.width - minSize, elementStart.x + deltaX);
-          newY = Math.min(elementStart.y + elementStart.height - minSize, elementStart.y + deltaY);
-          newWidth = Math.max(minSize, elementStart.width - deltaX);
-          newHeight = Math.max(minSize, elementStart.height - deltaY);
+          newX = Math.min(activeElementStart.x + activeElementStart.width - minSize, activeElementStart.x + deltaX);
+          newY = Math.min(activeElementStart.y + activeElementStart.height - minSize, activeElementStart.y + deltaY);
+          newWidth = Math.max(minSize, activeElementStart.width - deltaX);
+          newHeight = Math.max(minSize, activeElementStart.height - deltaY);
           break;
         case 'n':
-          newY = Math.min(elementStart.y + elementStart.height - minSize, elementStart.y + deltaY);
-          newHeight = Math.max(minSize, elementStart.height - deltaY);
+          newY = Math.min(activeElementStart.y + activeElementStart.height - minSize, activeElementStart.y + deltaY);
+          newHeight = Math.max(minSize, activeElementStart.height - deltaY);
           break;
         case 's':
-          newHeight = Math.max(minSize, elementStart.height + deltaY);
+          newHeight = Math.max(minSize, activeElementStart.height + deltaY);
           break;
         case 'e':
-          newWidth = Math.max(minSize, elementStart.width + deltaX);
+          newWidth = Math.max(minSize, activeElementStart.width + deltaX);
           break;
         case 'w':
-          newX = Math.min(elementStart.x + elementStart.width - minSize, elementStart.x + deltaX);
-          newWidth = Math.max(minSize, elementStart.width - deltaX);
+          newX = Math.min(activeElementStart.x + activeElementStart.width - minSize, activeElementStart.x + deltaX);
+          newWidth = Math.max(minSize, activeElementStart.width - deltaX);
           break;
         default:
           break;
@@ -276,7 +323,7 @@ const SlideCanvas = ({
       };
       setLocalElementUpdates(prev => ({
         ...prev,
-        [selectedElementId]: { ...prev[selectedElementId], ...pendingUpdateRef.current }
+        [activeElementId]: { ...prev[activeElementId], ...pendingUpdateRef.current }
       }));
     }
   }, [
@@ -286,53 +333,82 @@ const SlideCanvas = ({
   ]);
 
   const handleMouseUp = useCallback(async () => {
-    // Ensure final position is saved when drag/resize ends - only ONE API call here
-    if ((isDragging || isResizing) && selectedElementId && pendingUpdateRef.current) {
-      // Force a final save with the last known position
-      try {
-        await onUpdateElement(selectedElementId, pendingUpdateRef.current);
-        console.log('Final position saved:', pendingUpdateRef.current);
-      } catch (err) {
-        console.error('Failed to save final position:', err);
-      }
-      pendingUpdateRef.current = null;
-      // Clear local updates for this element after successful save
-      setLocalElementUpdates(prev => {
-        const newState = { ...prev };
-        delete newState[selectedElementId];
-        return newState;
-      });
-    }
-    
-    // Save annotation when drawing ends
-    // For shapes (arrow, circle, rectangle) we need at least 2 points
-    // For freehand we need more points to make a meaningful drawing
-    const minPoints = annotationMode === 'freehand' ? 3 : 2;
-    if (isDrawing && annotationMode && annotationPoints.length >= minPoints && slide) {
-      try {
-        await addAnnotation(slide.id, {
-          type: annotationMode,
-          points: annotationPoints,
-          color: '#EF4444',
-          strokeWidth: 3,
-          includeInExport: true,
-        });
-        console.log('Annotation saved:', annotationMode, annotationPoints.length, 'points');
-      } catch (err) {
-        console.error('Failed to save annotation:', err);
-      }
-    }
-    
+    const endedSequence = interactionSequenceRef.current;
+    const endedElementId = activeElementIdRef.current || selectedElementId;
+    const finalElementUpdate = pendingUpdateRef.current;
+    const shouldSaveElement = (
+      interactionActiveRef.current
+      && (isDragging || isResizing)
+      && endedElementId
+      && finalElementUpdate
+    );
+    const shouldSaveAnnotation = (
+      isDrawing
+      && interactionActiveRef.current
+      && annotationMode
+      && annotationPoints.length >= (annotationMode === 'freehand' ? 3 : 2)
+      && slide
+    );
+    const finalAnnotationPoints = annotationPoints;
+
+    // End locally before awaiting the API. This is the essential ordering:
+    // the element must stop following the cursor the instant the button is
+    // released, regardless of network latency or a failed save.
+    interactionActiveRef.current = false;
+    activeElementIdRef.current = null;
+    interactionStartRef.current = null;
+    pendingUpdateRef.current = null;
     setIsDragging(false);
     setIsResizing(false);
     setResizeHandle(null);
     setIsDrawing(false);
     setAnnotationPoints([]);
+
+    // Ensure final position is saved when drag/resize ends - only ONE API call here
+    if (shouldSaveElement) {
+      // Force a final save with the last known position
+      try {
+        await onUpdateElement(endedElementId, finalElementUpdate);
+        console.log('Final position saved:', finalElementUpdate);
+      } catch (err) {
+        console.error('Failed to save final position:', err);
+      } finally {
+        // Do not erase the optimistic coordinates of a newer interaction that
+        // began while this save was in flight.
+        if (interactionSequenceRef.current === endedSequence && !interactionActiveRef.current) {
+          setLocalElementUpdates(prev => {
+            const newState = { ...prev };
+            delete newState[endedElementId];
+            return newState;
+          });
+        }
+      }
+    }
+    
+    // Save annotation when drawing ends
+    if (shouldSaveAnnotation) {
+      try {
+        await addAnnotation(slide.id, {
+          type: annotationMode,
+          points: finalAnnotationPoints,
+          color: '#EF4444',
+          strokeWidth: 3,
+          includeInExport: true,
+        });
+        console.log('Annotation saved:', annotationMode, finalAnnotationPoints.length, 'points');
+      } catch (err) {
+        console.error('Failed to save annotation:', err);
+      }
+    }
   }, [isDragging, isResizing, isDrawing, annotationMode, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement]);
 
   const handleCanvasMouseDown = useCallback((e) => {
     if (annotationMode) {
       const coords = getCanvasCoords(e);
+      interactionSequenceRef.current += 1;
+      interactionActiveRef.current = true;
+      activeElementIdRef.current = null;
+      interactionStartRef.current = null;
       setIsDrawing(true);
       setAnnotationPoints([coords]);
     } else {
@@ -477,11 +553,19 @@ const SlideCanvas = ({
   useEffect(() => {
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('blur', handleMouseUp);
     return () => {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('blur', handleMouseUp);
     };
   }, [handleMouseUp, handleMouseMove]);
+
+  useEffect(() => () => {
+    interactionActiveRef.current = false;
+    activeElementIdRef.current = null;
+    interactionStartRef.current = null;
+  }, []);
 
   if (!slide) {
     return (
@@ -643,7 +727,7 @@ const SlideCanvas = ({
               ...animStyle,
               transition: animTransition || undefined,
             }}
-            onMouseDown={(e) => handleElementMouseDown(e, element)}
+            onMouseDown={(e) => handleElementMouseDown(e, displayElement)}
             onDoubleClick={(e) => handleDoubleClick(e, element)}
             data-testid={`element-${element.id}`}
           >
@@ -1126,6 +1210,7 @@ const SlideCanvas = ({
                 {/* Delete Button */}
                 <button
                   className="absolute -top-10 right-0 w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg transition-colors z-50"
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => handleDeleteElement(e, element.id)}
                   title="Delete element (Del)"
                   data-testid={`delete-element-${element.id}`}
@@ -1134,52 +1219,56 @@ const SlideCanvas = ({
                 </button>
 
                 {/* Move indicator */}
-                <div className="absolute -top-10 left-0 px-2 py-1 bg-slate-500 text-white text-xs rounded flex items-center gap-1 z-50">
+                <div
+                  className="absolute -top-10 left-0 px-2 py-1 bg-slate-500 text-white text-xs rounded flex items-center gap-1 z-50 cursor-move select-none"
+                  onMouseDown={(e) => handleElementMouseDown(e, displayElement)}
+                  data-testid={`move-handle-${element.id}`}
+                >
                   <Move className="w-3 h-3" />
-                  Drag to move
+                  Arraste para mover
                 </div>
 
                 {/* Corner Resize Handles - Larger and easier to grab */}
                 <div
                   className="absolute -top-2 -left-2 w-4 h-4 bg-slate-500 rounded-full cursor-nw-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'nw')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'nw')}
                   data-testid={`resize-nw-${element.id}`}
                 />
                 <div
                   className="absolute -top-2 -right-2 w-4 h-4 bg-slate-500 rounded-full cursor-ne-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'ne')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'ne')}
                   data-testid={`resize-ne-${element.id}`}
                 />
                 <div
                   className="absolute -bottom-2 -left-2 w-4 h-4 bg-slate-500 rounded-full cursor-sw-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'sw')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'sw')}
                   data-testid={`resize-sw-${element.id}`}
                 />
                 <div
                   className="absolute -bottom-2 -right-2 w-4 h-4 bg-slate-500 rounded-full cursor-se-resize border-2 border-white shadow-lg hover:bg-slate-400 hover:scale-125 transition-transform z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'se')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'se')}
                   data-testid={`resize-se-${element.id}`}
                 />
 
                 {/* Edge Resize Handles - Larger */}
                 <div
                   className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-slate-500 rounded cursor-n-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'n')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'n')}
                   data-testid={`resize-n-${element.id}`}
                 />
                 <div
                   className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-slate-500 rounded cursor-s-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 's')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 's')}
                   data-testid={`resize-s-${element.id}`}
                 />
                 <div
                   className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-8 bg-slate-500 rounded cursor-w-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'w')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'w')}
                   data-testid={`resize-w-${element.id}`}
                 />
                 <div
                   className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-8 bg-slate-500 rounded cursor-e-resize border border-white shadow-lg hover:bg-slate-400 z-50"
-                  onMouseDown={(e) => handleResizeMouseDown(e, element, 'e')}
+                  onMouseDown={(e) => handleResizeMouseDown(e, displayElement, 'e')}
                   data-testid={`resize-e-${element.id}`}
                 />
               </>
