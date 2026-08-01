@@ -151,6 +151,7 @@ export default function WhiteboardDialog({
   const [planDescription, setPlanDescription] = useState('');
   const [aiPlan, setAiPlan] = useState(null);  // { summary, ops }
   const [planBusy, setPlanBusy] = useState(false);
+  const [planStatus, setPlanStatus] = useState('');
   const [allowColorPerShape, setAllowColorPerShape] = useState(() => _lsRead('allowColorPerShape', true));
   const [result, setResult] = useState(null);  // { videoUrl, format }
   const editorRef = useRef(null);
@@ -399,9 +400,12 @@ export default function WhiteboardDialog({
       return;
     }
     setPlanBusy(true);
+    setPlanStatus('Enviando descrição para a IA...');
     setAiPlan(null);
     try {
-      const res = await fetch(`${getApiUrl()}/api/whiteboard/ai-plan`, {
+      // Queue provider work so a slow OpenAI response cannot be cut off by
+      // Render/Cloudflare's synchronous request timeout.
+      const res = await fetch(`${getApiUrl()}/api/whiteboard/ai-plan/start`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
@@ -415,13 +419,67 @@ export default function WhiteboardDialog({
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `HTTP ${res.status}`);
       }
-      const plan = await res.json();
+      const enq = await res.json();
+      const jobId = enq.jobId;
+      if (!jobId) throw new Error('Resposta inesperada do servidor');
+
+      const started = Date.now();
+      const maxMs = 4 * 60 * 1000;
+      const MAX_CONSEC_ERRORS = 12;
+      let consecutiveErrors = 0;
+      let plan = null;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        let statusResponse;
+        try {
+          statusResponse = await fetch(`${getApiUrl()}/api/job/${jobId}`, {
+            credentials: 'include',
+            headers: authHeaders(),
+          });
+        } catch {
+          consecutiveErrors += 1;
+          setPlanStatus('Reconectando ao servidor...');
+          if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
+            throw new Error('Conexão perdida enquanto a IA criava o plano');
+          }
+          continue;
+        }
+
+        if (statusResponse.status >= 500) {
+          consecutiveErrors += 1;
+          setPlanStatus('Servidor ocupado; continuando a aguardar...');
+          if (consecutiveErrors >= MAX_CONSEC_ERRORS) {
+            throw new Error(`Servidor instável (${statusResponse.status})`);
+          }
+          continue;
+        }
+        if (!statusResponse.ok) {
+          throw new Error(`Status HTTP ${statusResponse.status}`);
+        }
+
+        consecutiveErrors = 0;
+        const job = await statusResponse.json();
+        setPlanStatus(job.message || 'A IA está criando o plano...');
+        if (job.status === 'completed' && job.result) {
+          plan = job.result;
+          break;
+        }
+        if (job.status === 'failed') {
+          throw new Error(job.message || 'Falha ao gerar o plano com IA');
+        }
+        if (Date.now() - started > maxMs) {
+          throw new Error('Tempo limite aguardando o plano da IA (4min)');
+        }
+      }
       setAiPlan(plan);
       toast.success(`Plano gerado com ${plan.ops?.length || 0} operações`);
     } catch (e) {
       toast.error(e.message || 'Falha ao gerar plano');
+    } finally {
+      setPlanStatus('');
+      setPlanBusy(false);
     }
-    setPlanBusy(false);
   };
 
   const handleRenderFromPlan = async () => {
@@ -596,6 +654,16 @@ export default function WhiteboardDialog({
                   <><Sparkles className="w-4 h-4 mr-2" /> Gerar plano preciso</>
                 )}
               </Button>
+
+              {planBusy && planStatus && (
+                <p
+                  className="text-[11px] text-amber-200 text-center"
+                  role="status"
+                  data-testid="whiteboard-plan-status"
+                >
+                  {planStatus}
+                </p>
+              )}
 
               {aiPlan && (
                 <div className="border border-amber-700/40 rounded-md bg-amber-500/5 p-3 space-y-2" data-testid="whiteboard-plan-preview">

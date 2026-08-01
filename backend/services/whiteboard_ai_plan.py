@@ -16,6 +16,7 @@ The model is constrained by:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
@@ -30,6 +31,15 @@ CANVAS_W = 1920
 CANVAS_H = 1080
 MARGIN = 140
 MAX_OPS = 12   # 4 text + 8 shapes worst case
+
+
+def _ai_plan_timeout_seconds() -> float:
+    """Bound provider latency so a stalled LLM never leaves a job hanging."""
+    try:
+        value = float(os.environ.get("WHITEBOARD_AI_PLAN_TIMEOUT_SECONDS", "90"))
+    except (TypeError, ValueError):
+        value = 90.0
+    return max(10.0, min(value, 240.0))
 
 
 def _whiteboard_ai_credentials() -> tuple[str, str, str]:
@@ -226,19 +236,28 @@ async def generate_render_plan(
     from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
 
     user_msg = _build_user_message(description, base_color, allow_color_per_shape)
+    timeout_seconds = _ai_plan_timeout_seconds()
 
     chat = LlmChat(
         api_key=key,
         session_id=f"wb-plan-{uuid.uuid4().hex}",
         system_message=SYSTEM_PROMPT,
-    ).with_model(provider, model)
+    ).with_model(provider, model).with_params(timeout=timeout_seconds)
     if provider == "openai":
         chat = chat.with_params(
             temperature=0.2,
             response_format={"type": "json_object"},
         )
 
-    resp = await chat.send_message(UserMessage(text=user_msg))
+    try:
+        resp = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=user_msg)),
+            timeout=timeout_seconds + 5,
+        )
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"tempo limite da IA excedido ({int(timeout_seconds)}s); tente novamente"
+        ) from exc
     if not resp:
         raise RuntimeError("LLM returned empty response")
 

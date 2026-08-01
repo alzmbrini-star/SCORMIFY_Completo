@@ -50,6 +50,11 @@ _pending_jobs: set[asyncio.Task] = set()
 # kills that surface as 502/520 to the polling frontend. We allow only
 # ONE active render per worker — additional jobs queue cleanly behind it.
 _render_semaphore = asyncio.Semaphore(1)
+# AI plan generation is network-bound, but still capped to avoid exhausting
+# the provider quota when several users click repeatedly during a slowdown.
+_ai_plan_semaphore = asyncio.Semaphore(
+    max(1, int(os.environ.get("WHITEBOARD_AI_PLAN_CONCURRENCY", "2")))
+)
 
 # Subprocess render isolation. Each render runs in a short-lived child
 # python process so (a) an OOM kill only takes the child down — the API
@@ -632,6 +637,84 @@ class WhiteboardPlanRequest(BaseModel):
     # `allowColorPerShape` is True.
     inkColor: Optional[str] = Field(default=None, max_length=16)
     allowColorPerShape: bool = Field(default=True)
+
+
+def _whiteboard_plan_failure_message(error: Exception) -> str:
+    """Return a user-facing error suitable for sync and async flows."""
+    message = str(error).lower()
+    if "tempo limite" in message or "timeout" in message or "timed out" in message:
+        return "Tempo limite ao consultar a IA. Tente novamente em instantes."
+    if "não configurada" in message or "nÃ£o configurada" in message or "not configured" in message:
+        return "Whiteboard IA sem chave OpenAI configurada"
+    if "quota" in message or "billing" in message or "insufficient_quota" in message:
+        return "Limite ou saldo da OpenAI indisponível"
+    if "rate" in message and "limit" in message:
+        return "Muitas solicitações à OpenAI; aguarde e tente novamente"
+    return "Falha ao gerar o plano com IA"
+
+
+@router.post("/ai-plan/start")
+async def start_whiteboard_plan_generation(
+    payload: WhiteboardPlanRequest,
+    user: dict = Depends(require_auth),
+):
+    """Queue plan generation so proxy timeouts cannot discard the result."""
+    job_id = str(_uuid.uuid4())
+    job_data = {
+        "id": job_id,
+        "type": "whiteboard_ai_plan",
+        "status": "processing",
+        "progress": 5,
+        "message": "Preparando o plano do Whiteboard...",
+        "result": None,
+        "companyId": user.get("companyId"),
+        "userId": user.get("user_id"),
+    }
+    jobs[job_id] = job_data
+    await create_job(job_id, job_data)
+
+    task = asyncio.create_task(
+        _run_whiteboard_plan_generation_job(job_id=job_id, payload=payload),
+    )
+    _pending_jobs.add(task)
+    task.add_done_callback(_pending_jobs.discard)
+    return {"jobId": job_id, "statusUrl": f"/api/job/{job_id}"}
+
+
+async def _run_whiteboard_plan_generation_job(
+    job_id: str,
+    payload: "WhiteboardPlanRequest",
+):
+    from services.whiteboard_ai_plan import generate_render_plan
+
+    async with _ai_plan_semaphore:
+        await update_job(job_id, {
+            "progress": 20,
+            "message": "A IA está organizando textos e formas...",
+        })
+        try:
+            plan = await generate_render_plan(
+                payload.description,
+                base_color=payload.inkColor,
+                allow_color_per_shape=payload.allowColorPerShape,
+            )
+            if not plan.get("ops"):
+                raise ValueError("plano gerado vazio — refine a descrição")
+        except Exception as error:
+            logger.exception("whiteboard ai-plan job failed: %s", error)
+            await update_job(job_id, {
+                "status": "failed",
+                "progress": 100,
+                "message": _whiteboard_plan_failure_message(error),
+            })
+            return
+
+        await update_job(job_id, {
+            "status": "completed",
+            "progress": 100,
+            "message": "Plano do Whiteboard pronto",
+            "result": plan,
+        })
 
 
 @router.post("/ai-plan")

@@ -61,6 +61,7 @@ $files = @(
     "backend/tests/test_scenario_generation_reliability.py",
     "backend/tests/test_scorm_mobile_typography.py",
     "backend/tests/test_whiteboard_export_persistence.py",
+    "backend/tests/test_whiteboard_ai_plan_jobs.py",
     "backend/tests/test_whiteboard_semantic_geometry.py",
     "frontend/.env.example",
     "frontend/src/App.js",
@@ -173,7 +174,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix slide pointer capture and text double-click editing"
+        message = "Make Whiteboard AI plan generation timeout-safe"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
