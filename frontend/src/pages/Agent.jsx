@@ -875,8 +875,10 @@ export default function Agent() {
       const aiImageCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
       const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
       const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+      const klingCount = Object.values(mediaConfig).filter(m => m.type === 'kling').length;
       const heygenMsg = heygenCount > 0 ? ` ${heygenCount} vídeos avatar HeyGen serão gerados em segundo plano (~1-3 min cada).` : '';
-      addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares.${heygenMsg}${aiImageCount > 0 ? ' A geração de imagens pode levar alguns minutos.' : ''}`);
+      const klingMsg = klingCount > 0 ? ` ${klingCount} cenas Kling serão processadas em segundo plano.` : '';
+      addChatMsg('agent', `Mídia configurada! ${aiImageCount} imagens IA, ${videoCount} vídeos, ${heygenCount} avatares e ${klingCount} cenas Kling.${heygenMsg}${klingMsg}${aiImageCount > 0 ? ' A geração de imagens pode levar alguns minutos.' : ''}`);
       if (resumedProjectId) {
         // This session already generated a course — let the author choose
         // between creating a new project or replacing the existing one.
@@ -904,6 +906,7 @@ export default function Agent() {
     setGenerationStartTime(Date.now());
     const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
     const heyCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+    const klingCount = Object.values(mediaConfig).filter(m => m.type === 'kling').length;
     const vidCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
     const slideCount = storyboard?.slides?.length || 0;
 
@@ -914,7 +917,7 @@ export default function Agent() {
       { id: 'save', label: 'Salvando e finalizando projeto', status: 'pending', icon: 'save' },
     ]);
 
-    addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}`);
+    addChatMsg('agent', `Gerando o curso no Scormfy...${aiCount > 0 ? ` Criando ${aiCount} imagens com IA (pode levar ~${aiCount * 15}s).` : ''}${heyCount > 0 ? ` ${heyCount} vídeos HeyGen serão gerados em segundo plano.` : ''}${klingCount > 0 ? ` ${klingCount} cenas Kling serão geradas em segundo plano.` : ''}`);
     try {
       const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/generate-course`, {
         method: 'POST',
@@ -973,8 +976,9 @@ export default function Agent() {
               setGeneratedProject(statusData);
               if (statusData.projectId) setResumedProjectId(statusData.projectId);
               const heygenMsg = statusData.heygenPending > 0 ? ` ${statusData.heygenPending} vídeos HeyGen em processamento.` : '';
+              const klingMsg = statusData.klingPending > 0 ? ` ${statusData.klingPending} cenas Kling em processamento.` : '';
               const narrationMsg = statusData.narrationPending > 0 ? ` ${statusData.narrationPending} narrações em geração.` : '';
-              addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${statusData.quizCount} perguntas.${heygenMsg}${narrationMsg}`);
+              addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${statusData.quizCount} perguntas.${heygenMsg}${klingMsg}${narrationMsg}`);
               setTimeout(() => { setCurrentStep(6); setGenerationPhases([]); }, 1500);
               toast.success('Curso gerado com sucesso!');
               return;
@@ -2107,4 +2111,3 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh, onReopenWizard
     </div>
   );
 }
-

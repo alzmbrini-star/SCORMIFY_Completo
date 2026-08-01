@@ -277,6 +277,9 @@ app.include_router(leonardo_routes.router, prefix="/api")
 from routes import krea as krea_routes
 app.include_router(krea_routes.router, prefix="/api")
 
+from routes import kling as kling_routes
+app.include_router(kling_routes.router, prefix="/api")
+
 from routes import aesthetics as aesthetics_routes
 app.include_router(aesthetics_routes.router, prefix="/api")
 
@@ -403,6 +406,8 @@ async def _run_create_indexes():
             background=True,
         )
         await db.apply_jobs.create_index([("projectId", 1), ("status", 1)], background=True)
+        await db.kling_generations.create_index([("taskId", 1)], unique=True, background=True)
+        await db.kling_generations.create_index([("companyId", 1), ("createdAt", -1)], background=True)
         logger.info("MongoDB indexes ensured")
     except Exception as e:
         logger.warning(f"Index creation failed (non-fatal): {e}")

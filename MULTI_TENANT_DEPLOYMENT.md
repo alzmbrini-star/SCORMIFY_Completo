@@ -48,10 +48,30 @@ Use chaves de projeto separadas por ambiente:
 - `OPENAI_API_KEY`
 - `GEMINI_API_KEY`
 - `ANTHROPIC_API_KEY`
+- `KLING_API_KEY` (chave única do Kling AI Open Platform)
 
 Não coloque chaves no frontend nem no Git. Em produção, configure-as como
 segredos do backend. Para controlar custos, registre consumo com `companyId` e
 aplique cotas por empresa antes de chamar o provedor.
+
+### Vídeos educativos com Kling AI
+
+No serviço **backend** do Render, configure:
+
+```dotenv
+KLING_API_KEY=<chave criada no console do Kling AI>
+KLING_API_BASE_URL=https://api-singapore.klingai.com
+KLING_MAX_VIDEO_BYTES=188743680
+```
+
+O frontend nunca recebe essa chave. A geração é assíncrona: o projeto salva
+o identificador da tarefa, consulta o progresso e, quando o Kling conclui,
+baixa o MP4 para os ativos permanentes do projeto no MongoDB. Isso é
+necessário porque as URLs de resultado do provedor são temporárias.
+
+Para usar a opção diretamente no fluxo de storyboard, o Agent precisa estar
+ativado (`ENABLE_LEGACY_AI_ROUTES=true`) e submetido às mesmas regras de
+isolamento por `companyId` descritas acima.
 
 ## MongoDB Atlas
 

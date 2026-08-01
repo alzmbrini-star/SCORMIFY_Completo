@@ -560,7 +560,11 @@ export default function WhiteboardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl" data-testid="whiteboard-dialog">
+      <DialogContent
+        className="sm:max-w-2xl"
+        data-testid="whiteboard-dialog"
+        data-editor-keyboard-scope="modal"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-amber-500" />

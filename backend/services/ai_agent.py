@@ -1254,6 +1254,31 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
     return elements
 
 
+def _build_kling_processing_element(slide_id: str) -> dict:
+    """Build a durable placeholder while Kling renders the storyboard scene."""
+    from models import generate_id
+    html = f'''<div data-kling-slide="{slide_id}" style="width:100%;height:100%;border-radius:14px;background:linear-gradient(135deg,rgba(2,132,199,.12),rgba(99,102,241,.12));display:flex;align-items:center;justify-content:center;border:1px dashed rgba(56,189,248,.55);overflow:hidden;">
+<div style="text-align:center;padding:24px;">
+<div style="width:46px;height:46px;border:3px solid rgba(56,189,248,.22);border-top-color:#38bdf8;border-radius:50%;margin:0 auto 16px;animation:klingSpin 1s linear infinite;"></div>
+<p style="color:#38bdf8;font-size:15px;font-weight:700;margin:0 0 6px;font-family:sans-serif;">Gerando cena educativa com Kling AI...</p>
+<p style="color:rgba(148,163,184,.9);font-size:12px;margin:0;font-family:sans-serif;">O processamento continua em segundo plano</p>
+</div>
+<style>@keyframes klingSpin{{from{{transform:rotate(0deg)}}to{{transform:rotate(360deg)}}}}</style>
+</div>'''
+    return {
+        "id": generate_id(), "type": "html", "x": 1120, "y": 110, "width": 740, "height": 440,
+        "htmlContent": html, "style": {}, "startTime": 0,
+        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
+    }
+
+
+def _build_content_slide_with_kling(sb_slide: dict, palette: dict, module_name: str, slide_id: str) -> list:
+    """Build a content slide whose right side will receive a Kling video."""
+    elements = _build_content_slide_with_heygen(sb_slide, palette, module_name, slide_id)
+    elements[-1] = _build_kling_processing_element(slide_id)
+    return elements
+
+
 def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: str) -> list:
     """Build content slide without any media - full width text."""
     from models import generate_id
@@ -1548,6 +1573,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     project_slides = []
     quiz_questions = []
     heygen_pending = []
+    kling_pending = []
 
     # Get design template (new system) or fall back to legacy palette selection
     design_token = None
@@ -1661,6 +1687,18 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "type": "heygen",
                 "avatar_id": mc.get("avatar_id", ""),
                 "voice_id": mc.get("voice_id", ""),
+            }
+        elif media_type == "kling":
+            slide_media[i] = {
+                "type": "kling",
+                "prompt": mc.get("klingPrompt", ""),
+                "firstFrameUrl": mc.get("firstFrameUrl", ""),
+                "lastFrameUrl": mc.get("lastFrameUrl", ""),
+                "resolution": mc.get("resolution", "720p"),
+                "aspectRatio": mc.get("aspectRatio", "16:9"),
+                "duration": mc.get("duration", 5),
+                "audio": mc.get("audio", "off"),
+                "multiShot": bool(mc.get("multiShot", False)),
             }
         elif media_type == "leonardo":
             kw = mc.get("leonardoPrompt") or sb_slide.get("imageKeywords", sb_slide.get("title", "education"))
@@ -1967,6 +2005,38 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "voice_id": media.get("voice_id", ""),
                     "title": sb_slide.get("title", f"Slide {i+1}"),
                 })
+            elif media.get("type") == "kling":
+                slide_id = generate_id()
+                slide_elements = _build_content_slide_with_kling(sb_slide, palette, module_name, slide_id)
+                raw_text = " ".join(
+                    str(el.get("content") or "") for el in sb_slide.get("elements", [])
+                    if el.get("content")
+                )
+                import re as _kling_re
+                clean_text = _kling_re.sub(r'<[^>]+>', ' ', raw_text)
+                clean_text = _kling_re.sub(r'\s+', ' ', clean_text).strip()
+                prompt = (media.get("prompt") or "").strip()
+                if not prompt:
+                    prompt = (
+                        "Educational cinematic scene for an online course. "
+                        f"Topic: {sb_slide.get('title', '')}. "
+                        f"Scene: {clean_text[:1800]}. "
+                        "Clear visual storytelling, professional lighting, realistic motion, no captions, no logos."
+                    )
+                kling_pending.append({
+                    "slideIndex": i,
+                    "slideId": slide_id,
+                    "title": sb_slide.get("title", f"Slide {i+1}"),
+                    "prompt": prompt[:3072],
+                    "firstFrameUrl": media.get("firstFrameUrl") or None,
+                    "lastFrameUrl": media.get("lastFrameUrl") or None,
+                    "resolution": media.get("resolution", "720p"),
+                    "aspectRatio": media.get("aspectRatio", "16:9"),
+                    "duration": max(3, min(15, int(media.get("duration") or 5))),
+                    "audio": media.get("audio", "off"),
+                    "multiShot": bool(media.get("multiShot", False)),
+                    "status": "pending",
+                })
             elif media.get("type") == "flipbook":
                 slide_elements = _build_content_slide_with_embed(sb_slide, palette, module_name, media, "flipbook")
             elif media.get("type") == "html":
@@ -1983,6 +2053,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             for hp in heygen_pending:
                 if hp["slideIndex"] == i:
                     hp["slideId"] = actual_slide_id
+                    break
+        if stype == "content" and slide_media.get(i, {}).get("type") == "kling":
+            for kp in kling_pending:
+                if kp["slideIndex"] == i:
+                    kp["slideId"] = actual_slide_id
                     break
 
         # Apply custom background from bgConfig (overrides palette defaults)
@@ -2066,7 +2141,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "audio": [],
             "notes": sb_slide.get("notes", ""),
             "librasScript": sb_slide.get("librasScript", ""),
-            "duration": 5.0,
+            "duration": float(
+                slide_media.get(i, {}).get("duration", 5)
+                if stype == "content" and slide_media.get(i, {}).get("type") == "kling"
+                else 5
+            ),
         }
         project_slides.append(slide)
 
@@ -2122,6 +2201,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         "slides": project_slides,
         "quizQuestions": quiz_questions,
         "heygenPending": heygen_pending,
+        "klingPending": kling_pending,
         "narrationPending": narration_pending,
         "metadata": {
             "title": config.get("title", "Curso Gerado por IA"),
@@ -2778,4 +2858,3 @@ Apenas slides de conteúdo e título. Ignore quizzes e resumos."""
     response = await chat.send_message(UserMessage(text=prompt))
     data = _extract_json(response)
     return data.get("suggestions", []) if data else []
-

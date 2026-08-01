@@ -233,27 +233,25 @@ async def generate_render_plan(
 
     key, provider, model = _whiteboard_ai_credentials()
 
-    from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
-
     user_msg = _build_user_message(description, base_color, allow_color_per_shape)
     timeout_seconds = _ai_plan_timeout_seconds()
 
-    chat = LlmChat(
-        api_key=key,
-        session_id=f"wb-plan-{uuid.uuid4().hex}",
-        system_message=SYSTEM_PROMPT,
-    ).with_model(provider, model).with_params(timeout=timeout_seconds)
-    if provider == "openai":
-        chat = chat.with_params(
-            temperature=0.2,
-            response_format={"type": "json_object"},
-        )
-
     try:
-        resp = await asyncio.wait_for(
-            chat.send_message(UserMessage(text=user_msg)),
-            timeout=timeout_seconds + 5,
-        )
+        if provider == "openai":
+            resp = await _request_openai_plan(
+                api_key=key,
+                model=model,
+                user_message=user_msg,
+                timeout_seconds=timeout_seconds,
+            )
+        else:
+            resp = await _request_legacy_plan(
+                api_key=key,
+                provider=provider,
+                model=model,
+                user_message=user_msg,
+                timeout_seconds=timeout_seconds,
+            )
     except asyncio.TimeoutError as exc:
         raise RuntimeError(
             f"tempo limite da IA excedido ({int(timeout_seconds)}s); tente novamente"
@@ -267,6 +265,70 @@ async def generate_render_plan(
         base_color=base_color,
         allow_color_per_shape=allow_color_per_shape,
     )
+
+
+async def _request_openai_plan(
+    *,
+    api_key: str,
+    model: str,
+    user_message: str,
+    timeout_seconds: float,
+) -> str:
+    """Request a strict JSON plan through the official OpenAI client.
+
+    The former generic provider adapter mixed HTTP controls with model
+    parameters. In production this could leave the request waiting until the
+    outer Whiteboard job expired. The official client owns retries and the
+    network timeout, while JSON mode guarantees a parseable response.
+    """
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        timeout=timeout_seconds,
+        max_retries=2,
+    )
+    response = await asyncio.wait_for(
+        client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            response_format={"type": "json_object"},
+        ),
+        timeout=timeout_seconds + 5,
+    )
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        raise RuntimeError("OpenAI returned no choices for the Whiteboard plan")
+    content = getattr(getattr(choices[0], "message", None), "content", None)
+    if not content:
+        raise RuntimeError("OpenAI returned an empty Whiteboard plan")
+    return str(content)
+
+
+async def _request_legacy_plan(
+    *,
+    api_key: str,
+    provider: str,
+    model: str,
+    user_message: str,
+    timeout_seconds: float,
+) -> str:
+    """Keep compatibility for installations using only EMERGENT_LLM_KEY."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"wb-plan-{uuid.uuid4().hex}",
+        system_message=SYSTEM_PROMPT,
+    ).with_model(provider, model)
+    response = await asyncio.wait_for(
+        chat.send_message(UserMessage(text=user_message)),
+        timeout=timeout_seconds + 5,
+    )
+    return str(response or "")
 
 
 def prepare_render_plan(

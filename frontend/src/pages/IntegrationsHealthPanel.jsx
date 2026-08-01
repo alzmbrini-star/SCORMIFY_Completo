@@ -28,6 +28,7 @@ const INTEGRATION_META = {
   leonardo: { label: 'Leonardo AI', icon: ImageIcon, description: 'Geracao de imagens' },
   krea: { label: 'Krea AI', icon: ImageIcon, description: 'Geracao de imagens (40+ modelos)' },
   heygen: { label: 'HeyGen', icon: Video, description: 'Geracao de videos com avatar' },
+  kling: { label: 'Kling AI', icon: Video, description: 'Videos educativos a partir de storyboards' },
   elevenlabs: { label: 'ElevenLabs', icon: Mic, description: 'Text-to-speech' },
   resend: { label: 'Resend', icon: Mail, description: 'Envio de emails transacionais' },
   convertapi: { label: 'ConvertAPI', icon: FileText, description: 'Conversao de PPT/documentos' },
@@ -62,6 +63,9 @@ function formatBalance(name, balance) {
   if (name === 'krea') {
     if (balance.modelsAvailable != null) return `${balance.modelsAvailable} modelos de imagem disponiveis`;
     return null;
+  }
+  if (name === 'kling') {
+    return `${balance.model || 'kling-3.0'} · ate ${balance.maxDurationSeconds || 15}s por cena`;
   }
   return null;
 }

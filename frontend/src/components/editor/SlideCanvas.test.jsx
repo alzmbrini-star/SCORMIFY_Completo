@@ -16,6 +16,7 @@ describe('SlideCanvas element interactions', () => {
   let root;
   let resolveSave;
   let onUpdateElement;
+  let onDeleteElement;
 
   const slide = {
     id: 'slide-1',
@@ -61,6 +62,7 @@ describe('SlideCanvas element interactions', () => {
     onUpdateElement = jest.fn(() => new Promise((resolve) => {
       resolveSave = resolve;
     }));
+    onDeleteElement = jest.fn();
 
     await act(async () => {
       root.render(
@@ -69,7 +71,7 @@ describe('SlideCanvas element interactions', () => {
           selectedElementId="element-1"
           onSelectElement={jest.fn()}
           onUpdateElement={onUpdateElement}
-          onDeleteElement={jest.fn()}
+          onDeleteElement={onDeleteElement}
         />,
       );
     });
@@ -86,6 +88,27 @@ describe('SlideCanvas element interactions', () => {
       y: 0,
       toJSON: () => {},
     });
+  });
+
+  it('does not delete the selected element while a modal dialog is open', () => {
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('data-state', 'open');
+    const button = document.createElement('button');
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+    button.focus();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+      }));
+    });
+
+    expect(onDeleteElement).not.toHaveBeenCalled();
+    dialog.remove();
   });
 
   afterEach(async () => {

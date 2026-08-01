@@ -317,6 +317,43 @@ async def _check_krea() -> dict:
         return {"status": "error", "error": str(e)[:200]}
 
 
+async def _check_kling() -> dict:
+    """Validate the current single-key Kling API 2.0 authentication."""
+    from services import kling_ai
+
+    key = kling_ai.api_key()
+    if not key:
+        return {"status": "not_configured", "error": "KLING_API_KEY not set"}
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(
+                f"{kling_ai.base_url().rstrip('/')}/tasks",
+                headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+                params={"task_ids": "scormify-health-check"},
+            )
+        latency = int((time.monotonic() - t0) * 1000)
+        if resp.status_code == 200:
+            return {
+                "status": "ok",
+                "latencyMs": latency,
+                "balance": {"model": "kling-3.0", "maxDurationSeconds": 15},
+            }
+        if resp.status_code in (401, 403):
+            return {
+                "status": "error",
+                "error": "Chave Kling invalida ou expirada. Gere outra chave no console Kling AI.",
+                "latencyMs": latency,
+            }
+        return {
+            "status": "error",
+            "error": f"HTTP {resp.status_code}: {resp.text[:150]}",
+            "latencyMs": latency,
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:200]}
+
+
 @router.get("/admin/integrations-health")
 async def integrations_health(user: dict = Depends(require_auth)):
     """Return the health status of every third-party integration used by Scormify.
@@ -345,6 +382,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
         _check_resend(),
         _check_convertapi(),
         _check_krea(),
+        _check_kling(),
         return_exceptions=True,
     )
 
@@ -364,6 +402,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
             "resend": _norm(results[5]),
             "convertapi": _norm(results[6]),
             "krea": _norm(results[7]),
+            "kling": _norm(results[8]),
         },
         "cached": False,
     }

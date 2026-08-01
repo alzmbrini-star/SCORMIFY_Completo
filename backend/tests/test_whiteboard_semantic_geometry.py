@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from emergentintegrations.llm import chat as llm_chat  # noqa: E402
+from services import whiteboard_ai_plan  # noqa: E402
 from services.whiteboard_ai_plan import (  # noqa: E402
     ARROW_GAP,
     _point_in_shape,
@@ -149,17 +151,58 @@ class FakeLlmChat:
 
 @pytest.mark.asyncio
 async def test_ai_plan_prefers_openai_and_requests_json(monkeypatch):
-    FakeLlmChat.captured = {}
-    monkeypatch.setattr(llm_chat, "LlmChat", FakeLlmChat)
+    captured = {}
+
+    async def fake_openai_plan(**kwargs):
+        captured.update(kwargs)
+        import json
+        return json.dumps(_semantic_plan())
+
+    monkeypatch.setattr(
+        whiteboard_ai_plan,
+        "_request_openai_plan",
+        fake_openai_plan,
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setenv("OPENAI_WHITEBOARD_MODEL", "gpt-test-whiteboard")
     monkeypatch.delenv("EMERGENT_LLM_KEY", raising=False)
 
     result = await generate_render_plan("Conecte diagnóstico a ação")
 
-    assert FakeLlmChat.captured["provider"] == "openai"
-    assert FakeLlmChat.captured["model"] == "gpt-test-whiteboard"
-    assert FakeLlmChat.captured["params"]["response_format"] == {
-        "type": "json_object"
-    }
+    assert captured["api_key"] == "test-openai-key"
+    assert captured["model"] == "gpt-test-whiteboard"
+    assert "Conecte diagn" in captured["user_message"]
     assert result["quality"]["score"] >= 88
+
+
+@pytest.mark.asyncio
+async def test_openai_plan_uses_bounded_official_json_request(monkeypatch):
+    import openai
+
+    captured = {}
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            captured["request"] = kwargs
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"ops": []}'))]
+            )
+
+    class FakeAsyncOpenAI:
+        def __init__(self, **kwargs):
+            captured["client"] = kwargs
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", FakeAsyncOpenAI)
+    result = await whiteboard_ai_plan._request_openai_plan(
+        api_key="secret-test-key",
+        model="gpt-test-whiteboard",
+        user_message="Crie um fluxo",
+        timeout_seconds=30,
+    )
+
+    assert result == '{"ops": []}'
+    assert captured["client"]["timeout"] == 30
+    assert captured["client"]["max_retries"] == 2
+    assert captured["request"]["response_format"] == {"type": "json_object"}
+    assert captured["request"]["messages"][1]["content"] == "Crie um fluxo"

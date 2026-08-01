@@ -8,3 +8,10 @@ services:
     dockerContext: .
     healthCheckPath: /health
     autoDeployTrigger: off
+    envVars:
+      - key: KLING_API_KEY
+        sync: false
+      - key: KLING_API_BASE_URL
+        value: https://api-singapore.klingai.com
+      - key: KLING_MAX_VIDEO_BYTES
+        value: "188743680"

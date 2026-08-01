@@ -80,6 +80,7 @@ function SuggestionsCategory({ icon: Icon, title, color, items }) {
 
 export default function GeneratedPanel({ project, navigate, sessionId }) {
   const [heygenStatus, setHeygenStatus] = useState(null);
+  const [klingStatus, setKlingStatus] = useState(null);
   const [narrationStatus, setNarrationStatus] = useState(null);
   const [polling, setPolling] = useState(false);
   const [suggestions, setSuggestions] = useState(null);
@@ -140,6 +141,15 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
     } catch { /* ignore */ }
   }, [project?.projectId, project?.narrationPending]);
 
+  const checkKlingStatus = useCallback(async () => {
+    if (!project?.projectId || !project?.klingPending) return;
+    try {
+      const res = await fetch(`${API}/api/kling/projects/${project.projectId}/status`, { headers: authHeaders() });
+      const data = await res.json();
+      setKlingStatus(data);
+    } catch { /* keep polling */ }
+  }, [project?.projectId, project?.klingPending]);
+
   useEffect(() => {
     if (project?.heygenPending > 0) {
       checkHeygenStatus();
@@ -155,6 +165,14 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
       return () => clearInterval(interval);
     }
   }, [project?.narrationPending, checkNarrationStatus]);
+
+  useEffect(() => {
+    if (project?.klingPending > 0) {
+      checkKlingStatus();
+      const interval = setInterval(checkKlingStatus, 12000);
+      return () => clearInterval(interval);
+    }
+  }, [project?.klingPending, checkKlingStatus]);
 
   // Poll for suggestions
   useEffect(() => {
@@ -249,6 +267,40 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             ))}
             {heygenStatus?.status === 'all_done' && (
               <p className="text-[11px] text-emerald-400/70 text-center">Todos os vídeos foram gerados! Abra o editor para visualizar.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Narration Status */}
+      {project.klingPending > 0 && (
+        <Card className="bg-sky-900/10 border-sky-800/30 text-left mx-auto max-w-md" data-testid="kling-status-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-sky-300 flex items-center gap-2">
+                <Video className="w-4 h-4" /> Cenas Educativas Kling AI
+              </h3>
+              <Button variant="ghost" size="sm" onClick={checkKlingStatus} className="text-xs text-sky-400">
+                <RefreshCw className="w-3 h-3 mr-1" /> Atualizar
+              </Button>
+            </div>
+            {klingStatus?.videos?.map((video, index) => (
+              <div key={video.taskId || video.slideId || index} className="flex items-center gap-2 text-xs" data-testid={`kling-video-status-${index}`}>
+                {video.status === 'completed' ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : video.status === 'failed' ? (
+                  <X className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin shrink-0" />
+                )}
+                <span className="text-slate-300 truncate flex-1">{video.title}</span>
+                <Badge variant="outline" className={`text-[9px] ${video.status === 'completed' ? 'border-emerald-700 text-emerald-400' : video.status === 'failed' ? 'border-red-700 text-red-400' : 'border-sky-700 text-sky-400'}`}>
+                  {video.status === 'completed' ? 'Pronto' : video.status === 'failed' ? 'Falhou' : video.status === 'saving' ? 'Salvando...' : 'Processando...'}
+                </Badge>
+              </div>
+            ))}
+            {klingStatus?.status === 'all_done' && (
+              <p className="text-[11px] text-emerald-400/70 text-center">Processamento concluído. Os vídeos foram salvos no projeto.</p>
             )}
           </CardContent>
         </Card>
@@ -620,4 +672,3 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
 }
 
 /* ====================== EDIT MODE PANELS ====================== */
-

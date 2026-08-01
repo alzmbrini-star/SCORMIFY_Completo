@@ -522,6 +522,21 @@ const SlideCanvas = ({
     // `editingElementId` guard only covers inline-canvas text editing —
     // it does not protect inputs that live in portaled dialogs.
     const ae = typeof document !== 'undefined' ? document.activeElement : null;
+    const eventTarget = e.target instanceof Element ? e.target : ae;
+    const openModal = typeof document !== 'undefined'
+      ? document.querySelector('[role="dialog"][data-state="open"], [aria-modal="true"]')
+      : null;
+
+    // Portaled dialogs live outside SlideCanvas, while this keyboard handler
+    // is registered globally on `window`. Once the user clicks a dialog
+    // button (for example "Gerar plano preciso"), the active element is a
+    // BUTTON rather than the prompt textarea. The old editable-field-only
+    // guard therefore allowed Backspace/Delete to remove the selected canvas
+    // element behind the Whiteboard dialog. A modal owns the keyboard while
+    // it is open; Radix handles Escape itself.
+    if (openModal || eventTarget?.closest?.('[role="dialog"], [aria-modal="true"]')) {
+      return;
+    }
     if (ae) {
       const tag = (ae.tagName || '').toLowerCase();
       const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || ae.isContentEditable;

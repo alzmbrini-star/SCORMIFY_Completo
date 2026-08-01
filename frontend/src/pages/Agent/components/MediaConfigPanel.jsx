@@ -359,6 +359,7 @@ const MEDIA_TYPES = [
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
   { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
   { id: 'heygen', label: 'Avatar HeyGen', description: 'Vídeo com avatar IA', icon: UserCircle, color: 'purple' },
+  { id: 'kling', label: 'Vídeo Kling AI', description: 'Cena animada do storyboard', icon: Video, color: 'sky' },
   { id: 'flipbook', label: 'Flipbook', description: 'PDF/URL interativo', icon: BookOpenCheck, color: 'orange' },
   { id: 'html', label: 'HTML', description: 'Código HTML ou URL', icon: Code, color: 'cyan' },
   { id: 'button', label: 'Botão Link', description: 'Botão com link externo', icon: ExternalLink, color: 'teal' },
@@ -373,7 +374,7 @@ const NARRATION_STYLES = [
 ];
 
 
-function CostEstimateCard({ sessionId, aiCount, leonardoCount, videoCount, heygenCount, bgConfig, isEditMode, changedSlideCount }) {
+function CostEstimateCard({ sessionId, aiCount, leonardoCount, videoCount, heygenCount, klingCount, bgConfig, isEditMode, changedSlideCount }) {
   const [estimate, setEstimate] = useState(null);
   const [loadingEstimate, setLoadingEstimate] = useState(false);
 
@@ -445,6 +446,7 @@ function CostEstimateCard({ sessionId, aiCount, leonardoCount, videoCount, heyge
           {leonardoCount > 0 && <Badge className="bg-fuchsia-600/20 text-fuchsia-300"><Sparkles className="w-3 h-3 mr-1" />{leonardoCount} Leonardo AI</Badge>}
           {videoCount > 0 && <Badge className="bg-red-600/20 text-red-300"><Video className="w-3 h-3 mr-1" />{videoCount} Videos</Badge>}
           {heygenCount > 0 && <Badge className="bg-purple-600/20 text-purple-300"><UserCircle className="w-3 h-3 mr-1" />{heygenCount} Avatares</Badge>}
+          {klingCount > 0 && <Badge className="bg-sky-600/20 text-sky-300"><Video className="w-3 h-3 mr-1" />{klingCount} Vídeos Kling</Badge>}
           {customBgCount > 0 && <Badge className="bg-cyan-600/20 text-cyan-300"><Palette className="w-3 h-3 mr-1" />{customBgCount} Fundos</Badge>}
         </div>
 
@@ -649,6 +651,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   // Quick "Imagem da Marca -> Todos os slides" shortcut from the Global card.
   const [globalQuickBrandOpen, setGlobalQuickBrandOpen] = useState(false);
   const [designTemplates, setDesignTemplates] = useState([]);
+  const [klingStatus, setKlingStatus] = useState(null);
 
   // ElevenLabs narration state - restore voiceId from existing mediaConfig when editing
   const [elVoices, setElVoices] = useState([]);
@@ -688,6 +691,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   const leonardoCount = Object.values(mediaConfig).filter(m => m.type === 'leonardo').length;
   const videoCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
   const heygenCount = Object.values(mediaConfig).filter(m => m.type === 'heygen').length;
+  const klingCount = Object.values(mediaConfig).filter(m => m.type === 'kling').length;
   const narrationCount = Object.values(mediaConfig).filter(m => m.narration?.enabled).length;
 
   // Load design templates
@@ -737,6 +741,14 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
     }
   }, [heygenCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (klingCount <= 0) return;
+    fetch(`${API}/api/kling/status`, { headers: authHeaders() })
+      .then(async r => (r.ok ? r.json() : { configured: false }))
+      .then(setKlingStatus)
+      .catch(() => setKlingStatus({ configured: false }));
+  }, [klingCount]);
+
   // Fetch ElevenLabs voices when narration is active
   useEffect(() => {
     if (narrationCount > 0 && elVoices.length === 0 && !loadingElVoices) {
@@ -750,6 +762,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   }, [narrationCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
+  const klingReady = klingCount === 0 || klingStatus?.configured === true;
   const narrationReady = narrationCount === 0 || narrationVoiceId;
 
   // Compute changed slides count in edit mode
@@ -1096,6 +1109,9 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
         <Button variant="outline" size="sm" onClick={() => setAllSlidesMedia('ai_image')} className="text-xs" data-testid="set-all-ai-image">
           <Image className="w-3 h-3 mr-1 text-emerald-400" /> Todas: Imagem IA
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setAllSlidesMedia('kling')} className="text-xs border-sky-700/50 text-sky-300" data-testid="set-all-kling">
+          <Video className="w-3 h-3 mr-1" /> Todas: Vídeo Kling
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setAllSlidesMedia('none')} className="text-xs" data-testid="set-all-none">
           <FileText className="w-3 h-3 mr-1" /> Todas: Sem mídia
         </Button>
@@ -1431,7 +1447,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
           const isContent = slide.type === 'content';
           const mc = mediaConfig[String(idx)] || { type: 'ai_image' };
           const borderColor = !isContent ? 'border-slate-700/50'
-            : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'gallery_image' ? 'border-amber-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : 'border-slate-700';
+            : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'gallery_image' ? 'border-amber-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : mc.type === 'kling' ? 'border-sky-600/40' : 'border-slate-700';
           const typeLabel = { title: 'Capa', content: 'Conteúdo', quiz: 'Quiz', summary: 'Resumo' };
           const typeColor = { title: 'text-blue-400 border-blue-500/40', content: 'text-slate-400 border-slate-600', quiz: 'text-amber-400 border-amber-500/40', summary: 'text-purple-400 border-purple-500/40' };
 
@@ -1599,6 +1615,87 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                           ? 'Avatar e voz selecionados. O vídeo será gerado automaticamente.'
                           : 'Configure o avatar e a voz acima para gerar o vídeo.'}
                       </p>
+                    )}
+
+                    {/* Kling storyboard-to-video configuration */}
+                    {mc.type === 'kling' && (
+                      <div className="space-y-2 rounded-lg border border-sky-800/40 bg-sky-950/20 p-3" data-testid={`kling-config-${idx}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-sky-300 flex items-center gap-1">
+                            <Video className="w-3 h-3" /> Cena gerada a partir deste storyboard
+                          </p>
+                          <Badge variant="outline" className="text-[9px] border-sky-700 text-sky-400">Kling 3.0</Badge>
+                        </div>
+                        <Textarea
+                          value={mc.klingPrompt || ''}
+                          onChange={e => updateSlideMedia(idx, 'kling', '', { klingPrompt: e.target.value })}
+                          placeholder={`Opcional: descreva movimento, câmera e ambiente. Se ficar vazio, usaremos o título e o conteúdo do slide: ${slide.title || ''}`}
+                          rows={3}
+                          maxLength={3072}
+                          className="bg-slate-900/70 border-sky-800/40 text-xs"
+                          data-testid={`kling-prompt-${idx}`}
+                        />
+                        <Input
+                          value={mc.firstFrameUrl || ''}
+                          onChange={e => updateSlideMedia(idx, 'kling', '', { firstFrameUrl: e.target.value })}
+                          placeholder="Imagem inicial opcional (URL pública JPG/PNG)"
+                          className="h-8 bg-slate-900/70 border-sky-800/40 text-xs"
+                          data-testid={`kling-first-frame-${idx}`}
+                        />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <select
+                            value={mc.duration || 5}
+                            onChange={e => updateSlideMedia(idx, 'kling', '', { duration: Number(e.target.value) })}
+                            className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs"
+                            data-testid={`kling-duration-${idx}`}
+                          >
+                            {[5, 8, 10, 15].map(v => <option key={v} value={v}>{v}s</option>)}
+                          </select>
+                          <select
+                            value={mc.resolution || '720p'}
+                            onChange={e => updateSlideMedia(idx, 'kling', '', { resolution: e.target.value })}
+                            className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs"
+                            data-testid={`kling-resolution-${idx}`}
+                          >
+                            <option value="720p">720p</option>
+                            <option value="1080p">1080p</option>
+                            <option value="4k">4K</option>
+                          </select>
+                          <select
+                            value={mc.aspectRatio || '16:9'}
+                            onChange={e => updateSlideMedia(idx, 'kling', '', { aspectRatio: e.target.value })}
+                            className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs"
+                            data-testid={`kling-aspect-${idx}`}
+                          >
+                            <option value="16:9">16:9</option>
+                            <option value="9:16">9:16</option>
+                            <option value="1:1">1:1</option>
+                          </select>
+                          <select
+                            value={mc.audio || 'off'}
+                            onChange={e => updateSlideMedia(idx, 'kling', '', { audio: e.target.value })}
+                            className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs"
+                            data-testid={`kling-audio-${idx}`}
+                          >
+                            <option value="off">Sem áudio</option>
+                            <option value="native">Áudio nativo IA</option>
+                          </select>
+                        </div>
+                        <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                          <input
+                            type="checkbox"
+                            checked={!!mc.multiShot}
+                            onChange={e => updateSlideMedia(idx, 'kling', '', { multiShot: e.target.checked })}
+                            className="accent-sky-500"
+                          />
+                          Permitir múltiplos planos/cortes na mesma cena
+                        </label>
+                        {klingStatus?.configured === false && (
+                          <p className="text-[11px] text-amber-400 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Cadastre KLING_API_KEY no Environment do backend Render.
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {/* Flipbook config */}
@@ -1812,15 +1909,16 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
       </div>
 
       {/* Summary & Cost Estimate */}
-      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} leonardoCount={leonardoCount} videoCount={videoCount} heygenCount={heygenCount} bgConfig={bgConfig} isEditMode={isEditMode} changedSlideCount={changedSlideCount} />
+      <CostEstimateCard sessionId={sessionId} aiCount={aiCount} leonardoCount={leonardoCount} videoCount={videoCount} heygenCount={heygenCount} klingCount={klingCount} bgConfig={bgConfig} isEditMode={isEditMode} changedSlideCount={changedSlideCount} />
 
-      {(!heygenReady || !narrationReady) && !loading && (
+      {(!heygenReady || !klingReady || !narrationReady) && !loading && (
         <p className="text-xs text-amber-400/80 text-center">
           {!heygenReady && 'Selecione avatar e voz do HeyGen. '}
+          {!klingReady && 'Configure a chave Kling no backend Render. '}
           {!narrationReady && 'Selecione uma voz para a narração antes de aplicar.'}
         </p>
       )}
-      <Button onClick={onConfirm} disabled={loading || !heygenReady || !narrationReady} className={`w-full ${isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`} data-testid="confirm-media-btn">
+      <Button onClick={onConfirm} disabled={loading || !heygenReady || !klingReady || !narrationReady} className={`w-full ${isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`} data-testid="confirm-media-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isEditMode ? <Check className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
         {isEditMode ? 'Aplicar Alterações ao Projeto' : 'Confirmar Mídia e Gerar Curso'}
       </Button>
@@ -1904,5 +2002,4 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
     </div>
   );
 }
-
 

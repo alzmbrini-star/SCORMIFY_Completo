@@ -29,6 +29,8 @@ $files = @(
     "backend/emergentintegrations/llm/chat.py",
     "backend/routes/export.py",
     "backend/routes/agent.py",
+    "backend/routes/health.py",
+    "backend/routes/kling.py",
     "backend/routes/ai_gen.py",
     "backend/routes/aesthetics.py",
     "backend/routes/admin.py",
@@ -39,6 +41,8 @@ $files = @(
     "backend/routes/whiteboard.py",
     "backend/server.py",
     "backend/services/whiteboard_store.py",
+    "backend/services/ai_agent.py",
+    "backend/services/kling_ai.py",
     "backend/services/whiteboard_ai_plan.py",
     "backend/services/whiteboard_plan_renderer.py",
     "backend/services/scorm_exporter.py",
@@ -49,6 +53,7 @@ $files = @(
     "backend/services/export_assets/player.js",
     "backend/tests/test_bunny_video_embed.py",
     "backend/tests/test_job_tenant_access.py",
+    "backend/tests/test_kling_ai_integration.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
     "backend/tests/test_ai_html_generation_openai.py",
@@ -77,6 +82,10 @@ $files = @(
     "frontend/src/pages/Editor/dialogs/WhiteboardDialog.jsx",
     "frontend/src/pages/Editor/dialogs/MediaDialogs.jsx",
     "frontend/src/pages/Editor.jsx",
+    "frontend/src/pages/Agent.jsx",
+    "frontend/src/pages/Agent/components/GeneratedPanel.jsx",
+    "frontend/src/pages/Agent/components/MediaConfigPanel.jsx",
+    "frontend/src/pages/IntegrationsHealthPanel.jsx",
     "frontend/src/components/scenario/ScenarioCreator.jsx",
     "frontend/src/pages/Editor/hooks/useEditorAI.js",
     "frontend/src/pages/Editor/hooks/useEditorExport.js",
@@ -174,7 +183,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Make Whiteboard AI plan generation timeout-safe"
+        message = "Integrate Kling AI storyboard video generation"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

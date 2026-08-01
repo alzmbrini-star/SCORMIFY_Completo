@@ -1172,6 +1172,7 @@ async def apply_media_changes(session_id: str, data: dict):
     storyboard = s.get("storyboard") or {}
     storyboard_slides = storyboard.get("slides", []) if isinstance(storyboard, dict) else []
     updated_count = 0
+    kling_tasks = []
 
     # Design template support - apply visual theme to all slides
     design_template_id = s.get("config", {}).get("designTemplateId", "") or data.get("designTemplateId", "")
@@ -1460,6 +1461,54 @@ async def apply_media_changes(session_id: str, data: dict):
             except Exception as e:
                 logger.error(f"Failed to generate Leonardo image for slide {i}: {e}")
 
+        elif media_type == "kling":
+            from services.ai_agent import _build_kling_processing_element
+            sb_slide = storyboard_slides[i] if i < len(storyboard_slides) else {}
+            # Replace previous visual/Kling result with a fresh durable placeholder.
+            kept = []
+            for element in slide.get("elements", []):
+                html = element.get("htmlContent") or ""
+                if element.get("type") in ("image", "video") or "data-kling-slide=" in html:
+                    continue
+                kept.append(element)
+            placeholder = _build_kling_processing_element(slide.get("id", ""))
+            kept.append(placeholder)
+            slide["elements"] = kept
+            for element in slide.get("elements", []):
+                if element is not placeholder and element.get("type") in ("html", "text") and element.get("width", 0) > 1200:
+                    element["width"] = 960
+                    element["x"] = 120
+
+            raw_text = " ".join(
+                str(el.get("content") or "") for el in sb_slide.get("elements", [])
+                if el.get("content")
+            )
+            clean_text = re.sub(r'<[^>]+>', ' ', raw_text)
+            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+            prompt = (mc.get("klingPrompt") or "").strip() or (
+                "Educational cinematic scene for an online course. "
+                f"Topic: {slide.get('title', '')}. Scene: {clean_text[:1800]}. "
+                "Professional lighting, realistic motion, no captions, no logos."
+            )
+            duration = max(3, min(15, int(mc.get("duration") or 5)))
+            slide["duration"] = float(duration)
+            kling_tasks.append({
+                "slideIndex": i,
+                "slideId": slide.get("id", ""),
+                "title": slide.get("title", f"Slide {i+1}"),
+                "prompt": prompt[:3072],
+                "firstFrameUrl": mc.get("firstFrameUrl") or None,
+                "lastFrameUrl": mc.get("lastFrameUrl") or None,
+                "resolution": mc.get("resolution", "720p"),
+                "aspectRatio": mc.get("aspectRatio", "16:9"),
+                "duration": duration,
+                "audio": mc.get("audio", "off"),
+                "multiShot": bool(mc.get("multiShot", False)),
+                "status": "pending",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            })
+            changed = True
+
         # Apply narration config from media config
         narr = mc.get("narration", {})
         if narr.get("enabled") and narr.get("selectedScript") and narr.get("voiceId"):
@@ -1478,6 +1527,29 @@ async def apply_media_changes(session_id: str, data: dict):
         {"id": project_id},
         {"$set": {"course.slides": slides, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
+
+    if kling_tasks:
+        slide_ids = [item["slideId"] for item in kling_tasks]
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$pull": {"klingPending": {"slideId": {"$in": slide_ids}}}},
+        )
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$push": {"klingPending": {"$each": kling_tasks}}},
+        )
+        from services import kling_ai
+        if kling_ai.is_configured():
+            from routes.kling import submit_project_pending
+            asyncio.create_task(submit_project_pending(project_id, kling_tasks))
+        else:
+            await db.projects.update_one(
+                {"id": project_id},
+                {"$set": {
+                    "klingPending.$[].status": "failed",
+                    "klingPending.$[].error": "KLING_API_KEY não configurada no backend.",
+                }},
+            )
 
     # Handle narration generation for new narration configs
     narration_tasks = []
@@ -1906,6 +1978,7 @@ async def agent_generate_course(session_id: str, request: Request):
             ))
 
             heygen_pending = course_data.get("heygenPending", [])
+            kling_pending = course_data.get("klingPending", [])
             
             # Update project with final course data (project was already created early)
             loop.run_until_complete(_db.projects.update_one(
@@ -1915,7 +1988,8 @@ async def agent_generate_course(session_id: str, request: Request):
                     "course.updatedAt": datetime.now(timezone.utc).isoformat(),
                     "status": "draft",
                     "updatedAt": datetime.now(timezone.utc).isoformat(),
-                    "heygenPending": heygen_pending if heygen_pending else []
+                    "heygenPending": heygen_pending if heygen_pending else [],
+                    "klingPending": kling_pending if kling_pending else [],
                 }}
             ))
 
@@ -1992,6 +2066,7 @@ async def agent_generate_course(session_id: str, request: Request):
                 "slidesCount": len(course_data["slides"]),
                 "quizCount": len(course_data.get("quizQuestions", [])),
                 "heygenPending": len(heygen_pending),
+                "klingPending": len(kling_pending),
                 "narrationPending": narration_count,
             }
             loop.run_until_complete(_db.agent_sessions.update_one(
@@ -2021,6 +2096,23 @@ async def agent_generate_course(session_id: str, request: Request):
             if heygen_pending and HEYGEN_API_KEY:
                 import threading
                 threading.Thread(target=lambda: asyncio.run(_trigger_heygen_videos(project.id, heygen_pending)), daemon=True).start()
+            if kling_pending:
+                from services import kling_ai
+                if kling_ai.is_configured():
+                    from routes.kling import submit_project_pending
+                    import threading
+                    threading.Thread(
+                        target=lambda: asyncio.run(submit_project_pending(project.id, kling_pending)),
+                        daemon=True,
+                    ).start()
+                else:
+                    loop.run_until_complete(_db.projects.update_many(
+                        {"id": project.id},
+                        {"$set": {
+                            "klingPending.$[].status": "failed",
+                            "klingPending.$[].error": "KLING_API_KEY não configurada no backend.",
+                        }},
+                    ))
             if narration_count > 0:
                 all_narr = []
                 if narration_enabled and narration_voice and ELEVENLABS_API_KEY:
@@ -2054,6 +2146,7 @@ async def agent_generate_course(session_id: str, request: Request):
                         "leonardoImages": leonardo_images_count,
                         "narrations": narration_count + len(per_slide_narration) if per_slide_narration else narration_count,
                         "heygenVideos": len(heygen_pending) if heygen_pending else 0,
+                        "klingVideos": len(kling_pending) if kling_pending else 0,
                     },
                     "estimatedCost": {
                         "textGeneration": round((len(_s.get("storyboard", {}).get("slides", [])) / 5 + 2) * 0.006, 4),

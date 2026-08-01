@@ -642,6 +642,10 @@ class WhiteboardPlanRequest(BaseModel):
 def _whiteboard_plan_failure_message(error: Exception) -> str:
     """Return a user-facing error suitable for sync and async flows."""
     message = str(error).lower()
+    if "invalid api key" in message or "incorrect api key" in message or "401" in message:
+        return "Chave OpenAI inválida no Render; verifique OPENAI_API_KEY"
+    if "model_not_found" in message or ("model" in message and "not found" in message):
+        return "Modelo OpenAI do Whiteboard indisponível; verifique OPENAI_WHITEBOARD_MODEL"
     if "tempo limite" in message or "timeout" in message or "timed out" in message:
         return "Tempo limite ao consultar a IA. Tente novamente em instantes."
     if "não configurada" in message or "nÃ£o configurada" in message or "not configured" in message:
@@ -667,6 +671,7 @@ async def start_whiteboard_plan_generation(
         "progress": 5,
         "message": "Preparando o plano do Whiteboard...",
         "result": None,
+        "createdAt": now_utc().isoformat(),
         "companyId": user.get("companyId"),
         "userId": user.get("user_id"),
     }
@@ -706,6 +711,8 @@ async def _run_whiteboard_plan_generation_job(
                 "status": "failed",
                 "progress": 100,
                 "message": _whiteboard_plan_failure_message(error),
+                "errorDetail": str(error)[:500],
+                "completedAt": now_utc().isoformat(),
             })
             return
 
@@ -714,6 +721,7 @@ async def _run_whiteboard_plan_generation_job(
             "progress": 100,
             "message": "Plano do Whiteboard pronto",
             "result": plan,
+            "completedAt": now_utc().isoformat(),
         })
 
 
