@@ -1292,7 +1292,9 @@ async def apply_media_changes(session_id: str, data: dict):
             kw = sb_slide.get("imageKeywords", slide.get("title", "education"))
             try:
                 from services.ai_agent import _fetch_stock_image
-                img_url = await _fetch_stock_image(kw, str(PROJECTS_DIR), project_id)
+                img_url = await _fetch_stock_image(
+                    kw, str(PROJECTS_DIR), project_id, slide_context=sb_slide
+                )
                 if img_url:
                     # Find existing image element and update, or add one
                     img_found = False
@@ -2100,11 +2102,12 @@ async def agent_generate_course(session_id: str, request: Request):
                 from services import kling_ai
                 if kling_ai.is_configured():
                     from routes.kling import submit_project_pending
-                    import threading
-                    threading.Thread(
-                        target=lambda: asyncio.run(submit_project_pending(project.id, kling_pending)),
-                        daemon=True,
-                    ).start()
+                    # Use the same event loop and Motor client that created the
+                    # project. Starting another loop here attached Mongo
+                    # futures to the wrong loop and made every submission fail.
+                    loop.run_until_complete(
+                        submit_project_pending(project.id, kling_pending, database=_db)
+                    )
                 else:
                     loop.run_until_complete(_db.projects.update_many(
                         {"id": project.id},

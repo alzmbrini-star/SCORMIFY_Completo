@@ -40,6 +40,24 @@ def _absolute_public_url(value: str | None) -> str | None:
     return value
 
 
+def _status_summary(results: list[dict]) -> dict:
+    completed = sum(1 for row in results if row.get("status") == "completed")
+    failed = sum(1 for row in results if row.get("status") == "failed")
+    terminal = bool(results) and all(
+        row.get("status") in ("completed", "failed") for row in results
+    )
+    return {
+        "status": (
+            "all_done" if terminal and failed == 0
+            else "completed_with_errors" if terminal
+            else "processing"
+        ),
+        "total": len(results),
+        "completed": completed,
+        "failed": failed,
+    }
+
+
 @router.get("/kling/status")
 async def kling_status(user: dict = Depends(require_auth)):
     return {
@@ -50,8 +68,9 @@ async def kling_status(user: dict = Depends(require_auth)):
     }
 
 
-async def _submit_pending(project_id: str, item: dict) -> dict:
-    project_meta = await db.projects.find_one(
+async def _submit_pending(project_id: str, item: dict, database=None) -> dict:
+    store = database if database is not None else db
+    project_meta = await store.projects.find_one(
         {"id": project_id}, {"_id": 0, "companyId": 1, "userId": 1}
     ) or {}
     external_id = f"scormify-{project_id[:16]}-{item['slideId'][:16]}-{uuid.uuid4().hex[:8]}"
@@ -70,7 +89,7 @@ async def _submit_pending(project_id: str, item: dict) -> dict:
     task_id = task.get("id")
     if not task_id:
         raise kling_ai.KlingAPIError("Kling AI não retornou o identificador da tarefa.")
-    await db.projects.update_one(
+    await store.projects.update_one(
         {"id": project_id, "klingPending.slideId": item["slideId"]},
         {"$set": {
             "klingPending.$.taskId": task_id,
@@ -79,7 +98,7 @@ async def _submit_pending(project_id: str, item: dict) -> dict:
             "klingPending.$.submittedAt": _now(),
         }},
     )
-    await db.kling_generations.update_one(
+    await store.kling_generations.update_one(
         {"taskId": task_id},
         {"$set": {
             "taskId": task_id,
@@ -97,18 +116,19 @@ async def _submit_pending(project_id: str, item: dict) -> dict:
     return {"taskId": task_id, "status": task.get("status", "submitted")}
 
 
-async def submit_project_pending(project_id: str, pending_list: list[dict]) -> None:
+async def submit_project_pending(project_id: str, pending_list: list[dict], database=None) -> None:
     """Submit storyboard jobs in a short-lived background thread.
 
     Only submission happens here. Long processing is followed by the durable
     polling endpoint, so Render restarts do not lose Kling task identifiers.
     """
+    store = database if database is not None else db
     for item in pending_list:
         try:
-            await _submit_pending(project_id, item)
+            await _submit_pending(project_id, item, database=store)
         except Exception as exc:
             logger.error("Kling submit failed for %s: %s", item.get("slideId"), exc)
-            await db.projects.update_one(
+            await store.projects.update_one(
                 {"id": project_id, "klingPending.slideId": item.get("slideId")},
                 {"$set": {
                     "klingPending.$.status": "failed",
@@ -161,6 +181,57 @@ async def kling_generate(request: Request, user: dict = Depends(require_auth)):
     try:
         return await _submit_pending(project_id, item)
     except Exception as exc:
+        raise _safe_error(exc)
+
+
+@router.post("/kling/projects/{project_id}/retry/{slide_id}")
+async def kling_retry_failed(
+    project_id: str, slide_id: str, user: dict = Depends(require_auth)
+):
+    """Resubmit only one failed scene, preserving the other generated videos."""
+    if not kling_ai.is_configured():
+        raise HTTPException(503, "Kling AI não está configurado. Cadastre KLING_API_KEY.")
+    project = await load_authorized_project(project_id, user)
+    item = next(
+        (dict(row) for row in (project.get("klingPending") or []) if row.get("slideId") == slide_id),
+        None,
+    )
+    if not item:
+        raise HTTPException(404, "Cena Kling não encontrada no projeto.")
+    if item.get("status") == "completed":
+        return {"status": "completed", "videoUrl": item.get("videoUrl")}
+    item.pop("taskId", None)
+    item.pop("externalTaskId", None)
+    item.pop("error", None)
+    item.pop("providerMessage", None)
+    item["status"] = "pending"
+    await db.projects.update_one(
+        {"id": project_id, "klingPending.slideId": slide_id},
+        {
+            "$set": {
+                "klingPending.$.status": "pending",
+                "klingPending.$.updatedAt": _now(),
+                "updatedAt": _now(),
+            },
+            "$unset": {
+                "klingPending.$.taskId": "",
+                "klingPending.$.externalTaskId": "",
+                "klingPending.$.error": "",
+                "klingPending.$.providerMessage": "",
+            },
+        },
+    )
+    try:
+        return await _submit_pending(project_id, item)
+    except Exception as exc:
+        await db.projects.update_one(
+            {"id": project_id, "klingPending.slideId": slide_id},
+            {"$set": {
+                "klingPending.$.status": "failed",
+                "klingPending.$.error": str(exc)[:300],
+                "klingPending.$.updatedAt": _now(),
+            }},
+        )
         raise _safe_error(exc)
 
 
@@ -311,6 +382,7 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
             "status": status,
             "videoUrl": item.get("videoUrl"),
             "error": item.get("error"),
+            "providerMessage": item.get("providerMessage"),
         })
 
     # Return the latest persisted state after status transitions.
@@ -322,12 +394,6 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
             "status": current.get("status", row["status"]),
             "videoUrl": current.get("videoUrl", row.get("videoUrl")),
             "error": current.get("error", row.get("error")),
+            "providerMessage": current.get("providerMessage", row.get("providerMessage")),
         })
-    completed = sum(1 for row in results if row["status"] == "completed")
-    terminal = all(row["status"] in ("completed", "failed") for row in results)
-    return {
-        "status": "all_done" if terminal else "processing",
-        "videos": results,
-        "total": len(results),
-        "completed": completed,
-    }
+    return {**_status_summary(results), "videos": results}

@@ -8,6 +8,8 @@ import uuid
 import asyncio
 import logging
 import base64
+import html
+import re
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
@@ -706,62 +708,138 @@ def get_design_template_by_id(template_id: str) -> dict:
 _COURSE_PALETTES = [t["palette"] for t in DESIGN_TEMPLATES]
 
 
-async def _fetch_stock_image(keyword: str, project_dir: str, project_id: str) -> Optional[str]:
-    """Generate an AI image using Gemini Nano Banana and save locally."""
+def _slide_plain_text(slide_context: Optional[dict]) -> str:
+    """Extract useful, visible slide text for contextual media prompts."""
+    if not slide_context:
+        return ""
+    parts = [
+        str(slide_context.get("title") or ""),
+        str(slide_context.get("moduleName") or ""),
+        str(slide_context.get("body") or slide_context.get("text") or ""),
+        str(slide_context.get("notes") or slide_context.get("narrationScript") or ""),
+    ]
+    for element in slide_context.get("elements", []):
+        parts.append(str(element.get("content") or ""))
+    clean = re.sub(r"<[^>]+>", " ", " ".join(parts))
+    clean = html.unescape(re.sub(r"\s+", " ", clean)).strip()
+    return clean[:1800]
+
+
+def _build_contextual_image_prompt(keyword: str, slide_context: Optional[dict] = None) -> str:
+    context = _slide_plain_text(slide_context)
+    title = (slide_context or {}).get("title") or keyword
+    module = (slide_context or {}).get("moduleName") or ""
+    return (
+        "Create one professional 16:9 visual for a Brazilian corporate e-learning slide. "
+        f"Slide title: {title}. Module: {module}. Visual concepts: {keyword}. "
+        f"Source content that the image must represent accurately: {context}. "
+        "Show a concrete scene, objects or diagram-like composition that directly explains these concepts. "
+        "Clean composition, realistic professional lighting, culturally neutral, no random landscape, "
+        "no decorative stock-photo clichés, no written words, no captions, no logos and no watermark."
+    )
+
+
+async def _persist_generated_image(
+    image_bytes: bytes, prompt: str, project_dir: str, project_id: str, provider: str
+) -> Optional[str]:
+    import hashlib
+    seed = hashlib.md5(prompt.encode(), usedforsecurity=False).hexdigest()[:12]
+    fname = f"ai_img_{seed}.png"
+    fpath = os.path.join(project_dir, project_id, "assets", fname)
+    os.makedirs(os.path.dirname(fpath), exist_ok=True)
+    with open(fpath, "wb") as f:
+        f.write(image_bytes)
+
     try:
-        chat = LlmChat(
-            api_key=EMERGENT_KEY,
-            session_id=f"img_{uuid.uuid4().hex[:8]}",
-            system_message="You are an image generator.",
-        ).with_model(IMAGE_MODEL[0], IMAGE_MODEL[1]).with_params(modalities=["image", "text"])
+        from services.asset_store import store_asset_async
+        asset_db = await _get_motor_db()
+        if asset_db is not None:
+            persisted = await store_asset_async(asset_db, project_id, fname, fpath)
+            if not persisted:
+                logger.error("Generated image was not persisted: %s/%s", project_id, fname)
+                return None
+    except Exception as exc:
+        logger.error("Generated image persistence failed: %s", exc)
+        return None
 
-        prompt = f"Professional photorealistic image for an educational course slide about: {keyword}. High quality, clean composition, no text or watermarks, suitable for corporate training material."
-        text_resp, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+    image_url = f"/api/projects/{project_id}/assets/{fname}"
+    try:
+        asyncio.ensure_future(_auto_save_gallery(image_url, prompt[:300], project_id))
+    except Exception:
+        pass
+    logger.info("Contextual image generated via %s -> %s", provider, fname)
+    return image_url
 
-        if images and len(images) > 0:
-            import hashlib
-            seed = hashlib.md5(keyword.encode(), usedforsecurity=False).hexdigest()[:10]
-            fname = f"ai_img_{seed}.png"
-            fpath = os.path.join(project_dir, project_id, "assets", fname)
-            os.makedirs(os.path.dirname(fpath), exist_ok=True)
-            img_bytes = base64.b64decode(images[0]['data'])
-            with open(fpath, "wb") as f:
-                f.write(img_bytes)
-            logger.info(f"AI image generated (Gemini) for '{keyword}' -> {fname}")
-            
-            # Persist in MongoDB async for production environments with ephemeral storage
-            try:
-                from services.asset_store import store_asset_async
-                _db = await _get_motor_db()
-                if _db is not None:
-                    await store_asset_async(_db, project_id, fname, fpath)
-                    logger.info(f"AI image persisted in MongoDB: {project_id}/{fname}")
-            except Exception as e:
-                logger.warning(f"Failed to persist AI image in MongoDB (attempt 1): {e}")
-                # Retry once after brief delay
-                try:
-                    import asyncio as _aio2
-                    await _aio2.sleep(2)
-                    _db = await _get_motor_db()
-                    if _db is not None:
-                        await store_asset_async(_db, project_id, fname, fpath)
-                        logger.info(f"AI image persisted in MongoDB on retry: {project_id}/{fname}")
-                except Exception as e2:
-                    logger.error(f"Failed to persist AI image in MongoDB (attempt 2): {e2}")
-            
-            # Auto-save to image gallery
-            img_url = f"/api/projects/{project_id}/assets/{fname}"
-            import asyncio as _asyncio
-            try:
-                _asyncio.ensure_future(_auto_save_gallery(img_url, keyword, project_id))
-            except Exception:
-                pass
-            
-            return img_url
-    except Exception as e:
-        logger.warning(f"AI image generation failed for '{keyword}': {str(e)[:80]}")
-    # Fallback to picsum
-    return await _fetch_picsum_image(keyword, project_dir, project_id)
+
+async def _openai_image_bytes(prompt: str) -> Optional[bytes]:
+    """Generate one image through the official OpenAI Image API."""
+    api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        return None
+    import httpx
+    payload = {
+        "model": os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+        "prompt": prompt,
+        "size": os.environ.get("OPENAI_IMAGE_SIZE", "1536x1024"),
+        "quality": os.environ.get("OPENAI_IMAGE_QUALITY", "medium"),
+        "n": 1,
+    }
+    timeout = float(os.environ.get("OPENAI_IMAGE_TIMEOUT_SECONDS", "180"))
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(
+            "https://api.openai.com/v1/images/generations",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+        )
+    response.raise_for_status()
+    item = (response.json().get("data") or [{}])[0]
+    if item.get("b64_json"):
+        return base64.b64decode(item["b64_json"])
+    if item.get("url"):
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            download = await client.get(item["url"])
+        download.raise_for_status()
+        return download.content
+    return None
+
+
+async def _legacy_gemini_image_bytes(prompt: str) -> Optional[bytes]:
+    if not EMERGENT_KEY:
+        return None
+    chat = LlmChat(
+        api_key=EMERGENT_KEY,
+        session_id=f"img_{uuid.uuid4().hex[:8]}",
+        system_message="You generate accurate educational images.",
+    ).with_model(IMAGE_MODEL[0], IMAGE_MODEL[1]).with_params(modalities=["image", "text"])
+    _, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+    if images:
+        return base64.b64decode(images[0]["data"])
+    return None
+
+
+async def _fetch_stock_image(
+    keyword: str, project_dir: str, project_id: str, slide_context: Optional[dict] = None
+) -> Optional[str]:
+    """Generate a contextual image. Never substitutes unrelated random photos."""
+    prompt = _build_contextual_image_prompt(keyword, slide_context)
+    providers = [
+        ("openai", _openai_image_bytes),
+        ("gemini", _legacy_gemini_image_bytes),
+    ]
+    for provider, generate in providers:
+        try:
+            image_bytes = await generate(prompt)
+            if image_bytes:
+                return await _persist_generated_image(
+                    image_bytes, prompt, project_dir, project_id, provider
+                )
+        except Exception as exc:
+            logger.warning(
+                "Contextual image generation via %s failed for '%s': %s",
+                provider, keyword, str(exc)[:240],
+            )
+    logger.warning("No contextual image was generated for '%s'; slide will use a text layout", keyword)
+    return None
 
 
 async def _auto_save_gallery(image_url: str, keywords: str, project_id: str):
@@ -1515,6 +1593,82 @@ def _wrap_interactive_fullbleed(html_content: str) -> str:
     return html_content + _FIT_SNIPPET
 
 
+_INTERACTIVE_PLACEHOLDERS = (
+    "css styles here",
+    "html content here",
+    "javascript for",
+    "flashcards html content",
+    "todo: implement",
+    "your content here",
+    "conteúdo aqui",
+)
+
+
+def _interactive_html_is_functional(html_content: str, content_type: str = "") -> bool:
+    """Reject empty LLM skeletons before they become blank course slides."""
+    raw = (html_content or "").strip()
+    lowered = raw.lower()
+    if len(raw) < 500 or any(marker in lowered for marker in _INTERACTIVE_PLACEHOLDERS):
+        return False
+    if "<body" not in lowered or "<script" not in lowered:
+        return False
+    if content_type == "flashcard":
+        # A flashcard must contain real card data plus an actual flip action.
+        has_card_data = any(
+            token in lowered for token in ("const cards", "let cards", "flashcards =", "data-front", "data-answer")
+        )
+        has_flip = "rotatey" in lowered or "classlist.toggle('flipped" in lowered or 'classlist.toggle("flipped' in lowered
+        if not has_card_data or not has_flip:
+            return False
+    return True
+
+
+def _build_flashcard_fallback_html(sb_slide: dict) -> str:
+    """Build a deterministic, usable review activity from the slide context."""
+    title = str(sb_slide.get("title") or "Revisão do conteúdo")
+    module = str(sb_slide.get("moduleName") or "este módulo")
+    source = _slide_plain_text(sb_slide)
+    source = re.sub(r"\s+", " ", source).strip()
+    sentences = []
+    for candidate in re.split(r"(?<=[.!?;])\s+|\s+[\u2022\-]\s+", source):
+        candidate = candidate.strip(" -\u2022")
+        if 35 <= len(candidate) <= 360 and candidate.lower() not in {x.lower() for x in sentences}:
+            sentences.append(candidate)
+    summary = (sentences[0] if sentences else source[:320]) or f"O foco deste estudo é {title}."
+    answers = sentences[:5]
+    while len(answers) < 5:
+        answers.append(summary)
+    prompts = [
+        f"Qual é o foco principal de {title}?",
+        "Que ideia-chave deve ser lembrada?",
+        "Como este conceito se relaciona ao contexto do curso?",
+        "Qual aplicação prática pode ser reconhecida?",
+        "Qual mensagem deve orientar a revisão?",
+    ]
+    cards_json = json.dumps(
+        [{"front": prompts[i], "back": answers[i]} for i in range(5)],
+        ensure_ascii=False,
+    ).replace("</", "<\\/")
+    safe_title = html.escape(title)
+    safe_module = html.escape(module)
+    template = r'''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;color:#eaf2ff;background:linear-gradient(135deg,#071329,#13254b);display:grid;place-items:center}
+.app{width:880px;padding:28px}.eyebrow{color:#67e8f9;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.12em}.title{font-size:28px;margin:8px 0 20px}.stage{perspective:1200px}.card{height:285px;position:relative;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.2,.7,.2,1);cursor:pointer}.card.flipped{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid rgba(125,211,252,.38);border-radius:24px;padding:42px;display:grid;place-items:center;text-align:center;font-size:25px;line-height:1.4;background:linear-gradient(145deg,#172d57,#0d1c38);box-shadow:0 24px 60px rgba(0,0,0,.3)}.back{transform:rotateY(180deg);background:linear-gradient(145deg,#174e63,#12334d)}
+.hint{font-size:12px;color:#9fb6d8;margin-top:12px}.controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px}.buttons{display:flex;gap:9px}button{border:0;border-radius:11px;padding:11px 16px;font-weight:800;cursor:pointer;color:white;background:#2563eb}button.secondary{background:#334155}button.know{background:#059669}button.unknown{background:#dc2626}.progress{font-size:14px;color:#cbd5e1;font-weight:700}.result{display:none;text-align:center;padding:50px 20px;border-radius:22px;background:#122441}.result h2{font-size:34px;margin:0 0 12px}
+</style></head><body><main class="app"><div class="eyebrow">__MODULE__</div><h1 class="title">__TITLE__</h1>
+<section id="study"><div class="stage"><div id="card" class="card" role="button" tabindex="0" aria-label="Virar cartão"><div id="front" class="face"></div><div id="back" class="face back"></div></div></div><div class="hint">Clique no cartão para ver a resposta.</div>
+<div class="controls"><button class="secondary" onclick="move(-1)">← Anterior</button><span id="progress" class="progress"></span><div class="buttons"><button class="unknown" onclick="mark(false)">Não sei</button><button class="know" onclick="mark(true)">Sei</button></div><button class="secondary" onclick="move(1)">Próximo →</button></div></section>
+<section id="result" class="result"><h2 id="score"></h2><p>Você concluiu a revisão. Retome os cartões que ainda precisam de reforço.</p><button onclick="restart()">Revisar novamente</button></section></main>
+<script>const cards=__CARDS__;let index=0,known=0,answered=new Set();const card=document.getElementById('card');
+function render(){card.classList.remove('flipped');front.textContent=cards[index].front;back.textContent=cards[index].back;progress.textContent=`Cartão ${index+1} de ${cards.length}`}
+function move(step){index=(index+step+cards.length)%cards.length;render()}function mark(ok){if(!answered.has(index)){answered.add(index);if(ok)known++}if(answered.size===cards.length){study.style.display='none';result.style.display='block';score.textContent=`Resultado: ${Math.round(known/cards.length*100)}%`}else{move(1)}}
+function restart(){index=0;known=0;answered=new Set();result.style.display='none';study.style.display='block';render()}card.onclick=()=>card.classList.toggle('flipped');card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();card.classList.toggle('flipped')}};render();</script></body></html>'''
+    return template.replace("__MODULE__", safe_module).replace("__TITLE__", safe_title).replace("__CARDS__", cards_json)
+
+
 def _hex_luminance(color: str) -> float:
     """Relative luminance (0..1) of a #rrggbb color. 1.0 on parse failure."""
     try:
@@ -1660,7 +1814,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         if media_type == "ai_image":
             kw = sb_slide.get("imageKeywords", sb_slide.get("title", "education"))
             if project_dir and project_id:
-                ai_image_tasks.append((i, kw, "gemini"))
+                ai_image_tasks.append((i, kw, "contextual_ai"))
         elif media_type == "gallery_image":
             gallery_url = mc.get("galleryImageUrl", "")
             if gallery_url:
@@ -1803,13 +1957,20 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                                 except Exception:
                                     pass
                     else:
-                        img_url = await _fetch_stock_image(keyword, project_dir, project_id)
+                        img_url = await _fetch_stock_image(
+                            keyword, project_dir, project_id, slide_context=sb_slide_ctx
+                        )
                     completed_count += 1
                     if img_url:
                         slide_media[slide_idx] = {"type": "image", "url": img_url}
                         logger.info(f"Image {completed_count}/{total_images} generated for slide {slide_idx} via {source}")
+                    else:
+                        # Do not replace a failed contextual generation with a
+                        # random stock photo. A full-width text layout keeps
+                        # the course semantically correct and readable.
+                        slide_media[slide_idx] = {"type": "none", "source": "ai_unavailable"}
                     # Update progress
-                    if _pdb:
+                    if _pdb is not None:
                         try:
                             await _pdb.agent_sessions.update_one(
                                 {"id": session_id},
@@ -1937,7 +2098,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     if content and ("<!DOCTYPE" in content or "<html" in content or "<script" in content):
                         html_content = content
                         break
-            if html_content:
+            if _interactive_html_is_functional(html_content, "simulator"):
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
@@ -1949,7 +2110,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "zIndex": 1,
                 }]
             else:
-                # No HTML content generated, fallback to content slide
+                if html_content:
+                    logger.warning("Rejected non-functional simulator HTML on slide %s", i)
+                # No functional HTML content generated, fallback to content slide
                 slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
         elif stype in ("infographic", "flashcard", "timeline", "case_study"):
             bg = palette.get("contentBg", "#ffffff")
@@ -1965,7 +2128,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     if content and ("<!DOCTYPE" in content or "<html" in content or "<script" in content):
                         html_content = content
                         break
-            if html_content:
+            if stype == "flashcard" and not _interactive_html_is_functional(html_content, stype):
+                if html_content:
+                    logger.warning("Rejected placeholder flashcard HTML on slide %s; using safe fallback", i)
+                html_content = _build_flashcard_fallback_html(sb_slide)
+            if _interactive_html_is_functional(html_content, stype):
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
@@ -1977,6 +2144,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "zIndex": 1,
                 }]
             else:
+                if html_content:
+                    logger.warning("Rejected non-functional %s HTML on slide %s", stype, i)
                 slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
         else:
             bg = palette["contentBg"]

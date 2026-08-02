@@ -54,6 +54,7 @@ $files = @(
     "backend/tests/test_bunny_video_embed.py",
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_kling_ai_integration.py",
+    "backend/tests/test_ai_agent_media_resilience.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
     "backend/tests/test_ai_html_generation_openai.py",
@@ -183,7 +184,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Integrate Kling AI storyboard video generation"
+        message = "Fix contextual media, flashcards and Kling retries"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

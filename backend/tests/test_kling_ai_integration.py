@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from services import kling_ai
+from routes.kling import _status_summary
 
 
 @pytest.mark.asyncio
@@ -105,3 +106,16 @@ def test_video_output_selects_video_result():
         ]
     }
     assert kling_ai.video_output(task)["url"] == "https://example.com/v.mp4"
+
+
+def test_project_status_does_not_report_success_when_one_scene_failed():
+    summary = _status_summary([
+        {"status": "completed"},
+        {"status": "failed"},
+    ])
+    assert summary == {
+        "status": "completed_with_errors",
+        "total": 2,
+        "completed": 1,
+        "failed": 1,
+    }
