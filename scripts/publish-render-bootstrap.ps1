@@ -184,7 +184,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix contextual media, flashcards and Kling retries"
+        message = "Fix Kling submission event-loop isolation"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

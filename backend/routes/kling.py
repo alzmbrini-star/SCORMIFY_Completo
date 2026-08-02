@@ -30,6 +30,16 @@ def _safe_error(exc: Exception) -> HTTPException:
     return HTTPException(500, "Falha inesperada na integração com Kling AI.")
 
 
+def _public_job_error(exc: Exception) -> str:
+    """Return a useful message without exposing server paths or asyncio internals."""
+    if isinstance(exc, kling_ai.KlingAPIError):
+        return str(exc)[:300]
+    message = str(exc)
+    if "different loop" in message.lower() or "attached to a different loop" in message.lower():
+        return "A cena foi iniciada fora do ciclo seguro do servidor. Clique em Tentar novamente."
+    return "Não foi possível enviar esta cena ao Kling AI. Tente novamente."
+
+
 def _absolute_public_url(value: str | None) -> str | None:
     value = (value or "").strip()
     if not value:
@@ -132,7 +142,7 @@ async def submit_project_pending(project_id: str, pending_list: list[dict], data
                 {"id": project_id, "klingPending.slideId": item.get("slideId")},
                 {"$set": {
                     "klingPending.$.status": "failed",
-                    "klingPending.$.error": str(exc)[:300],
+                    "klingPending.$.error": _public_job_error(exc),
                     "klingPending.$.updatedAt": _now(),
                 }},
             )
@@ -228,7 +238,7 @@ async def kling_retry_failed(
             {"id": project_id, "klingPending.slideId": slide_id},
             {"$set": {
                 "klingPending.$.status": "failed",
-                "klingPending.$.error": str(exc)[:300],
+                "klingPending.$.error": _public_job_error(exc),
                 "klingPending.$.updatedAt": _now(),
             }},
         )
@@ -332,7 +342,7 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
                 status = "failed"
                 await db.projects.update_one(
                     {"id": project_id, "klingPending.slideId": item.get("slideId")},
-                    {"$set": {"klingPending.$.status": "failed", "klingPending.$.error": str(exc)[:300]}},
+                    {"$set": {"klingPending.$.status": "failed", "klingPending.$.error": _public_job_error(exc)}},
                 )
         if task_id and status not in ("completed", "failed", "saving"):
             try:
@@ -370,7 +380,7 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
                     {"id": project_id, "klingPending.taskId": task_id},
                     {"$set": {
                         "klingPending.$.status": "failed",
-                        "klingPending.$.error": str(exc)[:300],
+                        "klingPending.$.error": _public_job_error(exc),
                         "klingPending.$.updatedAt": _now(),
                     }},
                 )

@@ -2100,15 +2100,7 @@ async def agent_generate_course(session_id: str, request: Request):
                 threading.Thread(target=lambda: asyncio.run(_trigger_heygen_videos(project.id, heygen_pending)), daemon=True).start()
             if kling_pending:
                 from services import kling_ai
-                if kling_ai.is_configured():
-                    from routes.kling import submit_project_pending
-                    # Use the same event loop and Motor client that created the
-                    # project. Starting another loop here attached Mongo
-                    # futures to the wrong loop and made every submission fail.
-                    loop.run_until_complete(
-                        submit_project_pending(project.id, kling_pending, database=_db)
-                    )
-                else:
+                if not kling_ai.is_configured():
                     loop.run_until_complete(_db.projects.update_many(
                         {"id": project.id},
                         {"$set": {
@@ -2116,6 +2108,17 @@ async def agent_generate_course(session_id: str, request: Request):
                             "klingPending.$[].error": "KLING_API_KEY não configurada no backend.",
                         }},
                     ))
+                else:
+                    # Keep jobs pending here. The generated-course worker owns
+                    # a private asyncio loop, while Kling persistence belongs
+                    # to FastAPI's main loop. GeneratedPanel immediately calls
+                    # the status endpoint, which atomically claims and submits
+                    # pending scenes on the correct loop. This also survives a
+                    # Render restart because the pending state is durable.
+                    logger.info(
+                        "Kling scenes queued for main-loop submission: project=%s count=%s",
+                        project.id, len(kling_pending),
+                    )
             if narration_count > 0:
                 all_narr = []
                 if narration_enabled and narration_voice and ELEVENLABS_API_KEY:

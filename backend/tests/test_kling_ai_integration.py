@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from services import kling_ai
-from routes.kling import _status_summary
+from routes.kling import _public_job_error, _status_summary
 
 
 @pytest.mark.asyncio
@@ -119,3 +119,13 @@ def test_project_status_does_not_report_success_when_one_scene_failed():
         "completed": 1,
         "failed": 1,
     }
+
+
+def test_asyncio_internal_error_is_not_exposed_to_author():
+    internal = RuntimeError(
+        "Task pending got Future pending attached to a different loop at /app/backend/routes/kling.py"
+    )
+    message = _public_job_error(internal)
+    assert "different loop" not in message
+    assert "/app/backend" not in message
+    assert "Tentar novamente" in message
