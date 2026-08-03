@@ -1462,6 +1462,7 @@ def _write_apng_via_ffmpeg(
             pass
         proc.wait(timeout=60)
         if proc.returncode != 0:
+            out_path.unlink(missing_ok=True)
             raise RuntimeError(f"ffmpeg APNG encode failed (rc={proc.returncode})")
 
 

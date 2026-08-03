@@ -356,4 +356,40 @@ describe('SlideCanvas element interactions', () => {
       `${getApiUrl()}/api/projects/project-123/assets/document_p1.png`,
     );
   });
+
+  it('repairs a Whiteboard URL saved with the static frontend origin', async () => {
+    const whiteboardSlide = {
+      ...slide,
+      elements: [{
+        id: 'element-1',
+        type: 'image',
+        src: 'https://scormify-app.onrender.com/api/whiteboard/file/wb_plan_saved.png',
+        isWhiteboard: true,
+        isAnimatedPng: true,
+        x: 20,
+        y: 30,
+        width: 400,
+        height: 300,
+        style: {},
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <SlideCanvas
+          slide={whiteboardSlide}
+          selectedElementId="element-1"
+          onSelectElement={jest.fn()}
+          onUpdateElement={onUpdateElement}
+          onDeleteElement={jest.fn()}
+        />,
+      );
+    });
+
+    const image = container.querySelector('img');
+    expect(image).not.toBeNull();
+    expect(image.getAttribute('src')).toBe(
+      `${getApiUrl()}/api/whiteboard/file/wb_plan_saved.png`,
+    );
+  });
 });

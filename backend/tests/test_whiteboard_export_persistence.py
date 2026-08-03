@@ -94,6 +94,9 @@ async def test_persists_whiteboard_larger_than_legacy_12mb_limit(
             raise AssertionError("There are no old versions to delete")
 
     monkeypatch.setattr(whiteboard_store, "_bucket", lambda _db: FakeBucket())
+    monkeypatch.setattr(
+        whiteboard_store, "validate_whiteboard_file", lambda _path: True
+    )
 
     assert await whiteboard_store.persist_whiteboard_file(
         object(), source.name, source
@@ -104,7 +107,7 @@ async def test_persists_whiteboard_larger_than_legacy_12mb_limit(
 
 @pytest.mark.asyncio
 async def test_restores_gridfs_whiteboard_before_export(tmp_path, monkeypatch):
-    payload = b"durable-whiteboard-content"
+    payload = b"durable-whiteboard-content" * 100
     version = SimpleNamespace(_id="gridfs-file-id")
 
     class FakeCursor:
@@ -138,6 +141,60 @@ async def test_restores_gridfs_whiteboard_before_export(tmp_path, monkeypatch):
     destination = tmp_path / "whiteboard" / "wb_restored.mp4"
     assert restored == ["wb_restored.mp4"]
     assert destination.read_bytes() == payload
+
+
+@pytest.mark.asyncio
+async def test_rejects_truncated_apng_before_persisting(tmp_path, monkeypatch):
+    source = tmp_path / "wb_plan_truncated.png"
+    source.write_bytes(b"not-a-real-apng" * 200)
+
+    def bucket_must_not_be_opened(_db):
+        raise AssertionError("corrupt media must be rejected before GridFS")
+
+    monkeypatch.setattr(whiteboard_store, "_bucket", bucket_must_not_be_opened)
+
+    assert not await whiteboard_store.persist_whiteboard_file(
+        object(), source.name, source
+    )
+
+
+@pytest.mark.asyncio
+async def test_does_not_publish_corrupt_apng_restored_from_gridfs(
+    tmp_path,
+    monkeypatch,
+):
+    corrupt_payload = b"truncated-apng" * 200
+    version = SimpleNamespace(_id="corrupt-gridfs-file")
+
+    class FakeCursor:
+        def sort(self, *_args):
+            return self
+
+        async def to_list(self, length):
+            return [version]
+
+    class FakeDownload:
+        def __init__(self):
+            self._stream = io.BytesIO(corrupt_payload)
+
+        async def read(self, size):
+            return self._stream.read(size)
+
+    class FakeBucket:
+        def find(self, _query):
+            return FakeCursor()
+
+        async def open_download_stream(self, file_id):
+            assert file_id == version._id
+            return FakeDownload()
+
+    monkeypatch.setattr(whiteboard_store, "_bucket", lambda _db: FakeBucket())
+
+    destination = tmp_path / "whiteboard" / "wb_plan_corrupt.png"
+    assert not await whiteboard_store.restore_whiteboard_file(
+        object(), destination.name, destination
+    )
+    assert not destination.exists()
 
 
 @pytest.mark.asyncio

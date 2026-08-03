@@ -373,8 +373,16 @@ def _write_apng_plan(
             proc.stdin.write(arr.tobytes())
             del frame, out_frame, arr
     finally:
-        proc.stdin.close()
-        proc.wait()
+        try:
+            proc.stdin.close()
+        except Exception:  # noqa: BLE001
+            pass
+        proc.wait(timeout=60)
+        if proc.returncode != 0:
+            out_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"ffmpeg APNG encode failed (rc={proc.returncode})"
+            )
 
 
 def _write_mp4_plan(

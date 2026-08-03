@@ -45,6 +45,7 @@ $files = @(
     "backend/services/kling_ai.py",
     "backend/services/whiteboard_ai_plan.py",
     "backend/services/whiteboard_plan_renderer.py",
+    "backend/services/whiteboard_renderer.py",
     "backend/services/scorm_exporter.py",
     "backend/services/scorm_single_page_exporter.py",
     "backend/services/scenario_service.py",
@@ -184,7 +185,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix PDF asset URLs in editor canvas"
+        message = "Harden Whiteboard persistence and media recovery"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

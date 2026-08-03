@@ -415,11 +415,19 @@ async def serve_whiteboard_file(name: str):
     if not ok_name:
         raise HTTPException(404, "invalid name")
     path = OUTPUT_DIR / name
+    from services.whiteboard_store import (
+        restore_whiteboard_file,
+        validate_whiteboard_file,
+    )
+
+    # Never return a partial APNG left by an interrupted encoder.  A corrupt
+    # local cache must be discarded so the durable GridFS copy gets a chance
+    # to restore it.
+    if path.exists() and not validate_whiteboard_file(path):
+        path.unlink(missing_ok=True)
     if not path.exists():
         # Production: the render may have happened on another pod (or the
         # local disk was recycled). Restore from MongoDB and cache to disk.
-        from services.whiteboard_store import restore_whiteboard_file
-
         if not await restore_whiteboard_file(db, name, path):
             raise HTTPException(404, "video not found")
     if name.endswith(".webm"):

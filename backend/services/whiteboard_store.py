@@ -24,6 +24,8 @@ _WHITEBOARD_URL_RE = re.compile(
 )
 _WHITEBOARD_NAME_RE = re.compile(r"^wb_[A-Za-z0-9_-]+\.(?:mp4|webm|png)$")
 _CHUNK_SIZE = 1024 * 1024
+_MIN_MEDIA_BYTES = 1024
+_VALIDATION_CACHE: dict[str, tuple[int, int, bool]] = {}
 
 
 class WhiteboardAssetUnavailableError(RuntimeError):
@@ -32,6 +34,63 @@ class WhiteboardAssetUnavailableError(RuntimeError):
 
 def is_valid_whiteboard_name(name: str) -> bool:
     return bool(_WHITEBOARD_NAME_RE.fullmatch(name or ""))
+
+
+def validate_whiteboard_file(path: str | Path) -> bool:
+    """Reject empty/truncated renderer output before it becomes durable.
+
+    FFmpeg can leave a non-empty partial APNG behind when the encoder is
+    interrupted.  Browsers may briefly paint its first frame and then replace
+    it with the broken-image icon once parsing reaches the truncated tail.  A
+    mere ``exists()``/size check therefore is not enough for Whiteboards.
+    """
+    media = Path(path)
+    try:
+        if not media.is_file():
+            return False
+        stat = media.stat()
+        cache_key = str(media.resolve())
+        signature = (stat.st_size, stat.st_mtime_ns)
+        cached = _VALIDATION_CACHE.get(cache_key)
+        if cached and cached[:2] == signature:
+            return cached[2]
+        if stat.st_size < _MIN_MEDIA_BYTES:
+            _VALIDATION_CACHE[cache_key] = (*signature, False)
+            return False
+        lower_name = media.name.lower()
+        # Restores are validated while still named
+        # ``.wb_plan_x.png.<uuid>.part``; detect that safe temporary form as
+        # PNG too instead of relying solely on the final suffix.
+        if media.suffix.lower() == ".png" or ".png." in lower_name:
+            from PIL import Image
+
+            # ``verify`` walks the PNG chunks and detects a missing/corrupt
+            # trailer.  Reopen afterwards because Pillow invalidates the
+            # image object after verification, then force the last APNG frame
+            # to be decoded as an additional integrity check.
+            with Image.open(media) as image:
+                image.verify()
+            with Image.open(media) as image:
+                frames = int(getattr(image, "n_frames", 1) or 1)
+                if frames > 1:
+                    image.seek(frames - 1)
+                image.load()
+        if len(_VALIDATION_CACHE) >= 512:
+            _VALIDATION_CACHE.clear()
+        _VALIDATION_CACHE[cache_key] = (*signature, True)
+        return True
+    except Exception as exc:
+        logger.warning("Invalid Whiteboard media %s: %s", media.name, exc)
+        try:
+            stat = media.stat()
+            _VALIDATION_CACHE[str(media.resolve())] = (
+                stat.st_size,
+                stat.st_mtime_ns,
+                False,
+            )
+        except OSError:
+            pass
+        return False
 
 
 def _names_from_value(value: object) -> Iterable[str]:
@@ -96,7 +155,11 @@ async def _find_gridfs_versions(bucket, name: str, limit: int = 100):
 async def persist_whiteboard_file(db, name: str, source_path: str | Path) -> bool:
     """Persist a rendered Whiteboard in GridFS without a document-size limit."""
     source = Path(source_path)
-    if db is None or not is_valid_whiteboard_name(name) or not source.is_file():
+    if (
+        db is None
+        or not is_valid_whiteboard_name(name)
+        or not validate_whiteboard_file(source)
+    ):
         return False
 
     bucket = _bucket(db)
@@ -174,6 +237,10 @@ async def restore_whiteboard_file(
                         if not chunk:
                             break
                         output.write(chunk)
+                if not validate_whiteboard_file(temp_path):
+                    raise ValueError(
+                        f"Whiteboard restaurado do GridFS está corrompido: {name}"
+                    )
                 temp_path.replace(destination)
             finally:
                 if temp_path.exists():
@@ -191,7 +258,14 @@ async def restore_whiteboard_file(
         )
         if data:
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(data)
+            temp_path = destination.with_name(
+                f".{destination.name}.{uuid4().hex}.part"
+            )
+            temp_path.write_bytes(data)
+            if not validate_whiteboard_file(temp_path):
+                temp_path.unlink(missing_ok=True)
+                return False
+            temp_path.replace(destination)
             logger.info("Whiteboard restored from legacy MongoDB storage: %s", name)
             return True
     except Exception as exc:
