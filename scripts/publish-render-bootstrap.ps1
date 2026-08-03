@@ -184,7 +184,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix Kling submission event-loop isolation"
+        message = "Fix PDF asset URLs in editor canvas"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

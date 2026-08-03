@@ -1,6 +1,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import SlideCanvas from './SlideCanvas';
+import { getApiUrl } from '../../utils/apiUrl';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -318,5 +319,41 @@ describe('SlideCanvas element interactions', () => {
     expect(onUpdateElement).toHaveBeenCalledWith('element-1', {
       content: 'Texto atualizado',
     });
+  });
+
+  it('resolves PDF page images against the backend instead of the static frontend', async () => {
+    const pdfSlide = {
+      ...slide,
+      elements: [{
+        id: 'element-1',
+        type: 'flipbook',
+        flipbookType: 'pdf',
+        pdfDisplay: 'pages',
+        pdfPages: ['/api/projects/project-123/assets/document_p1.png'],
+        x: 20,
+        y: 30,
+        width: 400,
+        height: 300,
+        style: {},
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <SlideCanvas
+          slide={pdfSlide}
+          selectedElementId="element-1"
+          onSelectElement={jest.fn()}
+          onUpdateElement={onUpdateElement}
+          onDeleteElement={jest.fn()}
+        />,
+      );
+    });
+
+    const image = container.querySelector('[data-testid="pdf-pages-element-1"] img');
+    expect(image).not.toBeNull();
+    expect(image.getAttribute('src')).toBe(
+      `${getApiUrl()}/api/projects/project-123/assets/document_p1.png`,
+    );
   });
 });
