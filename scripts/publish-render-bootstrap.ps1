@@ -35,6 +35,7 @@ $files = @(
     "backend/routes/kling.py",
     "backend/routes/ai_gen.py",
     "backend/routes/aesthetics.py",
+    "backend/routes/density.py",
     "backend/routes/admin.py",
     "backend/routes/auth.py",
     "backend/routes/projects_crud.py",
@@ -201,7 +202,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Add explicit image generation control to visual analyzer"
+        message = "Deploy OpenAI and Krea visual image endpoint"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

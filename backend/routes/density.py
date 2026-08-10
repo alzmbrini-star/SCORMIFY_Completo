@@ -32,6 +32,8 @@ from services.text_density_analyzer import (
 )
 from services.density_suggester import generate_visual_suggestions
 from services.gemini_image import generate_simple_image
+from services.openai_image import OpenAIImageError, generate_openai_image
+from services.llm_config import openai_api_key
 from services.asset_store import store_asset_async
 from services import krea_ai
 
@@ -142,7 +144,7 @@ class GenerateImageRequest(BaseModel):
     #   "krea"              → Krea AI (user API key required), various
     #                          Flux/Imagen/SeeDream models, ~4-25s, billed
     #                          to the user's Krea account.
-    provider: Optional[str] = "gemini"
+    provider: Optional[str] = "openai"
     # Krea-only: which model from KREA_IMAGE_MODELS. Defaults to flux-1-dev
     # (the fastest, 4s, $0.04) which gives a good price/quality balance for
     # density-suggestion infographics.
@@ -254,15 +256,15 @@ async def list_image_providers(user: dict = Depends(require_auth)):
     Emergent Universal Key); Krea only appears if KREA_API_KEY is set
     (user must have configured it in admin settings).
     """
-    providers = [
-        {
-            "id": "gemini",
-            "label": "Gemini Nano Banana",
-            "description": "Rapido (~5s), ja incluso na chave universal Emergent.",
+    providers = []
+    if openai_api_key(allow_legacy=False):
+        providers.append({
+            "id": "openai",
+            "label": "OpenAI Images",
+            "description": "Geracao oficial pela chave OPENAI_API_KEY configurada no Render.",
             "models": [],
             "configured": True,
-        },
-    ]
+        })
     if krea_ai.is_configured():
         providers.append({
             "id": "krea",
@@ -398,6 +400,50 @@ class KreaUserError(Exception):
     pass
 
 
+async def _generate_openai_with_krea_fallback(
+    prompt: str,
+    negative_prompt: Optional[str],
+) -> tuple[Optional[bytes], str, Optional[str]]:
+    """Generate with OpenAI, falling back to the configured Krea account.
+
+    The author explicitly requested an image, and both providers are exposed
+    by the same Editor feature. Returning the original OpenAI reason lets the
+    route report both failures if Krea also cannot complete the job.
+    """
+    openai_error: Optional[str] = None
+    try:
+        image = await generate_openai_image(prompt)
+        if image:
+            return image, "openai", None
+        openai_error = "OpenAI retornou uma resposta sem imagem"
+    except OpenAIImageError as exc:
+        openai_error = str(exc)
+
+    if not krea_ai.is_configured():
+        return None, "openai", openai_error
+
+    fallback_model = (
+        os.environ.get("DENSITY_IMAGE_KREA_FALLBACK_MODEL", "nano-banana-2").strip()
+        or "nano-banana-2"
+    )
+    logger.warning(
+        "[density.generate-image] OpenAI failed (%s); retrying with Krea/%s",
+        openai_error,
+        fallback_model,
+    )
+    try:
+        image = await _generate_via_krea(
+            prompt,
+            fallback_model,
+            negative_prompt=negative_prompt,
+        )
+    except KreaUserError as exc:
+        return None, "krea-fallback", f"{openai_error}; Krea: {exc}"
+    if image:
+        return image, "krea-fallback", openai_error
+    return None, "krea-fallback", f"{openai_error}; Krea tambem nao retornou imagem"
+
+
 @router.post("/generate-image")
 async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = Depends(require_auth)):
     """Generate an illustration for a density suggestion that promised an
@@ -434,8 +480,10 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     style_id = (req.imageStyle or "infographic").strip().lower()
     style = IMAGE_STYLE_CONFIG.get(style_id) or IMAGE_STYLE_CONFIG["infographic"]
 
-    provider = (req.provider or "gemini").lower().strip()
-    text_render_quality = "good"  # gemini handles pt-BR text OK
+    provider = (req.provider or "openai").lower().strip()
+    if provider == "gemini" and openai_api_key(allow_legacy=False):
+        provider = "openai"
+    text_render_quality = "good"
     if provider == "krea":
         m = krea_ai.get_model(req.kreaModelId or "flux-1-dev")
         text_render_quality = (m or {}).get("textRendering", "poor")
@@ -530,6 +578,7 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
     # could pick the right prompt strategy. Now branch on it to call the
     # actual generation backend.
     img_bytes: Optional[bytes] = None
+    generation_warning: Optional[str] = None
     if provider == "krea":
         if not krea_ai.is_configured():
             raise HTTPException(status_code=400, detail="Krea API key not configured. Open admin settings to add KREA_API_KEY.")
@@ -539,8 +588,17 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
             raise HTTPException(status_code=400, detail=str(e))
         if not img_bytes:
             raise HTTPException(status_code=502, detail="Image generation failed (Krea)")
+    elif provider == "openai":
+        if not openai_api_key(allow_legacy=False):
+            raise HTTPException(status_code=503, detail="OPENAI_API_KEY nao configurada para gerar imagens.")
+        img_bytes, provider, generation_warning = await _generate_openai_with_krea_fallback(
+            prompt,
+            negative_prompt,
+        )
+        if not img_bytes:
+            raise HTTPException(status_code=502, detail=generation_warning or "OpenAI e Krea nao conseguiram gerar a imagem.")
     else:
-        # Default: Gemini Nano Banana via Emergent key. ~3-6s typical.
+        # Compatibility only for installations that still use Emergent.
         img_bytes = await generate_simple_image(prompt)
         if not img_bytes:
             raise HTTPException(status_code=502, detail="Image generation failed (Gemini)")
@@ -649,4 +707,6 @@ async def generate_image_for_suggestion(req: GenerateImageRequest, user: dict = 
         "style": style_id,
         "companyAssetId": company_asset_id,
         "savedToLibrary": bool(company_asset_id),
+        "fallbackUsed": provider == "krea-fallback",
+        "generationWarning": generation_warning if provider == "krea-fallback" else None,
     }
