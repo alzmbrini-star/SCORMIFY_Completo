@@ -721,7 +721,7 @@ def _slide_plain_text(slide_context: Optional[dict]) -> str:
         str(slide_context.get("notes") or slide_context.get("narrationScript") or ""),
     ]
     for element in slide_context.get("elements", []):
-        parts.append(str(element.get("content") or ""))
+        parts.append(str(element.get("content") or element.get("htmlContent") or ""))
     clean = re.sub(r"<[^>]+>", " ", " ".join(parts))
     clean = html.unescape(re.sub(r"\s+", " ", clean)).strip()
     return clean[:1800]
@@ -1614,6 +1614,13 @@ def _interactive_html_is_functional(html_content: str, content_type: str = "") -
         return False
     if "<body" not in lowered or "<script" not in lowered:
         return False
+    # A long stylesheet/script skeleton can pass the size checks while the
+    # body has no visible content. Require meaningful text in the body.
+    body_match = re.search(r"<body[^>]*>([\s\S]*?)</body>", raw, re.IGNORECASE)
+    body_text = re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<[^>]+>", " ", body_match.group(1) if body_match else "", flags=re.IGNORECASE)
+    body_text = html.unescape(re.sub(r"\s+", " ", body_text)).strip()
+    if len(body_text) < 40:
+        return False
     if content_type == "flashcard":
         # A flashcard must contain real card data plus an actual flip action.
         has_card_data = any(
@@ -1669,6 +1676,53 @@ function render(){card.classList.remove('flipped');front.textContent=cards[index
 function move(step){index=(index+step+cards.length)%cards.length;render()}function mark(ok){if(!answered.has(index)){answered.add(index);if(ok)known++}if(answered.size===cards.length){study.style.display='none';result.style.display='block';score.textContent=`Resultado: ${Math.round(known/cards.length*100)}%`}else{move(1)}}
 function restart(){index=0;known=0;answered=new Set();result.style.display='none';study.style.display='block';render()}card.onclick=()=>card.classList.toggle('flipped');card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();card.classList.toggle('flipped')}};render();</script></body></html>'''
     return template.replace("__MODULE__", safe_module).replace("__TITLE__", safe_title).replace("__CARDS__", cards_json)
+
+
+def _fallback_content_parts(sb_slide: dict, minimum: int = 5) -> list[str]:
+    """Extract useful visible content even when the model returned bad HTML."""
+    source = re.sub(r"\s+", " ", _slide_plain_text(sb_slide)).strip()
+    parts = []
+    for candidate in re.split(r"(?<=[.!?;:])\s+|\s+[\u2022\-]\s+", source):
+        candidate = candidate.strip(" -\u2022")
+        if 24 <= len(candidate) <= 360 and candidate.lower() not in {p.lower() for p in parts}:
+            parts.append(candidate)
+    title = str(sb_slide.get("title") or "Conteúdo do curso")
+    defaults = [
+        f"Contextualização de {title}",
+        f"Conceitos essenciais relacionados a {title}",
+        "Aplicação prática no contexto profissional",
+        "Resultados, aprendizados e pontos de atenção",
+        "Síntese e próximos passos recomendados",
+    ]
+    for item in defaults:
+        if len(parts) >= minimum:
+            break
+        parts.append(item)
+    return parts[:max(minimum, 7)]
+
+
+def _build_timeline_fallback_html(sb_slide: dict) -> str:
+    title = html.escape(str(sb_slide.get("title") or "Linha do tempo"))
+    items = _fallback_content_parts(sb_slide, 5)[:6]
+    events = json.dumps(
+        [{"label": f"Etapa {i + 1}", "text": value} for i, value in enumerate(items)],
+        ensure_ascii=False,
+    ).replace("</", "<\\/")
+    return r'''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:linear-gradient(135deg,#f8fafc,#e0ecff);color:#10213f;display:grid;place-items:center}.app{width:900px;padding:34px}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#2563eb}.title{font-size:30px;margin:7px 0 30px}.track{height:5px;background:#bfdbfe;position:relative;margin:64px 36px 46px}.nodes{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center}.node{width:54px;height:54px;border-radius:50%;border:5px solid white;background:#2563eb;color:white;font-size:17px;font-weight:900;box-shadow:0 8px 25px #1d4ed844;cursor:pointer;transition:.25s}.node.active{background:#f97316;transform:scale(1.18)}.labels{display:flex;justify-content:space-between;margin:0 12px}.labels span{width:110px;text-align:center;font-size:12px;font-weight:800;color:#475569}.card{min-height:150px;border-radius:20px;background:white;padding:26px 30px;box-shadow:0 18px 45px #1e3a5f1f;border:1px solid #dbeafe}.card h2{font-size:21px;margin:0 0 10px;color:#1d4ed8}.card p{font-size:17px;line-height:1.55;margin:0}.hint{text-align:center;margin-top:14px;font-size:12px;color:#64748b}</style></head><body><main class="app"><div class="eyebrow">Cronologia interativa</div><h1 class="title">__TITLE__</h1><div class="track"><div id="nodes" class="nodes"></div></div><div id="labels" class="labels"></div><section class="card"><h2 id="eventTitle"></h2><p id="eventText"></p></section><div class="hint">Selecione os marcos para explorar cada etapa.</div></main><script>const events=__EVENTS__;const nodes=document.getElementById('nodes'),labels=document.getElementById('labels');function show(i){document.querySelectorAll('.node').forEach((n,x)=>n.classList.toggle('active',x===i));eventTitle.textContent=events[i].label;eventText.textContent=events[i].text}events.forEach((e,i)=>{const b=document.createElement('button');b.className='node';b.textContent=i+1;b.onclick=()=>show(i);nodes.appendChild(b);const l=document.createElement('span');l.textContent=e.label;labels.appendChild(l)});show(0);</script></body></html>'''.replace("__TITLE__", title).replace("__EVENTS__", events)
+
+
+def _build_case_study_fallback_html(sb_slide: dict) -> str:
+    title = html.escape(str(sb_slide.get("title") or "Estudo de caso"))
+    parts = _fallback_content_parts(sb_slide, 5)
+    sections = json.dumps([
+        {"title": "Contexto", "text": parts[0]},
+        {"title": "Desafio", "text": parts[1]},
+        {"title": "Decisão", "text": parts[2]},
+        {"title": "Resultados", "text": parts[3]},
+        {"title": "Reflexão", "text": parts[4]},
+    ], ensure_ascii=False).replace("</", "<\\/")
+    return r'''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:linear-gradient(145deg,#fff7ed,#ffedd5);color:#292524;display:grid;place-items:center}.app{width:900px;padding:32px}.eyebrow{font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#ea580c}.title{font-size:30px;margin:7px 0 22px}.layout{display:grid;grid-template-columns:220px 1fr;gap:20px}.tabs{display:flex;flex-direction:column;gap:9px}.tab{border:1px solid #fed7aa;background:#fff;border-radius:12px;padding:14px 16px;text-align:left;font-weight:800;color:#7c2d12;cursor:pointer}.tab.active{background:#ea580c;color:#fff;border-color:#ea580c}.panel{min-height:285px;background:white;border:1px solid #fed7aa;border-radius:20px;padding:30px;box-shadow:0 18px 45px #9a34121c}.panel h2{font-size:24px;color:#c2410c;margin:0 0 14px}.panel p{font-size:18px;line-height:1.62;margin:0}.question{margin-top:20px;padding:15px 18px;border-radius:12px;background:#fff7ed;color:#9a3412;font-weight:700}</style></head><body><main class="app"><div class="eyebrow">Análise aplicada</div><h1 class="title">__TITLE__</h1><div class="layout"><nav id="tabs" class="tabs"></nav><section class="panel"><h2 id="sectionTitle"></h2><p id="sectionText"></p><div class="question">Que decisão você tomaria nesta etapa e por quê?</div></section></div></main><script>const sections=__SECTIONS__,tabs=document.getElementById('tabs');function show(i){document.querySelectorAll('.tab').forEach((b,x)=>b.classList.toggle('active',x===i));sectionTitle.textContent=sections[i].title;sectionText.textContent=sections[i].text}sections.forEach((s,i)=>{const b=document.createElement('button');b.className='tab';b.textContent=`${i+1}. ${s.title}`;b.onclick=()=>show(i);tabs.appendChild(b)});show(0);</script></body></html>'''.replace("__TITLE__", title).replace("__SECTIONS__", sections)
 
 
 def _hex_luminance(color: str) -> float:
@@ -2134,6 +2188,14 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 if html_content:
                     logger.warning("Rejected placeholder flashcard HTML on slide %s; using safe fallback", i)
                 html_content = _build_flashcard_fallback_html(sb_slide)
+            elif stype == "timeline" and not _interactive_html_is_functional(html_content, stype):
+                if html_content:
+                    logger.warning("Rejected blank timeline HTML on slide %s; using safe fallback", i)
+                html_content = _build_timeline_fallback_html(sb_slide)
+            elif stype == "case_study" and not _interactive_html_is_functional(html_content, stype):
+                if html_content:
+                    logger.warning("Rejected blank case-study HTML on slide %s; using safe fallback", i)
+                html_content = _build_case_study_fallback_html(sb_slide)
             if _interactive_html_is_functional(html_content, stype):
                 slide_elements = [{
                     "id": generate_id(),
@@ -2143,6 +2205,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "y": 0,
                     "width": 1920,
                     "height": 820,
+                    "htmlDisplayMode": "fit",
                     "zIndex": 1,
                 }]
             else:

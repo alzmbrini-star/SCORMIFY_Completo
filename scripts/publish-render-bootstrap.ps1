@@ -62,6 +62,7 @@ $files = @(
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_kling_ai_integration.py",
     "backend/tests/test_ai_agent_media_resilience.py",
+    "backend/tests/test_ai_agent_interactive_fallbacks.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
     "backend/tests/test_ai_html_generation_openai.py",
@@ -192,7 +193,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Migrate Emergent text AI to OpenAI and fix health panel"
+        message = "Fix blank timeline and case-study slides after OpenAI migration"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
