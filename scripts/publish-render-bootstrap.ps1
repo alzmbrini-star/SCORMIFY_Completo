@@ -201,7 +201,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix generated image placement in visual suggestions"
+        message = "Add Krea recovery for visual suggestion images"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

@@ -570,6 +570,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                 }
                 // Hold onto the library-save flag for the toast.
                 if (j?.savedToLibrary) sug._savedToLibrary = true;
+                if (j?.fallbackUsed) sug._imageFallbackProvider = j?.provider || 'krea-fallback';
               } else {
                 // Surface 4xx detail so the user knows WHY (e.g., wrong
                 // Krea model or plan). 5xx returns generic message.
@@ -692,7 +693,9 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
             // eslint-disable-next-line global-require
             const { toast } = require('sonner');
             if (generatedImageUrl) {
-              toast.success(sug._savedToLibrary
+              toast.success(sug._imageFallbackProvider
+                ? 'Sugestao aplicada. A OpenAI falhou e a imagem foi recuperada pelo Krea.'
+                : sug._savedToLibrary
                 ? 'Sugestao aplicada. Imagem gerada e salva na Biblioteca de Marca.'
                 : 'Sugestao aplicada com imagem gerada.');
             } else if (sug.requiresImage && imageError) {

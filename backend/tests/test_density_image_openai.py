@@ -93,3 +93,54 @@ async def test_openai_image_preserves_safe_upstream_reason(monkeypatch):
 
     with pytest.raises(OpenAIImageError, match="429.*insufficient quota"):
         await generate_openai_image("teste")
+
+
+@pytest.mark.asyncio
+async def test_density_generation_falls_back_to_krea(monkeypatch):
+    from routes import density
+
+    async def fail_openai(_prompt):
+        raise OpenAIImageError("OpenAI HTTP 429: insufficient quota")
+
+    async def succeed_krea(prompt, model_id, negative_prompt=None):
+        assert prompt == "imagem educativa"
+        assert model_id == "nano-banana-2"
+        return b"krea-image"
+
+    monkeypatch.setattr(density, "generate_openai_image", fail_openai)
+    monkeypatch.setattr(density.krea_ai, "is_configured", lambda: True)
+    monkeypatch.setattr(density, "_generate_via_krea", succeed_krea)
+
+    image, provider, warning = await density._generate_openai_with_krea_fallback(
+        "imagem educativa",
+        "sem texto",
+    )
+
+    assert image == b"krea-image"
+    assert provider == "krea-fallback"
+    assert "429" in warning
+
+
+@pytest.mark.asyncio
+async def test_density_generation_reports_both_provider_failures(monkeypatch):
+    from routes import density
+
+    async def fail_openai(_prompt):
+        raise OpenAIImageError("OpenAI HTTP 429: insufficient quota")
+
+    async def fail_krea(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(density, "generate_openai_image", fail_openai)
+    monkeypatch.setattr(density.krea_ai, "is_configured", lambda: True)
+    monkeypatch.setattr(density, "_generate_via_krea", fail_krea)
+
+    image, provider, warning = await density._generate_openai_with_krea_fallback(
+        "imagem educativa",
+        None,
+    )
+
+    assert image is None
+    assert provider == "krea-fallback"
+    assert "OpenAI HTTP 429" in warning
+    assert "Krea tambem nao retornou imagem" in warning
