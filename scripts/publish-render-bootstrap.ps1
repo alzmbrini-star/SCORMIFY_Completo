@@ -201,7 +201,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Validate generated visual assets before applying suggestions"
+        message = "Fix generated image placement in visual suggestions"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

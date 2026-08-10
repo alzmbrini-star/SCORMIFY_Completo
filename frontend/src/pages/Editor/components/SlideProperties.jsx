@@ -492,6 +492,20 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
         onApply={async (sug) => {
           const elements = [...(slide.elements || [])];
           const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
+          const SLIDE_WIDTH = Number(slide.width) || 1920;
+          const SLIDE_HEIGHT = Number(slide.height) || 1080;
+          const toPixels = (value, total, fallback = 0) => {
+            if (typeof value === 'string' && value.trim().endsWith('%')) {
+              const percent = Number.parseFloat(value);
+              return Number.isFinite(percent) ? (percent / 100) * total : fallback;
+            }
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? numeric : fallback;
+          };
+          const highestZIndex = elements.reduce((highest, el) => {
+            const value = Number(el?.zIndex);
+            return Number.isFinite(value) ? Math.max(highest, value) : highest;
+          }, 0);
           // Find ALL textual elements. AI-Agent slides often have a small
           // HEADER strip at index 0 (1920x50 banner) and the BODY at index 1
           // (1760x700). We MUST pick the largest as survivor — otherwise the
@@ -585,8 +599,8 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
           if (textualEls.length > 0) {
             // Pick the LARGEST textual element by area as the survivor.
             const survivor = textualEls.reduce((best, cur) => {
-              const aB = (best.el.width || 0) * (best.el.height || 0);
-              const aC = (cur.el.width || 0) * (cur.el.height || 0);
+              const aB = toPixels(best.el.width, SLIDE_WIDTH) * toPixels(best.el.height, SLIDE_HEIGHT);
+              const aC = toPixels(cur.el.width, SLIDE_WIDTH) * toPixels(cur.el.height, SLIDE_HEIGHT);
               return aC > aB ? cur : best;
             });
             // Re-resolve text color now that we know which element survived
@@ -597,10 +611,10 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
             }
             // UNION bounding box of all textual elements → the survivor's box
             // expands to fit the merged area so the new prose isn't squashed.
-            const xs = textualEls.map(({ el }) => el.x || 0);
-            const ys = textualEls.map(({ el }) => el.y || 0);
-            const rights = textualEls.map(({ el }) => (el.x || 0) + (el.width || 0));
-            const bottoms = textualEls.map(({ el }) => (el.y || 0) + (el.height || 0));
+            const xs = textualEls.map(({ el }) => toPixels(el.x, SLIDE_WIDTH));
+            const ys = textualEls.map(({ el }) => toPixels(el.y, SLIDE_HEIGHT));
+            const rights = textualEls.map(({ el }) => toPixels(el.x, SLIDE_WIDTH) + toPixels(el.width, SLIDE_WIDTH, SLIDE_WIDTH));
+            const bottoms = textualEls.map(({ el }) => toPixels(el.y, SLIDE_HEIGHT) + toPixels(el.height, SLIDE_HEIGHT, SLIDE_HEIGHT));
             const ux = Math.min(...xs);
             const uy = Math.min(...ys);
             const uw = Math.max(...rights) - ux;
@@ -641,7 +655,8 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                 src: generatedImageUrl,
                 x: imgX, y: imgY, width: imgW, height: imgH,
                 objectFit: 'cover',
-                zIndex: 5,
+                zIndex: highestZIndex + 50,
+                generatedBy: 'density-analyzer',
               });
             }
             onUpdate({ elements: cleaned });
@@ -665,7 +680,8 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                 src: generatedImageUrl,
                 x: 1020, y: 80, width: 820, height: 600,
                 objectFit: 'cover',
-                zIndex: 5,
+                zIndex: highestZIndex + 50,
+                generatedBy: 'density-analyzer',
               });
             }
             onUpdate({ elements });
