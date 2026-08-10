@@ -38,6 +38,7 @@ $files = @(
     "backend/routes/admin.py",
     "backend/routes/auth.py",
     "backend/routes/projects_crud.py",
+    "backend/routes/projects_media.py",
     "backend/routes/questions.py",
     "backend/routes/scenarios.py",
     "backend/routes/whiteboard.py",
@@ -68,6 +69,7 @@ $files = @(
     "backend/tests/test_ai_html_generation_openai.py",
     "backend/tests/test_ai_quiz_generation_openai.py",
     "backend/tests/test_export_backend_url_resolution.py",
+    "backend/tests/test_pdf_page_render_quality.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
     "backend/tests/test_integrations_health_openai.py",
@@ -193,7 +195,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix blank timeline and case-study slides after OpenAI migration"
+        message = "Improve PDF page rendering quality in Editor and exports"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

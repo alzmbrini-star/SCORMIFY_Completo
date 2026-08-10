@@ -11,6 +11,7 @@ import uuid
 import io
 import logging
 import aiofiles
+import os
 
 from routes.deps import db, PROJECTS_DIR
 from routes.auth import require_auth
@@ -19,6 +20,21 @@ from routes.projects_common import load_authorized_project
 logger = logging.getLogger("server")
 
 router = APIRouter(tags=["Projects - Media"])
+
+
+def _pdf_page_render_scale(page_width: float, page_height: float) -> float:
+    """Choose a sharp raster scale while keeping pathological PDFs bounded."""
+    try:
+        dpi = min(360, max(144, int(os.environ.get("PDF_PAGE_RENDER_DPI", "240"))))
+    except (TypeError, ValueError):
+        dpi = 240
+    try:
+        max_dimension = min(5000, max(1800, int(os.environ.get("PDF_PAGE_MAX_DIMENSION", "3200"))))
+    except (TypeError, ValueError):
+        max_dimension = 3200
+    scale = dpi / 72.0
+    largest = max(float(page_width or 1), float(page_height or 1))
+    return min(scale, max_dimension / largest)
 
 
 @router.post("/projects/{project_id}/media")
@@ -161,10 +177,16 @@ async def render_pdf_pages(project_id: str, payload: dict = Body(...), user: dic
         results = []
         stem = Path(filename).stem
         for p in nums:
-            pix = doc.load_page(p - 1).get_pixmap(matrix=fitz.Matrix(2, 2))
+            page = doc.load_page(p - 1)
+            scale = _pdf_page_render_scale(page.rect.width, page.rect.height)
+            pix = page.get_pixmap(
+                matrix=fitz.Matrix(scale, scale),
+                colorspace=fitz.csRGB,
+                alpha=False,
+            )
             out_name = f"{stem}_p{p}.png"
             pix.save(str(pdf_path.parent / out_name))
-            results.append((p, out_name))
+            results.append((p, out_name, pix.width, pix.height))
         doc.close()
         return total, results
 
@@ -180,10 +202,15 @@ async def render_pdf_pages(project_id: str, payload: dict = Body(...), user: dic
 
     from services.asset_store import store_asset_async
     pages = []
-    for p, out_name in results:
+    for p, out_name, width, height in results:
         try:
             await store_asset_async(db, project_id, out_name, str(pdf_path.parent / out_name))
         except Exception as e:
             logger.warning(f"Failed to persist PDF page in MongoDB (non-fatal): {e}")
-        pages.append({"page": p, "url": f"/api/projects/{project_id}/assets/{out_name}"})
+        pages.append({
+            "page": p,
+            "url": f"/api/projects/{project_id}/assets/{out_name}",
+            "width": width,
+            "height": height,
+        })
     return {"pageCount": total, "pages": pages}
