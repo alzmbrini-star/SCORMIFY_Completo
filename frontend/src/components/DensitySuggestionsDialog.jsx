@@ -167,6 +167,7 @@ export default function DensitySuggestionsDialog({
   const handleApply = async (sug) => {
     if (!onApply) return;
     setApplyingId(sug.id);
+    setError("");
     try {
       // Pass the provider+style choice through to the caller so the apply
       // chain can hit the right backend lane. Suggestions without
@@ -176,6 +177,8 @@ export default function DensitySuggestionsDialog({
         : sug;
       await Promise.resolve(onApply(enriched));
       onClose?.();
+    } catch (e) {
+      setError(e?.message || "Nao foi possivel aplicar esta sugestao.");
     } finally {
       setApplyingId(null);
     }

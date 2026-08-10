@@ -533,7 +533,27 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
               });
               if (r.ok) {
                 const j = await r.json();
-                generatedImageUrl = j?.url || null;
+                const rawUrl = j?.url || null;
+                if (rawUrl) {
+                  const absoluteUrl = /^https?:\/\//i.test(rawUrl)
+                    ? rawUrl
+                    : `${apiBase}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+                  // Do not mutate the slide until the newly persisted asset
+                  // can actually be read back from the backend. This catches
+                  // storage/persistence problems that a successful generation
+                  // response alone would otherwise hide.
+                  const assetCheck = await fetch(absoluteUrl, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    cache: 'no-store',
+                  });
+                  if (assetCheck.ok) {
+                    generatedImageUrl = absoluteUrl;
+                  } else {
+                    imageError = `imagem gerada, mas o arquivo nao ficou disponivel (HTTP ${assetCheck.status})`;
+                  }
+                } else {
+                  imageError = 'o servidor concluiu sem retornar a URL da imagem';
+                }
                 // Hold onto the library-save flag for the toast.
                 if (j?.savedToLibrary) sug._savedToLibrary = true;
               } else {
@@ -545,6 +565,13 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                 } catch (_e) { imageError = `Erro ${r.status}`; }
               }
             } catch (_e) { imageError = 'Falha de rede ao gerar imagem.'; }
+          }
+
+          // Never silently apply only the textual half of a suggestion that
+          // explicitly promised an image. Keep the dialog open and expose the
+          // actionable backend/storage error to the author.
+          if (sug.requiresImage && !generatedImageUrl) {
+            throw new Error(`Imagem nao gerada: ${imageError || 'provedor indisponivel'}`);
           }
 
           const plainText = buildSuggestionPlainText(sug);

@@ -201,7 +201,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Restore OpenAI visual suggestions and image generation"
+        message = "Validate generated visual assets before applying suggestions"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
