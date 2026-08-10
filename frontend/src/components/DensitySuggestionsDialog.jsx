@@ -78,12 +78,12 @@ export default function DensitySuggestionsDialog({
   const [applyingId, setApplyingId] = useState(null);
 
   // Image-generation provider selector. Only relevant for suggestions
-  // with requiresImage=true. We default to "gemini" (Emergent universal
-  // key, no user setup) and offer "krea" when admin has configured the
+  // with requiresImage=true. We default to OpenAI (server-side key) and
+  // offer Krea when admin has configured the
   // Krea API key. Stored separately from kreaModelId so users can switch
   // models without losing their provider preference.
   const [providers, setProviders] = useState([]);
-  const [imageProvider, setImageProvider] = useState("gemini");
+  const [imageProvider, setImageProvider] = useState("openai");
   // Default to Flux 1 Dev — it's the most broadly compatible Krea model
   // for the keys our customers typically have. When the model can't render
   // text legibly (Flux family), the BACKEND automatically strips text
@@ -301,12 +301,12 @@ export default function DensitySuggestionsDialog({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setImageProvider("gemini")}
-                  className={`text-left rounded p-2 border transition ${imageProvider === "gemini" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"}`}
-                  data-testid="density-provider-gemini"
+                  onClick={() => setImageProvider("openai")}
+                  className={`text-left rounded p-2 border transition ${imageProvider === "openai" ? "border-violet-400 bg-violet-500/15" : "border-slate-700 hover:border-slate-600 bg-slate-800/50"}`}
+                  data-testid="density-provider-openai"
                 >
-                  <div className="text-xs font-semibold text-white">Gemini Nano Banana</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Rapido (~5s) • Incluso na chave universal</div>
+                  <div className="text-xs font-semibold text-white">OpenAI Images</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Usa a chave OpenAI configurada no Render</div>
                 </button>
                 <button
                   type="button"

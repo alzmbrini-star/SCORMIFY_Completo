@@ -525,7 +525,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                   projectId: pid,
                   imagePrompt: sug.imagePrompt,
                   suggestionId: sug.id,
-                  provider: sug.imageProvider || 'gemini',
+                  provider: sug.imageProvider || 'openai',
                   kreaModelId: sug.kreaModelId || 'flux-1-dev',
                   imageStyle: sug.imageStyle || 'infographic',
                   saveToLibrary: sug.saveToLibrary !== false,

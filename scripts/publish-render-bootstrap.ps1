@@ -48,6 +48,7 @@ $files = @(
     "backend/services/llm_config.py",
     "backend/services/brand_library_picker.py",
     "backend/services/density_suggester.py",
+    "backend/services/openai_image.py",
     "backend/services/text_density_analyzer.py",
     "backend/services/pdf_extractor.py",
     "backend/services/kling_ai.py",
@@ -72,6 +73,7 @@ $files = @(
     "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_pdf_page_render_quality.py",
     "backend/tests/test_density_suggestions_openai.py",
+    "backend/tests/test_density_image_openai.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
     "backend/tests/test_integrations_health_openai.py",
@@ -199,7 +201,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Restore OpenAI visual-density suggestions in Editor"
+        message = "Restore OpenAI visual suggestions and image generation"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
