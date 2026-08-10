@@ -201,7 +201,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Enforce image generation for visual suggestion types"
+        message = "Add explicit image generation control to visual analyzer"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

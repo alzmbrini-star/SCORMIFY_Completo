@@ -110,6 +110,10 @@ export default function DensitySuggestionsDialog({
   // image, keep it around". Backend silently skips when the user isn't
   // a super_admin.
   const [saveToLibrary, setSaveToLibrary] = useState(true);
+  // The purpose of this panel is to make dense slides more visual. Keep an
+  // explicit author-controlled switch instead of relying exclusively on the
+  // LLM's occasionally inconsistent `requiresImage` flag.
+  const [generateSupportingImage, setGenerateSupportingImage] = useState(true);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("scormify_auth_token") : "";
 
@@ -178,9 +182,22 @@ export default function DensitySuggestionsDialog({
       // Pass the provider+style choice through to the caller so the apply
       // chain can hit the right backend lane. Suggestions without
       // requiresImage simply ignore these fields.
-      const needsImage = suggestionNeedsImage(sug);
+      const needsImage = generateSupportingImage || suggestionNeedsImage(sug);
+      const fallbackImagePrompt = [
+        `Crie uma ilustracao educacional profissional para o tema: ${title || sug.title || 'conteudo do slide'}.`,
+        text ? `Contexto: ${text.slice(0, 240)}.` : '',
+        'Use composicao visual clara, icones e formas. Evite paragrafos e textos pequenos.',
+      ].filter(Boolean).join(' ');
       const enriched = needsImage
-        ? { ...sug, requiresImage: true, imageProvider, kreaModelId, imageStyle, saveToLibrary }
+        ? {
+            ...sug,
+            requiresImage: true,
+            imagePrompt: sug.imagePrompt || fallbackImagePrompt,
+            imageProvider,
+            kreaModelId,
+            imageStyle,
+            saveToLibrary,
+          }
         : sug;
       await Promise.resolve(onApply(enriched));
       onClose?.();
@@ -193,7 +210,6 @@ export default function DensitySuggestionsDialog({
 
   // Detect whether any suggestion needs an image — we only render the
   // provider picker when at least one card promises "Inclui imagem".
-  const anySuggestionNeedsImage = suggestions.some(suggestionNeedsImage);
   const kreaProvider = providers.find(p => p.id === "krea");
 
   const headerStyle = density ? LABEL_STYLES[density.label] : LABEL_STYLES.light;
@@ -255,8 +271,25 @@ export default function DensitySuggestionsDialog({
           </div>
         )}
 
-        {!loading && suggestions.length > 0 && anySuggestionNeedsImage && (
+        {!loading && suggestions.length > 0 && (
           <div className="space-y-2">
+            <label
+              className="flex items-center gap-2 p-3 rounded border border-cyan-500/40 bg-cyan-500/10 cursor-pointer"
+              data-testid="density-force-image-toggle"
+            >
+              <input
+                type="checkbox"
+                checked={generateSupportingImage}
+                onChange={(e) => setGenerateSupportingImage(e.target.checked)}
+                className="w-4 h-4 accent-cyan-500"
+              />
+              <span className="text-xs text-cyan-100 flex-1">
+                <strong>Gerar imagem de apoio ao aplicar</strong>
+                <span className="block text-[10px] text-slate-400 mt-0.5">
+                  Ativado: qualquer sugestao escolhida gera e adiciona uma imagem ao slide.
+                </span>
+              </span>
+            </label>
             {/* STYLE PICKER — what visual aesthetic should the image have? */}
             <div className="bg-emerald-500/5 border border-emerald-500/30 rounded p-3 space-y-2" data-testid="density-style-picker">
               <div className="flex items-center gap-2">
@@ -457,7 +490,7 @@ export default function DensitySuggestionsDialog({
                       {applyingId === sug.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        "Aplicar"
+                        (generateSupportingImage || suggestionNeedsImage(sug)) ? "Aplicar com imagem" : "Aplicar"
                       )}
                     </Button>
                   </div>
