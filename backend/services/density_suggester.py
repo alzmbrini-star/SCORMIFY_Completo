@@ -128,6 +128,26 @@ async def generate_visual_suggestions(
             t = (sug.get("type") or "summarize").lower().strip()
             if t not in SUGGESTION_TYPES:
                 t = "summarize"
+            image_prompt = (sug.get("imagePrompt") or "").strip()[:400]
+            # The model occasionally labels an option as infographic/diagram
+            # but forgets `requiresImage`, causing the frontend to apply only
+            # the rewritten text. Visual suggestion types are authoritative.
+            requires_image = (
+                t in ("infographic", "diagram")
+                or bool(image_prompt)
+                or sug.get("requiresImage") is True
+            )
+            if requires_image and not image_prompt:
+                subject = (
+                    (sug.get("title") or "").strip()
+                    or title.strip()
+                    or text.strip()[:180]
+                    or "conteudo educacional"
+                )
+                image_prompt = (
+                    f"Ilustracao educacional visual sobre {subject}. Composicao clara, "
+                    "profissional, com icones e formas, sem blocos longos de texto."
+                )[:400]
             normalized.append({
                 "id": f"sug-{i}",
                 "type": t,
@@ -138,8 +158,8 @@ async def generate_visual_suggestions(
                     b.strip() for b in (sug.get("transformedBullets") or [])
                     if isinstance(b, str) and b.strip()
                 ][:6],
-                "imagePrompt": (sug.get("imagePrompt") or "").strip()[:400],
-                "requiresImage": bool(sug.get("requiresImage")),
+                "imagePrompt": image_prompt,
+                "requiresImage": requires_image,
             })
         return normalized or _fallback_suggestions(text, bullets)
     except Exception as e:

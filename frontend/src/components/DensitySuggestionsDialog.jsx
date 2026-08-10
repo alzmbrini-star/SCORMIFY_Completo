@@ -58,6 +58,12 @@ const LABEL_STYLES = {
   heavy: { color: "text-red-400", icon: AlertTriangle, header: "Conteudo muito textual" },
 };
 
+const suggestionNeedsImage = (suggestion) => Boolean(
+  suggestion?.requiresImage
+  || suggestion?.imagePrompt
+  || ['infographic', 'diagram'].includes((suggestion?.type || '').toLowerCase())
+);
+
 export default function DensitySuggestionsDialog({
   open,
   onClose,
@@ -172,8 +178,9 @@ export default function DensitySuggestionsDialog({
       // Pass the provider+style choice through to the caller so the apply
       // chain can hit the right backend lane. Suggestions without
       // requiresImage simply ignore these fields.
-      const enriched = sug.requiresImage
-        ? { ...sug, imageProvider, kreaModelId, imageStyle, saveToLibrary }
+      const needsImage = suggestionNeedsImage(sug);
+      const enriched = needsImage
+        ? { ...sug, requiresImage: true, imageProvider, kreaModelId, imageStyle, saveToLibrary }
         : sug;
       await Promise.resolve(onApply(enriched));
       onClose?.();
@@ -186,7 +193,7 @@ export default function DensitySuggestionsDialog({
 
   // Detect whether any suggestion needs an image — we only render the
   // provider picker when at least one card promises "Inclui imagem".
-  const anySuggestionNeedsImage = suggestions.some(s => s.requiresImage);
+  const anySuggestionNeedsImage = suggestions.some(suggestionNeedsImage);
   const kreaProvider = providers.find(p => p.id === "krea");
 
   const headerStyle = density ? LABEL_STYLES[density.label] : LABEL_STYLES.light;
@@ -417,7 +424,7 @@ export default function DensitySuggestionsDialog({
                         <span className="text-[10px] uppercase tracking-wider text-indigo-400">
                           {TYPE_LABELS[sug.type] || sug.type}
                         </span>
-                        {sug.requiresImage && (
+                        {suggestionNeedsImage(sug) && (
                           <span className="text-[10px] bg-violet-500/20 text-violet-300 rounded px-1.5">
                             Inclui imagem
                           </span>

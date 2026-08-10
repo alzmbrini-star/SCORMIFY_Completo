@@ -72,3 +72,34 @@ async def test_density_suggester_keeps_deterministic_fallback(monkeypatch):
 
     assert result
     assert {item["type"] for item in result} >= {"summarize", "bullets"}
+
+
+@pytest.mark.asyncio
+async def test_infographic_always_requires_image_and_gets_prompt(monkeypatch):
+    payload = {"suggestions": [{
+        "type": "infographic",
+        "title": "Fluxo de seguranca",
+        "description": "Representacao visual.",
+        "transformedText": "Resumo",
+        "transformedBullets": [],
+        "imagePrompt": "",
+        "requiresImage": False,
+    }]}
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            message = SimpleNamespace(content=json.dumps(payload))
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("openai.AsyncOpenAI", FakeClient)
+
+    result = await generate_visual_suggestions(title="Seguranca", text="Conteudo")
+
+    assert result[0]["type"] == "infographic"
+    assert result[0]["requiresImage"] is True
+    assert result[0]["imagePrompt"]
