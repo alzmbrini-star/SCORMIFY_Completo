@@ -60,7 +60,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
     (slide.elements || []).forEach((el) => {
       if (el.isBrandLogo) return;
       const t = (el.type || '').toLowerCase();
-      if (t === 'text') {
+      if (['text', 'html', 'paragraph', 'title', 'heading'].includes(t)) {
         const content = (el.htmlContent
           ? (() => { const d = document.createElement('div'); d.innerHTML = el.htmlContent; return d.textContent || d.innerText || ''; })()
           : (el.content || el.text || ''));
@@ -70,6 +70,9 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
         if (bs.length) bullets.push(...bs);
         const nb = lines.filter(l => !l.startsWith('•') && !l.startsWith('-') && !l.startsWith('*'));
         if (nb.length) texts.push(nb.join(' '));
+        if (el.htmlContent && /<(?:img|video|iframe|svg|canvas)\b/i.test(el.htmlContent)) {
+          hasImage = true;
+        }
       } else if (['image', 'video', 'avatar', 'iframe', 'flipbook'].includes(t)) {
         hasImage = true;
       }

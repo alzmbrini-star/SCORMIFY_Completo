@@ -22,6 +22,23 @@ from typing import Dict, List, Optional
 import re
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _plain_element_text(element: Dict) -> str:
+    """Extract readable text from native and Agent-generated elements."""
+    raw = element.get("htmlContent") or element.get("content") or element.get("text") or ""
+    if not isinstance(raw, str):
+        return str(raw)
+    if "<" in raw and ">" in raw:
+        raw = re.sub(r"</(?:p|div|li|h[1-6]|section|article)>|<br\s*/?>", "\n", raw, flags=re.I)
+        raw = _HTML_TAG_RE.sub(" ", raw)
+        raw = (raw.replace("&nbsp;", " ").replace("&amp;", "&")
+               .replace("&lt;", "<").replace("&gt;", ">"))
+        raw = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in raw.splitlines())
+    return raw.strip()
+
+
 def _count_words(text: str) -> int:
     if not text:
         return 0
@@ -155,8 +172,8 @@ def analyze_slide(slide: Dict) -> Dict:
         # Skip the brand watermark logo — it's chrome, not content
         if el.get("isBrandLogo"):
             continue
-        if etype == "text":
-            content = el.get("content") or el.get("text") or ""
+        if etype in ("text", "html", "paragraph", "title", "heading"):
+            content = _plain_element_text(el)
             # Treat lines starting with • / - / * as bullets
             lines = [ln.strip() for ln in content.split("\n") if ln.strip()]
             detected_bullets = [ln.lstrip("•-* ").strip() for ln in lines if ln.startswith(("•", "-", "*"))]
@@ -166,6 +183,9 @@ def analyze_slide(slide: Dict) -> Dict:
             non_bullets = [ln for ln in lines if not ln.startswith(("•", "-", "*"))]
             if non_bullets:
                 text_parts.append(" ".join(non_bullets))
+            html = el.get("htmlContent") or ""
+            if isinstance(html, str) and re.search(r"<(?:img|video|iframe|svg|canvas)\b", html, re.I):
+                has_image = True
         elif etype in ("image", "video", "avatar", "iframe", "flipbook"):
             has_image = True
     # Slide-level background image counts as a visual too

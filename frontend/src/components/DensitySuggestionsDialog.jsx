@@ -134,6 +134,8 @@ export default function DensitySuggestionsDialog({
     if (!open) return;
     let cancelled = false;
     setError("");
+    setSuggestions([]);
+    setDensity(preloadedDensity);
     setLoading(true);
     (async () => {
       try {
@@ -145,7 +147,10 @@ export default function DensitySuggestionsDialog({
           },
           body: JSON.stringify({ title, text, bullets, hasImage }),
         });
-        if (!r.ok) throw new Error("Falha ao analisar");
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body?.detail || `Falha ao analisar (HTTP ${r.status})`);
+        }
         const data = await r.json();
         if (cancelled) return;
         setDensity(data.density);
@@ -231,6 +236,12 @@ export default function DensitySuggestionsDialog({
           <div className="text-center py-6 text-slate-400">
             <p className="text-sm">Este conteudo ja esta equilibrado.</p>
             <p className="text-xs mt-1">Nenhuma sugestao adicional necessaria.</p>
+          </div>
+        )}
+        {!loading && !error && suggestions.length === 0 && density?.label !== "light" && (
+          <div className="text-center py-6 text-amber-300" data-testid="density-empty-warning">
+            <p className="text-sm">A analise terminou, mas nenhuma sugestao foi gerada.</p>
+            <p className="text-xs mt-1 text-slate-400">Feche e tente novamente. Se persistir, verifique a configuracao da OpenAI.</p>
           </div>
         )}
 

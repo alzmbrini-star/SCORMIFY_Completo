@@ -21,6 +21,8 @@ import logging
 import os
 from typing import Dict, List, Optional
 
+from services.llm_config import openai_api_key, openai_text_model
+
 logger = logging.getLogger(__name__)
 
 
@@ -83,19 +85,30 @@ async def generate_visual_suggestions(
     reasons = reasons or []
 
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
-        key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
+        from openai import AsyncOpenAI
+        key = openai_api_key()
         if not key:
             logger.warning("OPENAI_API_KEY missing — density suggester disabled")
             return _fallback_suggestions(text, bullets)
 
-        chat = LlmChat(
+        model = openai_text_model("OPENAI_DENSITY_MODEL", default="gpt-4o")
+        client = AsyncOpenAI(
             api_key=key,
-            session_id=f"density-{title[:24] if title else 'unt'}-{hash((title, text)) & 0xFFFF}",
-            system_message="Voce e um especialista em design instrucional. Responda apenas JSON valido.",
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            timeout=float(os.environ.get("OPENAI_DENSITY_TIMEOUT_SECONDS", "45")),
+            max_retries=2,
+        )
         prompt = _build_prompt(title, text, bullets, reasons)
-        resp = await chat.send_message(UserMessage(text=prompt))
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "Voce e um especialista em design instrucional. Responda apenas JSON valido."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.35,
+        )
+        choices = getattr(response, "choices", None) or []
+        resp = getattr(getattr(choices[0], "message", None), "content", "") if choices else ""
         if not resp:
             return _fallback_suggestions(text, bullets)
 

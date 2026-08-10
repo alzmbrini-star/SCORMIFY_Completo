@@ -48,6 +48,7 @@ $files = @(
     "backend/services/llm_config.py",
     "backend/services/brand_library_picker.py",
     "backend/services/density_suggester.py",
+    "backend/services/text_density_analyzer.py",
     "backend/services/pdf_extractor.py",
     "backend/services/kling_ai.py",
     "backend/services/whiteboard_ai_plan.py",
@@ -70,6 +71,7 @@ $files = @(
     "backend/tests/test_ai_quiz_generation_openai.py",
     "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_pdf_page_render_quality.py",
+    "backend/tests/test_density_suggestions_openai.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
     "backend/tests/test_integrations_health_openai.py",
@@ -90,6 +92,7 @@ $files = @(
     "frontend/src/components/editor/SplitPreview.jsx",
     "frontend/src/components/editor/Timeline.jsx",
     "frontend/src/components/editor/Timeline.test.jsx",
+    "frontend/src/components/DensitySuggestionsDialog.jsx",
     "frontend/src/components/quiz/QuizGenerator.jsx",
     "frontend/src/pages/Editor/dialogs/WhiteboardDialog.jsx",
     "frontend/src/pages/Editor/dialogs/MediaDialogs.jsx",
@@ -102,6 +105,7 @@ $files = @(
     "frontend/src/pages/Editor/hooks/useEditorAI.js",
     "frontend/src/pages/Editor/hooks/useEditorExport.js",
     "frontend/src/pages/Editor/components/ElementProperties.jsx",
+    "frontend/src/pages/Editor/components/SlideProperties.jsx",
     "frontend/src/pages/Editor/components/SlideThumbnailContent.jsx",
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
@@ -195,7 +199,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Improve PDF page rendering quality in Editor and exports"
+        message = "Restore OpenAI visual-density suggestions in Editor"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
