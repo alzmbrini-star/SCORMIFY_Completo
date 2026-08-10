@@ -29,7 +29,9 @@ $files = @(
     "backend/emergentintegrations/llm/chat.py",
     "backend/routes/export.py",
     "backend/routes/agent.py",
+    "backend/routes/editor_chat.py",
     "backend/routes/health.py",
+    "backend/routes/heygen.py",
     "backend/routes/kling.py",
     "backend/routes/ai_gen.py",
     "backend/routes/aesthetics.py",
@@ -42,6 +44,10 @@ $files = @(
     "backend/server.py",
     "backend/services/whiteboard_store.py",
     "backend/services/ai_agent.py",
+    "backend/services/llm_config.py",
+    "backend/services/brand_library_picker.py",
+    "backend/services/density_suggester.py",
+    "backend/services/pdf_extractor.py",
     "backend/services/kling_ai.py",
     "backend/services/whiteboard_ai_plan.py",
     "backend/services/whiteboard_plan_renderer.py",
@@ -63,6 +69,7 @@ $files = @(
     "backend/tests/test_export_backend_url_resolution.py",
     "backend/tests/test_llm_compat.py",
     "backend/tests/test_openai_tutor.py",
+    "backend/tests/test_integrations_health_openai.py",
     "backend/tests/test_tutor_friendly_errors.py",
     "backend/tests/test_scorm_whiteboard_asset.py",
     "backend/tests/test_scenario_generation_reliability.py",
@@ -185,7 +192,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Harden Whiteboard persistence and media recovery"
+        message = "Migrate Emergent text AI to OpenAI and fix health panel"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

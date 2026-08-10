@@ -15,7 +15,7 @@ import time
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -61,21 +61,31 @@ async def _check_mongodb() -> dict:
         return {"status": "error", "error": str(e)[:200]}
 
 
-async def _check_emergent_llm() -> dict:
-    key = os.environ.get("EMERGENT_LLM_KEY", "").strip()
+async def _check_openai() -> dict:
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:
-        return {"status": "not_configured", "error": "EMERGENT_LLM_KEY not set"}
+        return {
+            "status": "not_configured",
+            "provider": "OpenAI",
+            "error": "OPENAI_API_KEY not set",
+        }
     t0 = time.monotonic()
     try:
-        # Emergent LLM uses OpenAI-compatible /v1/models endpoint
+        # Official OpenAI endpoint: validates server-side Bearer authentication
+        # without generating content or consuming model tokens.
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
-                "https://integrations.emergentagent.com/llm/v1/models",
+                "https://api.openai.com/v1/models",
                 headers={"Authorization": f"Bearer {key}"},
             )
         latency = int((time.monotonic() - t0) * 1000)
         if resp.status_code == 200:
-            return {"status": "ok", "latencyMs": latency}
+            return {
+                "status": "ok",
+                "latencyMs": latency,
+                "provider": "OpenAI",
+                "model": os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o"),
+            }
         return {
             "status": "error",
             "error": f"HTTP {resp.status_code}: {resp.text[:150]}",
@@ -355,7 +365,10 @@ async def _check_kling() -> dict:
 
 
 @router.get("/admin/integrations-health")
-async def integrations_health(user: dict = Depends(require_auth)):
+async def integrations_health(
+    _t: Optional[str] = None,
+    user: dict = Depends(require_auth),
+):
     """Return the health status of every third-party integration used by Scormify.
 
     Super-admin only. Cached for 60s to avoid paying for unnecessary API calls
@@ -366,7 +379,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
         raise HTTPException(status_code=403, detail="Super admin only")
 
     now = time.monotonic()
-    if _CACHE["data"] and (now - _CACHE["at"]) < _CACHE_TTL:
+    if not _t and _CACHE["data"] and (now - _CACHE["at"]) < _CACHE_TTL:
         cached = dict(_CACHE["data"])
         cached["cached"] = True
         cached["cacheAgeSeconds"] = int(now - _CACHE["at"])
@@ -375,7 +388,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
     # Run all checks in parallel
     results = await asyncio.gather(
         _check_mongodb(),
-        _check_emergent_llm(),
+        _check_openai(),
         _check_leonardo(),
         _check_heygen(),
         _check_elevenlabs(),
@@ -395,7 +408,7 @@ async def integrations_health(user: dict = Depends(require_auth)):
         "checkedAt": datetime.now(timezone.utc).isoformat(),
         "integrations": {
             "mongodb": _norm(results[0]),
-            "emergent_llm": _norm(results[1]),
+            "openai": _norm(results[1]),
             "leonardo": _norm(results[2]),
             "heygen": _norm(results[3]),
             "elevenlabs": _norm(results[4]),

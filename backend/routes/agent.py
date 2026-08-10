@@ -874,7 +874,7 @@ async def agent_generate_bg_image(data: dict):
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         import uuid as _uuid
-        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
         chat = LlmChat(
             api_key=emergent_key,
             session_id=f"bg_{_uuid.uuid4().hex[:8]}",
@@ -1035,18 +1035,18 @@ Seu trabalho: interpretar pedidos do autor sobre a configuracao de midia POR SLI
     # Reuse the storyboard_chat LLM caller pattern
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
-        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
         llm_chat_obj = LlmChat(
             api_key=emergent_key,
             session_id=f"media_chat_{session_id}_{uuid.uuid4().hex[:6]}",
             system_message=system_prompt,
-        ).with_model("gemini", "gemini-3-flash-preview")
+        ).with_model("openai", os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o"))
         raw = await llm_chat_obj.send_message(UserMessage(text=user_prompt))
     except Exception as e:
         logger.warning(f"media_chat LLM error: {e}")
         try:
             from emergentintegrations.llm.chat import LlmChat, UserMessage
-            emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+            emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
             llm_chat_obj = LlmChat(
                 api_key=emergent_key,
                 session_id=f"media_chat_{session_id}_{uuid.uuid4().hex[:6]}",
@@ -1594,7 +1594,7 @@ async def apply_media_changes(session_id: str, data: dict):
 async def agent_generate_slide_narration(session_id: str, data: dict):
     """Generate 3 narration script options for an agent storyboard slide."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    emergent_key = os.environ.get('OPENAI_API_KEY', '').strip() or os.environ.get('EMERGENT_LLM_KEY', '').strip()
     if not emergent_key:
         raise HTTPException(500, "AI key not configured")
 
@@ -1657,7 +1657,7 @@ Retorne exatamente 3 opções, separadas por "---". Cada opção deve conter APE
             api_key=emergent_key,
             session_id=f"agent-narration-{uuid.uuid4()}",
             system_message=system_msg
-        ).with_model("gemini", "gemini-3-flash-preview")
+        ).with_model("openai", os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o"))
 
         prompt = f"Crie 3 opções de texto de narração para o seguinte slide:\n\n{slide_text}"
         response = await chat.send_message(UserMessage(text=prompt))
@@ -2323,7 +2323,7 @@ Responda APENAS em JSON válido com esta estrutura exata:
 Gere 2-3 sugestões por categoria, totalizando 14-21 sugestões. Seja específico e actionable."""
 
         from emergentintegrations.llm.chat import LlmChat, UserMessage
-        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
 
         async def _try_llm(provider, model_name):
             chat = LlmChat(
@@ -2333,11 +2333,7 @@ Gere 2-3 sugestões por categoria, totalizando 14-21 sugestões. Seja específic
             ).with_model(provider, model_name)
             return await chat.send_message(UserMessage(text=prompt))
 
-        try:
-            raw = await _try_llm("gemini", "gemini-3-flash-preview")
-        except Exception as llm_err:
-            logger.warning(f"Suggestions: gemini-3-flash failed ({str(llm_err)[:60]}), falling back to gpt-4o")
-            raw = await _try_llm("openai", "gpt-4o")
+        raw = await _try_llm("openai", os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o"))
 
         import json
         import re
@@ -4042,7 +4038,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
             if bg_prompt:
                 try:
                     from emergentintegrations.llm.chat import LlmChat, UserMessage
-                    emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+                    emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
                     chat = LlmChat(
                         api_key=emergent_key,
                         session_id=f"avatar_bg_{uuid.uuid4().hex[:8]}",
@@ -4548,18 +4544,18 @@ USUARIO: {message}"""
     # Call LLM
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
-        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
         chat = LlmChat(
             api_key=emergent_key,
             session_id=f"storyboard_chat_{session_id}_{uuid.uuid4().hex[:6]}",
             system_message=system_prompt,
-        ).with_model("gemini", "gemini-3-flash-preview")
+        ).with_model("openai", os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o"))
         raw = await chat.send_message(UserMessage(text=user_prompt))
     except Exception as e:
         logger.warning(f"Storyboard chat LLM error: {e}")
         try:
             from emergentintegrations.llm.chat import LlmChat, UserMessage
-            emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+            emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
             chat = LlmChat(
                 api_key=emergent_key,
                 session_id=f"storyboard_chat_{session_id}_{uuid.uuid4().hex[:6]}",

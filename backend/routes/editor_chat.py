@@ -140,10 +140,10 @@ def _build_course_summary(slides: list) -> list:
 
 
 async def _call_llm(system_prompt: str, user_prompt: str, session_key: str) -> str:
-    """Call the LLM with automatic fallback gemini → openai."""
+    """Call the canonical OpenAI text provider."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
-    for provider, model in (("gemini", "gemini-3-flash-preview"), ("openai", "gpt-4o")):
+    emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
+    for provider, model in (("openai", os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o")),):
         try:
             chat = LlmChat(
                 api_key=emergent_key,

@@ -553,9 +553,9 @@ async def generate_whiteboard_text(
     import os
     from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
 
-    key = os.environ.get("EMERGENT_LLM_KEY")
+    key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
     if not key:
-        raise HTTPException(500, "EMERGENT_LLM_KEY not configured")
+        raise HTTPException(500, "OPENAI_API_KEY not configured")
 
     # Build context from the slide (if provided).
     slide_context = ""

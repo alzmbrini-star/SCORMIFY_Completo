@@ -183,9 +183,9 @@ Responda APENAS com o id da imagem escolhida (ex: "casset_abc123def456") ou a st
     try:
         # Lazy import so this module loads cleanly even when the key isn't set.
         from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
-        key = os.environ.get("EMERGENT_LLM_KEY")
+        key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
         if not key:
-            logger.warning("EMERGENT_LLM_KEY missing — brand library matcher disabled")
+            logger.warning("OPENAI_API_KEY missing — brand library matcher disabled")
             return None
         chat = LlmChat(
             api_key=key,

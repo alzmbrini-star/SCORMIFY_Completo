@@ -24,7 +24,7 @@ const API_URL = getApiUrl();
 
 const INTEGRATION_META = {
   mongodb: { label: 'MongoDB', icon: Database, description: 'Banco de dados principal' },
-  emergent_llm: { label: 'Emergent LLM (OpenAI/Gemini/Claude)', icon: Sparkles, description: 'Geracao de texto e IA' },
+  openai: { label: 'OpenAI', icon: Sparkles, description: 'Geracao de texto e IA' },
   leonardo: { label: 'Leonardo AI', icon: ImageIcon, description: 'Geracao de imagens' },
   krea: { label: 'Krea AI', icon: ImageIcon, description: 'Geracao de imagens (40+ modelos)' },
   heygen: { label: 'HeyGen', icon: Video, description: 'Geracao de videos com avatar' },
@@ -203,6 +203,15 @@ export default function IntegrationsHealthPanel() {
                   <p className="text-xs text-slate-400">
                     <span className="text-slate-500">Saldo: </span>
                     <span className="text-slate-300 font-medium">{balance}</span>
+                  </p>
+                </div>
+              )}
+
+              {key === 'openai' && result.status === 'ok' && (
+                <div className="mt-3 pt-3 border-t border-slate-800">
+                  <p className="text-xs text-slate-400">
+                    <span className="text-slate-500">Modelo: </span>
+                    <span className="text-slate-300 font-medium">{result.model || 'configurado no servidor'}</span>
                   </p>
                 </div>
               )}

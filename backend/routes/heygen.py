@@ -637,7 +637,7 @@ class GenerateScriptRequest(BaseModel):
 async def generate_ai_script(request: GenerateScriptRequest):
     """Generate a video script using AI"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    emergent_key = os.environ.get('OPENAI_API_KEY', '').strip() or os.environ.get('EMERGENT_LLM_KEY', '').strip()
     
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI key not configured")
@@ -701,7 +701,7 @@ class GenerateNarrationRequest(BaseModel):
 async def generate_slide_narration(project_id: str, slide_id: str, request: GenerateNarrationRequest):
     """Generate 3 narration text options for a slide using Gemini 3 with vision (OCR for images)"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    emergent_key = os.environ.get('OPENAI_API_KEY', '').strip() or os.environ.get('EMERGENT_LLM_KEY', '').strip()
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI key not configured")
 
@@ -867,7 +867,7 @@ Texto da terceira opção aqui..."""
             api_key=emergent_key,
             session_id=f"narration-gen-{uuid.uuid4()}",
             system_message=system_msg
-        ).with_model("gemini", "gemini-3-flash-preview")
+        ).with_model("openai", os.environ.get("OPENAI_VISION_MODEL", "gpt-4o"))
 
         prompt = f"Crie 3 opções de texto de narração para o slide {slide_index + 1} de {total_slides_count} do curso:"
         
@@ -1835,7 +1835,7 @@ async def generate_all_slide_scripts(project_id: str, request: Request):
     from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
     import re as _re
 
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    emergent_key = os.environ.get('OPENAI_API_KEY', '').strip() or os.environ.get('EMERGENT_LLM_KEY', '').strip()
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI key not configured")
 
@@ -1908,7 +1908,7 @@ Regras:
                 api_key=emergent_key,
                 session_id=f"slide-script-{uuid.uuid4().hex[:8]}",
                 system_message="Você é um roteirista profissional de vídeos educativos. Gere scripts naturais e envolventes em português brasileiro."
-            ).with_model("gemini", "gemini-3-flash-preview")
+            ).with_model("openai", os.environ.get("OPENAI_VISION_MODEL", "gpt-4o"))
 
             user_msg = UserMessage(text=prompt, file_contents=file_contents)
             response = await chat.send_message(user_msg)

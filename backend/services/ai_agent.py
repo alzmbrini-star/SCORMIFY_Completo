@@ -46,11 +46,13 @@ async def _get_motor_db():
         logger.warning(f"Failed to create motor db for asset persistence: {e}")
     return None
 
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+from services.llm_config import openai_api_key
 
-# Primary model: Gemini 3 Flash (fast + cheap), Fallback: GPT-4o
-PRIMARY_MODEL = ("gemini", "gemini-3-flash-preview")
-FALLBACK_MODEL = ("openai", "gpt-4o")
+OPENAI_KEY = openai_api_key()
+
+# OpenAI is the canonical provider after the Emergent migration.
+PRIMARY_MODEL = ("openai", os.environ.get("OPENAI_TEXT_MODEL", "gpt-4o"))
+FALLBACK_MODEL = PRIMARY_MODEL
 IMAGE_MODEL = ("gemini", "gemini-3-pro-image-preview")
 
 SYSTEM_PROMPT = """Você é um Agente de Design Instrucional Sênior especializado em criar cursos digitais.
@@ -74,7 +76,7 @@ def _new_chat(session_id: str, provider: str = None, model: str = None) -> LlmCh
     p = provider or PRIMARY_MODEL[0]
     m = model or PRIMARY_MODEL[1]
     return LlmChat(
-        api_key=EMERGENT_KEY,
+        api_key=OPENAI_KEY,
         session_id=session_id,
         system_message=SYSTEM_PROMPT,
     ).with_model(p, m)
@@ -104,7 +106,7 @@ async def _resilient_send(session_id_prefix: str, system_msg: str, prompt: str) 
         for retry in range(2):
             try:
                 chat = LlmChat(
-                    api_key=EMERGENT_KEY,
+                    api_key=OPENAI_KEY,
                     session_id=f"{session_id_prefix}_r{attempt}_{retry}",
                     system_message=system_msg,
                 ).with_model(provider, model)
@@ -804,10 +806,10 @@ async def _openai_image_bytes(prompt: str) -> Optional[bytes]:
 
 
 async def _legacy_gemini_image_bytes(prompt: str) -> Optional[bytes]:
-    if not EMERGENT_KEY:
+    if not OPENAI_KEY:
         return None
     chat = LlmChat(
-        api_key=EMERGENT_KEY,
+        api_key=OPENAI_KEY,
         session_id=f"img_{uuid.uuid4().hex[:8]}",
         system_message="You generate accurate educational images.",
     ).with_model(IMAGE_MODEL[0], IMAGE_MODEL[1]).with_params(modalities=["image", "text"])

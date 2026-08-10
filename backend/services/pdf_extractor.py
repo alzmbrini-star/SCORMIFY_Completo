@@ -277,9 +277,9 @@ def _tesseract_ocr(image_path: Path) -> str:
 
 
 async def _gemini_ocr(image_path: Path) -> str:
-    """Fallback OCR via Gemini 3 Flash multimodal (Emergent LLM key)."""
+    """Fallback OCR via an OpenAI multimodal model."""
     try:
-        emergent_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        emergent_key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
         if not emergent_key:
             return ""
         from emergentintegrations.llm.chat import (
@@ -293,7 +293,7 @@ async def _gemini_ocr(image_path: Path) -> str:
                 "na imagem preservando quebras de paragrafo e titulos. Ignore artefatos graficos. "
                 "Retorne apenas o texto transcrito, sem comentarios adicionais."
             ),
-        ).with_model("gemini", "gemini-3-flash-preview")
+        ).with_model("openai", os.environ.get("OPENAI_VISION_MODEL", "gpt-4o"))
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         attachment = FileContentWithMimeType(file_path=str(image_path), mime_type=mime)
         msg = UserMessage(

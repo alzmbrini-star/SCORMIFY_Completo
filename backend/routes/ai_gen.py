@@ -209,7 +209,7 @@ async def generate_image_with_ai(request: AIImageGenerateRequest):
     """Generate image using AI (GPT Image 1) with optimization"""
     from PIL import Image
     
-    emergent_key = os.environ.get('EMERGENT_LLM_KEY')
+    emergent_key = os.environ.get('OPENAI_API_KEY', '').strip() or os.environ.get('EMERGENT_LLM_KEY', '').strip()
     if not emergent_key:
         raise HTTPException(status_code=500, detail="AI API key not configured")
     

@@ -84,9 +84,9 @@ async def generate_visual_suggestions(
 
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
-        key = os.environ.get("EMERGENT_LLM_KEY")
+        key = os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("EMERGENT_LLM_KEY", "").strip()
         if not key:
-            logger.warning("EMERGENT_LLM_KEY missing — density suggester disabled")
+            logger.warning("OPENAI_API_KEY missing — density suggester disabled")
             return _fallback_suggestions(text, bullets)
 
         chat = LlmChat(
