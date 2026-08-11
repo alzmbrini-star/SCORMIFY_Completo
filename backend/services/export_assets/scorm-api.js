@@ -118,15 +118,13 @@ var ScormAPI = (function() {
             
             var api = getAPI();
             if (api) {
-                // Set status to "completed" first, then "passed" for maximum LMS compatibility
+                // SCORM 1.2 uses one combined lesson_status field. Keep the
+                // final value as "completed"; writing "passed" immediately
+                // afterwards made completion reporting differ between LMSs
+                // and hid the exact Complete state requested by navigation.
                 api.LMSSetValue("cmi.core.lesson_status", "completed");
                 api.LMSCommit("");
                 console.log('[ScormAPI] lesson_status set to completed');
-                
-                // Also try "passed" - some LMS systems require this for full completion
-                api.LMSSetValue("cmi.core.lesson_status", "passed");
-                api.LMSCommit("");
-                console.log('[ScormAPI] lesson_status set to passed');
                 return true;
             }
             console.warn('[ScormAPI] setComplete failed - no API');
@@ -183,6 +181,11 @@ var ScormAPI = (function() {
 // Initialize on load
 window.addEventListener('load', function() {
     ScormAPI.initialize();
+    // Course JSON may have rendered the bookmarked/last slide before the
+    // browser load event. Re-run the final check now that the LMS API is ready.
+    if (typeof CoursePlayer !== 'undefined' && CoursePlayer.finalCompletionCheck) {
+        CoursePlayer.finalCompletionCheck();
+    }
 });
 
 // Before unload: let CoursePlayer do final completion check, then finish SCORM

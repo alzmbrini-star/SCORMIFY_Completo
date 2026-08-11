@@ -62,6 +62,7 @@ $files = @(
     "backend/services/single_page_exporter.py",
     "backend/services/html_exporter.py",
     "backend/services/export_assets/player.js",
+    "backend/services/export_assets/scorm-api.js",
     "backend/tests/test_bunny_video_embed.py",
     "backend/tests/test_job_tenant_access.py",
     "backend/tests/test_kling_ai_integration.py",
@@ -82,6 +83,7 @@ $files = @(
     "backend/tests/test_scorm_whiteboard_asset.py",
     "backend/tests/test_scenario_generation_reliability.py",
     "backend/tests/test_scorm_mobile_typography.py",
+    "backend/tests/test_scorm_last_slide_completion.py",
     "backend/tests/test_whiteboard_export_persistence.py",
     "backend/tests/test_whiteboard_ai_plan_jobs.py",
     "backend/tests/test_whiteboard_semantic_geometry.py",
@@ -202,7 +204,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix HTML sizing and enrich interactive learning resources"
+        message = "Fix interactive content quality and SCORM completion"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

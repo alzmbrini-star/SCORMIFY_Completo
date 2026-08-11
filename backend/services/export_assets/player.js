@@ -250,6 +250,7 @@ var CoursePlayer = (function() {
     var totalQuizzes = 0;
     var totalScenarios = 0;
     var visitedLastSlide = false; // Track if user has reached the last slide
+    var courseCompleted = false; // True only after the LMS accepts completion
     
     // Slide timeline progress
     var slideProgressTimer = null;
@@ -449,6 +450,11 @@ var CoursePlayer = (function() {
     function loadCourse(courseData) {
         course = courseData;
         totalSlides = course.slides.length;
+
+        // Initialize synchronously before reading the bookmark or rendering
+        // the last slide. Waiting only for window.load created a race where
+        // setComplete() ran while the wrapper was still uninitialized.
+        ScormAPI.initialize();
         
         // Detect if ANY slide contains a quiz element.
         // If so, completion must be sent from QuizController.showResults(), not from navigation.
@@ -1171,8 +1177,13 @@ var CoursePlayer = (function() {
         }
         
         // All conditions met: visited last slide + all quizzes done (if any)
-        ScormAPI.setComplete();
-        console.log('[Player] Course marked COMPLETE! (lastSlide=' + visitedLastSlide + ', quizzes=' + Object.keys(completedQuizzes).length + '/' + totalQuizzes + ', scenarios=' + Object.keys(completedScenarios).length + '/' + totalScenarios + ')');
+        if (ScormAPI.setComplete()) {
+            courseCompleted = true;
+            updateSidebar();
+            console.log('[Player] Course marked COMPLETE! (lastSlide=' + visitedLastSlide + ', quizzes=' + Object.keys(completedQuizzes).length + '/' + totalQuizzes + ', scenarios=' + Object.keys(completedScenarios).length + '/' + totalScenarios + ')');
+        } else {
+            console.warn('[Player] Completion is ready but LMS API is not initialized yet; it will be retried after load/unload.');
+        }
     }
     
     // Called by QuizController when a quiz is completed
@@ -2225,7 +2236,10 @@ var CoursePlayer = (function() {
             
             var status = document.createElement('div');
             status.className = 'sidebar-slide-status';
-            if (index < currentSlide) {
+            if (courseCompleted && index === totalSlides - 1) {
+                status.innerHTML = 'âœ“ ConcluÃ­do';
+                status.classList.add('completed');
+            } else if (index < currentSlide) {
                 status.innerHTML = '✓ Concluído';
                 status.classList.add('completed');
             } else if (index === currentSlide) {
@@ -2252,7 +2266,10 @@ var CoursePlayer = (function() {
             var status = item.querySelector('.sidebar-slide-status');
             if (status) {
                 status.classList.remove('completed', 'current');
-                if (index < currentSlide) {
+                if (courseCompleted && index === totalSlides - 1) {
+                    status.innerHTML = 'âœ“ ConcluÃ­do';
+                    status.classList.add('completed');
+                } else if (index < currentSlide) {
                     status.innerHTML = '✓ Concluído';
                     status.classList.add('completed');
                 } else if (index === currentSlide) {
@@ -2333,8 +2350,11 @@ var CoursePlayer = (function() {
             
             // Mark complete if user visited last slide and all quizzes are done
             if (visitedLastSlide && (!courseHasQuiz || quizzesComplete)) {
-                ScormAPI.setComplete();
-                console.log('[Player] Final check: Marked complete on unload');
+                if (ScormAPI.setComplete()) {
+                    courseCompleted = true;
+                    updateSidebar();
+                    console.log('[Player] Final check: Marked complete');
+                }
             }
         },
         refresh: function() {
