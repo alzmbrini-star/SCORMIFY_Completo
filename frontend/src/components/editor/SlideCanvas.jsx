@@ -775,6 +775,29 @@ const SlideCanvas = ({
         const elementY = typeof displayElement.y === 'string' && displayElement.y.endsWith('%')
           ? displayElement.y
           : (displayElement.y || 0) * scale;
+
+        // The editor accepts both legacy percentage dimensions ("100%") and
+        // numeric canvas dimensions.  The iframe itself must always receive a
+        // logical pixel viewport before the canvas zoom is applied.  Appending
+        // `px` directly to a percentage produced invalid values such as
+        // `100%px`; browsers then fell back to the small default iframe size,
+        // compressing otherwise intact slides into the top-left corner.
+        const toLogicalPixels = (value, slideSize, fallback) => {
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed.endsWith('%')) {
+              const percentage = Number.parseFloat(trimmed);
+              return Number.isFinite(percentage)
+                ? (percentage / 100) * slideSize
+                : fallback;
+            }
+            const numeric = Number.parseFloat(trimmed);
+            return Number.isFinite(numeric) ? numeric : fallback;
+          }
+          return Number.isFinite(value) && value > 0 ? value : fallback;
+        };
+        const htmlViewportWidth = toLogicalPixels(displayElement.width, canvasWidth, 100);
+        const htmlViewportHeight = toLogicalPixels(displayElement.height, canvasHeight, 100);
         
         // Compute animation style during timeline playback
         const elemAnim = element.animation || (element.animations?.[0]);
@@ -1118,8 +1141,8 @@ const SlideCanvas = ({
                     sandbox="allow-scripts allow-forms"
                     title="Página HTML interativa"
                     style={{
-                      width: `${element.width || 100}px`,
-                      height: `${element.height || 100}px`,
+                      width: `${htmlViewportWidth}px`,
+                      height: `${htmlViewportHeight}px`,
                       transform: `scale(${scale})`,
                       transformOrigin: 'top left',
                       pointerEvents: isSelected ? 'auto' : 'none',

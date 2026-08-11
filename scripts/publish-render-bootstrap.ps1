@@ -202,7 +202,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Deploy OpenAI and Krea visual image endpoint"
+        message = "Fix HTML sizing and enrich interactive learning resources"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

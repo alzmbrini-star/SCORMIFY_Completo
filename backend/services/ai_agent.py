@@ -98,6 +98,139 @@ def _extract_json(text: str) -> Optional[dict]:
         return None
 
 
+_RICH_INTERACTIVE_TYPES = {
+    "simulator", "infographic", "flashcard", "timeline", "case_study"
+}
+
+
+def _build_storyboard_batches(slides: list, regular_batch_size: int = 4) -> list:
+    """Keep full-HTML interactives isolated so the model has output room.
+
+    Asking for several complete HTML/CSS/JS documents in the same JSON answer
+    makes even capable models aggressively shorten each simulator. Ordinary
+    content slides still share a batch to preserve generation speed.
+    """
+    batches = []
+    regular = []
+    for slide in slides:
+        if slide.get("type") in _RICH_INTERACTIVE_TYPES:
+            if regular:
+                batches.append(regular)
+                regular = []
+            batches.append([slide])
+            continue
+        regular.append(slide)
+        if len(regular) >= regular_batch_size:
+            batches.append(regular)
+            regular = []
+    if regular:
+        batches.append(regular)
+    return batches
+
+
+def _simulator_complexity_score(html_content: str) -> int:
+    """Return a conservative 0-10 richness score for generated simulators."""
+    raw = html_content or ""
+    lowered = raw.lower()
+    score = 0
+    script = re.search(r"<script[^>]*>([\s\S]*?)</script>", raw, re.IGNORECASE)
+    script_text = script.group(1) if script else ""
+    controls = len(re.findall(r"<(?:button|input|select|textarea)\b", lowered))
+    if controls >= 4:
+        score += 2
+    elif controls >= 2:
+        score += 1
+    if re.search(r"\b(?:state|score|pontuacao|pontuação|progress|progresso)\b", lowered):
+        score += 1
+    if re.search(r"\b(?:round|rodada|phase|fase|level|nivel|nível|step|etapa)\b", lowered):
+        score += 1
+    if re.search(r"\b(?:decision|decisao|decisão|consequence|consequencia|consequência|trade.?off|impacto)\b", lowered):
+        score += 1
+    if any(token in lowered for token in ("draggable", "dragstart", "drop", "<canvas", 'type="range"', "<select")):
+        score += 2
+    if re.search(r"\b(?:feedback|explanation|explicacao|explicação|debrief)\b", lowered):
+        score += 1
+    if re.search(r"\b(?:restart|reset|reiniciar|tentar novamente)\b", lowered):
+        score += 1
+    if len(script_text) >= 1500:
+        score += 1
+    return min(score, 10)
+
+
+def _timeline_complexity_score(html_content: str) -> int:
+    """Measure whether a timeline is substantial, navigable and explanatory."""
+    raw = html_content or ""
+    lowered = raw.lower()
+    score = 0
+    # Count both semantic data entries and visible milestone-like nodes.
+    milestone_count = max(
+        len(re.findall(r"data-(?:year|date|event|step|index)=", lowered)),
+        len(re.findall(r"class=[\"'][^\"']*(?:milestone|timeline-item|event|marco)[^\"']*[\"']", lowered)),
+    )
+    if milestone_count >= 5:
+        score += 3
+    elif milestone_count >= 3:
+        score += 1
+    if re.search(r"\b(?:next|previous|proximo|próximo|anterior|navigate|showevent|show\s*\()", lowered):
+        score += 2
+    if re.search(r"\b(?:active|selected|progress|progresso)\b", lowered):
+        score += 1
+    if re.search(r"(?:addEventListener|onclick|classList\.)", raw, re.IGNORECASE):
+        score += 1
+    if re.search(r"\b(?:details|detalhes|description|descricao|descrição|impacto|contexto)\b", lowered):
+        score += 1
+    if len(re.sub(r"<[^>]+>", " ", raw)) >= 700:
+        score += 1
+    if len(re.findall(r"<script[^>]*>[\s\S]*?</script>", raw, re.IGNORECASE)) and len(raw) >= 3000:
+        score += 1
+    return min(score, 10)
+
+
+def _case_study_complexity_score(html_content: str) -> int:
+    """Measure evidence, decisions, reflection and debrief in a case study."""
+    raw = html_content or ""
+    lowered = raw.lower()
+    score = 0
+    reflection_count = len(re.findall(
+        r"class=[\"'][^\"']*(?:question|pergunta|reflection|reflexao|reflexão)[^\"']*[\"']",
+        lowered,
+    ))
+    if reflection_count >= 3:
+        score += 2
+    elif reflection_count:
+        score += 1
+    if re.search(r"\b(?:dados|evidencias|evidências|metricas|métricas|indicadores|resultado|%)\b", lowered):
+        score += 1
+    if re.search(r"\b(?:decisao|decisão|alternativa|opcao|opção|trade.?off|impacto|consequencia|consequência)\b", lowered):
+        score += 2
+    if re.search(r"\b(?:revelar|reveal|toggle|accordion|expandir)\b", lowered):
+        score += 1
+    if re.search(r"\b(?:licoes aprendidas|lições aprendidas|debrief|analise final|análise final)\b", lowered):
+        score += 2
+    if re.search(r"(?:addEventListener|onclick|classList\.)", raw, re.IGNORECASE):
+        score += 1
+    if len(re.sub(r"<[^>]+>", " ", raw)) >= 1000:
+        score += 1
+    return min(score, 10)
+
+
+def _rich_interactive_complexity_score(html_content: str, content_type: str) -> int:
+    if content_type == "simulator":
+        return _simulator_complexity_score(html_content)
+    if content_type == "timeline":
+        return _timeline_complexity_score(html_content)
+    if content_type == "case_study":
+        return _case_study_complexity_score(html_content)
+    return 10
+
+
+def _simulator_html_from_slide(slide: dict) -> str:
+    for element in slide.get("elements", []) or []:
+        if element.get("type") == "html" and element.get("htmlContent"):
+            return element["htmlContent"]
+    return ""
+
+
 async def _resilient_send(session_id_prefix: str, system_msg: str, prompt: str) -> str:
     """Send message with retry + fallback (Gemini -> GPT-4o)."""
     import asyncio as aio
@@ -324,19 +457,20 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         for sl in mod.get("slides", []):
             flat_slides.append({**sl, "moduleName": mod.get("title", "")})
 
-    # Process in batches of 4 slides (smaller batches = richer content per slide)
-    batch_size = 4
-    total_batches = (len(flat_slides) + batch_size - 1) // batch_size
-    batch_num = 0
-    for batch_start in range(0, len(flat_slides), batch_size):
-        batch = flat_slides[batch_start:batch_start + batch_size]
-        batch_num += 1
+    # Full HTML interactives need a complete response budget of their own.
+    # Regular slides remain grouped for speed and cost efficiency.
+    storyboard_batches = _build_storyboard_batches(flat_slides, regular_batch_size=4)
+    total_batches = len(storyboard_batches)
+    processed_slides = 0
+    for batch_num, batch in enumerate(storyboard_batches, start=1):
+        batch_start = processed_slides
+        processed_slides += len(batch)
         batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose",""), "moduleName": s.get("moduleName","")} for s in batch]
 
         # Report progress
         if progress_callback:
             try:
-                await progress_callback(batch_num, total_batches, f"Gerando slides {batch_start+1}-{min(batch_start+batch_size, len(flat_slides))} de {len(flat_slides)}...")
+                await progress_callback(batch_num, total_batches, f"Gerando slides {batch_start+1}-{processed_slides} de {len(flat_slides)}...")
             except Exception:
                 pass
 
@@ -346,6 +480,8 @@ Nível do curso: {config.get('depth', 'intermediario')}
 
 CONTEÚDO-BASE COMPLETO para referência:
 {content_text[:6000]}
+
+INTERATIVIDADE CONFIGURADA: {config.get('resourceBalance', config.get('interactivity', 'media'))}
 
 IMPORTANTE SOBRE IMAGENS DO CONTEÚDO-BASE:
 Se o CONTEÚDO-BASE acima contiver marcadores no formato `[IMG:filename.png]`, significa que o PDF/documento original possui imagens reais (diagramas, fotos, fluxogramas) já extraídas. Mantenha esses marcadores EXATAMENTE como estão dentro do HTML do slide apropriado (geralmente em um `<p>` ou no final do bloco) para preservar o material didático original. NÃO invente nomes novos de imagem, NÃO altere os nomes dos arquivos, e NÃO remova os marcadores — eles serão substituídos automaticamente por elementos de imagem reais depois da geração.
@@ -446,6 +582,14 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
   11. Ao final do jogo, mostre resultado/pontuação com mensagem motivacional
   12. Os jogos devem focar em: fixação de conteúdo, engajamento emocional, repetição ativa, aprendizagem baseada em desafio e feedback imediato
 - NÃO inclua "narrationScript" detalhado para simuladores (o aluno interage diretamente)
+- PROFUNDIDADE OBRIGATORIA (nao gere apenas um quiz com botoes):
+  * Modele pelo menos 3 variaveis de estado que mudam durante a atividade (ex.: prazo, custo, risco, qualidade, confianca, energia ou pontuacao)
+  * Crie no minimo 3 rodadas/fases ou uma sequencia de 4 decisoes; cada escolha deve alterar o estado e produzir uma consequencia diferente
+  * Inclua pelo menos 2 caminhos estrategicos viaveis, com trade-offs reais; evite uma unica resposta obviamente correta em todas as etapas
+  * Exiba indicadores visuais atualizados em tempo real e um debrief final que explique os impactos das escolhas
+  * Permita reiniciar e testar outra estrategia sem recarregar a pagina
+  * Para curso avancado ou interatividade alta/maxima: use 5 ou mais variaveis, eventos condicionais, pelo menos 3 finais e dados contextualizados
+  * O JavaScript deve possuir um modelo de estado explicito e separar funcoes de decisao, atualizacao da interface e feedback
 - Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
 
 SLIDES DE CENA COM AVATAR (type="avatar_scene"):
@@ -533,17 +677,65 @@ PARA TODOS OS SLIDES:
         retries = 0
         max_retries = 2
         batch_success = False
+        quality_type = batch[0].get("type") if len(batch) == 1 else ""
+        quality_checked = quality_type in {"simulator", "timeline", "case_study"}
         models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
         while retries <= max_retries:
             provider, model = models[min(retries, len(models)-1)]
             try:
                 chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", provider=provider, model=model)
-                response = await chat.send_message(UserMessage(text=prompt))
+                attempt_prompt = prompt
+                if quality_checked and retries > 0:
+                    if quality_type == "simulator":
+                        attempt_prompt += """
+
+REVISAO OBRIGATORIA DO SIMULADOR:
+A tentativa anterior ficou simples demais. Entregue agora uma simulacao de nivel profissional,
+nao um quiz linear: use estado explicito, multiplas rodadas, indicadores que se influenciam,
+consequencias acumuladas, caminhos alternativos, debrief por estrategia e botao para reiniciar.
+O HTML/CSS/JS deve estar completo no JSON e funcionar sem bibliotecas externas."""
+                    elif quality_type == "timeline":
+                        attempt_prompt += """
+
+REVISAO OBRIGATORIA DA LINHA DO TEMPO:
+A tentativa anterior ficou vazia ou superficial. Entregue pelo menos 5 marcos contextualizados,
+com navegacao anterior/proximo, marcador ativo, barra de progresso, detalhes explicativos e
+impacto de cada evento. Todos os marcos devem ser clicaveis e o JavaScript deve funcionar sem
+bibliotecas externas."""
+                    else:
+                        attempt_prompt += """
+
+REVISAO OBRIGATORIA DO ESTUDO DE CASO:
+A tentativa anterior ficou superficial. Entregue contexto realista, dados e evidencias,
+pelo menos 3 perguntas de reflexao/decisao com consequencias, analise revelavel e debrief com
+licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas externas."""
+                response = await chat.send_message(UserMessage(text=attempt_prompt))
                 data = _extract_json(response)
                 if data and "slides" in data:
                     for j, slide_data in enumerate(data["slides"]):
                         if not slide_data.get("moduleName") and j < len(batch):
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
+                    if quality_checked and data["slides"]:
+                        complexity = _rich_interactive_complexity_score(
+                            _simulator_html_from_slide(data["slides"][0]),
+                            quality_type,
+                        )
+                        if complexity < 6 and retries < max_retries:
+                            logger.warning(
+                                "%s storyboard batch %s scored %s/10; regenerating with richer constraints",
+                                quality_type,
+                                batch_start,
+                                complexity,
+                            )
+                            retries += 1
+                            await asyncio.sleep(2)
+                            continue
+                        logger.info(
+                            "%s storyboard batch %s accepted with complexity %s/10",
+                            quality_type,
+                            batch_start,
+                            complexity,
+                        )
                     all_slides.extend(data["slides"])
                     batch_success = True
                     if retries > 0:

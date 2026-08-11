@@ -175,6 +175,36 @@ describe('SlideCanvas element interactions', () => {
     expect(element.style.top).toBe('80px');
   });
 
+  it('converts legacy percentage HTML dimensions into a valid iframe viewport', async () => {
+    const legacySlide = {
+      ...slide,
+      elements: [{
+        ...slide.elements[0],
+        x: '0%',
+        y: '0%',
+        width: '100%',
+        height: '100%',
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <SlideCanvas
+          slide={legacySlide}
+          selectedElementId="element-1"
+          onSelectElement={jest.fn()}
+          onUpdateElement={onUpdateElement}
+          onDeleteElement={onDeleteElement}
+        />,
+      );
+    });
+
+    const iframe = container.querySelector('[data-testid="element-element-1"] iframe');
+    expect(iframe.style.width).toBe('960px');
+    expect(iframe.style.height).toBe('540px');
+    expect(iframe.getAttribute('style')).not.toContain('%px');
+  });
+
   it('stops resizing immediately on pointer-up while persistence is pending', () => {
     const element = container.querySelector('[data-testid="element-element-1"]');
     const handle = enablePointerCapture(
