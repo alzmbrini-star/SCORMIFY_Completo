@@ -250,6 +250,7 @@ var CoursePlayer = (function() {
     var totalQuizzes = 0;
     var totalScenarios = 0;
     var visitedLastSlide = false; // Track if user has reached the last slide
+    var completionRequested = false; // Explicit click on "Concluir curso"
     var courseCompleted = false; // True only after the LMS accepts completion
     
     // Slide timeline progress
@@ -1111,14 +1112,12 @@ var CoursePlayer = (function() {
             translateWithVLibras(slide.librasScript.trim(), index);
         }
         
-        // Check completion - defer to interactive elements if present
-        // Only mark complete when:
-        // 1. User reaches last slide AND
-        // 2. All quizzes are completed (if any) AND  
-        // 3. All scenarios are completed (if any)
+        // Reaching the last slide only makes it eligible for completion.
+        // The LMS status is sent after the learner explicitly clicks the
+        // final "Concluir curso" action; this prevents an LMS stage from
+        // closing while the final content is still being consumed.
         if (index === totalSlides - 1) {
             visitedLastSlide = true;
-            checkAndSetCompletion();
         }
 
         // Trigger the zoom-on-hotspot animation (Tutorial Agent imports).
@@ -1154,6 +1153,7 @@ var CoursePlayer = (function() {
         
         console.log('[Player] Checking completion:', {
             visitedLastSlide: visitedLastSlide,
+            completionRequested: completionRequested,
             quizzesComplete: quizzesComplete,
             completedQuizzes: Object.keys(completedQuizzes).length,
             totalQuizzes: totalQuizzes,
@@ -1170,6 +1170,11 @@ var CoursePlayer = (function() {
             console.log('[Player] Completion deferred - user has not reached last slide');
             return;
         }
+
+        if (!completionRequested) {
+            console.log('[Player] Completion deferred - waiting for explicit final action');
+            return;
+        }
         
         if (courseHasQuiz && !quizzesComplete) {
             console.log('[Player] Completion deferred - quizzes pending:', totalQuizzes - Object.keys(completedQuizzes).length);
@@ -1180,6 +1185,7 @@ var CoursePlayer = (function() {
         if (ScormAPI.setComplete()) {
             courseCompleted = true;
             updateSidebar();
+            updateNavigation();
             console.log('[Player] Course marked COMPLETE! (lastSlide=' + visitedLastSlide + ', quizzes=' + Object.keys(completedQuizzes).length + '/' + totalQuizzes + ', scenarios=' + Object.keys(completedScenarios).length + '/' + totalScenarios + ')');
         } else {
             console.warn('[Player] Completion is ready but LMS API is not initialized yet; it will be retried after load/unload.');
@@ -2000,6 +2006,9 @@ var CoursePlayer = (function() {
             renderSlide(currentSlide);
             updateProgress();
             if (typeof AiTutor !== 'undefined') AiTutor.onSlideChange(currentSlide);
+        } else if (currentSlide === totalSlides - 1 && !courseCompleted) {
+            completionRequested = true;
+            checkAndSetCompletion();
         }
     }
     
@@ -2083,8 +2092,10 @@ var CoursePlayer = (function() {
             mobilePrev.style.pointerEvents = currentSlide === 0 ? 'none' : 'auto';
         }
         if (mobileNext) {
-            mobileNext.style.opacity = currentSlide === totalSlides - 1 ? '0.3' : '1';
-            mobileNext.style.pointerEvents = currentSlide === totalSlides - 1 ? 'none' : 'auto';
+            mobileNext.style.opacity = '1';
+            mobileNext.style.pointerEvents = courseCompleted ? 'none' : 'auto';
+            mobileNext.title = currentSlide === totalSlides - 1 ? 'Concluir curso' : 'PrÃ³ximo';
+            mobileNext.innerHTML = currentSlide === totalSlides - 1 ? 'âœ“' : 'â€º';
         }
         
         // Update sidebar
@@ -2099,7 +2110,10 @@ var CoursePlayer = (function() {
             prevBtn.disabled = currentSlide === 0;
         }
         if (nextBtn) {
-            nextBtn.disabled = currentSlide === totalSlides - 1;
+            nextBtn.disabled = courseCompleted;
+            nextBtn.innerHTML = currentSlide === totalSlides - 1
+                ? (courseCompleted ? 'âœ“ Curso concluÃ­do' : 'Concluir curso âœ“')
+                : 'PrÃ³ximo â†’';
         }
     }
     
@@ -2343,16 +2357,18 @@ var CoursePlayer = (function() {
             
             console.log('[Player] Final completion check before unload:', {
                 visitedLastSlide: visitedLastSlide,
+                completionRequested: completionRequested,
                 quizzesComplete: quizzesComplete,
                 completedQuizzes: Object.keys(completedQuizzes).length,
                 totalQuizzes: totalQuizzes
             });
             
             // Mark complete if user visited last slide and all quizzes are done
-            if (visitedLastSlide && (!courseHasQuiz || quizzesComplete)) {
+            if (visitedLastSlide && completionRequested && (!courseHasQuiz || quizzesComplete)) {
                 if (ScormAPI.setComplete()) {
                     courseCompleted = true;
                     updateSidebar();
+                    updateNavigation();
                     console.log('[Player] Final check: Marked complete');
                 }
             }

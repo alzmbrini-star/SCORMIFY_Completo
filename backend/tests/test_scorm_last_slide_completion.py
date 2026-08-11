@@ -19,6 +19,18 @@ def test_last_slide_is_visually_completed_only_after_lms_accepts_status():
     assert "courseCompleted && index === totalSlides - 1" in player
 
 
+def test_completion_requires_an_explicit_action_on_the_real_last_slide():
+    player = (EXPORT_ASSETS / "player.js").read_text(encoding="utf-8")
+    render_section = player[player.index("function renderSlide(index)"):player.index("function checkAndSetCompletion")]
+    next_section = player[player.index("function nextSlide()"):player.index("function prevSlide()")]
+    completion_section = player[player.index("function checkAndSetCompletion()"):player.index("function onQuizComplete")]
+    assert "visitedLastSlide = true;" in render_section
+    assert "checkAndSetCompletion();" not in render_section
+    assert "completionRequested = true;" in next_section
+    assert "if (!completionRequested)" in completion_section
+    assert "Concluir curso" in player
+
+
 def test_scorm_wrapper_rechecks_completion_after_browser_load():
     wrapper = (EXPORT_ASSETS / "scorm-api.js").read_text(encoding="utf-8")
     load_handler = wrapper.index("window.addEventListener('load'")

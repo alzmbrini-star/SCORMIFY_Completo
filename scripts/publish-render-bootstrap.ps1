@@ -204,7 +204,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix interactive content quality and SCORM completion"
+        message = "Require explicit completion on the final SCORM slide"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
