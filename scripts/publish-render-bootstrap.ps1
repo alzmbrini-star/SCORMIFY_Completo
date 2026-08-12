@@ -204,7 +204,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Require explicit completion on the final SCORM slide"
+        message = "Require real advanced mechanics in AI simulators"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

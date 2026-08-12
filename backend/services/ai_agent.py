@@ -128,7 +128,54 @@ def _build_storyboard_batches(slides: list, regular_batch_size: int = 4) -> list
     return batches
 
 
-def _simulator_complexity_score(html_content: str) -> int:
+_SIMULATOR_MECHANICS = (
+    "drag_drop",
+    "resource_allocation",
+    "process_builder",
+    "diagnostic_dashboard",
+)
+
+
+def _required_simulator_mechanic(slide: dict) -> str:
+    """Choose a stable, varied hands-on mechanic from the slide context."""
+    identity = "|".join(str(slide.get(key, "")) for key in ("id", "title", "purpose", "moduleName"))
+    checksum = sum((index + 1) * ord(char) for index, char in enumerate(identity))
+    return _SIMULATOR_MECHANICS[checksum % len(_SIMULATOR_MECHANICS)]
+
+
+def _simulator_mechanic_is_functional(html_content: str, mechanic: str = "") -> bool:
+    """Require implementation evidence, not merely words in visible copy."""
+    raw = html_content or ""
+    lowered = raw.lower()
+    script_match = re.search(r"<script[^>]*>([\s\S]*?)</script>", raw, re.IGNORECASE)
+    script = (script_match.group(1) if script_match else "").lower()
+    checks = {
+        "drag_drop": (
+            ("draggable" in lowered or "dragstart" in script)
+            and "drop" in script
+            and ("dragover" in script or "preventdefault" in script)
+        ),
+        "resource_allocation": (
+            ('type="range"' in lowered or "type='range'" in lowered)
+            and ("input" in script or "change" in script)
+            and re.search(r"(?:budget|orcamento|orçamento|resource|recurso|allocate|alocar)", lowered) is not None
+        ),
+        "process_builder": (
+            ("draggable" in lowered or "dragstart" in script or "sortable" in script)
+            and ("order" in script or "ordem" in script or "sequence" in script or "sequencia" in script)
+        ),
+        "diagnostic_dashboard": (
+            len(re.findall(r"<(?:input|select)\b", lowered)) >= 3
+            and ("input" in script or "change" in script)
+            and re.search(r"(?:risk|risco|score|indicador|metric|diagnost)", lowered) is not None
+        ),
+    }
+    if mechanic:
+        return bool(checks.get(mechanic, False))
+    return any(checks.values())
+
+
+def _simulator_complexity_score(html_content: str, required_mechanic: str = "") -> int:
     """Return a conservative 0-10 richness score for generated simulators."""
     raw = html_content or ""
     lowered = raw.lower()
@@ -146,7 +193,7 @@ def _simulator_complexity_score(html_content: str) -> int:
         score += 1
     if re.search(r"\b(?:decision|decisao|decisão|consequence|consequencia|consequência|trade.?off|impacto)\b", lowered):
         score += 1
-    if any(token in lowered for token in ("draggable", "dragstart", "drop", "<canvas", 'type="range"', "<select")):
+    if any(token in lowered for token in ("draggable", "dragstart", "drop", "<canvas", 'type="range"', "type='range'", "<select")):
         score += 2
     if re.search(r"\b(?:feedback|explanation|explicacao|explicação|debrief)\b", lowered):
         score += 1
@@ -154,6 +201,10 @@ def _simulator_complexity_score(html_content: str) -> int:
         score += 1
     if len(script_text) >= 1500:
         score += 1
+    # A button-only quiz cannot be promoted to an advanced simulator merely by
+    # containing the right vocabulary. Cap it below the acceptance threshold.
+    if not _simulator_mechanic_is_functional(raw, required_mechanic):
+        return min(score, 5)
     return min(score, 10)
 
 
@@ -465,7 +516,14 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
     for batch_num, batch in enumerate(storyboard_batches, start=1):
         batch_start = processed_slides
         processed_slides += len(batch)
-        batch_info = [{"id": s.get("id",""), "title": s.get("title",""), "type": s.get("type","content"), "purpose": s.get("purpose",""), "moduleName": s.get("moduleName","")} for s in batch]
+        batch_info = [{
+            "id": s.get("id", ""),
+            "title": s.get("title", ""),
+            "type": s.get("type", "content"),
+            "purpose": s.get("purpose", ""),
+            "moduleName": s.get("moduleName", ""),
+            **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") == "simulator" else {}),
+        } for s in batch]
 
         # Report progress
         if progress_callback:
@@ -590,6 +648,12 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
   * Permita reiniciar e testar outra estrategia sem recarregar a pagina
   * Para curso avancado ou interatividade alta/maxima: use 5 ou mais variaveis, eventos condicionais, pelo menos 3 finais e dados contextualizados
   * O JavaScript deve possuir um modelo de estado explicito e separar funcoes de decisao, atualizacao da interface e feedback
+  * Implemente OBRIGATORIAMENTE a `requiredMechanic` informada no slide:
+    - drag_drop: objetos realmente arrastaveis entre zonas, usando dragstart, dragover/preventDefault e drop; validar posicao/classificacao e permitir corrigir
+    - resource_allocation: pelo menos 3 sliders conectados e um orcamento/recurso limitado; alterar um valor recalcula custos, riscos e resultados
+    - process_builder: etapas arrastaveis/reordenaveis; validar a sequencia e simular a execucao com consequencias por ordem
+    - diagnostic_dashboard: pelo menos 3 controles de entrada/select; recalcular indicadores, diagnostico e recomendacoes em tempo real
+  * Apenas escrever "arraste" ou "simulador" na tela NAO conta: os eventos e mutacoes correspondentes devem existir no JavaScript
 - Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
 
 SLIDES DE CENA COM AVATAR (type="avatar_scene"):
@@ -679,6 +743,9 @@ PARA TODOS OS SLIDES:
         batch_success = False
         quality_type = batch[0].get("type") if len(batch) == 1 else ""
         quality_checked = quality_type in {"simulator", "timeline", "case_study"}
+        required_simulator_mechanic = (
+            _required_simulator_mechanic(batch[0]) if quality_type == "simulator" else ""
+        )
         models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
         while retries <= max_retries:
             provider, model = models[min(retries, len(models)-1)]
@@ -693,7 +760,10 @@ REVISAO OBRIGATORIA DO SIMULADOR:
 A tentativa anterior ficou simples demais. Entregue agora uma simulacao de nivel profissional,
 nao um quiz linear: use estado explicito, multiplas rodadas, indicadores que se influenciam,
 consequencias acumuladas, caminhos alternativos, debrief por estrategia e botao para reiniciar.
-O HTML/CSS/JS deve estar completo no JSON e funcionar sem bibliotecas externas."""
+O HTML/CSS/JS deve estar completo no JSON e funcionar sem bibliotecas externas.
+MECANICA OBRIGATORIA DESTA GERACAO: """ + required_simulator_mechanic + """.
+Implemente os eventos e alteracoes de estado reais dessa mecanica; texto ou botoes que apenas
+simulem a acao nao serao aceitos."""
                     elif quality_type == "timeline":
                         attempt_prompt += """
 
@@ -716,11 +786,13 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                         if not slide_data.get("moduleName") and j < len(batch):
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
                     if quality_checked and data["slides"]:
-                        complexity = _rich_interactive_complexity_score(
-                            _simulator_html_from_slide(data["slides"][0]),
-                            quality_type,
+                        generated_html = _simulator_html_from_slide(data["slides"][0])
+                        complexity = (
+                            _simulator_complexity_score(generated_html, required_simulator_mechanic)
+                            if quality_type == "simulator"
+                            else _rich_interactive_complexity_score(generated_html, quality_type)
                         )
-                        if complexity < 6 and retries < max_retries:
+                        if complexity < 6:
                             logger.warning(
                                 "%s storyboard batch %s scored %s/10; regenerating with richer constraints",
                                 quality_type,
@@ -728,7 +800,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                                 complexity,
                             )
                             retries += 1
-                            await asyncio.sleep(2)
+                            if retries <= max_retries:
+                                await asyncio.sleep(2)
                             continue
                         logger.info(
                             "%s storyboard batch %s accepted with complexity %s/10",

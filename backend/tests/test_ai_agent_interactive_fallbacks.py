@@ -4,7 +4,9 @@ from services.ai_agent import (
     _build_timeline_fallback_html,
     _interactive_html_is_functional,
     _case_study_complexity_score,
+    _required_simulator_mechanic,
     _simulator_complexity_score,
+    _simulator_mechanic_is_functional,
     _timeline_complexity_score,
 )
 
@@ -76,9 +78,52 @@ def test_simulator_complexity_score_rejects_a_basic_quiz_and_accepts_stateful_si
     function decidir(impacto){state.score+=impacto;state.risco-=impacto;state.rodada++;render();}
     function render(){document.body.dataset.progress=state.rodada;document.body.dataset.state=JSON.stringify(state);}
     function reiniciar(){state.score=0;state.risco=50;state.rodada=1;render();}
+    document.querySelector('input').addEventListener('input',render);
     """ + ("// consequence model and conditional phase logic\n" * 60) + "</script></body></html>"
     assert _simulator_complexity_score(basic) < 6
     assert _simulator_complexity_score(rich) >= 6
+
+
+def test_drag_drop_requires_real_browser_events_not_instructional_copy():
+    fake = """<!doctype html><html><body><p>Arraste e solte os itens</p>
+    <button>Confirmar</button><script>const state={score:0};</script></body></html>"""
+    real = """<!doctype html><html><body>
+    <div draggable='true' id='card'>Etapa</div><div id='zone'>Destino</div>
+    <script>card.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain','card'));
+    zone.addEventListener('dragover',e=>e.preventDefault());
+    zone.addEventListener('drop',e=>{e.preventDefault();zone.appendChild(card);});</script></body></html>"""
+    assert not _simulator_mechanic_is_functional(fake, "drag_drop")
+    assert _simulator_mechanic_is_functional(real, "drag_drop")
+
+
+def test_required_mechanics_are_stable_and_varied_between_slides():
+    slides = [
+        {"id": str(i), "title": f"Desafio {i}", "purpose": "Aplicacao", "moduleName": "Modulo"}
+        for i in range(12)
+    ]
+    first_pass = [_required_simulator_mechanic(slide) for slide in slides]
+    second_pass = [_required_simulator_mechanic(slide) for slide in slides]
+    assert first_pass == second_pass
+    assert len(set(first_pass)) >= 3
+
+
+def test_requested_mechanic_caps_otherwise_rich_but_wrong_simulator():
+    allocation = """<!doctype html><html><body>
+    <input type='range'><input type='range'><input type='range'><select><option>Plano</option></select>
+    <button>Decisao</button><button>Rodada</button><button>Reiniciar</button><button>Debrief</button>
+    <p>Orcamento, recurso, risco, impacto, consequencia, feedback e progresso.</p>
+    <script>const state={score:0,risco:40,custo:10,rodada:1};
+    document.querySelectorAll('input').forEach(x=>x.addEventListener('input',render));
+    function render(){state.custo++;state.score++;} function reset(){state.rodada=1;}
+    """ + ("// detailed conditional consequence model\n" * 80) + "</script></body></html>"
+    assert _simulator_complexity_score(allocation, "resource_allocation") >= 6
+    assert _simulator_complexity_score(allocation, "drag_drop") <= 5
+
+
+def test_last_generation_attempt_cannot_bypass_the_quality_gate():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "services" / "ai_agent.py").read_text(encoding="utf-8")
+    assert "if complexity < 6:" in source
+    assert "if complexity < 6 and retries < max_retries:" not in source
 
 
 def test_timeline_quality_requires_milestones_navigation_and_details():
