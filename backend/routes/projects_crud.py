@@ -304,6 +304,39 @@ async def fix_simulators(project_id: str, user: dict = Depends(require_auth)):
     fixed_count = 0
 
     for slide in slides:
+        elements = slide.get("elements", [])
+        title = str(slide.get("title") or "")
+        visible_text = " ".join(
+            str(el.get("htmlContent") or el.get("content") or "")
+            for el in elements
+        )
+        is_named_simulator = bool(_re.search(r"simula(?:ção|cao)\s*:", title + " " + visible_text, _re.IGNORECASE))
+        has_functional_document = False
+        if is_named_simulator:
+            from services.ai_agent import _interactive_html_is_functional
+            has_functional_document = any(
+                el.get("type") == "html"
+                and _interactive_html_is_functional(el.get("htmlContent", ""), "simulator")
+                for el in elements
+            )
+        if is_named_simulator and not has_functional_document:
+            from services.ai_agent import _build_simulator_fallback_html, _wrap_interactive_fullbleed
+            from models import generate_id
+            fallback_context = {
+                "title": title or "Simulação prática",
+                "elements": elements,
+                "moduleName": slide.get("moduleName", ""),
+            }
+            slide["elements"] = [{
+                "id": generate_id(),
+                "type": "html",
+                "htmlContent": _wrap_interactive_fullbleed(_build_simulator_fallback_html(fallback_context)),
+                "x": 0, "y": 0, "width": 1920, "height": 820,
+                "htmlDisplayMode": "fit", "zIndex": 1,
+            }]
+            fixed_count += 1
+            continue
+
         for el in slide.get("elements", []):
             if el.get("type") not in ("html", "text"):
                 continue

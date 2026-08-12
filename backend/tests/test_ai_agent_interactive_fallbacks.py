@@ -1,4 +1,5 @@
 from services.ai_agent import (
+    _build_simulator_fallback_html,
     _build_case_study_fallback_html,
     _build_storyboard_batches,
     _build_timeline_fallback_html,
@@ -10,6 +11,19 @@ from services.ai_agent import (
     _timeline_complexity_score,
     _wrap_interactive_fullbleed,
 )
+
+
+def test_failed_simulator_gets_a_complete_interactive_fallback():
+    generated = _build_simulator_fallback_html({
+        "title": "Simulação: Diagnóstico de Autoconfiança",
+        "purpose": "Avaliar decisões e aplicar estratégias de autoconfiança em situações reais.",
+    })
+    assert _interactive_html_is_functional(generated, "simulator")
+    assert "draggable=true" in generated
+    assert "ondrop" in generated
+    assert "Verificar estratégia" in generated
+    assert "Reiniciar" in generated
+    assert "Diagnóstico de Autoconfiança" in generated
 
 
 def _slide(kind):

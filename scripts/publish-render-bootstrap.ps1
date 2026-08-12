@@ -205,7 +205,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fix simulator clipping and UTF-8 export labels"
+        message = "Restore blank simulators and harden interactive exports"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

@@ -1918,6 +1918,46 @@ def _interactive_html_is_functional(html_content: str, content_type: str = "") -
     return True
 
 
+def _build_simulator_fallback_html(sb_slide: dict) -> str:
+    """Build a complete simulator when the model returns missing/broken HTML.
+
+    A rejected simulator must never silently become a mostly empty text slide.
+    This deterministic activity provides classification, scoring, feedback,
+    keyboard/click alternatives and restart support without external assets.
+    """
+    raw_title = str(sb_slide.get("title") or "Simulação prática")
+    title = re.sub(r"^simula(?:ção|cao)\s*:\s*", "", raw_title, flags=re.IGNORECASE).strip() or raw_title
+    context = _slide_plain_text(sb_slide)
+    context = re.sub(r"\s+", " ", context).strip()
+    candidates = [
+        part.strip(" -•")
+        for part in re.split(r"(?<=[.!?;:])\s+|\s+[•-]\s+", context)
+        if len(part.strip(" -•")) >= 24
+    ]
+    defaults = [
+        f"Identificar os conceitos centrais de {title}",
+        f"Relacionar {title} a uma situação prática",
+        "Escolher uma resposta com base em evidências",
+        "Analisar as consequências antes de decidir",
+        "Revisar a estratégia a partir do feedback",
+        "Transferir o aprendizado para um novo contexto",
+    ]
+    items = (candidates + defaults)[:6]
+    while len(items) < 6:
+        items.append(defaults[len(items) % len(defaults)])
+    records = [
+        {"text": text[:180], "category": index % 3}
+        for index, text in enumerate(items)
+    ]
+    items_json = json.dumps(records, ensure_ascii=False).replace("</", "<\\/")
+    safe_title = html.escape(title)
+    template = r'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:linear-gradient(135deg,#eef6ff,#f8fafc);color:#172033;display:grid;place-items:center}.app{width:920px;padding:22px}.top{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:15px}.eyebrow{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:#2563eb;font-weight:800}.title{font-size:27px;margin:5px 0 2px}.help{margin:0;color:#64748b}.score{background:#172033;color:#fff;padding:10px 15px;border-radius:14px;font-weight:800;white-space:nowrap}.board{display:grid;grid-template-columns:300px 1fr;gap:15px}.bank,.zones{border:1px solid #cbd5e1;background:#fff;border-radius:18px;padding:15px;box-shadow:0 12px 30px #0f172a12}.bank h2,.zones h2{font-size:15px;margin:0 0 10px}.item{padding:9px 11px;margin:7px 0;border-radius:10px;background:#263b55;color:#fff;font-size:13px;line-height:1.25;cursor:grab;border:2px solid transparent}.item.selected{border-color:#38bdf8;box-shadow:0 0 0 3px #38bdf833}.zone-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.zone{min-height:220px;border:2px dashed #93a4ba;border-radius:13px;padding:9px;background:#f8fafc}.zone.over{border-color:#2563eb;background:#eff6ff}.zone h3{font-size:13px;margin:0 0 8px;text-align:center}.zone .item{cursor:pointer}.feedback{min-height:24px;margin:12px 0 0;font-weight:700;text-align:center}.ok{color:#047857}.bad{color:#b91c1c}.actions{display:flex;justify-content:center;gap:10px;margin-top:10px}button{border:0;border-radius:10px;padding:10px 17px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}button.secondary{background:#475569}@media(max-width:720px){.app{width:100%;padding:12px}.board{grid-template-columns:1fr}.zone-grid{grid-template-columns:1fr}.zone{min-height:90px}}
+</style></head><body><main class="app"><header class="top"><div><div class="eyebrow">Simulação interativa</div><h1 class="title">__TITLE__</h1><p class="help">Arraste os cartões para a categoria adequada. Você também pode selecionar um cartão e clicar numa categoria.</p></div><div id="score" class="score">0 / 6</div></header><section class="board"><div class="bank"><h2>Situações para analisar</h2><div id="bank"></div></div><div class="zones"><h2>Classifique cada situação</h2><div class="zone-grid"><div class="zone" data-cat="0"><h3>Compreender</h3></div><div class="zone" data-cat="1"><h3>Aplicar</h3></div><div class="zone" data-cat="2"><h3>Avaliar</h3></div></div><div id="feedback" class="feedback"></div><div class="actions"><button onclick="check()">Verificar estratégia</button><button class="secondary" onclick="restart()">Reiniciar</button></div></div></section></main>
+<script>const data=__ITEMS__;let selected=null;const bank=document.getElementById('bank'),feedback=document.getElementById('feedback');function card(x,i){const e=document.createElement('div');e.className='item';e.textContent=x.text;e.draggable=true;e.dataset.i=i;e.onclick=()=>select(e);e.ondragstart=v=>v.dataTransfer.setData('text/plain',i);return e}function select(e){document.querySelectorAll('.item').forEach(x=>x.classList.remove('selected'));selected=e;e.classList.add('selected')}function place(i,z){const e=document.querySelector('[data-i="'+i+'"]');if(e){z.appendChild(e);e.classList.remove('selected');selected=null;feedback.textContent=''}}document.querySelectorAll('.zone').forEach(z=>{z.ondragover=e=>{e.preventDefault();z.classList.add('over')};z.ondragleave=()=>z.classList.remove('over');z.ondrop=e=>{e.preventDefault();z.classList.remove('over');place(e.dataTransfer.getData('text/plain'),z)};z.onclick=e=>{if(e.target===z||e.target.tagName==='H3'){if(selected)place(selected.dataset.i,z)}}});function check(){let right=0,placed=0;document.querySelectorAll('.zone .item').forEach(e=>{placed++;if(+e.parentElement.dataset.cat===data[+e.dataset.i].category)right++});score.textContent=right+' / '+data.length;if(placed<data.length){feedback.className='feedback bad';feedback.textContent='Classifique todos os cartões antes de verificar.'}else if(right===data.length){feedback.className='feedback ok';feedback.textContent='Excelente! Você relacionou compreensão, aplicação e avaliação.'}else{feedback.className='feedback bad';feedback.textContent='Você acertou '+right+'. Reavalie as escolhas usando o contexto e as consequências.'}}function restart(){bank.innerHTML='';data.forEach((x,i)=>bank.appendChild(card(x,i)));score.textContent='0 / '+data.length;feedback.textContent='';feedback.className='feedback'}restart();</script></body></html>'''
+    return template.replace("__TITLE__", safe_title).replace("__ITEMS__", items_json)
+
+
 def _build_flashcard_fallback_html(sb_slide: dict) -> str:
     """Build a deterministic, usable review activity from the slide context."""
     title = str(sb_slide.get("title") or "Revisão do conteúdo")
@@ -2449,13 +2489,26 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "y": 0,
                     "width": 1920,
                     "height": 820,
+                    "htmlDisplayMode": "fit",
                     "zIndex": 1,
                 }]
             else:
                 if html_content:
                     logger.warning("Rejected non-functional simulator HTML on slide %s", i)
-                # No functional HTML content generated, fallback to content slide
-                slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
+                # Never turn a failed simulator into a blank text slide. Use a
+                # deterministic, fully interactive activity instead.
+                fallback_html = _build_simulator_fallback_html(sb_slide)
+                slide_elements = [{
+                    "id": generate_id(),
+                    "type": "html",
+                    "htmlContent": _wrap_interactive_fullbleed(fallback_html),
+                    "x": 0,
+                    "y": 0,
+                    "width": 1920,
+                    "height": 820,
+                    "htmlDisplayMode": "fit",
+                    "zIndex": 1,
+                }]
         elif stype in ("infographic", "flashcard", "timeline", "case_study"):
             bg = palette.get("contentBg", "#ffffff")
             # These types use HTML+JS interactive content just like simulators
