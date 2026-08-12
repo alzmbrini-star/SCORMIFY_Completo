@@ -205,7 +205,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Fit complex simulators inside every slide viewport"
+        message = "Fix simulator clipping and UTF-8 export labels"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

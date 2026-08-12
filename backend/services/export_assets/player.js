@@ -1456,9 +1456,9 @@ var CoursePlayer = (function() {
                     // so tall content was centered before scaling and its top
                     // and bottom were clipped. Absolute centering measures the
                     // full content first and then fits it with safe padding.
-                    if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v2') === -1) {
-                        var fitUpgrade = '<style id="__scormify_fit_v2">html,body{overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
-                            '<script>(function(){function u(){var st=document.getElementById("__stage");if(!st)return;st.style.position="absolute";st.style.left="50%";st.style.top="50%";st.style.margin="0";st.style.transformOrigin="center center";function fit(){st.style.transform="none";var ch=Math.max(st.scrollHeight,st.offsetHeight,540),cw=Math.max(st.scrollWidth,st.offsetWidth,960),p=12,s=Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1);st.style.transform="translate(-50%,-50%) scale("+Math.max(.1,s)+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",u);else u();})();<\/script>';
+                    if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v3') === -1) {
+                        var fitUpgrade = '<style id="__scormify_fit_v3">html,body{overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
+                            '<script>(function(){function u(){var st=document.getElementById("__stage");if(!st)return;st.style.position="absolute";st.style.left="0";st.style.top="0";st.style.margin="0";st.style.transformOrigin="0 0";function fit(){st.style.transform="none";var sr=st.getBoundingClientRect(),minX=0,minY=0,maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);Array.prototype.forEach.call(st.querySelectorAll("*"),function(n){var cs=getComputedStyle(n);if(cs.display==="none"||cs.visibility==="hidden")return;var r=n.getBoundingClientRect();if(!r.width&&!r.height)return;minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);});var cw=maxX-minX,ch=maxY-minY,p=12,s=Math.max(.1,Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1)),tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform="translate("+tx+"px,"+ty+"px) scale("+s+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",u);else u();})();<\/script>';
                         var legacyBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
                         wrappedHtml = legacyBodyIdx !== -1
                             ? wrappedHtml.slice(0, legacyBodyIdx) + fitUpgrade + wrappedHtml.slice(legacyBodyIdx)
@@ -1486,8 +1486,8 @@ var CoursePlayer = (function() {
                         }
                     } else if (wrappedHtml.indexOf('__stage') === -1 &&
                                (element.htmlDisplayMode || 'page') === 'fit') {
-                        var fixedStageSnippet = '<style id="__scormify_fit_v2">html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
-                            '<script>(function(){function b(){var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;position:absolute;left:50%;top:50%;margin:0;transform-origin:center center;";while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);function fit(){st.style.transform="none";var ch=Math.max(st.scrollHeight,st.offsetHeight,540),cw=Math.max(st.scrollWidth,st.offsetWidth,960),p=12,s=Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1);st.style.transform="translate(-50%,-50%) scale("+Math.max(.1,s)+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",b);else b();})();<\/script>';
+                        var fixedStageSnippet = '<style id="__scormify_fit_v3">html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
+                            '<script>(function(){function b(){var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;position:absolute;left:0;top:0;margin:0;transform-origin:0 0;";while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);function fit(){st.style.transform="none";var sr=st.getBoundingClientRect(),minX=0,minY=0,maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);Array.prototype.forEach.call(st.querySelectorAll("*"),function(n){var cs=getComputedStyle(n);if(cs.display==="none"||cs.visibility==="hidden")return;var r=n.getBoundingClientRect();if(!r.width&&!r.height)return;minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);});var cw=maxX-minX,ch=maxY-minY,p=12,s=Math.max(.1,Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1)),tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform="translate("+tx+"px,"+ty+"px) scale("+s+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",b);else b();})();<\/script>';
                         var fitBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
                         wrappedHtml = fitBodyIdx !== -1
                             ? wrappedHtml.slice(0, fitBodyIdx) + fixedStageSnippet + wrappedHtml.slice(fitBodyIdx)
@@ -2107,8 +2107,8 @@ var CoursePlayer = (function() {
         if (mobileNext) {
             mobileNext.style.opacity = '1';
             mobileNext.style.pointerEvents = courseCompleted ? 'none' : 'auto';
-            mobileNext.title = currentSlide === totalSlides - 1 ? 'Concluir curso' : 'PrÃ³ximo';
-            mobileNext.innerHTML = currentSlide === totalSlides - 1 ? 'âœ“' : 'â€º';
+            mobileNext.title = currentSlide === totalSlides - 1 ? 'Concluir curso' : 'Próximo';
+            mobileNext.innerHTML = currentSlide === totalSlides - 1 ? '✓' : '›';
         }
         
         // Update sidebar
@@ -2125,8 +2125,8 @@ var CoursePlayer = (function() {
         if (nextBtn) {
             nextBtn.disabled = courseCompleted;
             nextBtn.innerHTML = currentSlide === totalSlides - 1
-                ? (courseCompleted ? 'âœ“ Curso concluÃ­do' : 'Concluir curso âœ“')
-                : 'PrÃ³ximo â†’';
+                ? (courseCompleted ? '✓ Curso concluído' : 'Concluir curso ✓')
+                : 'Próximo →';
         }
     }
     
@@ -2264,7 +2264,7 @@ var CoursePlayer = (function() {
             var status = document.createElement('div');
             status.className = 'sidebar-slide-status';
             if (courseCompleted && index === totalSlides - 1) {
-                status.innerHTML = 'âœ“ ConcluÃ­do';
+                status.innerHTML = '✓ Concluído';
                 status.classList.add('completed');
             } else if (index < currentSlide) {
                 status.innerHTML = '✓ Concluído';
@@ -2294,7 +2294,7 @@ var CoursePlayer = (function() {
             if (status) {
                 status.classList.remove('completed', 'current');
                 if (courseCompleted && index === totalSlides - 1) {
-                    status.innerHTML = 'âœ“ ConcluÃ­do';
+                    status.innerHTML = '✓ Concluído';
                     status.classList.add('completed');
                 } else if (index < currentSlide) {
                     status.innerHTML = '✓ Concluído';

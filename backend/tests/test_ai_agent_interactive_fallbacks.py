@@ -130,9 +130,10 @@ def test_last_generation_attempt_cannot_bypass_the_quality_gate():
 def test_new_simulator_fit_measures_full_content_and_centers_after_scaling():
     html = "<!doctype html><html><body><main style='height:900px'>Simulador</main></body></html>"
     fitted = _wrap_interactive_fullbleed(html)
-    assert "__scormify_fit_v2" in fitted
-    assert "Math.max(st.scrollHeight,st.offsetHeight,540)" in fitted
-    assert "translate(-50%,-50%) scale(" in fitted
+    assert "__scormify_fit_v3" in fitted
+    assert "st.querySelectorAll('*')" in fitted
+    assert "r.bottom-sr.top" in fitted
+    assert "translate('+tx+'px,'+ty+'px) scale(" in fitted
     assert "display:block!important" in fitted
 
 
@@ -140,8 +141,15 @@ def test_legacy_stage_is_upgraded_without_recreating_the_simulator():
     legacy = "<!doctype html><html><body><div id='__stage'>Conteudo salvo</div></body></html>"
     upgraded = _wrap_interactive_fullbleed(legacy)
     assert upgraded.count("id='__stage'") == 1
-    assert "__scormify_fit_v2" in upgraded
+    assert "__scormify_fit_v3" in upgraded
     assert "st.style.position='absolute'" in upgraded
+
+
+def test_v2_stage_is_upgraded_to_descendant_bounds_fit():
+    legacy = "<!doctype html><html><body><div id='__stage'>Antigo</div><style id='__scormify_fit_v2'></style></body></html>"
+    upgraded = _wrap_interactive_fullbleed(legacy)
+    assert "__scormify_fit_v3" in upgraded
+    assert "querySelectorAll('*')" in upgraded
 
 
 def test_timeline_quality_requires_milestones_navigation_and_details():
