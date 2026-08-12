@@ -105,20 +105,32 @@ const PAGE_VIEWPORT_SNIPPET =
 // Auto-fit wrapper for fixed-stage interactive HTML (simulators, infographics,
 // etc). Content designed for a 960x540 stage is centered and scaled.
 const FIT_SNIPPET =
-  '<style>html,body{margin:0!important;padding:0!important;width:100%;height:100%;' +
-  'overflow:hidden!important;}body{display:flex!important;align-items:center!important;' +
-  'justify-content:center!important;}</style>' +
+  '<style id="__scormify_fit_v2">html,body{margin:0!important;padding:0!important;width:100%;height:100%;' +
+  'overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
   "<script>(function(){function b(){var bd=document.body;" +
   "if(!bd||document.getElementById('__stage'))return;" +
   "var st=document.createElement('div');st.id='__stage';" +
-  "st.style.cssText='width:960px;flex:0 0 auto;position:relative;transform-origin:center center;';" +
+  "st.style.cssText='width:960px;position:absolute;left:50%;top:50%;margin:0;transform-origin:center center;';" +
   'while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);' +
-  'function fit(){var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);' +
-  'var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);' +
-  "st.style.transform='scale('+s+')';}" +
+  "function fit(){st.style.transform='none';var ch=Math.max(st.scrollHeight,st.offsetHeight,540);" +
+  'var cw=Math.max(st.scrollWidth,st.offsetWidth,960);var pad=12;' +
+  'var s=Math.min((window.innerWidth-pad*2)/cw,(window.innerHeight-pad*2)/ch,1);' +
+  "st.style.transform='translate(-50%,-50%) scale('+Math.max(.1,s)+')';}" +
   "window.addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}" +
   "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',b);}" +
   'else{b();}})();</scr' + 'ipt>';
+
+const FIT_UPGRADE_SNIPPET =
+  '<style id="__scormify_fit_v2">html,body{overflow:hidden!important;}' +
+  'body{display:block!important;position:relative!important;}</style>' +
+  "<script>(function(){function u(){var st=document.getElementById('__stage');if(!st)return;" +
+  "st.style.position='absolute';st.style.left='50%';st.style.top='50%';st.style.margin='0';" +
+  "st.style.transformOrigin='center center';function fit(){st.style.transform='none';" +
+  'var ch=Math.max(st.scrollHeight,st.offsetHeight,540);var cw=Math.max(st.scrollWidth,st.offsetWidth,960);' +
+  'var pad=12;var s=Math.min((innerWidth-pad*2)/cw,(innerHeight-pad*2)/ch,1);' +
+  "st.style.transform='translate(-50%,-50%) scale('+Math.max(.1,s)+')';}" +
+  "addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}" +
+  "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',u);else u();})();</scr" + 'ipt>';
 
 const injectDocumentSnippet = (html, snippet) => {
   const headIdx = html.toLowerCase().lastIndexOf('</head>');
@@ -130,7 +142,8 @@ const injectDocumentSnippet = (html, snippet) => {
 
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
-  if (html.includes('__stage') || html.includes('__scormify_page_mode')) return html;
+  if (html.includes('__scormify_fit_v2') || html.includes('__scormify_page_mode')) return html;
+  if (html.includes('__stage')) return injectDocumentSnippet(html, FIT_UPGRADE_SNIPPET);
   return injectDocumentSnippet(html, mode === 'fit' ? FIT_SNIPPET : PAGE_VIEWPORT_SNIPPET);
 };
 

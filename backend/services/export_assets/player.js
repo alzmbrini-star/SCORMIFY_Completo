@@ -1451,6 +1451,19 @@ var CoursePlayer = (function() {
                 var wrappedHtml;
                 if (isFullDoc) {
                     wrappedHtml = htmlContent;
+                    // Upgrade simulators saved with the legacy flex-centered
+                    // stage. CSS transforms do not affect flex layout size,
+                    // so tall content was centered before scaling and its top
+                    // and bottom were clipped. Absolute centering measures the
+                    // full content first and then fits it with safe padding.
+                    if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v2') === -1) {
+                        var fitUpgrade = '<style id="__scormify_fit_v2">html,body{overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
+                            '<script>(function(){function u(){var st=document.getElementById("__stage");if(!st)return;st.style.position="absolute";st.style.left="50%";st.style.top="50%";st.style.margin="0";st.style.transformOrigin="center center";function fit(){st.style.transform="none";var ch=Math.max(st.scrollHeight,st.offsetHeight,540),cw=Math.max(st.scrollWidth,st.offsetWidth,960),p=12,s=Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1);st.style.transform="translate(-50%,-50%) scale("+Math.max(.1,s)+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",u);else u();})();<\/script>';
+                        var legacyBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
+                        wrappedHtml = legacyBodyIdx !== -1
+                            ? wrappedHtml.slice(0, legacyBodyIdx) + fitUpgrade + wrappedHtml.slice(legacyBodyIdx)
+                            : wrappedHtml + fitUpgrade;
+                    }
                     // Full HTML added through the Editor is a real page viewport,
                     // not a tall screenshot squeezed into the element. Fixed-stage
                     // simulations may explicitly opt into "fit".
@@ -1473,8 +1486,8 @@ var CoursePlayer = (function() {
                         }
                     } else if (wrappedHtml.indexOf('__stage') === -1 &&
                                (element.htmlDisplayMode || 'page') === 'fit') {
-                        var fixedStageSnippet = '<style>html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}body{display:flex!important;align-items:center!important;justify-content:center!important;}</style>' +
-                            '<script>(function(){function b(){var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;flex:0 0 auto;position:relative;transform-origin:center center;";while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);function fit(){var ch=Math.max(st.scrollHeight,540);var cw=Math.max(st.scrollWidth,960);var s=Math.min(window.innerWidth/cw,window.innerHeight/ch);st.style.transform="scale("+s+")";}window.addEventListener("resize",fit);fit();setTimeout(fit,300);}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",b);}else{b();}})();<\/script>';
+                        var fixedStageSnippet = '<style id="__scormify_fit_v2">html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
+                            '<script>(function(){function b(){var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;position:absolute;left:50%;top:50%;margin:0;transform-origin:center center;";while(bd.firstChild){st.appendChild(bd.firstChild);}bd.appendChild(st);function fit(){st.style.transform="none";var ch=Math.max(st.scrollHeight,st.offsetHeight,540),cw=Math.max(st.scrollWidth,st.offsetWidth,960),p=12,s=Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1);st.style.transform="translate(-50%,-50%) scale("+Math.max(.1,s)+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",b);else b();})();<\/script>';
                         var fitBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
                         wrappedHtml = fitBodyIdx !== -1
                             ? wrappedHtml.slice(0, fitBodyIdx) + fixedStageSnippet + wrappedHtml.slice(fitBodyIdx)
