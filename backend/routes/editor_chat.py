@@ -11,6 +11,7 @@ import json
 import uuid
 import logging
 import copy as _copy
+import unicodedata
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from routes.deps import db
@@ -137,6 +138,81 @@ def _build_course_summary(slides: list) -> list:
             "elements": els_brief,
         })
     return summary
+
+
+def _normalize_intent_text(value: str) -> str:
+    """Lower-case user text while making PT-BR intent matching accent-safe."""
+    normalized = unicodedata.normalize("NFKD", value or "")
+    return " ".join(
+        "".join(ch for ch in normalized if not unicodedata.combining(ch)).lower().split()
+    )
+
+
+def _deterministic_brand_intent(
+    message: str,
+    *,
+    has_brand_kit: bool,
+    has_background: bool,
+    has_logo: bool,
+) -> dict | None:
+    """Resolve explicit Brand Kit commands without requiring an LLM.
+
+    Applying stored brand settings is deterministic data manipulation, not a
+    generative task.  Keeping this small intent path local also means a text
+    provider outage cannot block requests such as "aplique o brand kit em
+    todos os slides, somente com o logo".
+    """
+    text = _normalize_intent_text(message)
+    brand_terms = (
+        "brand kit", "identidade visual", "branding", "marca completa",
+        "kit da marca", "kit da empresa",
+    )
+    action_terms = ("apli", "use", "usar", "coloque", "inser", "adicion")
+    if not any(term in text for term in brand_terms) or not any(term in text for term in action_terms):
+        return None
+
+    only_logo = bool(re.search(r"\b(somente|apenas|so)\s+(com\s+)?(o\s+)?logo\b", text))
+    only_palette = bool(re.search(r"\b(somente|apenas|so)\s+(a\s+)?(paleta|cores?|fontes?)\b", text))
+    only_background = bool(re.search(r"\b(somente|apenas|so)\s+(o\s+)?(fundo|background)\b", text))
+
+    without_logo = bool(re.search(r"\b(sem|nao usar|nao aplique|remova)\s+(o\s+)?logo\b", text))
+    without_background = bool(re.search(r"\b(sem|nao usar|nao aplique|remova)\s+(o\s+)?(fundo|background)\b", text))
+    without_palette = bool(re.search(r"\b(sem|nao usar|nao aplique|remova)\s+(a\s+)?(paleta|cores?|fontes?)\b", text))
+
+    apply_logo = only_logo or not (only_palette or only_background or without_logo)
+    apply_palette = only_palette or not (only_logo or only_background or without_palette)
+    apply_background = only_background or not (only_logo or only_palette or without_background)
+
+    # Do not claim success for a component that is not configured.
+    apply_logo = apply_logo and has_logo
+    apply_palette = apply_palette and has_brand_kit
+    apply_background = apply_background and has_background
+
+    if not any((apply_logo, apply_palette, apply_background)):
+        requested = "logo" if only_logo else "Brand Kit"
+        return {
+            "reply": f"Não foi possível aplicar o {requested}: esse componente ainda não está cadastrado para a empresa.",
+            "ops": [],
+        }
+
+    op = {
+        "type": "apply_brand_identity",
+        "allSlides": True,
+        "applyLogo": apply_logo,
+        "applyPalette": apply_palette,
+        "applyBackground": apply_background,
+    }
+    enabled = []
+    if apply_logo:
+        enabled.append("logo")
+    if apply_palette:
+        enabled.append("cores e fonte")
+    if apply_background:
+        enabled.append("fundo da marca")
+    return {
+        "reply": f"Vou aplicar {' + '.join(enabled)} em todos os slides.",
+        "ops": [op],
+    }
 
 
 async def _call_llm(system_prompt: str, user_prompt: str, session_key: str) -> str:
@@ -994,14 +1070,26 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     else:
         brand_section += "LOGO DA MARCA: nao cadastrado. Se o autor pedir 'identidade visual completa', use `apply_brand_identity` com `applyLogo:false`.\n\n"
 
-    user_prompt = (
-        f"CURSO ATUAL (resumo):\n{json.dumps(summary, ensure_ascii=False)[:8000]}\n\n"
-        f"{brand_section}"
-        f"CONVERSA:\n{json.dumps(history, ensure_ascii=False) if history else '(primeira mensagem)'}\n\n"
-        f"AUTOR: {message}"
+    # Explicit Brand Kit commands do not need generative interpretation.
+    # Resolve them locally so an LLM outage cannot block applying settings
+    # already stored for the company.
+    parsed = _deterministic_brand_intent(
+        message,
+        has_brand_kit=bool(brand_kit and any(brand_kit.get(k) for k in (
+            "primaryColor", "accentColor", "secondaryColor", "fontFamily"
+        ))),
+        has_background=bool(brand_backgrounds),
+        has_logo=bool(brand_logo_url),
     )
-    raw = await _call_llm(SYSTEM_PROMPT, user_prompt, f"editor_chat_{project_id}")
-    parsed = _extract_json(raw)
+    if parsed is None:
+        user_prompt = (
+            f"CURSO ATUAL (resumo):\n{json.dumps(summary, ensure_ascii=False)[:8000]}\n\n"
+            f"{brand_section}"
+            f"CONVERSA:\n{json.dumps(history, ensure_ascii=False) if history else '(primeira mensagem)'}\n\n"
+            f"AUTOR: {message}"
+        )
+        raw = await _call_llm(SYSTEM_PROMPT, user_prompt, f"editor_chat_{project_id}")
+        parsed = _extract_json(raw)
     reply = parsed.get("reply") or "Entendi."
     ops = parsed.get("ops") or []
 

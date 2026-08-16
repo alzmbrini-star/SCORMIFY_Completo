@@ -35,12 +35,43 @@ async def test_failed_image_generation_never_uses_random_picsum(monkeypatch, tmp
 
     monkeypatch.setattr(ai_agent, "_openai_image_bytes", no_image)
     monkeypatch.setattr(ai_agent, "_legacy_gemini_image_bytes", no_image)
+    monkeypatch.setattr(ai_agent, "_leonardo_image_bytes", no_image)
     monkeypatch.setattr(ai_agent, "_fetch_picsum_image", random_fallback_must_not_run)
 
     result = await ai_agent._fetch_stock_image(
         "segurança da informação", str(tmp_path), "project-1", {"title": "Segurança"}
     )
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_contextual_image_uses_leonardo_after_primary_providers_fail(monkeypatch, tmp_path):
+    calls = []
+
+    async def no_image(_prompt):
+        calls.append("primary")
+        return None
+
+    async def leonardo_image(_prompt):
+        calls.append("leonardo")
+        return b"generated-image"
+
+    async def persist(image_bytes, _prompt, _project_dir, _project_id, provider):
+        assert image_bytes == b"generated-image"
+        assert provider == "leonardo"
+        return "/api/projects/project-1/assets/contextual.png"
+
+    monkeypatch.setattr(ai_agent, "_openai_image_bytes", no_image)
+    monkeypatch.setattr(ai_agent, "_legacy_gemini_image_bytes", no_image)
+    monkeypatch.setattr(ai_agent, "_leonardo_image_bytes", leonardo_image)
+    monkeypatch.setattr(ai_agent, "_persist_generated_image", persist)
+
+    result = await ai_agent._fetch_stock_image(
+        "gestão de projetos", str(tmp_path), "project-1", {"title": "Gestão de projetos de TI"}
+    )
+
+    assert result.endswith("/contextual.png")
+    assert calls == ["primary", "primary", "leonardo"]
 
 
 def test_placeholder_flashcard_html_is_rejected():

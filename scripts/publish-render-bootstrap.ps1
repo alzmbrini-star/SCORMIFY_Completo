@@ -208,7 +208,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Keep AI course structure generation resilient to provider failures"
+        message = "Make Editor Brand Kit commands work without LLM availability"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

@@ -1179,6 +1179,35 @@ async def _legacy_gemini_image_bytes(prompt: str) -> Optional[bytes]:
     return None
 
 
+async def _leonardo_image_bytes(prompt: str) -> Optional[bytes]:
+    """Generate and download an image through the configured Leonardo account.
+
+    Leonardo used to be reachable only when the author explicitly selected the
+    Leonardo media type for a slide.  The normal ``ai_image`` path therefore
+    produced text-only slides whenever OpenAI/Gemini image generation was not
+    available, even though Leonardo was healthy in the integrations panel.
+    """
+    if not (os.environ.get("LEONARDO_API_KEY") or "").strip():
+        return None
+
+    import httpx
+    from services.leonardo_ai import generate_and_wait
+
+    image_urls = await generate_and_wait(
+        prompt=prompt,
+        width=1024,
+        height=576,
+        num_images=1,
+    )
+    if not image_urls:
+        return None
+
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        response = await client.get(image_urls[0])
+    response.raise_for_status()
+    return response.content
+
+
 async def _fetch_stock_image(
     keyword: str, project_dir: str, project_id: str, slide_context: Optional[dict] = None
 ) -> Optional[str]:
@@ -1187,6 +1216,7 @@ async def _fetch_stock_image(
     providers = [
         ("openai", _openai_image_bytes),
         ("gemini", _legacy_gemini_image_bytes),
+        ("leonardo", _leonardo_image_bytes),
     ]
     for provider, generate in providers:
         try:
