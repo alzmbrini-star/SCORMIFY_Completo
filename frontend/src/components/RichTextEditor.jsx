@@ -20,7 +20,6 @@ const FONTS = [
   { name: 'Inter', value: 'Inter, sans-serif' },
   { name: 'Manrope', value: 'Manrope, sans-serif' },
   { name: 'Sora', value: 'Sora, sans-serif' },
-  { name: 'Space Grotesk', value: '"Space Grotesk", sans-serif' },
   { name: 'IBM Plex Sans', value: '"IBM Plex Sans", sans-serif' },
   { name: 'Archivo', value: 'Archivo, sans-serif' },
   { name: 'Outfit', value: 'Outfit, sans-serif' },

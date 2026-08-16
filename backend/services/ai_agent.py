@@ -340,17 +340,109 @@ Retorne APENAS o JSON dentro de ```json```."""
             logger.warning(f"Analyze with {provider}/{model} failed: {str(e)[:80]}")
             continue
 
+    fallback_title = _derive_fallback_course_title(content_text, file_info)
+    fallback_parts = _fallback_content_topics(content_text)
     return {
-        "title": "Curso sem título",
-        "summary": "Análise não pôde ser concluída",
-        "mainTopics": [],
+        "title": fallback_title,
+        "summary": (fallback_parts[0] if fallback_parts else f"Curso introdutório sobre {fallback_title}."),
+        "mainTopics": fallback_parts[:6],
         "targetAudience": "Público geral",
         "difficulty": "intermediario",
         "estimatedDuration": 30,
         "suggestedModules": 3,
         "gaps": [],
         "strengths": [],
-        "keywords": [],
+        "keywords": [word.lower() for word in re.findall(r"[A-Za-zÀ-ÿ]{5,}", fallback_title)[:6]],
+        "fallbackUsed": True,
+    }
+
+
+def _derive_fallback_course_title(content_text: str, file_info: str = "") -> str:
+    """Derive a useful title without requiring a second AI call."""
+    file_name = Path(str(file_info or "")).name
+    file_name = re.sub(r"\.(?:pdf|pptx?|docx?|txt|md|html?)$", "", file_name, flags=re.IGNORECASE)
+    file_name = re.sub(r"^[0-9a-f-]{20,}[_-]?", "", file_name, flags=re.IGNORECASE)
+    file_name = re.sub(r"[_-]+", " ", file_name).strip()
+    if 4 <= len(file_name) <= 120 and not file_name.lower().startswith(("arquivo", "upload")):
+        return file_name
+    for line in str(content_text or "").splitlines():
+        line = re.sub(r"\s+", " ", line).strip(" -•#\t")
+        if 8 <= len(line) <= 120 and len(line.split()) >= 2:
+            return line.rstrip(".:;")
+    words = re.findall(r"[A-Za-zÀ-ÿ0-9]+", str(content_text or ""))[:8]
+    return " ".join(words).strip() or "Curso de Formação"
+
+
+def _fallback_content_topics(content_text: str) -> list[str]:
+    """Extract readable topic labels from source text deterministically."""
+    cleaned = re.sub(r"\s+", " ", str(content_text or "")).strip()
+    topics = []
+    for part in re.split(r"(?<=[.!?;:])\s+|\s+[•-]\s+", cleaned):
+        part = part.strip(" -•")
+        if 20 <= len(part) <= 180 and part.casefold() not in {item.casefold() for item in topics}:
+            topics.append(part)
+        if len(topics) >= 8:
+            break
+    return topics
+
+
+def _build_fallback_structure(content_text: str, config: dict, reason: str = "") -> dict:
+    """Create a complete course architecture when the LLM is unavailable."""
+    configured_title = str(config.get("title") or "").strip()
+    if not configured_title or configured_title.casefold() in {"curso sem título", "curso sem titulo"}:
+        configured_title = _derive_fallback_course_title(content_text)
+    try:
+        module_count = max(1, min(8, int(config.get("modules") or 3)))
+    except (TypeError, ValueError):
+        module_count = 3
+    try:
+        duration = max(10, int(config.get("duration") or 30))
+    except (TypeError, ValueError):
+        duration = 30
+
+    enabled = config.get("enabledResources") or {}
+    interactive = [name for name in ("simulator", "scenario", "infographic", "flashcard", "timeline", "case_study", "quiz") if enabled.get(name)]
+    if not interactive:
+        interactive = ["quiz"]
+    topics = _fallback_content_topics(content_text)
+    if not topics:
+        topics = [
+            f"Fundamentos de {configured_title}",
+            "Aplicação prática dos conceitos",
+            "Análise de situações e tomada de decisão",
+            "Boas práticas e melhoria contínua",
+        ]
+
+    modules = []
+    slide_number = 1
+    for module_index in range(module_count):
+        topic = topics[module_index % len(topics)]
+        short_topic = topic[:72].rstrip(" ,.;:")
+        module_title = f"Módulo {module_index + 1}: {short_topic}"
+        slides = []
+        if module_index == 0:
+            slides.append({"id": f"slide{slide_number}", "title": configured_title, "type": "title", "purpose": "Apresentar o curso, seus objetivos e sua trilha de aprendizagem.", "estimatedDuration": 30})
+            slide_number += 1
+        slides.extend([
+            {"id": f"slide{slide_number}", "title": f"Conceitos essenciais: {short_topic}", "type": "content", "purpose": topic, "estimatedDuration": 90},
+            {"id": f"slide{slide_number + 1}", "title": f"Aplicação prática: {short_topic}", "type": interactive[module_index % len(interactive)], "purpose": f"Aplicar e avaliar os conceitos de {short_topic} em uma atividade prática.", "estimatedDuration": 120},
+            {"id": f"slide{slide_number + 2}", "title": f"Verificação de aprendizagem: {short_topic}", "type": "quiz" if enabled.get("quiz", True) else "content", "purpose": f"Consolidar o aprendizado sobre {short_topic} com feedback imediato.", "estimatedDuration": 90},
+        ])
+        slide_number += 3
+        modules.append({"id": f"mod{module_index + 1}", "title": module_title, "description": topic, "slides": slides})
+    modules[-1]["slides"].append({"id": f"slide{slide_number}", "title": "Síntese e próximos passos", "type": "summary", "purpose": "Revisar os aprendizados e orientar sua aplicação após o curso.", "estimatedDuration": 60})
+    total_slides = sum(len(module["slides"]) for module in modules)
+    return {
+        "courseTitle": configured_title,
+        "courseDescription": f"Trilha estruturada sobre {configured_title}.",
+        "learningObjectives": [f"Compreender os fundamentos de {configured_title}", "Aplicar os conceitos em situações práticas", "Avaliar decisões e resultados"],
+        "prerequisites": [],
+        "competencies": ["Compreensão", "Aplicação", "Análise"],
+        "modules": modules,
+        "totalSlides": total_slides,
+        "totalDuration": duration,
+        "fallbackUsed": True,
+        "fallbackReason": str(reason or "Serviço de IA temporariamente indisponível")[:180],
     }
 
 
@@ -485,6 +577,7 @@ REGRAS GERAIS:
 - Distribua os recursos de forma INTERCALADA - não agrupe todos os quizzes no final, etc."""
 
     models = [PRIMARY_MODEL, FALLBACK_MODEL]
+    last_error = ""
     for provider, model in models:
         try:
             chat = _new_chat(f"agent-structure-{session_id}", provider=provider, model=model)
@@ -493,9 +586,11 @@ REGRAS GERAIS:
             if data:
                 return data
         except Exception as e:
+            last_error = str(e)
             logger.warning(f"Structure with {provider}/{model} failed: {str(e)[:80]}")
             continue
-    raise ValueError("Não foi possível gerar a estrutura do curso")
+    logger.warning("Using deterministic structure fallback for session %s", session_id)
+    return _build_fallback_structure(content_text, config, last_error)
 
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
@@ -943,7 +1038,7 @@ DESIGN_TEMPLATES = [
         "preview": "linear-gradient(135deg, #121417 0%, #1f2937 100%)",
         "mode": "dark",
         "palette": {"primary": "#121417", "accent": "#34d399", "accentLight": "#064e3b", "contentBg": "#121417", "coverBg": "#121417", "text": "#f4f4f5"},
-        "fonts": {"heading": "'Space Grotesk', 'Segoe UI', sans-serif", "body": "'IBM Plex Sans', sans-serif"},
+        "fonts": {"heading": "'Manrope', 'Segoe UI', sans-serif", "body": "'IBM Plex Sans', sans-serif"},
         "headerStyle": "clean",
         "cornerRadius": "14px",
     },

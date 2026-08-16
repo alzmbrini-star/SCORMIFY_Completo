@@ -222,7 +222,6 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
                   <option value="Roboto" style={{fontFamily: 'Roboto'}}>Roboto</option>
                   <option value="Sora" style={{fontFamily: 'Sora'}}>Sora</option>
                   <option value="Source Sans 3" style={{fontFamily: 'Source Sans 3'}}>Source Sans 3</option>
-                  <option value="Space Grotesk" style={{fontFamily: 'Space Grotesk'}}>Space Grotesk</option>
                   <option value="Trebuchet MS" style={{fontFamily: 'Trebuchet MS'}}>Trebuchet MS</option>
                   <option value="Ubuntu" style={{fontFamily: 'Ubuntu'}}>Ubuntu</option>
                   <option value="Verdana" style={{fontFamily: 'Verdana'}}>Verdana</option>

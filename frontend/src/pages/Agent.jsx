@@ -539,15 +539,17 @@ export default function Agent() {
     const start = Date.now();
     while (Date.now() - start < maxWait) {
       await new Promise(r => setTimeout(r, 3000));
+      let res;
       try {
-        const res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() }, 2);
-        if (!res.ok) continue;
-        const session = await res.json();
-        if (session.step === targetStep) return session;
-        if (session.step === errorStep) throw new Error(session.error || 'Erro no processamento');
-      } catch (e) {
-        if (e.message && e.message !== 'Erro no processamento') continue;
-        throw e;
+        res = await fetchRetry(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() }, 2);
+      } catch (_networkError) {
+        continue;
+      }
+      if (!res.ok) continue;
+      const session = await res.json();
+      if (session.step === targetStep) return session;
+      if (session.step === errorStep) {
+        throw new Error(session.error || 'Erro no processamento');
       }
     }
     throw new Error('Timeout aguardando processamento');
@@ -611,15 +613,22 @@ export default function Agent() {
     try {
       const configToSend = { ...config };
       if (selectedDesignTemplate) configToSend.designTemplateId = selectedDesignTemplate.id;
-      await fetch(`${API}/api/agent/sessions/${sessionId}/configure`, {
+      const configureRes = await fetch(`${API}/api/agent/sessions/${sessionId}/configure`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(configToSend),
       });
+      if (!configureRes.ok) {
+        const detail = await configureRes.json().catch(() => ({}));
+        throw new Error(detail.detail || `Erro ${configureRes.status} ao salvar a configuração`);
+      }
       const body = selectedTemplate ? { templateId: selectedTemplate.id } : {};
       if (structure) body.force = true;
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-structure`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `Erro ${res.status} ao iniciar a estrutura`);
+      }
       const data = await res.json();
 
       // If already structured (cached), use directly
@@ -627,6 +636,7 @@ export default function Agent() {
         setStructure(data);
         const totalSlides = data.modules?.reduce((sum, m) => sum + (m.slides?.length || 0), 0) || 0;
         addChatMsg('agent', `Estrutura criada! ${data.modules?.length || 0} modulos com ${totalSlides} slides.`);
+        if (data.fallbackUsed) addChatMsg('agent', 'A IA estava temporariamente indisponível. Uma estrutura pedagógica segura foi criada automaticamente e pode ser editada antes de continuar.');
         setCurrentStep(3);
       } else if (data.status === 'processing') {
         // Poll for completion
@@ -636,6 +646,7 @@ export default function Agent() {
         setStructure(structure);
         const totalSlides = structure.modules?.reduce((sum, m) => sum + (m.slides?.length || 0), 0) || 0;
         addChatMsg('agent', `Estrutura criada! ${structure.modules?.length || 0} modulos com ${totalSlides} slides.`);
+        if (structure.fallbackUsed) addChatMsg('agent', 'A IA estava temporariamente indisponível. Uma estrutura pedagógica segura foi criada automaticamente e pode ser editada antes de continuar.');
         setCurrentStep(3);
       }
     } catch (e) { toast.error(e.message || 'Erro ao gerar estrutura'); addChatMsg('agent', 'Erro ao gerar estrutura.'); }

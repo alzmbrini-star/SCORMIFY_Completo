@@ -1,5 +1,6 @@
 from services.ai_agent import (
     _build_simulator_fallback_html,
+    _build_fallback_structure,
     _build_case_study_fallback_html,
     _build_storyboard_batches,
     _build_timeline_fallback_html,
@@ -10,7 +11,34 @@ from services.ai_agent import (
     _simulator_mechanic_is_functional,
     _timeline_complexity_score,
     _wrap_interactive_fullbleed,
+    _derive_fallback_course_title,
+    get_design_template_by_id,
 )
+
+
+def test_analysis_fallback_derives_title_from_uploaded_filename():
+    assert _derive_fallback_course_title("Conteúdo do treinamento", "Guia_de_Seguranca.pdf") == "Guia de Seguranca"
+
+
+def test_structure_fallback_is_complete_and_respects_enabled_resources():
+    structure = _build_fallback_structure(
+        "Segurança no trabalho reduz riscos. A prevenção depende de análise e boas práticas.",
+        {
+            "title": "Curso sem título",
+            "modules": 2,
+            "duration": 25,
+            "enabledResources": {"quiz": True, "simulator": True},
+        },
+        "temporary upstream failure",
+    )
+    assert structure["fallbackUsed"] is True
+    assert structure["courseTitle"] != "Curso sem título"
+    assert len(structure["modules"]) == 2
+    slides = [slide for module in structure["modules"] for slide in module["slides"]]
+    assert slides[0]["type"] == "title"
+    assert slides[-1]["type"] == "summary"
+    assert any(slide["type"] == "simulator" for slide in slides)
+    assert any(slide["type"] == "quiz" for slide in slides)
 
 
 def test_failed_simulator_gets_a_complete_interactive_fallback():
@@ -24,6 +52,24 @@ def test_failed_simulator_gets_a_complete_interactive_fallback():
     assert "Verificar estratégia" in generated
     assert "Reiniciar" in generated
     assert "Diagnóstico de Autoconfiança" in generated
+
+
+def test_clean_dark_template_uses_stable_heading_font():
+    template = get_design_template_by_id("clean-dark")
+    assert "Manrope" in template["fonts"]["heading"]
+    assert "Space Grotesk" not in template["fonts"]["heading"]
+
+
+def test_export_font_bundles_do_not_request_broken_space_grotesk_asset():
+    root = __import__("pathlib").Path(__file__).resolve().parents[2]
+    files = (
+        root / "frontend" / "src" / "utils" / "htmlUtils.js",
+        root / "backend" / "services" / "export_assets" / "player_template.html",
+        root / "backend" / "services" / "html_exporter.py",
+        root / "backend" / "services" / "single_page_exporter.py",
+    )
+    for file in files:
+        assert "Space+Grotesk" not in file.read_text(encoding="utf-8")
 
 
 def _slide(kind):
