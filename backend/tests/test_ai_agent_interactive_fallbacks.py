@@ -2,9 +2,11 @@ from services.ai_agent import (
     _build_simulator_fallback_html,
     _build_fallback_structure,
     _build_case_study_fallback_html,
+    _build_flashcard_fallback_html,
     _build_storyboard_batches,
     _build_timeline_fallback_html,
     _interactive_html_is_functional,
+    _normalize_interactive_storyboard_slide,
     _case_study_complexity_score,
     _required_simulator_mechanic,
     _simulator_complexity_score,
@@ -14,6 +16,38 @@ from services.ai_agent import (
     _derive_fallback_course_title,
     get_design_template_by_id,
 )
+
+
+def test_legacy_flashcard_html_is_normalized_from_content_field():
+    legacy_html = _build_flashcard_fallback_html({"title": "Escuta ativa"})
+    slide = {
+        "type": "flashcard",
+        "title": "Técnicas de observação",
+        "elements": [{"type": "html", "content": legacy_html}],
+    }
+
+    normalized = _normalize_interactive_storyboard_slide(slide)
+
+    assert normalized["elements"][0]["type"] == "html"
+    assert "htmlContent" in normalized["elements"][0]
+    assert _interactive_html_is_functional(
+        normalized["elements"][0]["htmlContent"], "flashcard"
+    )
+
+
+def test_empty_simulator_is_replaced_before_storyboard_preview():
+    slide = {
+        "type": "simulator",
+        "title": "Simulação de atendimento",
+        "moduleName": "Comunicação",
+        "elements": [],
+    }
+
+    normalized = _normalize_interactive_storyboard_slide(slide)
+
+    html = normalized["elements"][0]["htmlContent"]
+    assert _interactive_html_is_functional(html, "simulator")
+    assert "<script>" in html
 
 
 def test_analysis_fallback_derives_title_from_uploaded_filename():

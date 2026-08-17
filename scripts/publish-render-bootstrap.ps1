@@ -208,7 +208,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Make Editor Brand Kit commands work without LLM availability"
+        message = "Restore simulator and flashcard previews and reject empty activities"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

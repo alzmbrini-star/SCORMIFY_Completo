@@ -104,7 +104,7 @@ async def test_density_generation_falls_back_to_krea(monkeypatch):
 
     async def succeed_krea(prompt, model_id, negative_prompt=None):
         assert prompt == "imagem educativa"
-        assert model_id == "nano-banana-2"
+        assert model_id == "flux-1-dev"
         return b"krea-image"
 
     monkeypatch.setattr(density, "generate_openai_image", fail_openai)
@@ -119,6 +119,33 @@ async def test_density_generation_falls_back_to_krea(monkeypatch):
     assert image == b"krea-image"
     assert provider == "krea-fallback"
     assert "429" in warning
+
+
+@pytest.mark.asyncio
+async def test_density_replaces_legacy_incompatible_krea_fallback(monkeypatch):
+    from routes import density
+
+    async def fail_openai(_prompt):
+        raise OpenAIImageError("OpenAI HTTP 429: credit_balance_exhausted")
+
+    captured = {}
+
+    async def succeed_krea(_prompt, model_id, negative_prompt=None):
+        captured["model"] = model_id
+        return b"krea-image"
+
+    monkeypatch.setenv("DENSITY_IMAGE_KREA_FALLBACK_MODEL", "nano-banana-2")
+    monkeypatch.setattr(density, "generate_openai_image", fail_openai)
+    monkeypatch.setattr(density.krea_ai, "is_configured", lambda: True)
+    monkeypatch.setattr(density, "_generate_via_krea", succeed_krea)
+
+    image, provider, _warning = await density._generate_openai_with_krea_fallback(
+        "imagem educativa", None
+    )
+
+    assert image == b"krea-image"
+    assert provider == "krea-fallback"
+    assert captured["model"] == "flux-1-dev"
 
 
 @pytest.mark.asyncio

@@ -423,9 +423,21 @@ async def _generate_openai_with_krea_fallback(
         return None, "openai", openai_error
 
     fallback_model = (
-        os.environ.get("DENSITY_IMAGE_KREA_FALLBACK_MODEL", "nano-banana-2").strip()
-        or "nano-banana-2"
+        os.environ.get("DENSITY_IMAGE_KREA_FALLBACK_MODEL", "flux-1-dev").strip()
+        or "flux-1-dev"
     )
+    # Older deployments were bootstrapped with nano-banana-2. That model
+    # rejects the generic width/height/negative-prompt payload used by this
+    # endpoint (HTTP 422), so it can never serve as an automatic fallback.
+    # Keep explicit Krea selections untouched elsewhere, but migrate this
+    # background fallback to the broadly compatible Flux integration even
+    # when the stale Render variable is still present.
+    if fallback_model == "nano-banana-2":
+        logger.warning(
+            "[density.generate-image] replacing incompatible Krea fallback "
+            "nano-banana-2 with flux-1-dev"
+        )
+        fallback_model = "flux-1-dev"
     logger.warning(
         "[density.generate-image] OpenAI failed (%s); retrying with Krea/%s",
         openai_error,

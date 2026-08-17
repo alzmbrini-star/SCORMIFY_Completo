@@ -904,6 +904,12 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                             batch_start,
                             complexity,
                         )
+                    # Flashcards are not part of the expensive complexity
+                    # retry loop, and older providers may return HTML in the
+                    # legacy `content` field. Normalize every interactive
+                    # slide before it reaches the storyboard UI.
+                    for slide_data in data["slides"]:
+                        _normalize_interactive_storyboard_slide(slide_data)
                     all_slides.extend(data["slides"])
                     batch_success = True
                     if retries > 0:
@@ -966,13 +972,45 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                          "explanation": "A integração entre teoria e prática é essencial para uma atuação profissional eficaz."},
                     ]
 
+                fallback_elements = [{
+                    "type": "text", "content": fallback_html,
+                    "position": "left", "width": 1050, "height": 680,
+                }]
+                fallback_source = {
+                    **sl,
+                    "title": title_text,
+                    "moduleName": module_text,
+                    "notes": purpose,
+                    "elements": [{"type": "text", "content": fallback_html}],
+                }
+                if stype == "case_study":
+                    fallback_elements = [{
+                        "type": "html",
+                        "htmlContent": _build_case_study_fallback_html(fallback_source),
+                    }]
+                elif stype == "timeline":
+                    fallback_elements = [{
+                        "type": "html",
+                        "htmlContent": _build_timeline_fallback_html(fallback_source),
+                    }]
+                elif stype == "flashcard":
+                    fallback_elements = [{
+                        "type": "html",
+                        "htmlContent": _build_flashcard_fallback_html(fallback_source),
+                    }]
+                elif stype == "simulator":
+                    fallback_elements = [{
+                        "type": "html",
+                        "htmlContent": _build_simulator_fallback_html(fallback_source),
+                    }]
+
                 all_slides.append({
                     "id": sl.get("id", ""),
                     "title": title_text,
                     "type": stype,
                     "moduleName": module_text,
                     "imageKeywords": title_text.split(" ")[0].lower() + " professional",
-                    "elements": [{"type": "text", "content": fallback_html, "position": "left", "width": 1050, "height": 680}],
+                    "elements": fallback_elements,
                     "narrationScript": purpose if purpose else f"Neste slide, vamos abordar {title_text.lower()}.",
                     "librasScript": purpose if purpose else title_text,
                     "notes": "",
@@ -2174,6 +2212,38 @@ def _build_case_study_fallback_html(sb_slide: dict) -> str:
         {"title": "Reflexão", "text": parts[4]},
     ], ensure_ascii=False).replace("</", "<\\/")
     return r'''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:linear-gradient(145deg,#fff7ed,#ffedd5);color:#292524;display:grid;place-items:center}.app{width:900px;padding:32px}.eyebrow{font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#ea580c}.title{font-size:30px;margin:7px 0 22px}.layout{display:grid;grid-template-columns:220px 1fr;gap:20px}.tabs{display:flex;flex-direction:column;gap:9px}.tab{border:1px solid #fed7aa;background:#fff;border-radius:12px;padding:14px 16px;text-align:left;font-weight:800;color:#7c2d12;cursor:pointer}.tab.active{background:#ea580c;color:#fff;border-color:#ea580c}.panel{min-height:285px;background:white;border:1px solid #fed7aa;border-radius:20px;padding:30px;box-shadow:0 18px 45px #9a34121c}.panel h2{font-size:24px;color:#c2410c;margin:0 0 14px}.panel p{font-size:18px;line-height:1.62;margin:0}.question{margin-top:20px;padding:15px 18px;border-radius:12px;background:#fff7ed;color:#9a3412;font-weight:700}</style></head><body><main class="app"><div class="eyebrow">Análise aplicada</div><h1 class="title">__TITLE__</h1><div class="layout"><nav id="tabs" class="tabs"></nav><section class="panel"><h2 id="sectionTitle"></h2><p id="sectionText"></p><div class="question">Que decisão você tomaria nesta etapa e por quê?</div></section></div></main><script>const sections=__SECTIONS__,tabs=document.getElementById('tabs');function show(i){document.querySelectorAll('.tab').forEach((b,x)=>b.classList.toggle('active',x===i));sectionTitle.textContent=sections[i].title;sectionText.textContent=sections[i].text}sections.forEach((s,i)=>{const b=document.createElement('button');b.className='tab';b.textContent=`${i+1}. ${s.title}`;b.onclick=()=>show(i);tabs.appendChild(b)});show(0);</script></body></html>'''.replace("__TITLE__", title).replace("__SECTIONS__", sections)
+
+
+def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
+    """Guarantee a visible, functional HTML element for interactive types.
+
+    Some provider responses use the legacy ``content`` field and some return
+    an empty element array while still labelling the slide as interactive.
+    Normalize the former and replace the latter with the safe deterministic
+    activity so neither the storyboard nor the generated course is blank.
+    """
+    stype = str((slide or {}).get("type") or "")
+    builders = {
+        "simulator": _build_simulator_fallback_html,
+        "flashcard": _build_flashcard_fallback_html,
+        "timeline": _build_timeline_fallback_html,
+        "case_study": _build_case_study_fallback_html,
+    }
+    if stype not in builders:
+        return slide
+
+    html_content = _simulator_html_from_slide(slide)
+    if not html_content:
+        for element in slide.get("elements", []) or []:
+            legacy = element.get("content") or ""
+            if re.search(r"<(?:!doctype|html|script)\b", legacy, re.IGNORECASE):
+                html_content = legacy
+                break
+    if not _interactive_html_is_functional(html_content, stype):
+        html_content = builders[stype](slide)
+
+    slide["elements"] = [{"type": "html", "htmlContent": html_content}]
+    return slide
 
 
 def _hex_luminance(color: str) -> float:
