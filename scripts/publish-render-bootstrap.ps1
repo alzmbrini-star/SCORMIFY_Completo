@@ -134,19 +134,47 @@ function Invoke-GitHubApi {
     )
 
     $arguments = @("api", $Endpoint, "--method", $Method)
-    if ($null -eq $Body) {
-        $output = & $gh @arguments
-    }
-    else {
-        $json = $Body | ConvertTo-Json -Depth 20 -Compress
-        $output = $json | & $gh @arguments --input -
-    }
+    $json = if ($null -eq $Body) { $null } else { $Body | ConvertTo-Json -Depth 20 -Compress }
+    $maxAttempts = 5
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Falha ao chamar a API do GitHub: $Endpoint"
-    }
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        # Windows PowerShell transforma stderr de programas nativos em
+        # NativeCommandError quando ErrorActionPreference está em Stop.
+        # Capture a saída primeiro para que falhas transitórias possam ser
+        # classificadas e repetidas abaixo.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            if ($null -eq $Body) {
+                $output = & $gh @arguments 2>&1
+            }
+            else {
+                $output = $json | & $gh @arguments --input - 2>&1
+            }
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
 
-    return $output | ConvertFrom-Json
+        $outputText = ($output | Out-String).Trim()
+
+        if ($exitCode -eq 0) {
+            if ([string]::IsNullOrWhiteSpace($outputText)) {
+                return $null
+            }
+            return $outputText | ConvertFrom-Json
+        }
+
+        $isTransientFailure = $outputText -match '(?i)(HTTP\s+(429|500|502|503|504)|no server is currently available|temporar(?:y|ily)|timed?\s*out|connection reset)'
+        if (-not $isTransientFailure -or $attempt -eq $maxAttempts) {
+            throw "Falha ao chamar a API do GitHub: $Endpoint`n$outputText"
+        }
+
+        $delaySeconds = [Math]::Min(20, [Math]::Pow(2, $attempt))
+        Write-Warning "GitHub indisponível temporariamente (tentativa $attempt de $maxAttempts). Tentando novamente em $delaySeconds segundos..."
+        Start-Sleep -Seconds $delaySeconds
+    }
 }
 
 & $gh auth status | Out-Host
@@ -208,7 +236,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Restore simulator and flashcard previews and reject empty activities"
+        message = "Prevent blank infographic slides with contextual fallback"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

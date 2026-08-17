@@ -913,6 +913,11 @@ export default function Agent() {
   };
 
   const handleGenerateCourse = async (genMode = null) => {
+    // A resumed session still holds the previous successful courseResult.
+    // Do not expose that stale result (and its "Abrir no Editor" button)
+    // while a replacement/new course is being generated.
+    const previousGeneratedProject = generatedProject;
+    setGeneratedProject(null);
     setLoading(true);
     setGenerationStartTime(Date.now());
     const aiCount = Object.values(mediaConfig).filter(m => m.type === 'ai_image').length;
@@ -1009,6 +1014,13 @@ export default function Agent() {
       toast.error(e.message || 'Erro ao gerar curso');
       addChatMsg('agent', `Erro ao gerar o curso: ${e.message || 'Erro desconhecido'}`);
       setGenerationPhases([]);
+      // If regeneration failed, the previously completed project is still
+      // valid and may be opened again. Restore it only after processing has
+      // definitively stopped.
+      if (previousGeneratedProject?.projectId) {
+        setGeneratedProject(previousGeneratedProject);
+        setCurrentStep(6);
+      }
     } finally {
       setLoading(false);
     }

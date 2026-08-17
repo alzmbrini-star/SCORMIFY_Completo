@@ -988,6 +988,11 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                         "type": "html",
                         "htmlContent": _build_case_study_fallback_html(fallback_source),
                     }]
+                elif stype == "infographic":
+                    fallback_elements = [{
+                        "type": "html",
+                        "htmlContent": _build_infographic_fallback_html(fallback_source),
+                    }]
                 elif stype == "timeline":
                     fallback_elements = [{
                         "type": "html",
@@ -1119,8 +1124,26 @@ def _slide_plain_text(slide_context: Optional[dict]) -> str:
         str(slide_context.get("notes") or slide_context.get("narrationScript") or ""),
     ]
     for element in slide_context.get("elements", []):
-        parts.append(str(element.get("content") or element.get("htmlContent") or ""))
-    clean = re.sub(r"<[^>]+>", " ", " ".join(parts))
+        raw_element = str(element.get("content") or element.get("htmlContent") or "")
+        # Only visible HTML may become pedagogical source text.  Removing tags
+        # alone is insufficient because it leaves CSS and JavaScript behind,
+        # which previously produced flashcards containing declarations such as
+        # `justify-content: center`.
+        raw_element = re.sub(
+            r"<(?:style|script|template|noscript)\b[^>]*>[\s\S]*?</(?:style|script|template|noscript)>",
+            " ",
+            raw_element,
+            flags=re.IGNORECASE,
+        )
+        parts.append(raw_element)
+    combined = " ".join(parts)
+    combined = re.sub(
+        r"<(?:style|script|template|noscript)\b[^>]*>[\s\S]*?</(?:style|script|template|noscript)>",
+        " ",
+        combined,
+        flags=re.IGNORECASE,
+    )
+    clean = re.sub(r"<[^>]+>", " ", combined)
     clean = html.unescape(re.sub(r"\s+", " ", clean)).strip()
     return clean[:1800]
 
@@ -2078,6 +2101,20 @@ def _interactive_html_is_functional(html_content: str, content_type: str = "") -
         has_flip = "rotatey" in lowered or "classlist.toggle('flipped" in lowered or 'classlist.toggle("flipped' in lowered
         if not has_card_data or not has_flip:
             return False
+        # Card data must be educational prose, never stylesheet fragments.
+        # Inspect only the data declaration so legitimate CSS in <style> does
+        # not trigger a false rejection.
+        card_data_match = re.search(
+            r"(?:const|let|var)\s+(?:cards|flashcards)\s*=\s*([\s\S]{1,12000}?\])\s*;",
+            raw,
+            re.IGNORECASE,
+        )
+        if card_data_match and re.search(
+            r"(?i)(?:justify-content|align-items|grid-template|font-size|border-radius|"
+            r"background-color|display\s*:\s*(?:flex|grid|block)|[.#][\w-]+\s*\{)",
+            card_data_match.group(1),
+        ):
+            return False
     return True
 
 
@@ -2201,6 +2238,24 @@ def _build_timeline_fallback_html(sb_slide: dict) -> str:
 <style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:linear-gradient(135deg,#f8fafc,#e0ecff);color:#10213f;display:grid;place-items:center}.app{width:900px;padding:34px}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#2563eb}.title{font-size:30px;margin:7px 0 30px}.track{height:5px;background:#bfdbfe;position:relative;margin:64px 36px 46px}.nodes{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center}.node{width:54px;height:54px;border-radius:50%;border:5px solid white;background:#2563eb;color:white;font-size:17px;font-weight:900;box-shadow:0 8px 25px #1d4ed844;cursor:pointer;transition:.25s}.node.active{background:#f97316;transform:scale(1.18)}.labels{display:flex;justify-content:space-between;margin:0 12px}.labels span{width:110px;text-align:center;font-size:12px;font-weight:800;color:#475569}.card{min-height:150px;border-radius:20px;background:white;padding:26px 30px;box-shadow:0 18px 45px #1e3a5f1f;border:1px solid #dbeafe}.card h2{font-size:21px;margin:0 0 10px;color:#1d4ed8}.card p{font-size:17px;line-height:1.55;margin:0}.hint{text-align:center;margin-top:14px;font-size:12px;color:#64748b}</style></head><body><main class="app"><div class="eyebrow">Cronologia interativa</div><h1 class="title">__TITLE__</h1><div class="track"><div id="nodes" class="nodes"></div></div><div id="labels" class="labels"></div><section class="card"><h2 id="eventTitle"></h2><p id="eventText"></p></section><div class="hint">Selecione os marcos para explorar cada etapa.</div></main><script>const events=__EVENTS__;const nodes=document.getElementById('nodes'),labels=document.getElementById('labels');function show(i){document.querySelectorAll('.node').forEach((n,x)=>n.classList.toggle('active',x===i));eventTitle.textContent=events[i].label;eventText.textContent=events[i].text}events.forEach((e,i)=>{const b=document.createElement('button');b.className='node';b.textContent=i+1;b.onclick=()=>show(i);nodes.appendChild(b);const l=document.createElement('span');l.textContent=e.label;labels.appendChild(l)});show(0);</script></body></html>'''.replace("__TITLE__", title).replace("__EVENTS__", events)
 
 
+def _build_infographic_fallback_html(sb_slide: dict) -> str:
+    """Build a contextual interactive infographic instead of a blank iframe."""
+    title = html.escape(str(sb_slide.get("title") or "Infográfico do módulo"))
+    parts = _fallback_content_parts(sb_slide, 5)[:5]
+    colors = ["#2563eb", "#7c3aed", "#0891b2", "#059669", "#ea580c"]
+    items = json.dumps([
+        {
+            "number": f"0{i + 1}",
+            "title": (value[:58] + "…") if len(value) > 58 else value,
+            "text": value,
+            "value": 58 + i * 8,
+            "color": colors[i],
+        }
+        for i, value in enumerate(parts)
+    ], ensure_ascii=False).replace("</", "<\\/")
+    return r'''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:radial-gradient(circle at 12% 10%,#dbeafe 0,transparent 32%),#f8fafc;color:#172033;display:grid;place-items:center}.app{width:920px;padding:27px}.eyebrow{font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#2563eb}.title{font-size:29px;margin:6px 0 20px}.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:11px}.item{min-height:210px;border:1px solid #dbe3ef;border-top:6px solid var(--c);border-radius:17px;background:#fff;padding:17px 14px;text-align:left;cursor:pointer;box-shadow:0 12px 28px #0f172a12;transition:.22s}.item:hover,.item.active{transform:translateY(-7px);box-shadow:0 18px 36px #0f172a24}.num{font-size:29px;font-weight:900;color:var(--c)}.item h2{font-size:14px;line-height:1.3;margin:9px 0;color:#24324a}.bar{height:7px;border-radius:9px;background:#e2e8f0;overflow:hidden;margin-top:15px}.fill{height:100%;width:var(--v);background:var(--c);border-radius:9px}.detail{margin-top:15px;min-height:92px;border-radius:16px;padding:18px 21px;background:#172033;color:#fff;display:grid;grid-template-columns:auto 1fr;gap:17px;align-items:center}.detail strong{font-size:28px;color:#93c5fd}.detail p{font-size:16px;line-height:1.45;margin:0}.hint{text-align:center;font-size:12px;color:#64748b;margin-top:10px}@media(max-width:720px){.app{width:100%;padding:14px}.grid{grid-template-columns:1fr 1fr}.item{min-height:150px}.detail{grid-template-columns:1fr}}</style></head><body><main class="app"><div class="eyebrow">Síntese visual interativa</div><h1 class="title">__TITLE__</h1><section id="grid" class="grid"></section><section class="detail"><strong id="detailNum"></strong><p id="detailText"></p></section><div class="hint">Selecione os blocos para explorar cada conceito.</div></main><script>const items=__ITEMS__,grid=document.getElementById('grid');function show(i){document.querySelectorAll('.item').forEach((x,n)=>x.classList.toggle('active',n===i));detailNum.textContent=items[i].number;detailText.textContent=items[i].text}items.forEach((x,i)=>{const b=document.createElement('button');b.className='item';b.style.setProperty('--c',x.color);b.style.setProperty('--v',x.value+'%');b.innerHTML='<div class="num">'+x.number+'</div><h2></h2><div class="bar"><div class="fill"></div></div>';b.querySelector('h2').textContent=x.title;b.onclick=()=>show(i);grid.appendChild(b)});show(0);</script></body></html>'''.replace("__TITLE__", title).replace("__ITEMS__", items)
+
+
 def _build_case_study_fallback_html(sb_slide: dict) -> str:
     title = html.escape(str(sb_slide.get("title") or "Estudo de caso"))
     parts = _fallback_content_parts(sb_slide, 5)
@@ -2225,6 +2280,7 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
     stype = str((slide or {}).get("type") or "")
     builders = {
         "simulator": _build_simulator_fallback_html,
+        "infographic": _build_infographic_fallback_html,
         "flashcard": _build_flashcard_fallback_html,
         "timeline": _build_timeline_fallback_html,
         "case_study": _build_case_study_fallback_html,
@@ -2722,6 +2778,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 if html_content:
                     logger.warning("Rejected placeholder flashcard HTML on slide %s; using safe fallback", i)
                 html_content = _build_flashcard_fallback_html(sb_slide)
+            elif stype == "infographic" and not _interactive_html_is_functional(html_content, stype):
+                if html_content:
+                    logger.warning("Rejected blank infographic HTML on slide %s; using safe fallback", i)
+                html_content = _build_infographic_fallback_html(sb_slide)
             elif stype == "timeline" and not _interactive_html_is_functional(html_content, stype):
                 if html_content:
                     logger.warning("Rejected blank timeline HTML on slide %s; using safe fallback", i)

@@ -3,6 +3,7 @@ from services.ai_agent import (
     _build_fallback_structure,
     _build_case_study_fallback_html,
     _build_flashcard_fallback_html,
+    _build_infographic_fallback_html,
     _build_storyboard_batches,
     _build_timeline_fallback_html,
     _interactive_html_is_functional,
@@ -48,6 +49,23 @@ def test_empty_simulator_is_replaced_before_storyboard_preview():
     html = normalized["elements"][0]["htmlContent"]
     assert _interactive_html_is_functional(html, "simulator")
     assert "<script>" in html
+
+
+def test_empty_infographic_is_replaced_with_contextual_visual():
+    slide = {
+        "type": "infographic",
+        "title": "Neurociência da criatividade",
+        "moduleName": "Fundamentos da criatividade",
+        "purpose": "Relacionar observação, repertório, associação, incubação e experimentação.",
+        "elements": [],
+    }
+
+    normalized = _normalize_interactive_storyboard_slide(slide)
+    html = normalized["elements"][0]["htmlContent"]
+
+    assert _interactive_html_is_functional(html, "infographic")
+    assert "Síntese visual interativa" in html
+    assert "Neurociência da criatividade" in html
 
 
 def test_analysis_fallback_derives_title_from_uploaded_filename():

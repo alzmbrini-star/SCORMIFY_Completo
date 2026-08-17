@@ -105,3 +105,37 @@ def test_flashcard_fallback_has_five_real_cards_and_interactions():
     assert "Não sei" in generated
     assert "Resultado:" in generated
     assert "CSS styles here" not in generated
+
+
+def test_slide_plain_text_never_exposes_css_or_javascript_as_course_content():
+    extracted = ai_agent._slide_plain_text({
+        "title": "Pensamento lateral",
+        "elements": [{
+            "type": "html",
+            "htmlContent": """<!doctype html><html><head><style>
+            .flashcards { display:flex; justify-content:center; }
+            </style></head><body><h2>Gerar alternativas criativas</h2>
+            <p>Questione premissas e explore novas perspectivas.</p>
+            <script>const cards=[{front:'código',back:'interno'}];</script>
+            </body></html>""",
+        }],
+    })
+
+    assert "Gerar alternativas criativas" in extracted
+    assert "Questione premissas" in extracted
+    assert "justify-content" not in extracted
+    assert "const cards" not in extracted
+
+
+def test_flashcard_with_css_inside_card_data_is_rejected():
+    polluted = """<!doctype html><html><head><style>
+    body{display:grid}.card{transform:rotateY(180deg)}
+    </style></head><body><h1>Revisão de pensamento lateral</h1>
+    <div id='front'>Conteúdo do cartão</div><div id='back'>Resposta</div>
+    <script>const cards=[
+      {front:'Qual é a técnica?',back:'Explorar alternativas'},
+      {front:'justify-content: center;} .flashcards {display: flex;',back:'align-items:center'}
+    ];document.body.onclick=()=>document.body.classList.toggle('flipped');</script>
+    </body></html>"""
+
+    assert not ai_agent._interactive_html_is_functional(polluted, "flashcard")
