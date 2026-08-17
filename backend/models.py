@@ -555,6 +555,11 @@ class BrandKitUpdate(BaseModel):
     loaderTitle: Optional[str] = None
     loaderColor: Optional[str] = None
     loaderAccent: Optional[str] = None
+    # Traditional SCORM/HTML player chrome (company-level defaults).
+    playerCanvasColor: Optional[str] = None
+    playerHeaderColor: Optional[str] = None
+    playerNavigationColor: Optional[str] = None
+    playerAccentColor: Optional[str] = None
 
 
 # Asset categories the UI lets the super_admin file imagery under. The Agent

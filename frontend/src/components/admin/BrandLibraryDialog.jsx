@@ -54,6 +54,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
     // Pré-loader do SCORM/HTML — opcionais. Se vazios, o exporter usa o
     // primaryColor + título do curso automaticamente.
     loaderTitle: "", loaderColor: "", loaderAccent: "",
+    playerCanvasColor: "", playerHeaderColor: "", playerNavigationColor: "", playerAccentColor: "",
   });
   // Upload form state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -105,6 +106,10 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
         loaderTitle: d.loaderTitle || "",
         loaderColor: d.loaderColor || "",
         loaderAccent: d.loaderAccent || "",
+        playerCanvasColor: d.playerCanvasColor || "",
+        playerHeaderColor: d.playerHeaderColor || "",
+        playerNavigationColor: d.playerNavigationColor || "",
+        playerAccentColor: d.playerAccentColor || "",
       });
     } catch (e) {
       // ignore — empty kit is a normal state
@@ -435,6 +440,35 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                 data-testid="bl-kit-font"
                 className="bg-slate-900 border-slate-700 text-white"
               />
+            </div>
+
+            <div className="pt-2 border-t border-slate-700">
+              <h4 className="text-sm font-semibold text-slate-200 mb-1">Aparência do player (SCORM/HTML)</h4>
+              <p className="text-xs text-slate-400 mb-3">
+                Personalize por empresa a área externa do slide e as barras de navegação. Essas cores não alteram o conteúdo interno dos slides.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: "playerCanvasColor", label: "Fundo externo do slide", fallback: "#0f0f1a" },
+                  { key: "playerHeaderColor", label: "Barra superior", fallback: "#101827" },
+                  { key: "playerNavigationColor", label: "Barra inferior", fallback: "#16213e" },
+                  { key: "playerAccentColor", label: "Botões e destaques", fallback: "#0f3460" },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <Label className="text-slate-300">{f.label}</Label>
+                    <div className="flex gap-2 items-center">
+                      <input type="color" value={brandKit[f.key] || f.fallback}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        data-testid={`bl-kit-${f.key}-color`}
+                        className="w-12 h-10 rounded cursor-pointer bg-transparent border border-slate-700" />
+                      <Input value={brandKit[f.key] || ""}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        placeholder={f.fallback} data-testid={`bl-kit-${f.key}-hex`}
+                        className="bg-slate-900 border-slate-700 text-white" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* ── Pré-loader do SCORM/HTML ─────────────────────────────

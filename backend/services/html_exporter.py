@@ -603,6 +603,11 @@ async def generate_standalone_html(
         course_data["_loader"] = resolve_loader_config(project)
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"resolve_loader_config failed (non-fatal): {exc}")
+    try:
+        from services.player_theme import resolve_player_theme
+        course_data["_playerTheme"] = resolve_player_theme(project)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"resolve_player_theme failed (non-fatal): {exc}")
     
     # Add questions for quiz support
     if questions:
@@ -687,6 +692,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     # `_loader` is internal-only — strip it before serialising into the
     # JS bundle so the runtime payload stays clean.
     sanitized_data.pop("_loader", None)
+    player_theme = course_data.get("_playerTheme") or {}
+    sanitized_data.pop("_playerTheme", None)
     
     for slide in sanitized_data.get('slides', []):
         for element in slide.get('elements', []):
@@ -3650,5 +3657,25 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     {_generate_tutor_block(tutor_config)}
 </body>
 </html>'''
+
+    canvas = player_theme.get("canvas", "#0f0f1a")
+    header = player_theme.get("header", "#101827")
+    navigation = player_theme.get("navigation", "#16213e")
+    accent = player_theme.get("accent", "#0f3460")
+    header_text = player_theme.get("headerText", "#f8fafc")
+    navigation_text = player_theme.get("navigationText", "#f8fafc")
+    accent_text = player_theme.get("accentText", "#f8fafc")
+    branded_player_css = f"""<style id="scormify-company-player-theme">
+html,body{{background:{canvas}}}
+#slide-wrapper{{background:{canvas}}}
+#header{{background:{header};color:{header_text};border-color:{accent}}}
+#header h1,#progress-info{{color:{header_text}}}
+#controls{{background:{navigation};color:{navigation_text};border-color:{accent}}}
+#controls .control-btn,#controls .icon-btn{{background:{accent};color:{accent_text}}}
+#controls .progress-dot.active,#controls .volume-slider::-webkit-slider-thumb{{background:{accent}}}
+#sidebar{{background:{navigation};color:{navigation_text}}}
+.sidebar-item.active{{border-color:{accent}}}
+</style>"""
+    html = html.replace("</head>", branded_player_css + "</head>", 1)
     
     return html

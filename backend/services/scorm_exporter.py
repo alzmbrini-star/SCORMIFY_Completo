@@ -135,6 +135,7 @@ def _build_html(
     loader_title: str = "Carregando curso…",
     loader_primary: str = "#3b82f6",
     loader_accent: str = "#60a5fa",
+    player_theme: dict = None,
 ) -> str:
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
@@ -143,6 +144,28 @@ def _build_html(
     # Replace dimension placeholders in CSS
     css = css.replace("__SLIDE_WIDTH__", str(width))
     css = css.replace("__SLIDE_HEIGHT__", str(height))
+    theme = player_theme or {}
+    canvas = theme.get("canvas", "#0f0f1a")
+    header = theme.get("header", "#101827")
+    navigation = theme.get("navigation", "#16213e")
+    accent = theme.get("accent", "#0f3460")
+    header_text = theme.get("headerText", "#f8fafc")
+    navigation_text = theme.get("navigationText", "#f8fafc")
+    accent_text = theme.get("accentText", "#f8fafc")
+    # Keep the base stylesheet backwards compatible and add a final branded
+    # layer with stronger specificity for the player chrome only.
+    css += f"""
+/* Company player theme */
+html, body {{ background: {canvas}; }}
+#slide-wrapper {{ background: {canvas}; }}
+#header {{ background: {header}; color: {header_text}; border-color: {accent}; }}
+#header h1, #progress-info {{ color: {header_text}; }}
+#controls {{ background: {navigation}; color: {navigation_text}; border-color: {accent}; }}
+#controls .control-btn, #controls .icon-btn {{ background: {accent}; color: {accent_text}; }}
+#controls .progress-dot.active, #controls .volume-slider::-webkit-slider-thumb {{ background: {accent}; }}
+#slide-sidebar {{ background: {navigation}; color: {navigation_text}; }}
+.sidebar-header {{ background: {header}; color: {header_text}; border-color: {accent}; }}
+"""
 
     # Inject CSS into template
     html = template.replace("__CSS_CONTENT__", css)
@@ -938,11 +961,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     # brand kit + per-course override. Falls back to neutral defaults.
     try:
         from services.loader_config import resolve_loader_config
+        from services.player_theme import resolve_player_theme
         _proj_dict = project.model_dump() if hasattr(project, "model_dump") else dict(project)
         _loader_cfg = resolve_loader_config(_proj_dict)
+        _player_theme = resolve_player_theme(_proj_dict)
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"loader_config resolve failed in classic SCORM (non-fatal): {exc}")
         _loader_cfg = {"title_html": "Carregando curso…", "primary": "#3b82f6", "accent": "#60a5fa"}
+        _player_theme = None
 
     html_content = _build_html(
         title=clean_title,
@@ -955,6 +981,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         loader_title=_loader_cfg["title_html"],
         loader_primary=_loader_cfg["primary"],
         loader_accent=_loader_cfg["accent"],
+        player_theme=_player_theme,
     )
     
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:
