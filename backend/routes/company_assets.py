@@ -106,7 +106,21 @@ async def update_brand_kit(
         if unset_fields:
             update["$unset"] = unset_fields
     try:
-        result = await db.companies.update_one({"id": company_id}, update)
+        try:
+            result = await db.companies.update_one({"id": company_id}, update)
+        except Exception as nested_exc:
+            # Some legacy Atlas documents/validators reject dotted writes
+            # below brandKit even when the value looks like a dict. Fall back
+            # to one atomic replacement of only the embedded Brand Kit. This
+            # also gives transient driver errors one safe retry.
+            logger.warning(
+                "Nested Brand Kit update failed for company=%s; retrying embedded replacement: %s",
+                company_id, nested_exc,
+            )
+            result = await db.companies.update_one(
+                {"id": company_id},
+                {"$set": {"brandKit": persisted_kit, "updatedAt": now_utc()}},
+            )
         if not result.matched_count:
             raise HTTPException(status_code=404, detail="Empresa nao encontrada")
     except HTTPException:
@@ -115,7 +129,10 @@ async def update_brand_kit(
         logger.exception("Failed to persist Brand Kit for company=%s", company_id)
         raise HTTPException(
             status_code=500,
-            detail="Nao foi possivel salvar a identidade visual no banco de dados.",
+            detail=(
+                "Nao foi possivel salvar a identidade visual no banco de dados "
+                f"[{type(exc).__name__}]."
+            ),
         ) from exc
     return {"brandKit": persisted_kit}
 
