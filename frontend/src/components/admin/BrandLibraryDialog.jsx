@@ -56,6 +56,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
     loaderTitle: "", loaderColor: "", loaderAccent: "",
     playerCanvasColor: "", playerHeaderColor: "", playerNavigationColor: "", playerAccentColor: "",
     playerSidebarColor: "", playerSidebarHeaderColor: "", playerSidebarItemColor: "", playerSidebarActiveColor: "",
+    tutorHeaderColor: "", tutorPanelColor: "", tutorAccentColor: "", tutorMessageColor: "",
   });
   // Upload form state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -115,6 +116,10 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
         playerSidebarHeaderColor: d.playerSidebarHeaderColor || "",
         playerSidebarItemColor: d.playerSidebarItemColor || "",
         playerSidebarActiveColor: d.playerSidebarActiveColor || "",
+        tutorHeaderColor: d.tutorHeaderColor || "",
+        tutorPanelColor: d.tutorPanelColor || "",
+        tutorAccentColor: d.tutorAccentColor || "",
+        tutorMessageColor: d.tutorMessageColor || "",
       });
     } catch (e) {
       // ignore — empty kit is a normal state
@@ -481,6 +486,32 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                   { key: "playerSidebarHeaderColor", label: "Topo do menu", fallback: "#0f3460" },
                   { key: "playerSidebarItemColor", label: "Cartões dos slides", fallback: "#0f3460" },
                   { key: "playerSidebarActiveColor", label: "Slide selecionado", fallback: "#312e81" },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <Label className="text-slate-300">{f.label}</Label>
+                    <div className="flex gap-2 items-center">
+                      <input type="color" value={brandKit[f.key] || f.fallback}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        data-testid={`bl-kit-${f.key}-color`}
+                        className="w-12 h-10 rounded cursor-pointer bg-transparent border border-slate-700" />
+                      <Input value={brandKit[f.key] || ""}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        placeholder={f.fallback} data-testid={`bl-kit-${f.key}-hex`}
+                        className="bg-slate-900 border-slate-700 text-white" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-300 mt-5 mb-2">Tutor IA</h5>
+              <p className="text-xs text-slate-400 mb-3">
+                Se ficar vazio, o Tutor herda automaticamente as cores do player e da marca da empresa.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: "tutorHeaderColor", label: "Cabeçalho do Tutor", fallback: brandKit.playerAccentColor || brandKit.primaryColor || "#6366f1" },
+                  { key: "tutorPanelColor", label: "Fundo do painel", fallback: brandKit.playerNavigationColor || "#1e1e2e" },
+                  { key: "tutorAccentColor", label: "Botões e destaques", fallback: brandKit.accentColor || brandKit.playerAccentColor || "#6366f1" },
+                  { key: "tutorMessageColor", label: "Mensagem do Tutor", fallback: brandKit.playerSidebarItemColor || "#2a2a3e" },
                 ].map((f) => (
                   <div key={f.key}>
                     <Label className="text-slate-300">{f.label}</Label>

@@ -352,6 +352,9 @@ async def _run_scorm_export_job(
                 }
         except Exception as e:
             logger.warning(f"Tutor settings load failed (non-fatal): {e}")
+        if tutor_settings:
+            from services.player_theme import resolve_tutor_theme
+            tutor_settings['theme'] = resolve_tutor_theme(project_doc)
 
         # Load gamification config
         gamification_settings = None
@@ -834,6 +837,8 @@ async def _run_html_export_job(
                     'projectId': project_id,
                     'companyId': project_doc.get('companyId', '') or '',
                 }
+                from services.player_theme import resolve_tutor_theme
+                tutor_settings['theme'] = resolve_tutor_theme(project_doc)
 
                 # Per-slide contexts
                 per_slide_contexts = []
@@ -1052,6 +1057,8 @@ async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)
         tutor_doc = await db.tutor_settings.find_one({"projectId": proj_id}, {"_id": 0})
         if tutor_doc and tutor_doc.get("enabled"):
             tutor_settings = tutor_doc
+            from services.player_theme import resolve_tutor_theme
+            tutor_settings['theme'] = resolve_tutor_theme(project_doc)
     except Exception:
         pass
 

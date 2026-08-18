@@ -16,6 +16,13 @@ DEFAULTS = {
     "sidebarActive": "#312e81",
 }
 
+TUTOR_DEFAULTS = {
+    "header": "#6366f1",
+    "panel": "#1e1e2e",
+    "accent": "#6366f1",
+    "message": "#2a2a3e",
+}
+
 
 def _safe_hex(value: Any, fallback: str) -> str:
     raw = str(value or "").strip()
@@ -65,3 +72,78 @@ def resolve_player_theme(project: Dict[str, Any] | None) -> Dict[str, str]:
         "sidebarItemText": _text_color(sidebar_item),
         "sidebarActiveText": _text_color(sidebar_active),
     }
+
+
+def resolve_tutor_theme(project: Dict[str, Any] | None) -> Dict[str, Any]:
+    """Resolve Tutor colors from the company kit with safe player fallbacks.
+
+    Dedicated Tutor colors take precedence. When they are empty, companies
+    that already customized the player automatically receive a matching Tutor.
+    Legacy courses without a Brand Kit keep the original purple/dark palette.
+    """
+    project = project or {}
+    kit = project.get("brandKit") or {}
+    header_fallback = kit.get("playerAccentColor") or kit.get("primaryColor") or TUTOR_DEFAULTS["header"]
+    panel_fallback = kit.get("playerNavigationColor") or TUTOR_DEFAULTS["panel"]
+    accent_fallback = kit.get("accentColor") or kit.get("playerAccentColor") or TUTOR_DEFAULTS["accent"]
+    message_fallback = kit.get("playerSidebarItemColor") or TUTOR_DEFAULTS["message"]
+    header = _safe_hex(kit.get("tutorHeaderColor"), _safe_hex(header_fallback, TUTOR_DEFAULTS["header"]))
+    panel = _safe_hex(kit.get("tutorPanelColor"), _safe_hex(panel_fallback, TUTOR_DEFAULTS["panel"]))
+    accent = _safe_hex(kit.get("tutorAccentColor"), _safe_hex(accent_fallback, TUTOR_DEFAULTS["accent"]))
+    message = _safe_hex(kit.get("tutorMessageColor"), _safe_hex(message_fallback, TUTOR_DEFAULTS["message"]))
+    customized = any(kit.get(key) for key in (
+        "tutorHeaderColor", "tutorPanelColor", "tutorAccentColor", "tutorMessageColor",
+        "playerAccentColor", "playerNavigationColor", "playerSidebarItemColor",
+        "primaryColor", "accentColor",
+    ))
+    return {
+        "customized": customized,
+        "header": header,
+        "panel": panel,
+        "accent": accent,
+        "message": message,
+        "headerText": _text_color(header),
+        "panelText": _text_color(panel),
+        "accentText": _text_color(accent),
+        "messageText": _text_color(message),
+    }
+
+
+def build_tutor_theme_css(theme: Dict[str, Any] | None) -> str:
+    """Build scoped CSS overrides without weakening accessibility modes."""
+    if theme and theme.get("customized") is False:
+        return ""
+    theme = theme or TUTOR_DEFAULTS
+    header = _safe_hex(theme.get("header"), TUTOR_DEFAULTS["header"])
+    panel = _safe_hex(theme.get("panel"), TUTOR_DEFAULTS["panel"])
+    accent = _safe_hex(theme.get("accent"), TUTOR_DEFAULTS["accent"])
+    message = _safe_hex(theme.get("message"), TUTOR_DEFAULTS["message"])
+    header_text = _safe_hex(theme.get("headerText"), _text_color(header))
+    panel_text = _safe_hex(theme.get("panelText"), _text_color(panel))
+    accent_text = _safe_hex(theme.get("accentText"), _text_color(accent))
+    message_text = _safe_hex(theme.get("messageText"), _text_color(message))
+    normal = ".tutor-panel:not(.tutor-contrast-light):not(.tutor-contrast-high)"
+    return f"""
+/* Company Tutor theme. Light/high-contrast accessibility modes stay sovereign. */
+.tutor-fab {{ background: {accent}; color: {accent_text}; box-shadow: 0 4px 20px {accent}66; }}
+.tutor-fab:hover {{ box-shadow: 0 6px 28px {accent}80; }}
+{normal} {{ background: {panel}; color: {panel_text}; }}
+{normal} .tutor-header {{ background: {header}; color: {header_text}; }}
+{normal} .tutor-header button {{ color: {header_text}; }}
+{normal} .tutor-slide-indicator {{ background: {message}; color: {message_text}; border-color: {accent}66; }}
+{normal} .tutor-suggestions {{ border-color: {accent}55; }}
+{normal} .tutor-suggestion-btn {{ border-color: {accent}; color: {panel_text}; }}
+{normal} .tutor-suggestion-btn:hover,
+{normal} .tutor-msg.user,
+{normal} .tutor-send {{ background: {accent}; color: {accent_text}; border-color: {accent}; }}
+{normal} .tutor-msg.assistant,
+{normal} .tutor-typing,
+{normal} .tutor-input {{ background: {message}; color: {message_text}; }}
+{normal} .tutor-msg.assistant strong {{ color: {accent}; }}
+{normal} .tutor-typing span {{ background: {accent}; }}
+{normal} .tutor-input-area,
+{normal} .tutor-counter {{ background: {panel}; color: {panel_text}; border-color: {accent}55; }}
+{normal} .tutor-input {{ border-color: {accent}99; }}
+{normal} .tutor-input:focus {{ border-color: {accent}; }}
+{normal} .tutor-a11y-bar {{ border-color: {accent}55; }}
+""".strip()

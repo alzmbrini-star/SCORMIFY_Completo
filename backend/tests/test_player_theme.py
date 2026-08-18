@@ -1,4 +1,10 @@
-from services.player_theme import DEFAULTS, resolve_player_theme
+from services.player_theme import (
+    DEFAULTS,
+    TUTOR_DEFAULTS,
+    build_tutor_theme_css,
+    resolve_player_theme,
+    resolve_tutor_theme,
+)
 
 
 def test_player_theme_preserves_legacy_defaults_when_company_has_no_override():
@@ -41,3 +47,46 @@ def test_invalid_player_color_falls_back_safely():
         "brandKit": {"playerCanvasColor": "red; display:none"}
     })
     assert theme["canvas"] == DEFAULTS["canvas"]
+
+
+def test_tutor_inherits_company_player_colors_and_calculates_contrast():
+    theme = resolve_tutor_theme({
+        "brandKit": {
+            "playerAccentColor": "#ef4444",
+            "playerNavigationColor": "#fee2e2",
+            "playerSidebarItemColor": "#7f1d1d",
+        }
+    })
+    assert theme["header"] == "#ef4444"
+    assert theme["panel"] == "#fee2e2"
+    assert theme["message"] == "#7f1d1d"
+    assert theme["panelText"] == "#0f172a"
+    assert theme["messageText"] == "#f8fafc"
+
+
+def test_dedicated_tutor_colors_override_player_and_generate_scoped_css():
+    theme = resolve_tutor_theme({
+        "brandKit": {
+            "playerAccentColor": "#ef4444",
+            "tutorHeaderColor": "#112233",
+            "tutorPanelColor": "#ffffff",
+            "tutorAccentColor": "#facc15",
+            "tutorMessageColor": "#334155",
+        }
+    })
+    assert theme["header"] == "#112233"
+    assert theme["panel"] == "#ffffff"
+    assert theme["accent"] == "#facc15"
+    css = build_tutor_theme_css(theme)
+    assert ".tutor-fab" in css
+    assert ".tutor-contrast-light" in css
+    assert "#112233" in css
+    assert "#facc15" in css
+
+
+def test_tutor_preserves_legacy_palette_without_brand_kit():
+    theme = resolve_tutor_theme({"brandKit": {}})
+    assert theme["header"] == TUTOR_DEFAULTS["header"]
+    assert theme["panel"] == TUTOR_DEFAULTS["panel"]
+    assert theme["customized"] is False
+    assert build_tutor_theme_css(theme) == ""

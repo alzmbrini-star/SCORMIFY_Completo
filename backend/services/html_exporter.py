@@ -254,10 +254,12 @@ def _generate_tutor_block(tutor_config: dict = None) -> str:
     if not tutor_js:
         return ''
     
+    from services.player_theme import build_tutor_theme_css
+    tutor_theme_css = build_tutor_theme_css(tutor_config.get('theme'))
     tutor_config_json = json.dumps({**tutor_config, 'cssInlined': True}, ensure_ascii=False)
     
     return f'''
-    <style>{tutor_css}</style>
+    <style>{tutor_css}\n{tutor_theme_css}</style>
     <script>{tutor_js}</script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {{

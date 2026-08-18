@@ -65,6 +65,8 @@ $files = @(
     "backend/services/player_theme.py",
     "backend/services/export_assets/player.js",
     "backend/services/export_assets/player_template.html",
+    "backend/services/export_assets/tutor.css",
+    "backend/services/export_assets/tutor.js",
     "backend/services/export_assets/scorm-api.js",
     "backend/tests/test_bunny_video_embed.py",
     "backend/tests/test_job_tenant_access.py",

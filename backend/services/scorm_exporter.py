@@ -522,11 +522,13 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Write AI tutor files if tutor is enabled
     if tutor_config and tutor_config.get('enabled'):
+        from services.player_theme import build_tutor_theme_css
         (package_dir / "styles").mkdir(exist_ok=True)
         with open(package_dir / "scripts" / "tutor.js", 'w', encoding='utf-8') as f:
             f.write(_read_asset("tutor.js"))
         with open(package_dir / "styles" / "tutor.css", 'w', encoding='utf-8') as f:
             f.write(_read_asset("tutor.css"))
+            f.write("\n" + build_tutor_theme_css(tutor_config.get('theme')))
     
     # Write gamification files if enabled
     if gamification_config and gamification_config.get('enabled'):
@@ -917,6 +919,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             # enrichment to join the rows back to the right course.
             'projectId': tutor_config.get('projectId', '') or project.id or '',
             'companyId': tutor_config.get('companyId', '') or (getattr(project, 'companyId', '') or ''),
+            'theme': tutor_config.get('theme') or {},
         }
         logger.info(
             f"AI Tutor enabled for SCORM package with {len(slide_summaries)} slide summaries "

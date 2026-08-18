@@ -564,6 +564,11 @@ class BrandKitUpdate(BaseModel):
     playerSidebarHeaderColor: Optional[str] = None
     playerSidebarItemColor: Optional[str] = None
     playerSidebarActiveColor: Optional[str] = None
+    # AI Tutor chrome. Empty values inherit the company player/brand colors.
+    tutorHeaderColor: Optional[str] = None
+    tutorPanelColor: Optional[str] = None
+    tutorAccentColor: Optional[str] = None
+    tutorMessageColor: Optional[str] = None
 
 
 # Asset categories the UI lets the super_admin file imagery under. The Agent

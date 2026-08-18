@@ -1817,6 +1817,8 @@ def _BUILD_PAGE(
         try:
             assets_root = Path(__file__).parent / "export_assets"
             tutor_css = (assets_root / "tutor.css").read_text(encoding="utf-8")
+            from services.player_theme import build_tutor_theme_css
+            tutor_css += "\n" + build_tutor_theme_css(tutor_config.get("theme"))
             tutor_js = (assets_root / "tutor.js").read_text(encoding="utf-8")
             # Force cssInlined=true so the widget skips fetching styles/tutor.css (which doesn't exist in single-page)
             tutor_cfg = dict(tutor_config)
