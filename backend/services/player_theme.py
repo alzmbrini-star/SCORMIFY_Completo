@@ -10,6 +10,10 @@ DEFAULTS = {
     "header": "#101827",
     "navigation": "#16213e",
     "accent": "#0f3460",
+    "sidebar": "#16213e",
+    "sidebarHeader": "#0f3460",
+    "sidebarItem": "#0f3460",
+    "sidebarActive": "#312e81",
 }
 
 
@@ -40,6 +44,10 @@ def resolve_player_theme(project: Dict[str, Any] | None) -> Dict[str, str]:
     # otherwise existing companies would see their navigation change merely
     # by having an older Brand Kit configured.
     accent = _safe_hex(kit.get("playerAccentColor"), DEFAULTS["accent"])
+    sidebar = _safe_hex(kit.get("playerSidebarColor"), DEFAULTS["sidebar"])
+    sidebar_header = _safe_hex(kit.get("playerSidebarHeaderColor"), DEFAULTS["sidebarHeader"])
+    sidebar_item = _safe_hex(kit.get("playerSidebarItemColor"), DEFAULTS["sidebarItem"])
+    sidebar_active = _safe_hex(kit.get("playerSidebarActiveColor"), DEFAULTS["sidebarActive"])
     return {
         "canvas": canvas,
         "header": header,
@@ -48,4 +56,12 @@ def resolve_player_theme(project: Dict[str, Any] | None) -> Dict[str, str]:
         "headerText": _text_color(header),
         "navigationText": _text_color(navigation),
         "accentText": _text_color(accent),
+        "sidebar": sidebar,
+        "sidebarHeader": sidebar_header,
+        "sidebarItem": sidebar_item,
+        "sidebarActive": sidebar_active,
+        "sidebarText": _text_color(sidebar),
+        "sidebarHeaderText": _text_color(sidebar_header),
+        "sidebarItemText": _text_color(sidebar_item),
+        "sidebarActiveText": _text_color(sidebar_active),
     }

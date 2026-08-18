@@ -6,6 +6,8 @@ def test_player_theme_preserves_legacy_defaults_when_company_has_no_override():
     assert theme["canvas"] == DEFAULTS["canvas"]
     assert theme["header"] == DEFAULTS["header"]
     assert theme["navigation"] == DEFAULTS["navigation"]
+    assert theme["sidebar"] == DEFAULTS["sidebar"]
+    assert theme["sidebarHeader"] == DEFAULTS["sidebarHeader"]
 
 
 def test_company_can_customize_each_player_surface_and_text_contrast_is_automatic():
@@ -15,6 +17,10 @@ def test_company_can_customize_each_player_surface_and_text_contrast_is_automati
             "playerHeaderColor": "#ffffff",
             "playerNavigationColor": "#123456",
             "playerAccentColor": "#facc15",
+            "playerSidebarColor": "#f8fafc",
+            "playerSidebarHeaderColor": "#fde68a",
+            "playerSidebarItemColor": "#1e3a8a",
+            "playerSidebarActiveColor": "#fef3c7",
         }
     })
     assert theme["canvas"] == "#f1f5f9"
@@ -24,6 +30,10 @@ def test_company_can_customize_each_player_surface_and_text_contrast_is_automati
     assert theme["headerText"] == "#0f172a"
     assert theme["navigationText"] == "#f8fafc"
     assert theme["accentText"] == "#0f172a"
+    assert theme["sidebarText"] == "#0f172a"
+    assert theme["sidebarHeaderText"] == "#0f172a"
+    assert theme["sidebarItemText"] == "#f8fafc"
+    assert theme["sidebarActiveText"] == "#0f172a"
 
 
 def test_invalid_player_color_falls_back_safely():

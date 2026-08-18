@@ -152,6 +152,14 @@ def _build_html(
     header_text = theme.get("headerText", "#f8fafc")
     navigation_text = theme.get("navigationText", "#f8fafc")
     accent_text = theme.get("accentText", "#f8fafc")
+    sidebar = theme.get("sidebar", "#16213e")
+    sidebar_header = theme.get("sidebarHeader", "#0f3460")
+    sidebar_item = theme.get("sidebarItem", "#0f3460")
+    sidebar_active = theme.get("sidebarActive", "#312e81")
+    sidebar_text = theme.get("sidebarText", "#f8fafc")
+    sidebar_header_text = theme.get("sidebarHeaderText", "#f8fafc")
+    sidebar_item_text = theme.get("sidebarItemText", "#f8fafc")
+    sidebar_active_text = theme.get("sidebarActiveText", "#f8fafc")
     # Keep the base stylesheet backwards compatible and add a final branded
     # layer with stronger specificity for the player chrome only.
     css += f"""
@@ -163,8 +171,19 @@ html, body {{ background: {canvas}; }}
 #controls {{ background: {navigation}; color: {navigation_text}; border-color: {accent}; }}
 #controls .control-btn, #controls .icon-btn {{ background: {accent}; color: {accent_text}; }}
 #controls .progress-dot.active, #controls .volume-slider::-webkit-slider-thumb {{ background: {accent}; }}
-#slide-sidebar {{ background: {navigation}; color: {navigation_text}; }}
-.sidebar-header {{ background: {header}; color: {header_text}; border-color: {accent}; }}
+#slide-sidebar {{ background: {sidebar}; color: {sidebar_text}; }}
+.sidebar-header {{ background: {sidebar_header}; color: {sidebar_header_text}; border-color: {accent}; }}
+.sidebar-header h3,.sidebar-header .sidebar-close {{ color: {sidebar_header_text}; }}
+#sidebar-slides::-webkit-scrollbar-track {{ background: {sidebar}; }}
+#sidebar-slides::-webkit-scrollbar-thumb {{ background: {accent}; }}
+.sidebar-slide-item {{ background: {sidebar_item}; color: {sidebar_item_text}; }}
+.sidebar-slide-item:hover {{ background: {sidebar_active}; color: {sidebar_active_text}; }}
+.sidebar-slide-item.active {{ background: {sidebar_active}; color: {sidebar_active_text}; border-color: {accent}; }}
+.sidebar-slide-item .sidebar-slide-title,.sidebar-slide-item .sidebar-slide-label,
+.sidebar-slide-item .sidebar-slide-status {{ color: {sidebar_item_text}; }}
+.sidebar-slide-item.active .sidebar-slide-title,.sidebar-slide-item.active .sidebar-slide-label,
+.sidebar-slide-item.active .sidebar-slide-status {{ color: {sidebar_active_text}; }}
+.sidebar-slide-item .sidebar-slide-status {{ opacity: .78; }}
 """
 
     # Inject CSS into template

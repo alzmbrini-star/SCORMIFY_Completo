@@ -3665,6 +3665,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     header_text = player_theme.get("headerText", "#f8fafc")
     navigation_text = player_theme.get("navigationText", "#f8fafc")
     accent_text = player_theme.get("accentText", "#f8fafc")
+    sidebar = player_theme.get("sidebar", "#16213e")
+    sidebar_item = player_theme.get("sidebarItem", "#0f3460")
+    sidebar_active = player_theme.get("sidebarActive", "#312e81")
+    sidebar_text = player_theme.get("sidebarText", "#f8fafc")
+    sidebar_item_text = player_theme.get("sidebarItemText", "#f8fafc")
+    sidebar_active_text = player_theme.get("sidebarActiveText", "#f8fafc")
     branded_player_css = f"""<style id="scormify-company-player-theme">
 html,body{{background:{canvas}}}
 #slide-wrapper{{background:{canvas}}}
@@ -3673,8 +3679,12 @@ html,body{{background:{canvas}}}
 #controls{{background:{navigation};color:{navigation_text};border-color:{accent}}}
 #controls .control-btn,#controls .icon-btn{{background:{accent};color:{accent_text}}}
 #controls .progress-dot.active,#controls .volume-slider::-webkit-slider-thumb{{background:{accent}}}
-#sidebar{{background:{navigation};color:{navigation_text}}}
+#sidebar{{background:{sidebar};color:{sidebar_text}}}
+.sidebar-item{{background:{sidebar_item};color:{sidebar_item_text}}}
+.sidebar-item:hover,.sidebar-item.active{{background:{sidebar_active};color:{sidebar_active_text}}}
 .sidebar-item.active{{border-color:{accent}}}
+.sidebar-item .sidebar-item-title,.sidebar-item .sidebar-item-number{{color:{sidebar_item_text}}}
+.sidebar-item.active .sidebar-item-title,.sidebar-item.active .sidebar-item-number{{color:{sidebar_active_text}}}
 </style>"""
     html = html.replace("</head>", branded_player_css + "</head>", 1)
     

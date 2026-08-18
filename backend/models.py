@@ -560,6 +560,10 @@ class BrandKitUpdate(BaseModel):
     playerHeaderColor: Optional[str] = None
     playerNavigationColor: Optional[str] = None
     playerAccentColor: Optional[str] = None
+    playerSidebarColor: Optional[str] = None
+    playerSidebarHeaderColor: Optional[str] = None
+    playerSidebarItemColor: Optional[str] = None
+    playerSidebarActiveColor: Optional[str] = None
 
 
 # Asset categories the UI lets the super_admin file imagery under. The Agent

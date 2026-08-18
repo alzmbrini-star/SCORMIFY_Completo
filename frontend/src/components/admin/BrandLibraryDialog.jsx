@@ -55,6 +55,7 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
     // primaryColor + título do curso automaticamente.
     loaderTitle: "", loaderColor: "", loaderAccent: "",
     playerCanvasColor: "", playerHeaderColor: "", playerNavigationColor: "", playerAccentColor: "",
+    playerSidebarColor: "", playerSidebarHeaderColor: "", playerSidebarItemColor: "", playerSidebarActiveColor: "",
   });
   // Upload form state
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -110,6 +111,10 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
         playerHeaderColor: d.playerHeaderColor || "",
         playerNavigationColor: d.playerNavigationColor || "",
         playerAccentColor: d.playerAccentColor || "",
+        playerSidebarColor: d.playerSidebarColor || "",
+        playerSidebarHeaderColor: d.playerSidebarHeaderColor || "",
+        playerSidebarItemColor: d.playerSidebarItemColor || "",
+        playerSidebarActiveColor: d.playerSidebarActiveColor || "",
       });
     } catch (e) {
       // ignore — empty kit is a normal state
@@ -453,6 +458,29 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
                   { key: "playerHeaderColor", label: "Barra superior", fallback: "#101827" },
                   { key: "playerNavigationColor", label: "Barra inferior", fallback: "#16213e" },
                   { key: "playerAccentColor", label: "Botões e destaques", fallback: "#0f3460" },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <Label className="text-slate-300">{f.label}</Label>
+                    <div className="flex gap-2 items-center">
+                      <input type="color" value={brandKit[f.key] || f.fallback}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        data-testid={`bl-kit-${f.key}-color`}
+                        className="w-12 h-10 rounded cursor-pointer bg-transparent border border-slate-700" />
+                      <Input value={brandKit[f.key] || ""}
+                        onChange={(e) => setBrandKit({ ...brandKit, [f.key]: e.target.value })}
+                        placeholder={f.fallback} data-testid={`bl-kit-${f.key}-hex`}
+                        className="bg-slate-900 border-slate-700 text-white" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-300 mt-5 mb-2">Menu lateral</h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: "playerSidebarColor", label: "Fundo do menu", fallback: "#16213e" },
+                  { key: "playerSidebarHeaderColor", label: "Topo do menu", fallback: "#0f3460" },
+                  { key: "playerSidebarItemColor", label: "Cartões dos slides", fallback: "#0f3460" },
+                  { key: "playerSidebarActiveColor", label: "Slide selecionado", fallback: "#312e81" },
                 ].map((f) => (
                   <div key={f.key}>
                     <Label className="text-slate-300">{f.label}</Label>
