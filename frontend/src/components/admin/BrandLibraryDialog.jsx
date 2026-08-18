@@ -194,10 +194,22 @@ export default function BrandLibraryDialog({ open, onClose, company }) {
           body: JSON.stringify(brandKit),
         },
       );
-      if (!r.ok) throw new Error();
+      if (!r.ok) {
+        let detail = "Erro ao salvar identidade";
+        const raw = await r.text().catch(() => "");
+        try {
+          const body = JSON.parse(raw);
+          detail = body?.detail || detail;
+        } catch (_ignored) {
+          if (raw && raw !== "Internal Server Error") detail = raw;
+        }
+        throw new Error(detail);
+      }
+      const saved = await r.json();
+      if (saved?.brandKit) setBrandKit((current) => ({ ...current, ...saved.brandKit }));
       toast.success("Identidade visual salva");
     } catch (e) {
-      toast.error("Erro ao salvar identidade");
+      toast.error(e?.message || "Erro ao salvar identidade");
     }
   };
 

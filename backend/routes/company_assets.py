@@ -72,22 +72,52 @@ async def update_brand_kit(
     payload: BrandKitUpdate,
     user: dict = Depends(require_super_admin),
 ):
-    """Replace the brand kit fields for a company (super_admin only)."""
-    await _require_company(company_id)
-    kit = payload.model_dump(exclude_none=True)
+    """Update company Brand Kit atomically (super_admin only).
+
+    Updating nested fields instead of replacing the whole object preserves
+    older settings and avoids a second Mongo round-trip. Empty optional text
+    values mean "inherit/default" and are removed from the stored kit.
+    """
+    company = await _require_company(company_id)
+    dump = getattr(payload, "model_dump", None)
+    kit = dump(exclude_none=True) if dump else payload.dict(exclude_none=True)
     logger.info(
         "update_brand_kit company=%s saving kit keys=%s logoSize=%r logoPlacement=%r",
         company_id, list(kit.keys()), kit.get("logoSize"), kit.get("logoPlacement"),
     )
-    await db.companies.update_one(
-        {"id": company_id},
-        {"$set": {"brandKit": kit, "updatedAt": now_utc()}},
-    )
-    # Echo the persisted kit back so the client can verify what was stored.
-    persisted = await db.companies.find_one(
-        {"id": company_id}, {"_id": 0, "brandKit": 1},
-    )
-    return {"brandKit": (persisted or {}).get("brandKit") or kit}
+    existing_kit = company.get("brandKit")
+    set_fields = {"updatedAt": now_utc()}
+    unset_fields = {}
+    persisted_kit = dict(existing_kit) if isinstance(existing_kit, dict) else {}
+    for key, value in kit.items():
+        if isinstance(value, str) and not value.strip():
+            unset_fields[f"brandKit.{key}"] = ""
+            persisted_kit.pop(key, None)
+        else:
+            set_fields[f"brandKit.{key}"] = value
+            persisted_kit[key] = value
+
+    # A few legacy companies have brandKit=null. MongoDB cannot create a
+    # dotted child below null, so initialize the complete object in that case.
+    if not isinstance(existing_kit, dict):
+        update = {"$set": {"brandKit": persisted_kit, "updatedAt": now_utc()}}
+    else:
+        update = {"$set": set_fields}
+        if unset_fields:
+            update["$unset"] = unset_fields
+    try:
+        result = await db.companies.update_one({"id": company_id}, update)
+        if not result.matched_count:
+            raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to persist Brand Kit for company=%s", company_id)
+        raise HTTPException(
+            status_code=500,
+            detail="Nao foi possivel salvar a identidade visual no banco de dados.",
+        ) from exc
+    return {"brandKit": persisted_kit}
 
 
 # ---------------------------------------------------------------------------
