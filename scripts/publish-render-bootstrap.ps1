@@ -32,6 +32,7 @@ $files = @(
     "backend/routes/editor_chat.py",
     "backend/routes/company_assets.py",
     "backend/routes/health.py",
+    "backend/routes/elevenlabs.py",
     "backend/routes/heygen.py",
     "backend/routes/kling.py",
     "backend/routes/ai_gen.py",

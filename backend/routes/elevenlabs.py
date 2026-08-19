@@ -4,19 +4,15 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import uuid
-import os
 import logging
 import base64
 import aiofiles
 
-from routes.deps import db, now_utc, STORAGE_DIR
+from routes.deps import db, now_utc, STORAGE_DIR, ELEVENLABS_API_KEY
 
 logger = logging.getLogger("server")
 
 router = APIRouter(tags=["ElevenLabs"])
-
-ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY', '')
-
 
 @router.get("/elevenlabs/voices")
 async def list_elevenlabs_voices(language: Optional[str] = None, gender: Optional[str] = None):

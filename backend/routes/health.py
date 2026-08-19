@@ -20,7 +20,7 @@ from typing import Any, Optional
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
-from routes.deps import db
+from routes.deps import db, ELEVENLABS_API_KEY
 from routes.auth import require_auth, has_role
 
 logger = logging.getLogger("server")
@@ -181,7 +181,9 @@ async def _check_heygen() -> dict:
 
 
 async def _check_elevenlabs() -> dict:
-    key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    # Use the same normalized value as narration/TTS. This removes accidental
+    # wrapper quotes and whitespace commonly pasted into Render secrets.
+    key = ELEVENLABS_API_KEY
     if not key:
         return {"status": "not_configured", "error": "ELEVENLABS_API_KEY not set"}
     t0 = time.monotonic()
