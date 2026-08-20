@@ -2603,11 +2603,42 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         _pdb = await _get_motor_db()
         
         semaphore = asyncio.Semaphore(5)  # Max 5 concurrent image generations
+        progress_lock = asyncio.Lock()
+        image_task_timeout = max(
+            30.0, float(os.environ.get("AI_IMAGE_TASK_TIMEOUT_SECONDS", "150"))
+        )
         completed_count = 0
+
+        async def _mark_image_complete(slide_idx, outcome):
+            """Advance progress for success, fallback and timeout alike."""
+            nonlocal completed_count
+            async with progress_lock:
+                completed_count += 1
+                current = completed_count
+            logger.info(
+                "Image task %s/%s finished for slide %s (%s)",
+                current, total_images, slide_idx, outcome,
+            )
+            if _pdb is not None:
+                try:
+                    await _pdb.agent_sessions.update_one(
+                        {"id": session_id},
+                        {"$set": {
+                            "courseProgress": {
+                                "message": f"Gerando imagens IA: {current}/{total_images}..."
+                            },
+                            "updatedAt": datetime.now(timezone.utc).isoformat(),
+                        }},
+                    )
+                except Exception as progress_err:
+                    logger.warning(
+                        "Could not persist image progress for slide %s: %s",
+                        slide_idx, str(progress_err)[:160],
+                    )
         
         async def _generate_one_image(slide_idx, keyword, source="gemini"):
-            nonlocal completed_count
             async with semaphore:
+                outcome = "unavailable"
                 try:
                     # Brand Library hook: when the project opts in, try the
                     # company's curated imagery FIRST. If we find a semantic
@@ -2640,8 +2671,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                                 slide_media[slide_idx] = {
                                     "type": "image", "url": chosen["url"], "source": "brand_library",
                                 }
-                                completed_count += 1
-                                logger.info(f"Image {completed_count}/{total_images} from brand library for slide {slide_idx}")
+                                outcome = "brand_library"
                                 return
                             # No match: in strict mode (or per-slide "force"),
                             # we leave the slide without an image. "force"
@@ -2649,8 +2679,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                             # "leave it" rather than fall through to AI.
                             if brand_library_mode == "strict" or _override == "force":
                                 slide_media[slide_idx] = {"type": "none", "source": "brand_library_strict"}
-                                completed_count += 1
-                                logger.info(f"Image {completed_count}/{total_images} skipped (strict brand library, no match) for slide {slide_idx}")
+                                outcome = "brand_library_strict"
                                 return
                         except Exception as _ble:
                             logger.warning(f"brand library picker failed for slide {slide_idx}: {_ble}")
@@ -2660,7 +2689,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                         from services.leonardo_ai import generate_and_wait, download_image_to_disk
                         from services.asset_store import store_asset_async
                         import uuid as _uuid
-                        leo_urls = await generate_and_wait(prompt=keyword, width=1024, height=576, num_images=1)
+                        leo_urls = await asyncio.wait_for(
+                            generate_and_wait(prompt=keyword, width=1024, height=576, num_images=1),
+                            timeout=image_task_timeout,
+                        )
                         img_url = None
                         if leo_urls:
                             fname = f"leonardo_{_uuid.uuid4().hex[:10]}.png"
@@ -2690,36 +2722,39 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                                 except Exception:
                                     pass
                     else:
-                        img_url = await _fetch_stock_image(
-                            keyword, project_dir, project_id, slide_context=sb_slide_ctx
+                        img_url = await asyncio.wait_for(
+                            _fetch_stock_image(
+                                keyword, project_dir, project_id, slide_context=sb_slide_ctx
+                            ),
+                            timeout=image_task_timeout,
                         )
-                    completed_count += 1
                     if img_url:
                         slide_media[slide_idx] = {"type": "image", "url": img_url}
-                        logger.info(f"Image {completed_count}/{total_images} generated for slide {slide_idx} via {source}")
+                        outcome = source
                     else:
                         # Do not replace a failed contextual generation with a
                         # random stock photo. A full-width text layout keeps
                         # the course semantically correct and readable.
                         slide_media[slide_idx] = {"type": "none", "source": "ai_unavailable"}
-                    # Update progress
-                    if _pdb is not None:
-                        try:
-                            await _pdb.agent_sessions.update_one(
-                                {"id": session_id},
-                                {"$set": {
-                                    "courseProgress": {"message": f"Gerando imagens IA: {completed_count}/{total_images}..."},
-                                    "updatedAt": datetime.now(timezone.utc).isoformat()
-                                }}
-                            )
-                        except Exception:
-                            pass
+                except asyncio.TimeoutError:
+                    outcome = "timeout"
+                    slide_media[slide_idx] = {"type": "none", "source": "ai_timeout"}
+                    logger.warning(
+                        "Image generation timed out after %.0fs for slide %s",
+                        image_task_timeout, slide_idx,
+                    )
                 except Exception as e:
-                    completed_count += 1
+                    outcome = "error"
+                    slide_media[slide_idx] = {"type": "none", "source": "ai_error"}
                     logger.warning(f"Image generation failed for slide {slide_idx}: {str(e)[:80]}")
+                finally:
+                    await _mark_image_complete(slide_idx, outcome)
         
         # Run all image tasks concurrently (semaphore limits concurrency to 5)
-        await asyncio.gather(*[_generate_one_image(idx, kw, src) for idx, kw, src in ai_image_tasks])
+        await asyncio.gather(
+            *[_generate_one_image(idx, kw, src) for idx, kw, src in ai_image_tasks],
+            return_exceptions=True,
+        )
 
     base_palette = palette
     for i, sb_slide in enumerate(slides_data):
