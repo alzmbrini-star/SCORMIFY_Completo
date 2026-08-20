@@ -1728,7 +1728,11 @@ def generate_single_page_html(
             f'</section>\n'
         )
         sections_html.append(section)
-        sections_index.append({"index": s_idx, "title": slide_title})
+        sections_index.append({
+            "index": s_idx,
+            "title": slide_title,
+            "librasScript": slide.get("librasScript", "") or "",
+        })
 
     sections_index_json = json.dumps(sections_index, ensure_ascii=False).replace("</", "<\\/")
 
@@ -1753,6 +1757,8 @@ def generate_single_page_html(
         loader_title=loader_title,
         loader_primary=loader_primary,
         loader_accent=loader_accent,
+        enable_vlibras=bool(project_doc.get("enableVlibras", True)),
+        backend_url=base_url,
     )
 
 
@@ -1769,11 +1775,85 @@ def _BUILD_PAGE(
     loader_title: str = "Carregando curso…",
     loader_primary: str = "#3b82f6",
     loader_accent: str = "#60a5fa",
+    enable_vlibras: bool = True,
+    backend_url: str = "",
 ) -> str:
     css = _CSS
     js = _JS.replace("__SECTIONS_INDEX__", sections_index_json) \
             .replace("__SCORM_MODE__", "true" if scorm_mode else "false")
     scorm_script = '<script src="scorm-api.js"></script>' if scorm_mode else ''
+
+    vlibras_block = ""
+    if enable_vlibras:
+        proxy_base = backend_url.rstrip("/") + "/api/vlibras-proxy" if backend_url else ""
+        vlibras_block = f'''<!-- VLibras - acessibilidade em LIBRAS -->
+<div vw class="enabled">
+  <div vw-access-button class="active"></div>
+  <div vw-plugin-wrapper><div class="vw-plugin-top-wrapper"></div></div>
+</div>
+<script>
+(function() {{
+  var PROXY_BASE = {json.dumps(proxy_base)};
+  if (PROXY_BASE) {{
+    var domainMap = {{
+      "dicionario2.vlibras.gov.br": PROXY_BASE + "/dicionario2",
+      "traducao2.vlibras.gov.br": PROXY_BASE + "/traducao2"
+    }};
+    var originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {{
+      var openArgs = arguments;
+      if (typeof url === "string") {{
+        Object.keys(domainMap).some(function(domain) {{
+          if (url.indexOf(domain) === -1) return false;
+          try {{
+            var parsed = new URL(url);
+            openArgs[1] = domainMap[domain] + parsed.pathname + parsed.search;
+          }} catch (error) {{ console.warn("[VLibras] Proxy URL error", error); }}
+          return true;
+        }});
+      }}
+      return originalOpen.apply(this, openArgs);
+    }};
+  }}
+
+  window.__scormifyVlibrasQueue = "";
+  window.scormifyTranslateLibras = function(text) {{
+    if (!text) return;
+    window.__scormifyVlibrasQueue = text;
+    if (window.plugin && typeof window.plugin.translate === "function") {{
+      try {{
+        window.plugin.translate(text);
+        window.__scormifyVlibrasQueue = "";
+      }} catch (error) {{ console.warn("[VLibras] Translation error", error); }}
+    }}
+  }};
+
+  var script = document.createElement("script");
+  script.src = "https://vlibras.gov.br/app/vlibras-plugin.js";
+  script.async = true;
+  script.onload = function() {{
+    try {{
+      new window.VLibras.Widget({{position: "R", avatar: "random"}});
+      var attempts = 0;
+      var readyPoll = setInterval(function() {{
+        attempts += 1;
+        if (window.plugin && typeof window.plugin.translate === "function") {{
+          clearInterval(readyPoll);
+          if (window.__scormifyVlibrasQueue) {{
+            window.scormifyTranslateLibras(window.__scormifyVlibrasQueue);
+          }}
+        }} else if (attempts >= 120) {{
+          clearInterval(readyPoll);
+        }}
+      }}, 1000);
+    }} catch (error) {{ console.warn("[VLibras] Initialization error", error); }}
+  }};
+  script.onerror = function() {{
+    console.warn("[VLibras] Plugin script unavailable. Check LMS internet/CSP policy.");
+  }};
+  document.head.appendChild(script);
+}})();
+</script>'''
 
     # Course-level background music (type="background" audio): render ONE
     # looping <audio> + a toggle button. Browsers block autoplay until the
@@ -2025,6 +2105,7 @@ def _BUILD_PAGE(
 </header>
 
 {bg_music_html}
+{vlibras_block}
 
 <aside class="sp-drawer" data-testid="sp-drawer" aria-hidden="true">
   <ul class="sp-drawer-list" data-testid="sp-drawer-list"></ul>

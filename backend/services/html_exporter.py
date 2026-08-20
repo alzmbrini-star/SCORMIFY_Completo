@@ -617,7 +617,15 @@ async def generate_standalone_html(
         logger.info(f"Added {len(questions)} questions to HTML export")
     
     # Generate HTML
-    html = generate_html_template(title, course_data, default_width, default_height, enable_vlibras, tutor_config=tutor_config)
+    html = generate_html_template(
+        title,
+        course_data,
+        default_width,
+        default_height,
+        enable_vlibras,
+        backend_url=backend_url,
+        tutor_config=tutor_config,
+    )
     
     return html
 

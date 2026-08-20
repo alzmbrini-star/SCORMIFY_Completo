@@ -62,6 +62,7 @@ $files = @(
     "backend/services/scorm_single_page_exporter.py",
     "backend/services/scenario_service.py",
     "backend/services/single_page_exporter.py",
+    "backend/services/sp_runtime/runtime.js",
     "backend/services/html_exporter.py",
     "backend/services/player_theme.py",
     "backend/services/export_assets/player.js",
