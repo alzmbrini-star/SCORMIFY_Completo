@@ -341,7 +341,7 @@ export function BulkTextColorDialog({ open, onOpenChange, bulkTextColor, setBulk
   );
 }
 
-export function DesignTemplateDialog({ open, onOpenChange, designTemplates, applyingTemplate, handleApplyDesignTemplate }) {
+export function DesignTemplateDialog({ open, onOpenChange, designTemplates, selectedDesignTemplateId, applyingTemplate, handleApplyDesignTemplate }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
@@ -353,9 +353,14 @@ export function DesignTemplateDialog({ open, onOpenChange, designTemplates, appl
           <div className="grid grid-cols-3 gap-3" data-testid="editor-design-template-grid">
             {designTemplates.map(dt => {
               const p = dt.palette || {};
+              const isSelected = selectedDesignTemplateId === dt.id;
               return (
                 <button key={dt.id} disabled={applyingTemplate} onClick={() => handleApplyDesignTemplate(dt.id)}
-                  className="relative overflow-hidden rounded-xl border border-slate-700 hover:border-amber-500 transition-all text-left group disabled:opacity-50"
+                  className={`relative overflow-hidden rounded-xl border transition-all text-left group disabled:opacity-50 ${
+                    isSelected
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.02]'
+                      : 'border-slate-700 hover:border-slate-500'
+                  }`}
                   data-testid={`editor-design-template-${dt.id}`}>
                   <div className="aspect-[16/9] relative" style={{ background: p.primary || '#0f172a' }}>
                     <div className="absolute top-0 left-0 right-0 h-[6px]" style={{ background: p.accent || '#10b981' }} />
@@ -368,6 +373,11 @@ export function DesignTemplateDialog({ open, onOpenChange, designTemplates, appl
                     <div className="absolute top-2 left-2 right-2 text-center">
                       <span style={{ fontFamily: dt.fonts?.heading, color: '#fff', fontSize: '11px', fontWeight: 700 }}>Aa</span>
                     </div>
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        Atual
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/10 transition-colors flex items-center justify-center">
                       <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-white font-semibold bg-amber-600/80 px-3 py-1 rounded-full">Aplicar</span>
                     </div>

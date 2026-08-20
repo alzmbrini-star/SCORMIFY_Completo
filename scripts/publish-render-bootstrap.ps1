@@ -97,6 +97,7 @@ $files = @(
     "backend/tests/test_whiteboard_export_persistence.py",
     "backend/tests/test_whiteboard_ai_plan_jobs.py",
     "backend/tests/test_whiteboard_semantic_geometry.py",
+    "backend/tests/test_editor_agent_theme_parity.py",
     "frontend/.env.example",
     "frontend/src/App.js",
     "frontend/src/contexts/AuthContext.jsx",
@@ -244,7 +245,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Prevent blank infographic slides with contextual fallback"
+        message = "Align Editor visual themes with AI Agent"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

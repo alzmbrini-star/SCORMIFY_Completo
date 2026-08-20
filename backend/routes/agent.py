@@ -118,8 +118,20 @@ def _is_light_color(hex_color: str) -> bool:
         return False
 
 
-def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict = None):
-    """Apply a design template's visual styling to a single slide."""
+def _apply_design_token_to_slide(
+    slide: dict,
+    design_token: dict,
+    sb_slide: dict = None,
+    previous_design_token: dict = None,
+):
+    """Apply the same visual tokens used by the Agent course builders.
+
+    Existing Editor projects cannot be rebuilt from their original storyboard,
+    but Agent-generated HTML contains the source template's literal palette and
+    font tokens.  Translating those tokens before applying the new typography
+    makes the Editor result visually equivalent without destroying interactive
+    HTML, quizzes, simulators or manually edited content.
+    """
     import re as _re
     palette = design_token["palette"]
     font_heading = design_token["fonts"]["heading"]
@@ -145,21 +157,42 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
         else:
             slide_type = "content"
 
-    # Set background based on slide type
-    is_dark_slide = slide_type in ("title", "cover", "quiz", "summary")
-    if is_dark_slide:
-        slide["background"] = primary
-        slide_text_color = "#ffffff"
-        slide_text_muted = "rgba(255,255,255,0.75)"
-    else:
-        slide["background"] = content_bg
-        # Determine text color based on background lightness
-        if _is_light_color(content_bg):
-            slide_text_color = text_color
-            slide_text_muted = text_color + "cc"
-        else:
-            slide_text_color = "#ffffff"
-            slide_text_muted = "rgba(255,255,255,0.75)"
+    # Match generate_course_from_storyboard exactly.  The former Editor path
+    # forced title/quiz/summary slides to ``primary`` + white, while the Agent
+    # uses ``coverBg`` and derives contrast from that actual background.
+    is_cover_slide = slide_type in ("title", "cover", "quiz", "scenario", "summary")
+    target_background = palette.get("coverBg", primary) if is_cover_slide else content_bg
+    slide["background"] = target_background
+    is_dark_slide = not _is_light_color(target_background)
+    slide_text_color = "#ffffff" if is_dark_slide else text_color
+    slide_text_muted = "rgba(255,255,255,0.75)" if is_dark_slide else text_color + "cc"
+
+    old_palette = (previous_design_token or {}).get("palette") or {}
+    old_fonts = (previous_design_token or {}).get("fonts") or {}
+    semantic_color_map = {
+        old_palette.get("primary"): primary,
+        old_palette.get("accent"): accent,
+        old_palette.get("accentLight"): palette.get("accentLight", accent),
+        old_palette.get("contentBg"): content_bg,
+        old_palette.get("coverBg"): palette.get("coverBg", primary),
+        old_palette.get("text"): text_color,
+    }
+    semantic_color_map = {
+        source: target for source, target in semantic_color_map.items()
+        if source and target and source.lower() != target.lower()
+    }
+
+    def _translate_agent_tokens(html: str) -> str:
+        """Translate the previous Agent theme while preserving HTML behavior."""
+        for source, target in semantic_color_map.items():
+            html = _re.sub(_re.escape(source), target, html, flags=_re.IGNORECASE)
+        for source, target in (
+            (old_fonts.get("heading"), font_heading),
+            (old_fonts.get("body"), font_body),
+        ):
+            if source and target and source != target:
+                html = html.replace(source, target)
+        return html
 
     # Update elements
     for el in slide.get("elements", []):
@@ -181,7 +214,7 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
 
         # Update fonts AND text colors in html content
         if el.get("type") in ("html", "text") and el.get("htmlContent"):
-            html = el["htmlContent"]
+            html = _translate_agent_tokens(el["htmlContent"])
             # Replace font-family
             html = _re.sub(r"font-family:[^;\"']+", f"font-family:{font_body}", html)
             html = _re.sub(r'(<h[1-3][^>]*style="[^"]*?)font-family:[^;"]+', lambda m: m.group(1) + f"font-family:{font_heading}", html)
@@ -204,6 +237,12 @@ def _apply_design_token_to_slide(slide: dict, design_token: dict, sb_slide: dict
 
             if el.get("style"):
                 el["style"]["fontFamily"] = font_body
+
+        # Native text elements use a style object rather than inline HTML.
+        if el.get("type") == "text":
+            style = el.setdefault("style", {})
+            style["fontFamily"] = font_heading if el.get("role") in ("title", "heading") else font_body
+            style["color"] = slide_text_color
 
         # Update image corner radius
         if el.get("type") == "image":

@@ -140,6 +140,14 @@
     return $('.sp-section[data-index="'+state.currentIndex+'"]');
   }
 
+  function translateCurrentSection(){
+    var item = SECTIONS.filter(function(section){
+      return section.index === state.currentIndex;
+    })[0];
+    if (!item || !item.librasScript || typeof window.scormifyTranslateLibras !== 'function') return;
+    window.scormifyTranslateLibras(item.librasScript);
+  }
+
   function isSectionComplete(idx){
     var sec = $('.sp-section[data-index="'+idx+'"]');
     if (!sec) return false;
@@ -174,6 +182,7 @@
         if (idx !== current && state.unlocked[idx]){
           state.currentIndex = idx;
           buildDrawer();
+          translateCurrentSection();
           // Re-fire the zoom animation when the section comes into focus
           // (so the user sees the magnify each time they advance, not just
           // on initial page load).
@@ -218,6 +227,7 @@
       unlockSection(nextIdx);
       var nextSec = $('.sp-section[data-index="'+nextIdx+'"]');
       if (nextSec){ nextSec.scrollIntoView({behavior:'smooth', block:'start'}); }
+      translateCurrentSection();
       // when reaching end card, dispatch course-completed + mark SCORM completed
       if (nextIdx >= SECTIONS.length){
         scormMarkComplete();
@@ -239,6 +249,7 @@
       state.currentIndex = idx;
       var sec = $('.sp-section[data-index="'+idx+'"]');
       if (sec){ sec.scrollIntoView({behavior:'smooth', block:'start'}); }
+      translateCurrentSection();
       this.toggleDrawer(false);
       buildDrawer();
       updateNextButton();
@@ -990,6 +1001,7 @@
     buildDrawer();
     updateProgress();
     updateNextButton();
+    translateCurrentSection();
     observeTimelines();
     observeNarrations();
     observeSfx();

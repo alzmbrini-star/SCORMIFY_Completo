@@ -2265,6 +2265,7 @@ export default function Editor() {
         <DesignTemplateDialog
           open={showDesignTemplateDialog} onOpenChange={setShowDesignTemplateDialog}
           designTemplates={designTemplates} applyingTemplate={applyingTemplate}
+          selectedDesignTemplateId={currentProject?.designTemplateId || ''}
           handleApplyDesignTemplate={handleApplyDesignTemplate}
         />
 

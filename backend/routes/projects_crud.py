@@ -1067,9 +1067,19 @@ async def apply_design_template_to_project(project_id: str, data: dict, user: di
     slides = project.get("course", {}).get("slides", [])
     updated = 0
 
+    previous_design_template_id = project.get("designTemplateId") or ""
+    previous_design_token = (
+        get_design_template_by_id(previous_design_template_id)
+        if previous_design_template_id else None
+    )
+
     from routes.agent import _apply_design_token_to_slide
     for slide in slides:
-        _apply_design_token_to_slide(slide, design_token)
+        _apply_design_token_to_slide(
+            slide,
+            design_token,
+            previous_design_token=previous_design_token,
+        )
         updated += 1
 
     await db.projects.update_one(
