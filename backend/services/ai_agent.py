@@ -133,6 +133,21 @@ _SIMULATOR_MECHANICS = (
     "resource_allocation",
     "process_builder",
     "diagnostic_dashboard",
+    "timed_challenge",
+    "physics_controls",
+    "tool_workspace",
+    "network_explorer",
+    "memory_match",
+    "word_challenge",
+)
+
+_INTERACTIVE_VISUAL_DIRECTIONS = (
+    "vibrant_sport: gradiente quente, campo/arena, placar em chips, movimento e celebracao",
+    "technical_dark: painel grafite, neon moderado, telemetria, SVG animado e controles precisos",
+    "editorial_light: fundo claro, cards elevados, tipografia forte, cores de status e muito espaco",
+    "corporate_tool: aplicativo com menu lateral, abas, formulario funcional, resultado e historico",
+    "playful_learning: cores vivas, ilustracoes CSS/SVG, progresso, vidas, recompensas e microanimacoes",
+    "concept_map: fundo profundo, nos coloridos, conexoes SVG, painel de detalhes e exploracao livre",
 )
 
 
@@ -141,6 +156,13 @@ def _required_simulator_mechanic(slide: dict) -> str:
     identity = "|".join(str(slide.get(key, "")) for key in ("id", "title", "purpose", "moduleName"))
     checksum = sum((index + 1) * ord(char) for index, char in enumerate(identity))
     return _SIMULATOR_MECHANICS[checksum % len(_SIMULATOR_MECHANICS)]
+
+
+def _interactive_visual_direction(slide: dict) -> str:
+    """Assign a stable art direction so a course does not repeat one template."""
+    identity = "|".join(str(slide.get(key, "")) for key in ("title", "purpose", "moduleName", "id"))
+    checksum = sum((index + 3) * ord(char) for index, char in enumerate(identity))
+    return _INTERACTIVE_VISUAL_DIRECTIONS[checksum % len(_INTERACTIVE_VISUAL_DIRECTIONS)]
 
 
 def _simulator_mechanic_is_functional(html_content: str, mechanic: str = "") -> bool:
@@ -168,6 +190,36 @@ def _simulator_mechanic_is_functional(html_content: str, mechanic: str = "") -> 
             len(re.findall(r"<(?:input|select)\b", lowered)) >= 3
             and ("input" in script or "change" in script)
             and re.search(r"(?:risk|risco|score|indicador|metric|diagnost)", lowered) is not None
+        ),
+        "timed_challenge": (
+            re.search(r"(?:setinterval|requestanimationframe|performance\.now|countdown|timer)", script) is not None
+            and re.search(r"(?:score|pontos|lives|vidas|defesas|energia)", lowered) is not None
+            and len(re.findall(r"<(?:button|input)\b", lowered)) >= 4
+        ),
+        "physics_controls": (
+            len(re.findall(r"type=[\"']range[\"']", lowered)) >= 2
+            and ("<svg" in lowered or "<canvas" in lowered or "requestanimationframe" in script)
+            and re.search(r"(?:calcular|calculate|update|recalcular|render)", script) is not None
+        ),
+        "tool_workspace": (
+            len(re.findall(r"<(?:input|select)\b", lowered)) >= 2
+            and len(re.findall(r"<(?:button)\b", lowered)) >= 3
+            and re.search(r"(?:tab|aba|mode|modo|history|historico|histórico|result|resultado)", lowered) is not None
+        ),
+        "network_explorer": (
+            ("<svg" in lowered or "<canvas" in lowered or re.search(r"class=[\"'][^\"']*(?:node|no|nó)", lowered))
+            and re.search(r"(?:line|path|edge|conexao|conexão|link)", lowered) is not None
+            and re.search(r"(?:addeventlistener|onclick|showdetails|detalhes)", raw, re.IGNORECASE) is not None
+        ),
+        "memory_match": (
+            re.search(r"(?:matched|pares|tentativas|attempts)", lowered) is not None
+            and re.search(r"(?:flipped|rotatey|virar|flip)", lowered) is not None
+            and re.search(r"(?:shuffle|sort\(.*random|embaralh)", script) is not None
+        ),
+        "word_challenge": (
+            re.search(r"(?:alphabet|alfabeto|letters|letras)", lowered) is not None
+            and re.search(r"(?:attempts|tentativas|lives|vidas|errors|erros)", lowered) is not None
+            and len(re.findall(r"<(?:button)\b", lowered)) >= 8
         ),
     }
     if mechanic:
@@ -201,10 +253,35 @@ def _simulator_complexity_score(html_content: str, required_mechanic: str = "") 
         score += 1
     if len(script_text) >= 1500:
         score += 1
+    if ("linear-gradient" in lowered or "radial-gradient" in lowered) and ("@keyframes" in lowered or "transition:" in lowered):
+        score += 1
+    if ("<svg" in lowered or "<canvas" in lowered) and re.search(r"(?:requestanimationframe|transform|animate)", lowered):
+        score += 1
     # A button-only quiz cannot be promoted to an advanced simulator merely by
     # containing the right vocabulary. Cap it below the acceptance threshold.
     if not _simulator_mechanic_is_functional(raw, required_mechanic):
         return min(score, 5)
+    return min(score, 10)
+
+
+def _flashcard_complexity_score(html_content: str) -> int:
+    """Require a real study deck, not a single decorative flipping card."""
+    raw = html_content or ""
+    lowered = raw.lower()
+    score = 0
+    card_count = max(
+        len(re.findall(r"\bfront\s*:", lowered)),
+        len(re.findall(r"[\"']front[\"']\s*:", lowered)),
+        len(re.findall(r"class=[\"'][^\"']*(?:flashcard|study-card)[^\"']*[\"']", lowered)),
+    )
+    if card_count >= 6: score += 2
+    elif card_count >= 4: score += 1
+    if "rotatey" in lowered and re.search(r"(?:onclick|addeventlistener)", lowered): score += 2
+    if re.search(r"(?:próximo|proximo|next|anterior|previous)", lowered): score += 1
+    if re.search(r"(?:sei|não sei|nao sei|known|unknown|mastery|domínio|dominio)", lowered): score += 2
+    if re.search(r"(?:progress|progresso|cartão \$\{|cartao \$\{)", lowered): score += 1
+    if re.search(r"(?:shuffle|embaralh|restart|reiniciar|revisar novamente)", lowered): score += 1
+    if ("linear-gradient" in lowered or "radial-gradient" in lowered) and "transition:" in lowered: score += 1
     return min(score, 10)
 
 
@@ -272,6 +349,8 @@ def _rich_interactive_complexity_score(html_content: str, content_type: str) -> 
         return _timeline_complexity_score(html_content)
     if content_type == "case_study":
         return _case_study_complexity_score(html_content)
+    if content_type == "flashcard":
+        return _flashcard_complexity_score(html_content)
     return 10
 
 
@@ -618,6 +697,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "purpose": s.get("purpose", ""),
             "moduleName": s.get("moduleName", ""),
             **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") == "simulator" else {}),
+            **({"visualDirection": _interactive_visual_direction(s)} if s.get("type") in _RICH_INTERACTIVE_TYPES else {}),
         } for s in batch]
 
         # Report progress
@@ -748,7 +828,17 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
     - resource_allocation: pelo menos 3 sliders conectados e um orcamento/recurso limitado; alterar um valor recalcula custos, riscos e resultados
     - process_builder: etapas arrastaveis/reordenaveis; validar a sequencia e simular a execucao com consequencias por ordem
     - diagnostic_dashboard: pelo menos 3 controles de entrada/select; recalcular indicadores, diagnostico e recomendacoes em tempo real
+    - timed_challenge: desafio com cronometro real, placar, vidas/energia, no minimo 5 rodadas e animacao de acerto/erro (pode ser penalti, alvo ou missao)
+    - physics_controls: representacao visual em SVG/canvas, pelo menos 2 sliders, animacao e telemetria calculada em tempo real (engrenagens, motor, fluxo, bomba ou sistema equivalente)
+    - tool_workspace: miniaplicativo com abas/modos, entradas reais, calculo/transformacao funcional, resultado e historico ou configuracoes
+    - network_explorer: mapa conceitual com no minimo 7 nos e conexoes visuais; selecionar um no atualiza detalhes e progresso de exploracao
+    - memory_match: pelo menos 6 pares contextualizados, embaralhamento, cartas viraveis, tentativas, pares encontrados e conclusao
+    - word_challenge: forca educacional com palavra contextual, dica pedagogica, alfabeto clicavel, desenho progressivo, erros/vidas e niveis
   * Apenas escrever "arraste" ou "simulador" na tela NAO conta: os eventos e mutacoes correspondentes devem existir no JavaScript
+- DIRECAO DE ARTE OBRIGATORIA: siga a `visualDirection` informada no slide. Ela deve ser perceptivel no layout, paleta, componentes e animacoes, nao apenas citada em texto.
+- VARIEDADE ENTRE SLIDES: nao reutilize a mesma composicao visual ou a mesma mecanica em atividades vizinhas. Cada experiencia deve parecer um produto educacional proprio.
+- ESTADOS VISUAIS: implemente abertura/instrucoes, atividade em andamento, feedback imediato e conclusao/debrief.
+- Use dados, perguntas, parametros, termos e consequencias extraidos do tema do slide; e proibido usar Lorem ipsum, "opcao 1" ou conteudo generico.
 - Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
 
 SLIDES DE CENA COM AVATAR (type="avatar_scene"):
@@ -789,13 +879,15 @@ SLIDES DE FLASHCARD (type="flashcard"):
 - O HTML será renderizado dentro de um iframe isolado de 960x540px
 - O elemento deve ter: {{"type":"html","htmlContent":"<!DOCTYPE html><html>...</html>"}}
 - FUNCIONALIDADES OBRIGATÓRIAS:
-  * Mínimo 5 cartões com frente (pergunta/termo) e verso (resposta/definição)
+  * Mínimo 6 cartões com frente (pergunta/termo) e verso rico (definição + exemplo/aplicação)
   * Animação 3D de flip ao clicar no cartão (CSS transform: rotateY)
   * Navegação entre cartões (setas ou swipe)
   * Contador de progresso (cartão 3 de 8)
   * Botões "Sei" / "Não sei" para auto-avaliação
   * Resultado final com % de acertos
-- Design: Cartões com bordas arredondadas, sombras, gradientes sutis, fonte clara
+  * Embaralhar/reiniciar o deck e permitir revisar apenas os cartões marcados como "Não sei"
+  * Exibir categoria do conceito, progresso visual e indicador de domínio
+- Design: siga `visualDirection`; use cartões com bordas arredondadas, sombras, gradientes, transições e contraste WCAG. Não repita sempre o mesmo cartão azul centralizado.
 - O conteúdo deve cobrir os conceitos mais importantes do módulo
 
 SLIDES DE LINHA DO TEMPO (type="timeline"):
@@ -837,7 +929,7 @@ PARA TODOS OS SLIDES:
         max_retries = 2
         batch_success = False
         quality_type = batch[0].get("type") if len(batch) == 1 else ""
-        quality_checked = quality_type in {"simulator", "timeline", "case_study"}
+        quality_checked = quality_type in {"simulator", "flashcard", "timeline", "case_study"}
         required_simulator_mechanic = (
             _required_simulator_mechanic(batch[0]) if quality_type == "simulator" else ""
         )
@@ -867,6 +959,14 @@ A tentativa anterior ficou vazia ou superficial. Entregue pelo menos 5 marcos co
 com navegacao anterior/proximo, marcador ativo, barra de progresso, detalhes explicativos e
 impacto de cada evento. Todos os marcos devem ser clicaveis e o JavaScript deve funcionar sem
 bibliotecas externas."""
+                    elif quality_type == "flashcard":
+                        attempt_prompt += """
+
+REVISAO OBRIGATORIA DOS FLASHCARDS:
+A tentativa anterior ficou simples ou repetitiva. Entregue no minimo 6 cartoes contextualizados,
+com frente, definicao e exemplo/aplicacao no verso, flip 3D, navegacao, embaralhamento, progresso,
+marcacao Sei/Nao sei, revisao dos nao dominados e resultado final. Siga rigorosamente a direcao
+de arte do slide e use uma composicao visual distinta das demais atividades."""
                     else:
                         attempt_prompt += """
 
@@ -904,8 +1004,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                             batch_start,
                             complexity,
                         )
-                    # Flashcards are not part of the expensive complexity
-                    # retry loop, and older providers may return HTML in the
+                    # Older providers may return HTML in the
                     # legacy `content` field. Normalize every interactive
                     # slide before it reaches the storyboard UI.
                     for slide_data in data["slides"]:
@@ -2170,8 +2269,8 @@ def _build_flashcard_fallback_html(sb_slide: dict) -> str:
         if 35 <= len(candidate) <= 360 and candidate.lower() not in {x.lower() for x in sentences}:
             sentences.append(candidate)
     summary = (sentences[0] if sentences else source[:320]) or f"O foco deste estudo é {title}."
-    answers = sentences[:5]
-    while len(answers) < 5:
+    answers = sentences[:6]
+    while len(answers) < 6:
         answers.append(summary)
     prompts = [
         f"Qual é o foco principal de {title}?",
@@ -2179,9 +2278,10 @@ def _build_flashcard_fallback_html(sb_slide: dict) -> str:
         "Como este conceito se relaciona ao contexto do curso?",
         "Qual aplicação prática pode ser reconhecida?",
         "Qual mensagem deve orientar a revisão?",
+        "Que decisão ou prática demonstra domínio deste tema?",
     ]
     cards_json = json.dumps(
-        [{"front": prompts[i], "back": answers[i]} for i in range(5)],
+        [{"front": prompts[i], "back": answers[i], "category": ("Conceito", "Aplicação", "Decisão")[i % 3]} for i in range(6)],
         ensure_ascii=False,
     ).replace("</", "<\\/")
     safe_title = html.escape(title)
@@ -2191,16 +2291,16 @@ def _build_flashcard_fallback_html(sb_slide: dict) -> str:
 <style>
 *{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;color:#eaf2ff;background:linear-gradient(135deg,#071329,#13254b);display:grid;place-items:center}
 .app{width:880px;padding:28px}.eyebrow{color:#67e8f9;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.12em}.title{font-size:28px;margin:8px 0 20px}.stage{perspective:1200px}.card{height:285px;position:relative;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.2,.7,.2,1);cursor:pointer}.card.flipped{transform:rotateY(180deg)}
-.face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid rgba(125,211,252,.38);border-radius:24px;padding:42px;display:grid;place-items:center;text-align:center;font-size:25px;line-height:1.4;background:linear-gradient(145deg,#172d57,#0d1c38);box-shadow:0 24px 60px rgba(0,0,0,.3)}.back{transform:rotateY(180deg);background:linear-gradient(145deg,#174e63,#12334d)}
+.face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid rgba(125,211,252,.38);border-radius:24px;padding:42px;display:grid;place-items:center;text-align:center;font-size:25px;line-height:1.4;background:linear-gradient(145deg,#172d57,#0d1c38);box-shadow:0 24px 60px rgba(0,0,0,.3)}.face:before{content:attr(data-category);position:absolute;left:22px;top:18px;padding:6px 10px;border-radius:99px;background:#ffffff18;color:#a5f3fc;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.back{transform:rotateY(180deg);background:linear-gradient(145deg,#174e63,#12334d)}
 .hint{font-size:12px;color:#9fb6d8;margin-top:12px}.controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px}.buttons{display:flex;gap:9px}button{border:0;border-radius:11px;padding:11px 16px;font-weight:800;cursor:pointer;color:white;background:#2563eb}button.secondary{background:#334155}button.know{background:#059669}button.unknown{background:#dc2626}.progress{font-size:14px;color:#cbd5e1;font-weight:700}.result{display:none;text-align:center;padding:50px 20px;border-radius:22px;background:#122441}.result h2{font-size:34px;margin:0 0 12px}
 </style></head><body><main class="app"><div class="eyebrow">__MODULE__</div><h1 class="title">__TITLE__</h1>
 <section id="study"><div class="stage"><div id="card" class="card" role="button" tabindex="0" aria-label="Virar cartão"><div id="front" class="face"></div><div id="back" class="face back"></div></div></div><div class="hint">Clique no cartão para ver a resposta.</div>
 <div class="controls"><button class="secondary" onclick="move(-1)">← Anterior</button><span id="progress" class="progress"></span><div class="buttons"><button class="unknown" onclick="mark(false)">Não sei</button><button class="know" onclick="mark(true)">Sei</button></div><button class="secondary" onclick="move(1)">Próximo →</button></div></section>
-<section id="result" class="result"><h2 id="score"></h2><p>Você concluiu a revisão. Retome os cartões que ainda precisam de reforço.</p><button onclick="restart()">Revisar novamente</button></section></main>
-<script>const cards=__CARDS__;let index=0,known=0,answered=new Set();const card=document.getElementById('card');
-function render(){card.classList.remove('flipped');front.textContent=cards[index].front;back.textContent=cards[index].back;progress.textContent=`Cartão ${index+1} de ${cards.length}`}
-function move(step){index=(index+step+cards.length)%cards.length;render()}function mark(ok){if(!answered.has(index)){answered.add(index);if(ok)known++}if(answered.size===cards.length){study.style.display='none';result.style.display='block';score.textContent=`Resultado: ${Math.round(known/cards.length*100)}%`}else{move(1)}}
-function restart(){index=0;known=0;answered=new Set();result.style.display='none';study.style.display='block';render()}card.onclick=()=>card.classList.toggle('flipped');card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();card.classList.toggle('flipped')}};render();</script></body></html>'''
+<section id="result" class="result"><h2 id="score"></h2><p>Você concluiu a revisão. Retome os cartões que ainda precisam de reforço.</p><div class="buttons" style="justify-content:center"><button id="review" class="unknown" onclick="reviewMissed()">Revisar não dominados</button><button onclick="restart(true)">Embaralhar e reiniciar</button></div></section></main>
+<script>let cards=__CARDS__;let index=0,known=0,answered=new Set(),missed=new Set();const card=document.getElementById('card');
+function render(){card.classList.remove('flipped');front.textContent=cards[index].front;back.textContent=cards[index].back;front.dataset.category=back.dataset.category=cards[index].category||'Revisão';progress.textContent=`Cartão ${index+1} de ${cards.length} · Domínio ${Math.round(known/Math.max(1,answered.size)*100)}%`}
+function move(step){index=(index+step+cards.length)%cards.length;render()}function mark(ok){if(!answered.has(index)){answered.add(index);if(ok)known++;else missed.add(index)}if(answered.size===cards.length){study.style.display='none';result.style.display='block';score.textContent=`Resultado: ${Math.round(known/cards.length*100)}%`;review.style.display=missed.size?'inline-block':'none'}else{move(1)}}
+function reviewMissed(){cards=cards.filter((_,i)=>missed.has(i));restart(false)}function restart(shuffle=false){if(shuffle)cards.sort(()=>Math.random()-.5);index=0;known=0;answered=new Set();missed=new Set();result.style.display='none';study.style.display='block';render()}card.onclick=()=>card.classList.toggle('flipped');card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();card.classList.toggle('flipped')}};render();</script></body></html>'''
     return template.replace("__MODULE__", safe_module).replace("__TITLE__", safe_title).replace("__CARDS__", cards_json)
 
 

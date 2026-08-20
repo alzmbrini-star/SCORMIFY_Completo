@@ -9,6 +9,8 @@ from services.ai_agent import (
     _interactive_html_is_functional,
     _normalize_interactive_storyboard_slide,
     _case_study_complexity_score,
+    _flashcard_complexity_score,
+    _interactive_visual_direction,
     _required_simulator_mechanic,
     _simulator_complexity_score,
     _simulator_mechanic_is_functional,
@@ -218,6 +220,39 @@ def test_required_mechanics_are_stable_and_varied_between_slides():
     second_pass = [_required_simulator_mechanic(slide) for slide in slides]
     assert first_pass == second_pass
     assert len(set(first_pass)) >= 3
+
+
+def test_interactive_catalog_supports_distinct_professional_experiences():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "services" / "ai_agent.py").read_text(encoding="utf-8")
+    for mechanic in (
+        "timed_challenge", "physics_controls", "tool_workspace",
+        "network_explorer", "memory_match", "word_challenge",
+    ):
+        assert mechanic in source
+    slides = [
+        {"id": str(i), "title": title, "purpose": purpose, "moduleName": "Laboratorio"}
+        for i, (title, purpose) in enumerate((
+            ("Penalti educativo", "quiz cronometrado"),
+            ("Bomba hidraulica", "fluxo pressao capacidade"),
+            ("Conversor de medidas", "ferramenta calculadora"),
+            ("Mapa de processos", "rede conceitual"),
+            ("Memoria de conceitos", "associacao"),
+            ("Forca de vocabulario", "termos tecnicos"),
+            ("Motor e combustao", "controle fisico"),
+            ("Diagnostico de riscos", "painel de indicadores"),
+        ))
+    ]
+    assert len({_interactive_visual_direction(slide) for slide in slides}) >= 4
+
+
+def test_flashcard_fallback_meets_mastery_and_visual_quality_gate():
+    generated = _build_flashcard_fallback_html({
+        "title": "Gestao de riscos",
+        "purpose": "Identificar riscos. Avaliar impactos. Definir controles. Monitorar indicadores. Comunicar desvios. Melhorar continuamente.",
+    })
+    assert _flashcard_complexity_score(generated) >= 6
+    assert "Revisar não dominados" in generated
+    assert "Embaralhar e reiniciar" in generated
 
 
 def test_requested_mechanic_caps_otherwise_rich_but_wrong_simulator():
