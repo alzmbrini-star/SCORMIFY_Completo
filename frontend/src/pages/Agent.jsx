@@ -396,11 +396,25 @@ export default function Agent() {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch (_e) { data = {}; }
+      if (!res.ok) {
+        const detail = data?.detail || (res.status === 401
+          ? 'Sua sessão de acesso expirou. Entre novamente.'
+          : res.status === 403
+            ? 'Sua empresa não possui acesso ao Agente IA.'
+            : res.status === 503
+              ? 'O banco de dados está temporariamente ocupado. Tente novamente em alguns segundos.'
+              : `Falha ao iniciar o Agente IA (HTTP ${res.status}).`);
+        throw new Error(detail);
+      }
+      if (!data?.id) throw new Error('O servidor não retornou o identificador da sessão.');
       setSessionId(data.id);
       return data.id;
     } catch (e) {
-      toast.error('Erro ao criar sessão');
+      console.error('Falha ao criar sessão do Agente IA:', e);
+      toast.error(e?.message || 'Erro ao criar sessão');
       return null;
     }
   }, [sessionId, agentCompanyId]);

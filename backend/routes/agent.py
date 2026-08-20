@@ -368,25 +368,50 @@ async def check_agent_access(request: Request):
 async def create_agent_session(data: AgentSessionCreate, request: Request, user: dict = Depends(require_agent_access)):
     """Create a new AI agent session."""
     from routes.projects_common import resolve_company_id_for_creation
-    session_id = str(uuid.uuid4())
-    session = {
-        "id": session_id,
-        "step": "created",  # created, analyzed, configured, structured, storyboarded, generated
-        "contentText": data.contentText or "",
-        "fileName": data.fileName or "",
-        "analysis": None,
-        "config": {},
-        "structure": None,
-        "storyboard": None,
-        "projectId": None,
-        "chatHistory": [],
-        "userId": user.get("user_id"),
-        "companyId": await resolve_company_id_for_creation(user, data.companyId),
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "updatedAt": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.agent_sessions.insert_one({**session, "_id": session_id})
-    return session
+    company_id = await resolve_company_id_for_creation(user, data.companyId)
+    last_error = None
+    # Atlas can briefly reject writes while another long-running generation is
+    # persisting several assets. Session creation is tiny and idempotent from
+    # the caller's perspective, so retry transient write/pool failures instead
+    # of surfacing an opaque 500 to the author.
+    for attempt in range(3):
+        session_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        session = {
+            "id": session_id,
+            "step": "created",  # created, analyzed, configured, structured, storyboarded, generated
+            "contentText": data.contentText or "",
+            "fileName": data.fileName or "",
+            "analysis": None,
+            "config": {},
+            "structure": None,
+            "storyboard": None,
+            "projectId": None,
+            "chatHistory": [],
+            "userId": user.get("user_id"),
+            "companyId": company_id,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        try:
+            await asyncio.wait_for(
+                db.agent_sessions.insert_one({**session, "_id": session_id}),
+                timeout=15.0,
+            )
+            return session
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "Agent session creation attempt %s/3 failed for user=%s company=%s: %s",
+                attempt + 1, user.get("user_id"), company_id, str(exc)[:240],
+            )
+            if attempt < 2:
+                await asyncio.sleep(0.75 * (attempt + 1))
+    logger.error("Agent session creation exhausted retries: %s", last_error)
+    raise HTTPException(
+        status_code=503,
+        detail="Não foi possível iniciar a sessão no banco de dados. Aguarde alguns segundos e tente novamente.",
+    )
 
 @router.get("/agent/sessions/{session_id}")
 async def get_agent_session(session_id: str, request: Request, user: dict = Depends(require_agent_access)):
