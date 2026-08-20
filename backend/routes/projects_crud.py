@@ -34,6 +34,68 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Projects"])
 
 
+# Project-owned records stored outside the main ``projects`` document. Keep
+# this list explicit: company assets, users and brand kits are deliberately
+# not included because they are shared by multiple courses.
+PROJECT_CLEANUP_FILTERS = {
+    "project_assets": lambda project_id: {"project_id": project_id},
+    "agent_sessions": lambda project_id: {"projectId": project_id},
+    "ppt_uploads": lambda project_id: {"projectId": project_id},
+    "questions": lambda project_id: {"projectId": project_id},
+    "quiz_attempts": lambda project_id: {"projectId": project_id},
+    "scenarios": lambda project_id: {"project_id": project_id},
+    "generation_tasks": lambda project_id: {"project_id": project_id},
+    "aesthetic_analyses": lambda project_id: {"projectId": project_id},
+    "aesthetic_snapshots": lambda project_id: {"projectId": project_id},
+    "analysis_cache": lambda project_id: {
+        "$or": [
+            {"projectId": project_id},
+            {"key": f"course_analysis_{project_id}"},
+        ]
+    },
+    "course_snapshots": lambda project_id: {"projectId": project_id},
+    "improvement_previews": lambda project_id: {"projectId": project_id},
+    "improvement_approvals": lambda project_id: {"projectId": project_id},
+    "apply_jobs": lambda project_id: {"projectId": project_id},
+    "tutor_logs": lambda project_id: {"projectId": project_id},
+    "tutor_feedback": lambda project_id: {"projectId": project_id},
+    "image_gallery": lambda project_id: {"projectId": project_id},
+    "leonardo_generations": lambda project_id: {"projectId": project_id},
+    "krea_generations": lambda project_id: {"projectId": project_id},
+    "kling_generations": lambda project_id: {"projectId": project_id},
+    "tts_generations": lambda project_id: {
+        "$or": [{"projectId": project_id}, {"project_id": project_id}]
+    },
+    "heygen_videos": lambda project_id: {
+        "$or": [{"projectId": project_id}, {"project_id": project_id}]
+    },
+    "heygen_batches": lambda project_id: {
+        "$or": [{"projectId": project_id}, {"project_id": project_id}]
+    },
+    "export_logs": lambda project_id: {"projectId": project_id},
+    "usage_logs": lambda project_id: {"projectId": project_id},
+    "jobs": lambda project_id: {
+        "$or": [{"projectId": project_id}, {"project_id": project_id}]
+    },
+}
+
+
+async def delete_project_owned_records(project_id: str) -> dict:
+    """Delete MongoDB records exclusively owned by *project_id*.
+
+    The operation is retry-safe. The main project document is intentionally
+    deleted by the caller only after all related collections have succeeded,
+    so a temporary database failure does not hide a course while leaving its
+    largest assets orphaned.
+    """
+    deleted = {}
+    for collection_name, build_filter in PROJECT_CLEANUP_FILTERS.items():
+        result = await db[collection_name].delete_many(build_filter(project_id))
+        if result.deleted_count:
+            deleted[collection_name] = result.deleted_count
+    return deleted
+
+
 # ---------------------------------------------------------------------------
 # Project CRUD
 # ---------------------------------------------------------------------------
@@ -193,15 +255,37 @@ async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: di
 
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: str, user: dict = Depends(require_auth)):
-    """Delete project. Enforces per-company access isolation."""
+    """Delete a project and all course-owned records and binary assets.
+
+    Company-level resources (brand kit/library, users and settings) remain
+    untouched because they can be shared by other projects.
+    """
     await load_authorized_project(project_id, user)
-    await db.projects.delete_one({"id": project_id})
+
+    try:
+        cleanup = await delete_project_owned_records(project_id)
+        project_result = await db.projects.delete_one({"id": project_id})
+    except Exception as exc:
+        logger.exception("Failed cascading deletion for project %s", project_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Não foi possível concluir a limpeza do curso. Tente novamente.",
+        ) from exc
 
     project_dir = PROJECTS_DIR / project_id
     if project_dir.exists():
         shutil.rmtree(project_dir)
 
-    return {"message": "Project deleted"}
+    logger.info(
+        "Project %s deleted with related records: %s", project_id, cleanup
+    )
+    return {
+        "message": "Project deleted",
+        "deleted": {
+            "projects": project_result.deleted_count,
+            **cleanup,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
