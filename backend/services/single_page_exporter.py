@@ -1431,6 +1431,21 @@ def generate_single_page_html(
     loader_title = _loader_cfg["title_html"]
     loader_primary = _loader_cfg["primary"]
     loader_accent = _loader_cfg["accent"]
+    # The single-page HTML used legacy hard-coded chrome colors. Resolve and
+    # append the same company tokens used by traditional SCORM/HTML instead.
+    from services.player_theme import (
+        build_single_page_player_theme_css,
+        resolve_player_theme,
+        resolve_tutor_theme,
+    )
+    player_theme_css = build_single_page_player_theme_css(
+        resolve_player_theme(project_doc)
+    )
+    # Defensive parity for direct exporter callers and preview routes: Tutor
+    # inherits the company identity even when the caller omitted ``theme``.
+    if tutor_config and not tutor_config.get("theme"):
+        tutor_config = dict(tutor_config)
+        tutor_config["theme"] = resolve_tutor_theme(project_doc)
     # Strip leading UUID-like prefix from project name (common in PPT-imported projects)
     course_title = re.sub(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_", "", course_title, flags=re.IGNORECASE)
 
@@ -1938,7 +1953,7 @@ def _BUILD_PAGE(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_esc(title)}</title>
-<style>{css}</style>
+<style>{css}\n{player_theme_css}</style>
 {tutor_style}
 {scorm_script}
 </head>

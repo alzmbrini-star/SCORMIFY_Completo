@@ -1,10 +1,45 @@
 from services.player_theme import (
     DEFAULTS,
     TUTOR_DEFAULTS,
+    build_single_page_player_theme_css,
     build_tutor_theme_css,
     resolve_player_theme,
     resolve_tutor_theme,
 )
+
+
+def test_single_page_css_uses_resolved_company_colors():
+    project = {"brandKit": {
+        "playerCanvasColor": "#112233",
+        "playerHeaderColor": "#223344",
+        "playerNavigationColor": "#334455",
+        "playerAccentColor": "#ffcc00",
+        "playerSidebarColor": "#445566",
+        "playerSidebarItemColor": "#556677",
+        "playerSidebarActiveColor": "#667788",
+    }}
+    css = build_single_page_player_theme_css(resolve_player_theme(project))
+    assert "html, body { background: #112233; }" in css
+    assert ".sp-header { background: #223344;" in css
+    assert ".sp-progress { background: #334455; }" in css
+    assert ".sp-progress-fill { background: #ffcc00; }" in css
+    assert ".sp-drawer { background: #445566;" in css
+    assert "background: #556677" in css
+    assert "background: #667788" in css
+
+
+def test_single_page_and_tutor_share_the_company_brand_kit():
+    project = {"brandKit": {
+        "playerAccentColor": "#123456",
+        "playerNavigationColor": "#234567",
+        "tutorHeaderColor": "#345678",
+        "tutorPanelColor": "#456789",
+    }}
+    player_css = build_single_page_player_theme_css(resolve_player_theme(project))
+    tutor = resolve_tutor_theme(project)
+    assert "#123456" in player_css
+    assert tutor["header"] == "#345678"
+    assert tutor["panel"] == "#456789"
 
 
 def test_player_theme_preserves_legacy_defaults_when_company_has_no_override():

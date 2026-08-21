@@ -147,3 +147,43 @@ def build_tutor_theme_css(theme: Dict[str, Any] | None) -> str:
 {normal} .tutor-input:focus {{ border-color: {accent}; }}
 {normal} .tutor-a11y-bar {{ border-color: {accent}55; }}
 """.strip()
+
+
+def build_single_page_player_theme_css(theme: Dict[str, Any] | None) -> str:
+    """Map the company player palette to standalone/single-page classes."""
+    theme = theme or DEFAULTS
+    canvas = _safe_hex(theme.get("canvas"), DEFAULTS["canvas"])
+    header = _safe_hex(theme.get("header"), DEFAULTS["header"])
+    navigation = _safe_hex(theme.get("navigation"), DEFAULTS["navigation"])
+    accent = _safe_hex(theme.get("accent"), DEFAULTS["accent"])
+    sidebar = _safe_hex(theme.get("sidebar"), DEFAULTS["sidebar"])
+    sidebar_item = _safe_hex(theme.get("sidebarItem"), DEFAULTS["sidebarItem"])
+    sidebar_active = _safe_hex(theme.get("sidebarActive"), DEFAULTS["sidebarActive"])
+    header_text = _safe_hex(theme.get("headerText"), _text_color(header))
+    navigation_text = _safe_hex(theme.get("navigationText"), _text_color(navigation))
+    accent_text = _safe_hex(theme.get("accentText"), _text_color(accent))
+    sidebar_text = _safe_hex(theme.get("sidebarText"), _text_color(sidebar))
+    sidebar_item_text = _safe_hex(theme.get("sidebarItemText"), _text_color(sidebar_item))
+    sidebar_active_text = _safe_hex(theme.get("sidebarActiveText"), _text_color(sidebar_active))
+    return f"""
+/* Company player theme - standalone HTML parity with SCORM. */
+html, body {{ background: {canvas}; }}
+.sp-bg-image, .sp-bg-pattern {{ background-color: {canvas}; }}
+.sp-bg-pattern {{ background: {canvas}; }}
+.sp-header {{ background: {header}; color: {header_text}; }}
+.sp-header .sp-title, .sp-header .sp-menu-btn,
+.sp-header .sp-fullscreen-btn, .sp-header .sp-bg-music-toggle {{ color: {header_text}; }}
+.sp-progress {{ background: {navigation}; }}
+.sp-progress-fill {{ background: {accent}; }}
+.sp-drawer {{ background: {sidebar}; color: {sidebar_text}; border-color: {accent}; }}
+.sp-drawer-list li {{ background: {sidebar_item}; color: {sidebar_item_text}; }}
+.sp-drawer-list li.unlocked:hover,
+.sp-drawer-list li.active {{ background: {sidebar_active}; color: {sidebar_active_text}; border-color: {accent}; }}
+.sp-drawer-list li.completed::before,
+.sp-drawer-list li.unlocked:not(.completed):not(.locked)::before {{ color: {accent}; }}
+.sp-next-btn, .sp-btn-primary {{ background: {accent}; color: {accent_text}; }}
+.sp-next-btn:hover, .sp-btn-primary:hover {{ background: {accent}; filter: brightness(1.08); }}
+.sp-next-btn::before {{ border-color: {accent}80; }}
+.sp-narration-controls {{ background: {navigation}; color: {navigation_text}; }}
+.sp-narration-btn {{ color: {navigation_text}; }}
+""".strip()

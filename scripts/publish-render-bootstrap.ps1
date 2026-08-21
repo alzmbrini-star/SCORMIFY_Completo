@@ -245,7 +245,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Align Editor visual themes with AI Agent"
+        message = "Apply company player colors to standalone HTML"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
