@@ -245,7 +245,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Apply company player colors to standalone HTML"
+        message = "Load company identity in standalone HTML exports"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

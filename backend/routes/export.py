@@ -25,6 +25,38 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Export"])
 
 
+async def _merge_company_brand_kit(project_doc: dict, export_kind: str = "export") -> dict:
+    """Enrich an export snapshot with the company's current Brand Kit."""
+    enriched = dict(project_doc or {})
+    try:
+        company_id = enriched.get("companyId")
+        if not company_id:
+            return enriched
+        company = await db.companies.find_one(
+            {"id": company_id},
+            {"_id": 0, "brandKit": 1},
+        )
+        company_kit = (company or {}).get("brandKit") or {}
+        project_kit = enriched.get("brandKit") or {}
+        if not company_kit:
+            return enriched
+        merged = dict(company_kit)
+        for key, value in project_kit.items():
+            if value not in (None, ""):
+                merged[key] = value
+        enriched["brandKit"] = merged
+        logger.info(
+            "%s: loaded company player theme (canvas=%s, header=%s, navigation=%s)",
+            export_kind,
+            merged.get("playerCanvasColor"),
+            merged.get("playerHeaderColor"),
+            merged.get("playerNavigationColor"),
+        )
+    except Exception as exc:
+        logger.warning("%s: could not load company brand kit (non-fatal): %s", export_kind, exc)
+    return enriched
+
+
 def _get_external_url(request: Request = None) -> str:
     """Return the public backend URL that exported courses must call.
 
@@ -298,33 +330,7 @@ async def _run_scorm_export_job(
         # `brandKit` fields take precedence FIELD-BY-FIELD over the company
         # defaults — so a project that has its own `primaryColor` but no
         # `loaderTitle` still inherits the company's loader settings.
-        try:
-            company_id = project_doc.get("companyId")
-            if company_id:
-                company = await db.companies.find_one(
-                    {"id": company_id},
-                    {"_id": 0, "brandKit": 1},
-                )
-                company_kit = (company or {}).get("brandKit") or {}
-                project_kit = project_doc.get("brandKit") or {}
-                if company_kit:
-                    # Project values WIN — they're applied AFTER the company
-                    # defaults. Empty-string project values do NOT override
-                    # (treat them as "unset" so the company default kicks in).
-                    merged = dict(company_kit)
-                    for k, v in project_kit.items():
-                        if v not in (None, ""):
-                            merged[k] = v
-                    project_doc["brandKit"] = merged
-                    logger.info(
-                        "SCORM export: merged company brand kit (primary=%s, "
-                        "loaderTitle=%s, loaderColor=%s)",
-                        merged.get("primaryColor"),
-                        bool(merged.get("loaderTitle")),
-                        bool(merged.get("loaderColor")),
-                    )
-        except Exception as exc:
-            logger.warning(f"Could not merge company brand kit (non-fatal): {exc}")
+        project_doc = await _merge_company_brand_kit(project_doc, "SCORM export")
 
 
         # Load tutor settings
@@ -768,6 +774,9 @@ async def _run_html_export_job(
     """Heavy HTML standalone export work — runs as an asyncio task."""
     try:
         export_warnings: list[dict] = []
+        # Resolve the same current company identity used by SCORM before the
+        # Tutor theme and standalone player CSS are generated.
+        project_doc = await _merge_company_brand_kit(project_doc, "HTML export")
         from services.html_exporter import generate_standalone_html
         assets_dir = str(PROJECTS_DIR / project_id / "assets")
         base_url = external_url
