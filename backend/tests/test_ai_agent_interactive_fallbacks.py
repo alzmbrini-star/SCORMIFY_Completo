@@ -1,5 +1,6 @@
 from services.ai_agent import (
     _build_simulator_fallback_html,
+    _build_game_fallback_html,
     _build_fallback_structure,
     _build_case_study_fallback_html,
     _build_flashcard_fallback_html,
@@ -10,6 +11,7 @@ from services.ai_agent import (
     _normalize_interactive_storyboard_slide,
     _case_study_complexity_score,
     _flashcard_complexity_score,
+    _game_complexity_score,
     _interactive_visual_direction,
     _required_simulator_mechanic,
     _simulator_complexity_score,
@@ -51,6 +53,32 @@ def test_empty_simulator_is_replaced_before_storyboard_preview():
     html = normalized["elements"][0]["htmlContent"]
     assert _interactive_html_is_functional(html, "simulator")
     assert "<script>" in html
+
+
+def test_empty_game_becomes_a_premium_question_engine_experience():
+    slide = {
+        "type": "game",
+        "title": "Jogo: Liderança em Ação",
+        "moduleName": "Desenvolvimento de líderes",
+        "purpose": (
+            "A liderança situacional adapta a abordagem ao contexto. "
+            "Decisões devem considerar evidências, pessoas e consequências."
+        ),
+        "elements": [],
+    }
+    normalized = _normalize_interactive_storyboard_slide(slide)
+    generated = normalized["elements"][0]["htmlContent"]
+
+    assert "Penalty Quest" in generated
+    assert "const QuestionEngine=" in generated
+    for method in (
+        "getQuestion", "getRandomQuestion", "getQuestionsByTopic",
+        "getQuestionsByDifficulty", "validateAnswer", "saveResult",
+    ):
+        assert method in generated
+    assert "particles" in generated
+    assert "XP total" in generated
+    assert _game_complexity_score(generated) >= 8
 
 
 def test_empty_infographic_is_replaced_with_contextual_visual():
@@ -172,12 +200,13 @@ def test_rich_interactives_get_an_exclusive_storyboard_batch():
         {"id": "a", "type": "content"},
         {"id": "b", "type": "content"},
         {"id": "sim", "type": "simulator"},
+        {"id": "game", "type": "game"},
         {"id": "c", "type": "content"},
         {"id": "case", "type": "case_study"},
     ]
     batches = _build_storyboard_batches(slides, regular_batch_size=4)
     assert [[slide["id"] for slide in batch] for batch in batches] == [
-        ["a", "b"], ["sim"], ["c"], ["case"]
+        ["a", "b"], ["sim"], ["game"], ["c"], ["case"]
     ]
 
 

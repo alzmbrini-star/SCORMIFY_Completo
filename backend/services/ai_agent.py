@@ -99,7 +99,7 @@ def _extract_json(text: str) -> Optional[dict]:
 
 
 _RICH_INTERACTIVE_TYPES = {
-    "simulator", "infographic", "flashcard", "timeline", "case_study"
+    "simulator", "game", "infographic", "flashcard", "timeline", "case_study"
 }
 
 
@@ -264,6 +264,21 @@ def _simulator_complexity_score(html_content: str, required_mechanic: str = "") 
     return min(score, 10)
 
 
+def _game_complexity_score(html_content: str) -> int:
+    """Score actual game loops separately from business simulators."""
+    lowered = (html_content or "").lower()
+    score = 0
+    if "questionengine" in lowered and all(name.lower() in lowered for name in (
+        "getQuestion", "getRandomQuestion", "validateAnswer", "saveResult"
+    )): score += 3
+    if all(token in lowered for token in ("xp", "lives", "combo", "coins")): score += 2
+    if re.search(r"(?:round|rodada|level|nivel|nível)", lowered): score += 1
+    if "@keyframes" in lowered and re.search(r"(?:particle|confetti|burst|firework)", lowered): score += 2
+    if re.search(r"(?:achievement|conquista|victory|vitoria|vitória|defeat|derrota)", lowered): score += 1
+    if re.search(r"(?:localstorage|postmessage|saveResult)", html_content or "", re.IGNORECASE): score += 1
+    return min(score, 10)
+
+
 def _flashcard_complexity_score(html_content: str) -> int:
     """Require a real study deck, not a single decorative flipping card."""
     raw = html_content or ""
@@ -343,6 +358,8 @@ def _case_study_complexity_score(html_content: str) -> int:
 
 
 def _rich_interactive_complexity_score(html_content: str, content_type: str) -> int:
+    if content_type == "game":
+        return _game_complexity_score(html_content)
     if content_type == "simulator":
         return _simulator_complexity_score(html_content)
     if content_type == "timeline":
@@ -480,7 +497,7 @@ def _build_fallback_structure(content_text: str, config: dict, reason: str = "")
         duration = 30
 
     enabled = config.get("enabledResources") or {}
-    interactive = [name for name in ("simulator", "scenario", "infographic", "flashcard", "timeline", "case_study", "quiz") if enabled.get(name)]
+    interactive = [name for name in ("game", "simulator", "scenario", "infographic", "flashcard", "timeline", "case_study", "quiz") if enabled.get(name)]
     if not interactive:
         interactive = ["quiz"]
     topics = _fallback_content_topics(content_text)
@@ -536,6 +553,7 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
     all_types = ['content', 'title', 'summary']  # always present
     resource_type_map = {
         'quiz': 'quiz',
+        'game': 'game',
         'simulator': 'simulator',
         'scenario': 'scenario',
         'avatar_scene': 'avatar_scene',
@@ -696,7 +714,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "type": s.get("type", "content"),
             "purpose": s.get("purpose", ""),
             "moduleName": s.get("moduleName", ""),
-            **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") == "simulator" else {}),
+            **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") in ("simulator", "game") else {}),
             **({"visualDirection": _interactive_visual_direction(s)} if s.get("type") in _RICH_INTERACTIVE_TYPES else {}),
         } for s in batch]
 
@@ -771,7 +789,7 @@ SLIDES DE CENÁRIO (type="scenario"):
 - Apenas forneça: "scenarioTheme" (tema do cenário relacionado ao módulo), "scenarioObjectives" (objetivos de aprendizagem que o cenário testará), "scenarioAudience" (público-alvo)
 - Formato no elements: [{{"type":"scenario","scenarioTheme":"tema","scenarioObjectives":"objetivos","scenarioAudience":"público"}}]
 
-SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
+SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator" ou type="game"):
 - OBRIGATÓRIO em cada módulo: pelo menos 1 slide simulador/jogo educativo interativo
 - Gere um documento HTML COMPLETO e FUNCIONAL com CSS e JavaScript embutidos
 - O HTML será renderizado dentro de um iframe isolado de 960x540px
@@ -784,6 +802,12 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
   * Jogo de acerto ao alvo: Conceitos corretos/incorretos aparecem na tela como alvos móveis. O aluno deve clicar apenas nas opções CORRETAS. Excelente para diferenciar certo x errado em compliance e operacional. Timer e pontuação.
   * Jogo da memória educativa: Cartas que combinam perguntas com respostas relacionadas ao conteúdo. Trabalha associação mental e retenção. Grade de cartas com animação de virar, contador de tentativas e pares encontrados.
   * Quiz gamificado com barra de energia: Sistema de perguntas com "vida" ou barra de energia que sobe com acertos e desce com erros. Feedback visual colorido, progresso, animações de sucesso/erro. Gera senso de desafio e progressão.
+  * Escalada do Conhecimento: personagem progride por uma montanha, perde energia ao errar e desbloqueia novos cenários.
+  * Corrida do Saber: personagem avança com acertos e encontra obstáculos ao errar, com voltas, combo e chegada cinematográfica.
+  * Batalha de Conhecimento: jogador versus IA, habilidades e ataques liberados por respostas corretas.
+  * Caça ao Tesouro: mapa interativo por áreas, chaves, baús e perguntas que liberam o percurso.
+  * Quiz Show: palco de programa de TV, cronômetro, multiplicadores, ajudas e rodadas progressivas.
+  * Palavras Cruzadas e Sudoku Educacional: desafios construídos a partir dos termos do conteúdo, com validação por perguntas.
 
   SIMULADORES INTERATIVOS (foco em aplicação prática):
   * Calculadora temática (ex: ROI, risco, custo-benefício, dosagem)
@@ -837,6 +861,8 @@ SLIDES DE SIMULADOR/JOGO EDUCATIVO (type="simulator"):
   * Apenas escrever "arraste" ou "simulador" na tela NAO conta: os eventos e mutacoes correspondentes devem existir no JavaScript
 - DIRECAO DE ARTE OBRIGATORIA: siga a `visualDirection` informada no slide. Ela deve ser perceptivel no layout, paleta, componentes e animacoes, nao apenas citada em texto.
 - VARIEDADE ENTRE SLIDES: nao reutilize a mesma composicao visual ou a mesma mecanica em atividades vizinhas. Cada experiencia deve parecer um produto educacional proprio.
+- PARA type="game": entregue uma experiencia de jogo completa, nunca um formulario ou quiz comum. Inclua tela inicial cinematografica, HUD com XP/moedas/vidas/combo, pelo menos 5 rodadas, personagem ou arena visual, animacoes de movimento, particulas/confete, estados de vitoria/derrota e tela final com conquistas.
+- O JavaScript do jogo deve expor um QuestionEngine local com getQuestion(), getRandomQuestion(), getQuestionsByTopic(), getQuestionsByDifficulty(), validateAnswer() e saveResult(). Os dados ficam desacoplados da mecanica para futura troca pela API do banco de questoes.
 - ESTADOS VISUAIS: implemente abertura/instrucoes, atividade em andamento, feedback imediato e conclusao/debrief.
 - Use dados, perguntas, parametros, termos e consequencias extraidos do tema do slide; e proibido usar Lorem ipsum, "opcao 1" ou conteudo generico.
 - Formato: {{"type":"html","htmlContent":"<!DOCTYPE html><html lang='pt-BR'>..."}}
@@ -929,9 +955,9 @@ PARA TODOS OS SLIDES:
         max_retries = 2
         batch_success = False
         quality_type = batch[0].get("type") if len(batch) == 1 else ""
-        quality_checked = quality_type in {"simulator", "flashcard", "timeline", "case_study"}
+        quality_checked = quality_type in {"simulator", "game", "flashcard", "timeline", "case_study"}
         required_simulator_mechanic = (
-            _required_simulator_mechanic(batch[0]) if quality_type == "simulator" else ""
+            _required_simulator_mechanic(batch[0]) if quality_type in ("simulator", "game") else ""
         )
         models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
         while retries <= max_retries:
@@ -940,7 +966,7 @@ PARA TODOS OS SLIDES:
                 chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", provider=provider, model=model)
                 attempt_prompt = prompt
                 if quality_checked and retries > 0:
-                    if quality_type == "simulator":
+                    if quality_type in ("simulator", "game"):
                         attempt_prompt += """
 
 REVISAO OBRIGATORIA DO SIMULADOR:
@@ -1102,10 +1128,14 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                         "type": "html",
                         "htmlContent": _build_flashcard_fallback_html(fallback_source),
                     }]
-                elif stype == "simulator":
+                elif stype in ("simulator", "game"):
                     fallback_elements = [{
                         "type": "html",
-                        "htmlContent": _build_simulator_fallback_html(fallback_source),
+                        "htmlContent": (
+                            _build_game_fallback_html(fallback_source)
+                            if stype == "game"
+                            else _build_simulator_fallback_html(fallback_source)
+                        ),
                     }]
 
                 all_slides.append({
@@ -2257,6 +2287,54 @@ def _build_simulator_fallback_html(sb_slide: dict) -> str:
     return template.replace("__TITLE__", safe_title).replace("__ITEMS__", items_json)
 
 
+def _build_game_fallback_html(sb_slide: dict) -> str:
+    """Build a premium question-driven game when AI game HTML is unusable.
+
+    Question data and game mechanics are deliberately separated by the local
+    QuestionEngine contract, allowing an API-backed bank to replace the
+    embedded questions without changing the penalty game.
+    """
+    title = re.sub(r"^(?:jogo|game)\s*:\s*", "", str(sb_slide.get("title") or "Desafio do Conhecimento"), flags=re.I)
+    source = re.sub(r"\s+", " ", _slide_plain_text(sb_slide)).strip()
+    facts = [p.strip(" -•") for p in re.split(r"(?<=[.!?;:])\s+|\s+[•-]\s+", source) if len(p.strip(" -•")) >= 24]
+    defaults = [
+        f"Aplicar corretamente os conceitos de {title}",
+        f"Analisar evidências antes de decidir sobre {title}",
+        "Relacionar teoria, contexto e consequências práticas",
+        "Usar feedback para ajustar a estratégia adotada",
+        "Transferir o aprendizado para uma nova situação",
+    ]
+    facts = (facts + defaults)[:5]
+    while len(facts) < 5:
+        facts.append(defaults[len(facts) % len(defaults)])
+    questions = []
+    distractors = [
+        "Ignorar o contexto e decidir por intuição",
+        "Memorizar termos sem relacioná-los à prática",
+        "Adiar qualquer análise até o problema desaparecer",
+    ]
+    for index, fact in enumerate(facts):
+        questions.append({
+            "id": f"q{index + 1}",
+            "topic": str(sb_slide.get("moduleName") or title),
+            "difficulty": ("facil", "medio", "dificil", "medio", "dificil")[index],
+            "question": f"Na rodada {index + 1}, qual alternativa melhor representa o aprendizado central?",
+            "alternatives": [fact[:190], *distractors],
+            "correct": 0,
+            "explanation": f"A resposta conecta diretamente o conteúdo do curso: {fact[:230]}",
+        })
+    questions_json = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
+    safe_title = html.escape(title)
+    template = r'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+*{box-sizing:border-box}body{margin:0;min-height:540px;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#fff;background:radial-gradient(circle at 50% 15%,#263d75 0,#101a39 42%,#070b19 100%)}button{font:inherit}.game{width:960px;height:540px;position:relative;overflow:hidden}.glow{position:absolute;width:420px;height:420px;border-radius:50%;filter:blur(80px);opacity:.28}.g1{background:#8b5cf6;left:-140px;top:-180px}.g2{background:#06b6d4;right:-170px;bottom:-210px}.screen{position:absolute;inset:0;display:grid;place-items:center;padding:30px;transition:.45s}.hidden{opacity:0;pointer-events:none;transform:scale(.96)}.start-card,.finish-card{width:620px;padding:38px;border:1px solid #ffffff26;border-radius:30px;background:linear-gradient(145deg,#172554e8,#111827e8);box-shadow:0 30px 90px #0009,inset 0 1px #fff3;text-align:center;backdrop-filter:blur(18px)}.logo{font-size:58px;filter:drop-shadow(0 0 22px #22d3ee)}h1{font-size:36px;margin:8px 0;background:linear-gradient(90deg,#fff,#67e8f9,#c4b5fd);-webkit-background-clip:text;color:transparent}.sub{color:#b8c6e6;line-height:1.5}.cta{border:0;border-radius:16px;padding:14px 30px;color:#06101f;font-weight:900;background:linear-gradient(90deg,#22d3ee,#a7f3d0);cursor:pointer;box-shadow:0 10px 35px #22d3ee55;transition:.2s}.cta:hover{transform:translateY(-3px) scale(1.03)}.play{display:block;padding:16px 22px}.hud{height:66px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-weight:900;letter-spacing:.05em}.chips{display:flex;gap:8px}.chip{padding:8px 12px;border-radius:99px;background:#ffffff12;border:1px solid #ffffff20;font-weight:800;font-size:13px}.arena{height:250px;position:relative;border-radius:25px;overflow:hidden;background:linear-gradient(#176148 0 7%,#27aa68 7% 100%);border:3px solid #dffbf0;box-shadow:0 18px 50px #0007}.crowd{height:74px;background:repeating-linear-gradient(90deg,#35275d 0 8px,#593a80 8px 16px);position:relative}.crowd:after{content:'🙌  🎉  🙌  ⭐  🙌  🎉  🙌  ⭐  🙌';position:absolute;inset:19px 0;text-align:center;font-size:26px;letter-spacing:21px;animation:crowd .55s infinite alternate}.goal{position:absolute;width:310px;height:128px;left:325px;top:82px;border:7px solid white;border-bottom:0;box-shadow:inset 0 0 0 2px #ffffff55;background:repeating-linear-gradient(45deg,#ffffff18 0 2px,transparent 2px 17px)}.keeper{position:absolute;left:452px;top:132px;font-size:47px;transition:.6s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 7px 5px #0005)}.ball{position:absolute;left:467px;bottom:18px;font-size:34px;z-index:3;filter:drop-shadow(0 7px 5px #0008)}.ball.shoot-left{animation:shootL .75s forwards}.ball.shoot-right{animation:shootR .75s forwards}.keeper.dive-left{transform:translate(-88px,-20px) rotate(-38deg)}.keeper.dive-right{transform:translate(88px,-20px) rotate(38deg)}.panel{margin-top:12px;border-radius:20px;padding:15px 18px;background:#101a34e8;border:1px solid #ffffff1e}.progress{height:6px;border-radius:8px;background:#ffffff13;overflow:hidden}.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#a78bfa);transition:.45s}.question{font-size:17px;font-weight:850;text-align:center;margin:10px 0}.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px}.answer{min-height:42px;border:1px solid #ffffff1b;border-radius:12px;background:#ffffff0d;color:#edf6ff;padding:8px 12px;cursor:pointer;font-size:12px;font-weight:700;transition:.18s}.answer:hover{transform:translateY(-2px);border-color:#67e8f9;background:#164e6366}.answer.correct{background:#059669;border-color:#6ee7b7}.answer.wrong{background:#dc2626;border-color:#fca5a5;animation:shake .28s}.feedback{height:18px;margin-top:7px;text-align:center;font-size:12px;color:#a5f3fc}.particle{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none;animation:burst 1s forwards}.achievement{display:inline-block;padding:8px 13px;border-radius:99px;background:#f59e0b22;border:1px solid #fbbf24;color:#fde68a;font-weight:900;margin:12px}.stats{display:flex;justify-content:center;gap:12px;margin:20px}.stats b{min-width:105px;padding:14px;border-radius:16px;background:#ffffff0d}.stats small{display:block;color:#94a3b8;margin-top:4px}@keyframes crowd{to{transform:translateY(-5px)}}@keyframes shootL{to{left:370px;bottom:125px;transform:scale(.55) rotate(420deg)}}@keyframes shootR{to{left:555px;bottom:125px;transform:scale(.55) rotate(420deg)}}@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}@keyframes burst{to{transform:translate(var(--x),var(--y)) rotate(360deg);opacity:0}}@media(max-width:800px){.game{width:100vw}.play{padding:8px}.start-card,.finish-card{width:92%}.answers{grid-template-columns:1fr}.arena{height:220px}.goal{left:calc(50% - 155px)}.keeper{left:calc(50% - 24px)}.ball{left:calc(50% - 17px)}}
+</style></head><body><main class="game"><div class="glow g1"></div><div class="glow g2"></div><section id="start" class="screen"><div class="start-card"><div class="logo">⚽</div><h1>Penalty Quest</h1><h2>__TITLE__</h2><p class="sub">Responda, construa seu combo e converta conhecimento em gols. Cinco rodadas, três vidas e uma conquista épica.</p><button class="cta" onclick="Game.start()">COMEÇAR CAMPEONATO</button></div></section><section id="play" class="screen hidden play"><header class="hud"><div class="brand">⚡ KNOWLEDGE LEAGUE</div><div class="chips"><span class="chip">❤️ <b id="lives">3</b></span><span class="chip">🔥 <b id="combo">0</b>x</span><span class="chip">⭐ <b id="xp">0</b> XP</span><span class="chip">🪙 <b id="coins">0</b></span></div></header><div class="arena" id="arena"><div class="crowd"></div><div class="goal"></div><div id="keeper" class="keeper">🧤</div><div id="ball" class="ball">⚽</div></div><div class="panel"><div class="progress"><i id="bar"></i></div><div id="question" class="question"></div><div id="answers" class="answers"></div><div id="feedback" class="feedback"></div></div></section><section id="finish" class="screen hidden"><div class="finish-card"><div class="logo">🏆</div><h1 id="finishTitle">Campeonato concluído!</h1><span id="achievement" class="achievement"></span><div class="stats"><b id="finalXp"></b><b id="finalCoins"></b><b id="finalAccuracy"></b></div><p class="sub">Seu progresso foi registrado localmente e está pronto para integração com o LMS.</p><button class="cta" onclick="Game.restart()">JOGAR NOVAMENTE</button></div></section></main><script>
+const questionBank=__QUESTIONS__;
+const QuestionEngine={questions:questionBank,results:[],getQuestion(id){return this.questions.find(q=>q.id===id)},getRandomQuestion(){return this.questions[Math.floor(Math.random()*this.questions.length)]},getQuestionsByTopic(topic){return this.questions.filter(q=>q.topic===topic)},getQuestionsByDifficulty(level){return this.questions.filter(q=>q.difficulty===level)},validateAnswer(question,index){return index===question.correct},saveResult(result){this.results.push(result);try{localStorage.setItem('scormify-game-results',JSON.stringify(this.results))}catch(e){}return result}};
+const Game={round:0,xp:0,coins:0,lives:3,combo:0,correct:0,locked:false,start(){start.classList.add('hidden');play.classList.remove('hidden');this.next()},restart(){this.round=0;this.xp=0;this.coins=0;this.lives=3;this.combo=0;this.correct=0;finish.classList.add('hidden');play.classList.remove('hidden');this.sync();this.next()},sync(){lives.textContent=this.lives;combo.textContent=this.combo;xp.textContent=this.xp;coins.textContent=this.coins;bar.style.width=(this.round/questionBank.length*100)+'%'},next(){this.locked=false;ball.className='ball';keeper.className='keeper';feedback.textContent='';if(this.round>=questionBank.length||this.lives<=0)return this.end();this.sync();const q=questionBank[this.round];question.textContent=q.question;answers.innerHTML='';q.alternatives.map((text,index)=>({text,index,key:Math.random()})).sort((a,b)=>a.key-b.key).forEach(a=>{const b=document.createElement('button');b.className='answer';b.textContent=a.text;b.onclick=()=>this.answer(q,a.index,b);answers.appendChild(b)})},answer(q,index,button){if(this.locked)return;this.locked=true;const ok=QuestionEngine.validateAnswer(q,index),side=Math.random()>.5?'right':'left';ball.classList.add('shoot-'+side);if(ok){keeper.classList.add('dive-'+(side==='left'?'right':'left'));this.combo++;this.correct++;const gain=100+(this.combo*25);this.xp+=gain;this.coins+=10*this.combo;button.classList.add('correct');feedback.textContent='⚽ GOOOL! +'+gain+' XP · '+q.explanation;this.particles()}else{keeper.classList.add('dive-'+side);this.combo=0;this.lives--;button.classList.add('wrong');feedback.textContent='🧤 Defesa! '+q.explanation}QuestionEngine.saveResult({questionId:q.id,correct:ok,xp:this.xp,at:Date.now()});this.round++;this.sync();setTimeout(()=>this.next(),1600)},particles(){for(let i=0;i<32;i++){const p=document.createElement('i');p.className='particle';p.style.left='50%';p.style.top='40%';p.style.background=['#22d3ee','#a78bfa','#fbbf24','#34d399'][i%4];p.style.setProperty('--x',(Math.random()*420-210)+'px');p.style.setProperty('--y',(Math.random()*260-130)+'px');arena.appendChild(p);setTimeout(()=>p.remove(),1100)}},end(){play.classList.add('hidden');finish.classList.remove('hidden');const accuracy=Math.round(this.correct/questionBank.length*100);finishTitle.textContent=this.lives>0?'Campeonato concluído!':'Treino encerrado — tente de novo!';achievement.textContent=accuracy===100?'🌟 CONQUISTA: MESTRE INVICTO':accuracy>=60?'🥉 CONQUISTA: ARTILHEIRO DO SABER':'🎯 MISSÃO: TREINAR NOVAMENTE';finalXp.innerHTML=this.xp+'<small>XP total</small>';finalCoins.innerHTML=this.coins+'<small>moedas</small>';finalAccuracy.innerHTML=accuracy+'%<small>precisão</small>';QuestionEngine.saveResult({complete:true,xp:this.xp,coins:this.coins,accuracy})}};
+</script></body></html>'''
+    return template.replace("__TITLE__", safe_title).replace("__QUESTIONS__", questions_json)
+
+
 def _build_flashcard_fallback_html(sb_slide: dict) -> str:
     """Build a deterministic, usable review activity from the slide context."""
     title = str(sb_slide.get("title") or "Revisão do conteúdo")
@@ -2380,6 +2458,7 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
     stype = str((slide or {}).get("type") or "")
     builders = {
         "simulator": _build_simulator_fallback_html,
+        "game": _build_game_fallback_html,
         "infographic": _build_infographic_fallback_html,
         "flashcard": _build_flashcard_fallback_html,
         "timeline": _build_timeline_fallback_html,
@@ -2851,7 +2930,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         elif stype == "summary":
             bg = palette.get("coverBg", palette["primary"])
             slide_elements = _build_summary_slide(sb_slide, palette, module_name)
-        elif stype == "simulator":
+        elif stype in ("simulator", "game"):
             bg = palette.get("contentBg", "#ffffff")
             # Simulator slides contain full HTML+JS interactive content
             html_content = ""
@@ -2883,7 +2962,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     logger.warning("Rejected non-functional simulator HTML on slide %s", i)
                 # Never turn a failed simulator into a blank text slide. Use a
                 # deterministic, fully interactive activity instead.
-                fallback_html = _build_simulator_fallback_html(sb_slide)
+                fallback_html = (
+                    _build_game_fallback_html(sb_slide)
+                    if stype == "game"
+                    else _build_simulator_fallback_html(sb_slide)
+                )
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",

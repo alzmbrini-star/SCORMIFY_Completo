@@ -245,7 +245,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Load company identity in standalone HTML exports"
+        message = "Generate premium educational games from Agent courses"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
