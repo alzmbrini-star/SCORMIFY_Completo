@@ -117,6 +117,7 @@ import {
   Wand2,
   FileImage,
   MessageSquare,
+  Gamepad2,
 } from 'lucide-react';
 import SlideCanvas from '../components/editor/SlideCanvas';
 import Timeline from '../components/editor/Timeline';
@@ -132,6 +133,7 @@ import KreaPanel from './Agent/components/KreaPanel';
 import SinglePagePreviewDialog from './Editor/dialogs/SinglePagePreviewDialog';
 import AestheticsPanel from '../components/editor/AestheticsPanel';
 import EditorChat from '../components/editor/EditorChat';
+import EducationalGameDialog from '../components/games/EducationalGameDialog';
 
 // Extracted components and hooks
 import { getThumbAssetUrl, formatDuration, formatDateTime, formatTime, getStatusBadge } from './Editor/utils';
@@ -315,6 +317,7 @@ export default function Editor() {
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [showEducationalGameDialog, setShowEducationalGameDialog] = useState(false);
   const [showScenarioDialog, setShowScenarioDialog] = useState(false);
   const [showGamificationPanel, setShowGamificationPanel] = useState(false);
   const [showDesignTemplateDialog, setShowDesignTemplateDialog] = useState(false);
@@ -1051,6 +1054,28 @@ export default function Editor() {
     }
   };
 
+  // Add a self-contained educational game. Its question snapshot is embedded
+  // in the HTML so both HTML and SCORM exports keep working offline.
+  const handleEducationalGameCreated = async (gameData) => {
+    if (!currentSlide) return;
+    try {
+      const slideWidth = currentSlide?.width || 1920;
+      const slideHeight = currentSlide?.height || 1080;
+      await addElement(currentSlide.id, {
+        ...gameData,
+        x: 0,
+        y: 0,
+        width: slideWidth,
+        height: slideHeight,
+        startTime: 0,
+      });
+      toast.success('Jogo educativo adicionado ao slide!');
+    } catch (err) {
+      console.error('Failed to add educational game:', err);
+      toast.error('Falha ao adicionar o jogo educativo');
+    }
+  };
+
   // Add Scenario element
   const handleScenarioCreated = async (scenario) => {
     if (!currentSlide) return;
@@ -1582,6 +1607,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Adicionar Quiz</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-cyan-500/15 to-violet-500/15 hover:from-cyan-500/30 hover:to-violet-500/30"
+                    onClick={() => setShowEducationalGameDialog(true)}
+                    data-testid="add-educational-game-btn"
+                  >
+                    <Gamepad2 className="w-4 h-4 text-cyan-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Adicionar Jogo Educativo</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -2374,6 +2414,12 @@ export default function Editor() {
           onOpenChange={setShowQuizDialog}
           projectId={currentProject?.id}
           onQuizCreated={handleQuizCreated}
+        />
+
+        <EducationalGameDialog
+          open={showEducationalGameDialog}
+          onOpenChange={setShowEducationalGameDialog}
+          onGameCreated={handleEducationalGameCreated}
         />
 
         {/* Scenario Creator Dialog */}

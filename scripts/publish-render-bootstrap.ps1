@@ -132,6 +132,9 @@ $files = @(
     "frontend/src/pages/Dashboard.jsx",
     "frontend/src/pages/Admin.jsx",
     "frontend/src/components/admin/GameQuestionBankPanel.jsx",
+    "frontend/src/components/games/gameTemplates.js",
+    "frontend/src/components/games/gameTemplates.test.js",
+    "frontend/src/components/games/EducationalGameDialog.jsx",
     "frontend/src/utils/authFetch.js",
     "frontend/src/utils/apiUrl.js",
     "frontend/src/utils/htmlUtils.js",
@@ -249,7 +252,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Add multi-tenant educational game question bank"
+        message = "Add manual educational game builder to Editor"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
