@@ -44,6 +44,7 @@ import DataMigrationPanel from '../components/admin/DataMigrationPanel';
 import PlatesCleanupPanel from '../components/admin/PlatesCleanupPanel';
 import BrandLibraryDialog from '../components/admin/BrandLibraryDialog';
 import BatchExportPanel from '../components/admin/BatchExportPanel';
+import GameQuestionBankPanel from '../components/admin/GameQuestionBankPanel';
 import { Palette, Eraser } from 'lucide-react';
 const API_URL = getApiUrl();
 
@@ -433,7 +434,7 @@ export default function Admin() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Tabs */}
-        <div className="flex gap-4 mb-8">
+        <div className="flex flex-wrap gap-4 mb-8">
           {isSuperAdmin && (
             <Button
               variant={activeTab === 'companies' ? 'default' : 'outline'}
@@ -451,6 +452,15 @@ export default function Admin() {
           >
             <Users className="w-4 h-4" />
             Usuarios
+          </Button>
+          <Button
+            variant={activeTab === 'game_questions' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('game_questions')}
+            className="gap-2"
+            data-testid="tab-game-questions"
+          >
+            <Database className="w-4 h-4" />
+            Questões dos Jogos
           </Button>
           <Button
             variant={activeTab === 'tutor' ? 'default' : 'outline'}
@@ -537,6 +547,10 @@ export default function Admin() {
 
         {/* Batch SCORM Export Tab */}
         {activeTab === 'batch_export' && <BatchExportPanel />}
+
+        {activeTab === 'game_questions' && (
+          <GameQuestionBankPanel user={user} isSuperAdmin={isSuperAdmin} companies={companies} />
+        )}
 
         {/* Cost Report Tab */}
         {activeTab === 'cost_report' && isSuperAdmin && <CostReportPanel />}

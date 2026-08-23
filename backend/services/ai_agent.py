@@ -2287,7 +2287,7 @@ def _build_simulator_fallback_html(sb_slide: dict) -> str:
     return template.replace("__TITLE__", safe_title).replace("__ITEMS__", items_json)
 
 
-def _build_game_fallback_html(sb_slide: dict) -> str:
+def _build_game_fallback_html(sb_slide: dict, bank_questions: list | None = None) -> str:
     """Build a premium question-driven game when AI game HTML is unusable.
 
     Question data and game mechanics are deliberately separated by the local
@@ -2308,12 +2308,31 @@ def _build_game_fallback_html(sb_slide: dict) -> str:
     while len(facts) < 5:
         facts.append(defaults[len(facts) % len(defaults)])
     questions = []
+    for imported in (bank_questions or [])[:8]:
+        alternatives = imported.get("alternatives") or []
+        answer_id = str(imported.get("correctAnswer") or "").casefold()
+        correct_index = next(
+            (i for i, alt in enumerate(alternatives) if str(alt.get("id") or "").casefold() == answer_id),
+            -1,
+        )
+        if imported.get("question") and len(alternatives) >= 2 and correct_index >= 0:
+            questions.append({
+                "id": imported.get("id") or f"bank{len(questions) + 1}",
+                "topic": imported.get("topic") or str(sb_slide.get("moduleName") or title),
+                "difficulty": imported.get("difficulty") or "medio",
+                "question": imported["question"],
+                "alternatives": [str(alt.get("text") or "") for alt in alternatives],
+                "correct": correct_index,
+                "explanation": imported.get("explanation") or "Revise o conceito e tente novamente.",
+            })
     distractors = [
         "Ignorar o contexto e decidir por intuição",
         "Memorizar termos sem relacioná-los à prática",
         "Adiar qualquer análise até o problema desaparecer",
     ]
-    for index, fact in enumerate(facts):
+    for index, fact in enumerate(facts[len(questions):], start=len(questions)):
+        if len(questions) >= 5:
+            break
         questions.append({
             "id": f"q{index + 1}",
             "topic": str(sb_slide.get("moduleName") or title),
@@ -2323,6 +2342,7 @@ def _build_game_fallback_html(sb_slide: dict) -> str:
             "correct": 0,
             "explanation": f"A resposta conecta diretamente o conteúdo do curso: {fact[:230]}",
         })
+    questions = questions[:8]
     questions_json = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
     safe_title = html.escape(title)
     template = r'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
@@ -2945,6 +2965,24 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     if content and ("<!DOCTYPE" in content or "<html" in content or "<script" in content):
                         html_content = content
                         break
+            # Games consume the company's central question bank through a
+            # snapshot embedded in the course. This keeps SCORM/HTML fully
+            # functional offline while the source remains replaceable via the
+            # QuestionEngine administration API.
+            if stype == "game" and company_id:
+                try:
+                    game_db = await _get_motor_db()
+                    if game_db is not None:
+                        bank_questions = await game_db.game_questions.aggregate([
+                            {"$match": {"companyId": company_id, "active": {"$ne": False}}},
+                            {"$sample": {"size": 8}},
+                            {"$project": {"_id": 0}},
+                        ]).to_list(8)
+                        if bank_questions:
+                            html_content = _build_game_fallback_html(sb_slide, bank_questions)
+                            logger.info("Embedded %s company-bank questions in game slide %s", len(bank_questions), i)
+                except Exception as exc:
+                    logger.warning("Could not sample game question bank for slide %s: %s", i, exc)
             if _interactive_html_is_functional(html_content, "simulator"):
                 slide_elements = [{
                     "id": generate_id(),

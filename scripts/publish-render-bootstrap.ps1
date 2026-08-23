@@ -43,6 +43,7 @@ $files = @(
     "backend/routes/projects_crud.py",
     "backend/routes/projects_media.py",
     "backend/routes/questions.py",
+    "backend/routes/question_bank.py",
     "backend/routes/scenarios.py",
     "backend/routes/whiteboard.py",
     "backend/server.py",
@@ -65,6 +66,7 @@ $files = @(
     "backend/services/sp_runtime/runtime.js",
     "backend/services/html_exporter.py",
     "backend/services/player_theme.py",
+    "backend/services/question_engine.py",
     "backend/services/export_assets/player.js",
     "backend/services/export_assets/player_template.html",
     "backend/services/export_assets/tutor.css",
@@ -76,6 +78,7 @@ $files = @(
     "backend/tests/test_ai_agent_media_resilience.py",
     "backend/tests/test_ai_agent_interactive_fallbacks.py",
     "backend/tests/test_player_theme.py",
+    "backend/tests/test_question_engine.py",
     "backend/tests/test_aesthetics_auto_fix.py",
     "backend/tests/test_ai_text_generation_openai.py",
     "backend/tests/test_ai_html_generation_openai.py",
@@ -128,6 +131,7 @@ $files = @(
     "frontend/src/pages/ChangePassword.jsx",
     "frontend/src/pages/Dashboard.jsx",
     "frontend/src/pages/Admin.jsx",
+    "frontend/src/components/admin/GameQuestionBankPanel.jsx",
     "frontend/src/utils/authFetch.js",
     "frontend/src/utils/apiUrl.js",
     "frontend/src/utils/htmlUtils.js",
@@ -245,7 +249,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Generate premium educational games from Agent courses"
+        message = "Add multi-tenant educational game question bank"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

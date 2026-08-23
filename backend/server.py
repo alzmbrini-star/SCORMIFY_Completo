@@ -176,6 +176,9 @@ app.include_router(export_routes.router, prefix="/api")
 from routes import gamification as gamification_routes
 app.include_router(gamification_routes.router, prefix="/api")
 
+from routes import question_bank as question_bank_routes
+app.include_router(question_bank_routes.router, prefix="/api")
+
 if enable_legacy_ai_routes:
     from routes import agent as agent_routes
     app.include_router(agent_routes.router, prefix="/api")
@@ -408,6 +411,18 @@ async def _run_create_indexes():
         await db.apply_jobs.create_index([("projectId", 1), ("status", 1)], background=True)
         await db.kling_generations.create_index([("taskId", 1)], unique=True, background=True)
         await db.kling_generations.create_index([("companyId", 1), ("createdAt", -1)], background=True)
+        # Central question bank: all reads start with the tenant and most game
+        # selections combine the active flag with pedagogical filters.
+        await db.game_questions.create_index(
+            [("companyId", 1), ("active", 1), ("subject", 1), ("topic", 1), ("difficulty", 1)],
+            background=True,
+        )
+        await db.game_questions.create_index(
+            [("companyId", 1), ("externalId", 1)], background=True
+        )
+        await db.game_results.create_index(
+            [("companyId", 1), ("createdAt", -1)], background=True
+        )
         logger.info("MongoDB indexes ensured")
     except Exception as e:
         logger.warning(f"Index creation failed (non-fatal): {e}")
