@@ -1,6 +1,11 @@
+import { ADVANCED_GAME_TYPES, generateAdvancedGameHtml } from './advancedGameTemplates';
+
 const safeText = (value) => String(value || '').replace(/[<>]/g, '');
 
 export function generateEducationalGameHtml({ gameType, title, questions, config }) {
+  if (ADVANCED_GAME_TYPES.includes(gameType)) {
+    return generateAdvancedGameHtml({ gameType, title, questions, config });
+  }
   const payload = (questions || []).map((q, index) => ({
     id: q.id || `manual-${index + 1}`,
     question: safeText(q.question),

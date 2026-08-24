@@ -133,6 +133,7 @@ $files = @(
     "frontend/src/pages/Admin.jsx",
     "frontend/src/components/admin/GameQuestionBankPanel.jsx",
     "frontend/src/components/games/gameTemplates.js",
+    "frontend/src/components/games/advancedGameTemplates.js",
     "frontend/src/components/games/gameTemplates.test.js",
     "frontend/src/components/games/EducationalGameDialog.jsx",
     "frontend/src/utils/authFetch.js",
@@ -252,7 +253,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Scope Editor game questions by open project company"
+        message = "Add six advanced educational game mechanics"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

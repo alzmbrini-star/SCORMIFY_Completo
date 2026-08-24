@@ -9,7 +9,7 @@ const questions = Array.from({ length: 5 }, (_, index) => ({
 }));
 
 describe('educational game templates', () => {
-  test.each(['penalty', 'quiz_show', 'memory', 'hangman'])('builds an offline %s game', (gameType) => {
+  test.each(['penalty', 'quiz_show', 'memory', 'hangman', 'climb', 'crossword', 'sudoku', 'race', 'battle', 'treasure'])('builds an offline %s game', (gameType) => {
     const html = generateEducationalGameHtml({
       gameType,
       title: 'Jogo de teste',

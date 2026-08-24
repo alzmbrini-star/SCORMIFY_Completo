@@ -14,6 +14,12 @@ const TYPES = [
   { id: 'quiz_show', icon: '🎤', name: 'Quiz Show', text: 'Programa de TV com cronômetro, XP e multiplicadores.' },
   { id: 'memory', icon: '🧠', name: 'Memória Educativa', text: 'Associe cada pergunta à resposta correta.' },
   { id: 'hangman', icon: '🔤', name: 'Forca Inteligente', text: 'Descubra os termos usando as perguntas como dicas.' },
+  { id: 'climb', icon: '🧗', name: 'Escalada do Conhecimento', text: 'Suba a montanha a cada resposta correta.' },
+  { id: 'crossword', icon: '🧩', name: 'Palavras Cruzadas', text: 'Grade automática criada com respostas e dicas.' },
+  { id: 'sudoku', icon: '🔢', name: 'Sudoku Educacional', text: 'Responda para desbloquear as casas do tabuleiro.' },
+  { id: 'race', icon: '🏃', name: 'Corrida do Saber', text: 'Avance na pista e supere obstáculos.' },
+  { id: 'battle', icon: '⚔️', name: 'Batalha de Conhecimento', text: 'Ataque a IA com respostas corretas.' },
+  { id: 'treasure', icon: '🗺️', name: 'Caça ao Tesouro', text: 'Desbloqueie áreas do mapa até encontrar o prêmio.' },
 ];
 
 export default function EducationalGameDialog({ open, onOpenChange, onGameCreated, projectId }) {
@@ -53,8 +59,9 @@ export default function EducationalGameDialog({ open, onOpenChange, onGameCreate
   }, [questions, selected, count]);
 
   const build = () => {
-    if (chosen.length < (type === 'memory' ? 4 : 1)) {
-      toast.error(type === 'memory' ? 'Selecione pelo menos 4 questões para o jogo da memória.' : 'Cadastre ou selecione questões para criar o jogo.');
+    const requiresFourQuestions = type === 'memory' || type === 'crossword';
+    if (chosen.length < (requiresFourQuestions ? 4 : 1)) {
+      toast.error(requiresFourQuestions ? 'Selecione pelo menos 4 questões para este modelo de jogo.' : 'Cadastre ou selecione questões para criar o jogo.');
       return '';
     }
     const html = generateEducationalGameHtml({ gameType: type, title, questions: chosen, config });
