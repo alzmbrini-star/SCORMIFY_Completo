@@ -117,8 +117,15 @@ def test_illustrated_journey_adds_narrative_and_action_image_metadata():
     body = result["modules"][0]["slides"][1:-1]
 
     assert result["experienceQuality"]["profile"] == "illustrated_journey"
+    assert result["visualStoryBible"]["cast"]
+    assert result["experienceQuality"]["requiredJourneyPattern"] == [
+        "context", "observe", "decide", "practice", "reflect"
+    ]
     assert all(slide.get("narrativeBeat") for slide in body)
     assert all(slide.get("imageRole") for slide in body)
+    assert all("16:9" in slide.get("requiredImagePrompt", "") for slide in body)
+    assert all("Marina" in slide.get("requiredImagePrompt", "") for slide in body)
+    assert all(slide.get("storyContext", {}).get("continuityRule") for slide in body)
     assert any(slide["type"] == "game" for slide in body)
 
 

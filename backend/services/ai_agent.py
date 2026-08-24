@@ -548,6 +548,40 @@ _PREMIUM_EXPERIENCE_SEQUENCE = (
 )
 
 
+def _illustrated_story_bible(config: dict) -> dict:
+    """Stable visual continuity shared by every slide/image prompt."""
+    topic = str(config.get("title") or "curso profissional").strip()
+    return {
+        "seriesTitle": topic,
+        "setting": "uma empresa brasileira contemporânea, com ambientes de trabalho realistas e coerentes",
+        "cast": [
+            "Marina, profissional brasileira de 38 anos, cabelo castanho cacheado na altura dos ombros, camisa azul-petróleo",
+            "Rafael, profissional brasileiro de 42 anos, cabelo preto curto, camisa cinza e crachá discreto",
+        ],
+        "visualStyle": "fotografia editorial corporativa cinematográfica, realista, humana, luz natural, 16:9, sem texto, sem logotipos",
+        "continuityRule": "repetir roupas, aparência, ambiente e objetos-chave ao longo das cenas",
+    }
+
+
+def _illustrated_image_prompt(slide: dict, config: dict, story_bible: dict) -> str:
+    beat = str(slide.get("narrativeBeat") or "context")
+    action_by_beat = {
+        "context": "the two recurring professionals encounter the concrete workplace situation for the first time",
+        "observe": "Marina points to observable evidence while Rafael carefully inspects the situation",
+        "decide": "the recurring professionals compare two realistic courses of action before making a decision",
+        "practice": "the recurring professionals perform the correct procedure with visible tools and body language",
+        "reflect": "the recurring professionals review the consequence and identify what changed after the action",
+    }
+    cast = "; ".join(story_bible.get("cast") or [])
+    return (
+        f"Brazilian professional training scene about {slide.get('title') or config.get('title', 'the topic')}. "
+        f"{cast}. {action_by_beat.get(beat, action_by_beat['context'])}. "
+        f"Show concrete evidence related to: {slide.get('purpose') or slide.get('experienceIntent') or 'the learning objective'}. "
+        "Medium-wide cinematic composition, clear foreground action, relevant workplace objects, realistic expressions, "
+        "natural directional light, editorial corporate photography, visual continuity, 16:9, no written text, no logos, no watermark."
+    )
+
+
 def _premiumize_course_structure(structure: dict, config: dict) -> dict:
     """Turn an LLM outline into a varied learning-experience plan.
 
@@ -579,6 +613,7 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         minimum_ratio = max(minimum_ratio, 0.55)
     global_cursor = 0
     visual_cursor = 0
+    story_bible = _illustrated_story_bible(config) if illustrated_journey else None
 
     for module in structure.get("modules", []) or []:
         slides = module.get("slides", []) or []
@@ -628,9 +663,19 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                 )
 
         if illustrated_journey:
+            previous_scene = ""
             for position, slide in enumerate(candidates):
                 slide["narrativeBeat"] = ("context", "observe", "decide", "practice", "reflect")[position % 5]
                 slide["imageRole"] = "action_scene" if slide.get("type") == "content" else "exercise_context"
+                slide["linkedSceneTitle"] = previous_scene
+                if slide.get("type") == "content":
+                    previous_scene = slide.get("title", "")
+                slide["storyContext"] = {
+                    "setting": story_bible["setting"],
+                    "cast": story_bible["cast"],
+                    "continuityRule": story_bible["continuityRule"],
+                }
+                slide["requiredImagePrompt"] = _illustrated_image_prompt(slide, config, story_bible)
 
         for slide in slides:
             stype = str(slide.get("type") or "content")
@@ -658,6 +703,11 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         "contentWordBudget": 70,
         "interactiveTarget": minimum_ratio,
     }
+    if story_bible:
+        structure["visualStoryBible"] = story_bible
+        structure["experienceQuality"]["requiredJourneyPattern"] = [
+            "context", "observe", "decide", "practice", "reflect"
+        ]
     structure["totalSlides"] = sum(
         len(module.get("slides", []) or []) for module in structure.get("modules", []) or []
     )
@@ -827,6 +877,10 @@ REGRAS GERAIS:
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
     all_slides = []
+    illustrated_journey = config.get("visualCourseMode") == "illustrated_journey"
+    story_bible = structure.get("visualStoryBible") or (
+        _illustrated_story_bible(config) if illustrated_journey else {}
+    )
 
     # Flatten all slides from structure
     flat_slides = []
@@ -850,6 +904,11 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "moduleName": s.get("moduleName", ""),
             "experienceIntent": s.get("experienceIntent", ""),
             "contentBudgetWords": s.get("contentBudgetWords", 70),
+            "narrativeBeat": s.get("narrativeBeat", ""),
+            "imageRole": s.get("imageRole", ""),
+            "linkedSceneTitle": s.get("linkedSceneTitle", ""),
+            "storyContext": s.get("storyContext", {}),
+            "requiredImagePrompt": s.get("requiredImagePrompt", ""),
             **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") in ("simulator", "game") else {}),
             **({"visualDirection": s.get("visualDirection") or _interactive_visual_direction(s)} if s.get("type") in _RICH_INTERACTIVE_TYPES else {}),
         } for s in batch]
@@ -870,6 +929,7 @@ CONTEÚDO-BASE COMPLETO para referência:
 
 INTERATIVIDADE CONFIGURADA: {config.get('resourceBalance', config.get('interactivity', 'media'))}
 MODO VISUAL: {config.get('visualCourseMode', 'standard')}
+CONTINUIDADE VISUAL OBRIGATÓRIA: {json.dumps(story_bible, ensure_ascii=False) if illustrated_journey else 'modo padrão'}
 
 {'''DIREÇÃO ESPECIAL — JORNADA VISUAL ILUSTRADA:
 - O curso deve parecer uma história profissional fotografada, com começo, tensão, escolhas e resolução.
@@ -878,6 +938,9 @@ MODO VISUAL: {config.get('visualCourseMode', 'standard')}
 - Cada imagem precisa ensinar algo: mostrar um risco, procedimento, comportamento, decisão, contraste antes/depois ou consequência. É proibido pedir fotos genéricas de pessoas sorrindo/reunião sem ação.
 - Depois de cada cena importante, inclua uma atividade diretamente ligada ao que o aluno observou: hotspot/identificação, decisão, classificação, ordenação, arrastar e soltar, diagnóstico ou quiz com feedback.
 - Preserve continuidade narrativa nos títulos, propósitos, narração e exercícios.
+- Para cada slide, copie requiredImagePrompt integralmente para imageKeywords; apenas complemente detalhes específicos sem trocar personagens, roupas ou ambiente.
+- O campo narrativeBeat é obrigatório e determina a composição. Slides decide/practice devem transformar a cena ligada em uma ação do aluno, não em explicação textual.
+- Não use imagem decorativa. A cena deve conter evidência observável necessária para responder ou executar a atividade seguinte.
 ''' if config.get('visualCourseMode') == 'illustrated_journey' else ''}
 
 IMPORTANTE SOBRE IMAGENS DO CONTEÚDO-BASE:
@@ -1153,6 +1216,17 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     for j, slide_data in enumerate(data["slides"]):
                         if not slide_data.get("moduleName") and j < len(batch):
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
+                        if illustrated_journey and j < len(batch):
+                            source_slide = batch[j]
+                            slide_data["narrativeBeat"] = source_slide.get("narrativeBeat", "context")
+                            slide_data["imageRole"] = source_slide.get("imageRole", "action_scene")
+                            slide_data["linkedSceneTitle"] = source_slide.get("linkedSceneTitle", "")
+                            slide_data["storyContext"] = source_slide.get("storyContext", {})
+                            # Do not trust a provider's short/generic stock-photo keywords in this mode.
+                            # The deterministic prompt carries the recurring cast, action and teaching evidence.
+                            slide_data["imageKeywords"] = source_slide.get("requiredImagePrompt") or _illustrated_image_prompt(
+                                source_slide, config, story_bible
+                            )
                     if quality_checked and data["slides"]:
                         generated_html = _simulator_html_from_slide(data["slides"][0])
                         complexity = (
@@ -1282,7 +1356,15 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     "title": title_text,
                     "type": stype,
                     "moduleName": module_text,
-                    "imageKeywords": title_text.split(" ")[0].lower() + " professional",
+                    "imageKeywords": (
+                        sl.get("requiredImagePrompt") or _illustrated_image_prompt(sl, config, story_bible)
+                        if illustrated_journey
+                        else title_text.split(" ")[0].lower() + " professional"
+                    ),
+                    "narrativeBeat": sl.get("narrativeBeat", "") if illustrated_journey else "",
+                    "imageRole": sl.get("imageRole", "") if illustrated_journey else "",
+                    "linkedSceneTitle": sl.get("linkedSceneTitle", "") if illustrated_journey else "",
+                    "storyContext": sl.get("storyContext", {}) if illustrated_journey else {},
                     "elements": fallback_elements,
                     "narrationScript": purpose if purpose else f"Neste slide, vamos abordar {title_text.lower()}.",
                     "librasScript": purpose if purpose else title_text,
@@ -1293,7 +1375,11 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
     for slide in all_slides:
         _normalize_interactive_storyboard_slide(slide)
         _normalize_visual_content_slide(slide)
-    return {"slides": all_slides, "qualityProfile": "premium"}
+    return {
+        "slides": all_slides,
+        "qualityProfile": "illustrated_journey" if illustrated_journey else "premium",
+        **({"visualStoryBible": story_bible} if illustrated_journey else {}),
+    }
 
 
 # ========== VISUAL COURSE GENERATION ==========
