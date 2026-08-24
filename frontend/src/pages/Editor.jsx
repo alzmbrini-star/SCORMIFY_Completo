@@ -1059,14 +1059,24 @@ export default function Editor() {
   const handleEducationalGameCreated = async (gameData) => {
     if (!currentSlide) return;
     try {
-      const slideWidth = currentSlide?.width || 1920;
-      const slideHeight = currentSlide?.height || 1080;
+      // Slides without explicit dimensions use the Editor's logical 960x540
+      // canvas. Falling back to 1920x1080 made the game element twice as large
+      // as the slide, so only its upper-left quadrant remained visible.
+      const slideWidth = Number(currentSlide?.width) || 960;
+      const slideHeight = Number(currentSlide?.height) || 540;
+      const marginX = Math.round(slideWidth * 0.02);
+      const marginY = Math.round(slideHeight * 0.025);
       await addElement(currentSlide.id, {
         ...gameData,
-        x: 0,
-        y: 0,
-        width: slideWidth,
-        height: slideHeight,
+        x: marginX,
+        y: marginY,
+        width: slideWidth - (marginX * 2),
+        height: slideHeight - (marginY * 2),
+        // Educational games are fixed 16:9 stages, not scrolling web pages.
+        // Fit mode scales and centers the complete stage in Editor, preview,
+        // standalone HTML and SCORM players.
+        htmlDisplayMode: 'fit',
+        objectFit: 'cover',
         startTime: 0,
       });
       toast.success('Jogo educativo adicionado ao slide!');

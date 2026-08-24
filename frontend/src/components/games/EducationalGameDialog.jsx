@@ -72,7 +72,7 @@ export default function EducationalGameDialog({ open, onOpenChange, onGameCreate
   const add = () => {
     const html = preview || build();
     if (!html) return;
-    onGameCreated({ type: 'html', x: 0, y: 0, width: 1920, height: 1080, htmlContent: html, gameType: type, interactiveType: 'game', gameConfig: { title, filters, ...config, questionIds: chosen.map((q) => q.id) } });
+    onGameCreated({ type: 'html', htmlContent: html, htmlDisplayMode: 'fit', objectFit: 'cover', gameType: type, interactiveType: 'game', gameConfig: { title, filters, ...config, questionIds: chosen.map((q) => q.id) } });
     onOpenChange(false);
   };
 
