@@ -1,4 +1,4 @@
-from services.question_engine import QuestionEngine, normalize_question
+from services.question_engine import QuestionEngine, normalize_question, quiz_to_game_row
 from services.ai_agent import _build_game_fallback_html
 
 
@@ -43,3 +43,23 @@ def test_imported_questions_are_embedded_in_offline_game_snapshot():
     assert "Qual equipamento protege a cabeça?" in output
     assert "O capacete protege a cabeça." in output
     assert "QuestionEngine" in output
+
+
+def test_quiz_bank_question_is_converted_for_educational_games():
+    quiz = {
+        "id": "quiz-123",
+        "projectId": "project-1",
+        "text": "Qual conduta protege os dados?",
+        "alternatives": [
+            {"id": "alt-a", "text": "Compartilhar a senha", "isCorrect": False},
+            {"id": "alt-b", "text": "Usar autenticação multifator", "isCorrect": True},
+        ],
+        "explanation": "A autenticação multifator adiciona uma camada de segurança.",
+        "tags": ["Segurança da Informação"],
+    }
+    row = quiz_to_game_row(quiz, "Curso de Segurança")
+    game_question = normalize_question(row, "company-test", "admin-test")
+    assert game_question["question"] == quiz["text"]
+    assert game_question["correctAnswer"] == "alt-b"
+    assert game_question["topic"] == "Segurança da Informação"
+    assert QuestionEngine.validate_answer(game_question, "alt-b")

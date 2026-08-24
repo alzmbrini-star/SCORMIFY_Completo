@@ -252,7 +252,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Add manual educational game builder to Editor"
+        message = "Share Quiz question bank with educational games"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

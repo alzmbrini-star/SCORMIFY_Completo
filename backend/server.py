@@ -420,6 +420,9 @@ async def _run_create_indexes():
         await db.game_questions.create_index(
             [("companyId", 1), ("externalId", 1)], background=True
         )
+        await db.game_questions.create_index(
+            [("companyId", 1), ("sourceQuizQuestionId", 1)], background=True
+        )
         await db.game_results.create_index(
             [("companyId", 1), ("createdAt", -1)], background=True
         )

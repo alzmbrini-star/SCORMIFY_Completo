@@ -70,7 +70,12 @@ def normalize_question(row: dict, company_id: str, created_by: str = "") -> dict
     alternatives = _alternatives(row)
     correct_raw = str(_value(row, "correctAnswer", "")).strip()
     correct_id = correct_raw.upper()
-    if correct_id not in {alt["id"].upper() for alt in alternatives}:
+    alternative_ids = {alt["id"].upper(): alt["id"] for alt in alternatives}
+    if correct_id in alternative_ids:
+        # Keep the source ID's exact spelling. Editor Quiz alternatives often
+        # use UUID/lowercase IDs and exported games compare those stable IDs.
+        correct_id = alternative_ids[correct_id]
+    else:
         matched = next((alt["id"] for alt in alternatives if alt["text"].casefold() == correct_raw.casefold()), "")
         correct_id = matched or correct_id
     if not str(_value(row, "question", "")).strip():
@@ -107,6 +112,33 @@ def normalize_question(row: dict, company_id: str, created_by: str = "") -> dict
         "createdBy": created_by,
         "createdAt": now,
         "updatedAt": now,
+    }
+
+
+def quiz_to_game_row(question: dict, project_title: str = "") -> dict:
+    """Translate the Editor Quiz contract into the shared game contract."""
+    alternatives = []
+    correct_answer = str(question.get("correctAnswer") or "").strip()
+    for index, alternative in enumerate(question.get("alternatives") or []):
+        if isinstance(alternative, dict):
+            alt_id = str(alternative.get("id") or chr(65 + index))
+            alt_text = str(alternative.get("text") or alternative.get("texto") or "").strip()
+            if alternative.get("isCorrect") is True and not correct_answer:
+                correct_answer = alt_id
+        else:
+            alt_id, alt_text = chr(65 + index), str(alternative).strip()
+        if alt_text:
+            alternatives.append({"id": alt_id, "text": alt_text})
+    tags = [str(tag).strip() for tag in (question.get("tags") or []) if str(tag).strip()]
+    return {
+        "id": question.get("id", ""),
+        "disciplina": question.get("subject") or project_title or "Quiz",
+        "tema": question.get("topic") or (tags[0] if tags else project_title) or "Geral",
+        "dificuldade": question.get("difficulty") or "medio",
+        "pergunta": question.get("text") or question.get("questionText") or "",
+        "alternatives": alternatives,
+        "resposta correta": correct_answer,
+        "explicação": question.get("explanation") or "",
     }
 
 
