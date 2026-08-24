@@ -560,17 +560,23 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         return structure
 
     balance = str(config.get("resourceBalance") or config.get("interactivity") or "media").lower()
+    illustrated_journey = config.get("visualCourseMode") == "illustrated_journey"
     enabled = dict(config.get("enabledResources") or {})
     # Sessions saved before the dedicated game toggle used ``simulator`` for
     # the UI label "Jogos Educativos". Keep those resumable and ensure their
     # next structure regeneration can finally emit real type="game" slides.
     if "game" not in enabled and enabled.get("simulator"):
         enabled["game"] = True
+    if illustrated_journey:
+        for required_type in ("game", "simulator", "scenario", "infographic", "quiz"):
+            enabled[required_type] = True
     enabled_types = [kind for kind in _PREMIUM_EXPERIENCE_SEQUENCE if enabled.get(kind, False)]
     if not enabled_types or balance == "baixa":
         enabled_types = [kind for kind in ("infographic", "quiz") if enabled.get(kind, False)]
 
     minimum_ratio = {"baixa": 0.20, "media": 0.45, "alta": 0.62, "maxima": 0.72}.get(balance, 0.45)
+    if illustrated_journey:
+        minimum_ratio = max(minimum_ratio, 0.55)
     global_cursor = 0
     visual_cursor = 0
 
@@ -621,6 +627,11 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                     "com cinco rodadas, feedback imediato, XP, vidas, conquistas e debrief final."
                 )
 
+        if illustrated_journey:
+            for position, slide in enumerate(candidates):
+                slide["narrativeBeat"] = ("context", "observe", "decide", "practice", "reflect")[position % 5]
+                slide["imageRole"] = "action_scene" if slide.get("type") == "content" else "exercise_context"
+
         for slide in slides:
             stype = str(slide.get("type") or "content")
             slide["contentBudgetWords"] = 70 if stype == "content" else 45
@@ -642,7 +653,7 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                 visual_cursor += 1
 
     structure["experienceQuality"] = {
-        "profile": "premium",
+        "profile": "illustrated_journey" if illustrated_journey else "premium",
         "maxConsecutiveTextSlides": 1,
         "contentWordBudget": 70,
         "interactiveTarget": minimum_ratio,
@@ -661,6 +672,9 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
     enabled_resources = dict(config.get('enabledResources', {}) or {})
     if 'game' not in enabled_resources and enabled_resources.get('simulator'):
         enabled_resources['game'] = True
+    if config.get('visualCourseMode') == 'illustrated_journey':
+        for required_type in ('game', 'simulator', 'scenario', 'infographic', 'quiz'):
+            enabled_resources[required_type] = True
 
     # Build the list of allowed types
     all_types = ['content', 'title', 'summary']  # always present
@@ -746,6 +760,7 @@ CONFIGURAÇÃO:
 - Duração alvo: {config.get('duration', 30)} minutos
 - Módulos: {config.get('modules', 3)}
 - Formato: {config.get('format', 'curso_completo')}
+- Estilo da experiência: {config.get('visualCourseMode', 'standard')}
 
 CONTEÚDO BASE:
 {content_text[:10000]}
@@ -780,6 +795,9 @@ Retorne um JSON com a estrutura:
 ```
 
 {balance_rules}{disabled_note}
+
+MODO JORNADA VISUAL ILUSTRADA:
+{'''ATIVO. Estruture o curso como uma narrativa aplicada, não como uma apresentação. Defina um contexto realista, personagens recorrentes e um desafio que evolui entre os módulos. Intercale obrigatoriamente: cena visual de contexto -> observação guiada -> decisão/exercício -> consequência -> síntese. Os slides de conteúdo devem representar AÇÕES fotografáveis; os exercícios devem reutilizar a situação vista na cena. Priorize scenario, simulator, game, infographic e quiz, sem dois slides puramente expositivos consecutivos.''' if config.get('visualCourseMode') == 'illustrated_journey' else 'INATIVO. Use a composição premium variada padrão.'}
 
 REGRAS GERAIS:
 - Primeiro slide deve ser uma capa/título do curso
@@ -851,6 +869,16 @@ CONTEÚDO-BASE COMPLETO para referência:
 {content_text[:6000]}
 
 INTERATIVIDADE CONFIGURADA: {config.get('resourceBalance', config.get('interactivity', 'media'))}
+MODO VISUAL: {config.get('visualCourseMode', 'standard')}
+
+{'''DIREÇÃO ESPECIAL — JORNADA VISUAL ILUSTRADA:
+- O curso deve parecer uma história profissional fotografada, com começo, tensão, escolhas e resolução.
+- Crie uma pequena bíblia visual estável (ambiente, roupas, faixa etária e características dos personagens) e REPITA essa descrição em inglês em todos os imageKeywords relevantes para manter coerência.
+- imageKeywords deve ser um prompt fotográfico detalhado de 35-70 palavras: ação observável, personagens, ambiente, enquadramento, iluminação, emoção, objetos importantes, 16:9, sem texto e sem marcas.
+- Cada imagem precisa ensinar algo: mostrar um risco, procedimento, comportamento, decisão, contraste antes/depois ou consequência. É proibido pedir fotos genéricas de pessoas sorrindo/reunião sem ação.
+- Depois de cada cena importante, inclua uma atividade diretamente ligada ao que o aluno observou: hotspot/identificação, decisão, classificação, ordenação, arrastar e soltar, diagnóstico ou quiz com feedback.
+- Preserve continuidade narrativa nos títulos, propósitos, narração e exercícios.
+''' if config.get('visualCourseMode') == 'illustrated_journey' else ''}
 
 IMPORTANTE SOBRE IMAGENS DO CONTEÚDO-BASE:
 Se o CONTEÚDO-BASE acima contiver marcadores no formato `[IMG:filename.png]`, significa que o PDF/documento original possui imagens reais (diagramas, fotos, fluxogramas) já extraídas. Mantenha esses marcadores EXATAMENTE como estão dentro do HTML do slide apropriado (geralmente em um `<p>` ou no final do bloco) para preservar o material didático original. NÃO invente nomes novos de imagem, NÃO altere os nomes dos arquivos, e NÃO remova os marcadores — eles serão substituídos automaticamente por elementos de imagem reais depois da geração.
@@ -1065,7 +1093,7 @@ SLIDES DE ESTUDO DE CASO (type="case_study"):
 - O caso deve ser relevante e aplicável ao tema do módulo
 
 PARA TODOS OS SLIDES:
-- imageKeywords: 2-3 palavras em INGLÊS descrevendo uma foto profissional relevante
+- imageKeywords: no modo padrão, palavras-chave em inglês; na Jornada Visual Ilustrada, prompt fotográfico detalhado em inglês conforme a direção especial
 - moduleName: SEMPRE inclua o nome do módulo
 - narrationScript: MÍNIMO 5 frases completas e detalhadas
 - NUNCA retorne conteúdo vazio ou com apenas 1-2 linhas"""

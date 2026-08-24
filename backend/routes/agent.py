@@ -98,6 +98,7 @@ class AgentConfigUpdate(BaseModel):
     modules: Optional[int] = 3
     interactivity: Optional[str] = "media"
     visualStyle: Optional[str] = "moderno e profissional"
+    visualCourseMode: Optional[str] = "standard"
     format: Optional[str] = "curso_completo"
     description: Optional[str] = None
 

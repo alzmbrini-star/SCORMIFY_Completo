@@ -111,6 +111,7 @@ export default function Agent() {
   const [config, setConfig] = useState({
     title: '', depth: 'intermediario', duration: 30, modules: 3,
     interactivity: 'media', visualStyle: 'moderno e profissional',
+    visualCourseMode: 'standard',
     format: 'curso_completo', description: '',
     narrationEnabled: false, narrationVoiceId: '',
     resourceBalance: 'media',

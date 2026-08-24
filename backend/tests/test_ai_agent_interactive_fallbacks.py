@@ -99,6 +99,29 @@ def test_legacy_games_toggle_produces_real_game_in_every_module():
     )
 
 
+def test_illustrated_journey_adds_narrative_and_action_image_metadata():
+    structure = {"modules": [{"slides": [
+        {"type": "title", "title": "Capa"},
+        {"type": "content", "title": "Observe o ambiente"},
+        {"type": "content", "title": "Escolha uma ação"},
+        {"type": "content", "title": "Veja a consequência"},
+        {"type": "summary", "title": "Síntese"},
+    ]}]}
+    config = {
+        "visualCourseMode": "illustrated_journey",
+        "resourceBalance": "media",
+        "enabledResources": {"quiz": True},
+    }
+
+    result = _premiumize_course_structure(structure, config)
+    body = result["modules"][0]["slides"][1:-1]
+
+    assert result["experienceQuality"]["profile"] == "illustrated_journey"
+    assert all(slide.get("narrativeBeat") for slide in body)
+    assert all(slide.get("imageRole") for slide in body)
+    assert any(slide["type"] == "game" for slide in body)
+
+
 def test_legacy_flashcard_html_is_normalized_from_content_field():
     legacy_html = _build_flashcard_fallback_html({"title": "Escuta ativa"})
     slide = {
