@@ -1424,6 +1424,11 @@ def generate_single_page_html(
     slides = course.get("slides", []) or []
     metadata = course.get("metadata", {}) or {}
     course_title = metadata.get("title") or name
+    visual_journey = (
+        metadata.get("visualCourseMode") == "illustrated_journey"
+        or metadata.get("playerTemplate") == "visual_journey"
+        or project_doc.get("playerTemplate") == "visual_journey"
+    )
     # Branded loader config (title + accent color) derived from the
     # project's brand kit + course metadata.
     from services.loader_config import resolve_loader_config
@@ -1626,6 +1631,8 @@ def generate_single_page_html(
             slide_w_for_card = slide_h_for_card = 0
         card_styles = []
         section_class = "sp-section"
+        if visual_journey:
+            section_class += " sp-journey-section"
         if bg_color:
             card_styles.append(f"background-color:{_esc(bg_color)}")
             if _is_dark_color(bg_color):
@@ -1728,12 +1735,20 @@ def generate_single_page_html(
                 f'    {absolute_elements_html}\n'
             )
 
+        module_name = str(slide.get("moduleName") or "Jornada de aprendizagem")
+        narrative_beat = str(slide.get("narrativeBeat") or "context")
+        journey_meta = (
+            f'<div class="sp-journey-meta"><span>{_esc(module_name)}</span>'
+            f'<span class="sp-journey-beat">{_esc(narrative_beat)}</span></div>'
+            if visual_journey else ""
+        )
         section = (
             f'<section class="{section_class}" data-index="{s_idx}" '
             f'data-title="{_esc(slide_title)}" '
             f'{locked_attr}{zoom_attrs}>\n'
             f'  <div class="sp-section-inner"{card_style}>\n'
             f'{stage_block}'
+            f'    {journey_meta}\n'
             f'    <h2 class="sp-section-title">{_esc(slide_title)}</h2>\n'
             f'    <div class="sp-section-body">\n'
             f'      {chr(10).join(rendered_elements)}\n'
@@ -1746,6 +1761,8 @@ def generate_single_page_html(
         sections_index.append({
             "index": s_idx,
             "title": slide_title,
+            "moduleName": module_name,
+            "narrativeBeat": narrative_beat,
             "librasScript": slide.get("librasScript", "") or "",
         })
 
@@ -1772,9 +1789,119 @@ def generate_single_page_html(
         loader_title=loader_title,
         loader_primary=loader_primary,
         loader_accent=loader_accent,
+        player_theme_css=player_theme_css,
+        visual_journey=visual_journey,
         enable_vlibras=bool(project_doc.get("enableVlibras", True)),
         backend_url=base_url,
     )
+
+
+_VISUAL_JOURNEY_CSS = r'''
+body.sp-visual-journey {
+  --journey-ink: #172033;
+  --journey-muted: #667085;
+  --journey-paper: #fbfaf7;
+  background: #0d1320;
+}
+.sp-visual-journey .sp-main {
+  padding: 92px clamp(16px, 4vw, 64px) 120px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(45,212,191,.13), transparent 30%),
+    radial-gradient(circle at 85% 35%, rgba(59,130,246,.12), transparent 32%),
+    #0d1320;
+}
+.sp-visual-journey .sp-journey-section {
+  min-height: min(860px, 88vh);
+  display: flex;
+  align-items: center;
+  scroll-margin-top: 84px;
+  margin: 0 auto 72px;
+}
+.sp-visual-journey .sp-journey-section .sp-section-inner {
+  position: relative;
+  width: min(1180px, 100%);
+  min-height: 650px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 72px);
+  border-radius: 28px;
+  background: var(--journey-paper);
+  color: var(--journey-ink);
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 28px 90px rgba(0,0,0,.34);
+  overflow: hidden;
+}
+.sp-visual-journey .sp-journey-section:nth-child(even) .sp-section-inner {
+  background: linear-gradient(145deg, #f8fafc 0%, #eef6f5 100%);
+}
+.sp-visual-journey .sp-journey-meta {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  color: #087f73;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.sp-visual-journey .sp-journey-meta::before {
+  content: '';
+  width: 34px;
+  height: 3px;
+  flex: 0 0 34px;
+  border-radius: 99px;
+  background: #14b8a6;
+}
+.sp-visual-journey .sp-journey-meta > span:first-child { margin-right: auto; }
+.sp-visual-journey .sp-journey-beat {
+  padding: 7px 11px;
+  border: 1px solid rgba(13,148,136,.22);
+  border-radius: 999px;
+  background: rgba(20,184,166,.08);
+  letter-spacing: .08em;
+}
+.sp-visual-journey .sp-section-title {
+  position: relative;
+  z-index: 4;
+  max-width: 850px;
+  margin: 0 0 28px;
+  color: var(--journey-ink);
+  font-size: clamp(34px, 4.4vw, 68px);
+  line-height: 1.04;
+  letter-spacing: -.035em;
+}
+.sp-visual-journey .sp-section-body { position: relative; z-index: 3; }
+.sp-visual-journey .sp-section-body p,
+.sp-visual-journey .sp-section-body li {
+  color: var(--journey-muted);
+  font-size: clamp(17px, 1.5vw, 22px);
+  line-height: 1.58;
+}
+.sp-visual-journey .sp-has-bg-image .sp-section-inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(10,18,32,.86) 0%, rgba(10,18,32,.45) 48%, rgba(10,18,32,.08) 100%);
+  z-index: 1;
+}
+.sp-visual-journey .sp-has-bg-image .sp-section-title,
+.sp-visual-journey .sp-has-bg-image .sp-section-body p,
+.sp-visual-journey .sp-has-bg-image .sp-section-body li { color: #fff; }
+.sp-visual-journey .sp-drawer { backdrop-filter: blur(18px); }
+@media (max-width: 760px) {
+  .sp-visual-journey .sp-main { padding: 76px 10px 88px; }
+  .sp-visual-journey .sp-journey-section { min-height: auto; margin-bottom: 32px; }
+  .sp-visual-journey .sp-journey-section .sp-section-inner {
+    min-height: 72vh; padding: 24px 20px; border-radius: 20px;
+  }
+  .sp-visual-journey .sp-journey-meta { align-items: flex-start; flex-wrap: wrap; }
+  .sp-visual-journey .sp-section-title { font-size: clamp(30px, 10vw, 46px); }
+}
+'''
 
 
 def _BUILD_PAGE(
@@ -1792,6 +1919,8 @@ def _BUILD_PAGE(
     loader_accent: str = "#60a5fa",
     enable_vlibras: bool = True,
     backend_url: str = "",
+    player_theme_css: str = "",
+    visual_journey: bool = False,
 ) -> str:
     css = _CSS
     js = _JS.replace("__SECTIONS_INDEX__", sections_index_json) \
@@ -1953,11 +2082,11 @@ def _BUILD_PAGE(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_esc(title)}</title>
-<style>{css}\n{player_theme_css}</style>
+<style>{css}\n{player_theme_css}\n{_VISUAL_JOURNEY_CSS if visual_journey else ''}</style>
 {tutor_style}
 {scorm_script}
 </head>
-<body>
+<body class="{'sp-visual-journey' if visual_journey else ''}">
 <!-- ── Initial loading overlay (SCORM single-page): covers viewport
      until the first section's assets settle. Critical for LMSes on
      narrow bandwidth — without it the learner sees broken-image

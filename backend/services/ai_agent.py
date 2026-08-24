@@ -3505,6 +3505,10 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "audio": [],
             "notes": sb_slide.get("notes", ""),
             "librasScript": sb_slide.get("librasScript", ""),
+            "moduleName": sb_slide.get("moduleName", ""),
+            "narrativeBeat": sb_slide.get("narrativeBeat", ""),
+            "imageRole": sb_slide.get("imageRole", ""),
+            "linkedSceneTitle": sb_slide.get("linkedSceneTitle", ""),
             "duration": float(
                 slide_media.get(i, {}).get("duration", 5)
                 if stype == "content" and slide_media.get(i, {}).get("type") == "kling"
@@ -3570,6 +3574,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         "metadata": {
             "title": config.get("title", "Curso Gerado por IA"),
             "description": config.get("description", ""),
+            "visualCourseMode": config.get("visualCourseMode", "standard"),
+            "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
+            "visualStoryBible": storyboard.get("visualStoryBible", {}),
         },
     }
 

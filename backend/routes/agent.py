@@ -1974,6 +1974,8 @@ async def agent_generate_course(session_id: str, request: Request):
             # Save project early with "generating" status so images aren't lost on failure
             project.course.metadata.title = title
             project.course.metadata.description = desc
+            if config.get("visualCourseMode") == "illustrated_journey":
+                project.singlePageMode = True
             project_dict = project.model_dump()
             project_dict["createdAt"] = project.createdAt.isoformat()
             project_dict["updatedAt"] = project.updatedAt.isoformat()
@@ -2052,6 +2054,9 @@ async def agent_generate_course(session_id: str, request: Request):
                 {"id": project.id},
                 {"$set": {
                     "course.slides": course_data["slides"],
+                    "course.metadata": course_data.get("metadata", {}),
+                    "singlePageMode": bool(config.get("visualCourseMode") == "illustrated_journey"),
+                    "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
                     "course.updatedAt": datetime.now(timezone.utc).isoformat(),
                     "status": "draft",
                     "updatedAt": datetime.now(timezone.utc).isoformat(),

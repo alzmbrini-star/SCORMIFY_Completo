@@ -6,6 +6,7 @@ from services.player_theme import (
     resolve_player_theme,
     resolve_tutor_theme,
 )
+from services.single_page_exporter import generate_single_page_html
 
 
 def test_single_page_css_uses_resolved_company_colors():
@@ -125,3 +126,28 @@ def test_tutor_preserves_legacy_palette_without_brand_kit():
     assert theme["panel"] == TUTOR_DEFAULTS["panel"]
     assert theme["customized"] is False
     assert build_tutor_theme_css(theme) == ""
+
+
+def test_visual_journey_uses_cinematic_single_page_chapters():
+    project = {
+        "id": "journey-1",
+        "name": "NR-1 na Prática",
+        "playerTemplate": "visual_journey",
+        "course": {
+            "metadata": {
+                "title": "NR-1 na Prática",
+                "visualCourseMode": "illustrated_journey",
+                "playerTemplate": "visual_journey",
+            },
+            "slides": [{
+                "id": "s1", "title": "Uma situação de risco", "moduleName": "Capítulo 1",
+                "narrativeBeat": "observe", "elements": [], "width": 1920, "height": 820,
+            }],
+        },
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    assert 'body class="sp-visual-journey"' in html
+    assert "sp-journey-section" in html
+    assert "Capítulo 1" in html
+    assert "sp-journey-beat" in html
+    assert "fotografia" not in html  # internal prompt metadata never leaks to learners
