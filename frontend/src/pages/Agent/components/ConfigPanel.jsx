@@ -198,6 +198,43 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               </div>
             </div>
             <div>
+              <label className="text-xs text-slate-400 mb-1 block">Estilo da experiência</label>
+              <Select value={config.visualCourseMode || 'standard'} onValueChange={v => {
+                if (v === 'illustrated_journey') {
+                  setConfig(prev => ({
+                    ...prev,
+                    visualCourseMode: v,
+                    resourceBalance: ['alta', 'maxima'].includes(prev.resourceBalance) ? prev.resourceBalance : 'alta',
+                    enabledResources: {
+                      ...(prev.enabledResources || {}),
+                      game: true, simulator: true, scenario: true,
+                      infographic: true, quiz: true,
+                    },
+                  }));
+                } else {
+                  update('visualCourseMode', v);
+                }
+              }}>
+                <SelectTrigger className="bg-slate-800 border-slate-700" data-testid="visual-course-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Slides premium variados</SelectItem>
+                  <SelectItem value="illustrated_journey">Jornada Visual Ilustrada</SelectItem>
+                </SelectContent>
+              </Select>
+              {config.visualCourseMode === 'illustrated_journey' && (
+                <div className="mt-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3">
+                  <p className="text-xs font-medium text-emerald-300 flex items-center gap-2">
+                    <ImagePlus className="w-3.5 h-3.5" /> Cenas contextualizadas + aprendizagem pela ação
+                  </p>
+                  <p className="text-[10px] leading-relaxed text-slate-400 mt-1">
+                    O Agente cria personagens e ambientes coerentes, imagens que mostram ações reais e exercícios ligados às cenas. Recomendado usar imagens IA na etapa Mídia.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div>
               <label className="text-xs text-slate-400 mb-1 block">Duração alvo: {config.duration} minutos</label>
               <Slider value={[config.duration]} onValueChange={([v]) => update('duration', v)} min={5} max={120} step={5} className="mt-2" />
             </div>
@@ -235,10 +272,10 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
                         update('resourceBalance', level.id);
                         // Auto-enable resources based on level
                         const presets = {
-                          baixa: { quiz: true, simulator: false, scenario: false, avatar_scene: false, infographic: false, flashcard: true, timeline: false, case_study: false },
-                          media: { quiz: true, simulator: true, scenario: true, avatar_scene: false, infographic: true, flashcard: true, timeline: true, case_study: true },
-                          alta: { quiz: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
-                          maxima: { quiz: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
+                          baixa: { quiz: true, game: false, simulator: false, scenario: false, avatar_scene: false, infographic: false, flashcard: true, timeline: false, case_study: false },
+                          media: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: false, infographic: true, flashcard: true, timeline: true, case_study: true },
+                          alta: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
+                          maxima: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
                         };
                         update('enabledResources', presets[level.id]);
                       }}
@@ -263,7 +300,8 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               <div className="grid grid-cols-2 gap-2" data-testid="resource-toggles">
                 {[
                   { id: 'quiz', label: 'Quizzes', icon: Target, desc: 'Perguntas de fixacao', color: 'text-emerald-400' },
-                  { id: 'simulator', label: 'Jogos Educativos', icon: Gamepad2, desc: 'Jogos e simuladores HTML', color: 'text-violet-400' },
+                  { id: 'game', label: 'Jogos Educativos', icon: Gamepad2, desc: 'Missoes gamificadas com XP e conquistas', color: 'text-violet-400' },
+                  { id: 'simulator', label: 'Simuladores', icon: Wrench, desc: 'Pratica de decisoes e ferramentas HTML', color: 'text-indigo-400' },
                   { id: 'scenario', label: 'Cenarios de Desafio', icon: Swords, desc: 'Arvore de decisoes', color: 'text-amber-400' },
                   { id: 'infographic', label: 'Infograficos', icon: PieChart, desc: 'Dados visuais interativos', color: 'text-blue-400' },
                   { id: 'flashcard', label: 'Flashcards', icon: FlipVertical, desc: 'Cartoes de revisao flip', color: 'text-cyan-400' },
@@ -312,18 +350,18 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               const level = config.resourceBalance || 'media';
               const distMap = {
                 baixa:  { content: 70, quiz: 15, flashcard: 10, other: 5 },
-                media:  { content: 45, quiz: 12, simulator: 13, scenario: 8, infographic: 7, flashcard: 5, timeline: 5, case_study: 5 },
-                alta:   { content: 30, quiz: 12, simulator: 15, scenario: 10, infographic: 8, flashcard: 7, timeline: 7, case_study: 6, avatar_scene: 5 },
-                maxima: { content: 20, quiz: 10, simulator: 16, scenario: 12, infographic: 10, flashcard: 8, timeline: 8, case_study: 8, avatar_scene: 8 },
+                media:  { content: 40, quiz: 12, game: 10, simulator: 10, scenario: 8, infographic: 6, flashcard: 5, timeline: 4, case_study: 5 },
+                alta:   { content: 25, quiz: 10, game: 14, simulator: 13, scenario: 9, infographic: 8, flashcard: 7, timeline: 6, case_study: 5, avatar_scene: 3 },
+                maxima: { content: 15, quiz: 8, game: 16, simulator: 15, scenario: 11, infographic: 9, flashcard: 8, timeline: 7, case_study: 6, avatar_scene: 5 },
               };
               const dist = distMap[level] || distMap.media;
               const colorMap = {
-                content: '#64748b', quiz: '#10b981', simulator: '#8b5cf6', scenario: '#f59e0b',
+                content: '#64748b', quiz: '#10b981', game: '#a855f7', simulator: '#6366f1', scenario: '#f59e0b',
                 infographic: '#3b82f6', flashcard: '#06b6d4', timeline: '#f43f5e',
                 case_study: '#f97316', avatar_scene: '#ec4899', other: '#475569',
               };
               const labelMap = {
-                content: 'Conteudo', quiz: 'Quiz', simulator: 'Jogos', scenario: 'Cenarios',
+                content: 'Conteudo', quiz: 'Quiz', game: 'Jogos', simulator: 'Simuladores', scenario: 'Cenarios',
                 infographic: 'Infograficos', flashcard: 'Flashcards', timeline: 'Timeline',
                 case_study: 'Caso', avatar_scene: 'Avatar', other: 'Outros',
               };
@@ -432,4 +470,3 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
     </div>
   );
 }
-

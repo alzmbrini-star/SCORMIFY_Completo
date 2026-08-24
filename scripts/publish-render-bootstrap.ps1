@@ -119,6 +119,7 @@ $files = @(
     "frontend/src/pages/Editor/dialogs/MediaDialogs.jsx",
     "frontend/src/pages/Editor.jsx",
     "frontend/src/pages/Agent.jsx",
+    "frontend/src/pages/Agent/components/ConfigPanel.jsx",
     "frontend/src/pages/Agent/components/GeneratedPanel.jsx",
     "frontend/src/pages/Agent/components/MediaConfigPanel.jsx",
     "frontend/src/pages/IntegrationsHealthPanel.jsx",
