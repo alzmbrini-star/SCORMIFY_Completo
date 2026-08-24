@@ -940,6 +940,8 @@ CONTINUIDADE VISUAL OBRIGATÓRIA: {json.dumps(story_bible, ensure_ascii=False) i
 - Preserve continuidade narrativa nos títulos, propósitos, narração e exercícios.
 - Para cada slide, copie requiredImagePrompt integralmente para imageKeywords; apenas complemente detalhes específicos sem trocar personagens, roupas ou ambiente.
 - O campo narrativeBeat é obrigatório e determina a composição. Slides decide/practice devem transformar a cena ligada em uma ação do aluno, não em explicação textual.
+- Para CADA slide, gere learnerAction (instrução curta ao aluno) e visualEvidence (3 evidências concretas realmente visíveis na imagem). Não use frases genéricas.
+- Varie journeyLayout entre cinematic_scene, guided_observation, decision_split, workbench e reflection. Não repita o mesmo layout em slides consecutivos.
 - Não use imagem decorativa. A cena deve conter evidência observável necessária para responder ou executar a atividade seguinte.
 ''' if config.get('visualCourseMode') == 'illustrated_journey' else ''}
 
@@ -956,6 +958,9 @@ Retorne JSON:
   "type":"content",
   "moduleName":"Nome do Módulo",
   "imageKeywords":"english keywords for relevant photo",
+  "journeyLayout":"guided_observation",
+  "learnerAction":"Examine a cena e localize os três indícios antes de decidir.",
+  "visualEvidence":["evidência visível 1","evidência visível 2","evidência visível 3"],
   "elements":[
     {{"type":"text","content":"<h2>Título Principal</h2><h3>Subtítulo da Seção</h3><p>Parágrafo introdutório detalhado explicando o conceito principal com contexto e relevância prática. Este parágrafo deve ter no mínimo 3-4 frases completas.</p><h3>Pontos-Chave</h3><ul><li><strong>Primeiro ponto:</strong> Explicação detalhada com exemplo prático do mundo real</li><li><strong>Segundo ponto:</strong> Descrição aprofundada com dados ou estatísticas quando relevante</li><li><strong>Terceiro ponto:</strong> Aplicação prática e como implementar no dia a dia</li></ul><h3>Na Prática</h3><p>Parágrafo explicando como aplicar este conhecimento no contexto profissional, com exemplos concretos e situações reais.</p>","position":"left","width":1050,"height":680}}
   ],
@@ -1836,19 +1841,56 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
         if c:
             text_content = c
 
-    # If we have an image, use two-column layout
+    # In Jornada Visual the image is part of the learning activity, not
+    # decoration. Semantic fields below drive Editor and export layouts.
+    narrative_beat = str(sb_slide.get("narrativeBeat") or "context").lower()
+    layout_by_beat = {
+        "context": "cinematic_scene", "observe": "guided_observation",
+        "decide": "decision_split", "practice": "workbench",
+        "reflect": "reflection",
+    }
+    journey_layout = sb_slide.get("journeyLayout") or layout_by_beat.get(narrative_beat, "cinematic_scene")
+    visual_evidence = sb_slide.get("visualEvidence") or [
+        f"Observe o elemento principal relacionado a {sb_slide.get('title', 'esta situação')}",
+        "Identifique um indício que alteraria sua decisão",
+        "Compare a cena com a conduta recomendada no curso",
+    ]
+    if not isinstance(visual_evidence, list):
+        visual_evidence = [str(visual_evidence)]
+
+    # Beat-specific compositions replace the former fixed two-column layout.
     if image_url:
         styled_text = _style_content_html(text_content, palette["text"], palette)
+        if journey_layout == "cinematic_scene":
+            text_box = {"x": 120, "y": 500, "width": 980, "height": 250}
+            image_box = {"x": 120, "y": 105, "width": 1680, "height": 610}
+        elif journey_layout == "guided_observation":
+            text_box = {"x": 1250, "y": 145, "width": 520, "height": 560}
+            image_box = {"x": 120, "y": 105, "width": 1050, "height": 610}
+        elif journey_layout == "decision_split":
+            text_box = {"x": 980, "y": 125, "width": 790, "height": 600}
+            image_box = {"x": 120, "y": 125, "width": 760, "height": 560}
+        elif journey_layout == "workbench":
+            text_box = {"x": 120, "y": 125, "width": 650, "height": 590}
+            image_box = {"x": 850, "y": 105, "width": 950, "height": 620}
+        else:
+            text_box = {"x": 180, "y": 500, "width": 1560, "height": 220}
+            image_box = {"x": 360, "y": 115, "width": 1200, "height": 390}
         elements.append({
-            "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 960, "height": 660,
+            "id": generate_id(), "type": "html", **text_box,
             "htmlContent": styled_text,
+            "journeyRole": "learning_copy",
             "style": {"fontFamily": font_body}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
         # Image on the right — soft radius, no decorations
         elements.append({
-            "id": generate_id(), "type": "image", "x": 1160, "y": 110, "width": 640, "height": 430,
+            "id": generate_id(), "type": "image", **image_box,
             "src": image_url, "content": image_url,
+            "journeyRole": "evidence_scene",
+            "journeyInteractive": narrative_beat in ("observe", "decide", "practice"),
+            "observationPrompt": sb_slide.get("learnerAction") or "Explore a cena antes de continuar.",
+            "visualEvidence": visual_evidence[:3],
             "style": {"borderRadius": corner_radius}, "startTime": 0,
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
         })
@@ -1862,6 +1904,8 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
             "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
         })
 
+    sb_slide["journeyLayout"] = journey_layout
+    sb_slide["visualEvidence"] = visual_evidence[:3]
     return elements
 
 
@@ -3509,6 +3553,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "narrativeBeat": sb_slide.get("narrativeBeat", ""),
             "imageRole": sb_slide.get("imageRole", ""),
             "linkedSceneTitle": sb_slide.get("linkedSceneTitle", ""),
+            "journeyLayout": sb_slide.get("journeyLayout", ""),
+            "learnerAction": sb_slide.get("learnerAction", ""),
+            "visualEvidence": sb_slide.get("visualEvidence", []),
             "duration": float(
                 slide_media.get(i, {}).get("duration", 5)
                 if stype == "content" and slide_media.get(i, {}).get("type") == "kling"

@@ -151,3 +151,32 @@ def test_visual_journey_uses_cinematic_single_page_chapters():
     assert "Capítulo 1" in html
     assert "sp-journey-beat" in html
     assert "fotografia" not in html  # internal prompt metadata never leaks to learners
+
+
+def test_visual_journey_renders_distinct_layout_and_explorable_scene():
+    project = {
+        "id": "journey-interactive-1",
+        "name": "Jornada aplicada",
+        "playerTemplate": "visual_journey",
+        "course": {
+            "metadata": {"visualCourseMode": "illustrated_journey"},
+            "slides": [{
+                "id": "s1", "title": "Investigue a cena", "moduleName": "Missão 1",
+                "narrativeBeat": "observe", "journeyLayout": "guided_observation",
+                "width": 1920, "height": 820,
+                "elements": [{
+                    "id": "img1", "type": "image",
+                    "src": "data:image/png;base64,iVBORw0KGgo=",
+                    "journeyInteractive": True,
+                    "observationPrompt": "Localize os riscos antes de decidir.",
+                    "visualEvidence": ["saída obstruída", "piso molhado", "proteção ausente"],
+                }],
+            }],
+        },
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    assert "sp-layout-guided-observation" in html
+    assert "sp-evidence-scene" in html
+    assert "Localize os riscos antes de decidir." in html
+    assert "saída obstruída" in html
+    assert html.count("sp-evidence-pin sp-evidence-pin-") == 3

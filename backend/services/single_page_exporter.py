@@ -461,6 +461,31 @@ def _render_image_element_inner(el: dict, project_id: str, assets_dir: str, base
     alt = _esc(el.get("alt", ""))
     style = el.get("style") or {}
     radius = style.get("borderRadius", "8px")
+    if el.get("journeyInteractive"):
+        evidence = el.get("visualEvidence") or []
+        if not isinstance(evidence, list):
+            evidence = [str(evidence)]
+        evidence = [str(item).strip() for item in evidence if str(item).strip()][:3]
+        while len(evidence) < 3:
+            evidence.append(("Observe o contexto", "Identifique o indício", "Relacione com a decisão")[len(evidence)])
+        prompt = _esc(el.get("observationPrompt") or "Explore os pontos da cena.")
+        pins = "".join(
+            f'<button type="button" class="sp-evidence-pin sp-evidence-pin-{idx + 1}" '
+            f'aria-label="Revelar evidência {idx + 1}" onclick="this.parentNode.classList.add(\'is-explored\');'
+            f'this.parentNode.querySelector(\'[data-evidence=\'{idx}\']\').classList.toggle(\'is-visible\')">{idx + 1}</button>'
+            for idx in range(3)
+        )
+        cards = "".join(
+            f'<div class="sp-evidence-card" data-evidence="{idx}"><b>{idx + 1}</b><span>{_esc(item)}</span></div>'
+            for idx, item in enumerate(evidence)
+        )
+        return (
+            f'<figure class="sp-image sp-evidence-scene" style="margin:0">'
+            f'<div class="sp-evidence-prompt">🔎 {prompt}</div>'
+            f'<div class="sp-evidence-media"><img src="{_esc(src)}" alt="{alt}" loading="lazy" />{pins}</div>'
+            f'<figcaption class="sp-evidence-cards">{cards}</figcaption>'
+            f'</figure>'
+        )
     return (
         f'<figure class="sp-image" style="margin:0;display:flex;justify-content:center">'
         f'<img src="{_esc(src)}" alt="{alt}" loading="lazy" '
@@ -1633,6 +1658,15 @@ def generate_single_page_html(
         section_class = "sp-section"
         if visual_journey:
             section_class += " sp-journey-section"
+            layout = str(slide.get("journeyLayout") or "").strip().lower()
+            if not layout:
+                layout = {
+                    "context": "cinematic_scene", "observe": "guided_observation",
+                    "decide": "decision_split", "practice": "workbench",
+                    "reflect": "reflection",
+                }.get(str(slide.get("narrativeBeat") or "context").lower(), "cinematic_scene")
+            layout = re.sub(r"[^a-z0-9_-]", "", layout) or "cinematic_scene"
+            section_class += f" sp-layout-{layout.replace('_', '-')}"
         if bg_color:
             card_styles.append(f"background-color:{_esc(bg_color)}")
             if _is_dark_color(bg_color):
@@ -1892,6 +1926,81 @@ body.sp-visual-journey {
 .sp-visual-journey .sp-has-bg-image .sp-section-body p,
 .sp-visual-journey .sp-has-bg-image .sp-section-body li { color: #fff; }
 .sp-visual-journey .sp-drawer { backdrop-filter: blur(18px); }
+
+/* The journey is not a repeated text+image template. Each narrative beat
+   receives a distinct composition; generated header strips are suppressed
+   because the player already exposes chapter/module context. */
+.sp-visual-journey .sp-journey-section .sp-section-body > .sp-html:first-child:has(+ .sp-html) {
+  display: none;
+}
+.sp-visual-journey .sp-journey-section .sp-section-body {
+  display: grid;
+  gap: clamp(20px, 3vw, 42px);
+  align-items: center;
+}
+.sp-visual-journey .sp-journey-section .sp-section-body > * { min-width: 0; }
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body {
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, .72fr);
+}
+.sp-visual-journey .sp-layout-guided-observation .sp-image { grid-column: 1; grid-row: 1 / span 2; }
+.sp-visual-journey .sp-layout-guided-observation .sp-html { grid-column: 2; }
+.sp-visual-journey .sp-layout-decision-split .sp-section-body {
+  grid-template-columns: minmax(320px, .9fr) minmax(0, 1.1fr);
+}
+.sp-visual-journey .sp-layout-decision-split .sp-image { grid-column: 1; }
+.sp-visual-journey .sp-layout-decision-split .sp-html { grid-column: 2; }
+.sp-visual-journey .sp-layout-workbench .sp-section-body {
+  grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr);
+  padding: 22px;
+  border: 1px solid rgba(13,148,136,.16);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(20,184,166,.08), rgba(59,130,246,.06));
+}
+.sp-visual-journey .sp-layout-workbench .sp-image { grid-column: 2; grid-row: 1; }
+.sp-visual-journey .sp-layout-workbench .sp-html { grid-column: 1; grid-row: 1; }
+.sp-visual-journey .sp-layout-reflection .sp-section-title { text-align: center; margin-inline: auto; }
+.sp-visual-journey .sp-layout-reflection .sp-section-body { max-width: 920px; margin: 0 auto; }
+.sp-visual-journey .sp-layout-reflection .sp-image img { max-height: 330px; object-fit: cover; width: 100%; }
+.sp-visual-journey .sp-layout-cinematic-scene .sp-section-inner { padding: 0; background: #101827; }
+.sp-visual-journey .sp-layout-cinematic-scene .sp-journey-meta,
+.sp-visual-journey .sp-layout-cinematic-scene .sp-section-title {
+  position: absolute; left: clamp(28px, 5vw, 70px); right: 42%; z-index: 8;
+}
+.sp-visual-journey .sp-layout-cinematic-scene .sp-journey-meta { top: 42px; color: #5eead4; }
+.sp-visual-journey .sp-layout-cinematic-scene .sp-section-title { top: 105px; color: #fff; text-shadow: 0 3px 22px #000; }
+.sp-visual-journey .sp-layout-cinematic-scene .sp-section-body { display: block; min-height: 650px; }
+.sp-visual-journey .sp-layout-cinematic-scene .sp-image { position: absolute; inset: 0; }
+.sp-visual-journey .sp-layout-cinematic-scene .sp-image img {
+  width: 100%; height: 100%; max-width: none; object-fit: cover; border-radius: 0 !important; box-shadow: none !important;
+}
+.sp-visual-journey .sp-layout-cinematic-scene .sp-image::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(5,10,20,.92) 0%, rgba(5,10,20,.68) 42%, rgba(5,10,20,.06) 78%);
+}
+.sp-visual-journey .sp-layout-cinematic-scene .sp-html:not(:first-child) {
+  position: absolute; left: clamp(28px, 5vw, 70px); bottom: 52px; width: min(620px, 52%); z-index: 7;
+  padding: 20px 24px; border-left: 4px solid #2dd4bf; border-radius: 0 16px 16px 0;
+  background: rgba(9,18,32,.72); backdrop-filter: blur(12px); color: #fff;
+}
+.sp-visual-journey .sp-layout-cinematic-scene .sp-html:not(:first-child) * { color: #fff !important; }
+
+/* Guided image exploration: numbered pins reveal evidence from the authored
+   scene. This makes the illustration necessary to complete the observation. */
+.sp-evidence-scene { position: relative; display: grid; gap: 12px; }
+.sp-evidence-prompt { font-weight: 750; color: #0f766e; font-size: 15px; }
+.sp-evidence-media { position: relative; min-height: 360px; overflow: hidden; border-radius: 20px; background: #dbe4ea; }
+.sp-evidence-media img { width: 100%; height: 100%; min-height: 360px; object-fit: cover; display: block; transition: transform .45s ease; }
+.sp-evidence-scene.is-explored .sp-evidence-media img { transform: scale(1.025); }
+.sp-evidence-pin { position: absolute; width: 42px; height: 42px; border-radius: 50%; border: 3px solid #fff; color: #fff; background: #0d9488; font-weight: 900; cursor: pointer; box-shadow: 0 0 0 8px rgba(20,184,166,.2),0 8px 24px rgba(0,0,0,.28); animation: spPinPulse 2.1s infinite; }
+.sp-evidence-pin-1 { left: 18%; top: 24%; }
+.sp-evidence-pin-2 { left: 61%; top: 38%; animation-delay: .35s; }
+.sp-evidence-pin-3 { right: 13%; bottom: 18%; animation-delay: .7s; }
+@keyframes spPinPulse { 50% { box-shadow: 0 0 0 14px rgba(20,184,166,0),0 8px 24px rgba(0,0,0,.28); } }
+.sp-evidence-cards { display: grid; gap: 8px; }
+.sp-evidence-card { display: none; align-items: flex-start; gap: 10px; padding: 11px 13px; border-radius: 12px; background: #ecfdf5; color: #115e59; animation: spEvidenceIn .28s ease both; }
+.sp-evidence-card.is-visible { display: flex; }
+.sp-evidence-card b { display: grid; place-items: center; flex: 0 0 25px; height: 25px; border-radius: 50%; background: #0d9488; color: #fff; }
+@keyframes spEvidenceIn { from { opacity: 0; transform: translateY(8px); } }
 @media (max-width: 760px) {
   .sp-visual-journey .sp-main { padding: 76px 10px 88px; }
   .sp-visual-journey .sp-journey-section { min-height: auto; margin-bottom: 32px; }
@@ -1900,6 +2009,17 @@ body.sp-visual-journey {
   }
   .sp-visual-journey .sp-journey-meta { align-items: flex-start; flex-wrap: wrap; }
   .sp-visual-journey .sp-section-title { font-size: clamp(30px, 10vw, 46px); }
+  .sp-visual-journey .sp-layout-guided-observation .sp-section-body,
+  .sp-visual-journey .sp-layout-decision-split .sp-section-body,
+  .sp-visual-journey .sp-layout-workbench .sp-section-body { grid-template-columns: 1fr; }
+  .sp-visual-journey .sp-layout-guided-observation .sp-image,
+  .sp-visual-journey .sp-layout-guided-observation .sp-html,
+  .sp-visual-journey .sp-layout-decision-split .sp-image,
+  .sp-visual-journey .sp-layout-decision-split .sp-html,
+  .sp-visual-journey .sp-layout-workbench .sp-image,
+  .sp-visual-journey .sp-layout-workbench .sp-html { grid-column: 1; grid-row: auto; }
+  .sp-visual-journey .sp-layout-cinematic-scene .sp-section-title { right: 20px; top: 120px; }
+  .sp-visual-journey .sp-layout-cinematic-scene .sp-html:not(:first-child) { width: auto; right: 20px; }
 }
 '''
 
