@@ -116,6 +116,7 @@ export default function Agent() {
     resourceBalance: 'media',
     enabledResources: {
       quiz: true,
+      game: true,
       simulator: true,
       scenario: true,
       avatar_scene: false,

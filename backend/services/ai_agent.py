@@ -560,7 +560,12 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         return structure
 
     balance = str(config.get("resourceBalance") or config.get("interactivity") or "media").lower()
-    enabled = config.get("enabledResources") or {}
+    enabled = dict(config.get("enabledResources") or {})
+    # Sessions saved before the dedicated game toggle used ``simulator`` for
+    # the UI label "Jogos Educativos". Keep those resumable and ensure their
+    # next structure regeneration can finally emit real type="game" slides.
+    if "game" not in enabled and enabled.get("simulator"):
+        enabled["game"] = True
     enabled_types = [kind for kind in _PREMIUM_EXPERIENCE_SEQUENCE if enabled.get(kind, False)]
     if not enabled_types or balance == "baixa":
         enabled_types = [kind for kind in ("infographic", "quiz") if enabled.get(kind, False)]
@@ -601,6 +606,21 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
             )
             current_interactives += 1
 
+        # A checked "Jogos Educativos" must be visible in the Structure step,
+        # not silently represented as a simulator. For balanced+ courses place
+        # one real game in every module that has enough instructional slides.
+        if enabled.get("game") and balance != "baixa" and len(candidates) >= 2:
+            if not any(slide.get("type") == "game" for slide in candidates):
+                game_slide = next(
+                    (slide for slide in reversed(candidates) if slide.get("type") not in ("quiz", "scenario")),
+                    candidates[-1],
+                )
+                game_slide["type"] = "game"
+                game_slide["purpose"] = (
+                    f"Fixar {game_slide.get('title', 'os conceitos do módulo')} em um jogo educativo "
+                    "com cinco rodadas, feedback imediato, XP, vidas, conquistas e debrief final."
+                )
+
         for slide in slides:
             stype = str(slide.get("type") or "content")
             slide["contentBudgetWords"] = 70 if stype == "content" else 45
@@ -638,7 +658,9 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
 
     # ── Resource Balance Logic ──
     resource_balance = config.get('resourceBalance', 'media')
-    enabled_resources = config.get('enabledResources', {})
+    enabled_resources = dict(config.get('enabledResources', {}) or {})
+    if 'game' not in enabled_resources and enabled_resources.get('simulator'):
+        enabled_resources['game'] = True
 
     # Build the list of allowed types
     all_types = ['content', 'title', 'summary']  # always present
@@ -668,9 +690,10 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
 - ~5% resumo/titulo
 - Priorize clareza e profundidade textual sobre interatividade.""",
         'media': """DISTRIBUICAO DE RECURSOS (Nivel: Media Interatividade - BALANCEADO):
-- ~45% dos slides devem ser de conteudo didatico (type="content")
+- ~40% dos slides devem ser de conteudo didatico (type="content")
 - ~12% quizzes de fixacao (type="quiz") - 1 por modulo
-- ~13% simuladores/jogos educativos (type="simulator") - 1 por modulo
+- ~10% jogos educativos premium (type="game") - pelo menos 1 por modulo quando habilitado
+- ~10% simuladores de aplicacao (type="simulator")
 - ~8% cenarios de desafio (type="scenario") - decisoes interativas
 - ~7% infograficos interativos (type="infographic") - dados visuais
 - ~5% flashcards (type="flashcard") - revisao
@@ -678,9 +701,10 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
 - ~5% estudos de caso (type="case_study") - casos reais
 - VARIE os tipos de recursos entre os modulos para manter engajamento.""",
         'alta': """DISTRIBUICAO DE RECURSOS (Nivel: Alta Interatividade):
-- ~30% dos slides devem ser de conteudo didatico (type="content")
+- ~25% dos slides devem ser de conteudo didatico (type="content")
 - ~12% quizzes (type="quiz")
-- ~15% simuladores/jogos educativos (type="simulator") - 1-2 por modulo, VARIE os tipos
+- ~14% jogos educativos premium (type="game") - 1 por modulo
+- ~13% simuladores de aplicacao (type="simulator")
 - ~10% cenarios de desafio (type="scenario") - arvore de decisoes
 - ~8% infograficos interativos (type="infographic")
 - ~7% flashcards (type="flashcard")
@@ -690,9 +714,10 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
 - PRIORIZE diversidade: NUNCA coloque dois slides do mesmo tipo interativo seguidos.
 - Cada modulo deve ter PELO MENOS 3 tipos diferentes de recursos interativos.""",
         'maxima': """DISTRIBUICAO DE RECURSOS (Nivel: Maxima Interatividade):
-- ~20% dos slides devem ser de conteudo didatico (type="content") - breves e objetivos
+- ~15% dos slides devem ser de conteudo didatico (type="content") - breves e objetivos
 - ~10% quizzes (type="quiz")
-- ~16% simuladores/jogos educativos (type="simulator") - 2 por modulo, tipos DIFERENTES
+- ~16% jogos educativos premium (type="game") - 1-2 por modulo, mecanicas DIFERENTES
+- ~15% simuladores de aplicacao (type="simulator")
 - ~12% cenarios de desafio (type="scenario") - arvores complexas
 - ~10% infograficos interativos (type="infographic")
 - ~8% flashcards (type="flashcard")
@@ -4046,7 +4071,7 @@ Retorne JSON com a estrutura completa:
       "title": "Módulo",
       "description": "Desc",
       "slides": [
-        {{"id": "s1", "title": "Slide", "type": "content|title|quiz|summary|simulator", "purpose": "Objetivo", "estimatedDuration": 30}}
+        {{"id": "s1", "title": "Slide", "type": "content|title|quiz|summary|game|simulator|scenario|infographic|flashcard|timeline|case_study", "purpose": "Objetivo", "estimatedDuration": 30}}
       ]
     }}
   ],
@@ -4056,10 +4081,11 @@ Retorne JSON com a estrutura completa:
 ```
 
 Siga a estrutura do template mas adapte ao conteúdo fornecido. Primeiro slide=capa, último=resumo, quizzes ao final de cada módulo.
-OBRIGATÓRIO: Inclua pelo menos 1-2 slides tipo "simulator" por módulo. Simuladores são jogos/ferramentas HTML+JS interativos (calculadoras, quizzes gamificados, flashcards, jogos de memória, drag-and-drop, etc.) relacionados ao conteúdo do módulo."""
+Quando Jogos Educativos estiver habilitado, inclua pelo menos 1 slide type="game" por módulo; game é uma experiência gamificada completa com missão, HUD, XP, vidas, rodadas, vitória/derrota e conquista.
+Quando Simuladores estiver habilitado, inclua pelo menos 1 slide type="simulator" por módulo; simulator é uma ferramenta de prática e tomada de decisão, não um quiz comum."""
     
     response = await chat.send_message(UserMessage(text=prompt))
-    return _extract_json(response) or {}
+    return _premiumize_course_structure(_extract_json(response) or {}, config)
 
 
 # ========== IMAGE SUGGESTIONS ==========

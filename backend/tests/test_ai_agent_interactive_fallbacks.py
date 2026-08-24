@@ -73,6 +73,32 @@ def test_text_heavy_slide_is_converted_to_visual_cards():
     assert result["contentBudgetWords"] == 70
 
 
+def test_legacy_games_toggle_produces_real_game_in_every_module():
+    structure = {
+        "modules": [
+            {"title": "M1", "slides": [
+                {"type": "content", "title": "Conceito"},
+                {"type": "content", "title": "Aplicação"},
+                {"type": "quiz", "title": "Quiz"},
+            ]},
+            {"title": "M2", "slides": [
+                {"type": "content", "title": "Conceito 2"},
+                {"type": "simulator", "title": "Prática 2"},
+                {"type": "quiz", "title": "Quiz 2"},
+            ]},
+        ],
+    }
+    # Old saved sessions used simulator=true for the label Jogos Educativos.
+    config = {"resourceBalance": "media", "enabledResources": {"simulator": True, "quiz": True}}
+
+    result = _premiumize_course_structure(structure, config)
+
+    assert all(
+        any(slide["type"] == "game" for slide in module["slides"])
+        for module in result["modules"]
+    )
+
+
 def test_legacy_flashcard_html_is_normalized_from_content_field():
     legacy_html = _build_flashcard_fallback_html({"title": "Escuta ativa"})
     slide = {
