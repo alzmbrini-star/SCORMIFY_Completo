@@ -9,6 +9,8 @@ from services.ai_agent import (
     _build_timeline_fallback_html,
     _interactive_html_is_functional,
     _normalize_interactive_storyboard_slide,
+    _normalize_visual_content_slide,
+    _premiumize_course_structure,
     _case_study_complexity_score,
     _flashcard_complexity_score,
     _game_complexity_score,
@@ -21,6 +23,54 @@ from services.ai_agent import (
     _derive_fallback_course_title,
     get_design_template_by_id,
 )
+
+
+def test_premium_structure_replaces_text_monotony_with_enabled_experiences():
+    structure = {
+        "modules": [{
+            "title": "Autoconfiança na prática",
+            "slides": [
+                {"id": "s1", "type": "title", "title": "Capa"},
+                {"id": "s2", "type": "content", "title": "Conceito"},
+                {"id": "s3", "type": "content", "title": "Sinais"},
+                {"id": "s4", "type": "content", "title": "Aplicação"},
+                {"id": "s5", "type": "content", "title": "Prática"},
+                {"id": "s6", "type": "summary", "title": "Síntese"},
+            ],
+        }],
+    }
+    config = {
+        "resourceBalance": "alta",
+        "enabledResources": {
+            "infographic": True, "simulator": True, "flashcard": True,
+            "game": False, "timeline": False, "case_study": False,
+        },
+    }
+
+    result = _premiumize_course_structure(structure, config)
+    body = result["modules"][0]["slides"][1:-1]
+    interactive = [slide for slide in body if slide["type"] != "content"]
+
+    assert len(interactive) >= 2
+    assert all(slide["type"] in {"infographic", "simulator", "flashcard"} for slide in interactive)
+    assert all(slide.get("experienceIntent") for slide in body)
+    assert result["experienceQuality"]["profile"] == "premium"
+
+
+def test_text_heavy_slide_is_converted_to_visual_cards():
+    verbose = " ".join(["explicação detalhada do conceito e sua aplicação prática"] * 25)
+    slide = {
+        "type": "content",
+        "title": "Pilares da autoconfiança",
+        "purpose": "Reconheça evidências. Teste uma ação possível. Registre o aprendizado.",
+        "elements": [{"type": "text", "content": f"<h2>Título</h2><p>{verbose}</p>"}],
+    }
+
+    result = _normalize_visual_content_slide(slide)
+
+    assert result["qualityAdjusted"] == "visual-density"
+    assert 'data-visual-pattern="insight-cards"' in result["elements"][0]["content"]
+    assert result["contentBudgetWords"] == 70
 
 
 def test_legacy_flashcard_html_is_normalized_from_content_field():

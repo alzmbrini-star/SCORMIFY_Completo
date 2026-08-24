@@ -542,6 +542,97 @@ def _build_fallback_structure(content_text: str, config: dict, reason: str = "")
     }
 
 
+_PREMIUM_EXPERIENCE_SEQUENCE = (
+    "infographic", "simulator", "flashcard", "case_study",
+    "game", "timeline", "scenario", "quiz",
+)
+
+
+def _premiumize_course_structure(structure: dict, config: dict) -> dict:
+    """Turn an LLM outline into a varied learning-experience plan.
+
+    Models tend to fall back to consecutive ``content`` slides even when the
+    author selected an interactive course. This deterministic pass keeps the
+    cover/conclusion, respects disabled resources and assigns both a learning
+    experience and an art direction before storyboard generation.
+    """
+    if not isinstance(structure, dict):
+        return structure
+
+    balance = str(config.get("resourceBalance") or config.get("interactivity") or "media").lower()
+    enabled = config.get("enabledResources") or {}
+    enabled_types = [kind for kind in _PREMIUM_EXPERIENCE_SEQUENCE if enabled.get(kind, False)]
+    if not enabled_types or balance == "baixa":
+        enabled_types = [kind for kind in ("infographic", "quiz") if enabled.get(kind, False)]
+
+    minimum_ratio = {"baixa": 0.20, "media": 0.45, "alta": 0.62, "maxima": 0.72}.get(balance, 0.45)
+    global_cursor = 0
+    visual_cursor = 0
+
+    for module in structure.get("modules", []) or []:
+        slides = module.get("slides", []) or []
+        candidates = [slide for slide in slides if slide.get("type") not in ("title", "cover", "summary")]
+        if not candidates:
+            continue
+
+        desired_interactives = min(
+            len(candidates),
+            max(1 if enabled_types else 0, int(round(len(candidates) * minimum_ratio))),
+        )
+        current_interactives = sum(
+            slide.get("type") not in ("content", "title", "cover", "summary") for slide in candidates
+        )
+
+        for index, slide in enumerate(candidates):
+            if current_interactives >= desired_interactives or not enabled_types:
+                break
+            if slide.get("type") != "content":
+                continue
+            previous_type = candidates[index - 1].get("type") if index else ""
+            next_type = enabled_types[global_cursor % len(enabled_types)]
+            global_cursor += 1
+            if next_type == previous_type and len(enabled_types) > 1:
+                next_type = enabled_types[global_cursor % len(enabled_types)]
+                global_cursor += 1
+            slide["type"] = next_type
+            slide["purpose"] = (
+                f"Aplicar ativamente {slide.get('title', 'o conceito')} por meio de uma "
+                f"experiência {next_type} com feedback imediato e conclusão mensurável."
+            )
+            current_interactives += 1
+
+        for slide in slides:
+            stype = str(slide.get("type") or "content")
+            slide["contentBudgetWords"] = 70 if stype == "content" else 45
+            slide["experienceIntent"] = {
+                "content": "explicar visualmente um conceito com uma ideia central e evidência",
+                "infographic": "explorar relações, dados ou processo de forma visual",
+                "simulator": "praticar decisões e observar consequências",
+                "game": "fixar conhecimento por desafio, progressão e recompensa",
+                "flashcard": "recuperar conceitos da memória e autoavaliar domínio",
+                "timeline": "compreender sequência, evolução e impacto dos marcos",
+                "case_study": "analisar evidências, decidir e realizar debrief",
+                "scenario": "escolher caminhos e comparar consequências",
+                "quiz": "verificar compreensão com feedback explicativo",
+            }.get(stype, "sintetizar e orientar a próxima ação")
+            if stype in _RICH_INTERACTIVE_TYPES:
+                slide["visualDirection"] = _INTERACTIVE_VISUAL_DIRECTIONS[
+                    visual_cursor % len(_INTERACTIVE_VISUAL_DIRECTIONS)
+                ]
+                visual_cursor += 1
+
+    structure["experienceQuality"] = {
+        "profile": "premium",
+        "maxConsecutiveTextSlides": 1,
+        "contentWordBudget": 70,
+        "interactiveTarget": minimum_ratio,
+    }
+    structure["totalSlides"] = sum(
+        len(module.get("slides", []) or []) for module in structure.get("modules", []) or []
+    )
+    return structure
+
+
 async def generate_structure(session_id: str, content_text: str, config: dict) -> dict:
     """Step 2: Generate course architecture based on content and configuration."""
 
@@ -681,13 +772,13 @@ REGRAS GERAIS:
             response = await chat.send_message(UserMessage(text=prompt))
             data = _extract_json(response)
             if data:
-                return data
+                return _premiumize_course_structure(data, config)
         except Exception as e:
             last_error = str(e)
             logger.warning(f"Structure with {provider}/{model} failed: {str(e)[:80]}")
             continue
     logger.warning("Using deterministic structure fallback for session %s", session_id)
-    return _build_fallback_structure(content_text, config, last_error)
+    return _premiumize_course_structure(_build_fallback_structure(content_text, config, last_error), config)
 
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
@@ -714,8 +805,10 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "type": s.get("type", "content"),
             "purpose": s.get("purpose", ""),
             "moduleName": s.get("moduleName", ""),
+            "experienceIntent": s.get("experienceIntent", ""),
+            "contentBudgetWords": s.get("contentBudgetWords", 70),
             **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") in ("simulator", "game") else {}),
-            **({"visualDirection": _interactive_visual_direction(s)} if s.get("type") in _RICH_INTERACTIVE_TYPES else {}),
+            **({"visualDirection": s.get("visualDirection") or _interactive_visual_direction(s)} if s.get("type") in _RICH_INTERACTIVE_TYPES else {}),
         } for s in batch]
 
         # Report progress
@@ -760,12 +853,13 @@ Retorne JSON:
 REGRAS CRÍTICAS DE QUALIDADE:
 
 SLIDES DE CONTEÚDO (type="content"):
-- MÍNIMO 150 palavras de texto por slide, NUNCA menos que isso
-- Use estrutura HTML rica: <h2> para título, <h3> para sub-seções, <p> para parágrafos, <ul><li> para listas
-- Cada slide DEVE ter: 1 parágrafo introdutório (3-4 frases), 1 lista com 3-5 itens detalhados, 1 parágrafo de aplicação prática
-- Use <strong> para termos importantes, <em> para ênfase
-- Inclua exemplos reais, dados, estatísticas e casos práticos
-- O conteúdo deve ser educacional, aprofundado e útil para o aluno
+- LIMITE de 45 a 70 palavras visíveis por slide; a profundidade adicional pertence à narração
+- Uma única mensagem central por slide, expressa por título curto + no máximo 3 pontos ou cards
+- Transforme listas longas em composição visual: comparação, processo, diagrama, métrica, citação ou exemplo anotado
+- Inclua pelo menos um artefato visual útil: número em destaque, ícone contextual, fluxo, escala, matriz, antes/depois ou imagem com legenda
+- Varie a composição entre slides: hero assimétrico, cards, split image, processo horizontal, comparação e painel de métricas
+- Evite parágrafos corridos, subtítulos repetitivos e aparência de apostila; use a narração para explicações detalhadas
+- Use <strong> apenas nos termos essenciais e preserve contraste WCAG
 
 SLIDES DE TÍTULO (type="title"):
 - Use <h1> para título principal grande e impactante
@@ -1035,6 +1129,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     # slide before it reaches the storyboard UI.
                     for slide_data in data["slides"]:
                         _normalize_interactive_storyboard_slide(slide_data)
+                        _normalize_visual_content_slide(slide_data)
                     all_slides.extend(data["slides"])
                     batch_success = True
                     if retries > 0:
@@ -1067,16 +1162,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                 stype = sl.get("type", "content")
 
                 if stype == "content":
-                    fallback_html = f"""<h2>{title_text}</h2>
-<p>{purpose if purpose else 'Este slide aborda conceitos fundamentais sobre ' + title_text.lower() + '.'} É importante compreender estes fundamentos para aplicar corretamente no ambiente profissional.</p>
-<h3>Aspectos Principais</h3>
-<ul>
-<li><strong>Conceito base:</strong> {title_text} envolve uma série de práticas e conhecimentos essenciais para garantir resultados eficazes.</li>
-<li><strong>Aplicação prática:</strong> No dia a dia, estes conceitos se traduzem em ações concretas que melhoram a qualidade e a segurança das operações.</li>
-<li><strong>Importância:</strong> Dominar este tema é fundamental para profissionais que buscam excelência na sua área de atuação.</li>
-</ul>
-<h3>Considerações</h3>
-<p>A aplicação destes conceitos requer atenção contínua e atualização constante, pois as melhores práticas evoluem com o tempo e novas regulamentações podem surgir.</p>"""
+                    fallback_html = _build_visual_content_fallback_html(sl)
                 elif stype == "quiz":
                     fallback_html = f"<h2>Quiz: {module_text}</h2><p>Teste seus conhecimentos sobre os conceitos apresentados neste módulo.</p>"
                 elif stype == "summary":
@@ -1151,7 +1237,10 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     "quizQuestions": fallback_quiz,
                 })
 
-    return {"slides": all_slides}
+    for slide in all_slides:
+        _normalize_interactive_storyboard_slide(slide)
+        _normalize_visual_content_slide(slide)
+    return {"slides": all_slides, "qualityProfile": "premium"}
 
 
 # ========== VISUAL COURSE GENERATION ==========
@@ -2498,6 +2587,58 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
         html_content = builders[stype](slide)
 
     slide["elements"] = [{"type": "html", "htmlContent": html_content}]
+    return slide
+
+
+def _visible_words(html_content: str) -> list[str]:
+    """Extract visible words while ignoring CSS/JS and HTML declarations."""
+    clean = re.sub(r"<(?:style|script)[^>]*>[\s\S]*?</(?:style|script)>", " ", html_content or "", flags=re.I)
+    clean = re.sub(r"<[^>]+>", " ", clean)
+    clean = re.sub(r"&(?:nbsp|amp|lt|gt|quot);", " ", clean, flags=re.I)
+    return re.findall(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9'’–-]*", clean)
+
+
+def _build_visual_content_fallback_html(slide: dict) -> str:
+    """Create a concise visual composition instead of a text-heavy handout."""
+    import html as html_module
+    title = html_module.escape(str(slide.get("title") or "Conceito essencial"))
+    purpose = str(slide.get("purpose") or slide.get("notes") or "").strip()
+    sentences = [part.strip(" •-\n\t") for part in re.split(r"(?<=[.!?])\s+|\n+", purpose) if part.strip()]
+    defaults = [
+        f"Compreenda a ideia central de {title}",
+        "Conecte o conceito a uma situação real",
+        "Escolha uma ação prática para aplicar agora",
+    ]
+    points = (sentences + defaults)[:3]
+    cards = "".join(
+        f'<article class="visual-card"><span>{index:02d}</span><p>{html_module.escape(text[:170])}</p></article>'
+        for index, text in enumerate(points, start=1)
+    )
+    return f'''<section class="premium-concept" data-visual-pattern="insight-cards">
+<style>.premium-concept{{font-family:Inter,Arial,sans-serif;color:#172033}}.premium-concept h2{{font-size:38px;line-height:1.08;margin:0 0 26px;max-width:880px}}.visual-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}}.visual-card{{min-height:190px;padding:25px;border-radius:22px;background:linear-gradient(145deg,#fff,#eef4ff);border:1px solid #dbe7ff;box-shadow:0 16px 35px #1e3a5f16}}.visual-card span{{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#2563eb;color:#fff;font-weight:900;box-shadow:0 8px 22px #2563eb55}}.visual-card p{{font-size:19px;line-height:1.45;margin:22px 0 0}}</style>
+<h2>{title}</h2><div class="visual-grid">{cards}</div></section>'''
+
+
+def _normalize_visual_content_slide(slide: dict) -> dict:
+    """Reject blank or handout-like content slides before persistence."""
+    if str((slide or {}).get("type") or "") != "content":
+        return slide
+    elements = slide.get("elements", []) or []
+    text_elements = [element for element in elements if element.get("type") in ("text", "html")]
+    visible_count = sum(
+        len(_visible_words(element.get("content") or element.get("htmlContent") or ""))
+        for element in text_elements
+    )
+    if not text_elements or visible_count < 12 or visible_count > 85:
+        slide["elements"] = [{
+            "type": "text",
+            "content": _build_visual_content_fallback_html(slide),
+            "position": "left",
+            "width": 1100,
+            "height": 620,
+        }]
+        slide["qualityAdjusted"] = "visual-density"
+    slide["contentBudgetWords"] = 70
     return slide
 
 
