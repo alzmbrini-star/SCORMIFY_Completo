@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Database, FileSpreadsheet, Filter, RefreshCw, Search, Trash2, Upload, Zap } from 'lucide-react';
+import { Database, Download, FileSpreadsheet, Filter, RefreshCw, Search, Trash2, Upload, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { authHeaders } from '../../contexts/AuthContext';
 import { getApiUrl } from '../../utils/apiUrl';
@@ -15,6 +15,7 @@ export default function GameQuestionBankPanel({ user, isSuperAdmin, companies = 
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [syncingQuiz, setSyncingQuiz] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   useEffect(() => {
     if (!companyId && isSuperAdmin && companies[0]?.id) setCompanyId(companies[0].id);
@@ -103,6 +104,34 @@ export default function GameQuestionBankPanel({ user, isSuperAdmin, companies = 
     }
   };
 
+  const downloadTemplate = async () => {
+    if (downloadingTemplate) return;
+    setDownloadingTemplate(true);
+    try {
+      const response = await fetch(`${API}/api/game-questions/template`, {
+        headers: authHeaders(), credentials: 'include',
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.detail || 'Não foi possível baixar a planilha modelo');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'modelo_questoes_jogos.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Planilha modelo baixada. Substitua a linha de exemplo pelos seus dados.');
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
   const FilterSelect = ({ field, label }) => (
     <select
       value={filters[field]}
@@ -133,6 +162,10 @@ export default function GameQuestionBankPanel({ user, isSuperAdmin, companies = 
             <Button type="button" onClick={importQuizBank} disabled={syncingQuiz || !companyId} className="bg-cyan-600 text-white hover:bg-cyan-500">
               <RefreshCw className={`mr-2 h-4 w-4 ${syncingQuiz ? 'animate-spin' : ''}`} />
               {syncingQuiz ? 'Sincronizando…' : 'Usar questões dos Quizzes'}
+            </Button>
+            <Button type="button" variant="outline" onClick={downloadTemplate} disabled={downloadingTemplate} className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10">
+              <Download className="mr-2 h-4 w-4" />
+              {downloadingTemplate ? 'Preparando…' : 'Baixar planilha modelo'}
             </Button>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-500">
               {importing ? <span className="animate-pulse">Importando…</span> : <><Upload className="h-4 w-4" /> Importar Excel/CSV/JSON</>}

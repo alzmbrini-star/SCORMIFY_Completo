@@ -9,11 +9,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Response
 
 from routes.auth import has_role, require_auth, require_company_admin
 from routes.deps import db
-from services.question_engine import QuestionEngine, normalize_question, quiz_to_game_row
+from services.question_engine import QuestionEngine, normalize_question, quiz_to_game_row, build_question_template_xlsx
 
 router = APIRouter(prefix="/game-questions", tags=["Game Question Bank"])
 
@@ -94,6 +94,15 @@ async def list_questions(
     for field in ("grade", "subject", "topic", "difficulty"):
         facets[field] = sorted(value for value in await db.game_questions.distinct(field, {"companyId": company_id}) if value)
     return {"items": items, "total": total, "page": page, "pageSize": pageSize, "facets": facets}
+
+
+@router.get("/template")
+async def download_question_template(user: dict = Depends(require_company_admin)):
+    return Response(
+        content=build_question_template_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="modelo_questoes_jogos.xlsx"'},
+    )
 
 
 @router.post("/import")

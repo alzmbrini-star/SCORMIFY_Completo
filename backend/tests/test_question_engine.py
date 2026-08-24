@@ -1,4 +1,10 @@
-from services.question_engine import QuestionEngine, normalize_question, quiz_to_game_row
+from services.question_engine import (
+    GAME_QUESTION_TEMPLATE_HEADERS,
+    QuestionEngine,
+    build_question_template_xlsx,
+    normalize_question,
+    quiz_to_game_row,
+)
 from services.ai_agent import _build_game_fallback_html
 
 
@@ -63,3 +69,16 @@ def test_quiz_bank_question_is_converted_for_educational_games():
     assert game_question["correctAnswer"] == "alt-b"
     assert game_question["topic"] == "Segurança da Informação"
     assert QuestionEngine.validate_answer(game_question, "alt-b")
+
+
+def test_downloadable_excel_template_contains_import_headers():
+    import io
+    import zipfile
+
+    content = build_question_template_xlsx()
+    assert content.startswith(b"PK")
+    with zipfile.ZipFile(io.BytesIO(content)) as workbook:
+        sheet = workbook.read("xl/worksheets/sheet1.xml").decode("utf-8")
+    for header in GAME_QUESTION_TEMPLATE_HEADERS:
+        assert header in sheet
+    assert "SEG-001" in sheet

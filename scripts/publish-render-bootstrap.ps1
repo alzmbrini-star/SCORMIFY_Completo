@@ -252,7 +252,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Share Quiz question bank with educational games"
+        message = "Add downloadable game question spreadsheet template"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
