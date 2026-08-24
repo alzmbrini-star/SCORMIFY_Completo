@@ -252,7 +252,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Add downloadable game question spreadsheet template"
+        message = "Scope Editor game questions by open project company"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }

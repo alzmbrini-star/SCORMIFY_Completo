@@ -16,7 +16,7 @@ const TYPES = [
   { id: 'hangman', icon: '🔤', name: 'Forca Inteligente', text: 'Descubra os termos usando as perguntas como dicas.' },
 ];
 
-export default function EducationalGameDialog({ open, onOpenChange, onGameCreated }) {
+export default function EducationalGameDialog({ open, onOpenChange, onGameCreated, projectId }) {
   const [type, setType] = useState('penalty');
   const [title, setTitle] = useState('Desafio do Conhecimento');
   const [filters, setFilters] = useState({ subject: '', topic: '', difficulty: '' });
@@ -32,16 +32,17 @@ export default function EducationalGameDialog({ open, onOpenChange, onGameCreate
     if (!open) return;
     setLoading(true);
     try {
-      const p = new URLSearchParams({ pageSize: '200' });
+      if (!projectId) throw new Error('Salve o projeto antes de consultar o banco de questões.');
+      const p = new URLSearchParams({ projectId, pageSize: '200' });
       Object.entries(filters).forEach(([key, value]) => value && p.set(key, value));
-      const response = await fetch(`${API}/api/game-questions?${p}`, { headers: authHeaders(), credentials: 'include' });
+      const response = await fetch(`${API}/api/game-questions/catalog?${p}`, { headers: authHeaders(), credentials: 'include' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Não foi possível consultar o banco de questões');
       setQuestions(data.items || []);
       setFacets(data.facets || {});
     } catch (error) { toast.error(error.message); }
     finally { setLoading(false); }
-  }, [open, filters]);
+  }, [open, filters, projectId]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSelected((prev) => prev.filter((id) => questions.some((q) => q.id === id))); }, [questions]);

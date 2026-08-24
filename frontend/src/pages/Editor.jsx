@@ -2420,6 +2420,7 @@ export default function Editor() {
           open={showEducationalGameDialog}
           onOpenChange={setShowEducationalGameDialog}
           onGameCreated={handleEducationalGameCreated}
+          projectId={currentProject?.id}
         />
 
         {/* Scenario Creator Dialog */}

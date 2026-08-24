@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 
 from routes.auth import has_role, require_auth, require_company_admin
 from routes.deps import db
+from routes.projects_common import load_authorized_project
 from services.question_engine import QuestionEngine, normalize_question, quiz_to_game_row, build_question_template_xlsx
 
 router = APIRouter(prefix="/game-questions", tags=["Game Question Bank"])
@@ -103,6 +104,41 @@ async def download_question_template(user: dict = Depends(require_company_admin)
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="modelo_questoes_jogos.xlsx"'},
     )
+
+
+@router.get("/catalog")
+async def game_question_catalog(
+    projectId: str,
+    grade: str = "",
+    subject: str = "",
+    topic: str = "",
+    difficulty: str = "",
+    pageSize: int = Query(200, ge=1, le=500),
+    user: dict = Depends(require_auth),
+):
+    """Question catalog for the game builder, scoped by the open project.
+
+    Resolving the tenant through an authorized project is essential for super
+    admins, whose own account company may differ from the company currently
+    being edited.
+    """
+    project = await load_authorized_project(projectId, user)
+    company_id = str(project.get("companyId") or "")
+    if not company_id:
+        raise HTTPException(400, "O projeto não está vinculado a uma empresa")
+    query = {"companyId": company_id, "active": {"$ne": False}}
+    for field, value in (("grade", grade), ("subject", subject), ("topic", topic), ("difficulty", difficulty)):
+        if value:
+            query[field] = value
+    items = await db.game_questions.find(query, {"_id": 0}).sort("createdAt", -1).limit(pageSize).to_list(pageSize)
+    facets = {}
+    for field in ("grade", "subject", "topic", "difficulty"):
+        facets[field] = sorted(
+            value for value in await db.game_questions.distinct(
+                field, {"companyId": company_id, "active": {"$ne": False}}
+            ) if value
+        )
+    return {"items": items, "total": len(items), "facets": facets, "companyId": company_id}
 
 
 @router.post("/import")
