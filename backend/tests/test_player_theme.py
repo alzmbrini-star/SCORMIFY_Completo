@@ -180,3 +180,22 @@ def test_visual_journey_renders_distinct_layout_and_explorable_scene():
     assert "Localize os riscos antes de decidir." in html
     assert "saída obstruída" in html
     assert html.count("sp-evidence-pin sp-evidence-pin-") == 3
+
+
+def test_visual_journey_fullbleed_game_never_uses_split_column():
+    project = {
+        "id": "journey-game-1", "name": "Curso",
+        "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "id": "g1", "title": "Penalty Quest", "narrativeBeat": "decide",
+            "journeyLayout": "decision_split", "width": 1920, "height": 820,
+            "elements": [{
+                "id": "game", "type": "html", "width": 1920, "height": 820,
+                "htmlDisplayMode": "fit",
+                "htmlContent": "<!doctype html><html><body><button>Começar</button><script>document.querySelector('button').onclick=function(){}</script></body></html>",
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    assert "sp-layout-interactive-stage" in html
+    assert 'aspect-ratio: 16 / 9' in html

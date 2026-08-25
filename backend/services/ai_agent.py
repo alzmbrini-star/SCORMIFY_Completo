@@ -3550,6 +3550,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "notes": sb_slide.get("notes", ""),
             "librasScript": sb_slide.get("librasScript", ""),
             "moduleName": sb_slide.get("moduleName", ""),
+            "contentType": stype,
             "narrativeBeat": sb_slide.get("narrativeBeat", ""),
             "imageRole": sb_slide.get("imageRole", ""),
             "linkedSceneTitle": sb_slide.get("linkedSceneTitle", ""),

@@ -1658,13 +1658,35 @@ def generate_single_page_html(
         section_class = "sp-section"
         if visual_journey:
             section_class += " sp-journey-section"
-            layout = str(slide.get("journeyLayout") or "").strip().lower()
-            if not layout:
-                layout = {
-                    "context": "cinematic_scene", "observe": "guided_observation",
-                    "decide": "decision_split", "practice": "workbench",
-                    "reflect": "reflection",
-                }.get(str(slide.get("narrativeBeat") or "context").lower(), "cinematic_scene")
+            # Full-slide HTML games/simulators must never enter a narrative
+            # split-grid: that compressed a complete 16:9 app into a narrow
+            # right column. Detect both new metadata and legacy full-width
+            # authored elements so already-created projects export correctly.
+            rich_types = {"game", "simulator", "scenario", "infographic", "timeline", "case_study", "flashcard", "quiz"}
+            content_type = str(slide.get("contentType") or "").strip().lower()
+            def _is_fullbleed_interactive(candidate: dict) -> bool:
+                if str(candidate.get("type") or "").lower() not in ("html", "simulator", "scenario", "quiz"):
+                    return False
+                if str(candidate.get("htmlDisplayMode") or "").lower() == "fit":
+                    return True
+                try:
+                    candidate_width = float(candidate.get("width") or 0)
+                except (TypeError, ValueError):
+                    candidate_width = 0.0
+                return candidate_width >= max(1200.0, slide_w_for_card * .72)
+            fullbleed_html = any(
+                _is_fullbleed_interactive(el) for el in elements
+            )
+            if content_type in rich_types or fullbleed_html:
+                layout = "interactive_stage"
+            else:
+                layout = str(slide.get("journeyLayout") or "").strip().lower()
+                if not layout:
+                    layout = {
+                        "context": "cinematic_scene", "observe": "guided_observation",
+                        "decide": "decision_split", "practice": "workbench",
+                        "reflect": "reflection",
+                    }.get(str(slide.get("narrativeBeat") or "context").lower(), "cinematic_scene")
             layout = re.sub(r"[^a-z0-9_-]", "", layout) or "cinematic_scene"
             section_class += f" sp-layout-{layout.replace('_', '-')}"
         if bg_color:
@@ -1961,6 +1983,42 @@ body.sp-visual-journey {
 .sp-visual-journey .sp-layout-reflection .sp-section-title { text-align: center; margin-inline: auto; }
 .sp-visual-journey .sp-layout-reflection .sp-section-body { max-width: 920px; margin: 0 auto; }
 .sp-visual-journey .sp-layout-reflection .sp-image img { max-height: 330px; object-fit: cover; width: 100%; }
+/* Games, simulators, timelines, cases and infographics own the whole stage.
+   They are 16:9 applications, never side panels in an editorial grid. */
+.sp-visual-journey .sp-layout-interactive-stage { min-height: auto; }
+.sp-visual-journey .sp-layout-interactive-stage .sp-section-inner {
+  width: min(1320px, 100%);
+  min-height: 0;
+  padding: clamp(16px, 2vw, 28px);
+  background: linear-gradient(145deg, #f8fafc, #eef2f7);
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-journey-meta { margin: 0 4px 10px; }
+.sp-visual-journey .sp-layout-interactive-stage .sp-section-title {
+  max-width: none; margin: 0 4px 16px; font-size: clamp(25px, 2.7vw, 39px); line-height: 1.12;
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-section-body {
+  display: block !important;
+  width: 100%; max-width: none; margin: 0; padding: 0;
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-section-body > * {
+  width: 100% !important; max-width: none !important; grid-column: 1 !important;
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-html,
+.sp-visual-journey .sp-layout-interactive-stage .sp-simulator,
+.sp-visual-journey .sp-layout-interactive-stage .sp-quiz,
+.sp-visual-journey .sp-layout-interactive-stage .sp-scenario {
+  width: 100%; margin: 0; padding: 0; border-radius: 18px; overflow: hidden;
+  background: #0f172a;
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-html > iframe,
+.sp-visual-journey .sp-layout-interactive-stage .sp-simulator > iframe {
+  display: block; width: 100% !important; height: auto !important;
+  min-height: 0 !important; aspect-ratio: 16 / 9; max-height: min(72vh, 742px);
+  border: 0 !important; border-radius: 18px !important; background: #0f172a;
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-iframe-done {
+  width: auto !important; min-width: 280px; margin: 12px auto 0 !important; display: block;
+}
 .sp-visual-journey .sp-layout-cinematic-scene .sp-section-inner { padding: 0; background: #101827; }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-journey-meta,
 .sp-visual-journey .sp-layout-cinematic-scene .sp-section-title {
@@ -2018,6 +2076,10 @@ body.sp-visual-journey {
   .sp-visual-journey .sp-layout-decision-split .sp-html,
   .sp-visual-journey .sp-layout-workbench .sp-image,
   .sp-visual-journey .sp-layout-workbench .sp-html { grid-column: 1; grid-row: auto; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-section-inner { padding: 10px; border-radius: 14px; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-section-title { font-size: 24px; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-html > iframe,
+  .sp-visual-journey .sp-layout-interactive-stage .sp-simulator > iframe { max-height: none; }
   .sp-visual-journey .sp-layout-cinematic-scene .sp-section-title { right: 20px; top: 120px; }
   .sp-visual-journey .sp-layout-cinematic-scene .sp-html:not(:first-child) { width: auto; right: 20px; }
 }
