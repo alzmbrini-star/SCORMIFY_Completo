@@ -322,3 +322,42 @@ def test_wide_editor_header_does_not_turn_regular_slide_into_game_stage():
     section_open = html.split("<section class=", 1)[1].split(">", 1)[0]
     assert "sp-layout-interactive-stage" not in section_open
     assert "sp-layout-reflection" in section_open
+
+
+def test_visual_journey_replaces_game_shell_saved_as_simulator():
+    project = {
+        "id": "journey-simulator-repair", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "id": "s1", "title": "Simulador: Prototipação Rápida",
+            "type": "simulator", "contentType": "simulator", "width": 1920, "height": 820,
+            "elements": [{
+                "id": "wrong-game", "type": "html", "width": 1920, "height": 820,
+                "htmlDisplayMode": "fit",
+                "htmlContent": (
+                    "<!doctype html><html><body><main>KNOWLEDGE LEAGUE</main>"
+                    "<script>const QuestionEngine={};</script></body></html>"
+                ),
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert "Simulação interativa" in iframe_html
+    assert "Classifique cada situação" in iframe_html
+    assert "KNOWLEDGE LEAGUE" not in iframe_html
+
+
+def test_visual_journey_sections_are_continuous_viewport_pages():
+    project = {
+        "id": "journey-continuous", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [
+            {"id": "a", "title": "Primeira", "elements": [{"type": "text", "content": "Conteúdo A"}]},
+            {"id": "b", "title": "Segunda", "elements": [{"type": "text", "content": "Conteúdo B"}]},
+        ]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    assert "min-height: calc(100dvh - 70px)" in html
+    assert "scroll-snap-align: start" in html
+    assert ".sp-journey-section + .sp-journey-section" in html
+    assert "margin: 0 auto 44px" not in html

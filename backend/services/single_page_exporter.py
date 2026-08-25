@@ -1593,6 +1593,18 @@ def generate_single_page_html(
                     render_el["htmlContent"] = _build_infographic_fallback_html(slide)
                     render_el["htmlDisplayMode"] = "fit"
                     render_el["height"] = 540
+                # Repair already-created courses where the AI saved the
+                # question-game shell under a simulator slide. New courses are
+                # protected during generation; this export-time guard makes
+                # the correction retroactive without database migration.
+                if visual_journey and slide_kind == "simulator" and str(el.get("type") or "").lower() == "html":
+                    from services.ai_agent import _build_simulator_fallback_html, _simulator_html_is_actually_a_game
+                    simulator_raw = str(el.get("htmlContent") or el.get("content") or "")
+                    if _simulator_html_is_actually_a_game(simulator_raw):
+                        render_el = dict(el)
+                        render_el["htmlContent"] = _build_simulator_fallback_html(slide)
+                        render_el["htmlDisplayMode"] = "fit"
+                        render_el["height"] = 540
                 html_part = _render_element(render_el, project_id, assets_dir, base_url,
                                               s_idx, e_idx, questions_lookup)
                 if not html_part:
@@ -1925,30 +1937,36 @@ body.sp-visual-journey {
 }
 html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }
 .sp-visual-journey .sp-main {
-  padding: 70px clamp(14px, 3vw, 48px) 92px;
+  padding: 70px 0 0;
   background:
     radial-gradient(circle at 15% 10%, rgba(45,212,191,.13), transparent 30%),
     radial-gradient(circle at 85% 35%, rgba(59,130,246,.12), transparent 32%),
     #0d1320;
 }
 .sp-visual-journey .sp-journey-section {
-  min-height: min(800px, calc(100dvh - 92px));
+  min-height: calc(100dvh - 70px);
   display: flex;
   align-items: center;
-  scroll-margin-top: 84px;
-  margin: 0 auto 44px;
+  scroll-margin-top: 70px;
+  scroll-snap-align: start;
+  margin: 0;
+  padding: clamp(8px, 1.5vh, 16px) clamp(8px, 1.4vw, 22px);
+  background: linear-gradient(180deg, #f8fafc 0%, #f5f8fb 100%);
+}
+.sp-visual-journey .sp-journey-section + .sp-journey-section {
+  border-top: 1px solid #dbe3ec;
 }
 .sp-visual-journey .sp-journey-section .sp-section-inner {
   position: relative;
-  width: min(1180px, 100%);
-  min-height: 650px;
+  width: min(1380px, 100%);
+  min-height: min(760px, calc(100dvh - 102px));
   margin: 0 auto;
   padding: clamp(28px, 5vw, 72px);
-  border-radius: 28px;
+  border-radius: 18px;
   background: var(--journey-paper);
   color: var(--journey-ink);
   border: 1px solid rgba(255,255,255,.16);
-  box-shadow: 0 28px 90px rgba(0,0,0,.34);
+  box-shadow: 0 10px 34px rgba(15,23,42,.10);
   overflow: hidden;
   container-type: inline-size;
 }
@@ -2215,10 +2233,10 @@ html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }
 .sp-evidence-card b { display: grid; place-items: center; flex: 0 0 25px; height: 25px; border-radius: 50%; background: #0d9488; color: #fff; }
 @keyframes spEvidenceIn { from { opacity: 0; transform: translateY(8px); } }
 @media (max-width: 760px) {
-  .sp-visual-journey .sp-main { padding: 76px 10px 88px; }
-  .sp-visual-journey .sp-journey-section { min-height: auto; margin-bottom: 32px; }
+  .sp-visual-journey .sp-main { padding: 64px 0 0; }
+  .sp-visual-journey .sp-journey-section { min-height: calc(100dvh - 64px); margin: 0; padding: 6px; }
   .sp-visual-journey .sp-journey-section .sp-section-inner {
-    min-height: 72vh; padding: 24px 20px; border-radius: 20px;
+    min-height: calc(100dvh - 76px); padding: 24px 20px; border-radius: 12px;
   }
   .sp-visual-journey .sp-journey-meta { align-items: flex-start; flex-wrap: wrap; }
   .sp-visual-journey .sp-section-title { font-size: clamp(30px, 10vw, 46px); }

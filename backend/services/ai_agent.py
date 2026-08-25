@@ -2512,6 +2512,24 @@ _INTERACTIVE_PLACEHOLDERS = (
     "conteúdo aqui",
 )
 
+_GAME_ONLY_MARKERS = (
+    "knowledge league",
+    "arena das palavras",
+    "palco do saber",
+    "expedição do saber",
+    "arena de precisão",
+    "penalty quest",
+    "questionengine",
+    "começar campeonato",
+    "entrar no palco",
+)
+
+
+def _simulator_html_is_actually_a_game(html_content: str) -> bool:
+    """Identify question-game shells incorrectly returned for simulators."""
+    lowered = (html_content or "").lower()
+    return any(marker in lowered for marker in _GAME_ONLY_MARKERS)
+
 
 def _interactive_html_is_functional(html_content: str, content_type: str = "") -> bool:
     """Reject empty LLM skeletons before they become blank course slides."""
@@ -2527,6 +2545,11 @@ def _interactive_html_is_functional(html_content: str, content_type: str = "") -
     body_text = re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<[^>]+>", " ", body_match.group(1) if body_match else "", flags=re.IGNORECASE)
     body_text = html.unescape(re.sub(r"\s+", " ", body_text)).strip()
     if len(body_text) < 40:
+        return False
+    # A simulator must expose an experimental manipulation/decision mechanic.
+    # Never accept the premium question-game shell just because it contains
+    # valid HTML and JavaScript; doing so labels a quiz as a simulator.
+    if content_type == "simulator" and _simulator_html_is_actually_a_game(raw):
         return False
     if content_type == "flashcard":
         # A flashcard must contain real card data plus an actual flip action.
@@ -2564,6 +2587,10 @@ def _build_simulator_fallback_html(sb_slide: dict) -> str:
     title = re.sub(r"^simula(?:ção|cao)\s*:\s*", "", raw_title, flags=re.IGNORECASE).strip() or raw_title
     context = _slide_plain_text(sb_slide)
     context = re.sub(r"\s+", " ", context).strip()
+    # When repairing a mislabeled legacy slide, do not reuse the old game
+    # shell's visible labels as simulator learning content.
+    if _simulator_html_is_actually_a_game(context):
+        context = title
     candidates = [
         part.strip(" -•")
         for part in re.split(r"(?<=[.!?;:])\s+|\s+[•-]\s+", context)
@@ -3358,7 +3385,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                             logger.info("Embedded %s company-bank questions in game slide %s", len(bank_questions), i)
                 except Exception as exc:
                     logger.warning("Could not sample game question bank for slide %s: %s", i, exc)
-            if _interactive_html_is_functional(html_content, "simulator"):
+            if _interactive_html_is_functional(html_content, stype):
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
