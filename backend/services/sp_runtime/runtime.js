@@ -1007,6 +1007,11 @@
     observeSfx();
     setupBgMusic();
     setupFullscreen();
+    // Quizzes are content, not launch dialogs. Reveal their questions on the
+    // initial paint so learners do not spend an extra click on every quiz.
+    document.querySelectorAll('.sp-quiz[data-autostart="true"]').forEach(function(quiz){
+      try { SP.startQuiz(quiz); } catch(e) {}
+    });
     window.addEventListener('scroll', detectActiveSection, {passive:true});
     document.addEventListener('click', function(){ setTimeout(updateNextButton, 50); }, true);
 

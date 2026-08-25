@@ -203,8 +203,48 @@ def test_guided_observation_never_squeezes_iframe_into_side_rail():
     }
     html = generate_single_page_html(project, "/tmp/no-assets", "")
     assert ".sp-layout-guided-observation .sp-section-body:has(iframe)" in html
-    assert "grid-column: 1 !important" in html
+    assert "minmax(520px, .92fr)" in html
+    assert "@media (max-width: 1199px)" in html
     assert "aspect-ratio: 16 / 9" in html
+
+
+def test_quiz_autostarts_and_scenario_uses_accessible_contrast():
+    project = {
+        "id": "interactive-accessibility", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "id": "q1", "title": "Quiz", "type": "quiz", "elements": [{
+                "type": "quiz", "quizConfig": {"title": "Teste", "questionIds": ["x"]},
+            }],
+        }, {
+            "id": "s1", "title": "Cenário", "type": "scenario", "elements": [{
+                "type": "scenario", "scenarioData": {"title": "Decisão", "description": "Escolha com cuidado"},
+            }],
+        }]},
+    }
+    questions = [{"id": "x", "question": "Pergunta?", "alternatives": [{"text": "Sim", "isCorrect": True}]}]
+    html = generate_single_page_html(project, "/tmp/no-assets", "", questions=questions)
+    assert 'data-autostart="true"' in html
+    assert "SP.startQuiz(quiz)" in html
+    assert "#0f172a 0%,#173b63 58%,#0f766e 100%" in html
+    assert "color:#f8fafc!important" in html
+
+
+def test_visual_journey_infographic_uses_stable_contextual_template():
+    project = {
+        "id": "stable-infographic", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "id": "i1", "title": "Ciclo do Design Thinking", "type": "infographic",
+            "contentType": "infographic", "elements": [{
+                "type": "html", "width": 1920, "height": 820, "htmlDisplayMode": "fit",
+                "htmlContent": "<!doctype html><html><body><div class='chaotic-node'>Nó solto</div></body></html>",
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert "Síntese visual interativa" in iframe_html
+    assert "chaotic-node" not in iframe_html
 
 
 def test_visual_journey_fullbleed_game_never_uses_split_column():

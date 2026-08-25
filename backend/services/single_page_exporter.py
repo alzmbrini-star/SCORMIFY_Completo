@@ -1205,11 +1205,11 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
     qjson = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
     qjson_attr = html.escape(qjson, quote=True)
     is_transparent = bool(cfg.get("transparentBackground"))
-    quiz_classes = "sp-quiz sp-interactive"
+    quiz_classes = "sp-quiz sp-quiz-autostart sp-interactive"
     if is_transparent:
         quiz_classes += " sp-quiz-transparent"
     return (
-        f'<div class="{quiz_classes}" data-interactive="quiz" data-required="true" '
+        f'<div class="{quiz_classes}" data-interactive="quiz" data-required="true" data-autostart="true" '
         f'data-interactive-id="quiz-{slide_idx}-{el_idx}" '
         f'data-questions="{qjson_attr}">'
         f'<div class="sp-quiz-icon">📝</div>'
@@ -1582,7 +1582,18 @@ def generate_single_page_html(
             if e_idx in composed_indices:
                 continue
             try:
-                html_part = _render_element(el, project_id, assets_dir, base_url,
+                render_el = el
+                # Normalize AI-generated Visual Journey infographics through
+                # the stable contextual template. Provider HTML often places
+                # free-floating nodes outside its intended canvas.
+                slide_kind = str(slide.get("contentType") or slide.get("type") or "").lower()
+                if visual_journey and slide_kind == "infographic" and str(el.get("type") or "").lower() == "html":
+                    from services.ai_agent import _build_infographic_fallback_html
+                    render_el = dict(el)
+                    render_el["htmlContent"] = _build_infographic_fallback_html(slide)
+                    render_el["htmlDisplayMode"] = "fit"
+                    render_el["height"] = 540
+                html_part = _render_element(render_el, project_id, assets_dir, base_url,
                                               s_idx, e_idx, questions_lookup)
                 if not html_part:
                     continue
@@ -2039,20 +2050,22 @@ html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }
 .sp-visual-journey .sp-layout-workbench .sp-image { grid-column: 2; grid-row: 1; }
 .sp-visual-journey .sp-layout-workbench .sp-html { grid-column: 1; grid-row: 1; }
 
-/* Never squeeze a 960px interactive document into a narrow editorial rail.
-   Observation activities with an iframe become a full-width learning flow:
-   visual evidence first, interactive synthesis immediately below it. */
+/* Observation pairs use a balanced editorial split when the viewport can
+   genuinely support it; only compact screens fall back to vertical flow. */
 .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) {
-  grid-template-columns: minmax(0, 1fr);
-  max-width: 1040px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(520px, .92fr);
+  max-width: 1320px;
   margin-inline: auto;
+  align-items: center;
 }
 .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-image,
 .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-html {
-  grid-column: 1 !important;
-  grid-row: auto !important;
+  grid-row: 1 !important;
   width: 100% !important;
+  min-width: 0;
 }
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-image { grid-column: 1 !important; }
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-html { grid-column: 2 !important; }
 .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-html iframe {
   display: block;
   width: 100% !important;
@@ -2134,15 +2147,12 @@ html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }
    visual rhythm, but switch to a deliberate vertical story rather than
    shrinking text and interactions until they clip. */
 @media (max-width: 1450px) and (min-width: 721px) {
-  .sp-visual-journey .sp-layout-guided-observation .sp-section-body,
   .sp-visual-journey .sp-layout-decision-split .sp-section-body,
   .sp-visual-journey .sp-layout-workbench .sp-section-body {
     grid-template-columns: minmax(0, 1fr);
     max-width: 980px;
     margin-inline: auto;
   }
-  .sp-visual-journey .sp-layout-guided-observation .sp-image,
-  .sp-visual-journey .sp-layout-guided-observation .sp-html,
   .sp-visual-journey .sp-layout-decision-split .sp-image,
   .sp-visual-journey .sp-layout-decision-split .sp-html,
   .sp-visual-journey .sp-layout-workbench .sp-image,
@@ -2151,9 +2161,18 @@ html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }
     grid-row: auto !important;
     width: 100% !important;
   }
-  .sp-visual-journey .sp-layout-guided-observation .sp-image,
   .sp-visual-journey .sp-layout-decision-split .sp-image,
   .sp-visual-journey .sp-layout-workbench .sp-image { max-width: 860px; margin-inline: auto; }
+}
+@media (max-width: 1199px) {
+  .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 980px;
+  }
+  .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-image,
+  .sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-html {
+    grid-column: 1 !important; grid-row: auto !important;
+  }
 }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-section-inner { padding: 0; background: #101827; }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-journey-meta,
