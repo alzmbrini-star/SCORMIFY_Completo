@@ -1882,18 +1882,18 @@ body.sp-visual-journey {
   background: #0d1320;
 }
 .sp-visual-journey .sp-main {
-  padding: 92px clamp(16px, 4vw, 64px) 120px;
+  padding: 70px clamp(14px, 3vw, 48px) 92px;
   background:
     radial-gradient(circle at 15% 10%, rgba(45,212,191,.13), transparent 30%),
     radial-gradient(circle at 85% 35%, rgba(59,130,246,.12), transparent 32%),
     #0d1320;
 }
 .sp-visual-journey .sp-journey-section {
-  min-height: min(860px, 88vh);
+  min-height: min(800px, calc(100dvh - 92px));
   display: flex;
   align-items: center;
   scroll-margin-top: 84px;
-  margin: 0 auto 72px;
+  margin: 0 auto 44px;
 }
 .sp-visual-journey .sp-journey-section .sp-section-inner {
   position: relative;
@@ -2011,12 +2011,15 @@ body.sp-visual-journey {
 .sp-visual-journey .sp-layout-interactive-stage .sp-section-inner {
   width: min(1320px, 100%);
   min-height: 0;
-  padding: clamp(16px, 2vw, 28px);
+  padding: clamp(12px, 1.5vw, 20px);
   background: linear-gradient(145deg, #f8fafc, #eef2f7);
 }
-.sp-visual-journey .sp-layout-interactive-stage .sp-journey-meta { margin: 0 4px 10px; }
+.sp-visual-journey .sp-layout-interactive-stage .sp-journey-meta {
+  margin: 0 4px 6px; font-size: 10px; letter-spacing: .11em;
+}
 .sp-visual-journey .sp-layout-interactive-stage .sp-section-title {
-  max-width: none; margin: 0 4px 16px; font-size: clamp(25px, 2.7vw, 39px); line-height: 1.12;
+  max-width: none; margin: 0 4px 10px; font-family: Inter, Manrope, system-ui, sans-serif;
+  font-size: clamp(20px, 2vw, 30px); line-height: 1.14; letter-spacing: -.02em;
 }
 .sp-visual-journey .sp-layout-interactive-stage .sp-section-body {
   display: block !important;
@@ -2029,8 +2032,8 @@ body.sp-visual-journey {
 .sp-visual-journey .sp-layout-interactive-stage .sp-simulator,
 .sp-visual-journey .sp-layout-interactive-stage .sp-quiz,
 .sp-visual-journey .sp-layout-interactive-stage .sp-scenario {
-  width: 100%; margin: 0; padding: 0; border-radius: 18px; overflow: hidden;
-  background: #0f172a;
+  width: 100%; margin: 0; padding: 0; border-radius: 16px; overflow: hidden;
+  background: transparent;
 }
 .sp-visual-journey .sp-layout-interactive-stage .sp-scenario,
 .sp-visual-journey .sp-layout-interactive-stage .sp-quiz {
@@ -2040,12 +2043,31 @@ body.sp-visual-journey {
 .sp-visual-journey .sp-layout-interactive-stage .sp-scenario p { font-size: clamp(15px, 1.35vw, 19px); }
 .sp-visual-journey .sp-layout-interactive-stage .sp-html > iframe,
 .sp-visual-journey .sp-layout-interactive-stage .sp-simulator > iframe {
-  display: block; width: 100% !important; height: auto !important;
-  min-height: 0 !important; aspect-ratio: 16 / 9; max-height: min(72vh, 742px);
-  border: 0 !important; border-radius: 18px !important; background: #0f172a;
+  display: block;
+  width: min(100%, calc((100dvh - 238px) * 1.77778)) !important;
+  height: auto !important; min-height: 0 !important; aspect-ratio: 16 / 9;
+  max-height: calc(100dvh - 238px); margin: 0 auto;
+  border: 0 !important; border-radius: 16px !important; background: transparent;
+  box-shadow: 0 16px 44px rgba(15,23,42,.16);
 }
 .sp-visual-journey .sp-layout-interactive-stage .sp-iframe-done {
-  width: auto !important; min-width: 280px; margin: 12px auto 0 !important; display: block;
+  position: sticky; bottom: 10px; z-index: 12;
+  width: auto !important; min-width: 250px; margin: 8px auto 0 !important; display: block;
+  padding: 10px 18px; border-radius: 999px; box-shadow: 0 10px 28px rgba(15,23,42,.2);
+}
+
+@media (max-height: 760px) and (min-width: 721px) {
+  .sp-visual-journey .sp-main { padding-top: 58px; padding-bottom: 72px; }
+  .sp-visual-journey .sp-layout-interactive-stage { align-items: flex-start; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-section-inner { padding: 10px 14px; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-journey-meta { margin-bottom: 3px; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-section-title { font-size: 20px; margin-bottom: 6px; }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-html > iframe,
+  .sp-visual-journey .sp-layout-interactive-stage .sp-simulator > iframe {
+    width: min(100%, calc((100dvh - 190px) * 1.77778)) !important;
+    max-height: calc(100dvh - 190px);
+  }
+  .sp-visual-journey .sp-layout-interactive-stage .sp-iframe-done { margin-top: 5px !important; padding: 8px 16px; }
 }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-section-inner { padding: 0; background: #101827; }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-journey-meta,

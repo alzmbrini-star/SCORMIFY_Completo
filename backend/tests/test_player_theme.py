@@ -1,3 +1,6 @@
+import base64
+import re
+
 from services.player_theme import (
     DEFAULTS,
     TUTOR_DEFAULTS,
@@ -199,6 +202,32 @@ def test_visual_journey_fullbleed_game_never_uses_split_column():
     html = generate_single_page_html(project, "/tmp/no-assets", "")
     assert "sp-layout-interactive-stage" in html
     assert 'aspect-ratio: 16 / 9' in html
+    assert "calc((100dvh - 238px) * 1.77778)" in html
+    assert ".sp-layout-interactive-stage .sp-iframe-done" in html
+    assert "position: sticky; bottom: 10px" in html
+
+
+def test_visual_journey_upgrades_legacy_game_scaling_cap():
+    legacy_fit = "var s=Math.min((innerWidth-pad*2)/cw,(innerHeight-pad*2)/ch,1);s=Math.max(.1,s);"
+    project = {
+        "id": "journey-legacy-game", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "id": "g1", "title": "Jogo", "type": "game", "width": 1920, "height": 820,
+            "elements": [{
+                "id": "game", "type": "html", "width": 1920, "height": 820,
+                "htmlDisplayMode": "fit",
+                "htmlContent": (
+                    "<!doctype html><html><body><main>Jogo educativo interativo</main>"
+                    "<script>const marker='__scormify_fit_v3';" + legacy_fit + "</script></body></html>"
+                ),
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert "(innerHeight-pad*2)/ch,1.35);s=Math.max(.1,s);" in iframe_html
+    assert legacy_fit not in iframe_html
 
 
 def test_wide_editor_header_does_not_turn_regular_slide_into_game_stage():
