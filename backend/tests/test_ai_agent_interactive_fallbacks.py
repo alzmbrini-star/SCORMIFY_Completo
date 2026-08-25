@@ -175,7 +175,14 @@ def test_empty_game_becomes_a_premium_question_engine_experience():
     normalized = _normalize_interactive_storyboard_slide(slide)
     generated = normalized["elements"][0]["htmlContent"]
 
-    assert "Penalty Quest" in generated
+    assert any(name in generated for name in (
+        "Penalty Quest", "Quiz Show", "Memory Mission",
+        "Escalada do Conhecimento", "Forca Inteligente", "Desafio ao Alvo",
+    ))
+    assert any(stage in generated for stage in (
+        "penalty-stage", "quiz-stage", "memory-stage",
+        "climb-stage", "word-stage", "target-stage",
+    ))
     assert "const QuestionEngine=" in generated
     for method in (
         "getQuestion", "getRandomQuestion", "getQuestionsByTopic",
@@ -185,6 +192,28 @@ def test_empty_game_becomes_a_premium_question_engine_experience():
     assert "particles" in generated
     assert "XP total" in generated
     assert _game_complexity_score(generated) >= 8
+
+
+def test_each_game_mechanic_has_its_own_visual_stage():
+    expected = {
+        "penalty_quest": "penalty-stage",
+        "quiz_show": "quiz-stage",
+        "memory_match": "memory-stage",
+        "knowledge_climb": "climb-stage",
+        "word_challenge": "word-stage",
+        "target_challenge": "target-stage",
+    }
+    for mechanic, stage_class in expected.items():
+        generated = _build_game_fallback_html({
+            "type": "game",
+            "title": "Jogo educativo",
+            "purpose": "Aplicar conceitos em uma atividade desafiadora.",
+            "gameMechanic": mechanic,
+        })
+        assert stage_class in generated
+        if mechanic != "penalty_quest":
+            assert '<div class="goal"></div>' not in generated
+        assert "stage-caption" in generated
 
 
 def test_empty_infographic_is_replaced_with_contextual_visual():
