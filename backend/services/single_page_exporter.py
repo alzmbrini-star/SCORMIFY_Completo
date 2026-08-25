@@ -1048,6 +1048,14 @@ def _looks_like_header_bar(html: str) -> bool:
 def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
                                  slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
+    # Upgrade legacy interactive slides whose fit script prohibited upscaling.
+    # This keeps existing games readable in the modern wide player without
+    # forcing administrators to regenerate the course.
+    if "__scormify_fit_v3" in raw:
+        raw = raw.replace(
+            "(innerHeight-pad*2)/ch,1);s=Math.max(.1,s);",
+            "(innerHeight-pad*2)/ch,1.35);s=Math.max(.1,s);",
+        )
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
     # Element-level text-shadow — captured here so each branch below (iframe
     # / inline interactive / direct-inline) can apply it in the correct scope.

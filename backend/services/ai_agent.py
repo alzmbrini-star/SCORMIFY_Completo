@@ -141,6 +141,15 @@ _SIMULATOR_MECHANICS = (
     "word_challenge",
 )
 
+_GAME_MECHANICS = (
+    "penalty_quest",
+    "quiz_show",
+    "memory_match",
+    "knowledge_climb",
+    "word_challenge",
+    "target_challenge",
+)
+
 _INTERACTIVE_VISUAL_DIRECTIONS = (
     "vibrant_sport: gradiente quente, campo/arena, placar em chips, movimento e celebracao",
     "technical_dark: painel grafite, neon moderado, telemetria, SVG animado e controles precisos",
@@ -156,6 +165,16 @@ def _required_simulator_mechanic(slide: dict) -> str:
     identity = "|".join(str(slide.get(key, "")) for key in ("id", "title", "purpose", "moduleName"))
     checksum = sum((index + 1) * ord(char) for index, char in enumerate(identity))
     return _SIMULATOR_MECHANICS[checksum % len(_SIMULATOR_MECHANICS)]
+
+
+def _required_game_mechanic(slide: dict) -> str:
+    """Choose a stable game loop independently from simulator mechanics."""
+    explicit = str(slide.get("gameMechanic") or "").strip().lower()
+    if explicit in _GAME_MECHANICS:
+        return explicit
+    identity = "|".join(str(slide.get(key, "")) for key in ("moduleName", "id", "title", "purpose"))
+    checksum = sum((index + 5) * ord(char) for index, char in enumerate(identity))
+    return _GAME_MECHANICS[checksum % len(_GAME_MECHANICS)]
 
 
 def _interactive_visual_direction(slide: dict) -> str:
@@ -657,6 +676,7 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                     candidates[-1],
                 )
                 game_slide["type"] = "game"
+                game_slide["gameMechanic"] = _required_game_mechanic(game_slide)
                 game_slide["purpose"] = (
                     f"Fixar {game_slide.get('title', 'os conceitos do módulo')} em um jogo educativo "
                     "com cinco rodadas, feedback imediato, XP, vidas, conquistas e debrief final."
@@ -909,7 +929,8 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "linkedSceneTitle": s.get("linkedSceneTitle", ""),
             "storyContext": s.get("storyContext", {}),
             "requiredImagePrompt": s.get("requiredImagePrompt", ""),
-            **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") in ("simulator", "game") else {}),
+            **({"requiredMechanic": _required_simulator_mechanic(s)} if s.get("type") == "simulator" else {}),
+            **({"requiredGameMechanic": _required_game_mechanic(s)} if s.get("type") == "game" else {}),
             **({"visualDirection": s.get("visualDirection") or _interactive_visual_direction(s)} if s.get("type") in _RICH_INTERACTIVE_TYPES else {}),
         } for s in batch]
 
@@ -1172,7 +1193,10 @@ PARA TODOS OS SLIDES:
         quality_type = batch[0].get("type") if len(batch) == 1 else ""
         quality_checked = quality_type in {"simulator", "game", "flashcard", "timeline", "case_study"}
         required_simulator_mechanic = (
-            _required_simulator_mechanic(batch[0]) if quality_type in ("simulator", "game") else ""
+            _required_simulator_mechanic(batch[0]) if quality_type == "simulator" else ""
+        )
+        required_game_mechanic = (
+            _required_game_mechanic(batch[0]) if quality_type == "game" else ""
         )
         models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
         while retries <= max_retries:
@@ -1181,7 +1205,7 @@ PARA TODOS OS SLIDES:
                 chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", provider=provider, model=model)
                 attempt_prompt = prompt
                 if quality_checked and retries > 0:
-                    if quality_type in ("simulator", "game"):
+                    if quality_type == "simulator":
                         attempt_prompt += """
 
 REVISAO OBRIGATORIA DO SIMULADOR:
@@ -1192,6 +1216,16 @@ O HTML/CSS/JS deve estar completo no JSON e funcionar sem bibliotecas externas.
 MECANICA OBRIGATORIA DESTA GERACAO: """ + required_simulator_mechanic + """.
 Implemente os eventos e alteracoes de estado reais dessa mecanica; texto ou botoes que apenas
 simulem a acao nao serao aceitos."""
+                    elif quality_type == "game":
+                        attempt_prompt += """
+
+REVISAO OBRIGATORIA DO JOGO EDUCATIVO:
+A tentativa anterior repetiu um quiz generico. Crie uma experiencia visual e mecanica realmente
+distinta, com tela inicial, HUD, missao, cinco rodadas, XP, vidas, feedback, animacoes, vitoria,
+derrota e resultado final. MECANICA OBRIGATORIA: """ + required_game_mechanic + """.
+Implemente essa mecanica no HTML/CSS/JavaScript; nao use o titulo Knowledge League e nao transforme
+todas as mecanicas em quatro botoes de multipla escolha. O jogo deve preencher um palco 960x540,
+com composicao legivel e responsiva, sem grandes margens vazias."""
                     elif quality_type == "timeline":
                         attempt_prompt += """
 
@@ -2432,7 +2466,7 @@ _FIT_SNIPPET = (
     "var maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);"
     "Array.prototype.forEach.call(st.querySelectorAll('*'),function(n){var cs=getComputedStyle(n);if(cs.display==='none'||cs.visibility==='hidden')return;var r=n.getBoundingClientRect();"
     "if(!r.width&&!r.height)return;minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);});"
-    "var cw=maxX-minX,ch=maxY-minY,pad=12,s=Math.min((innerWidth-pad*2)/cw,(innerHeight-pad*2)/ch,1);s=Math.max(.1,s);"
+    "var cw=maxX-minX,ch=maxY-minY,pad=12,s=Math.min((innerWidth-pad*2)/cw,(innerHeight-pad*2)/ch,1.35);s=Math.max(.1,s);"
     "var tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';}"
     "window.addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}"
     "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',b);}"
@@ -2448,7 +2482,7 @@ _FIT_UPGRADE_SNIPPET = (
     "var maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);"
     "Array.prototype.forEach.call(st.querySelectorAll('*'),function(n){var cs=getComputedStyle(n);if(cs.display==='none'||cs.visibility==='hidden')return;var r=n.getBoundingClientRect();if(!r.width&&!r.height)return;"
     "minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);});"
-    "var cw=maxX-minX,ch=maxY-minY,pad=12,s=Math.min((innerWidth-pad*2)/cw,(innerHeight-pad*2)/ch,1);s=Math.max(.1,s);"
+    "var cw=maxX-minX,ch=maxY-minY,pad=12,s=Math.min((innerWidth-pad*2)/cw,(innerHeight-pad*2)/ch,1.35);s=Math.max(.1,s);"
     "var tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';}"
     "addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}"
     "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',u);else u();})();</script>"
@@ -2567,6 +2601,16 @@ def _build_game_fallback_html(sb_slide: dict, bank_questions: list | None = None
     embedded questions without changing the penalty game.
     """
     title = re.sub(r"^(?:jogo|game)\s*:\s*", "", str(sb_slide.get("title") or "Desafio do Conhecimento"), flags=re.I)
+    mechanic = _required_game_mechanic(sb_slide)
+    game_profiles = {
+        "penalty_quest": ("⚽", "Penalty Quest", "KNOWLEDGE LEAGUE", "COMEÇAR CAMPEONATO"),
+        "quiz_show": ("🎤", "Quiz Show", "PALCO DO SABER", "ENTRAR NO PALCO"),
+        "memory_match": ("🧠", "Memory Mission", "LABORATÓRIO DA MEMÓRIA", "INICIAR MISSÃO"),
+        "knowledge_climb": ("🏔️", "Escalada do Conhecimento", "EXPEDIÇÃO DO SABER", "COMEÇAR ESCALADA"),
+        "word_challenge": ("🔤", "Forca Inteligente", "ARENA DAS PALAVRAS", "DESCOBRIR TERMOS"),
+        "target_challenge": ("🎯", "Desafio ao Alvo", "ARENA DE PRECISÃO", "INICIAR DESAFIO"),
+    }
+    game_icon, game_name, league_name, start_label = game_profiles[mechanic]
     source = re.sub(r"\s+", " ", _slide_plain_text(sb_slide)).strip()
     facts = [p.strip(" -•") for p in re.split(r"(?<=[.!?;:])\s+|\s+[•-]\s+", source) if len(p.strip(" -•")) >= 24]
     defaults = [
@@ -2624,7 +2668,14 @@ const questionBank=__QUESTIONS__;
 const QuestionEngine={questions:questionBank,results:[],getQuestion(id){return this.questions.find(q=>q.id===id)},getRandomQuestion(){return this.questions[Math.floor(Math.random()*this.questions.length)]},getQuestionsByTopic(topic){return this.questions.filter(q=>q.topic===topic)},getQuestionsByDifficulty(level){return this.questions.filter(q=>q.difficulty===level)},validateAnswer(question,index){return index===question.correct},saveResult(result){this.results.push(result);try{localStorage.setItem('scormify-game-results',JSON.stringify(this.results))}catch(e){}return result}};
 const Game={round:0,xp:0,coins:0,lives:3,combo:0,correct:0,locked:false,start(){start.classList.add('hidden');play.classList.remove('hidden');this.next()},restart(){this.round=0;this.xp=0;this.coins=0;this.lives=3;this.combo=0;this.correct=0;finish.classList.add('hidden');play.classList.remove('hidden');this.sync();this.next()},sync(){lives.textContent=this.lives;combo.textContent=this.combo;xp.textContent=this.xp;coins.textContent=this.coins;bar.style.width=(this.round/questionBank.length*100)+'%'},next(){this.locked=false;ball.className='ball';keeper.className='keeper';feedback.textContent='';if(this.round>=questionBank.length||this.lives<=0)return this.end();this.sync();const q=questionBank[this.round];question.textContent=q.question;answers.innerHTML='';q.alternatives.map((text,index)=>({text,index,key:Math.random()})).sort((a,b)=>a.key-b.key).forEach(a=>{const b=document.createElement('button');b.className='answer';b.textContent=a.text;b.onclick=()=>this.answer(q,a.index,b);answers.appendChild(b)})},answer(q,index,button){if(this.locked)return;this.locked=true;const ok=QuestionEngine.validateAnswer(q,index),side=Math.random()>.5?'right':'left';ball.classList.add('shoot-'+side);if(ok){keeper.classList.add('dive-'+(side==='left'?'right':'left'));this.combo++;this.correct++;const gain=100+(this.combo*25);this.xp+=gain;this.coins+=10*this.combo;button.classList.add('correct');feedback.textContent='⚽ GOOOL! +'+gain+' XP · '+q.explanation;this.particles()}else{keeper.classList.add('dive-'+side);this.combo=0;this.lives--;button.classList.add('wrong');feedback.textContent='🧤 Defesa! '+q.explanation}QuestionEngine.saveResult({questionId:q.id,correct:ok,xp:this.xp,at:Date.now()});this.round++;this.sync();setTimeout(()=>this.next(),1600)},particles(){for(let i=0;i<32;i++){const p=document.createElement('i');p.className='particle';p.style.left='50%';p.style.top='40%';p.style.background=['#22d3ee','#a78bfa','#fbbf24','#34d399'][i%4];p.style.setProperty('--x',(Math.random()*420-210)+'px');p.style.setProperty('--y',(Math.random()*260-130)+'px');arena.appendChild(p);setTimeout(()=>p.remove(),1100)}},end(){play.classList.add('hidden');finish.classList.remove('hidden');const accuracy=Math.round(this.correct/questionBank.length*100);finishTitle.textContent=this.lives>0?'Campeonato concluído!':'Treino encerrado — tente de novo!';achievement.textContent=accuracy===100?'🌟 CONQUISTA: MESTRE INVICTO':accuracy>=60?'🥉 CONQUISTA: ARTILHEIRO DO SABER':'🎯 MISSÃO: TREINAR NOVAMENTE';finalXp.innerHTML=this.xp+'<small>XP total</small>';finalCoins.innerHTML=this.coins+'<small>moedas</small>';finalAccuracy.innerHTML=accuracy+'%<small>precisão</small>';QuestionEngine.saveResult({complete:true,xp:this.xp,coins:this.coins,accuracy})}};
 </script></body></html>'''
-    return template.replace("__TITLE__", safe_title).replace("__QUESTIONS__", questions_json)
+    return (
+        template.replace("__TITLE__", safe_title)
+        .replace("__QUESTIONS__", questions_json)
+        .replace("⚽</div><h1>Penalty Quest", f"{game_icon}</div><h1>{game_name}")
+        .replace("⚡ KNOWLEDGE LEAGUE", f"⚡ {league_name}")
+        .replace("COMEÇAR CAMPEONATO", start_label)
+        .replace("scormify-game-results", f"scormify-game-results-{mechanic}")
+    )
 
 
 def _build_flashcard_fallback_html(sb_slide: dict) -> str:
