@@ -183,6 +183,28 @@ def test_visual_journey_renders_distinct_layout_and_explorable_scene():
     assert "Localize os riscos antes de decidir." in html
     assert "saída obstruída" in html
     assert html.count("sp-evidence-pin sp-evidence-pin-") == 3
+    assert "grid-template-columns: minmax(0, 1.12fr) minmax(420px, .88fr)" in html
+    assert "@media (max-width: 1450px) and (min-width: 721px)" in html
+    assert "html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }" in html
+
+
+def test_guided_observation_never_squeezes_iframe_into_side_rail():
+    project = {
+        "id": "journey-observation-app", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "id": "o1", "title": "Observe e explore", "narrativeBeat": "observe",
+            "journeyLayout": "guided_observation", "width": 1920, "height": 820,
+            "elements": [
+                {"type": "image", "src": "data:image/png;base64,iVBORw0KGgo="},
+                {"type": "html", "width": 960, "height": 540, "htmlDisplayMode": "fit",
+                 "htmlContent": "<!doctype html><html><body><button>Explorar conceito</button><script>document.querySelector('button').onclick=function(){}</script></body></html>"},
+            ],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    assert ".sp-layout-guided-observation .sp-section-body:has(iframe)" in html
+    assert "grid-column: 1 !important" in html
+    assert "aspect-ratio: 16 / 9" in html
 
 
 def test_visual_journey_fullbleed_game_never_uses_split_column():

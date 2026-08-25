@@ -1881,6 +1881,7 @@ body.sp-visual-journey {
   --journey-paper: #fbfaf7;
   background: #0d1320;
 }
+html:has(body.sp-visual-journey) { scroll-padding-top: 72px; }
 .sp-visual-journey .sp-main {
   padding: 70px clamp(14px, 3vw, 48px) 92px;
   background:
@@ -1907,6 +1908,7 @@ body.sp-visual-journey {
   border: 1px solid rgba(255,255,255,.16);
   box-shadow: 0 28px 90px rgba(0,0,0,.34);
   overflow: hidden;
+  container-type: inline-size;
 }
 .sp-visual-journey .sp-journey-section:nth-child(even) .sp-section-inner {
   background: linear-gradient(145deg, #f8fafc 0%, #eef6f5 100%);
@@ -1947,9 +1949,12 @@ body.sp-visual-journey {
   max-width: 850px;
   margin: 0 0 28px;
   color: var(--journey-ink);
-  font-size: clamp(34px, 4.4vw, 68px);
-  line-height: 1.04;
-  letter-spacing: -.035em;
+  font-family: Manrope, Inter, system-ui, sans-serif;
+  font-style: normal;
+  text-transform: none;
+  font-size: clamp(30px, 3.4vw, 50px);
+  line-height: 1.08;
+  letter-spacing: -.03em;
 }
 .sp-visual-journey .sp-section-body { position: relative; z-index: 3; }
 .sp-visual-journey .sp-section-body p,
@@ -1984,7 +1989,7 @@ body.sp-visual-journey {
 }
 .sp-visual-journey .sp-journey-section .sp-section-body > * { min-width: 0; }
 .sp-visual-journey .sp-layout-guided-observation .sp-section-body {
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, .72fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(420px, .88fr);
 }
 .sp-visual-journey .sp-layout-guided-observation .sp-image { grid-column: 1; grid-row: 1 / span 2; }
 .sp-visual-journey .sp-layout-guided-observation .sp-html { grid-column: 2; }
@@ -2002,6 +2007,30 @@ body.sp-visual-journey {
 }
 .sp-visual-journey .sp-layout-workbench .sp-image { grid-column: 2; grid-row: 1; }
 .sp-visual-journey .sp-layout-workbench .sp-html { grid-column: 1; grid-row: 1; }
+
+/* Never squeeze a 960px interactive document into a narrow editorial rail.
+   Observation activities with an iframe become a full-width learning flow:
+   visual evidence first, interactive synthesis immediately below it. */
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 1040px;
+  margin-inline: auto;
+}
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-image,
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-html {
+  grid-column: 1 !important;
+  grid-row: auto !important;
+  width: 100% !important;
+}
+.sp-visual-journey .sp-layout-guided-observation .sp-section-body:has(iframe) .sp-html iframe {
+  display: block;
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px !important;
+  box-shadow: 0 16px 44px rgba(15,23,42,.14);
+}
 .sp-visual-journey .sp-layout-reflection .sp-section-title { text-align: center; margin-inline: auto; }
 .sp-visual-journey .sp-layout-reflection .sp-section-body { max-width: 920px; margin: 0 auto; }
 .sp-visual-journey .sp-layout-reflection .sp-image img { max-height: 330px; object-fit: cover; width: 100%; }
@@ -2068,6 +2097,32 @@ body.sp-visual-journey {
     max-height: calc(100dvh - 190px);
   }
   .sp-visual-journey .sp-layout-interactive-stage .sp-iframe-done { margin-top: 5px !important; padding: 8px 16px; }
+}
+
+/* At laptop widths, side rails become unpleasant reading columns. Keep the
+   visual rhythm, but switch to a deliberate vertical story rather than
+   shrinking text and interactions until they clip. */
+@media (max-width: 1450px) and (min-width: 721px) {
+  .sp-visual-journey .sp-layout-guided-observation .sp-section-body,
+  .sp-visual-journey .sp-layout-decision-split .sp-section-body,
+  .sp-visual-journey .sp-layout-workbench .sp-section-body {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 980px;
+    margin-inline: auto;
+  }
+  .sp-visual-journey .sp-layout-guided-observation .sp-image,
+  .sp-visual-journey .sp-layout-guided-observation .sp-html,
+  .sp-visual-journey .sp-layout-decision-split .sp-image,
+  .sp-visual-journey .sp-layout-decision-split .sp-html,
+  .sp-visual-journey .sp-layout-workbench .sp-image,
+  .sp-visual-journey .sp-layout-workbench .sp-html {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+  }
+  .sp-visual-journey .sp-layout-guided-observation .sp-image,
+  .sp-visual-journey .sp-layout-decision-split .sp-image,
+  .sp-visual-journey .sp-layout-workbench .sp-image { max-width: 860px; margin-inline: auto; }
 }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-section-inner { padding: 0; background: #101827; }
 .sp-visual-journey .sp-layout-cinematic-scene .sp-journey-meta,
