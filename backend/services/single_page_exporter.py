@@ -1669,11 +1669,16 @@ def generate_single_page_html(
                     return False
                 if str(candidate.get("htmlDisplayMode") or "").lower() == "fit":
                     return True
+                # Legacy rich HTML may not carry htmlDisplayMode. Require an
+                # actual document/script signature; width alone is unsafe
+                # because normal title/header HTML is also authored at 1680px.
+                raw_candidate = str(candidate.get("htmlContent") or candidate.get("content") or "")
+                has_app_signature = bool(re.search(r"<(?:html|body|script)\b", raw_candidate, re.IGNORECASE))
                 try:
                     candidate_width = float(candidate.get("width") or 0)
                 except (TypeError, ValueError):
                     candidate_width = 0.0
-                return candidate_width >= max(1200.0, slide_w_for_card * .72)
+                return has_app_signature and candidate_width >= max(1200.0, slide_w_for_card * .72)
             fullbleed_html = any(
                 _is_fullbleed_interactive(el) for el in elements
             )
@@ -1687,6 +1692,15 @@ def generate_single_page_html(
                         "decide": "decision_split", "practice": "workbench",
                         "reflect": "reflection",
                     }.get(str(slide.get("narrativeBeat") or "context").lower(), "cinematic_scene")
+                # Cinematic overlay requires a real scene image. Applying it
+                # to text-only covers/content created dark empty panels.
+                has_scene_image = bool(slide.get("backgroundImage")) or any(
+                    str(el.get("type") or "").lower() == "image" and
+                    bool(el.get("src") or el.get("imageUrl") or el.get("content"))
+                    for el in elements
+                )
+                if layout == "cinematic_scene" and not has_scene_image:
+                    layout = "reflection"
             layout = re.sub(r"[^a-z0-9_-]", "", layout) or "cinematic_scene"
             section_class += f" sp-layout-{layout.replace('_', '-')}"
         if bg_color:
@@ -2010,6 +2024,12 @@ body.sp-visual-journey {
   width: 100%; margin: 0; padding: 0; border-radius: 18px; overflow: hidden;
   background: #0f172a;
 }
+.sp-visual-journey .sp-layout-interactive-stage .sp-scenario,
+.sp-visual-journey .sp-layout-interactive-stage .sp-quiz {
+  max-height: min(72vh, 720px); overflow: auto; overscroll-behavior: contain;
+}
+.sp-visual-journey .sp-layout-interactive-stage .sp-scenario-title { font-size: clamp(24px, 3vw, 38px); }
+.sp-visual-journey .sp-layout-interactive-stage .sp-scenario p { font-size: clamp(15px, 1.35vw, 19px); }
 .sp-visual-journey .sp-layout-interactive-stage .sp-html > iframe,
 .sp-visual-journey .sp-layout-interactive-stage .sp-simulator > iframe {
   display: block; width: 100% !important; height: auto !important;

@@ -199,3 +199,20 @@ def test_visual_journey_fullbleed_game_never_uses_split_column():
     html = generate_single_page_html(project, "/tmp/no-assets", "")
     assert "sp-layout-interactive-stage" in html
     assert 'aspect-ratio: 16 / 9' in html
+
+
+def test_wide_editor_header_does_not_turn_regular_slide_into_game_stage():
+    project = {
+        "id": "journey-content-1", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
+            "title": "Responsabilidades", "narrativeBeat": "context", "width": 1920, "height": 820,
+            "elements": [
+                {"type": "html", "width": 1680, "height": 40, "htmlContent": "<div>Módulo 1</div>"},
+                {"type": "html", "width": 960, "height": 600, "htmlContent": "<h2>Deveres</h2><p>Texto legível.</p>"},
+            ],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    section_open = html.split("<section class=", 1)[1].split(">", 1)[0]
+    assert "sp-layout-interactive-stage" not in section_open
+    assert "sp-layout-reflection" in section_open
