@@ -1045,6 +1045,36 @@ def _looks_like_header_bar(html: str) -> bool:
     return True
 
 
+def _inject_fixed_game_stage_fit(raw: str) -> str:
+    """Fit generated 960x540 games without scanning hidden game screens.
+
+    The generic legacy scanner measures every hidden/transformed actor and can
+    incorrectly shrink a game inside an already large iframe. Generated games
+    have a known 960x540 stage, so use those dimensions deterministically.
+    """
+    if not raw or "__scormify_game_fit_v4" in raw:
+        return raw
+    looks_like_game = (
+        "QuestionEngine" in raw
+        and bool(re.search(r'class=["\'][^"\']*\b(?:game|app)\b', raw, re.IGNORECASE))
+        and bool(re.search(r'\b(?:hud|chips|xp|coins|lives|combo)\b', raw, re.IGNORECASE))
+    )
+    if not looks_like_game:
+        return raw
+    snippet = r'''<style id="__scormify_game_fit_v4">
+html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important}
+#__stage{width:960px!important;height:540px!important;min-width:960px!important;min-height:540px!important;max-width:none!important;max-height:none!important;transform-origin:0 0!important}
+</style><script>(function(){function gameFit(){var st=document.getElementById('__stage');if(!st)return;var p=8;
+var s=Math.max(.1,Math.min((window.innerWidth-p*2)/960,(window.innerHeight-p*2)/540,1.55));
+var x=(window.innerWidth-960*s)/2,y=(window.innerHeight-540*s)/2;
+st.style.setProperty('width','960px','important');st.style.setProperty('height','540px','important');
+st.style.setProperty('transform-origin','0 0','important');
+st.style.setProperty('transform','translate('+x+'px,'+y+'px) scale('+s+')','important');}
+window.addEventListener('resize',gameFit);[0,80,360,1100,1900].forEach(function(ms){setTimeout(gameFit,ms)});})();</script>'''
+    idx = raw.lower().rfind("</body>")
+    return raw[:idx] + snippet + raw[idx:] if idx >= 0 else raw + snippet
+
+
 def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
                                  slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
@@ -1056,6 +1086,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             "(innerHeight-pad*2)/ch,1);s=Math.max(.1,s);",
             "(innerHeight-pad*2)/ch,1.35);s=Math.max(.1,s);",
         )
+    raw = _inject_fixed_game_stage_fit(raw)
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
     # Element-level text-shadow — captured here so each branch below (iframe
     # / inline interactive / direct-inline) can apply it in the correct scope.

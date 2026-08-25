@@ -252,6 +252,21 @@ def test_visual_journey_upgrades_legacy_game_scaling_cap():
     assert legacy_fit not in iframe_html
 
 
+def test_generated_games_use_deterministic_full_stage_fit():
+    from services.single_page_exporter import _inject_fixed_game_stage_fit
+
+    game = """<!doctype html><html><body><main class="game"><div class="hud">XP coins lives combo</div></main>
+    <script>const QuestionEngine={};</script><div id="__stage"></div></body></html>"""
+    fitted = _inject_fixed_game_stage_fit(game)
+    assert "__scormify_game_fit_v4" in fitted
+    assert "(window.innerWidth-p*2)/960" in fitted
+    assert "(window.innerHeight-p*2)/540" in fitted
+    assert "max-width:none!important" in fitted
+
+    ordinary = '<html><body><main class="app">Relatório</main></body></html>'
+    assert _inject_fixed_game_stage_fit(ordinary) == ordinary
+
+
 def test_wide_editor_header_does_not_turn_regular_slide_into_game_stage():
     project = {
         "id": "journey-content-1", "name": "Curso", "playerTemplate": "visual_journey",
