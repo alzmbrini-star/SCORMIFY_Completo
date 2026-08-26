@@ -1583,15 +1583,24 @@ def generate_single_page_html(
                 continue
             try:
                 render_el = el
-                # Normalize AI-generated Visual Journey infographics through
-                # the stable contextual template. Provider HTML often places
-                # free-floating nodes outside its intended canvas.
+                # Normalize infographics through the stable contextual
+                # template. Do not depend only on Visual Journey metadata:
+                # older Agent projects frequently saved them as generic HTML.
                 slide_kind = str(slide.get("contentType") or slide.get("type") or "").lower()
-                if visual_journey and slide_kind == "infographic" and str(el.get("type") or "").lower() == "html":
-                    from services.ai_agent import _build_infographic_fallback_html
+                if str(el.get("type") or "").lower() == "html":
+                    from services.ai_agent import _build_infographic_fallback_html, _infographic_html_needs_repair
+                    infographic_raw = str(el.get("htmlContent") or el.get("content") or "")
+                    repair_infographic = (
+                        slide_kind == "infographic"
+                        or _infographic_html_needs_repair(infographic_raw)
+                    )
+                else:
+                    repair_infographic = False
+                if repair_infographic:
                     render_el = dict(el)
                     render_el["htmlContent"] = _build_infographic_fallback_html(slide)
                     render_el["htmlDisplayMode"] = "fit"
+                    render_el["width"] = 960
                     render_el["height"] = 540
                 # Repair already-created courses where the AI saved the
                 # question-game shell under a simulator slide. New courses are

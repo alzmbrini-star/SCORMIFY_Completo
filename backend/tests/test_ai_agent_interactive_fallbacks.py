@@ -7,6 +7,7 @@ from services.ai_agent import (
     _build_case_study_fallback_html,
     _build_flashcard_fallback_html,
     _build_infographic_fallback_html,
+    _infographic_html_needs_repair,
     _build_storyboard_batches,
     _build_timeline_fallback_html,
     _interactive_html_is_functional,
@@ -235,6 +236,24 @@ def test_empty_infographic_is_replaced_with_contextual_visual():
     assert _interactive_html_is_functional(html, "infographic")
     assert "Síntese visual interativa" in html
     assert "Neurociência da criatividade" in html
+
+
+def test_legacy_free_floating_infographic_is_replaced_even_when_html_exists():
+    legacy = """<!doctype html><html><body>
+      <div class='cycle-node'>Empatia</div><button>Explore o Ciclo</button>
+    </body></html>"""
+    slide = {
+        "type": "infographic",
+        "title": "Ciclo do Design Thinking",
+        "purpose": "Empatia. Definição. Ideação. Protótipo. Teste.",
+        "elements": [{"type": "html", "htmlContent": legacy}],
+    }
+
+    assert _infographic_html_needs_repair(legacy)
+    normalized = _normalize_interactive_storyboard_slide(slide)
+    generated = normalized["elements"][0]["htmlContent"]
+    assert "Síntese visual interativa" in generated
+    assert "Explore o Ciclo" not in generated
 
 
 def test_analysis_fallback_derives_title_from_uploaded_filename():

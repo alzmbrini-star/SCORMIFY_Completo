@@ -2903,7 +2903,18 @@ def _build_timeline_fallback_html(sb_slide: dict) -> str:
 def _build_infographic_fallback_html(sb_slide: dict) -> str:
     """Build a contextual interactive infographic instead of a blank iframe."""
     title = html.escape(str(sb_slide.get("title") or "Infográfico do módulo"))
-    parts = _fallback_content_parts(sb_slide, 5)[:5]
+    # Never feed the malformed provider canvas back into the replacement as
+    # pedagogical copy (legacy buttons such as "Explore o Ciclo" otherwise
+    # become a visible concept card). Keep the meaningful slide metadata.
+    content_source = sb_slide
+    if any(
+        _infographic_html_needs_repair(str(element.get("htmlContent") or element.get("content") or ""))
+        for element in (sb_slide.get("elements") or [])
+        if str(element.get("type") or "").lower() == "html"
+    ):
+        content_source = dict(sb_slide)
+        content_source["elements"] = []
+    parts = _fallback_content_parts(content_source, 5)[:5]
     colors = ["#2563eb", "#7c3aed", "#0891b2", "#059669", "#ea580c"]
     items = json.dumps([
         {
@@ -2916,6 +2927,28 @@ def _build_infographic_fallback_html(sb_slide: dict) -> str:
         for i, value in enumerate(parts)
     ], ensure_ascii=False).replace("</", "<\\/")
     return r'''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;min-height:540px;font-family:Inter,Arial,sans-serif;background:radial-gradient(circle at 12% 10%,#dbeafe 0,transparent 32%),#f8fafc;color:#172033;display:grid;place-items:center}.app{width:920px;padding:27px}.eyebrow{font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#2563eb}.title{font-size:29px;margin:6px 0 20px}.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:11px}.item{min-height:210px;border:1px solid #dbe3ef;border-top:6px solid var(--c);border-radius:17px;background:#fff;padding:17px 14px;text-align:left;cursor:pointer;box-shadow:0 12px 28px #0f172a12;transition:.22s}.item:hover,.item.active{transform:translateY(-7px);box-shadow:0 18px 36px #0f172a24}.num{font-size:29px;font-weight:900;color:var(--c)}.item h2{font-size:14px;line-height:1.3;margin:9px 0;color:#24324a}.bar{height:7px;border-radius:9px;background:#e2e8f0;overflow:hidden;margin-top:15px}.fill{height:100%;width:var(--v);background:var(--c);border-radius:9px}.detail{margin-top:15px;min-height:92px;border-radius:16px;padding:18px 21px;background:#172033;color:#fff;display:grid;grid-template-columns:auto 1fr;gap:17px;align-items:center}.detail strong{font-size:28px;color:#93c5fd}.detail p{font-size:16px;line-height:1.45;margin:0}.hint{text-align:center;font-size:12px;color:#64748b;margin-top:10px}@media(max-width:720px){.app{width:100%;padding:14px}.grid{grid-template-columns:1fr 1fr}.item{min-height:150px}.detail{grid-template-columns:1fr}}</style></head><body><main class="app"><div class="eyebrow">Síntese visual interativa</div><h1 class="title">__TITLE__</h1><section id="grid" class="grid"></section><section class="detail"><strong id="detailNum"></strong><p id="detailText"></p></section><div class="hint">Selecione os blocos para explorar cada conceito.</div></main><script>const items=__ITEMS__,grid=document.getElementById('grid');function show(i){document.querySelectorAll('.item').forEach((x,n)=>x.classList.toggle('active',n===i));detailNum.textContent=items[i].number;detailText.textContent=items[i].text}items.forEach((x,i)=>{const b=document.createElement('button');b.className='item';b.style.setProperty('--c',x.color);b.style.setProperty('--v',x.value+'%');b.innerHTML='<div class="num">'+x.number+'</div><h2></h2><div class="bar"><div class="fill"></div></div>';b.querySelector('h2').textContent=x.title;b.onclick=()=>show(i);grid.appendChild(b)});show(0);</script></body></html>'''.replace("__TITLE__", title).replace("__ITEMS__", items)
+
+
+def _infographic_html_needs_repair(html_content: str) -> bool:
+    """Recognize the legacy free-floating infographic used by old projects.
+
+    Older Agent courses often lost ``type=infographic`` while retaining the
+    provider HTML.  Detect it from stable UI/content signatures so HTML and
+    SCORM export can migrate it without a database rewrite.
+    """
+    raw = str(html_content or "")
+    if not raw.strip():
+        return True
+    lowered = raw.lower()
+    legacy_signatures = (
+        "explore o ciclo",
+        "explore o infográfico",
+        "explore o infografico",
+        "infographic-container",
+        "infographic-circle",
+        "cycle-node",
+    )
+    return any(signature in lowered for signature in legacy_signatures)
 
 
 def _build_case_study_fallback_html(sb_slide: dict) -> str:
@@ -2958,7 +2991,10 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
             if re.search(r"<(?:!doctype|html|script)\b", legacy, re.IGNORECASE):
                 html_content = legacy
                 break
-    if not _interactive_html_is_functional(html_content, stype):
+    if (
+        not _interactive_html_is_functional(html_content, stype)
+        or (stype == "infographic" and _infographic_html_needs_repair(html_content))
+    ):
         html_content = builders[stype](slide)
 
     slide["elements"] = [{"type": "html", "htmlContent": html_content}]

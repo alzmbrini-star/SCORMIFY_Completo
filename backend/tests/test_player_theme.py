@@ -247,6 +247,23 @@ def test_visual_journey_infographic_uses_stable_contextual_template():
     assert "chaotic-node" not in iframe_html
 
 
+def test_legacy_infographic_without_type_is_repaired_during_export():
+    project = {
+        "id": "legacy-infographic", "name": "Curso antigo",
+        "course": {"slides": [{
+            "id": "i-old", "title": "Ciclo do Design Thinking", "elements": [{
+                "type": "html", "width": 500, "height": 900,
+                "htmlContent": "<!doctype html><html><body><div class='cycle-node'>Empatia</div><button>Explore o Ciclo</button></body></html>",
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert "Síntese visual interativa" in iframe_html
+    assert "Explore o Ciclo" not in iframe_html
+
+
 def test_visual_journey_fullbleed_game_never_uses_split_column():
     project = {
         "id": "journey-game-1", "name": "Curso",
