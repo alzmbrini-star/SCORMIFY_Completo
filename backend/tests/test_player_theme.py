@@ -371,7 +371,8 @@ def test_export_repairs_legacy_game_stage_and_preserves_questions():
     project = {
         "id": "legacy-game-repair", "name": "Curso", "playerTemplate": "visual_journey",
         "course": {"metadata": {"visualCourseMode": "illustrated_journey"}, "slides": [{
-            "id": "g1", "title": "Jogo: Criatividade", "type": "game", "contentType": "game",
+            # Legacy Agent projects did not always persist type/contentType.
+            "id": "g1", "title": "Jogo: Criatividade",
             "width": 1920, "height": 820,
             "elements": [{"type": "html", "width": 1920, "height": 820,
                           "htmlDisplayMode": "fit", "htmlContent": legacy}],
@@ -380,7 +381,10 @@ def test_export_repairs_legacy_game_stage_and_preserves_questions():
     html = generate_single_page_html(project, "/tmp/no-assets", "")
     encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
     iframe_html = base64.b64decode(encoded).decode("utf-8")
-    assert "word-stage" in iframe_html
+    arena = re.search(r'<div class="arena[^>]*" id="arena">[\s\S]*?</div><div class="panel">', iframe_html)
+    assert arena is not None
+    assert 'class="arena word-stage"' in arena.group(0)
+    assert 'class="gallows"' in arena.group(0)
     assert "Pergunta preservada?" in iframe_html
     assert "Explicação preservada." in iframe_html
     assert '<div class="goal"></div>' not in iframe_html

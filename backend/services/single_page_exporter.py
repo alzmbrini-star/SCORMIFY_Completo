@@ -1608,7 +1608,11 @@ def generate_single_page_html(
                 # Existing projects may still contain the original generic
                 # game shell. Upgrade it during every HTML/SCORM-style single
                 # page export, retaining the exact embedded question snapshot.
-                if slide_kind == "game" and str(el.get("type") or "").lower() == "html":
+                # Do not rely on slide.contentType here: older Agent projects
+                # often saved game slides as a generic content/HTML slide.
+                # The embedded QuestionEngine signature is the authoritative
+                # signal for the migration.
+                if slide_kind != "simulator" and str(el.get("type") or "").lower() == "html":
                     from services.ai_agent import _game_html_uses_legacy_single_stage, _repair_legacy_game_html
                     legacy_game_raw = str(el.get("htmlContent") or el.get("content") or "")
                     if _game_html_uses_legacy_single_stage(legacy_game_raw):

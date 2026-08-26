@@ -1,3 +1,5 @@
+import re
+
 from services.ai_agent import (
     _build_simulator_fallback_html,
     _build_game_fallback_html,
@@ -210,7 +212,9 @@ def test_each_game_mechanic_has_its_own_visual_stage():
             "purpose": "Aplicar conceitos em uma atividade desafiadora.",
             "gameMechanic": mechanic,
         })
-        assert stage_class in generated
+        arena = re.search(r'<div class="arena[^>]*" id="arena">[\s\S]*?</div><div class="panel">', generated)
+        assert arena is not None
+        assert f'class="arena {stage_class}"' in arena.group(0)
         if mechanic != "penalty_quest":
             assert '<div class="goal"></div>' not in generated
         assert "stage-caption" in generated
