@@ -364,8 +364,11 @@ def test_visual_journey_sections_are_continuous_viewport_pages():
 
 
 def test_export_repairs_legacy_game_stage_and_preserves_questions():
-    legacy = '''<!doctype html><html><body>
-    <div class="brand">ARENA DAS PALAVRAS</div><div class="arena"><div class="goal"></div></div>
+    legacy = '''<!doctype html><html><head><style>
+    /* Transitional exports had the new selectors but retained the old arena DOM. */
+    .word-stage{background:#fff}.penalty-stage{background:#090}
+    </style></head><body>
+    <div class="brand">ARENA DAS PALAVRAS</div><div class="arena" id="arena"><div class="goal"></div></div>
     <script>const questionBank=[{"id":"old1","topic":"Criatividade","difficulty":"medio","question":"Pergunta preservada?","alternatives":["Sim","Não"],"correct":0,"explanation":"Explicação preservada."}];
     const QuestionEngine={questions:questionBank};</script></body></html>'''
     project = {

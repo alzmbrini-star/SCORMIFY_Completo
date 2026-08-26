@@ -2543,7 +2543,22 @@ def _game_html_uses_legacy_single_stage(html_content: str) -> bool:
     is_scormify_game = "const questionengine=" in lowered and any(
         marker in lowered for marker in _GAME_ONLY_MARKERS
     )
-    return is_scormify_game and not any(stage in lowered for stage in _GAME_STAGE_CLASSES)
+    if not is_scormify_game:
+        return False
+    # Inspect the *visible arena element*, not the complete document. Newer
+    # transitional exports already contained the stage CSS selectors while
+    # their actual markup was still the old `<div class="arena" id="arena">`.
+    # Looking for the class name anywhere in the HTML therefore produced a
+    # false positive and left the generic vertical goal post on screen.
+    arena_tag = re.search(
+        r'<div\s+[^>]*(?:id=["\']arena["\'][^>]*class=["\']([^"\']*)["\']|class=["\']([^"\']*)["\'][^>]*id=["\']arena["\'])[^>]*>',
+        lowered,
+        re.IGNORECASE,
+    )
+    if not arena_tag:
+        return True
+    arena_classes = " ".join(group or "" for group in arena_tag.groups()).split()
+    return not any(stage in arena_classes for stage in _GAME_STAGE_CLASSES)
 
 
 def _legacy_game_mechanic_from_html(html_content: str) -> str:
