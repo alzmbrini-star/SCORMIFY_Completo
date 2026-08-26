@@ -1605,6 +1605,17 @@ def generate_single_page_html(
                         render_el["htmlContent"] = _build_simulator_fallback_html(slide)
                         render_el["htmlDisplayMode"] = "fit"
                         render_el["height"] = 540
+                # Existing projects may still contain the original generic
+                # game shell. Upgrade it during every HTML/SCORM-style single
+                # page export, retaining the exact embedded question snapshot.
+                if slide_kind == "game" and str(el.get("type") or "").lower() == "html":
+                    from services.ai_agent import _game_html_uses_legacy_single_stage, _repair_legacy_game_html
+                    legacy_game_raw = str(el.get("htmlContent") or el.get("content") or "")
+                    if _game_html_uses_legacy_single_stage(legacy_game_raw):
+                        render_el = dict(el)
+                        render_el["htmlContent"] = _repair_legacy_game_html(slide, legacy_game_raw)
+                        render_el["htmlDisplayMode"] = "fit"
+                        render_el["height"] = 540
                 html_part = _render_element(render_el, project_id, assets_dir, base_url,
                                               s_idx, e_idx, questions_lookup)
                 if not html_part:

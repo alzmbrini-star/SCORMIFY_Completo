@@ -2531,6 +2531,60 @@ def _simulator_html_is_actually_a_game(html_content: str) -> bool:
     return any(marker in lowered for marker in _GAME_ONLY_MARKERS)
 
 
+_GAME_STAGE_CLASSES = (
+    "penalty-stage", "quiz-stage", "memory-stage",
+    "climb-stage", "word-stage", "target-stage",
+)
+
+
+def _game_html_uses_legacy_single_stage(html_content: str) -> bool:
+    """Detect the old game shell that reused the penalty goal everywhere."""
+    lowered = (html_content or "").lower()
+    is_scormify_game = "const questionengine=" in lowered and any(
+        marker in lowered for marker in _GAME_ONLY_MARKERS
+    )
+    return is_scormify_game and not any(stage in lowered for stage in _GAME_STAGE_CLASSES)
+
+
+def _legacy_game_mechanic_from_html(html_content: str) -> str:
+    lowered = (html_content or "").lower()
+    markers = {
+        "arena das palavras": "word_challenge",
+        "palco do saber": "quiz_show",
+        "laboratório da memória": "memory_match",
+        "laboratorio da memoria": "memory_match",
+        "expedição do saber": "knowledge_climb",
+        "expedicao do saber": "knowledge_climb",
+        "arena de precisão": "target_challenge",
+        "arena de precisao": "target_challenge",
+        "knowledge league": "penalty_quest",
+    }
+    return next((mechanic for marker, mechanic in markers.items() if marker in lowered), "")
+
+
+def _repair_legacy_game_html(sb_slide: dict, html_content: str) -> str:
+    """Rebuild a legacy game stage while retaining its embedded questions."""
+    repaired_slide = dict(sb_slide)
+    inferred = _legacy_game_mechanic_from_html(html_content)
+    if inferred:
+        repaired_slide["gameMechanic"] = inferred
+    rebuilt = _build_game_fallback_html(repaired_slide)
+    old_bank = re.search(
+        r"const\s+questionBank\s*=\s*(\[[\s\S]*?\])\s*;\s*const\s+QuestionEngine",
+        html_content or "",
+        re.IGNORECASE,
+    )
+    if old_bank:
+        rebuilt = re.sub(
+            r"const\s+questionBank\s*=\s*\[[\s\S]*?\]\s*;\s*const\s+QuestionEngine",
+            lambda _match: "const questionBank=" + old_bank.group(1) + ";\nconst QuestionEngine",
+            rebuilt,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return rebuilt
+
+
 def _interactive_html_is_functional(html_content: str, content_type: str = "") -> bool:
     """Reject empty LLM skeletons before they become blank course slides."""
     raw = (html_content or "").strip()
