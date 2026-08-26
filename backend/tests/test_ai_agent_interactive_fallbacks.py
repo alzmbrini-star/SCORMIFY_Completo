@@ -212,7 +212,7 @@ def test_each_game_mechanic_has_its_own_visual_stage():
             "purpose": "Aplicar conceitos em uma atividade desafiadora.",
             "gameMechanic": mechanic,
         })
-        arena = re.search(r'<div class="arena[^>]*" id="arena">[\s\S]*?</div><div class="panel">', generated)
+        arena = re.search(r'<div class="arena[^>]*" id="arena"[^>]*>[\s\S]*?</div><div class="panel">', generated)
         assert arena is not None
         assert f'class="arena {stage_class}"' in arena.group(0)
         if mechanic != "penalty_quest":
