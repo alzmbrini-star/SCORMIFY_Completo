@@ -8,6 +8,7 @@ import uuid
 import asyncio
 import logging
 import base64
+import hashlib
 import html
 import re
 from pathlib import Path
@@ -601,6 +602,27 @@ def _illustrated_image_prompt(slide: dict, config: dict, story_bible: dict) -> s
     )
 
 
+def _premium_image_prompt(slide: dict, config: dict) -> str:
+    """Build a contextual visual brief for ordinary premium courses."""
+    title = str(slide.get("title") or config.get("title") or "the learning topic")
+    purpose = str(slide.get("purpose") or slide.get("experienceIntent") or "explain the key idea")
+    module = str(slide.get("moduleName") or "")
+    compositions = (
+        "an editorial workplace action scene with people using relevant tools",
+        "a clean conceptual still life using meaningful professional objects and spatial hierarchy",
+        "a process-oriented visual with a clear beginning, action and result in one composition",
+        "a realistic decision moment showing visible evidence, alternatives and consequence",
+    )
+    stable = int(hashlib.sha1(f"{module}|{title}".encode("utf-8")).hexdigest()[:8], 16)
+    composition = compositions[stable % len(compositions)]
+    return (
+        f"Professional Brazilian corporate training visual about {title}. Module: {module}. "
+        f"Create {composition}. The image must concretely communicate: {purpose}. "
+        "Use relevant objects, observable action, strong focal point, balanced negative space for slide copy, "
+        "editorial lighting, contemporary premium art direction, landscape 16:9, no written text, no logos, no watermark."
+    )
+
+
 def _premiumize_course_structure(structure: dict, config: dict) -> dict:
     """Turn an LLM outline into a varied learning-experience plan.
 
@@ -711,6 +733,8 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                 "scenario": "escolher caminhos e comparar consequências",
                 "quiz": "verificar compreensão com feedback explicativo",
             }.get(stype, "sintetizar e orientar a próxima ação")
+            if stype == "content" and not illustrated_journey:
+                slide["requiredImagePrompt"] = _premium_image_prompt(slide, config)
             if stype in _RICH_INTERACTIVE_TYPES:
                 slide["visualDirection"] = _INTERACTIVE_VISUAL_DIRECTIONS[
                     visual_cursor % len(_INTERACTIVE_VISUAL_DIRECTIONS)
@@ -1255,17 +1279,19 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     for j, slide_data in enumerate(data["slides"]):
                         if not slide_data.get("moduleName") and j < len(batch):
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
-                        if illustrated_journey and j < len(batch):
+                        if j < len(batch):
                             source_slide = batch[j]
-                            slide_data["narrativeBeat"] = source_slide.get("narrativeBeat", "context")
-                            slide_data["imageRole"] = source_slide.get("imageRole", "action_scene")
-                            slide_data["linkedSceneTitle"] = source_slide.get("linkedSceneTitle", "")
-                            slide_data["storyContext"] = source_slide.get("storyContext", {})
-                            # Do not trust a provider's short/generic stock-photo keywords in this mode.
-                            # The deterministic prompt carries the recurring cast, action and teaching evidence.
-                            slide_data["imageKeywords"] = source_slide.get("requiredImagePrompt") or _illustrated_image_prompt(
-                                source_slide, config, story_bible
-                            )
+                            if illustrated_journey:
+                                slide_data["narrativeBeat"] = source_slide.get("narrativeBeat", "context")
+                                slide_data["imageRole"] = source_slide.get("imageRole", "action_scene")
+                                slide_data["linkedSceneTitle"] = source_slide.get("linkedSceneTitle", "")
+                                slide_data["storyContext"] = source_slide.get("storyContext", {})
+                            if source_slide.get("type") == "content":
+                                slide_data["imageKeywords"] = source_slide.get("requiredImagePrompt") or (
+                                    _illustrated_image_prompt(source_slide, config, story_bible)
+                                    if illustrated_journey
+                                    else _premium_image_prompt(source_slide, config)
+                                )
                     if quality_checked and data["slides"]:
                         generated_html = _simulator_html_from_slide(data["slides"][0])
                         complexity = (
@@ -1398,7 +1424,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     "imageKeywords": (
                         sl.get("requiredImagePrompt") or _illustrated_image_prompt(sl, config, story_bible)
                         if illustrated_journey
-                        else title_text.split(" ")[0].lower() + " professional"
+                        else sl.get("requiredImagePrompt") or _premium_image_prompt(sl, config)
                     ),
                     "narrativeBeat": sl.get("narrativeBeat", "") if illustrated_journey else "",
                     "imageRole": sl.get("imageRole", "") if illustrated_journey else "",
@@ -2580,9 +2606,20 @@ def _legacy_game_mechanic_from_html(html_content: str) -> str:
 def _repair_legacy_game_html(sb_slide: dict, html_content: str) -> str:
     """Rebuild a legacy game stage while retaining its embedded questions."""
     repaired_slide = dict(sb_slide)
-    inferred = _legacy_game_mechanic_from_html(html_content)
-    if inferred:
-        repaired_slide["gameMechanic"] = inferred
+    explicit = str(
+        repaired_slide.get("gameMechanic")
+        or repaired_slide.get("requiredGameMechanic")
+        or ""
+    ).strip()
+    if explicit in _GAME_MECHANICS:
+        repaired_slide["gameMechanic"] = explicit
+    else:
+        # The first legacy template labelled every activity "Arena das
+        # Palavras"/"Knowledge League", regardless of the requested game.
+        # Its heading is therefore not trustworthy. Use the slide identity to
+        # distribute mechanics deterministically instead of converting every
+        # old game into Forca or Pênalti.
+        repaired_slide["gameMechanic"] = _required_game_mechanic(repaired_slide)
     rebuilt = _build_game_fallback_html(repaired_slide)
     old_bank = re.search(
         r"const\s+questionBank\s*=\s*(\[[\s\S]*?\])\s*;\s*const\s+QuestionEngine",
@@ -2999,6 +3036,8 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
         or (stype == "infographic" and _infographic_html_needs_repair(html_content))
     ):
         html_content = builders[stype](slide)
+    elif stype == "game" and _game_html_uses_legacy_single_stage(html_content):
+        html_content = _repair_legacy_game_html(slide, html_content)
 
     slide["elements"] = [{"type": "html", "htmlContent": html_content}]
     return slide
@@ -3538,6 +3577,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                             logger.info("Embedded %s company-bank questions in game slide %s", len(bank_questions), i)
                 except Exception as exc:
                     logger.warning("Could not sample game question bank for slide %s: %s", i, exc)
+            if stype == "game" and _game_html_uses_legacy_single_stage(html_content):
+                html_content = _repair_legacy_game_html(sb_slide, html_content)
             if _interactive_html_is_functional(html_content, stype):
                 slide_elements = [{
                     "id": generate_id(),
@@ -3782,6 +3823,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "librasScript": sb_slide.get("librasScript", ""),
             "moduleName": sb_slide.get("moduleName", ""),
             "contentType": stype,
+            "gameMechanic": (
+                sb_slide.get("gameMechanic")
+                or sb_slide.get("requiredGameMechanic")
+                or (_required_game_mechanic(sb_slide) if stype == "game" else "")
+            ),
             "narrativeBeat": sb_slide.get("narrativeBeat", ""),
             "imageRole": sb_slide.get("imageRole", ""),
             "linkedSceneTitle": sb_slide.get("linkedSceneTitle", ""),

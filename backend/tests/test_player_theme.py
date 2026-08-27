@@ -10,6 +10,7 @@ from services.player_theme import (
     resolve_tutor_theme,
 )
 from services.single_page_exporter import generate_single_page_html
+from services.ai_agent import _required_game_mechanic
 
 
 def test_single_page_css_uses_resolved_company_colors():
@@ -447,11 +448,12 @@ def test_export_repairs_legacy_game_stage_and_preserves_questions():
     iframe_html = base64.b64decode(encoded).decode("utf-8")
     arena = re.search(r'<div class="arena[^>]*" id="arena"[^>]*>[\s\S]*?</div><div class="panel">', iframe_html)
     assert arena is not None
-    assert 'class="arena word-stage"' in arena.group(0)
-    assert 'class="word-illustration"' in arena.group(0)
-    assert 'aria-label="Forca educativa"' in arena.group(0)
-    assert 'class="hangman-part"' in arena.group(0)
-    assert 'class="letter-preview"' not in arena.group(0)
+    expected_mechanic = _required_game_mechanic({"id": "g1", "title": "Jogo: Criatividade"})
+    expected_stage = {
+        "penalty_quest": "penalty-stage", "quiz_show": "quiz-stage",
+        "memory_match": "memory-stage", "knowledge_climb": "climb-stage",
+        "word_challenge": "word-stage", "target_challenge": "target-stage",
+    }[expected_mechanic]
+    assert f'class="arena {expected_stage}"' in arena.group(0)
     assert "Pergunta preservada?" in iframe_html
     assert "Explicação preservada." in iframe_html
-    assert '<div class="goal"></div>' not in iframe_html

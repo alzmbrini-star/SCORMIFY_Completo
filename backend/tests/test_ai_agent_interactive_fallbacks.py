@@ -13,12 +13,15 @@ from services.ai_agent import (
     _interactive_html_is_functional,
     _normalize_interactive_storyboard_slide,
     _normalize_visual_content_slide,
+    _premium_image_prompt,
     _premiumize_course_structure,
+    _repair_legacy_game_html,
     _case_study_complexity_score,
     _flashcard_complexity_score,
     _game_complexity_score,
     _interactive_visual_direction,
     _required_simulator_mechanic,
+    _required_game_mechanic,
     _simulator_complexity_score,
     _simulator_mechanic_is_functional,
     _timeline_complexity_score,
@@ -58,6 +61,25 @@ def test_premium_structure_replaces_text_monotony_with_enabled_experiences():
     assert all(slide["type"] in {"infographic", "simulator", "flashcard"} for slide in interactive)
     assert all(slide.get("experienceIntent") for slide in body)
     assert result["experienceQuality"]["profile"] == "premium"
+
+
+def test_premium_content_receives_a_contextual_image_brief():
+    structure = {"modules": [{"title": "Módulo", "slides": [
+        {"type": "content", "title": "Conversa difícil", "purpose": "Comparar escuta e confronto"},
+    ]}]}
+
+    result = _premiumize_course_structure(
+        structure,
+        {"visualCourseMode": "standard", "resourceBalance": "baixa", "title": "Autoconfiança"},
+    )
+    prompt = result["modules"][0]["slides"][0]["requiredImagePrompt"]
+
+    assert prompt == _premium_image_prompt(result["modules"][0]["slides"][0], {
+        "visualCourseMode": "standard", "resourceBalance": "baixa", "title": "Autoconfiança"
+    })
+    assert "Conversa difícil" in prompt
+    assert "16:9" in prompt
+    assert "no written text" in prompt
 
 
 def test_text_heavy_slide_is_converted_to_visual_cards():
@@ -219,6 +241,38 @@ def test_each_game_mechanic_has_its_own_visual_stage():
         if mechanic != "penalty_quest":
             assert '<div class="goal"></div>' not in generated
         assert "stage-caption" in generated
+
+
+def test_legacy_game_repair_keeps_the_explicit_mechanic():
+    legacy = """<!doctype html><html><body>
+    <h1>ARENA DAS PALAVRAS</h1><div class="arena" id="arena"><div class="goal"></div></div>
+    <div class="panel"></div><script>const questionBank=[]; const QuestionEngine={};</script>
+    </body></html>"""
+
+    repaired = _repair_legacy_game_html(
+        {"type": "game", "title": "Memória", "gameMechanic": "memory_match"},
+        legacy,
+    )
+
+    assert 'class="arena memory-stage"' in repaired
+    assert 'class="arena word-stage"' not in repaired
+
+
+def test_generic_legacy_arena_heading_does_not_force_every_game_to_hangman():
+    slide = {"type": "game", "id": "legacy-42", "title": "Escape dos bloqueios criativos"}
+    legacy = """<!doctype html><html><body>
+    <h1>ARENA DAS PALAVRAS</h1><div class="arena" id="arena"><div class="goal"></div></div>
+    <div class="panel"></div><script>const questionBank=[]; const QuestionEngine={};</script>
+    </body></html>"""
+
+    repaired = _repair_legacy_game_html(slide, legacy)
+    expected_stage = {
+        "penalty_quest": "penalty-stage", "quiz_show": "quiz-stage",
+        "memory_match": "memory-stage", "knowledge_climb": "climb-stage",
+        "word_challenge": "word-stage", "target_challenge": "target-stage",
+    }[_required_game_mechanic(slide)]
+
+    assert f'class="arena {expected_stage}"' in repaired
 
 
 def test_word_challenge_reveals_the_hangman_only_after_wrong_answers():
