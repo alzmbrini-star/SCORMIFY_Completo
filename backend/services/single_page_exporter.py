@@ -1587,6 +1587,17 @@ def generate_single_page_html(
                 # template. Do not depend only on Visual Journey metadata:
                 # older Agent projects frequently saved them as generic HTML.
                 slide_kind = str(slide.get("contentType") or slide.get("type") or "").lower()
+                # Old Agent projects sometimes persisted every interactive
+                # slide as generic ``content``.  The pedagogical title is a
+                # stronger signal in that case and prevents Flashcards and
+                # Simulators from being migrated into the generic game shell.
+                slide_title = str(slide.get("title") or "").strip().lower()
+                if re.match(r"^flashcards?\b", slide_title):
+                    slide_kind = "flashcard"
+                elif re.match(r"^simula(?:dor|cao|ção)\b", slide_title):
+                    slide_kind = "simulator"
+                elif re.match(r"^(?:jogo|game)\b", slide_title):
+                    slide_kind = "game"
                 if str(el.get("type") or "").lower() == "html":
                     from services.ai_agent import _build_infographic_fallback_html, _infographic_html_needs_repair
                     infographic_raw = str(el.get("htmlContent") or el.get("content") or "")
@@ -1606,13 +1617,30 @@ def generate_single_page_html(
                 # question-game shell under a simulator slide. New courses are
                 # protected during generation; this export-time guard makes
                 # the correction retroactive without database migration.
-                if visual_journey and slide_kind == "simulator" and str(el.get("type") or "").lower() == "html":
-                    from services.ai_agent import _build_simulator_fallback_html, _simulator_html_is_actually_a_game
+                if slide_kind == "simulator" and str(el.get("type") or "").lower() == "html":
+                    from services.ai_agent import _build_simulator_fallback_html, _interactive_html_is_functional, _simulator_html_is_actually_a_game
                     simulator_raw = str(el.get("htmlContent") or el.get("content") or "")
-                    if _simulator_html_is_actually_a_game(simulator_raw):
+                    if _simulator_html_is_actually_a_game(simulator_raw) or not _interactive_html_is_functional(simulator_raw, "simulator"):
+                        repair_slide = dict(slide)
+                        repair_slide["elements"] = []
                         render_el = dict(el)
-                        render_el["htmlContent"] = _build_simulator_fallback_html(slide)
+                        render_el["htmlContent"] = _build_simulator_fallback_html(repair_slide)
                         render_el["htmlDisplayMode"] = "fit"
+                        render_el["width"] = 960
+                        render_el["height"] = 540
+                # Flashcards are a study/retrieval activity, not a quiz game.
+                # Repair generic game HTML retroactively for both HTML and
+                # SCORM exports, including projects with lost contentType.
+                if slide_kind == "flashcard" and str(el.get("type") or "").lower() == "html":
+                    from services.ai_agent import _build_flashcard_fallback_html, _interactive_html_is_functional
+                    flashcard_raw = str(el.get("htmlContent") or el.get("content") or "")
+                    if not _interactive_html_is_functional(flashcard_raw, "flashcard"):
+                        repair_slide = dict(slide)
+                        repair_slide["elements"] = []
+                        render_el = dict(el)
+                        render_el["htmlContent"] = _build_flashcard_fallback_html(repair_slide)
+                        render_el["htmlDisplayMode"] = "fit"
+                        render_el["width"] = 960
                         render_el["height"] = 540
                 # Existing projects may still contain the original generic
                 # game shell. Upgrade it during every HTML/SCORM-style single
@@ -1621,7 +1649,7 @@ def generate_single_page_html(
                 # often saved game slides as a generic content/HTML slide.
                 # The embedded QuestionEngine signature is the authoritative
                 # signal for the migration.
-                if slide_kind != "simulator" and str(el.get("type") or "").lower() == "html":
+                if slide_kind not in ("simulator", "flashcard") and str(el.get("type") or "").lower() == "html":
                     from services.ai_agent import _game_html_uses_legacy_single_stage, _repair_legacy_game_html
                     legacy_game_raw = str(el.get("htmlContent") or el.get("content") or "")
                     if _game_html_uses_legacy_single_stage(legacy_game_raw):

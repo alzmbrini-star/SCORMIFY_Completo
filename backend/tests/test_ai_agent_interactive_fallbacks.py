@@ -221,6 +221,22 @@ def test_each_game_mechanic_has_its_own_visual_stage():
         assert "stage-caption" in generated
 
 
+def test_word_challenge_reveals_the_hangman_only_after_wrong_answers():
+    generated = _build_game_fallback_html({
+        "type": "game",
+        "title": "Jogo: Conceitos essenciais",
+        "gameMechanic": "word_challenge",
+    })
+
+    assert generated.count('class="hangman-part"') == 6
+    assert "const MAX_LIVES=6" in generated
+    assert "revealPenalty()" in generated
+    assert "mistakes=MAX_LIVES-this.lives" in generated
+    assert 'class="letter-preview"' not in generated
+    assert 'class="word-slots"' not in generated
+    assert "Cada resposta incorreta acrescenta uma parte" in generated
+
+
 def test_empty_infographic_is_replaced_with_contextual_visual():
     slide = {
         "type": "infographic",

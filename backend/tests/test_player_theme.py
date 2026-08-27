@@ -365,6 +365,50 @@ def test_visual_journey_replaces_game_shell_saved_as_simulator():
     assert "KNOWLEDGE LEAGUE" not in iframe_html
 
 
+def test_export_uses_title_to_repair_generic_flashcard_game_shell():
+    project = {
+        "id": "legacy-flashcard-repair", "name": "Curso",
+        "course": {"slides": [{
+            "id": "f1", "title": "Flashcards: Pesquisa Visual Efetiva",
+            "type": "content", "elements": [{
+                "type": "html", "width": 1920, "height": 820,
+                "htmlContent": (
+                    "<!doctype html><html><body><main>KNOWLEDGE LEAGUE</main>"
+                    "<script>const QuestionEngine={};</script></body></html>"
+                ),
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert "Clique no cartão para ver a resposta" in iframe_html
+    assert "rotateY(180deg)" in iframe_html
+    assert "KNOWLEDGE LEAGUE" not in iframe_html
+
+
+def test_export_uses_title_to_repair_generic_simulator_game_shell():
+    project = {
+        "id": "legacy-simulator-repair", "name": "Curso",
+        "course": {"slides": [{
+            "id": "s1", "title": "Simulador: Prototipação Rápida",
+            "type": "content", "elements": [{
+                "type": "html", "width": 1920, "height": 820,
+                "htmlContent": (
+                    "<!doctype html><html><body><main>KNOWLEDGE LEAGUE</main>"
+                    "<script>const QuestionEngine={};</script></body></html>"
+                ),
+            }],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert "Simulação interativa" in iframe_html
+    assert "Classifique cada situação" in iframe_html
+    assert "KNOWLEDGE LEAGUE" not in iframe_html
+
+
 def test_visual_journey_sections_are_continuous_viewport_pages():
     project = {
         "id": "journey-continuous", "name": "Curso", "playerTemplate": "visual_journey",
@@ -406,7 +450,8 @@ def test_export_repairs_legacy_game_stage_and_preserves_questions():
     assert 'class="arena word-stage"' in arena.group(0)
     assert 'class="word-illustration"' in arena.group(0)
     assert 'aria-label="Forca educativa"' in arena.group(0)
-    assert 'class="letter-preview"' in arena.group(0)
+    assert 'class="hangman-part"' in arena.group(0)
+    assert 'class="letter-preview"' not in arena.group(0)
     assert "Pergunta preservada?" in iframe_html
     assert "Explicação preservada." in iframe_html
     assert '<div class="goal"></div>' not in iframe_html
