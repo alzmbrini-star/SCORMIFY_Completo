@@ -19,6 +19,7 @@ from services.ai_agent import (
     _case_study_complexity_score,
     _flashcard_complexity_score,
     _game_complexity_score,
+    _game_html_uses_legacy_single_stage,
     _interactive_visual_direction,
     _required_simulator_mechanic,
     _required_game_mechanic,
@@ -221,14 +222,14 @@ def test_empty_game_becomes_a_premium_question_engine_experience():
 
 def test_each_game_mechanic_has_its_own_visual_stage():
     expected = {
-        "penalty_quest": "penalty-stage",
-        "quiz_show": "quiz-stage",
-        "memory_match": "memory-stage",
-        "knowledge_climb": "climb-stage",
-        "word_challenge": "word-stage",
-        "target_challenge": "target-stage",
+        "penalty_quest": ("penalty-stage", "Campo de futebol educativo"),
+        "quiz_show": ("quiz-stage", "Palco de quiz show"),
+        "memory_match": ("memory-stage", "Ative pares"),
+        "knowledge_climb": ("climb-stage", "Montanha da escalada"),
+        "word_challenge": ("word-stage", "Forca educativa"),
+        "target_challenge": ("target-stage", "Alvo educativo"),
     }
-    for mechanic, stage_class in expected.items():
+    for mechanic, (stage_class, visual_marker) in expected.items():
         generated = _build_game_fallback_html({
             "type": "game",
             "title": "Jogo educativo",
@@ -238,9 +239,28 @@ def test_each_game_mechanic_has_its_own_visual_stage():
         arena = re.search(r'<div class="arena[^>]*" id="arena"[^>]*>[\s\S]*?</div><div class="panel">', generated)
         assert arena is not None
         assert f'class="arena {stage_class}"' in arena.group(0)
+        assert 'data-stage-version="2"' in arena.group(0)
+        assert visual_marker in generated
         if mechanic != "penalty_quest":
             assert '<div class="goal"></div>' not in generated
         assert "stage-caption" in generated
+
+
+def test_class_based_game_stage_is_upgraded_to_self_contained_visual():
+    old_climb = """<!doctype html><html><body>
+    <h1>EXPEDIÇÃO DO SABER</h1>
+    <div class="arena climb-stage" id="arena"><div class="mountain"></div></div>
+    <div class="panel"></div><script>const questionBank=[]; const QuestionEngine={};</script>
+    </body></html>"""
+
+    assert _game_html_uses_legacy_single_stage(old_climb) is True
+    repaired = _repair_legacy_game_html(
+        {"type": "game", "title": "Escalada", "gameMechanic": "knowledge_climb"},
+        old_climb,
+    )
+    assert 'data-stage-version="2"' in repaired
+    assert "Montanha da escalada do conhecimento" in repaired
+    assert _game_html_uses_legacy_single_stage(repaired) is False
 
 
 def test_legacy_game_repair_keeps_the_explicit_mechanic():
