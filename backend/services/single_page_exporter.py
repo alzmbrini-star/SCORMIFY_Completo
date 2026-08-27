@@ -1649,11 +1649,18 @@ def generate_single_page_html(
                 # often saved game slides as a generic content/HTML slide.
                 # The embedded QuestionEngine signature is the authoritative
                 # signal for the migration.
-                if slide_kind not in ("simulator", "flashcard") and str(el.get("type") or "").lower() == "html":
+                # Some Agent versions persisted a game document in an
+                # element typed `simulator` or `scenario`.  Restricting this
+                # migration to `html` left those exports on the broken
+                # class-based stage (the visible vertical line).  The
+                # QuestionEngine signature is a safer discriminator than the
+                # element type, so inspect every iframe-capable element.
+                if slide_kind not in ("simulator", "flashcard") and str(el.get("type") or "").lower() in ("html", "simulator", "scenario"):
                     from services.ai_agent import _game_html_uses_legacy_single_stage, _repair_legacy_game_html
                     legacy_game_raw = str(el.get("htmlContent") or el.get("content") or "")
                     if _game_html_uses_legacy_single_stage(legacy_game_raw):
                         render_el = dict(el)
+                        render_el["type"] = "html"
                         render_el["htmlContent"] = _repair_legacy_game_html(slide, legacy_game_raw)
                         render_el["htmlDisplayMode"] = "fit"
                         render_el["height"] = 540

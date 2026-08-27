@@ -457,3 +457,27 @@ def test_export_repairs_legacy_game_stage_and_preserves_questions():
     assert f'class="arena {expected_stage}"' in arena.group(0)
     assert "Pergunta preservada?" in iframe_html
     assert "Explicação preservada." in iframe_html
+
+
+def test_export_repairs_game_saved_as_simulator_element():
+    legacy = '''<!doctype html><html><body>
+    <div>EXPEDIÇÃO DO SABER</div>
+    <div class="arena climb-stage" id="arena"><div class="mountain"></div></div>
+    <script>const questionBank=[{"id":"q1","question":"Subir?","alternatives":["Sim","Não"],"correct":0}];
+    const QuestionEngine={questions:questionBank};</script></body></html>'''
+    project = {
+        "id": "legacy-game-as-simulator", "name": "Curso", "playerTemplate": "visual_journey",
+        "course": {"slides": [{
+            "id": "climb1", "title": "Escalada do conhecimento", "gameMechanic": "knowledge_climb",
+            "width": 1920, "height": 820,
+            "elements": [{"type": "simulator", "width": 1920, "height": 820,
+                          "htmlDisplayMode": "fit", "htmlContent": legacy}],
+        }]},
+    }
+    html = generate_single_page_html(project, "/tmp/no-assets", "")
+    encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
+    iframe_html = base64.b64decode(encoded).decode("utf-8")
+    assert 'class="arena climb-stage"' in iframe_html
+    assert 'data-stage-version="2"' in iframe_html
+    assert "Montanha da escalada do conhecimento" in iframe_html
+    assert "Subir?" in iframe_html
