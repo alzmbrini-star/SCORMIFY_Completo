@@ -275,6 +275,25 @@ def test_legacy_game_repair_keeps_the_explicit_mechanic():
     assert 'class="arena word-stage"' not in repaired
 
 
+def test_stored_editor_memory_game_is_upgraded_without_losing_questions():
+    stored = '''<!doctype html><html><body>
+    <main class="app" data-agent-game-template="editor-v1"><h1>SCORMIFY GAMES</h1></main>
+    <script>const SETTINGS={"type":"memory"},BANK=[{"id":"memory-1","question":"Qual conceito deve ser associado?","alternatives":[{"id":"0","text":"Resposta preservada"},{"id":"1","text":"Distrator"}],"correctAnswer":"0","explanation":""}];
+    const QuestionEngine={}; const Game={renderMemory(){}};</script></body></html>'''
+
+    assert _game_html_uses_legacy_single_stage(stored) is True
+    repaired = _repair_legacy_game_html(
+        {"type": "game", "title": "Memória", "gameMechanic": "memory_match"},
+        stored,
+    )
+
+    assert "memory-face" in repaired
+    assert "memory-cover" in repaired
+    assert "Qual conceito deve ser associado?" in repaired
+    assert "Resposta preservada" in repaired
+    assert _game_html_uses_legacy_single_stage(repaired) is False
+
+
 def test_generic_legacy_arena_heading_does_not_force_every_game_to_hangman():
     slide = {"type": "game", "id": "legacy-42", "title": "Escape dos bloqueios criativos"}
     legacy = """<!doctype html><html><body>

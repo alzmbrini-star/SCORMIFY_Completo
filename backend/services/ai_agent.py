@@ -2637,7 +2637,12 @@ def _game_html_uses_legacy_single_stage(html_content: str) -> bool:
     if not is_scormify_game:
         return False
     if 'data-agent-game-template="editor-v1"' in lowered:
-        return False
+        # The first canonical Memory build hid card text only through the
+        # inherited `color` property. Course/export CSS could override it,
+        # leaving every answer visible under a detached question mark. Treat
+        # that stored version as migratable; the new template has independent
+        # `.memory-face` and `.memory-cover` layers.
+        return "rendermemory" in lowered and "memory-face" not in lowered
     old_agent_labels = (
         "knowledge league", "palco do saber", "laboratório da memória",
         "laboratorio da memoria", "expedição do saber", "expedicao do saber",
@@ -2707,6 +2712,15 @@ def _repair_legacy_game_html(sb_slide: dict, html_content: str) -> str:
         html_content or "",
         re.IGNORECASE,
     )
+    if not old_bank:
+        # Editor-v1 games embed their data as `SETTINGS=...,BANK=[...]`.
+        # Reading this bank keeps the learner's original questions intact
+        # while rebuilding a defective stored Memory template.
+        old_bank = re.search(
+            r"const\s+SETTINGS\s*=\s*\{[\s\S]*?\}\s*,\s*BANK\s*=\s*(\[[\s\S]*?\])\s*;\s*const\s+QuestionEngine",
+            html_content or "",
+            re.IGNORECASE,
+        )
     imported = []
     if old_bank:
         try:
