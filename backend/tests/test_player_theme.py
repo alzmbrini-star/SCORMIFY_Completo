@@ -316,10 +316,12 @@ def test_generated_games_use_deterministic_full_stage_fit():
     game = """<!doctype html><html><body><main class="game"><div class="hud">XP coins lives combo</div></main>
     <script>const QuestionEngine={};</script><div id="__stage"></div></body></html>"""
     fitted = _inject_fixed_game_stage_fit(game)
-    assert "__scormify_game_fit_v4" in fitted
+    assert "__scormify_game_fit_v5" in fitted
     assert "(window.innerWidth-p*2)/960" in fitted
     assert "(window.innerHeight-p*2)/540" in fitted
     assert "max-width:none!important" in fitted
+    assert "/540));" in fitted
+    assert "/540,1.55)" not in fitted
 
     ordinary = '<html><body><main class="app">Relatório</main></body></html>'
     assert _inject_fixed_game_stage_fit(ordinary) == ordinary

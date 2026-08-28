@@ -134,6 +134,23 @@ const FIT_UPGRADE_SNIPPET =
   "addEventListener('resize',fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}" +
   "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',u);else u();})();</scr" + 'ipt>';
 
+// Generated games have a deterministic 960x540 stage. Older saved games
+// contain generic fit scripts that cap enlargement at 1x or 1.35x, leaving a
+// small game in the centre of a wide slide. This override is appended even
+// when a legacy fit marker exists, repairing existing courses in-place.
+const GAME_FIT_SNIPPET =
+  '<style id="__scormify_game_fit_v5">' +
+  'html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;}' +
+  '#__stage{width:960px!important;height:540px!important;min-width:960px!important;min-height:540px!important;' +
+  'max-width:none!important;max-height:none!important;transform-origin:0 0!important;}' +
+  '</style><script>(function(){function f(){var st=document.getElementById("__stage");if(!st)return;var p=4;' +
+  'var s=Math.max(.1,Math.min((innerWidth-p*2)/960,(innerHeight-p*2)/540));' +
+  'var x=(innerWidth-960*s)/2,y=(innerHeight-540*s)/2;' +
+  'st.style.setProperty("width","960px","important");st.style.setProperty("height","540px","important");' +
+  'st.style.setProperty("transform-origin","0 0","important");' +
+  'st.style.setProperty("transform","translate("+x+"px,"+y+"px) scale("+s+")","important");}' +
+  'addEventListener("resize",f);[0,80,350,1000].forEach(function(ms){setTimeout(f,ms)});})();</scr' + 'ipt>';
+
 const injectDocumentSnippet = (html, snippet) => {
   const headIdx = html.toLowerCase().lastIndexOf('</head>');
   if (headIdx !== -1) return html.slice(0, headIdx) + snippet + html.slice(headIdx);
@@ -144,6 +161,13 @@ const injectDocumentSnippet = (html, snippet) => {
 
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
+  const isGeneratedGame = /QuestionEngine/i.test(html) && /\b(?:game|app)\b/i.test(html);
+  if (isGeneratedGame && !html.includes('__scormify_game_fit_v5')) {
+    const upgraded = html.includes('__stage')
+      ? html
+      : injectDocumentSnippet(html, html.includes('__scormify_fit_v3') ? FIT_UPGRADE_SNIPPET : FIT_SNIPPET);
+    return injectDocumentSnippet(upgraded, GAME_FIT_SNIPPET);
+  }
   if (html.includes('__scormify_fit_v3') || html.includes('__scormify_page_mode')) return html;
   if (html.includes('__stage')) return injectDocumentSnippet(html, FIT_UPGRADE_SNIPPET);
   return injectDocumentSnippet(html, mode === 'fit' ? FIT_SNIPPET : PAGE_VIEWPORT_SNIPPET);
