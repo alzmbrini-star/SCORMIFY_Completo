@@ -2562,6 +2562,71 @@ _GAME_STAGE_CLASSES = (
     "climb-stage", "word-stage", "target-stage",
 )
 
+_EDITOR_GAME_TYPE_BY_AGENT_MECHANIC = {
+    "penalty_quest": "penalty",
+    "quiz_show": "quiz_show",
+    "memory_match": "memory",
+    "knowledge_climb": "climb",
+    "target_challenge": "treasure",
+}
+
+
+def _editor_game_template_source(advanced: bool) -> str:
+    """Load the canonical game template used by the React Editor."""
+    filename = "advancedGameTemplates.js" if advanced else "gameTemplates.js"
+    candidates = (
+        Path("/app/game_templates") / filename,
+        Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "games" / filename,
+    )
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+    return ""
+
+
+def _build_editor_game_html(mechanic: str, title: str, questions: list[dict]) -> str:
+    """Render an Agent game with exactly the same template as the Editor."""
+    game_type = _EDITOR_GAME_TYPE_BY_AGENT_MECHANIC.get(mechanic)
+    if not game_type:
+        return ""
+    advanced = game_type in {"climb", "crossword", "sudoku", "race", "battle", "treasure"}
+    source = _editor_game_template_source(advanced)
+    marker = "return `"
+    start = source.find(marker)
+    end = source.rfind("`;\n}")
+    if start < 0 or end <= start:
+        logger.warning("Canonical Editor game template could not be extracted: %s", game_type)
+        return ""
+    template = source[start + len(marker):end]
+    bank = []
+    for index, question in enumerate(questions):
+        alternatives = [
+            {"id": str(ai), "text": str(text or "")}
+            for ai, text in enumerate(question.get("alternatives") or [])
+        ]
+        correct = int(question.get("correct") or 0)
+        bank.append({
+            "id": str(question.get("id") or f"agent-{index + 1}"),
+            "question": str(question.get("question") or ""),
+            "alternatives": alternatives,
+            "correctAnswer": str(max(0, min(correct, len(alternatives) - 1))),
+            "explanation": str(question.get("explanation") or ""),
+            "topic": str(question.get("topic") or ""),
+            "difficulty": str(question.get("difficulty") or "medio"),
+        })
+    settings = {"type": game_type, "title": title, "lives": 3, "time": 30, "shuffle": True}
+    encoded_bank = json.dumps(bank, ensure_ascii=False).replace("<", "\\u003c").replace("</", "<\\/")
+    encoded_settings = json.dumps(settings, ensure_ascii=False).replace("<", "\\u003c").replace("</", "<\\/")
+    if advanced:
+        template = template.replace("${encodedSettings}", encoded_settings).replace("${encodedBank}", encoded_bank)
+    else:
+        template = template.replace("${settings}", encoded_settings).replace("${encoded}", encoded_bank)
+    template = template.replace('<main class="app">', '<main class="app" data-agent-game-template="editor-v1">', 1)
+    return template
+
 
 def _game_html_uses_legacy_single_stage(html_content: str) -> bool:
     """Detect the old game shell that reused the penalty goal everywhere."""
@@ -2570,6 +2635,17 @@ def _game_html_uses_legacy_single_stage(html_content: str) -> bool:
         marker in lowered for marker in _GAME_ONLY_MARKERS
     )
     if not is_scormify_game:
+        return False
+    if 'data-agent-game-template="editor-v1"' in lowered:
+        return False
+    old_agent_labels = (
+        "knowledge league", "palco do saber", "laboratório da memória",
+        "laboratorio da memoria", "expedição do saber", "expedicao do saber",
+        "arena de precisão", "arena de precisao",
+    )
+    if any(label in lowered for label in old_agent_labels):
+        return True
+    if "arena das palavras" in lowered and "word-stage" in lowered:
         return False
     # Inspect the *visible arena element*, not the complete document. Newer
     # transitional exports already contained the stage CSS selectors while
@@ -2626,21 +2702,35 @@ def _repair_legacy_game_html(sb_slide: dict, html_content: str) -> str:
         # distribute mechanics deterministically instead of converting every
         # old game into Forca or Pênalti.
         repaired_slide["gameMechanic"] = _required_game_mechanic(repaired_slide)
-    rebuilt = _build_game_fallback_html(repaired_slide)
     old_bank = re.search(
         r"const\s+questionBank\s*=\s*(\[[\s\S]*?\])\s*;\s*const\s+QuestionEngine",
         html_content or "",
         re.IGNORECASE,
     )
+    imported = []
     if old_bank:
-        rebuilt = re.sub(
-            r"const\s+questionBank\s*=\s*\[[\s\S]*?\]\s*;\s*const\s+QuestionEngine",
-            lambda _match: "const questionBank=" + old_bank.group(1) + ";\nconst QuestionEngine",
-            rebuilt,
-            count=1,
-            flags=re.IGNORECASE,
-        )
-    return rebuilt
+        try:
+            for index, item in enumerate(json.loads(old_bank.group(1))):
+                raw_alternatives = item.get("alternatives") or []
+                alternatives = [
+                    alt if isinstance(alt, dict) else {"id": str(ai), "text": str(alt)}
+                    for ai, alt in enumerate(raw_alternatives)
+                ]
+                correct = item.get("correct", item.get("correctAnswer", 0))
+                if isinstance(correct, int):
+                    correct = str(max(0, min(correct, len(alternatives) - 1)))
+                imported.append({
+                    "id": item.get("id") or f"legacy-{index + 1}",
+                    "question": item.get("question") or "",
+                    "alternatives": alternatives,
+                    "correctAnswer": str(correct),
+                    "explanation": item.get("explanation") or "",
+                    "topic": item.get("topic") or repaired_slide.get("moduleName") or "",
+                    "difficulty": item.get("difficulty") or "medio",
+                })
+        except (TypeError, ValueError, json.JSONDecodeError):
+            logger.warning("Could not migrate the embedded question bank of a legacy game")
+    return _build_game_fallback_html(repaired_slide, imported or None)
 
 
 def _interactive_html_is_functional(html_content: str, content_type: str = "") -> bool:
@@ -2842,6 +2932,12 @@ def _build_game_fallback_html(sb_slide: dict, bank_questions: list | None = None
     questions = questions[:8]
     questions_json = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
     safe_title = html.escape(title)
+    # All Agent games except Forca reuse the Editor's canonical premium
+    # generators, so mechanics and visuals stay identical in both paths.
+    if mechanic != "word_challenge":
+        editor_html = _build_editor_game_html(mechanic, title, questions)
+        if editor_html:
+            return editor_html
     template = r'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 *{box-sizing:border-box}body{margin:0;min-height:540px;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#fff;background:radial-gradient(circle at 50% 15%,#263d75 0,#101a39 42%,#070b19 100%)}button{font:inherit}.game{width:960px;height:540px;position:relative;overflow:hidden}.glow{position:absolute;width:420px;height:420px;border-radius:50%;filter:blur(80px);opacity:.28}.g1{background:#8b5cf6;left:-140px;top:-180px}.g2{background:#06b6d4;right:-170px;bottom:-210px}.screen{position:absolute;inset:0;display:grid;place-items:center;padding:30px;transition:.45s}.hidden{opacity:0;pointer-events:none;transform:scale(.96)}.start-card,.finish-card{width:620px;padding:38px;border:1px solid #ffffff26;border-radius:30px;background:linear-gradient(145deg,#172554e8,#111827e8);box-shadow:0 30px 90px #0009,inset 0 1px #fff3;text-align:center;backdrop-filter:blur(18px)}.logo{font-size:58px;filter:drop-shadow(0 0 22px #22d3ee)}h1{font-size:36px;margin:8px 0;background:linear-gradient(90deg,#fff,#67e8f9,#c4b5fd);-webkit-background-clip:text;color:transparent}.sub{color:#b8c6e6;line-height:1.5}.cta{border:0;border-radius:16px;padding:14px 30px;color:#06101f;font-weight:900;background:linear-gradient(90deg,#22d3ee,#a7f3d0);cursor:pointer;box-shadow:0 10px 35px #22d3ee55;transition:.2s}.cta:hover{transform:translateY(-3px) scale(1.03)}.play{display:block;padding:16px 22px}.hud{height:66px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-weight:900;letter-spacing:.05em}.chips{display:flex;gap:8px}.chip{padding:8px 12px;border-radius:99px;background:#ffffff12;border:1px solid #ffffff20;font-weight:800;font-size:13px}.arena{height:250px;position:relative;border-radius:25px;overflow:hidden;background:linear-gradient(#176148 0 7%,#27aa68 7% 100%);border:3px solid #dffbf0;box-shadow:0 18px 50px #0007}.crowd{height:74px;background:repeating-linear-gradient(90deg,#35275d 0 8px,#593a80 8px 16px);position:relative}.crowd:after{content:'🙌  🎉  🙌  ⭐  🙌  🎉  🙌  ⭐  🙌';position:absolute;inset:19px 0;text-align:center;font-size:26px;letter-spacing:21px;animation:crowd .55s infinite alternate}.goal{position:absolute;width:310px;height:128px;left:325px;top:82px;border:7px solid white;border-bottom:0;box-shadow:inset 0 0 0 2px #ffffff55;background:repeating-linear-gradient(45deg,#ffffff18 0 2px,transparent 2px 17px)}.keeper{position:absolute;left:452px;top:132px;font-size:47px;transition:.6s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 7px 5px #0005)}.ball{position:absolute;left:467px;bottom:18px;font-size:34px;z-index:3;filter:drop-shadow(0 7px 5px #0008)}.ball.shoot-left{animation:shootL .75s forwards}.ball.shoot-right{animation:shootR .75s forwards}.keeper.dive-left{transform:translate(-88px,-20px) rotate(-38deg)}.keeper.dive-right{transform:translate(88px,-20px) rotate(38deg)}.panel{margin-top:12px;border-radius:20px;padding:15px 18px;background:#101a34e8;border:1px solid #ffffff1e}.progress{height:6px;border-radius:8px;background:#ffffff13;overflow:hidden}.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#a78bfa);transition:.45s}.question{font-size:17px;font-weight:850;text-align:center;margin:10px 0}.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px}.answer{min-height:42px;border:1px solid #ffffff1b;border-radius:12px;background:#ffffff0d;color:#edf6ff;padding:8px 12px;cursor:pointer;font-size:12px;font-weight:700;transition:.18s}.answer:hover{transform:translateY(-2px);border-color:#67e8f9;background:#164e6366}.answer.correct{background:#059669;border-color:#6ee7b7}.answer.wrong{background:#dc2626;border-color:#fca5a5;animation:shake .28s}.feedback{height:18px;margin-top:7px;text-align:center;font-size:12px;color:#a5f3fc}.particle{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none;animation:burst 1s forwards}.achievement{display:inline-block;padding:8px 13px;border-radius:99px;background:#f59e0b22;border:1px solid #fbbf24;color:#fde68a;font-weight:900;margin:12px}.stats{display:flex;justify-content:center;gap:12px;margin:20px}.stats b{min-width:105px;padding:14px;border-radius:16px;background:#ffffff0d}.stats small{display:block;color:#94a3b8;margin-top:4px}@keyframes crowd{to{transform:translateY(-5px)}}@keyframes shootL{to{left:370px;bottom:125px;transform:scale(.55) rotate(420deg)}}@keyframes shootR{to{left:555px;bottom:125px;transform:scale(.55) rotate(420deg)}}@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}@keyframes burst{to{transform:translate(var(--x),var(--y)) rotate(360deg);opacity:0}}@media(max-width:800px){.game{width:100vw}.play{padding:8px}.start-card,.finish-card{width:92%}.answers{grid-template-columns:1fr}.arena{height:220px}.goal{left:calc(50% - 155px)}.keeper{left:calc(50% - 24px)}.ball{left:calc(50% - 17px)}}
 </style></head><body><main class="game"><div class="glow g1"></div><div class="glow g2"></div><section id="start" class="screen"><div class="start-card"><div class="logo">⚽</div><h1>Penalty Quest</h1><h2>__TITLE__</h2><p class="sub">Responda, construa seu combo e converta conhecimento em gols. Cinco rodadas, três vidas e uma conquista épica.</p><button class="cta" onclick="Game.start()">COMEÇAR CAMPEONATO</button></div></section><section id="play" class="screen hidden play"><header class="hud"><div class="brand">⚡ KNOWLEDGE LEAGUE</div><div class="chips"><span class="chip">❤️ <b id="lives">3</b></span><span class="chip">🔥 <b id="combo">0</b>x</span><span class="chip">⭐ <b id="xp">0</b> XP</span><span class="chip">🪙 <b id="coins">0</b></span></div></header><div class="arena" id="arena"><div class="crowd"></div><div class="goal"></div><div id="keeper" class="keeper">🧤</div><div id="ball" class="ball">⚽</div></div><div class="panel"><div class="progress"><i id="bar"></i></div><div id="question" class="question"></div><div id="answers" class="answers"></div><div id="feedback" class="feedback"></div></div></section><section id="finish" class="screen hidden"><div class="finish-card"><div class="logo">🏆</div><h1 id="finishTitle">Campeonato concluído!</h1><span id="achievement" class="achievement"></span><div class="stats"><b id="finalXp"></b><b id="finalCoins"></b><b id="finalAccuracy"></b></div><p class="sub">Seu progresso foi registrado localmente e está pronto para integração com o LMS.</p><button class="cta" onclick="Game.restart()">JOGAR NOVAMENTE</button></div></section></main><script>

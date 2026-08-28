@@ -222,28 +222,24 @@ def test_empty_game_becomes_a_premium_question_engine_experience():
 
 def test_each_game_mechanic_has_its_own_visual_stage():
     expected = {
-        "penalty_quest": ("penalty-stage", "Campo de futebol educativo"),
-        "quiz_show": ("quiz-stage", "Palco de quiz show"),
-        "memory_match": ("memory-stage", "Ative pares"),
-        "knowledge_climb": ("climb-stage", "Montanha da escalada"),
+        "penalty_quest": ("SCORMIFY GAMES", 'class="goal"'),
+        "quiz_show": ("SCORMIFY GAMES", "show-lights"),
+        "memory_match": ("SCORMIFY GAMES", "renderMemory"),
+        "knowledge_climb": ("SCORMIFY ADVENTURES", 'class="mountain"'),
         "word_challenge": ("word-stage", "Forca educativa"),
-        "target_challenge": ("target-stage", "Alvo educativo"),
+        "target_challenge": ("SCORMIFY ADVENTURES", 'class="map"'),
     }
-    for mechanic, (stage_class, visual_marker) in expected.items():
+    for mechanic, (template_marker, visual_marker) in expected.items():
         generated = _build_game_fallback_html({
             "type": "game",
             "title": "Jogo educativo",
             "purpose": "Aplicar conceitos em uma atividade desafiadora.",
             "gameMechanic": mechanic,
         })
-        arena = re.search(r'<div class="arena[^>]*" id="arena"[^>]*>[\s\S]*?</div><div class="panel">', generated)
-        assert arena is not None
-        assert f'class="arena {stage_class}"' in arena.group(0)
-        assert 'data-stage-version="2"' in arena.group(0)
+        assert template_marker in generated
         assert visual_marker in generated
-        if mechanic != "penalty_quest":
-            assert '<div class="goal"></div>' not in generated
-        assert "stage-caption" in generated
+        if mechanic != "word_challenge":
+            assert 'data-agent-game-template="editor-v1"' in generated
 
 
 def test_class_based_game_stage_is_upgraded_to_self_contained_visual():
@@ -258,8 +254,8 @@ def test_class_based_game_stage_is_upgraded_to_self_contained_visual():
         {"type": "game", "title": "Escalada", "gameMechanic": "knowledge_climb"},
         old_climb,
     )
-    assert 'data-stage-version="2"' in repaired
-    assert "Montanha da escalada do conhecimento" in repaired
+    assert 'data-agent-game-template="editor-v1"' in repaired
+    assert 'class="mountain"' in repaired
     assert _game_html_uses_legacy_single_stage(repaired) is False
 
 
@@ -274,7 +270,8 @@ def test_legacy_game_repair_keeps_the_explicit_mechanic():
         legacy,
     )
 
-    assert 'class="arena memory-stage"' in repaired
+    assert "renderMemory" in repaired
+    assert "SCORMIFY GAMES" in repaired
     assert 'class="arena word-stage"' not in repaired
 
 
@@ -286,13 +283,8 @@ def test_generic_legacy_arena_heading_does_not_force_every_game_to_hangman():
     </body></html>"""
 
     repaired = _repair_legacy_game_html(slide, legacy)
-    expected_stage = {
-        "penalty_quest": "penalty-stage", "quiz_show": "quiz-stage",
-        "memory_match": "memory-stage", "knowledge_climb": "climb-stage",
-        "word_challenge": "word-stage", "target_challenge": "target-stage",
-    }[_required_game_mechanic(slide)]
-
-    assert f'class="arena {expected_stage}"' in repaired
+    mechanic = _required_game_mechanic(slide)
+    assert ("word-stage" in repaired) if mechanic == "word_challenge" else ('data-agent-game-template="editor-v1"' in repaired)
 
 
 def test_word_challenge_reveals_the_hangman_only_after_wrong_answers():

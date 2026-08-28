@@ -448,15 +448,8 @@ def test_export_repairs_legacy_game_stage_and_preserves_questions():
     html = generate_single_page_html(project, "/tmp/no-assets", "")
     encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
     iframe_html = base64.b64decode(encoded).decode("utf-8")
-    arena = re.search(r'<div class="arena[^>]*" id="arena"[^>]*>[\s\S]*?</div><div class="panel">', iframe_html)
-    assert arena is not None
     expected_mechanic = _required_game_mechanic({"id": "g1", "title": "Jogo: Criatividade"})
-    expected_stage = {
-        "penalty_quest": "penalty-stage", "quiz_show": "quiz-stage",
-        "memory_match": "memory-stage", "knowledge_climb": "climb-stage",
-        "word_challenge": "word-stage", "target_challenge": "target-stage",
-    }[expected_mechanic]
-    assert f'class="arena {expected_stage}"' in arena.group(0)
+    assert ("word-stage" in iframe_html) if expected_mechanic == "word_challenge" else ('data-agent-game-template="editor-v1"' in iframe_html)
     assert "Pergunta preservada?" in iframe_html
     assert "Explicação preservada." in iframe_html
 
@@ -479,7 +472,6 @@ def test_export_repairs_game_saved_as_simulator_element():
     html = generate_single_page_html(project, "/tmp/no-assets", "")
     encoded = re.search(r'data:text/html;charset=utf-8;base64,([^"\']+)', html).group(1)
     iframe_html = base64.b64decode(encoded).decode("utf-8")
-    assert 'class="arena climb-stage"' in iframe_html
-    assert 'data-stage-version="2"' in iframe_html
-    assert "Montanha da escalada do conhecimento" in iframe_html
+    assert 'data-agent-game-template="editor-v1"' in iframe_html
+    assert 'class="mountain"' in iframe_html
     assert "Subir?" in iframe_html
