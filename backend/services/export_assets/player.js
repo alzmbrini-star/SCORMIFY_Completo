@@ -1429,7 +1429,7 @@ var CoursePlayer = (function() {
                 // Games use a deterministic 960x540 stage. Mark both current
                 // and legacy game elements so they receive a full-slide
                 // viewport and may scale above 1x.
-                var isGeneratedGame = element.interactiveType === 'game' || !!element.gameType || !!element.gameConfig ||
+                var isGeneratedGame = currentSlide.type === 'game' || element.interactiveType === 'game' || !!element.gameType || !!element.gameConfig ||
                     (/QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(htmlContent) &&
                      /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(htmlContent));
                 if (isGeneratedGame) el.setAttribute('data-scormify-game', 'true');

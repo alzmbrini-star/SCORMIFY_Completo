@@ -3156,7 +3156,7 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
     elif stype == "game" and _game_html_uses_legacy_single_stage(html_content):
         html_content = _repair_legacy_game_html(slide, html_content)
 
-    slide["elements"] = [{"type": "html", "htmlContent": html_content}]
+    slide["elements"] = [{"type": "html", "interactiveType": stype, "htmlContent": html_content}]
     return slide
 
 
@@ -3700,6 +3700,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
+                    "interactiveType": stype,
                     "htmlContent": _wrap_interactive_fullbleed(html_content),
                     "x": 0,
                     "y": 0,
@@ -3721,6 +3722,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_elements = [{
                     "id": generate_id(),
                     "type": "html",
+                    "interactiveType": stype,
                     "htmlContent": _wrap_interactive_fullbleed(fallback_html),
                     "x": 0,
                     "y": 0,

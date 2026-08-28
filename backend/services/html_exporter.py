@@ -2174,7 +2174,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             initiallyHidden = true;
                         }}
                         
-                        var isGameElement = elem.type === 'html' && (elem.interactiveType === 'game' || elem.gameType || elem.gameConfig);
+                        var isGameElement = elem.type === 'html' && (slide.type === 'game' || elem.interactiveType === 'game' || elem.gameType || elem.gameConfig);
                         var viewportWidth = slide.width || 960;
                         var viewportHeight = slide.height || 540;
                         var gameMarginX = Math.max(4, Math.round(viewportWidth * 0.01));

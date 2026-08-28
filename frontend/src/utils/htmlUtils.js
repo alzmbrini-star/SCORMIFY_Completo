@@ -161,8 +161,14 @@ const injectDocumentSnippet = (html, snippet) => {
 
 export const isGeneratedGameHtml = (html) => {
   if (!html || typeof html !== 'string') return false;
-  return /QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(html)
-    && /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(html);
+  let source = html;
+  // Older Agent slides can persist full documents as UTF-8 base64. Detecting
+  // only the encoded string made Forca miss the full-slide game viewport.
+  if (source.startsWith('__B64__:')) {
+    try { source = globalThis.atob(source.slice(8)); } catch (_) { /* keep original */ }
+  }
+  return /QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(source)
+    && /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(source);
 };
 
 export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 540) => {
