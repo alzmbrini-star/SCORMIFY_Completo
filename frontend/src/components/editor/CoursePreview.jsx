@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import QuizPlayer from '../quiz/QuizPlayer';
 import ScenarioPlayer from '../scenario/ScenarioPlayer';
-import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
+import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed, fitGameElementToSlide } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
 const API_URL = getApiUrl();
@@ -712,29 +712,30 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             {/* Elements - positioned absolutely within slide dimensions */}
             {currentSlide?.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => {
               const animStyle = getElementAnimationStyle(element);
+              const slideWidth = currentSlide?.width || 960;
+              const slideHeight = currentSlide?.height || 540;
+              const displayElement = fitGameElementToSlide(element, slideWidth, slideHeight);
               // Use element opacity only if > 0, otherwise default to 1
               const elementOpacity = element.style?.opacity != null && element.style.opacity > 0 
                 ? element.style.opacity 
                 : 1;
               
               // Check if element is truly fullscreen (covers most of the slide area)
-              const slideWidth = currentSlide?.width || 1280;
-              const slideHeight = currentSlide?.height || 720;
-              const isElementFullscreen = element.objectFit === 'cover' && 
-                element.width >= slideWidth * 0.95 && 
-                element.height >= slideHeight * 0.95 &&
-                element.x <= slideWidth * 0.05 &&
-                element.y <= slideHeight * 0.05;
+              const isElementFullscreen = displayElement.objectFit === 'cover' && 
+                displayElement.width >= slideWidth * 0.95 && 
+                displayElement.height >= slideHeight * 0.95 &&
+                displayElement.x <= slideWidth * 0.05 &&
+                displayElement.y <= slideHeight * 0.05;
               
               return (
               <div
                 key={element.id}
                 className="absolute transition-all duration-100"
                 style={{
-                  left: `${element.x || 0}px`,
-                  top: `${element.y || 0}px`,
-                  width: `${element.width || 100}px`,
-                  height: `${element.height || 100}px`,
+                  left: `${displayElement.x || 0}px`,
+                  top: `${displayElement.y || 0}px`,
+                  width: `${displayElement.width || 100}px`,
+                  height: `${displayElement.height || 100}px`,
                   zIndex: (element.zIndex || 0) + 1,
                   opacity: animStyle.opacity ?? elementOpacity,
                   transform: animStyle.transform || (element.rotation ? `rotate(${element.rotation}deg)` : undefined),

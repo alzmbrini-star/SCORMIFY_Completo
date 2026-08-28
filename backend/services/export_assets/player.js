@@ -1425,6 +1425,14 @@ var CoursePlayer = (function() {
                         console.error('Failed to decode htmlContent:', e);
                     }
                 }
+
+                // Games use a deterministic 960x540 stage. Mark both current
+                // and legacy game elements so they receive a full-slide
+                // viewport and may scale above 1x.
+                var isGeneratedGame = element.interactiveType === 'game' || !!element.gameType || !!element.gameConfig ||
+                    (/QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(htmlContent) &&
+                     /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(htmlContent));
+                if (isGeneratedGame) el.setAttribute('data-scormify-game', 'true');
                 
                 // Check if this element is truly fullscreen (covers most of the slide area)
                 var slideWidth = currentSlide.width || 1280;
@@ -1451,6 +1459,12 @@ var CoursePlayer = (function() {
                 var wrappedHtml;
                 if (isFullDoc) {
                     wrappedHtml = htmlContent;
+                    if (isGeneratedGame && wrappedHtml.indexOf('__scormify_game_fit_v6') === -1) {
+                        var gameFit = '<style id="__scormify_game_fit_v6">html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;}#__stage{width:960px!important;height:540px!important;min-width:960px!important;min-height:540px!important;max-width:none!important;max-height:none!important;transform-origin:0 0!important;}</style>' +
+                            '<script>(function(){function f(){var st=document.getElementById("__stage");if(!st)return;var p=2,s=Math.max(.1,Math.min((innerWidth-p*2)/960,(innerHeight-p*2)/540)),x=(innerWidth-960*s)/2,y=(innerHeight-540*s)/2;st.style.setProperty("width","960px","important");st.style.setProperty("height","540px","important");st.style.setProperty("transform-origin","0 0","important");st.style.setProperty("transform","translate("+x+"px,"+y+"px) scale("+s+")","important");}addEventListener("resize",f);[0,80,350,1000].forEach(function(ms){setTimeout(f,ms)});})();<\/script>';
+                        var gameBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
+                        wrappedHtml = gameBodyIdx !== -1 ? wrappedHtml.slice(0, gameBodyIdx) + gameFit + wrappedHtml.slice(gameBodyIdx) : wrappedHtml + gameFit;
+                    }
                     // Upgrade simulators saved with the legacy flex-centered
                     // stage. CSS transforms do not affect flex layout size,
                     // so tall content was centered before scaling and its top
@@ -1720,10 +1734,16 @@ var CoursePlayer = (function() {
         
         // Apply positioning and styles with explicit pixel values
         el.style.position = 'absolute';
-        el.style.left = (element.x || 0) + 'px';
-        el.style.top = (element.y || 0) + 'px';
-        el.style.width = (element.width || 100) + 'px';
-        el.style.height = (element.height || 100) + 'px';
+        var useGameViewport = el.getAttribute('data-scormify-game') === 'true';
+        var viewportSlide = (typeof currentSlide !== 'undefined' && currentSlide) ? currentSlide : {};
+        var viewportWidth = viewportSlide.width || 960;
+        var viewportHeight = viewportSlide.height || 540;
+        var gameMarginX = Math.max(4, Math.round(viewportWidth * 0.01));
+        var gameMarginY = Math.max(4, Math.round(viewportHeight * 0.01));
+        el.style.left = (useGameViewport ? gameMarginX : (element.x || 0)) + 'px';
+        el.style.top = (useGameViewport ? gameMarginY : (element.y || 0)) + 'px';
+        el.style.width = (useGameViewport ? viewportWidth - gameMarginX * 2 : (element.width || 100)) + 'px';
+        el.style.height = (useGameViewport ? viewportHeight - gameMarginY * 2 : (element.height || 100)) + 'px';
         el.style.zIndex = (element.zIndex || 0) + 1;
         el.style.overflow = 'hidden';  // Ensure content stays within bounds
         

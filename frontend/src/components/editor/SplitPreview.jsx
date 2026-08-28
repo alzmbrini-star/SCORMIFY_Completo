@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import QuizPlayer from '../quiz/QuizPlayer';
 import ScenarioPlayer from '../scenario/ScenarioPlayer';
-import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
+import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed, fitGameElementToSlide } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
 const API_URL = getApiUrl();
@@ -337,12 +337,13 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
 
             {/* Elements */}
             {currentSlide.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => {
+              const displayElement = fitGameElementToSlide(element, slideWidth, slideHeight);
               const elOpacity = element.style?.opacity != null && element.style.opacity > 0 ? element.style.opacity : 1;
-              const isFullscreen = element.objectFit === 'cover' && element.width >= slideWidth * 0.95 && element.height >= slideHeight * 0.95;
+              const isFullscreen = displayElement.objectFit === 'cover' && displayElement.width >= slideWidth * 0.95 && displayElement.height >= slideHeight * 0.95;
               return (
                 <div key={element.id} className="absolute" style={{
-                  left: `${element.x || 0}px`, top: `${element.y || 0}px`,
-                  width: `${element.width || 100}px`, height: `${element.height || 100}px`,
+                  left: `${displayElement.x || 0}px`, top: `${displayElement.y || 0}px`,
+                  width: `${displayElement.width || 100}px`, height: `${displayElement.height || 100}px`,
                   zIndex: (element.zIndex || 0) + 1, opacity: elOpacity,
                   transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
                 }}>

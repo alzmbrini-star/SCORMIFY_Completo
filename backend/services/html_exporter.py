@@ -2174,10 +2174,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             initiallyHidden = true;
                         }}
                         
-                        var style = 'left:' + (elem.x || 0) + 'px;';
-                        style += 'top:' + (elem.y || 0) + 'px;';
-                        style += 'width:' + (elem.width || 100) + 'px;';
-                        style += 'height:' + (elem.height || 100) + 'px;';
+                        var isGameElement = elem.type === 'html' && (elem.interactiveType === 'game' || elem.gameType || elem.gameConfig);
+                        var viewportWidth = slide.width || 960;
+                        var viewportHeight = slide.height || 540;
+                        var gameMarginX = Math.max(4, Math.round(viewportWidth * 0.01));
+                        var gameMarginY = Math.max(4, Math.round(viewportHeight * 0.01));
+                        var style = 'left:' + (isGameElement ? gameMarginX : (elem.x || 0)) + 'px;';
+                        style += 'top:' + (isGameElement ? gameMarginY : (elem.y || 0)) + 'px;';
+                        style += 'width:' + (isGameElement ? viewportWidth - gameMarginX * 2 : (elem.width || 100)) + 'px;';
+                        style += 'height:' + (isGameElement ? viewportHeight - gameMarginY * 2 : (elem.height || 100)) + 'px;';
                         style += 'z-index:' + ((elem.zIndex || 0) + 1) + ';';
                         if (elem.rotation) style += 'transform:rotate(' + elem.rotation + 'deg);';
                         
@@ -2333,6 +2338,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     console.error('Failed to decode htmlContent:', e);
                                 }}
                             }}
+                            isGameElement = isGameElement || (/QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(htmlContent) && /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(htmlContent));
                             // Check if this element is truly fullscreen (covers most of the slide area)
                             var slideWidth = slide.width || 1280;
                             var slideHeight = slide.height || 720;
@@ -2346,6 +2352,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             var wrappedHtml;
                             if (isFullDoc) {{
                                 wrappedHtml = htmlContent;
+                                if (isGameElement && wrappedHtml.indexOf('__scormify_game_fit_v6') === -1) {{
+                                    var gameFit = '<style id="__scormify_game_fit_v6">html,body{{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;}}#__stage{{width:960px!important;height:540px!important;min-width:960px!important;min-height:540px!important;max-width:none!important;max-height:none!important;transform-origin:0 0!important;}}</style>' +
+                                        '<scr' + 'ipt>(function(){{function f(){{var st=document.getElementById("__stage");if(!st)return;var p=2,s=Math.max(.1,Math.min((innerWidth-p*2)/960,(innerHeight-p*2)/540)),x=(innerWidth-960*s)/2,y=(innerHeight-540*s)/2;st.style.setProperty("width","960px","important");st.style.setProperty("height","540px","important");st.style.setProperty("transform-origin","0 0","important");st.style.setProperty("transform","translate("+x+"px,"+y+"px) scale("+s+")","important");}}addEventListener("resize",f);[0,80,350,1000].forEach(function(ms){{setTimeout(f,ms)}});}})();</scr' + 'ipt>';
+                                    var gameInsert = wrappedHtml.toLowerCase().lastIndexOf('</bo' + 'dy>');
+                                    wrappedHtml = gameInsert !== -1 ? wrappedHtml.slice(0, gameInsert) + gameFit + wrappedHtml.slice(gameInsert) : wrappedHtml + gameFit;
+                                }}
                                 // Upgrade simulators saved with an older stage wrapper.
                                 // Measuring every visible descendant also includes
                                 // absolute/fixed controls outside the normal flow.

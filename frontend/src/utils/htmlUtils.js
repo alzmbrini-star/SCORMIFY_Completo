@@ -159,9 +159,33 @@ const injectDocumentSnippet = (html, snippet) => {
   return html + snippet;
 };
 
+export const isGeneratedGameHtml = (html) => {
+  if (!html || typeof html !== 'string') return false;
+  return /QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(html)
+    && /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(html);
+};
+
+export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 540) => {
+  if (!element || element.type !== 'html') return element;
+  const isGame = element.interactiveType === 'game' || element.gameType || element.gameConfig
+    || isGeneratedGameHtml(element.htmlContent || '');
+  if (!isGame) return element;
+  const marginX = Math.max(4, Math.round(slideWidth * 0.01));
+  const marginY = Math.max(4, Math.round(slideHeight * 0.01));
+  return {
+    ...element,
+    x: marginX,
+    y: marginY,
+    width: slideWidth - marginX * 2,
+    height: slideHeight - marginY * 2,
+    objectFit: 'cover',
+    htmlDisplayMode: 'fit',
+  };
+};
+
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
-  const isGeneratedGame = /QuestionEngine/i.test(html) && /\b(?:game|app)\b/i.test(html);
+  const isGeneratedGame = isGeneratedGameHtml(html);
   if (isGeneratedGame && !html.includes('__scormify_game_fit_v5')) {
     const upgraded = html.includes('__stage')
       ? html
