@@ -53,8 +53,9 @@ def test_scorm_games_expand_to_the_real_slide_dimensions():
 
 def test_scorm_game_fit_falls_back_to_the_real_game_root():
     source = PLAYER.read_text(encoding="utf-8")
-    assert "__scormify_game_fit_v7" in source
-    assert 'document.querySelector("main.app,main.game,.app,.game")' in source
+    assert "__scormify_game_fit_v9" in source
+    assert 'responsive=fixed&&fixed.querySelector("main.app,main.game,.app,.game")' in source
+    assert 'st.style.setProperty("width","100%","important")' in source
 
 
 def test_scorm_exporter_persists_full_slide_game_geometry_in_course_json():
