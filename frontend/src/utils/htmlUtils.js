@@ -149,7 +149,10 @@ const GAME_FIT_SNIPPET =
   'st.style.setProperty("width","960px","important");st.style.setProperty("height","540px","important");' +
   'st.style.setProperty("transform-origin","0 0","important");' +
   'st.style.setProperty("transform","translate("+x+"px,"+y+"px) scale("+s+")","important");}' +
-  'addEventListener("resize",f);[0,80,350,1000].forEach(function(ms){setTimeout(f,ms)});})();</scr' + 'ipt>';
+  // Legacy fixed-stage scripts may run again at 300ms and 1000ms. Reassert
+  // the game viewport briefly through hydration so the old 1x scale can
+  // never become the final visual state (the visible grow-then-shrink bug).
+  'addEventListener("resize",f);f();var n=0,t=setInterval(function(){f();if(++n>=24)clearInterval(t)},100);})();</scr' + 'ipt>';
 
 const injectDocumentSnippet = (html, snippet) => {
   const headIdx = html.toLowerCase().lastIndexOf('</head>');
