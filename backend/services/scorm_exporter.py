@@ -136,6 +136,7 @@ def _build_html(
     loader_primary: str = "#3b82f6",
     loader_accent: str = "#60a5fa",
     player_theme: dict = None,
+    export_token: str = "",
 ) -> str:
     """Build the index.html by reading the template and CSS, replacing placeholders."""
     template = _read_asset("player_template.html")
@@ -194,6 +195,7 @@ html, body {{ background: {canvas}; }}
     html = html.replace("__LANG__", lang)
     html = html.replace("__SLIDE_WIDTH__", str(width))
     html = html.replace("__SLIDE_HEIGHT__", str(height))
+    html = html.replace("__EXPORT_TOKEN__", export_token)
     # Branded loader placeholders. Title is HTML-escaped before reaching
     # us, so it's safe to drop straight in.
     html = html.replace("__LOADER_TITLE__", loader_title)
@@ -293,7 +295,7 @@ IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
         </organization>
     </organizations>
     <resources>
-        <resource identifier="resource1" type="webcontent" adlcp:scormtype="sco" href="index.html">
+        <resource identifier="resource1" type="webcontent" adlcp:scormtype="sco" href="{launch_href}">
             <file href="index.html"/>
             <file href="course.json"/>
             <file href="scripts/scorm-api.js"/>
@@ -1030,6 +1032,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         _loader_cfg = {"title_html": "Carregando curso…", "primary": "#3b82f6", "accent": "#60a5fa"}
         _player_theme = None
 
+    # Every package receives a unique cache key. LMS platforms frequently
+    # keep player.js/course.json from a previous upload under the same SCO
+    # path, which makes a corrected game viewport appear unchanged.
+    export_token = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
     html_content = _build_html(
         title=clean_title,
         lang=course.metadata.language or 'en',
@@ -1042,6 +1048,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         loader_primary=_loader_cfg["primary"],
         loader_accent=_loader_cfg["accent"],
         player_theme=_player_theme,
+        export_token=export_token,
     )
     
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:
@@ -1060,6 +1067,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     manifest_content = IMS_MANIFEST_TEMPLATE.format(
         identifier=f"SCORM_{project.id}",
         title=clean_title,
+        launch_href=f"index.html?v={export_token}",
         resource_files='\n            '.join(resource_files)
     )
     

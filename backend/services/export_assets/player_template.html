@@ -224,11 +224,12 @@ __CSS_CONTENT__
         </div>
     </div>
     <audio id="global-audio"></audio>
-    <script src="scripts/scorm-api.js"></script>
-    <script src="scripts/quiz-controller.js"></script>
-    <script src="scripts/scenario-controller.js"></script>
-    <script src="scripts/tutor.js"></script>
-    <script src="scripts/player.js"></script>
+    <script>window.__SCORMIFY_EXPORT_TOKEN__ = "__EXPORT_TOKEN__";</script>
+    <script src="scripts/scorm-api.js?v=__EXPORT_TOKEN__"></script>
+    <script src="scripts/quiz-controller.js?v=__EXPORT_TOKEN__"></script>
+    <script src="scripts/scenario-controller.js?v=__EXPORT_TOKEN__"></script>
+    <script src="scripts/tutor.js?v=__EXPORT_TOKEN__"></script>
+    <script src="scripts/player.js?v=__EXPORT_TOKEN__"></script>
     __VLIBRAS_BLOCK__
 </body>
 </html>

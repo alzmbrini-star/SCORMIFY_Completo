@@ -3,6 +3,7 @@ from pathlib import Path
 
 PLAYER = Path(__file__).resolve().parents[1] / "services" / "export_assets" / "player.js"
 SCORM_EXPORTER = Path(__file__).resolve().parents[1] / "services" / "scorm_exporter.py"
+PLAYER_TEMPLATE = PLAYER.parent / "player_template.html"
 
 
 def test_classic_scorm_player_upgrades_legacy_simulator_stages():
@@ -66,3 +67,13 @@ def test_scorm_exporter_persists_full_slide_game_geometry_in_course_json():
     assert "'height': slide_height" in source
     assert "'objectFit': 'cover'" in source
     assert "'htmlDisplayMode': 'fit'" in source
+
+
+def test_scorm_export_uses_a_unique_cache_key_for_lms_resources():
+    exporter = SCORM_EXPORTER.read_text(encoding="utf-8")
+    template = PLAYER_TEMPLATE.read_text(encoding="utf-8")
+    player = PLAYER.read_text(encoding="utf-8")
+    assert 'launch_href=f"index.html?v={export_token}"' in exporter
+    assert 'scripts/player.js?v=__EXPORT_TOKEN__' in template
+    assert 'window.__SCORMIFY_EXPORT_TOKEN__' in template
+    assert "fetch('course.json' + (exportToken ? '?v='" in player

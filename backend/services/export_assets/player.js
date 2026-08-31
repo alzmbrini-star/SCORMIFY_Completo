@@ -2421,7 +2421,8 @@ var CoursePlayer = (function() {
 
 // Load course on page ready
 document.addEventListener('DOMContentLoaded', function() {
-    fetch('course.json')
+    var exportToken = window.__SCORMIFY_EXPORT_TOKEN__ || '';
+    fetch('course.json' + (exportToken ? '?v=' + encodeURIComponent(exportToken) : ''))
         .then(function(response) { return response.json(); })
         .then(function(data) { 
             CoursePlayer.load(data);
