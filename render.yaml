@@ -7,7 +7,10 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    autoDeployTrigger: off
+    # Keep production aligned with the linked Git branch. With this disabled,
+    # SCORM exports kept packaging an older player.js even after fixes were
+    # published to agent/render-bootstrap.
+    autoDeployTrigger: commit
     envVars:
       - key: KLING_API_KEY
         sync: false

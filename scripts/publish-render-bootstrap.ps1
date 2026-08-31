@@ -254,7 +254,7 @@ $commit = Invoke-GitHubApi `
     -Endpoint "repos/$repository/git/commits" `
     -Method "POST" `
     -Body @{
-        message = "Add six advanced educational game mechanics"
+        message = "Publish current SCORMIFY fixes to Render"
         tree = $tree.sha
         parents = @($baseCommitSha)
     }
