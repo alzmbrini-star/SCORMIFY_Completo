@@ -1208,6 +1208,10 @@ var CoursePlayer = (function() {
     
     function createElementNode(element) {
         var el;
+        // `currentSlide` is the numeric index in the classic SCORM player.
+        // Always resolve the actual slide before reading its type/dimensions;
+        // otherwise games fall back to 960x540 inside a 1920-wide slide.
+        var activeSlide = (course && course.slides && course.slides[currentSlide]) || {};
         
         switch (element.type) {
             case 'text':
@@ -1429,14 +1433,14 @@ var CoursePlayer = (function() {
                 // Games use a deterministic 960x540 stage. Mark both current
                 // and legacy game elements so they receive a full-slide
                 // viewport and may scale above 1x.
-                var isGeneratedGame = currentSlide.type === 'game' || element.interactiveType === 'game' || !!element.gameType || !!element.gameConfig ||
+                var isGeneratedGame = activeSlide.type === 'game' || element.interactiveType === 'game' || !!element.gameType || !!element.gameConfig ||
                     (/QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA/i.test(htmlContent) &&
                      /\b(?:game|app|jogo|quest(?:ion)?engine)\b/i.test(htmlContent));
                 if (isGeneratedGame) el.setAttribute('data-scormify-game', 'true');
                 
                 // Check if this element is truly fullscreen (covers most of the slide area)
-                var slideWidth = currentSlide.width || 1280;
-                var slideHeight = currentSlide.height || 720;
+                var slideWidth = activeSlide.width || 960;
+                var slideHeight = activeSlide.height || 540;
                 var isHtmlFullscreen = element.objectFit === 'cover' && 
                     element.width >= slideWidth * 0.95 && 
                     element.height >= slideHeight * 0.95 &&
@@ -1735,7 +1739,7 @@ var CoursePlayer = (function() {
         // Apply positioning and styles with explicit pixel values
         el.style.position = 'absolute';
         var useGameViewport = el.getAttribute('data-scormify-game') === 'true';
-        var viewportSlide = (typeof currentSlide !== 'undefined' && currentSlide) ? currentSlide : {};
+        var viewportSlide = activeSlide;
         var viewportWidth = viewportSlide.width || 960;
         var viewportHeight = viewportSlide.height || 540;
         var gameMarginX = Math.max(4, Math.round(viewportWidth * 0.01));

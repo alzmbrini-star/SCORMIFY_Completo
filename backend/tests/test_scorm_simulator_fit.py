@@ -32,3 +32,19 @@ def test_html_export_uses_the_same_descendant_bounds_fit():
     assert "__scormify_fit_v3" in source
     assert 'st.querySelectorAll(\"*\")' in source
     assert "r.bottom-sr.top" in source
+
+
+def test_scorm_game_viewport_uses_the_active_slide_object_not_its_index():
+    source = PLAYER.read_text(encoding="utf-8")
+    assert "var activeSlide = (course && course.slides && course.slides[currentSlide]) || {};" in source
+    assert "activeSlide.type === 'game'" in source
+    assert "var viewportSlide = activeSlide;" in source
+    assert "currentSlide.type === 'game'" not in source
+
+
+def test_scorm_games_expand_to_the_real_slide_dimensions():
+    source = PLAYER.read_text(encoding="utf-8")
+    assert "var slideWidth = activeSlide.width || 960;" in source
+    assert "var slideHeight = activeSlide.height || 540;" in source
+    assert "viewportWidth - gameMarginX * 2" in source
+    assert "viewportHeight - gameMarginY * 2" in source
