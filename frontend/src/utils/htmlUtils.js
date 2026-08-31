@@ -139,11 +139,11 @@ const FIT_UPGRADE_SNIPPET =
 // small game in the centre of a wide slide. This override is appended even
 // when a legacy fit marker exists, repairing existing courses in-place.
 const GAME_FIT_SNIPPET =
-  '<style id="__scormify_game_fit_v5">' +
+  '<style id="__scormify_game_fit_v7">' +
   'html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;}' +
   '#__stage{width:960px!important;height:540px!important;min-width:960px!important;min-height:540px!important;' +
   'max-width:none!important;max-height:none!important;transform-origin:0 0!important;}' +
-  '</style><script>(function(){function f(){var st=document.getElementById("__stage");if(!st)return;var p=4;' +
+  '</style><script>(function(){function f(){var st=document.getElementById("__stage")||document.querySelector("main.app,main.game,.app,.game");if(!st)return;var p=4;' +
   'var s=Math.max(.1,Math.min((innerWidth-p*2)/960,(innerHeight-p*2)/540));' +
   'var x=(innerWidth-960*s)/2,y=(innerHeight-540*s)/2;' +
   'st.style.setProperty("width","960px","important");st.style.setProperty("height","540px","important");' +
@@ -195,7 +195,7 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
   const isGeneratedGame = isGeneratedGameHtml(html);
-  if (isGeneratedGame && !html.includes('__scormify_game_fit_v5')) {
+  if (isGeneratedGame && !html.includes('__scormify_game_fit_v7')) {
     const upgraded = html.includes('__stage')
       ? html
       : injectDocumentSnippet(html, html.includes('__scormify_fit_v3') ? FIT_UPGRADE_SNIPPET : FIT_SNIPPET);

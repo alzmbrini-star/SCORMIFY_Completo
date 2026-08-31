@@ -1052,7 +1052,7 @@ def _inject_fixed_game_stage_fit(raw: str) -> str:
     incorrectly shrink a game inside an already large iframe. Generated games
     have a known 960x540 stage, so use those dimensions deterministically.
     """
-    if not raw or "__scormify_game_fit_v5" in raw:
+    if not raw or "__scormify_game_fit_v7" in raw:
         return raw
     looks_like_game = (
         "QuestionEngine" in raw
@@ -1061,10 +1061,10 @@ def _inject_fixed_game_stage_fit(raw: str) -> str:
     )
     if not looks_like_game:
         return raw
-    snippet = r'''<style id="__scormify_game_fit_v5">
+    snippet = r'''<style id="__scormify_game_fit_v7">
 html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important}
 #__stage{width:960px!important;height:540px!important;min-width:960px!important;min-height:540px!important;max-width:none!important;max-height:none!important;transform-origin:0 0!important}
-</style><script>(function(){function gameFit(){var st=document.getElementById('__stage');if(!st)return;var p=4;
+</style><script>(function(){function gameFit(){var st=document.getElementById('__stage')||document.querySelector('main.app,main.game,.app,.game');if(!st)return;var p=4;
 var s=Math.max(.1,Math.min((window.innerWidth-p*2)/960,(window.innerHeight-p*2)/540));
 var x=(window.innerWidth-960*s)/2,y=(window.innerHeight-540*s)/2;
 st.style.setProperty('width','960px','important');st.style.setProperty('height','540px','important');

@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 PLAYER = Path(__file__).resolve().parents[1] / "services" / "export_assets" / "player.js"
+SCORM_EXPORTER = Path(__file__).resolve().parents[1] / "services" / "scorm_exporter.py"
 
 
 def test_classic_scorm_player_upgrades_legacy_simulator_stages():
@@ -48,3 +49,19 @@ def test_scorm_games_expand_to_the_real_slide_dimensions():
     assert "var slideHeight = activeSlide.height || 540;" in source
     assert "viewportWidth - gameMarginX * 2" in source
     assert "viewportHeight - gameMarginY * 2" in source
+
+
+def test_scorm_game_fit_falls_back_to_the_real_game_root():
+    source = PLAYER.read_text(encoding="utf-8")
+    assert "__scormify_game_fit_v7" in source
+    assert 'document.querySelector("main.app,main.game,.app,.game")' in source
+
+
+def test_scorm_exporter_persists_full_slide_game_geometry_in_course_json():
+    source = SCORM_EXPORTER.read_text(encoding="utf-8")
+    assert "game_source.startswith('__B64__:')" in source
+    assert "'interactiveType': 'game'" in source
+    assert "'width': slide_width" in source
+    assert "'height': slide_height" in source
+    assert "'objectFit': 'cover'" in source
+    assert "'htmlDisplayMode': 'fit'" in source

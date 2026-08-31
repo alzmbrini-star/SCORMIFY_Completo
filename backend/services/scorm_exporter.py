@@ -763,6 +763,44 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             if elem_type == 'html':
                 html_content = element.get('htmlContent') or ''
                 if html_content and isinstance(html_content, str):
+                    # Normalize game geometry while building course.json. Some
+                    # legacy Agent games have no interactiveType and may store
+                    # the full document as base64. Relying only on runtime
+                    # detection left their original 960x540 element in the
+                    # upper-left corner of 1920x820 SCORM slides.
+                    game_source = html_content
+                    if game_source.startswith('__B64__:'):
+                        try:
+                            game_source = base64.b64decode(game_source[8:]).decode('utf-8', errors='replace')
+                        except (ValueError, UnicodeDecodeError):
+                            game_source = html_content
+                    is_game_html = bool(
+                        slide.get('type') == 'game'
+                        or element.get('interactiveType') == 'game'
+                        or element.get('gameType')
+                        or element.get('gameConfig')
+                        or (
+                            re.search(
+                                r'QuestionEngine|SCORMIFY\s+(?:GAMES|ADVENTURES)|EXPEDIÇÃO\s+DO\s+SABER|ARENA\s+DAS\s+PALAVRAS|LABORATÓRIO\s+DA\s+MEMÓRIA',
+                                game_source,
+                                re.IGNORECASE,
+                            )
+                            and re.search(r'\b(?:game|app|jogo|quest(?:ion)?engine)\b', game_source, re.IGNORECASE)
+                        )
+                    )
+                    if is_game_html:
+                        slide_width = int(slide.get('width') or 960)
+                        slide_height = int(slide.get('height') or 540)
+                        element.update({
+                            'interactiveType': 'game',
+                            'x': 0,
+                            'y': 0,
+                            'width': slide_width,
+                            'height': slide_height,
+                            'objectFit': 'cover',
+                            'htmlDisplayMode': 'fit',
+                        })
+
                     # Sanitize: remove Tailwind CSS variables and editor artifacts
                     html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
                     html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
