@@ -953,6 +953,7 @@ const SlideCanvas = ({
                     (() => {
                       // Extract video ID for YouTube thumbnail
                       const isYouTube = element.embedUrl.includes('youtube') || element.embedUrl.includes('youtu.be');
+                      const isBunny = element.embedUrl.includes('iframe.mediadelivery.net');
                       const ytMatch = element.embedUrl.match(/(?:embed\/|v=|youtu\.be\/)([^?&"'>]+)/);
                       const videoId = ytMatch ? ytMatch[1] : null;
                       
@@ -986,7 +987,7 @@ const SlideCanvas = ({
                           allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
                           allowFullScreen
                           loading="lazy"
-                          referrerPolicy="strict-origin-when-cross-origin"
+                          referrerPolicy={isBunny ? 'no-referrer' : 'strict-origin-when-cross-origin'}
                           title="Video"
                           style={{ pointerEvents: 'none', objectFit: element.objectFit || 'contain' }}
                         />

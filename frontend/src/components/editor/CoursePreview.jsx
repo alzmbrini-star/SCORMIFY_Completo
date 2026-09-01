@@ -808,7 +808,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                         allow="autoplay; fullscreen; encrypted-media"
                         allowFullScreen
                         loading="lazy"
-                        referrerPolicy="strict-origin-when-cross-origin"
+                        referrerPolicy={element.embedUrl.includes('iframe.mediadelivery.net') ? 'no-referrer' : 'strict-origin-when-cross-origin'}
                         title="Video"
                       />
                     ) : element.src ? (

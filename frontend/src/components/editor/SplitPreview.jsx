@@ -375,7 +375,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                   {element.type === 'video' && (
                     <div className="w-full h-full rounded overflow-hidden" style={{ background: 'transparent' }}>
                       {element.embedUrl ? (
-                        <iframe src={getAssetUrl(element.embedUrl, projectId)} className="w-full h-full border-0" style={{ background: 'transparent' }} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen loading="lazy" referrerPolicy="strict-origin-when-cross-origin" title="Video" />
+                        <iframe src={getAssetUrl(element.embedUrl, projectId)} className="w-full h-full border-0" style={{ background: 'transparent' }} allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen loading="lazy" referrerPolicy={element.embedUrl.includes('iframe.mediadelivery.net') ? 'no-referrer' : 'strict-origin-when-cross-origin'} title="Video" />
                       ) : element.src ? (
                         <video src={getAssetUrl(element.src, projectId)} autoPlay loop muted playsInline className="w-full h-full" style={{ objectFit: element.objectFit || 'contain', background: 'transparent' }} />
                       ) : (

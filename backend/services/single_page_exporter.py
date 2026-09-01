@@ -584,12 +584,16 @@ def _render_video_element_inner(el: dict, project_id: str, assets_dir: str, base
         # Bunny and other hosted players must remain iframes. In particular,
         # Bunny's token/expires query pair is security-sensitive and must be
         # preserved exactly rather than converted to a <video> source.
+        referrer_policy = (
+            "no-referrer" if "iframe.mediadelivery.net" in embed_url.lower()
+            else "strict-origin-when-cross-origin"
+        )
         return (
             f'<div class="sp-video sp-interactive" data-interactive="video" data-required="true" '
             f'data-interactive-id="video-{idx}">'
             f'<iframe src="{_esc(embed_url)}" title="Vídeo" loading="lazy" '
             f'allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" '
-            f'allowfullscreen referrerpolicy="strict-origin-when-cross-origin" '
+            f'allowfullscreen referrerpolicy="{referrer_policy}" '
             f'style="width:100%;height:min(68vh,540px);border:0;display:block" '
             f'onload="window.SP&&SP.markPlayed(this.closest(\'.sp-interactive\'))"></iframe>'
             f'<div class="sp-video-hint">▶ Reproduza o vídeo para continuar</div>'

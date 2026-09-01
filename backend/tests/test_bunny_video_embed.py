@@ -17,6 +17,13 @@ def test_editor_keeps_original_bunny_iframe_url():
     assert "libraryId" not in branch
     assert "videoGuid" not in branch
 
+    canvas = (ROOT / "frontend/src/components/editor/SlideCanvas.jsx").read_text(encoding="utf-8")
+    preview = (ROOT / "frontend/src/components/editor/CoursePreview.jsx").read_text(encoding="utf-8")
+    split = (ROOT / "frontend/src/components/editor/SplitPreview.jsx").read_text(encoding="utf-8")
+    assert "isBunny ? 'no-referrer'" in canvas
+    assert "iframe.mediadelivery.net') ? 'no-referrer'" in preview
+    assert "iframe.mediadelivery.net') ? 'no-referrer'" in split
+
 
 def test_html_exporter_preserves_bunny_url():
     src = (BACKEND / "services/html_exporter.py").read_text(encoding="utf-8")
@@ -26,6 +33,7 @@ def test_html_exporter_preserves_bunny_url():
     bunny_branch = bunny_branch[:bunny_branch.index("}} else {{")]
     assert "src=\"' + embedUrl + '\"" in bunny_branch
     assert "bunnyUrl +=" not in bunny_branch
+    assert 'referrerpolicy="no-referrer"' in bunny_branch
 
 
 def test_player_js_preserves_bunny_url_and_fills_element():
@@ -37,6 +45,7 @@ def test_player_js_preserves_bunny_url_and_fills_element():
     assert "iframe.src = embedUrl" in tail
     assert "bunnyUrl +=" not in tail
     assert "position:absolute" in tail
+    assert "iframe.referrerPolicy = 'no-referrer'" in tail
 
 
 def test_single_page_export_preserves_protected_bunny_query(tmp_path):
@@ -54,5 +63,6 @@ def test_single_page_export_preserves_protected_bunny_query(tmp_path):
     )
     # HTML escaping is expected; browsers decode &amp; back to the same URL.
     assert "token=abc123&amp;expires=1999999999" in rendered
+    assert 'referrerpolicy="no-referrer"' in rendered
     assert "<iframe" in rendered
     assert "<video " not in rendered

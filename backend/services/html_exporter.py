@@ -2299,7 +2299,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 }} else if (isBunny) {{
                                     // Preserve token/expires and every original Bunny query
                                     // parameter. Rebuilding a protected URL causes HTTP 403.
-                                    html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
+                                    html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"></iframe>';
                                 }} else {{
                                     // Other embeds
                                     html += '<iframe class="video-iframe" src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>';
