@@ -168,6 +168,7 @@ export default function Editor() {
     loading,
     setCurrentSlideIndex,
     setSelectedElementId,
+    setCurrentProject,
     fetchProject,
     saveCourse,
     addSlide,
@@ -285,6 +286,7 @@ export default function Editor() {
   // another tab) surfaced as an uncaught runtime error overlay.
   const [bgOpacityDraft, setBgOpacityDraft] = useState(null); // { slideId, value }
   const bgOpacityTimer = useRef(null);
+  const klingCompletionRef = useRef({ projectId: null, completed: 0 });
   const [mediaType, setMediaType] = useState('image');
   const [videoUrl, setVideoUrl] = useState('');
   const [annotationMode, setAnnotationMode] = useState(null);
@@ -484,8 +486,13 @@ export default function Editor() {
     );
     if (!hasKlingPlaceholder) return undefined;
 
+    if (klingCompletionRef.current.projectId !== currentProject.id) {
+      klingCompletionRef.current = { projectId: currentProject.id, completed: 0 };
+    }
+
     let cancelled = false;
     let refreshing = false;
+    let interval;
     const pollKling = async () => {
       if (cancelled || refreshing) return;
       refreshing = true;
@@ -496,10 +503,16 @@ export default function Editor() {
         );
         if (!response.ok) return;
         const status = await response.json();
-        if (status.completed > 0 || status.status === 'all_done' || status.status === 'completed_with_errors') {
-          const selectedIndex = currentSlideIndex;
-          await fetchProject(currentProject.id);
-          if (!cancelled) setCurrentSlideIndex(selectedIndex);
+        const completed = Number(status.completed || 0);
+        if (completed > klingCompletionRef.current.completed) {
+          klingCompletionRef.current.completed = completed;
+          // Silent refresh: do not activate the Editor's full-screen loading
+          // state and do not reset the selected slide/layer.
+          const projectResponse = await axios.get(`${API_URL}/api/projects/${currentProject.id}`);
+          if (!cancelled) setCurrentProject(projectResponse.data);
+        }
+        if (status.status === 'all_done' || status.status === 'completed_with_errors') {
+          window.clearInterval(interval);
         }
       } catch {
         // A later poll can recover from transient network/Render wake-up errors.
@@ -508,12 +521,12 @@ export default function Editor() {
       }
     };
     pollKling();
-    const interval = window.setInterval(pollKling, 12000);
+    interval = window.setInterval(pollKling, 12000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [currentProject?.id, currentProject?.course?.slides, currentSlideIndex, API_URL, fetchProject, setCurrentSlideIndex]);
+  }, [currentProject?.id, currentProject?.course?.slides, API_URL, setCurrentProject]);
 
   // Apply design template to current project
   const handleApplyDesignTemplate = async (templateId) => {
