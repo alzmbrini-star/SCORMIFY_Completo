@@ -287,6 +287,7 @@ export default function Editor() {
   const [bgOpacityDraft, setBgOpacityDraft] = useState(null); // { slideId, value }
   const bgOpacityTimer = useRef(null);
   const klingCompletionRef = useRef({ projectId: null, completed: 0 });
+  const klingErrorToastRef = useRef('');
   const [mediaType, setMediaType] = useState('image');
   const [videoUrl, setVideoUrl] = useState('');
   const [annotationMode, setAnnotationMode] = useState(null);
@@ -337,6 +338,7 @@ export default function Editor() {
   const [aestheticsExpanded, setAestheticsExpanded] = useState(false);
   const [showEditorChat, setShowEditorChat] = useState(false);
   const [showSinglePagePreview, setShowSinglePagePreview] = useState(false);
+  const [klingEditorStatus, setKlingEditorStatus] = useState(null);
 
   const fileInputRef = useRef(null);
   const API_URL = getApiUrl();
@@ -503,6 +505,13 @@ export default function Editor() {
         );
         if (!response.ok) return;
         const status = await response.json();
+        if (!cancelled) setKlingEditorStatus(status);
+        const failedScene = (status.videos || []).find(video => video.status === 'failed');
+        const failureMessage = failedScene?.error || failedScene?.providerMessage || '';
+        if (failureMessage && klingErrorToastRef.current !== failureMessage) {
+          klingErrorToastRef.current = failureMessage;
+          toast.error(`Falha na cena Kling: ${failureMessage}`, { duration: 15000 });
+        }
         const completed = Number(status.completed || 0);
         if (completed > klingCompletionRef.current.completed) {
           klingCompletionRef.current.completed = completed;
@@ -1311,6 +1320,31 @@ export default function Editor() {
             />
           </div>
         </header>
+        {klingEditorStatus?.videos?.length > 0 && (
+          <div className={`px-4 py-2 text-xs flex items-center justify-between gap-3 border-b z-40 ${
+            klingEditorStatus.failed > 0
+              ? 'bg-red-950/90 border-red-800 text-red-200'
+              : klingEditorStatus.status === 'all_done'
+                ? 'bg-emerald-950/90 border-emerald-800 text-emerald-200'
+                : 'bg-sky-950/90 border-sky-800 text-sky-200'
+          }`} data-testid="editor-kling-status">
+            <span>
+              {klingEditorStatus.failed > 0
+                ? `Kling: ${klingEditorStatus.failed} cena(s) falharam — ${klingEditorStatus.videos.find(v => v.status === 'failed')?.error || klingEditorStatus.videos.find(v => v.status === 'failed')?.providerMessage || 'consulte o detalhe da tarefa'}`
+                : klingEditorStatus.status === 'all_done'
+                  ? 'Kling: todas as cenas foram concluídas e inseridas.'
+                  : `Kling: processando ${klingEditorStatus.total - klingEditorStatus.completed} cena(s).`}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setKlingEditorStatus(null)}
+            >
+              Ocultar
+            </Button>
+          </div>
+        )}
 
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar - Slides (collapsible when split preview is active) */}
