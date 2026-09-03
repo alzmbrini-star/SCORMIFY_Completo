@@ -228,16 +228,61 @@ async def get_task(task_id: str) -> dict[str, Any]:
         )
     tasks = data.get("data") or []
     if isinstance(tasks, dict):
-        tasks = tasks.get("result") or [tasks]
+        tasks = tasks.get("result") or tasks.get("tasks") or tasks.get("items") or [tasks]
     if not tasks:
         raise KlingAPIError("Tarefa Kling não encontrada.", status_code=404)
-    return tasks[0]
+    return normalize_task(tasks[0])
+
+
+def normalize_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Normalize task fields returned by different Kling API revisions."""
+    normalized = dict(task or {})
+    raw_status = str(
+        normalized.get("status") or normalized.get("task_status") or ""
+    ).strip().lower()
+    status_aliases = {
+        "created": "submitted",
+        "queued": "submitted",
+        "pending": "submitted",
+        "running": "processing",
+        "in_progress": "processing",
+        "success": "succeeded",
+        "succeed": "succeeded",
+        "completed": "succeeded",
+        "complete": "succeeded",
+        "error": "failed",
+    }
+    if raw_status:
+        normalized["status"] = status_aliases.get(raw_status, raw_status)
+    normalized["id"] = normalized.get("id") or normalized.get("task_id")
+    normalized["message"] = (
+        normalized.get("message")
+        or normalized.get("task_status_msg")
+        or normalized.get("error_message")
+    )
+    return normalized
+
+
+def submission_task(response: dict[str, Any]) -> dict[str, Any]:
+    """Extract and normalize the task returned by a generation request."""
+    task = response.get("data") or response.get("task") or response
+    if isinstance(task, list):
+        task = task[0] if task else {}
+    return normalize_task(task if isinstance(task, dict) else {})
 
 
 def video_output(task: dict[str, Any]) -> dict[str, Any] | None:
-    for output in task.get("outputs") or []:
-        if output.get("type") == "video" and output.get("url"):
-            return output
+    candidates = list(task.get("outputs") or [])
+    result = task.get("result") or task.get("task_result") or {}
+    if isinstance(result, dict):
+        candidates.extend(result.get("videos") or result.get("outputs") or [])
+    for output in candidates:
+        if not isinstance(output, dict):
+            continue
+        url = output.get("url") or output.get("video_url")
+        output_type = str(output.get("type") or "video").lower()
+        if url and output_type in ("video", "mp4"):
+            return {**output, "url": url}
     return None
 
 

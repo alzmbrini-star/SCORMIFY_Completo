@@ -471,6 +471,50 @@ export default function Editor() {
     }
   }, [projectId, fetchProject]);
 
+  // Kling scenes are asynchronous. Keep advancing their durable backend jobs
+  // while the author is in the Editor as well as on the Agent result screen.
+  // Previously leaving the Agent stopped polling and left this placeholder in
+  // the slide forever, even after Kling had finished the video.
+  useEffect(() => {
+    if (!currentProject?.id) return undefined;
+    const hasKlingPlaceholder = (currentProject.course?.slides || []).some(slide =>
+      (slide.elements || []).some(element =>
+        (element.htmlContent || '').includes('data-kling-slide=')
+      )
+    );
+    if (!hasKlingPlaceholder) return undefined;
+
+    let cancelled = false;
+    let refreshing = false;
+    const pollKling = async () => {
+      if (cancelled || refreshing) return;
+      refreshing = true;
+      try {
+        const response = await fetch(
+          `${API_URL}/api/kling/projects/${currentProject.id}/status`,
+          { headers: authHeaders() }
+        );
+        if (!response.ok) return;
+        const status = await response.json();
+        if (status.completed > 0 || status.status === 'all_done' || status.status === 'completed_with_errors') {
+          const selectedIndex = currentSlideIndex;
+          await fetchProject(currentProject.id);
+          if (!cancelled) setCurrentSlideIndex(selectedIndex);
+        }
+      } catch {
+        // A later poll can recover from transient network/Render wake-up errors.
+      } finally {
+        refreshing = false;
+      }
+    };
+    pollKling();
+    const interval = window.setInterval(pollKling, 12000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [currentProject?.id, currentProject?.course?.slides, currentSlideIndex, API_URL, fetchProject, setCurrentSlideIndex]);
+
   // Apply design template to current project
   const handleApplyDesignTemplate = async (templateId) => {
     if (!currentProject?.id || !templateId) return;

@@ -108,6 +108,19 @@ def test_video_output_selects_video_result():
     assert kling_ai.video_output(task)["url"] == "https://example.com/v.mp4"
 
 
+def test_kling_response_variants_are_normalized():
+    task = kling_ai.submission_task({
+        "data": {"task_id": "task-new", "task_status": "completed"}
+    })
+    assert task["id"] == "task-new"
+    assert task["status"] == "succeeded"
+
+
+def test_video_output_supports_task_result_videos():
+    task = {"task_result": {"videos": [{"video_url": "https://example.com/new.mp4"}]}}
+    assert kling_ai.video_output(task)["url"] == "https://example.com/new.mp4"
+
+
 def test_project_status_does_not_report_success_when_one_scene_failed():
     summary = _status_summary([
         {"status": "completed"},

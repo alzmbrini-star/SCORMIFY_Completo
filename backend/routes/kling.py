@@ -95,7 +95,7 @@ async def _submit_pending(project_id: str, item: dict, database=None) -> dict:
         multi_shot=item.get("multiShot", False),
         external_task_id=external_id,
     )
-    task = response.get("data") or {}
+    task = kling_ai.submission_task(response)
     task_id = task.get("id")
     if not task_id:
         raise kling_ai.KlingAPIError("Kling AI não retornou o identificador da tarefa.")
@@ -344,7 +344,11 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
                     {"id": project_id, "klingPending.slideId": item.get("slideId")},
                     {"$set": {"klingPending.$.status": "failed", "klingPending.$.error": _public_job_error(exc)}},
                 )
-        if task_id and status not in ("completed", "failed", "saving"):
+        # Older builds persisted the provider's ``completed`` status before
+        # downloading/replacing the placeholder. A job is only locally
+        # complete when it also has our permanent videoUrl.
+        locally_completed = status == "completed" and bool(item.get("videoUrl"))
+        if task_id and not locally_completed and status not in ("failed", "saving"):
             try:
                 task = await kling_ai.get_task(task_id)
                 status = task.get("status", status)
