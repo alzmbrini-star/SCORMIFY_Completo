@@ -245,44 +245,65 @@ async def kling_retry_failed(
         raise _safe_error(exc)
 
 
-async def _replace_placeholder(project_id: str, slide_id: str, public_url: str) -> bool:
+async def _replace_placeholder(
+    project_id: str,
+    slide_id: str,
+    public_url: str,
+    slide_index: int | None = None,
+) -> bool:
     project = await db.projects.find_one({"id": project_id}, {"_id": 0, "course.slides": 1})
     if not project:
         return False
     slides = project.get("course", {}).get("slides", [])
-    for slide_index, slide in enumerate(slides):
+    matches: list[tuple[int, int, dict]] = []
+    for current_slide_index, slide in enumerate(slides):
         # The Agent pipeline may normalize a slide's database ID after the
         # Kling queue item was created. The durable marker embedded in the
         # placeholder is the authoritative association, not slide.id.
         for element_index, element in enumerate(slide.get("elements", [])):
             if f'data-kling-slide="{slide_id}"' not in (element.get("htmlContent") or ""):
                 continue
-            new_element = {
-                "id": str(uuid.uuid4()),
-                "type": "video",
-                "src": public_url,
-                "x": element.get("x", 1120),
-                "y": element.get("y", 110),
-                "width": element.get("width", 740),
-                "height": element.get("height", 440),
-                "startTime": element.get("startTime", 0),
-                "duration": element.get("duration", 5),
-                "autoplay": False,
-                "controls": True,
-                "loop": False,
-                "muted": False,
-                "objectFit": "cover",
-                "provider": "kling",
-                "animations": element.get("animations", []),
-            }
-            await db.projects.update_one(
-                {"id": project_id},
-                {"$set": {
-                    f"course.slides.{slide_index}.elements.{element_index}": new_element,
-                    "updatedAt": _now(),
-                }},
-            )
-            return True
+            matches.append((current_slide_index, element_index, element))
+
+    # Older generated courses may contain a queue slideId different from both
+    # the final slide.id and the marker embedded in the placeholder. The queue
+    # also stores the stable storyboard position, so use that as a safe
+    # fallback and select only a Kling placeholder on that exact slide.
+    if not matches and isinstance(slide_index, int) and 0 <= slide_index < len(slides):
+        for element_index, element in enumerate(slides[slide_index].get("elements", [])):
+            if "data-kling-slide=" in (element.get("htmlContent") or ""):
+                matches.append((slide_index, element_index, element))
+
+    if not matches:
+        return False
+
+    for current_slide_index, element_index, element in matches[:1]:
+        new_element = {
+            "id": str(uuid.uuid4()),
+            "type": "video",
+            "src": public_url,
+            "x": element.get("x", 1120),
+            "y": element.get("y", 110),
+            "width": element.get("width", 740),
+            "height": element.get("height", 440),
+            "startTime": element.get("startTime", 0),
+            "duration": element.get("duration", 5),
+            "autoplay": False,
+            "controls": True,
+            "loop": False,
+            "muted": False,
+            "objectFit": "cover",
+            "provider": "kling",
+            "animations": element.get("animations", []),
+        }
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {
+                f"course.slides.{current_slide_index}.elements.{element_index}": new_element,
+                "updatedAt": _now(),
+            }},
+        )
+        return True
     return False
 
 
@@ -298,7 +319,9 @@ async def _persist_completed(project_id: str, item: dict, task: dict) -> str:
         destination.unlink(missing_ok=True)
         raise kling_ai.KlingAPIError("Não foi possível salvar o vídeo Kling permanentemente.")
     public_url = f"/api/projects/{project_id}/assets/{filename}"
-    replaced = await _replace_placeholder(project_id, item["slideId"], public_url)
+    replaced = await _replace_placeholder(
+        project_id, item["slideId"], public_url, item.get("slideIndex")
+    )
     if not replaced:
         raise kling_ai.KlingAPIError(
             "O vídeo foi concluído, mas o placeholder Kling não foi localizado no curso."
@@ -338,7 +361,12 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
         # silently found no matching slide ID.
         if status == "completed" and item.get("videoUrl"):
             try:
-                await _replace_placeholder(project_id, item.get("slideId", ""), item["videoUrl"])
+                await _replace_placeholder(
+                    project_id,
+                    item.get("slideId", ""),
+                    item["videoUrl"],
+                    item.get("slideIndex"),
+                )
             except Exception as exc:
                 logger.warning("Kling completed-scene repair failed for %s: %s", task_id, exc)
         if not task_id and status == "pending":
