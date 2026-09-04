@@ -245,14 +245,15 @@ async def kling_retry_failed(
         raise _safe_error(exc)
 
 
-async def _replace_placeholder(project_id: str, slide_id: str, public_url: str) -> None:
+async def _replace_placeholder(project_id: str, slide_id: str, public_url: str) -> bool:
     project = await db.projects.find_one({"id": project_id}, {"_id": 0, "course.slides": 1})
     if not project:
-        return
+        return False
     slides = project.get("course", {}).get("slides", [])
     for slide_index, slide in enumerate(slides):
-        if slide.get("id") != slide_id:
-            continue
+        # The Agent pipeline may normalize a slide's database ID after the
+        # Kling queue item was created. The durable marker embedded in the
+        # placeholder is the authoritative association, not slide.id.
         for element_index, element in enumerate(slide.get("elements", [])):
             if f'data-kling-slide="{slide_id}"' not in (element.get("htmlContent") or ""):
                 continue
@@ -281,7 +282,8 @@ async def _replace_placeholder(project_id: str, slide_id: str, public_url: str) 
                     "updatedAt": _now(),
                 }},
             )
-            return
+            return True
+    return False
 
 
 async def _persist_completed(project_id: str, item: dict, task: dict) -> str:
@@ -296,7 +298,11 @@ async def _persist_completed(project_id: str, item: dict, task: dict) -> str:
         destination.unlink(missing_ok=True)
         raise kling_ai.KlingAPIError("Não foi possível salvar o vídeo Kling permanentemente.")
     public_url = f"/api/projects/{project_id}/assets/{filename}"
-    await _replace_placeholder(project_id, item["slideId"], public_url)
+    replaced = await _replace_placeholder(project_id, item["slideId"], public_url)
+    if not replaced:
+        raise kling_ai.KlingAPIError(
+            "O vídeo foi concluído, mas o placeholder Kling não foi localizado no curso."
+        )
     await db.projects.update_one(
         {"id": project_id, "klingPending.taskId": item.get("taskId")},
         {"$set": {
@@ -327,6 +333,14 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
         item = dict(original)
         status = item.get("status", "pending")
         task_id = item.get("taskId")
+        # Repair projects produced by older builds that persisted the video
+        # and marked the job completed even though the placeholder replacement
+        # silently found no matching slide ID.
+        if status == "completed" and item.get("videoUrl"):
+            try:
+                await _replace_placeholder(project_id, item.get("slideId", ""), item["videoUrl"])
+            except Exception as exc:
+                logger.warning("Kling completed-scene repair failed for %s: %s", task_id, exc)
         if not task_id and status == "pending":
             try:
                 claim = await db.projects.update_one(
