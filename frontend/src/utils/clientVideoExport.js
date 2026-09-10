@@ -12,12 +12,15 @@ function pickMimeType() {
     throw new Error('Este navegador não oferece suporte à gravação de vídeo. Use uma versão atual do Chrome ou Edge.');
   }
   const candidates = [
-    { mime: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
-    { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
-    { mime: 'video/mp4', ext: 'mp4' },
+    // Canvas capture is consistently implemented for WebM in Chrome/Edge.
+    // Some Chromium builds claim MP4/H.264 support but produce an audio-only
+    // file when the video track comes from canvas.captureStream().
     { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
     { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
     { mime: 'video/webm', ext: 'webm' },
+    { mime: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
+    { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
+    { mime: 'video/mp4', ext: 'mp4' },
   ];
   for (const c of candidates) {
     if (MediaRecorder.isTypeSupported(c.mime)) return c;
@@ -89,6 +92,8 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
 
   // Create hidden container at original slide dimensions
   const container = document.createElement('div');
+  const captureId = `video-export-capture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  container.id = captureId;
   container.style.cssText = `
     position: fixed; left: -9999px; top: -9999px;
     width: ${slideW}px; height: ${slideH}px;
@@ -237,6 +242,19 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       allowTaint: false,
       logging: false,
       backgroundColor: null,
+      windowWidth: slideW,
+      windowHeight: slideH,
+      // html2canvas clones the document before painting. Reset the off-screen
+      // host in that clone, otherwise Chrome can cull the entire slide and
+      // return a transparent frame even though audio recording succeeds.
+      onclone: (clonedDocument) => {
+        const clonedContainer = clonedDocument.getElementById(captureId);
+        if (clonedContainer) {
+          clonedContainer.style.left = '0';
+          clonedContainer.style.top = '0';
+          clonedContainer.style.zIndex = '0';
+        }
+      },
     });
 
     // Scale to target canvas size
@@ -389,6 +407,11 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   // Build combined stream
   const canvasStream = canvas.captureStream(30);
+  const canvasVideoTrack = canvasStream.getVideoTracks()[0];
+  if (!canvasVideoTrack || canvasVideoTrack.readyState !== 'live') {
+    try { audioCtx.close(); } catch (_) { /* noop */ }
+    throw new Error('O navegador não conseguiu criar a trilha visual dos slides.');
+  }
   const combined = new MediaStream();
   for (const t of canvasStream.getVideoTracks()) combined.addTrack(t);
   for (const t of mixDest.stream.getAudioTracks()) combined.addTrack(t);
