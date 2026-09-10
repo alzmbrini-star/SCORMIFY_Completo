@@ -8,6 +8,9 @@ import html2canvas from 'html2canvas';
 import DOMPurify from 'dompurify';
 
 function pickMimeType() {
+  if (typeof MediaRecorder === 'undefined') {
+    throw new Error('Este navegador não oferece suporte à gravação de vídeo. Use uma versão atual do Chrome ou Edge.');
+  }
   const candidates = [
     { mime: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
     { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
@@ -20,6 +23,29 @@ function pickMimeType() {
     if (MediaRecorder.isTypeSupported(c.mime)) return c;
   }
   return { mime: 'video/webm', ext: 'webm' };
+}
+
+function absoluteMediaUrl(apiUrl, src) {
+  if (!src) return '';
+  if (/^(blob:|data:|https?:\/\/)/i.test(src)) return src;
+  const base = (apiUrl || window.location.origin || '').replace(/\/+$/, '');
+  return `${base}/${String(src).replace(/^\/+/, '')}`;
+}
+
+function playableVideoUrl(apiUrl, src) {
+  const absolute = absoluteMediaUrl(apiUrl, src);
+  if (!absolute) return '';
+  // Same-origin/project assets must be requested directly. The old code sent
+  // even /api/... URLs through proxy-video, whose validator correctly rejects
+  // relative URLs; uploaded, Kling and whiteboard videos therefore vanished.
+  try {
+    const parsed = new URL(absolute, window.location.origin);
+    const apiOrigin = new URL(apiUrl || window.location.origin, window.location.origin).origin;
+    if (parsed.origin === apiOrigin) return parsed.href;
+  } catch (_) {
+    return absolute;
+  }
+  return `${(apiUrl || '').replace(/\/+$/, '')}/api/proxy-video?url=${encodeURIComponent(absolute)}`;
 }
 
 function loadVideo(url) {
@@ -84,9 +110,7 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
 
   // Background image
   if (slide.backgroundImage) {
-    const bgUrl = slide.backgroundImage.startsWith('http')
-      ? slide.backgroundImage
-      : `${apiUrl}${slide.backgroundImage}`;
+    const bgUrl = absoluteMediaUrl(apiUrl, slide.backgroundImage);
     const bgImg = document.createElement('img');
     bgImg.crossOrigin = 'anonymous';
     bgImg.src = bgUrl;
@@ -139,7 +163,7 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       textDiv.textContent = el.content || '';
       wrapper.appendChild(textDiv);
     } else if (el.type === 'image') {
-      const imgSrc = el.src?.startsWith('http') ? el.src : `${apiUrl}${el.src || ''}`;
+      const imgSrc = absoluteMediaUrl(apiUrl, el.src);
       const img = document.createElement('img');
       img.crossOrigin = 'anonymous';
       img.src = imgSrc;
@@ -228,7 +252,7 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
   }
 }
 
-export async function generateVideoClientSide({ apiUrl, projectId, defaultDuration, onProgress }) {
+export async function generateVideoClientSide({ apiUrl, projectId, defaultDuration = 5, onProgress = () => {} }) {
   onProgress(5, 'Buscando dados dos slides...');
 
   // Fetch lightweight slide data (no PIL images)
@@ -286,7 +310,9 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
       const loaded = [];
       for (const vel of vels) {
         try {
-          const v = await loadVideo(`${apiUrl}/api/proxy-video?url=${encodeURIComponent(vel.src)}`);
+          const videoUrl = playableVideoUrl(apiUrl, vel.src);
+          if (!videoUrl) throw new Error('URL de vídeo ausente');
+          const v = await loadVideo(videoUrl);
           loaded.push({
             video: v,
             x: vel.x * scaleRatio + offsetX,
@@ -312,7 +338,7 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     const loaded = [];
     for (const aud of auds) {
       try {
-        const url = aud.src.startsWith('http') ? aud.src : `${apiUrl}${aud.src}`;
+        const url = absoluteMediaUrl(apiUrl, aud.src);
         const buf = await loadAudioBuffer(audioCtx, url);
         loaded.push({ buffer: buf, startTime: aud.startTime || 0, volume: aud.volume || 1.0 });
         console.log(`[VideoExport] Slide ${i + 1}: audio ${buf.duration.toFixed(1)}s`);
@@ -327,7 +353,7 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   let globalAudioBuf = null;
   if (globalAudioData?.src) {
     try {
-      const url = globalAudioData.src.startsWith('http') ? globalAudioData.src : `${apiUrl}${globalAudioData.src}`;
+      const url = absoluteMediaUrl(apiUrl, globalAudioData.src);
       globalAudioBuf = { buffer: await loadAudioBuffer(audioCtx, url), volume: globalAudioData.volume || 0.5, loop: !!globalAudioData.loop };
       console.log(`[VideoExport] Global audio: ${globalAudioBuf.buffer.duration.toFixed(1)}s`);
     } catch (e) {
@@ -343,8 +369,8 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   const ctx = canvas.getContext('2d');
   ctx.drawImage(images[0], 0, 0, canvasW, canvasH);
 
-  const { mime: mimeType, ext: fileExt } = pickMimeType();
-  console.log(`[VideoExport] Format: ${mimeType} (.${fileExt})`);
+  const { mime: mimeType, ext: preferredExt } = pickMimeType();
+  console.log(`[VideoExport] Format: ${mimeType} (.${preferredExt})`);
 
   // Connect HeyGen video audio
   const videoGains = new Map();
@@ -367,7 +393,22 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   for (const t of canvasStream.getVideoTracks()) combined.addTrack(t);
   for (const t of mixDest.stream.getAudioTracks()) combined.addTrack(t);
 
-  const recorder = new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2500000 });
+  let recorder;
+  try {
+    recorder = new MediaRecorder(combined, {
+      mimeType,
+      videoBitsPerSecond: 5000000,
+      audioBitsPerSecond: 192000,
+    });
+  } catch (error) {
+    try {
+      // Some Chromium builds report a supported codec combination but reject
+      // it when audio and canvas tracks are combined. Let the browser choose.
+      recorder = new MediaRecorder(combined, { videoBitsPerSecond: 5000000 });
+    } catch (_) {
+      throw new Error(`Não foi possível iniciar o codificador de vídeo: ${error.message}`);
+    }
+  }
   const chunks = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
@@ -377,11 +418,17 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     recorder.onstop = () => {
       for (const s of activeSources) { try { s.stop(); } catch (e) { /* */ } }
       try { audioCtx.close(); } catch (e) { /* */ }
-      const blob = new Blob(chunks, { type: mimeType });
+      if (!chunks.length || !chunks.some((chunk) => chunk.size > 0)) {
+        reject(new Error('O navegador encerrou a gravação sem produzir dados.'));
+        return;
+      }
+      const actualType = recorder.mimeType || mimeType;
+      const actualExt = /mp4/i.test(actualType) ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type: actualType });
       const safeName = projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
       const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
       onProgress(100, 'Video pronto!');
-      resolve({ blob, filename: `${safeName}_${ts}.${fileExt}` });
+      resolve({ blob, filename: `${safeName}_${ts}.${actualExt}` });
     };
     recorder.onerror = (e) => reject(new Error('MediaRecorder: ' + (e.error?.message || 'erro')));
     recorder.start(1000);

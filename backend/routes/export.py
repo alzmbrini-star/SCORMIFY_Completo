@@ -1166,23 +1166,48 @@ async def get_slides_data(
                     el_copy['src'] = f"/api/projects/{proj_id}/assets/{src.replace('assets/', '')}"
             elements.append(el_copy)
 
-        # Collect video elements for overlay
+        # Collect video elements for overlay. Keep both modern `src` and
+        # provider/embed fields used by older HeyGen/Kling records.
         video_elements = []
         slide_w = slide.get('width', 1920)
         slide_h = slide.get('height', 1080)
         for el in elements:
-            if el.get('type') == 'video' and el.get('src'):
+            if el.get('type') == 'video' and (el.get('src') or el.get('url') or el.get('videoUrl') or el.get('embedUrl')):
+                video_src = el.get('src') or el.get('url') or el.get('videoUrl') or el.get('embedUrl')
+                if video_src and not video_src.startswith('http') and not video_src.startswith('/api/'):
+                    if video_src.startswith('assets/'):
+                        video_src = f"/api/projects/{proj_id}/assets/{video_src.replace('assets/', '')}"
                 video_elements.append({
-                    'src': el['src'],
+                    'src': video_src,
                     'x': el.get('x', 0),
                     'y': el.get('y', 0),
                     'width': el.get('width', 200),
                     'height': el.get('height', 200),
                 })
 
+        # Older whiteboard/Kling generations can attach the finished media to
+        # the slide itself instead of creating an element. Preserve it in the
+        # video export as a full-canvas layer.
+        slide_video_src = slide.get('videoUrl')
+        if slide_video_src and not any(item.get('src') == slide_video_src for item in video_elements):
+            video_elements.append({
+                'src': slide_video_src,
+                'x': 0,
+                'y': 0,
+                'width': slide_w,
+                'height': slide_h,
+            })
+
         # Collect audio elements
         audio_items = []
-        for aud in slide.get('audio', []):
+        raw_audio_items = list(slide.get('audio', []) or [])
+        # Narrations recorded/inserted by the editor may be stored as regular
+        # audio elements rather than in slide.audio.
+        raw_audio_items.extend(
+            el for el in elements
+            if el.get('type') == 'audio' and (el.get('src') or el.get('url'))
+        )
+        for aud in raw_audio_items:
             # Audio source can be in 'src' or 'url' field (legacy format)
             src = aud.get('src', '') or aud.get('url', '')
             if not src:
