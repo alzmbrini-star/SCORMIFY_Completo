@@ -82,6 +82,19 @@ function drawVideoFit(ctx, video, tx, ty, tw, th) {
   ctx.drawImage(video, dx, dy, dw, dh);
 }
 
+function firstFlipbookPage(el) {
+  const pages = [
+    ...(Array.isArray(el.pdfPages) ? el.pdfPages : []),
+    ...(Array.isArray(el.flipbookPages) ? el.flipbookPages : []),
+  ];
+  const page = pages.find(Boolean);
+  if (typeof page === 'string') return page;
+  if (page && typeof page === 'object') {
+    return page.url || page.src || page.imageUrl || page.thumbnail || '';
+  }
+  return el.coverUrl || el.thumbnail || el.poster || '';
+}
+
 /**
  * Build slide DOM and capture with html2canvas.
  * Replicates the SlideCanvas rendering for WYSIWYG fidelity.
@@ -224,6 +237,40 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       inner.textContent = el.buttonText || 'Clique aqui';
       btn.appendChild(inner);
       wrapper.appendChild(btn);
+    } else if (el.type === 'flipbook') {
+      // html2canvas cannot paint cross-origin iframes or the browser's native
+      // PDF viewer. Rasterize the first available page/cover instead so the
+      // flipbook remains visible in the exported video.
+      const pageSrc = firstFlipbookPage(el);
+      if (pageSrc) {
+        const img = document.createElement('img');
+        img.crossOrigin = 'anonymous';
+        img.src = absoluteMediaUrl(apiUrl, pageSrc);
+        img.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#f8fafc;';
+        wrapper.appendChild(img);
+        await new Promise((res) => { img.onload = res; img.onerror = res; setTimeout(res, 5000); });
+      } else {
+        const book = document.createElement('div');
+        book.style.cssText = `
+          width:100%;height:100%;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:14px;
+          box-sizing:border-box;padding:28px;text-align:center;
+          color:#e2e8f0;background:linear-gradient(135deg,#172554,#0f172a);
+          border:2px solid rgba(56,189,248,.45);border-radius:12px;
+          font-family:sans-serif;
+        `;
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size:52px;line-height:1;';
+        icon.textContent = '📖';
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:24px;font-weight:700;';
+        label.textContent = el.title || 'Flipbook';
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:14px;color:#94a3b8;max-width:90%;';
+        hint.textContent = el.flipbookType === 'pdf' ? 'Documento PDF' : 'Conteúdo interativo';
+        book.append(icon, label, hint);
+        wrapper.appendChild(book);
+      }
     }
 
     slideDiv.appendChild(wrapper);
@@ -395,7 +442,11 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   for (const vList of slideVideos) {
     for (const { video } of vList) {
       try {
-        video.muted = false;
+        // Keep the media element muted while starting playback. Export begins
+        // after several async rendering steps, so browser user-activation has
+        // expired and Chromium blocks unmuted play(). Audio is routed through
+        // WebAudio below; the element itself must satisfy autoplay policy.
+        video.muted = true;
         const src = audioCtx.createMediaElementSource(video);
         const gain = audioCtx.createGain();
         gain.gain.value = 0;
@@ -472,7 +523,10 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         const g = videoGains.get(video);
         if (g) g.gain.value = 1.0;
         video.currentTime = 0;
-        video.play().catch(() => {});
+        video.muted = true;
+        video.play().catch((error) => {
+          console.warn('[VideoExport] Reprodução visual bloqueada:', error?.message || error);
+        });
       }
       for (const { buffer, startTime, volume } of (slideAudioBuffers[idx] || [])) {
         const src = audioCtx.createBufferSource(); src.buffer = buffer;
@@ -525,7 +579,10 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
       // Overlay HeyGen video
       for (const { video, x, y, width: vw, height: vh } of (slideVideos[cur] || [])) {
-        if (video.readyState >= 2 && !video.paused && !video.ended) {
+        // Do not require !paused here. Even if the browser briefly pauses a
+        // media element, its decoded current frame must remain visible rather
+        // than turning the whole video slide into a blank frame.
+        if (video.readyState >= 2 && !video.ended) {
           try { drawVideoFit(ctx, video, x, y, vw, vh); } catch (e) { /* */ }
         }
       }
