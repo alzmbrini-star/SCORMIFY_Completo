@@ -51,6 +51,38 @@ function playableVideoUrl(apiUrl, src) {
   return `${(apiUrl || '').replace(/\/+$/, '')}/api/proxy-video?url=${encodeURIComponent(absolute)}`;
 }
 
+async function embeddableImageUrl(apiUrl, src) {
+  const absolute = absoluteMediaUrl(apiUrl, src);
+  if (!absolute || /^(data:|blob:)/i.test(absolute)) return absolute;
+  try {
+    // Imported PowerPoint slides are stored as background PNGs on the API
+    // origin, while the editor runs on the static-app origin. Turning the
+    // response into a data URL prevents html2canvas from discarding the image
+    // because of canvas tainting/CORS redirects.
+    const response = await fetch(absolute, { credentials: 'include' });
+    if (!response.ok) throw new Error(`Imagem ${response.status}`);
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error('Falha ao ler imagem'));
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn('[VideoExport] Não foi possível incorporar a imagem:', error?.message || error);
+    return absolute;
+  }
+}
+
+function waitForImage(img, timeout = 15000) {
+  return new Promise((resolve, reject) => {
+    if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+    const timer = setTimeout(() => reject(new Error('Tempo esgotado ao carregar imagem')), timeout);
+    img.onload = () => { clearTimeout(timer); resolve(); };
+    img.onerror = () => { clearTimeout(timer); reject(new Error('Falha ao carregar imagem')); };
+  });
+}
+
 function loadVideo(url) {
   return new Promise((resolve, reject) => {
     const v = document.createElement('video');
@@ -128,21 +160,16 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
 
   // Background image
   if (slide.backgroundImage) {
-    const bgUrl = absoluteMediaUrl(apiUrl, slide.backgroundImage);
+    const bgUrl = await embeddableImageUrl(apiUrl, slide.backgroundImage);
     const bgImg = document.createElement('img');
-    bgImg.crossOrigin = 'anonymous';
-    bgImg.src = bgUrl;
     bgImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
     if (slide.backgroundImageOpacity != null) {
       bgImg.style.opacity = slide.backgroundImageOpacity;
     }
     slideDiv.appendChild(bgImg);
-    // Wait for it to load
-    await new Promise((res) => {
-      bgImg.onload = res;
-      bgImg.onerror = res;
-      setTimeout(res, 5000);
-    });
+    const bgReady = waitForImage(bgImg);
+    bgImg.src = bgUrl;
+    await bgReady;
   }
 
   // Elements (skip video elements — they're overlaid live)
@@ -181,13 +208,13 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       textDiv.textContent = el.content || '';
       wrapper.appendChild(textDiv);
     } else if (el.type === 'image') {
-      const imgSrc = absoluteMediaUrl(apiUrl, el.src);
+      const imgSrc = await embeddableImageUrl(apiUrl, el.src);
       const img = document.createElement('img');
-      img.crossOrigin = 'anonymous';
-      img.src = imgSrc;
       img.style.cssText = `width:100%;height:100%;object-fit:${el.objectFit || 'contain'};`;
       wrapper.appendChild(img);
-      await new Promise((res) => { img.onload = res; img.onerror = res; setTimeout(res, 5000); });
+      const imgReady = waitForImage(img);
+      img.src = imgSrc;
+      await imgReady;
     } else if (el.type === 'shape') {
       const shapeDiv = document.createElement('div');
       const br = el.shapeType === 'ellipse' || el.shapeType === 'oval' ? '50%'
@@ -244,11 +271,11 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       const pageSrc = firstFlipbookPage(el);
       if (pageSrc) {
         const img = document.createElement('img');
-        img.crossOrigin = 'anonymous';
-        img.src = absoluteMediaUrl(apiUrl, pageSrc);
         img.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#f8fafc;';
         wrapper.appendChild(img);
-        await new Promise((res) => { img.onload = res; img.onerror = res; setTimeout(res, 5000); });
+        const imgReady = waitForImage(img);
+        img.src = await embeddableImageUrl(apiUrl, pageSrc);
+        await imgReady;
       } else {
         const book = document.createElement('div');
         book.style.cssText = `
