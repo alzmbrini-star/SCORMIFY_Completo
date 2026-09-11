@@ -15,8 +15,11 @@ function pickMimeType() {
     // Canvas capture is consistently implemented for WebM in Chrome/Edge.
     // Some Chromium builds claim MP4/H.264 support but produce an audio-only
     // file when the video track comes from canvas.captureStream().
-    { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+    // VP8 must come before VP9: Chromium can advertise VP9+Opus support and
+    // still abort at runtime with "Error muxing video data" when a live
+    // canvas track is combined with WebAudio narration.
     { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
+    { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
     { mime: 'video/webm', ext: 'webm' },
     { mime: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
     { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
