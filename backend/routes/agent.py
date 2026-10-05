@@ -306,16 +306,21 @@ async def generate_html_with_ai(
     body: GenerateHtmlRequest,
     _user: dict = Depends(require_auth),
 ):
-    """Generate safe, offline-friendly interactive HTML with OpenAI."""
+    """Generate offline HTML; simulator requests use Gemini."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     api_key, model = _html_generation_credentials()
+    is_simulator = bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE))
+    if is_simulator:
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
     if not api_key:
         raise HTTPException(
             status_code=503,
             detail=(
-                "A geração de HTML ainda não possui uma chave OpenAI "
-                "configurada. Cadastre OPENAI_API_KEY no backend do Render."
+                "Configure GEMINI_API_KEY no backend do Render para gerar simuladores."
+                if is_simulator else
+                "A geração de HTML ainda não possui uma chave OpenAI configurada. Cadastre OPENAI_API_KEY no backend do Render."
             ),
         )
     
@@ -350,11 +355,16 @@ Solicitação do usuário: {body.prompt}
 Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>. Sem explicações."""
 
     try:
+        if is_simulator:
+            from services.ai_agent import SIMULATOR_DESIGN_PROMPT
+            system_msg += SIMULATOR_DESIGN_PROMPT
         chat = LlmChat(
             api_key=api_key,
             session_id=f"html-gen-{uuid.uuid4().hex[:8]}",
             system_message=system_msg,
-        ).with_model("openai", model).with_params(temperature=0.3)
+        ).with_model("gemini" if is_simulator else "openai", model).with_params(temperature=0.3)
+        if is_simulator:
+            chat.with_params(max_tokens=16000)
 
         resp = await chat.send_message(UserMessage(text=prompt))
         html_code = _clean_generated_interactive_html(resp)

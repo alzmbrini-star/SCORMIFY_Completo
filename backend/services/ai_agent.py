@@ -83,6 +83,38 @@ def _new_chat(session_id: str, provider: str = None, model: str = None) -> LlmCh
     ).with_model(p, m)
 
 
+SIMULATOR_DESIGN_PROMPT = """
+DIRECAO DE ARTE E DIDATICA DOS SIMULADORES:
+- Crie uma ferramenta de experimentacao, com controles, estado e consequencias reais.
+- Referencia visual: painel claro, fundo cinza suave, cards brancos arredondados,
+  sombras discretas, acoes azuis, tipografia legivel e espacamento generoso.
+- Organize titulo e instrucao curta acima do painel; controles a esquerda,
+  area de experimentacao ao centro e indicador visual de resultado ao lado.
+  Adapte essa composicao ao tema e a mecanica, sem repetir o mesmo layout sempre.
+- Mostre o efeito das acoes por medidores, termometros, barras ou graficos e
+  feedback explicativo imediato. Explique por que a decisao altera o resultado.
+- Ofereca reiniciar e alternativa por clique/teclado quando houver arrastar e soltar.
+- Use HTML/CSS/JavaScript completos, responsivos, sem bibliotecas externas.
+- Percentuais ficticios devem ser identificados como ilustrativos. Nao apresente
+  pontuacao de um jogo como evidencia cientifica de retencao ou engajamento.
+"""
+
+
+def _new_simulator_chat(session_id: str) -> LlmChat:
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError(
+            "GEMINI_NOT_CONFIGURED: Configure GEMINI_API_KEY no servidor "
+            "para gerar simuladores com Gemini."
+        )
+    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
+    return LlmChat(
+        api_key=key,
+        session_id=session_id,
+        system_message=SYSTEM_PROMPT + SIMULATOR_DESIGN_PROMPT,
+    ).with_model("gemini", model).with_params(max_tokens=16000)
+
+
 def _extract_json(text: str) -> Optional[dict]:
     """Extract JSON from a text that may contain ```json blocks."""
     import re
@@ -1223,10 +1255,19 @@ PARA TODOS OS SLIDES:
             _required_game_mechanic(batch[0]) if quality_type == "game" else ""
         )
         models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
+        if quality_type == "simulator":
+            # Fail before retry/fallback: never silently replace the requested
+            # Gemini simulator with OpenAI or the built-in template.
+            _new_simulator_chat(f"{session_id}_simulator_preflight")
         while retries <= max_retries:
             provider, model = models[min(retries, len(models)-1)]
+            if quality_type == "simulator":
+                provider = "gemini"
+                model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
             try:
-                chat = _new_chat(f"{session_id}_story_b{batch_start}_r{retries}", provider=provider, model=model)
+                chat_id = f"{session_id}_story_b{batch_start}_r{retries}"
+                chat = (_new_simulator_chat(chat_id) if quality_type == "simulator"
+                        else _new_chat(chat_id, provider=provider, model=model))
                 attempt_prompt = prompt
                 if quality_checked and retries > 0:
                     if quality_type == "simulator":
@@ -1345,6 +1386,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
 
         # If batch failed, use fallback content
         if not batch_success:
+            if quality_type == "simulator":
+                raise RuntimeError("GEMINI_SIMULATOR_FAILED: Gemini nao conseguiu gerar um simulador valido. Tente novamente e verifique a chave, a cota e o faturamento da API Gemini.")
             for sl in batch:
                 if any(s.get("title") == sl.get("title") for s in all_slides):
                     continue
@@ -4490,11 +4533,19 @@ Retorne JSON com os slides a atualizar:
 }}
 ```"""
     
-    response = await _resilient_send(
-        f"agent-edit-apply-{session_id}",
-        SYSTEM_PROMPT,
-        prompt
+    has_simulators = any(
+        item.get("type") == "simulator"
+        for item in [*selected_improvements, *(selected_new_slides or [])]
     )
+    if has_simulators:
+        chat = _new_simulator_chat(f"agent-edit-apply-{session_id}")
+        response = await chat.send_message(UserMessage(text=prompt))
+    else:
+        response = await _resilient_send(
+            f"agent-edit-apply-{session_id}",
+            SYSTEM_PROMPT,
+            prompt
+        )
     return _extract_json(response) or {"updatedSlides": [], "newSlides": []}
 
 
