@@ -95,6 +95,39 @@ async def _check_openai() -> dict:
         return {"status": "error", "error": str(e)[:200]}
 
 
+async def _check_gemini() -> dict:
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
+    if not key:
+        return {"status": "not_configured", "error": "GEMINI_API_KEY not set", "model": model}
+    t0 = time.monotonic()
+    try:
+        # Inspect model availability without generating content or using tokens.
+        # Keep the secret in a header, never in URLs or returned error messages.
+        from urllib.parse import quote
+        model_id = model.removeprefix("gemini/").removeprefix("models/")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{quote(model_id, safe='')}",
+                headers={"x-goog-api-key": key},
+            )
+        result = {"latencyMs": int((time.monotonic() - t0) * 1000), "provider": "Gemini", "model": model}
+        if resp.status_code == 200:
+            if "generateContent" not in resp.json().get("supportedGenerationMethods", []):
+                return {**result, "status": "error", "error": "O modelo configurado nao suporta geracao de simuladores."}
+            return {**result, "status": "ok"}
+        messages = {
+            400: "Chave Gemini ou modelo invalido. Verifique a configuracao no Google AI Studio.",
+            401: "Chave Gemini invalida. Verifique GEMINI_API_KEY no servidor.",
+            403: "Acesso ao Gemini negado. Verifique as restricoes da chave e a API habilitada.",
+            404: "Modelo Gemini indisponivel. Verifique GEMINI_SIMULATOR_MODEL.",
+            429: "Limite de requisicoes do Gemini atingido. Verifique a cota no Google AI Studio.",
+        }
+        return {**result, "status": "error", "error": messages.get(resp.status_code, f"Gemini retornou HTTP {resp.status_code}.")}
+    except Exception:
+        return {"status": "error", "model": model, "error": "Nao foi possivel conectar ao Gemini. Tente novamente."}
+
+
 async def _check_leonardo() -> dict:
     key = os.environ.get("LEONARDO_API_KEY", "").strip()
     if not key:
@@ -398,6 +431,7 @@ async def integrations_health(
         _check_convertapi(),
         _check_krea(),
         _check_kling(),
+        _check_gemini(),
         return_exceptions=True,
     )
 
@@ -418,6 +452,7 @@ async def integrations_health(
             "convertapi": _norm(results[6]),
             "krea": _norm(results[7]),
             "kling": _norm(results[8]),
+            "gemini": _norm(results[9]),
         },
         "cached": False,
     }
