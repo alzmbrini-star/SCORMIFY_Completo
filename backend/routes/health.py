@@ -97,7 +97,7 @@ async def _check_openai() -> dict:
 
 async def _check_gemini() -> dict:
     key = os.environ.get("GEMINI_API_KEY", "").strip()
-    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
+    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-3.1-pro-preview").strip() or "gemini-3.1-pro-preview"
     if not key:
         return {"status": "not_configured", "error": "GEMINI_API_KEY not set", "model": model}
     t0 = time.monotonic()

@@ -313,7 +313,7 @@ async def generate_html_with_ai(
     is_simulator = bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE))
     if is_simulator:
         api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-        model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
+        model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-3.1-pro-preview").strip() or "gemini-3.1-pro-preview"
     if not api_key:
         raise HTTPException(
             status_code=503,
@@ -383,6 +383,17 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
         )
     except Exception as e:
         logger.error(f"HTML generation error: {e}")
+        if is_simulator:
+            error = str(e).lower()
+            if "404" in error or "notfound" in error or "not_found" in error:
+                detail = "O modelo Gemini configurado não está disponível. Verifique GEMINI_SIMULATOR_MODEL no Render."
+            elif "429" in error or "quota" in error or "resource_exhausted" in error:
+                detail = "O limite ou a cota do Gemini foi atingido. Verifique os limites e o faturamento no Google AI Studio."
+            elif any(term in error for term in ("401", "403", "api_key_invalid", "permission_denied")):
+                detail = "O Gemini recusou o acesso. Verifique a chave e as permissões do projeto Google no ambiente seguro do Render."
+            else:
+                detail = "Não foi possível gerar o simulador com Gemini agora. Tente novamente; se persistir, consulte os logs do backend."
+            raise HTTPException(status_code=503, detail=detail)
         from routes.ai_gen import _friendly_text_generation_error
 
         status_code, detail = _friendly_text_generation_error(e)

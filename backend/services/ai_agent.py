@@ -107,7 +107,7 @@ def _new_simulator_chat(session_id: str) -> LlmChat:
             "GEMINI_NOT_CONFIGURED: Configure GEMINI_API_KEY no servidor "
             "para gerar simuladores com Gemini."
         )
-    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
+    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-3.1-pro-preview").strip() or "gemini-3.1-pro-preview"
     return LlmChat(
         api_key=key,
         session_id=session_id,
