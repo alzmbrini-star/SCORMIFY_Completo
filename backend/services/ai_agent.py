@@ -47,7 +47,7 @@ async def _get_motor_db():
         logger.warning(f"Failed to create motor db for asset persistence: {e}")
     return None
 
-from services.llm_config import openai_api_key
+from services.llm_config import openai_api_key, simulator_generation_config
 
 OPENAI_KEY = openai_api_key()
 
@@ -101,18 +101,17 @@ DIRECAO DE ARTE E DIDATICA DOS SIMULADORES:
 
 
 def _new_simulator_chat(session_id: str) -> LlmChat:
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    provider, key, model = simulator_generation_config()
     if not key:
         raise RuntimeError(
-            "GEMINI_NOT_CONFIGURED: Configure GEMINI_API_KEY no servidor "
-            "para gerar simuladores com Gemini."
+            f"SIMULATOR_NOT_CONFIGURED: Configure {provider.upper()}_API_KEY no servidor "
+            f"para gerar simuladores com {provider}."
         )
-    model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-3.1-pro-preview").strip() or "gemini-3.1-pro-preview"
     return LlmChat(
         api_key=key,
         session_id=session_id,
         system_message=SYSTEM_PROMPT + SIMULATOR_DESIGN_PROMPT,
-    ).with_model("gemini", model).with_params(max_tokens=16000)
+    ).with_model(provider, model).with_params(max_tokens=16000)
 
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -1256,14 +1255,12 @@ PARA TODOS OS SLIDES:
         )
         models = [PRIMARY_MODEL, FALLBACK_MODEL, FALLBACK_MODEL]  # Fallback chain
         if quality_type == "simulator":
-            # Fail before retry/fallback: never silently replace the requested
-            # Gemini simulator with OpenAI or the built-in template.
+            # Check the configured provider before retries and preserve simulator quality.
             _new_simulator_chat(f"{session_id}_simulator_preflight")
         while retries <= max_retries:
             provider, model = models[min(retries, len(models)-1)]
             if quality_type == "simulator":
-                provider = "gemini"
-                model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-2.5-pro").strip() or "gemini-2.5-pro"
+                provider, _, model = simulator_generation_config()
             try:
                 chat_id = f"{session_id}_story_b{batch_start}_r{retries}"
                 chat = (_new_simulator_chat(chat_id) if quality_type == "simulator"
@@ -1387,7 +1384,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
         # If batch failed, use fallback content
         if not batch_success:
             if quality_type == "simulator":
-                raise RuntimeError("GEMINI_SIMULATOR_FAILED: Gemini nao conseguiu gerar um simulador valido. Tente novamente e verifique a chave, a cota e o faturamento da API Gemini.")
+                raise RuntimeError(f"SIMULATOR_FAILED: {provider} nao conseguiu gerar um simulador valido. Tente novamente e verifique a chave, a cota e o faturamento do provedor configurado.")
             for sl in batch:
                 if any(s.get("title") == sl.get("title") for s in all_slides):
                     continue

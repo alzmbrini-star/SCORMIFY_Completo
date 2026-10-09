@@ -34,3 +34,21 @@ def require_openai_api_key(*, allow_legacy: bool = True) -> str:
     if not key:
         raise RuntimeError("OPENAI_API_KEY is not configured")
     return key
+
+
+def simulator_generation_config() -> tuple[str, str, str]:
+    """Use OpenAI by default; Gemini requires explicit provider selection."""
+    provider = os.environ.get("SIMULATOR_AI_PROVIDER", "openai").strip().lower() or "openai"
+    if provider == "gemini":
+        return (
+            provider,
+            os.environ.get("GEMINI_API_KEY", "").strip(),
+            os.environ.get("GEMINI_SIMULATOR_MODEL", "").strip() or "gemini-3.1-pro-preview",
+        )
+    if provider != "openai":
+        raise ValueError("SIMULATOR_AI_PROVIDER deve ser openai ou gemini")
+    return (
+        provider,
+        openai_api_key(allow_legacy=False),
+        openai_text_model("OPENAI_SIMULATOR_MODEL", "OPENAI_HTML_MODEL"),
+    )

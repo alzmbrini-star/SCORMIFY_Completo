@@ -207,7 +207,7 @@ export function HtmlDialog({
                   data-testid="ai-html-prompt" />
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-muted-foreground">
-                    Simuladores: Gemini · demais conteúdos: OpenAI · funciona offline no SCORM · {aiHtmlPrompt.length}/5000
+                    Geração com IA · OpenAI por padrão · funciona offline no SCORM · {aiHtmlPrompt.length}/5000
                   </p>
                   <Button size="sm" onClick={handleGenerateHtmlAI} disabled={aiHtmlLoading || !aiHtmlPrompt.trim()} data-testid="ai-html-generate-btn">
                     {aiHtmlLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}

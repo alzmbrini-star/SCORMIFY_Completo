@@ -306,20 +306,24 @@ async def generate_html_with_ai(
     body: GenerateHtmlRequest,
     _user: dict = Depends(require_auth),
 ):
-    """Generate offline HTML; simulator requests use Gemini."""
+    """Generate offline HTML; simulators use OpenAI unless explicitly configured otherwise."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     api_key, model = _html_generation_credentials()
+    provider = "openai"
     is_simulator = bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE))
     if is_simulator:
-        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-        model = os.environ.get("GEMINI_SIMULATOR_MODEL", "gemini-3.1-pro-preview").strip() or "gemini-3.1-pro-preview"
+        from services.llm_config import simulator_generation_config
+        try:
+            provider, api_key, model = simulator_generation_config()
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
     if not api_key:
         raise HTTPException(
             status_code=503,
             detail=(
                 "Configure GEMINI_API_KEY no backend do Render para gerar simuladores."
-                if is_simulator else
+                if provider == "gemini" else
                 "A geração de HTML ainda não possui uma chave OpenAI configurada. Cadastre OPENAI_API_KEY no backend do Render."
             ),
         )
@@ -362,7 +366,7 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
             api_key=api_key,
             session_id=f"html-gen-{uuid.uuid4().hex[:8]}",
             system_message=system_msg,
-        ).with_model("gemini" if is_simulator else "openai", model).with_params(temperature=0.3)
+        ).with_model(provider, model).with_params(temperature=0.3)
         if is_simulator:
             chat.with_params(max_tokens=16000)
 
@@ -383,7 +387,7 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
         )
     except Exception as e:
         logger.error(f"HTML generation error: {e}")
-        if is_simulator:
+        if provider == "gemini":
             error = str(e).lower()
             if "404" in error or "notfound" in error or "not_found" in error:
                 detail = "O modelo Gemini configurado não está disponível. Verifique GEMINI_SIMULATOR_MODEL no Render."
