@@ -996,6 +996,22 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             except Exception:
                 pass
 
+        if len(batch) == 1 and batch[0].get("type") == "simulator":
+            from services.visual_simulators import generate_visual_simulator
+            source = batch[0]
+            generated = await generate_visual_simulator(
+                json.dumps(source, ensure_ascii=False), content_text,
+                f"{session_id}_visual_simulator_{batch_start}",
+            )
+            spec = generated["spec"]
+            all_slides.append({
+                **source, "type": "simulator", "title": source.get("title") or spec["title"],
+                "elements": [{"type": "html", "htmlContent": generated["html"], "width": 960, "height": 540}],
+                "narrationScript": " ".join(spec[k] for k in ("subtitle", "mission", "briefing", "debrief")),
+                "librasScript": spec["briefing"], "notes": spec["mission"], "quizQuestions": [],
+            })
+            continue
+
         prompt = f"""Você é um designer instrucional experiente. Gere conteúdo DETALHADO, APROFUNDADO e EDUCACIONAL para {len(batch)} slides do curso "{config.get('title', '')}".
 
 Nível do curso: {config.get('depth', 'intermediario')}
@@ -4543,7 +4559,18 @@ Retorne JSON com os slides a atualizar:
             SYSTEM_PROMPT,
             prompt
         )
-    return _extract_json(response) or {"updatedSlides": [], "newSlides": []}
+    result = _extract_json(response) or {"updatedSlides": [], "newSlides": []}
+    from services.visual_simulators import generate_visual_simulator
+    simulator_indices = {item.get("slideIndex") for item in selected_improvements if item.get("type") == "simulator"}
+    for slide in [*result.get("updatedSlides", []), *result.get("newSlides", [])]:
+        if slide.get("type") == "simulator" or (slide.get("slideIndex") is not None and slide.get("slideIndex") in simulator_indices):
+            generated = await generate_visual_simulator(
+                json.dumps({k: v for k, v in slide.items() if k != "elements"}, ensure_ascii=False),
+                prompt[:6500], f"agent-edit-simulator-{session_id}",
+            )
+            slide["type"] = "simulator"
+            slide["elements"] = [{"type": "html", "htmlContent": generated["html"], "width": 960, "height": 540}]
+    return result
 
 
 # ========== TEMPLATES ==========

@@ -176,7 +176,7 @@ export function HtmlDialog({
       onOpenChange(o);
       if (!o) { setAiHtmlResult(''); setAiHtmlPrompt(''); setHtmlDialogTab('paste'); }
     }}>
-      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col overflow-y-auto">
         <DialogHeader><DialogTitle>Adicionar HTML Personalizado</DialogTitle></DialogHeader>
         <Tabs value={htmlDialogTab} onValueChange={setHtmlDialogTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-2">
@@ -223,7 +223,7 @@ export function HtmlDialog({
                       <TabsTrigger value="code" data-testid="ai-html-code-tab">Editar Código</TabsTrigger>
                     </TabsList>
                     <TabsContent value="preview" className="flex-1 min-h-0 p-2">
-                      <iframe srcDoc={aiHtmlResult} className="w-full h-full min-h-[200px] rounded border bg-white" sandbox="allow-scripts" title="AI HTML Preview" data-testid="ai-html-preview-iframe" />
+                      <iframe srcDoc={aiHtmlResult} className="w-full h-[min(60vh,600px)] min-h-[340px] rounded border bg-white" sandbox="allow-scripts" title="AI HTML Preview" data-testid="ai-html-preview-iframe" />
                     </TabsContent>
                     <TabsContent value="code" className="flex-1 min-h-0 p-2">
                       <textarea className="w-full h-full min-h-[200px] p-3 rounded border bg-background font-mono text-xs resize-none"

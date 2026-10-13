@@ -360,8 +360,11 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
 
     try:
         if is_simulator:
-            from services.ai_agent import SIMULATOR_DESIGN_PROMPT
-            system_msg += SIMULATOR_DESIGN_PROMPT
+            from services.visual_simulators import generate_visual_simulator
+            generated = await generate_visual_simulator(
+                body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}"
+            )
+            return {"html": _clean_generated_interactive_html(generated["html"])}
         chat = LlmChat(
             api_key=api_key,
             session_id=f"html-gen-{uuid.uuid4().hex[:8]}",
