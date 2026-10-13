@@ -178,7 +178,7 @@ export function HtmlDialog({
     }}>
       <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col overflow-y-auto">
         <DialogHeader><DialogTitle>Adicionar HTML Personalizado</DialogTitle></DialogHeader>
-        <Tabs value={htmlDialogTab} onValueChange={setHtmlDialogTab} className="flex-1 flex flex-col min-h-0">
+        <Tabs value={htmlDialogTab} onValueChange={setHtmlDialogTab} className="flex flex-col shrink-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="paste" data-testid="html-tab-paste"><Code className="w-4 h-4 mr-2" />Colar HTML</TabsTrigger>
             <TabsTrigger value="ai" data-testid="html-tab-ai"><Sparkles className="w-4 h-4 mr-2" />Gerar com IA</TabsTrigger>
@@ -195,8 +195,8 @@ export function HtmlDialog({
               <Button onClick={handleAddHtml} data-testid="confirm-add-html">Adicionar HTML</Button>
             </DialogFooter>
           </TabsContent>
-          <TabsContent value="ai" className="flex-1 flex flex-col min-h-0 mt-4">
-            <div className="flex-1 flex flex-col gap-3 min-h-0">
+          <TabsContent value="ai" className="flex flex-col mt-4">
+            <div className="flex flex-col gap-3">
               <div>
                 <label className="text-sm font-medium mb-1 block">Descreva o que deseja criar</label>
                 <textarea className="w-full h-24 p-3 rounded-md border bg-background text-sm resize-none"
@@ -216,13 +216,13 @@ export function HtmlDialog({
                 </div>
               </div>
               {aiHtmlResult && (
-                <div className="flex-1 flex flex-col min-h-0 border rounded-lg overflow-hidden">
-                  <Tabs defaultValue="preview" className="flex-1 flex flex-col min-h-0">
+                <div className="flex flex-col shrink-0 border rounded-lg overflow-hidden">
+                  <Tabs defaultValue="preview" className="flex flex-col">
                     <TabsList className="w-fit mx-2 mt-2">
                       <TabsTrigger value="preview" data-testid="ai-html-preview-tab">Preview</TabsTrigger>
                       <TabsTrigger value="code" data-testid="ai-html-code-tab">Editar Código</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="preview" className="flex-1 min-h-0 p-2">
+                    <TabsContent value="preview" className="p-2">
                       <iframe srcDoc={aiHtmlResult} className="w-full h-[min(60vh,600px)] min-h-[340px] rounded border bg-white" sandbox="allow-scripts" title="AI HTML Preview" data-testid="ai-html-preview-iframe" />
                     </TabsContent>
                     <TabsContent value="code" className="flex-1 min-h-0 p-2">
