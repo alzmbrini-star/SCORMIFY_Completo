@@ -205,8 +205,9 @@ def _validate_request_plan(spec, prompt):
     """Guard the reported domain mismatch before generating its implementation."""
     if re.search(r"comporta|eclusa", prompt, re.I) and re.search(r"barco|nav[ie]|navega", prompt, re.I):
         controls = " ".join(c["label"] + " " + c["action"] for c in spec["controls"])
-        if not (re.search(r"ench|encher", controls, re.I) and re.search(r"esvazi|dren", controls, re.I)):
-            raise ValueError("A eclusa precisa de controles de enchimento e esvaziamento separados das comportas")
+        if not (re.search(r"ench|elev|aument|adicion|subir", controls, re.I)
+                and re.search(r"esvazi|dren|esco|reduz|reduç|redu[cç]|dimin|baix|desc", controls, re.I)):
+            raise ValueError("Inclua controles separados chamados Encher câmara e Esvaziar câmara, além das comportas e avanço do barco")
         if not re.search(r"barco|embarca", spec["scene"], re.I) or not re.search(r"c[âa]mara|eclusa", spec["scene"], re.I):
             raise ValueError("Desenhe a eclusa e o barco pedidos, não um circuito de bomba")
 

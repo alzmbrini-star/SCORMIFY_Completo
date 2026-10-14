@@ -928,11 +928,14 @@ export default function Editor() {
       return;
     }
     setAiHtmlLoading(true);
+    setAiHtmlResult('');
     try {
       const slideContext = (currentSlide?.elements || [])
         .map((element) => element.content || element.text || element.htmlContent || '')
         .filter(Boolean)
-        .map((value) => String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+        .map((value) => String(value)
+          .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
         .filter(Boolean)
         .join(' | ');
       const courseContext = [
