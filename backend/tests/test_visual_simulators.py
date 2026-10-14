@@ -9,7 +9,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from services.visual_simulators import generate_visual_simulator, render_simulator, validate_spec
+from services.visual_simulators import generate_visual_simulator, render_simulator, validate_spec, validate_custom_html, validate_custom_plan
 
 BASE = dict(title="Laboratório de decisões", subtitle="Experimente, observe e compare.",
             mission="Compare estratégias para alcançar o objetivo com os recursos disponíveis.",
@@ -31,8 +31,63 @@ DECISIONS = dict(BASE, template="decisions", title="Liderança sob pressão",
         dict(label="Dividir o trabalho com outra equipe", effects=[-5,10,5], feedback="A carga é compartilhada, mas a coordenação inicial reduz a confiança no processo.")])
         for t in ["Um prazo apertado", "Uma demanda inesperada", "O fechamento do projeto"]])
 
+LOCK_PLAN = dict(BASE, title="Operação de eclusa para navegação",
+    scene="Barco flutuante dentro da câmara entre comportas de montante e jusante.",
+    mechanism="Encher/esvaziar a câmara e abrir as comportas somente após igualar os níveis. Reiniciar restaura o barco a jusante.",
+    controls=[dict(label="Encher câmara", action="Aumenta o nível e eleva o barco"),
+              dict(label="Comporta de montante", action="Abre se os níveis forem compatíveis")],
+    indicators=[dict(label="Nível da câmara", meaning="Altura da água em metros"),
+                dict(label="Etapa da travessia", meaning="Posição do barco e bloqueios")])
+
+
+def custom_document(title):
+    return '''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+    body{font-family:system-ui;background:#edf3f8;color:#123;padding:20px}
+    main{display:grid;gap:18px;max-width:960px;margin:auto}
+    svg{width:100%;background:#163e62;border-radius:16px}
+    button{padding:12px;background:#2563eb;color:white;border:0;border-radius:8px}
+    label{display:block}input{width:100%}aside{padding:20px;background:white}
+    </style></head><body><main><h1>''' + title + '''</h1>
+    <p>Experimente as comportas e observe o barco ao equalizar os níveis de água.</p>
+    <svg viewBox="0 0 600 300" role="img" aria-label="Barco e comportas">
+    <rect x="10" y="150" width="180" height="140" fill="#38bdf8"/>
+    <rect x="200" y="180" width="200" height="110" fill="#38bdf8"/>
+    <rect x="410" y="100" width="180" height="190" fill="#38bdf8"/>
+    <path d="M250 170H340L330 190H260Z" fill="#fff"/>
+    <rect x="195" y="40" width="8" height="250" fill="#f59e0b"/>
+    <rect x="400" y="40" width="8" height="250" fill="#f59e0b"/>
+    <text x="220" y="30" fill="white">Câmara de navegação</text></svg>
+    <aside><label for="level">Nível da câmara</label><input id="level" type="range" min="0" max="10" value="3">
+    <button id="fill">Encher câmara</button><button id="reset">Reiniciar</button>
+    <p id="feedback" role="status">Equalize os níveis antes de abrir a comporta.</p></aside></main>
+    <script>const level=document.getElementById('level');
+    document.getElementById('fill').addEventListener('click',()=>{level.value=Number(level.value)+1});
+    document.getElementById('reset').addEventListener('click',()=>{level.value=3});
+    level.addEventListener('input',()=>{document.getElementById('feedback').textContent='Nível: '+level.value+' m'});
+    </script></body></html>'''
+
 
 class VisualSimulatorTests(unittest.TestCase):
+    def test_bespoke_scenario_does_not_select_a_pump_template(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        result = validate_custom_html(custom_document(spec['title']), spec)
+        self.assertEqual(spec['template'], 'custom')
+        self.assertIn('data-simulator-version="3"', result)
+        self.assertIn('Câmara de navegação', result)
+        self.assertNotIn('tank-water', result)
+        self.assertNotIn('Velocidade da bomba', result)
+
+    def test_custom_output_rejects_missing_scene_and_remote_dependencies(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        good = custom_document(spec['title'])
+        for bad in (good.replace('<svg ', '<div ').replace('</svg>', '</div>'),
+                    good.replace('<script>', '<script src="https://example.com/a.js">'),
+                    good.replace('<main>', '<main><img src="https://example.com/a.png">'),
+                    good.replace('const level=', 'fetch("https://example.com");const level='),
+                    good[:-10]):
+            with self.assertRaises(ValueError):
+                validate_custom_html(bad, spec)
+
     def test_editor_sanitizer_and_agent_keep_runtime(self):
         from services.ai_agent import _normalize_interactive_storyboard_slide
         # Load the pure sanitizer without requiring the API server dependencies.
@@ -88,11 +143,13 @@ class VisualSimulatorTests(unittest.TestCase):
             def with_params(self, **kwargs): return self
             async def send_message(self, message):
                 FakeChat.calls += 1
-                return '{}' if FakeChat.calls == 1 else json.dumps(PUMP)
+                if FakeChat.calls == 1: return '{}'
+                if FakeChat.calls == 2: return json.dumps(LOCK_PLAN)
+                return custom_document(LOCK_PLAN['title'])
         with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', FakeChat):
-            result = asyncio.run(generate_visual_simulator('Simulador de bomba'))
-            self.assertEqual(FakeChat.calls, 2)
-            self.assertEqual(result['spec']['template'], 'pump')
+            result = asyncio.run(generate_visual_simulator('Simulador de comportas para barcos'))
+            self.assertEqual(FakeChat.calls, 3)
+            self.assertEqual(result['spec']['template'], 'custom')
             self.assertIn('<svg', result['html'])
 
 
