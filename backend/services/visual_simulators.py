@@ -275,14 +275,17 @@ def validate_custom_html(value, spec):
     if not re.search(r"<button\b[^>]*>[\s\S]*?(?:reiniciar|recome[cç]ar|reset)[\s\S]*?</button>", code, re.I):
         raise ValueError("Inclua um botão Reiniciar que restaure o estado e cancele animações")
     executable = "\n".join(re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", code, re.I))
-    executable = re.sub(r"/\*[\s\S]*?\*/|//[^\n]*", "", executable)
-    if re.search(r"=>\s*\{\s*\}|function\s*\([^)]*\)\s*\{\s*\}", executable):
+    # Match comment-only bodies in place. Removing // globally corrupts strings
+    # such as the SVG namespace and can hide an entire compact animation script.
+    empty_body = r"(?:\s|/\*[\s\S]*?\*/|//[^\n]*(?:\n|$))*"
+    if re.search(r"(?:=>|function\s*\([^)]*\))\s*\{" + empty_body + r"\}", executable):
         raise ValueError("Há um callback vazio. Implemente as ações de todos os controles")
     for control in spec["controls"]:
         if control["label"].casefold() not in html.unescape(code).casefold():
             raise ValueError(f"Falta implementar o controle planejado: {control['label']}")
     if re.search(r"eclusa|comporta", spec["scene"], re.I) and re.search(r"barco|embarca", spec["scene"], re.I):
-        if not re.search(r"requestAnimationFrame\s*\(|setInterval\s*\(", executable):
+        if not (re.search(r"(?:requestAnimationFrame|setInterval|setTimeout)\s*\(", executable)
+                or re.search(r"(?:transition|animation)(?:-[\w-]+)?\s*:", code, re.I)):
             raise ValueError("Anime gradualmente o nível e o barco; não use saltos instantâneos")
     visible = html.unescape(re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<[^>]+>", " ", code, flags=re.I))
     if spec["title"].casefold() not in re.sub(r"\s+", " ", visible).casefold():

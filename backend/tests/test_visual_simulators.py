@@ -95,6 +95,13 @@ class VisualSimulatorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_custom_html(bad, spec)
 
+    def test_svg_namespace_does_not_hide_compact_animation_script(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        compact = re.sub(r'<script>([\s\S]*?)</script>',
+            lambda m: "<script>const ns='http://www.w3.org/2000/svg';" + m[1].replace('\n', '') + '</script>',
+            custom_document(spec['title']))
+        self.assertIn('setInterval', validate_custom_html(compact, spec))
+
     def test_editor_sanitizer_and_agent_keep_runtime(self):
         from services.ai_agent import _normalize_interactive_storyboard_slide
         # Load the pure sanitizer without requiring the API server dependencies.
