@@ -239,6 +239,8 @@ class _OfflineDocument(HTMLParser):
     def __init__(self):
         super().__init__()
         self.scene = self.control = False
+        self.button_names = []
+        self.in_button = False
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
@@ -252,6 +254,16 @@ class _OfflineDocument(HTMLParser):
                     raise ValueError("A cena contém um recurso externo")
         self.scene |= tag in {"svg", "canvas"}
         self.control |= tag in {"input", "button", "select"}
+        if tag == "button":
+            self.in_button = True
+            self.button_names.append(" ".join(attributes.get(k) or "" for k in ("id", "aria-label", "title")))
+
+    def handle_data(self, data):
+        if self.in_button:
+            self.button_names[-1] += " " + data
+
+    def handle_endtag(self, tag):
+        if tag == "button": self.in_button = False
 
 
 def validate_custom_html(value, spec):
@@ -272,7 +284,9 @@ def validate_custom_html(value, spec):
         raise ValueError("O documento está incompleto ou usa uma estrutura de quiz")
     if not re.search(r"addEventListener\s*\(|\bon(?:click|input|change)\s*=", code, re.I):
         raise ValueError("Os controles precisam de ações JavaScript")
-    if not re.search(r"<button\b[^>]*>[\s\S]*?(?:reiniciar|recome[cç]ar|reset)[\s\S]*?</button>", code, re.I):
+    reset_pattern = r"reiniciar|recome[cç]ar|reset|restart"
+    dynamic_reset = re.search(reset_pattern, "\n".join(re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", code, re.I)), re.I)
+    if not (any(re.search(reset_pattern, name, re.I) for name in document.button_names) or dynamic_reset):
         raise ValueError("Inclua um botão Reiniciar que restaure o estado e cancele animações")
     executable = "\n".join(re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", code, re.I))
     # Match comment-only bodies in place. Removing // globally corrupts strings
@@ -319,7 +333,7 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
     renderer = LlmChat(api_key=key, session_id=session_id + "-scene", system_message=CUSTOM_HTML_PROMPT).with_model(provider, model).with_params(temperature=0.45, max_tokens=12000)
     reviewer = LlmChat(api_key=key, session_id=session_id + "-review", system_message=CUSTOM_REVIEW_PROMPT).with_model(provider, model).with_params(temperature=0.1, max_tokens=1800)
     request = f"Pedido original: {prompt[:5000]}\nPlano obrigatório:\n{json.dumps(spec, ensure_ascii=False)}"
-    for attempt in range(2):
+    for attempt in range(3):
         response = await asyncio.wait_for(renderer.send_message(UserMessage(text=request)), timeout=120)
         try:
             code = validate_custom_html(response, spec)

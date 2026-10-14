@@ -90,7 +90,7 @@ class VisualSimulatorTests(unittest.TestCase):
                     good.replace('<main>', '<main><img src="https://example.com/a.png">'),
                     good.replace('const level=', 'fetch("https://example.com");const level='),
                     good.replace('level.value=3', '// Closing logic if needed\n'),
-                    good.replace('<button id="reset">Reiniciar</button>', ''),
+                    good.replace('<button id="reset">Reiniciar</button>', '').replace("document.getElementById('reset').addEventListener('click',()=>{level.value=3});", ''),
                     good[:-10]):
             with self.assertRaises(ValueError):
                 validate_custom_html(bad, spec)
@@ -101,6 +101,11 @@ class VisualSimulatorTests(unittest.TestCase):
             lambda m: "<script>const ns='http://www.w3.org/2000/svg';" + m[1].replace('\n', '') + '</script>',
             custom_document(spec['title']))
         self.assertIn('setInterval', validate_custom_html(compact, spec))
+
+    def test_accessible_icon_reset_is_accepted(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        code = custom_document(spec['title']).replace('<button id="reset">Reiniciar</button>', '<button id="reset" aria-label="Reiniciar">↻</button>')
+        self.assertIn('aria-label="Reiniciar"', validate_custom_html(code, spec))
 
     def test_editor_sanitizer_and_agent_keep_runtime(self):
         from services.ai_agent import _normalize_interactive_storyboard_slide
