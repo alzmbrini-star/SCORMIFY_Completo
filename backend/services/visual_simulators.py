@@ -207,10 +207,12 @@ def validate_custom_plan(raw):
     if not isinstance(raw, dict):
         raise ValueError("A IA não retornou um plano de simulação")
     spec = {"template": "custom"}
-    for key, limit in [("title", 90), ("subtitle", 180), ("mission", 240),
-                       ("briefing", 500), ("debrief", 500), ("scene", 1000), ("mechanism", 1800)]:
+    # Prompt lengths are writing targets, not reasons to discard a useful plan.
+    # Keep generous hard bounds while preserving the full operating explanation.
+    for key, limit in [("title", 180), ("subtitle", 800), ("mission", 2000),
+                       ("briefing", 5000), ("debrief", 5000), ("scene", 6000), ("mechanism", 8000)]:
         spec[key] = _text(raw.get(key), key, limit)
-    for key, detail, maximum in [("controls", "action", 8), ("indicators", "meaning", 6)]:
+    for key, detail, maximum in [("controls", "action", 12), ("indicators", "meaning", 12)]:
         items = raw.get(key)
         if not isinstance(items, list) or not 2 <= len(items) <= maximum:
             raise ValueError(f"O plano precisa de 2 a {maximum} {key}")
@@ -218,8 +220,8 @@ def validate_custom_plan(raw):
         for item in items:
             if not isinstance(item, dict):
                 raise ValueError(f"Item inválido em {key}")
-            spec[key].append({"label": _text(item.get("label"), key, 80),
-                              detail: _text(item.get(detail), detail, 240)})
+            spec[key].append({"label": _text(item.get("label"), key, 180),
+                              detail: _text(item.get(detail), detail, 1500)})
     return spec
 
 

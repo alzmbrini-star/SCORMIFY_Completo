@@ -82,6 +82,11 @@ class VisualSimulatorTests(unittest.TestCase):
         self.assertNotIn('tank-water', result)
         self.assertNotIn('Velocidade da bomba', result)
 
+    def test_detailed_operating_briefing_is_preserved(self):
+        long_plan = dict(LOCK_PLAN, briefing=LOCK_PLAN['briefing'] * 12)
+        self.assertGreater(len(long_plan['briefing']), 500)
+        self.assertEqual(validate_custom_plan(long_plan)['briefing'], long_plan['briefing'])
+
     def test_custom_output_rejects_missing_scene_and_remote_dependencies(self):
         spec = validate_custom_plan(LOCK_PLAN)
         good = custom_document(spec['title'])
