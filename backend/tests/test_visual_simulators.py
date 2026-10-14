@@ -35,7 +35,8 @@ LOCK_PLAN = dict(BASE, title="Operação de eclusa para navegação",
     scene="Barco flutuante dentro da câmara entre comportas de montante e jusante.",
     mechanism="Encher/esvaziar a câmara e abrir as comportas somente após igualar os níveis. Reiniciar restaura o barco a jusante.",
     controls=[dict(label="Encher câmara", action="Aumenta o nível e eleva o barco"),
-              dict(label="Comporta de montante", action="Abre se os níveis forem compatíveis")],
+              dict(label="Comporta de montante", action="Abre se os níveis forem compatíveis"),
+              dict(label="Esvaziar câmara", action="Reduz gradualmente o nível")],
     indicators=[dict(label="Nível da câmara", meaning="Altura da água em metros"),
                 dict(label="Etapa da travessia", meaning="Posição do barco e bloqueios")])
 
@@ -59,10 +60,14 @@ def custom_document(title):
     <text x="220" y="30" fill="white">Câmara de navegação</text></svg>
     <aside><label for="level">Nível da câmara</label><input id="level" type="range" min="0" max="10" value="3">
     <button id="fill">Encher câmara</button><button id="reset">Reiniciar</button>
+    <button id="gate">Comporta de montante</button><button id="drain">Esvaziar câmara</button>
     <p id="feedback" role="status">Equalize os níveis antes de abrir a comporta.</p></aside></main>
     <script>const level=document.getElementById('level');
     document.getElementById('fill').addEventListener('click',()=>{level.value=Number(level.value)+1});
     document.getElementById('reset').addEventListener('click',()=>{level.value=3});
+    document.getElementById('gate').addEventListener('click',()=>{document.getElementById('feedback').textContent='Verifique o nível de montante'});
+    document.getElementById('drain').addEventListener('click',()=>{level.value=Number(level.value)-1});
+    setInterval(()=>{document.getElementById('feedback').textContent='Nível: '+level.value+' m'},1000);
     level.addEventListener('input',()=>{document.getElementById('feedback').textContent='Nível: '+level.value+' m'});
     </script></body></html>'''
 
@@ -84,6 +89,7 @@ class VisualSimulatorTests(unittest.TestCase):
                     good.replace('<script>', '<script src="https://example.com/a.js">'),
                     good.replace('<main>', '<main><img src="https://example.com/a.png">'),
                     good.replace('const level=', 'fetch("https://example.com");const level='),
+                    good.replace('level.value=3', '// Closing logic if needed\n'),
                     good[:-10]):
             with self.assertRaises(ValueError):
                 validate_custom_html(bad, spec)

@@ -135,7 +135,14 @@ O pedido do usuário tem prioridade sobre o contexto do curso. Não imponha meta
 de 50 L, orçamento 100 ou potência 1,2 kW: derive a missão do pedido.
 Eclusas/comportas para navegação: represente barco, câmara, dois lados com diferentes
 níveis de água e comportas. O barco acompanha a superfície; só atravessa quando
-a abertura e os níveis permitem. Não use uma bomba e tanque como cena substituta.
+a abertura e os níveis permitem. Enchimento/esvaziamento usa válvulas SEPARADAS,
+com ambas as comportas fechadas, e ocorre gradualmente. Comportas de navegação
+abrem somente após equalização; jamais abra uma comporta para equalizar a câmara.
+Planeje controles distintos para encher, esvaziar, abrir/fechar cada comporta e
+avançar o barco. Comece com a câmara no nível de entrada e o barco fora dela;
+para subir, entre, feche, encha, abra a saída equalizada e saia. Bloqueie válvulas
+com comporta aberta, saída antes da chegada do barco e abertura simultânea.
+Não use uma bomba e tanque como cena substituta.
 Não invente certificações, normas, precisão científica ou condições de uso real.
 """
 
@@ -157,7 +164,13 @@ com dt limitado e uma única rotina de animação. Pausar e reiniciar cancelam a
 Não altere apenas um rótulo: água, barco, engrenagens, trajetórias ou pessoas devem
 responder visualmente às ações. Implemente os bloqueios, sequência e meta do plano.
 Se houver eclusa, o barco flutua na água da câmara e não atravessa comporta fechada;
-abertura só é possível com níveis compatíveis. Mostre por que uma ação foi bloqueada.
+abertura só é possível com níveis compatíveis. Encher/esvaziar é separado de abrir
+comportas. Mantenha estados para ambas as comportas, válvulas, nível e barco;
+atualize o y do barco com a superfície e o desenho das comportas com seu estado.
+Todos os controles do plano devem aparecer com o mesmo label e realizar sua ação.
+Sem handlers vazios, TODOs ou comentários substituindo lógica. Mostre a missão e
+uma instrução inicial; a mensagem de sucesso só aparece após concluir a travessia.
+Mostre por que uma ação foi bloqueada.
 Use labels/aria-label para inputs e botões descritivos. Feedback role=status.
 Renderize título, missão, orientação e síntese do plano como conteúdo visível.
 OFFLINE: nada de bibliotecas, URLs, imagens externas, iframe, object, embed, scripts
@@ -186,6 +199,16 @@ def validate_custom_plan(raw):
             spec[key].append({"label": _text(item.get("label"), key, 80),
                               detail: _text(item.get(detail), detail, 240)})
     return spec
+
+
+def _validate_request_plan(spec, prompt):
+    """Guard the reported domain mismatch before generating its implementation."""
+    if re.search(r"comporta|eclusa", prompt, re.I) and re.search(r"barco|nav[ie]|navega", prompt, re.I):
+        controls = " ".join(c["label"] + " " + c["action"] for c in spec["controls"])
+        if not (re.search(r"ench|encher", controls, re.I) and re.search(r"esvazi|dren", controls, re.I)):
+            raise ValueError("A eclusa precisa de controles de enchimento e esvaziamento separados das comportas")
+        if not re.search(r"barco|embarca", spec["scene"], re.I) or not re.search(r"c[âa]mara|eclusa", spec["scene"], re.I):
+            raise ValueError("Desenhe a eclusa e o barco pedidos, não um circuito de bomba")
 
 
 class _OfflineDocument(HTMLParser):
@@ -226,6 +249,16 @@ def validate_custom_html(value, spec):
         raise ValueError("O documento está incompleto ou usa uma estrutura de quiz")
     if not re.search(r"addEventListener\s*\(|\bon(?:click|input|change)\s*=", code, re.I):
         raise ValueError("Os controles precisam de ações JavaScript")
+    executable = "\n".join(re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", code, re.I))
+    executable = re.sub(r"/\*[\s\S]*?\*/|//[^\n]*", "", executable)
+    if re.search(r"=>\s*\{\s*\}|function\s*\([^)]*\)\s*\{\s*\}", executable):
+        raise ValueError("Há um callback vazio. Implemente as ações de todos os controles")
+    for control in spec["controls"]:
+        if control["label"].casefold() not in html.unescape(code).casefold():
+            raise ValueError(f"Falta implementar o controle planejado: {control['label']}")
+    if re.search(r"eclusa|comporta", spec["scene"], re.I) and re.search(r"barco|embarca", spec["scene"], re.I):
+        if not re.search(r"requestAnimationFrame\s*\(|setInterval\s*\(", executable):
+            raise ValueError("Anime gradualmente o nível e o barco; não use saltos instantâneos")
     visible = html.unescape(re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<[^>]+>", " ", code, flags=re.I))
     if spec["title"].casefold() not in re.sub(r"\s+", " ", visible).casefold():
         raise ValueError("A cena deve mostrar o título do cenário planejado")
@@ -247,6 +280,7 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
         try:
             raw = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", str(response).strip(), flags=re.I))
             spec = validate_custom_plan(raw)
+            _validate_request_plan(spec, prompt)
             break
         except (ValueError, TypeError) as exc:
             last_error = str(exc)
