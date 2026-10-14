@@ -9,7 +9,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from services.visual_simulators import generate_visual_simulator, render_simulator, validate_spec, validate_custom_html, validate_custom_plan
+from services.visual_simulators import generate_visual_simulator, render_simulator, validate_spec, validate_custom_html, validate_custom_plan, render_navigation_lock
 
 BASE = dict(title="Laboratório de decisões", subtitle="Experimente, observe e compare.",
             mission="Compare estratégias para alcançar o objetivo com os recursos disponíveis.",
@@ -128,6 +128,10 @@ class VisualSimulatorTests(unittest.TestCase):
             self.assertEqual(scope['_clean_generated_interactive_html'](rendered), rendered.strip())
             slide = {'type': 'simulator', 'elements': [{'type': 'html', 'htmlContent': rendered}]}
             self.assertEqual(_normalize_interactive_storyboard_slide(slide)['elements'][0]['htmlContent'], rendered)
+        rendered = render_navigation_lock(validate_custom_plan(LOCK_PLAN))['html']
+        self.assertEqual(scope['_clean_generated_interactive_html'](rendered), rendered.strip())
+        slide = {'type': 'simulator', 'elements': [{'type': 'html', 'htmlContent': rendered}]}
+        self.assertEqual(_normalize_interactive_storyboard_slide(slide)['elements'][0]['htmlContent'], rendered)
 
     def test_templates_are_self_contained_and_keep_data_out_of_code(self):
         for spec in (PUMP, RESOURCES, DECISIONS):
@@ -172,7 +176,7 @@ class VisualSimulatorTests(unittest.TestCase):
                 if FakeChat.calls == 4: return json.dumps({'pass': True, 'issues': []})
                 return custom_document(LOCK_PLAN['title'])
         with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', FakeChat):
-            result = asyncio.run(generate_visual_simulator('Simulador de comportas para barcos'))
+            result = asyncio.run(generate_visual_simulator('Simulador de operação portuária'))
             self.assertEqual(FakeChat.calls, 4)
             self.assertEqual(result['spec']['template'], 'custom')
             self.assertIn('<svg', result['html'])
@@ -192,10 +196,25 @@ class VisualSimulatorTests(unittest.TestCase):
                 return json.dumps({'pass': ReviewedChat.reviews > 1,
                                    'issues': [] if ReviewedChat.reviews > 1 else ['O barco está abaixo da superfície; alinhe o casco.']})
         with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', ReviewedChat):
-            result = asyncio.run(generate_visual_simulator('Eclusa para barcos'))
+            result = asyncio.run(generate_visual_simulator('Simulador de operação portuária'))
             self.assertEqual(ReviewedChat.renders, 2)
             self.assertEqual(ReviewedChat.reviews, 2)
             self.assertEqual(result['spec']['template'], 'custom')
+
+    def test_navigation_uses_verified_operation_without_regenerating_code(self):
+        class PlannerOnly:
+            def __init__(self, **kwargs):
+                self.session = kwargs['session_id']
+                assert self.session.endswith('-plan')
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message): return json.dumps(LOCK_PLAN)
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', PlannerOnly):
+            result = asyncio.run(generate_visual_simulator('Gere um simulador de Comportas para níveis para barcos de grande calado'))
+            self.assertEqual(result['spec']['mechanic'], 'navigation-lock')
+            self.assertIn('hull-shape', result['html'])
+            self.assertIn('Reiniciar travessia', result['html'])
+            self.assertNotIn('tank-water', result['html'])
 
 
 if __name__ == '__main__':

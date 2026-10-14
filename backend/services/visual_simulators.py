@@ -236,6 +236,37 @@ def _validate_request_plan(spec, prompt):
             raise ValueError("Desenhe a eclusa e o barco pedidos, não um circuito de bomba")
 
 
+def _navigation_lock_request(prompt):
+    return bool(re.search(r"comporta|eclusa", prompt, re.I)
+                and re.search(r"barco|nav[ie]|navega|embarca", prompt, re.I))
+
+
+def render_navigation_lock(spec):
+    """Use the verified operating mechanism for this specific physical domain."""
+    spec = dict(spec, mechanic="navigation-lock",
+        mission="Leve o barco da bacia inferior (3,5 m) à superior (7,5 m), equalizando os níveis antes de abrir cada comporta.",
+        briefing="Abra a entrada, avance para a câmara, feche a comporta e encha a câmara. Com os níveis igualados, abra a saída e avance. Compare o calado e a folga sob o casco. Valores e margens são ilustrativos.",
+        scene="Barco flutuante com casco, cabine e mastro; bacia inferior, câmara, bacia superior, duas comportas e válvulas separadas.",
+        mechanism="Um único relógio anima água e barco. As duas comportas devem estar fechadas para operar válvulas. Abrir exige nível igual à bacia e válvulas fechadas. Avançar exige posição correta, comporta aberta e folga ilustrativa de pelo menos 0,4 m. Reiniciar cancela o relógio e restaura tudo.",
+        controls=[{"label": label, "action": action} for label, action in [
+            ("Calado do barco", "Altera a profundidade submersa e a folga sob o casco"),
+            ("Abrir entrada", "Abre a entrada se os níveis forem compatíveis"),
+            ("Fechar entrada", "Fecha a entrada para isolar a câmara"),
+            ("Abrir saída", "Abre a saída se os níveis forem compatíveis"),
+            ("Fechar saída", "Fecha a saída para isolar a câmara"),
+            ("Encher câmara", "Eleva gradualmente a água e o barco; clicar novamente interrompe"),
+            ("Esvaziar câmara", "Reduz gradualmente a água; clicar novamente interrompe"),
+            ("Avançar barco", "Atravessa a comporta correspondente quando a passagem é permitida"),
+            ("Reiniciar travessia", "Cancela movimentos e restaura o estado inicial")]],
+        indicators=[{"label": label, "meaning": meaning} for label, meaning in [
+            ("Nível da câmara", "Altura da água sobre o fundo em metros"),
+            ("Folga sob o casco", "Profundidade da bacia onde está o barco menos seu calado"),
+            ("Posição do barco", "Entrada, câmara, saída ou movimento de travessia")]])
+    payload = json.dumps(spec, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    template = TEMPLATE.parent / "navigation_lock.html"
+    return {"html": template.read_text(encoding="utf-8").replace("__SIMULATOR_SPEC__", payload), "spec": spec}
+
+
 class _OfflineDocument(HTMLParser):
     """Reject remote dependencies rather than leaving an incomplete scene."""
     def __init__(self):
@@ -331,6 +362,9 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
             request = f"Revise o JSON completo para o mesmo pedido. Problema de validação: {last_error}.\n{request}"
     else:
         raise ValueError("Não foi possível planejar a simulação. " + last_error)
+
+    if _navigation_lock_request(prompt):
+        return render_navigation_lock(spec)
 
     renderer = LlmChat(api_key=key, session_id=session_id + "-scene", system_message=CUSTOM_HTML_PROMPT).with_model(provider, model).with_params(temperature=0.45, max_tokens=12000)
     reviewer = LlmChat(api_key=key, session_id=session_id + "-review", system_message=CUSTOM_REVIEW_PROMPT).with_model(provider, model).with_params(temperature=0.1, max_tokens=1800)
