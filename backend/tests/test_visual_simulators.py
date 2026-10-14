@@ -90,6 +90,7 @@ class VisualSimulatorTests(unittest.TestCase):
                     good.replace('<main>', '<main><img src="https://example.com/a.png">'),
                     good.replace('const level=', 'fetch("https://example.com");const level='),
                     good.replace('level.value=3', '// Closing logic if needed\n'),
+                    good.replace('<button id="reset">Reiniciar</button>', ''),
                     good[:-10]):
             with self.assertRaises(ValueError):
                 validate_custom_html(bad, spec)
@@ -151,12 +152,33 @@ class VisualSimulatorTests(unittest.TestCase):
                 FakeChat.calls += 1
                 if FakeChat.calls == 1: return '{}'
                 if FakeChat.calls == 2: return json.dumps(LOCK_PLAN)
+                if FakeChat.calls == 4: return json.dumps({'pass': True, 'issues': []})
                 return custom_document(LOCK_PLAN['title'])
         with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', FakeChat):
             result = asyncio.run(generate_visual_simulator('Simulador de comportas para barcos'))
-            self.assertEqual(FakeChat.calls, 3)
+            self.assertEqual(FakeChat.calls, 4)
             self.assertEqual(result['spec']['template'], 'custom')
             self.assertIn('<svg', result['html'])
+
+    def test_review_requests_correction_before_accepting_output(self):
+        class ReviewedChat:
+            renders = reviews = 0
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(LOCK_PLAN)
+                if self.session.endswith('-scene'):
+                    ReviewedChat.renders += 1
+                    return custom_document(LOCK_PLAN['title'])
+                ReviewedChat.reviews += 1
+                return json.dumps({'pass': ReviewedChat.reviews > 1,
+                                   'issues': [] if ReviewedChat.reviews > 1 else ['O barco está abaixo da superfície; alinhe o casco.']})
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', ReviewedChat):
+            result = asyncio.run(generate_visual_simulator('Eclusa para barcos'))
+            self.assertEqual(ReviewedChat.renders, 2)
+            self.assertEqual(ReviewedChat.reviews, 2)
+            self.assertEqual(result['spec']['template'], 'custom')
 
 
 if __name__ == '__main__':
