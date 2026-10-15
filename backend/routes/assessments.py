@@ -75,8 +75,9 @@ def normalise(raw: dict, project: dict, user_id: str, item_id: str = "") -> dict
         if not isinstance(option, dict):
             continue
         text = clean(option.get("text"), 700)
-        if text:
-            options.append({"id": clean(option.get("id"), 100) or f"op_{index + 1}", "text": text, "isCorrect": option.get("isCorrect") is True, "media": attachment(option.get('media'))})
+        media = attachment(option.get('media'))
+        if text or media:
+            options.append({"id": clean(option.get("id"), 100) or f"op_{index + 1}", "text": text, "isCorrect": option.get("isCorrect") is True, "media": media})
 
     items = []
     for index, item in enumerate(raw.get("items") or []):
@@ -84,8 +85,9 @@ def normalise(raw: dict, project: dict, user_id: str, item_id: str = "") -> dict
         if not isinstance(item, dict):
             continue
         text = clean(item.get("text"), 700)
-        if text:
-            items.append({"id": clean(item.get("id"), 100) or f"item_{index + 1}", "text": text, "correctTarget": clean(item.get("correctTarget"), 160), "media": attachment(item.get('media'))})
+        media = attachment(item.get('media'))
+        if text or media:
+            items.append({"id": clean(item.get("id"), 100) or f"item_{index + 1}", "text": text, "correctTarget": clean(item.get("correctTarget"), 160), "media": media})
 
     targets = []
     for index, target in enumerate(raw.get("targets") or []):
