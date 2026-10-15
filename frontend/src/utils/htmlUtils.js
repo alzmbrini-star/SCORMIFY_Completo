@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from './apiUrl';
+import { assessmentLayout } from '../components/assessment/assessmentLayout';
 const API_URL = getApiUrl();
 
 /**
@@ -176,6 +177,9 @@ export const isGeneratedGameHtml = (html) => {
 
 export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 540) => {
   if (!element || element.type !== 'html') return element;
+  if (element.assessmentConfig || /id=["']assessment-data["']/.test(element.htmlContent || '')) {
+    return { ...element, x: 0, y: 0, width: slideWidth, height: slideHeight, objectFit: 'cover', htmlDisplayMode: 'fit' };
+  }
   const isGame = element.interactiveType === 'game' || element.gameType || element.gameConfig
     || isGeneratedGameHtml(element.htmlContent || '');
   if (!isGame) return element;
@@ -194,6 +198,9 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
+  if (/id=["']assessment-data["']/.test(html)) {
+    return injectDocumentSnippet(html, '<style id="assessment-viewport">' + assessmentLayout + '</style>');
+  }
   const isGeneratedGame = isGeneratedGameHtml(html);
   if (isGeneratedGame && !html.includes('__scormify_game_fit_v9')) {
     const upgraded = html.includes('__stage')

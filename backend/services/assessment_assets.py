@@ -9,6 +9,10 @@ from urllib.parse import urlsplit
 
 
 def inline_assessment_assets(document: str, assets_dir: str) -> str:
+    # Repair existing snapshots as well as newly generated assessments.
+    if re.search(r'id=[\"\']assessment-data[\"\']', document):
+        css = (Path(__file__).parent / 'export_assets' / 'assessment-layout.css').read_text(encoding='utf-8')
+        document = document.replace('</head>', '<style id="assessment-viewport">' + css + '</style></head>')
     pattern = re.compile(r'(<script\b[^>]*\bid="assessment-data"[^>]*>)([\s\S]*?)(</script>)', re.I)
 
     def replace(match):
