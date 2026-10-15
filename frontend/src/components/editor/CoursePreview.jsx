@@ -673,6 +673,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             style={{
               width: currentSlide?.width || 960,
               height: currentSlide?.height || 540,
+              flexShrink: 0,
               backgroundColor: currentSlide?.background || '#FFFFFF',
               transform: `scale(${slideScale})`,
               transformOrigin: 'center center',
