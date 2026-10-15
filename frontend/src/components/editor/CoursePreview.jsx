@@ -951,7 +951,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       scrollbarWidth: 'none',
                       msOverflowStyle: 'none'
                     }}
-                    sandbox="allow-scripts"
+                    sandbox={element.assessmentConfig ? 'allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals' : 'allow-scripts'}
                     title="HTML Content"
                   />
                 )}

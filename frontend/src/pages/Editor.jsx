@@ -126,6 +126,7 @@ import CoursePreview from '../components/editor/CoursePreview';
 import SplitPreview from '../components/editor/SplitPreview';
 import RichTextEditor from '../components/RichTextEditor';
 import QuizGenerator from '../components/quiz/QuizGenerator';
+import AssessmentBuilder from '../components/assessment/AssessmentBuilder';
 import ScenarioCreator from '../components/scenario/ScenarioCreator';
 import GamificationPanel from '../components/editor/GamificationPanel';
 import LeonardoPanel from './Agent/components/LeonardoPanel';
@@ -320,6 +321,7 @@ export default function Editor() {
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [showAssessmentDialog, setShowAssessmentDialog] = useState(false);
   const [showEducationalGameDialog, setShowEducationalGameDialog] = useState(false);
   const [showScenarioDialog, setShowScenarioDialog] = useState(false);
   const [showGamificationPanel, setShowGamificationPanel] = useState(false);
@@ -1123,6 +1125,25 @@ export default function Editor() {
     }
   };
 
+  // An assessment is stored as a self-contained HTML snapshot.  It keeps the
+  // rich interaction and attached material intact in the Editor, standalone
+  // HTML and SCORM packages even when the question bank changes later.
+  const handleAssessmentCreated = async (assessmentData) => {
+    if (!currentSlide) throw new Error('Selecione um slide antes de inserir a avaliação.');
+    const slideWidth = Number(currentSlide.width) || 960;
+    const slideHeight = Number(currentSlide.height) || 540;
+    try {
+      await addElement(currentSlide.id, {
+        ...assessmentData,
+        x: 0, y: 0, width: slideWidth, height: slideHeight,
+        htmlDisplayMode: 'fit', objectFit: 'cover',
+      });
+    } catch (err) {
+      console.error('Failed to add assessment:', err);
+      throw err;
+    }
+  };
+
   // Add a self-contained educational game. Its question snapshot is embedded
   // in the HTML so both HTML and SCORM exports keep working offline.
   const handleEducationalGameCreated = async (gameData) => {
@@ -1432,6 +1453,21 @@ export default function Editor() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Select</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-gradient-to-r from-blue-500/15 to-indigo-500/15 hover:from-blue-500/30 hover:to-indigo-500/30"
+                    onClick={() => setShowAssessmentDialog(true)}
+                    data-testid="add-assessment-btn"
+                  >
+                    <Check className="w-4 h-4 text-blue-300" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Criar Avaliação</TooltipContent>
               </Tooltip>
 
               <Separator orientation="vertical" className="h-6" />
@@ -2518,6 +2554,14 @@ export default function Editor() {
           onOpenChange={setShowQuizDialog}
           projectId={currentProject?.id}
           onQuizCreated={handleQuizCreated}
+        />
+
+        <AssessmentBuilder
+          open={showAssessmentDialog}
+          onOpenChange={setShowAssessmentDialog}
+          projectId={currentProject?.id}
+          uploadMedia={uploadMedia}
+          onCreated={handleAssessmentCreated}
         />
 
         <EducationalGameDialog

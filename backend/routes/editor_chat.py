@@ -28,6 +28,8 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 3. Gerar lista ESTRUTURADA de operacoes que o backend aplica atomicamente.
 
 ## Tipos de operacao suportados
+- `create_assessment`: {title: str, prompt: str, count?: int (1-12), allowSkip?: bool, insertAfter?: int}
+   - Use quando o autor pedir uma prova ou avaliação interativa com banco de questões, categorias ou arrastar e soltar. Gera questões, salva no banco e insere um novo slide com a avaliação completa. Inclua o contexto pedagógico do curso no prompt. Não substitua slides existentes.
 - `edit_slide_title`: {slideIndex: int, title: str}
 - `edit_element_content`: {slideIndex: int, elementIndex: int, content: str}
 - `edit_element_style`: {slideIndex: int, elementIndex: int, style: {fontColor?, fontSize?, fontWeight?, textAlign?, fontFamily?}}
@@ -1005,9 +1007,8 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     if not message:
         raise HTTPException(400, "Mensagem vazia")
 
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(404, "Projeto nao encontrado")
+    from routes.projects_common import load_authorized_project
+    project = await load_authorized_project(project_id, user)
 
     slides = (project.get("course") or {}).get("slides") or []
     if not slides:
@@ -1104,6 +1105,24 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     snapshot_slides = _copy.deepcopy(slides) if ops else None
 
     applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds, brand_kit=brand_kit, brand_logo_url=brand_logo_url)
+
+    for operation in ops:
+        if operation.get('type') != 'create_assessment':
+            continue
+        from routes.assessments import generate_questions
+        from services.assessment_renderer import assessment_element
+        generated = await generate_questions({
+            'projectId': project_id, 'prompt': operation.get('prompt') or message,
+            'count': operation.get('count') or 5,
+        }, user)
+        title = str(operation.get('title') or 'Avaliação de aprendizagem')[:200]
+        position = max(0, min(len(slides), int(operation.get('insertAfter', len(slides) - 1)) + 1))
+        reference = slides[max(0, min(position - 1, len(slides) - 1))] if slides else {}
+        width, height = reference.get('width') or 960, reference.get('height') or 540
+        element = assessment_element(generated['items'], title, operation.get('allowSkip') is not False, width, height)
+        slides.insert(position, {'id': str(uuid.uuid4()), 'title': title, 'width': width, 'height': height,
+                                'duration': 300, 'background': '#081139', 'elements': [element], 'audio': []})
+        applied.append({'type': 'create_assessment', 'slideIndex': position, 'questionCount': len(generated['items'])})
 
     if applied:
         await db.projects.update_one(

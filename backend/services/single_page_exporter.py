@@ -143,6 +143,8 @@ def _inline_assets_in_html(html_str: str, project_id: str, assets_dir: str, base
     """
     if not html_str:
         return ""
+    from services.assessment_assets import inline_assessment_assets
+    html_str = inline_assessment_assets(html_str, assets_dir)
 
     def repl(match: re.Match) -> str:
         full = match.group(0)
@@ -1153,9 +1155,12 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         else:
             raw_with_meta = reset_css + raw
         b64 = base64.b64encode(raw_with_meta.encode("utf-8")).decode("ascii")
+        sandbox = 'allow-scripts allow-same-origin allow-forms'
+        if el.get('assessmentConfig'):
+            sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
-            f'<iframe sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy" '
+            f'<iframe sandbox="{sandbox}" loading="lazy" '
             f'src="data:text/html;charset=utf-8;base64,{b64}" '
             f'style="width:100%;{iframe_height_css};border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '

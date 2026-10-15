@@ -42,7 +42,10 @@ async def upload_media(project_id: str, file: UploadFile = File(...), user: dict
     """Upload media file (image, audio, video) with automatic image optimization."""
     await load_authorized_project(project_id, user)
 
-    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp3', '.wav', '.ogg', '.mp4', '.webm', '.pdf'}
+    # Assessment questions can carry the same supporting material used by a
+    # course: images/video plus downloadable Office documents.  Files remain
+    # project-scoped and are embedded by the exporters when referenced.
+    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp3', '.wav', '.ogg', '.mp4', '.webm', '.pdf', '.doc', '.docx'}
     ext = Path(file.filename).suffix.lower()
     if ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}")

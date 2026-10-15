@@ -1139,7 +1139,7 @@ const SlideCanvas = ({
                       </html>`;
                     })()}
                     className="border-0"
-                    sandbox="allow-scripts allow-forms"
+                    sandbox={element.assessmentConfig ? 'allow-scripts allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals' : 'allow-scripts allow-forms'}
                     title="Página HTML interativa"
                     style={{
                       width: `${htmlViewportWidth}px`,

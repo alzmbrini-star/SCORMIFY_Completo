@@ -1565,7 +1565,9 @@ var CoursePlayer = (function() {
                 }
                 htmlIframe.srcdoc = wrappedHtml;
                 htmlIframe.style.cssText = 'width:100%!important;height:100%!important;border:none!important;background:transparent!important;overflow:' + (isHtmlFullscreen ? 'hidden' : 'auto') + '!important;display:block!important;';
-                htmlIframe.sandbox = 'allow-scripts allow-same-origin';
+                htmlIframe.sandbox = element.assessmentConfig
+                    ? 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
+                    : 'allow-scripts allow-same-origin';
                 el.style.overflow = 'hidden';
                 el.appendChild(htmlIframe);
                 break;

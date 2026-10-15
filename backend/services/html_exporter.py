@@ -102,6 +102,8 @@ async def process_html_content_images(
     """
     if not html_content:
         return html_content
+    from services.assessment_assets import inline_assessment_assets
+    html_content = inline_assessment_assets(html_content, assets_dir)
     
     # Sanitize: remove Tailwind CSS variables and editor artifacts
     html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
@@ -227,6 +229,34 @@ async def process_html_content_images(
     
     logger.info(f"Processed {len(matches)} images in HTML content")
     return result
+
+
+async def process_html_content_project_assets(html_content: str, assets_dir: str) -> str:
+    """Inline local project assets used by self-contained HTML widgets.
+
+    Assessment questions may attach a video, PDF or Office document in
+    addition to an image.  Keeping these URLs as `/api/projects/...` would
+    make the downloaded HTML and SCORM package depend on the authoring
+    server.  Only project-asset URLs are rewritten; external embeds keep
+    their original URL and behaviour.
+    """
+    if not html_content:
+        return html_content
+    pattern = re.compile(r'(?P<attr>src|href)=["\'](?P<url>/api/projects/[^"\']+/assets/[^"\']+)["\']', re.I)
+
+    def replace(match):
+        url = match.group("url")
+        filename = url.split("?")[0].rstrip("/").split("/")[-1]
+        if not filename or "/" in filename or ".." in filename:
+            return match.group(0)
+        local_path = os.path.join(assets_dir, filename)
+        encoded = file_to_base64(local_path)
+        if not encoded:
+            logger.warning("Could not inline HTML widget asset: %s", filename)
+            return match.group(0)
+        return f'{match.group("attr")}="{encoded}"'
+
+    return pattern.sub(replace, html_content)
 
 
 def _generate_tutor_block(tutor_config: dict = None) -> str:
@@ -485,10 +515,13 @@ async def generate_standalone_html(
             # Process HTML elements (Rich Text Editor content with embedded images)
             if element.get('type') == 'html' and element.get('htmlContent'):
                 # Process any images inside the HTML content (including AI-generated images)
-                processed_element['htmlContent'] = await process_html_content_images(
+                processed_html = await process_html_content_images(
                     element['htmlContent'],
                     assets_dir,
                     base_url
+                )
+                processed_element['htmlContent'] = await process_html_content_project_assets(
+                    processed_html, assets_dir
                 )
                 logger.info("Processed HTML element content for embedded images")
             

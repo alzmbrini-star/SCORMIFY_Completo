@@ -1,0 +1,161 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Inter,Segoe UI,Arial,sans-serif;background:#081139;color:#f8fbff;overflow:hidden}.assessment{height:100%;min-height:540px;background:radial-gradient(circle at 70% 0,#2549be 0,#101f6a 32%,#071039 75%);display:flex;flex-direction:column}.top{padding:14px 20px 12px;border-bottom:1px solid #ffffff1f;background:#071238cc}.categories{display:flex;flex-wrap:wrap;gap:7px 18px;align-items:center}.cat{font-size:10px;font-weight:800;color:#aeb9db;text-transform:uppercase;letter-spacing:.04em}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);margin-right:5px}.numbers{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.num{width:29px;height:29px;border-radius:8px;border:1px solid #8995c844;background:#18275b;color:#d8e2ff;font-weight:800;cursor:pointer}.num.active{border-color:#ffd057;color:white;box-shadow:0 0 0 2px #ffc92833,0 0 18px #ffc92899}.num.done{background:#0f9f78;border-color:#62e9bd}.shell{min-height:0;flex:1;display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,.92fr);gap:18px;padding:16px 22px}.work,.panel{min-height:0;border:1px solid #6f8ee055;border-radius:22px;background:#10215bd9;box-shadow:0 22px 65px #02061d88;overflow:hidden}.work{display:flex;flex-direction:column}.media-head{height:44px;padding:0 15px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:13px;background:#1b2d72}.badge{font-size:11px;border:1px solid #7ee7df;border-radius:99px;padding:4px 9px;color:#8ff5e7}.stage{position:relative;flex:1;min-height:280px;background:#071331;display:flex;align-items:center;justify-content:center;padding:18px}.stage img,.stage video,.stage iframe{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;border:0;border-radius:12px}.asset-empty{width:88%;height:75%;border:2px dashed #5f82da88;border-radius:18px;display:grid;place-items:center;text-align:center;color:#9eb0df;background:linear-gradient(135deg,#1d347633,#071333)}.document{max-width:540px;text-align:center;padding:40px;border-radius:18px;background:#ffffff10;border:1px solid #ffffff2a}.document b{display:block;font-size:19px;margin:12px}.document a{display:inline-block;margin-top:12px;padding:11px 16px;border-radius:9px;background:#2c7df0;color:white;text-decoration:none;font-weight:800}.dropzones{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;width:100%;height:100%;align-content:center}.zone{min-height:130px;border:2px dashed var(--zone);border-radius:14px;padding:10px;background:#0a1744a8}.zone h4{margin:0 0 8px;color:white;font-size:13px}.zone .hint{font-size:11px;color:#8696c3}.card{border:1px solid #7c9cff77;border-radius:10px;background:#1b3174;color:#fff;padding:9px;margin:7px 0;font-size:12px;font-weight:700;cursor:grab}.tray{padding:11px 16px;border-top:1px solid #ffffff16;display:flex;gap:8px;flex-wrap:wrap;min-height:56px}.panel{display:flex;flex-direction:column}.panel-body{padding:22px 24px;overflow:auto;flex:1}.eyebrow{font-size:11px;color:#ffd35c;font-weight:900;letter-spacing:.14em}.tag{float:right;border:1px solid #bdc9ff;border-radius:99px;padding:4px 9px;font-size:11px;color:#e5ebff}.panel h1{font-size:26px;line-height:1.12;margin:17px 0 8px}.panel .prompt{font-size:17px;font-weight:750;line-height:1.38;margin:0 0 12px}.instructions{font-size:12px;color:#bcc8ee;line-height:1.45;margin-bottom:15px}.options{display:grid;gap:9px}.option{width:100%;text-align:left;border:1px solid #7187cf77;background:#203678;border-radius:13px;padding:13px;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px}.option:hover{border-color:#65baff}.option.selected{background:#265ec7;border-color:#49a5ff;box-shadow:0 0 0 2px #2b9cff2e}.letter{min-width:25px;height:25px;border-radius:7px;background:#4b8df4;display:grid;place-items:center;font-size:11px}.order{display:flex;gap:7px;margin-bottom:8px;align-items:center}.order .option{flex:1}.order button{border:1px solid #7288d3;background:#203678;color:#fff;border-radius:7px;min-width:28px;height:28px;cursor:pointer}.feedback{margin-top:14px;border-radius:12px;padding:12px;font-size:13px;line-height:1.45}.feedback.ok{background:#098c6d33;border:1px solid #45e6ae}.feedback.no{background:#d3536333;border:1px solid #ff9fa9}.footer{border-top:1px solid #ffffff1b;padding:14px 24px;display:flex;gap:10px;background:#16286a}.footer button{border:0;border-radius:11px;padding:12px 15px;font-weight:900;cursor:pointer}.confirm{background:linear-gradient(90deg,#2385f0,#2872e6);color:#fff;flex:1}.confirm:disabled{opacity:.42;cursor:not-allowed}.skip{background:transparent;color:#d0d9ff}.summary{padding:32px;text-align:center;display:grid;place-items:center;height:100%}.summary h1{font-size:32px}.summary .score{font-size:62px;color:#62e5bb;font-weight:900}.summary button{padding:13px 20px;border:0;border-radius:10px;background:#2d83f1;color:white;font-weight:900;cursor:pointer}@media(max-width:800px){.shell{grid-template-columns:1fr;padding:9px}.work{min-height:235px}.top{padding:9px}.panel h1{font-size:21px}.stage{min-height:210px}.categories{display:flex;max-height:110px;overflow:auto}.assessment{min-height:0;overflow:auto}.shell{flex:none;display:flex;flex-direction:column}.work{height:300px;flex:none}.panel{min-height:400px;flex:none}.panel-body{overflow:visible}.stage{min-height:0}}
+.panel-body>.option{margin-bottom:9px}.card.selected{outline:3px solid #ffd057}.card-image{display:block;width:72px!important;height:72px!important;object-fit:contain;margin:6px auto;border-radius:6px}.assessment-support{margin-top:16px;max-height:220px;overflow:auto}.assessment-support img,.assessment-support video,.assessment-support iframe{width:100%;max-height:200px}#app{height:100%}.top{flex-shrink:0;max-height:34%;overflow:auto}.stage{overflow:auto}.stage>.dropzones{height:auto;min-height:100%}button:disabled{cursor:not-allowed;opacity:.65}.top>.skip{margin-left:16px;padding:7px 13px;border:1px solid #7187cf77;border-radius:8px}.top>span{font-size:12px}@media(min-width:801px) and (max-width:1100px){.shell{grid-template-columns:minmax(0,1.4fr) minmax(340px,1fr);gap:12px;padding:12px}.panel-body{padding:16px}.panel h1{font-size:21px}.panel .prompt{font-size:15px}.option{font-size:12px;padding:10px}.footer{padding:12px 16px}}</style></head><body><main id="app"></main><script id="assessment-data" type="application/json">__ASSESSMENT_DATA__</script><script>(function assessmentRuntime() {
+  const data = JSON.parse(document.getElementById('assessment-data').textContent);
+  const questions = data.questions || [];
+  const root = document.getElementById('app');
+  const answers = new Map();
+  const submitted = new Map();
+  let index = 0;
+  let selectedCard = null;
+  const labels = { single_choice: 'Escolha simples', multiple_choice: 'Múltipla seleção', ordering: 'Ordenar etapas', categorization: 'Arrastar e soltar' };
+  function node(tag, cls, text, parent) {
+    const el = document.createElement(tag); el.className = cls || '';
+    if (text !== undefined) el.textContent = text;
+    if (parent) parent.appendChild(el); return el;
+  }
+  function button(text, cls, action, parent, disabled = false) {
+    const el = node('button', cls, text, parent); el.type = 'button'; el.disabled = disabled; el.onclick = action; return el;
+  }
+  function value(q) {
+    if (!answers.has(q.id)) {
+      answers.set(q.id, q.type === 'categorization' ? {} : q.type === 'ordering' ? q.items.map(x => x.id).reverse() : []);
+    }
+    return answers.get(q.id);
+  }
+  function ready(q) {
+    const a = value(q);
+    return q.type === 'categorization' ? q.items.every(x => a[x.id]) : a.length > 0;
+  }
+  function correct(q, a) {
+    if (q.type === 'ordering') return JSON.stringify(a) === JSON.stringify(q.correctOrder);
+    if (q.type === 'categorization') return q.items.every(x => a[x.id] === x.correctTarget);
+    return JSON.stringify([...a].sort()) === JSON.stringify(q.options.filter(x => x.isCorrect).map(x => x.id).sort());
+  }
+  function navigate(next) {
+    if (next < 0 || next >= questions.length) return;
+    if (data.allowSkip === false && questions.slice(0, next).some(q => !submitted.has(q.id))) return;
+    index = next; selectedCard = null; render();
+  }
+  function finish() {
+    if (data.allowSkip === false && submitted.size < questions.length) return;
+    if (submitted.size < questions.length && !window.confirm('Há questões sem resposta confirmada. Deseja finalizar?')) return;
+    let total = 0, points = 0;
+    questions.forEach(q => { total += q.points || 1; if (submitted.has(q.id) && correct(q, submitted.get(q.id))) points += q.points || 1; });
+    // Exported players expose an initialized SCORM API in the parent chain.
+    // Record this assessment's score without completing the surrounding course.
+    try {
+      let owner = window;
+      for (let depth = 0; depth < 8; depth++) {
+        const api = owner.API || owner.API_1484_11;
+        if (api) {
+          const modern = !owner.API;
+          const set = (key, val) => modern ? api.SetValue(key, String(val)) : api.LMSSetValue(key, String(val));
+          const prefix = modern ? 'cmi.score.' : 'cmi.core.score.';
+          set(prefix + 'raw', Math.round(total ? points / total * 100 : 0)); set(prefix + 'min', 0); set(prefix + 'max', 100);
+          if (modern) api.Commit(''); else api.LMSCommit('');
+          break;
+        }
+        if (owner.parent === owner) break;
+        owner = owner.parent;
+      }
+    } catch (_) { /* Sandboxed Editor previews do not expose an LMS. */ }
+    root.replaceChildren(); const main = node('main', 'assessment', undefined, root);
+    const summary = node('section', 'summary', undefined, main); const box = node('div', '', undefined, summary);
+    node('div', 'eyebrow', 'AVALIAÇÃO CONCLUÍDA', box); node('h1', '', data.title, box);
+    node('div', 'score', `${Math.round(total ? points / total * 100 : 0)}%`, box);
+    node('p', '', `${points} de ${total} pontos · ${submitted.size} de ${questions.length} respondidas`, box);
+    button('Revisar respostas', '', () => { index = 0; render(); }, box);
+  }
+  function advance() {
+    if (index < questions.length - 1) navigate(index + 1); else finish();
+  }
+  function safeUrl(raw) {
+    try { const u = new URL(raw, data.assetBase || document.baseURI); return ['https:', 'http:', 'blob:'].includes(u.protocol) || /^data:(image\/|video\/|application\/)/i.test(raw) ? u.href : ''; } catch (_) { return ''; }
+  }
+  function media(q, stage) {
+    const m = q.media; const url = m && safeUrl(m.url);
+    if (!url) { node('div', 'asset-empty', q.category || 'Avaliação de aprendizagem', stage); return; }
+    if (m.kind === 'image') { const img = node('img', '', undefined, stage); img.src = url; img.alt = m.name || 'Material de apoio'; }
+    else if (m.kind === 'video') { const video = node('video', '', undefined, stage); video.src = url; video.controls = true; }
+    else {
+      if (/\.pdf(?:[?#]|$)/i.test(m.name || m.url) || /^data:application\/pdf/i.test(url)) {
+        const frame = node('iframe', '', undefined, stage); frame.src = url; frame.title = m.name || 'PDF de apoio';
+      } else {
+        const doc = node('div', 'document', undefined, stage); node('b', '', m.name || 'Documento de apoio', doc);
+        node('p', '', 'Abra o documento no aplicativo compatível do seu dispositivo.', doc);
+        const link = node('a', '', 'Abrir / baixar documento', doc); link.href = url; link.target = '_blank'; link.rel = 'noopener'; link.download = m.name || 'documento';
+      }
+    }
+  }
+  function cardImage(item, parent) {
+    const url = item.media?.kind === 'image' && safeUrl(item.media.url);
+    if (!url) return;
+    const img = node('img', 'card-image', undefined, parent);
+    img.src = url; img.alt = item.media.name || item.text; img.draggable = false;
+  }
+  function render() {
+    root.replaceChildren(); const main = node('main', 'assessment', undefined, root);
+    if (!questions.length) { node('div', 'summary', 'Nenhuma questão selecionada.', main); return; }
+    const q = questions[index], a = value(q), locked = submitted.has(q.id);
+    const top = node('header', 'top', undefined, main); const groups = new Map();
+    questions.forEach((item, i) => { const category = item.category || 'Geral'; if (!groups.has(category)) groups.set(category, []); groups.get(category).push(i); });
+    const nav = node('nav', 'categories', undefined, top); nav.setAttribute('aria-label', 'Categorias e questões');
+    groups.forEach((indices, category) => {
+      const group = node('div', '', undefined, nav); node('div', 'cat', category, group); const nums = node('div', 'numbers', undefined, group);
+      indices.forEach(i => { const b = button(String(i + 1), `num ${i === index ? 'active' : ''} ${submitted.has(questions[i].id) ? 'done' : ''}`, () => navigate(i), nums, data.allowSkip === false && i > index && !locked); b.setAttribute('aria-label', `Questão ${i + 1}: ${questions[i].title}`); });
+    });
+    node('span', '', `${submitted.size} de ${questions.length} respondidas`, top);
+    button('Finalizar', 'skip', finish, top, data.allowSkip === false && submitted.size !== questions.length);
+    const shell = node('section', 'shell', undefined, main); const work = node('section', 'work', undefined, shell);
+    const head = node('div', 'media-head', undefined, work); node('span', '', q.media?.name || q.title, head); node('span', 'badge', q.category, head);
+    const stage = node('div', 'stage', undefined, work);
+    const panel = node('section', 'panel', undefined, shell); const body = node('div', 'panel-body', undefined, panel);
+    node('span', 'tag', labels[q.type], body); node('div', 'eyebrow', `QUESTÃO ${index + 1} DE ${questions.length}`, body);
+    node('h1', '', q.title, body); node('p', 'prompt', q.prompt, body);
+    node('p', 'instructions', q.instructions || (q.type === 'categorization' ? 'Arraste um cartão ou clique nele e depois no destino.' : 'Responda e confirme para avançar.'), body);
+    if (q.type === 'categorization') {
+      const zones = node('div', 'dropzones', undefined, stage); const tray = node('div', 'tray', undefined, body);
+      const assign = (id, target) => { if (locked || !q.items.some(x => x.id === id)) return; a[id] = target; selectedCard = null; render(); };
+      const card = (item, parent) => { const b = button(item.text, `card ${selectedCard === item.id ? 'selected' : ''}`, () => { selectedCard = item.id; render(); }, parent, locked); cardImage(item, b); b.draggable = !locked; b.ondragstart = ev => ev.dataTransfer.setData('text/plain', item.id); };
+      q.targets.forEach((target, i) => {
+        const zone = node('div', 'zone', undefined, zones); zone.style.setProperty('--zone', ['#64b5ff', '#ffc543', '#50d6cc', '#ff8a9a'][i % 4]);
+        button(target.label, 'option', () => assign(selectedCard, target.id), zone, locked);
+        zone.ondragover = ev => ev.preventDefault(); zone.ondrop = ev => { ev.preventDefault(); assign(ev.dataTransfer.getData('text/plain'), target.id); };
+        q.items.filter(item => a[item.id] === target.id).forEach(item => card(item, zone));
+      });
+      q.items.filter(item => !a[item.id]).forEach(item => card(item, tray));
+      if (q.media) { const support = node('div', 'assessment-support', undefined, body); media(q, support); }
+    } else {
+      media(q, stage);
+      if (q.type === 'ordering') {
+        a.forEach((id, i) => {
+          const item = q.items.find(x => x.id === id); const row = node('div', 'order', undefined, body);
+          row.draggable = !locked;
+          row.ondragstart = ev => ev.dataTransfer.setData('text/plain', id);
+          row.ondragover = ev => ev.preventDefault();
+          row.ondrop = ev => {
+            ev.preventDefault(); if (locked) return;
+            const source = a.indexOf(ev.dataTransfer.getData('text/plain'));
+            if (source < 0 || source === i) return;
+            a.splice(i, 0, a.splice(source, 1)[0]); render();
+          };
+          node('div', 'option', `${i + 1}. ${item.text}`, row);
+          const move = delta => { const j = i + delta; if (locked || j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; render(); };
+          button('↑', '', () => move(-1), row, locked || i === 0); button('↓', '', () => move(1), row, locked || i === a.length - 1);
+        });
+      } else q.options.forEach((option, i) => {
+        const b = button(`${String.fromCharCode(65 + i)}. ${option.text}`, `option ${a.includes(option.id) ? 'selected' : ''}`, () => {
+          answers.set(q.id, q.type === 'single_choice' ? [option.id] : a.includes(option.id) ? a.filter(id => id !== option.id) : [...a, option.id]); render();
+        }, body, locked); cardImage(option, b); b.setAttribute('aria-pressed', String(a.includes(option.id)));
+      });
+    }
+    if (locked) node('div', `feedback ${correct(q, submitted.get(q.id)) ? 'ok' : 'no'}`, `${correct(q, submitted.get(q.id)) ? 'Resposta correta. ' : 'Resposta incorreta. '}${q.explanation || ''}`, body);
+    const footer = node('footer', 'footer', undefined, panel);
+    button(locked ? 'Próxima questão →' : '✓ Confirmar resposta', 'confirm', () => {
+      if (!locked) submitted.set(q.id, JSON.parse(JSON.stringify(a))); advance();
+    }, footer, !locked && !ready(q));
+    if (data.allowSkip !== false && !locked) button('Pular', 'skip', advance, footer);
+  }
+  render();
+})();</script></body></html>

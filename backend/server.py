@@ -179,6 +179,11 @@ app.include_router(gamification_routes.router, prefix="/api")
 from routes import question_bank as question_bank_routes
 app.include_router(question_bank_routes.router, prefix="/api")
 
+# Rich assessment questions are project-scoped and intentionally available
+# even when the legacy Quiz routes are disabled.
+from routes import assessments as assessments_routes
+app.include_router(assessments_routes.router, prefix="/api")
+
 if enable_legacy_ai_routes:
     from routes import agent as agent_routes
     app.include_router(agent_routes.router, prefix="/api")

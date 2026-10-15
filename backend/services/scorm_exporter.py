@@ -8,6 +8,7 @@ import zipfile
 import logging
 import re
 import base64
+import mimetypes
 import httpx
 from pathlib import Path
 from datetime import datetime
@@ -41,7 +42,7 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
     ext = Path(filename).suffix.lower()
     content_types = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', 
                      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml'}
-    content_type = content_types.get(ext, 'image/png')
+    content_type = content_types.get(ext) or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
     
     # Try 1: Read from package assets directory (local file)
     local_path = package_assets_dir / filename
@@ -810,10 +811,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                     html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
                     html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
 
-                    img_pattern = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
+                    # HTML assessment widgets may reference image, video or
+                    # document attachments.  Rewrite both src and href so the
+                    # packaged player never reaches back to the authoring API.
+                    img_pattern = re.compile(r'(?P<attr>src|href)=["\'](?P<src>[^"\']+)["\']', re.IGNORECASE)
 
                     def fix_img_src(match):
-                        src = match.group(1)
+                        src = match.group('src')
+                        attr = match.group('attr')
                         if not src or src.startswith('data:'):
                             return match.group(0)
                         # Company brand image URL — rewrite to local
@@ -821,9 +826,12 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         if "/api/companies/" in src:
                             rewritten = _rewrite_company_url(src)
                             if rewritten != src:
-                                return f'src="{rewritten}"'
+                                return f'{attr}="{rewritten}"'
                             return match.group(0)
-                        if '/api/assets/' in src:
+                        if '/api/projects/' in src and '/assets/' in src:
+                            fn_raw = src.split('/assets/')[-1].split('?')[0]
+                            fn = fn_raw.split('/')[-1] if '/' in fn_raw else fn_raw
+                        elif '/api/assets/' in src:
                             fn_raw = src.split('/api/assets/')[-1].split('?')[0]
                             fn = fn_raw.split('/')[-1] if '/' in fn_raw else fn_raw
                         elif '/assets/' in src:
@@ -834,11 +842,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         if fn:
                             data_uri = _read_image_as_data_uri(project.id, fn, package_assets)
                             if data_uri:
-                                return f'src="{data_uri}"'
-                            return f'src="assets/{fn}"'
+                                return f'{attr}="{data_uri}"'
+                            return f'{attr}="assets/{fn}"'
                         return match.group(0)
 
-                    element['htmlContent'] = img_pattern.sub(fix_img_src, html_content)
+                    from services.assessment_assets import inline_assessment_assets
+                    element['htmlContent'] = inline_assessment_assets(
+                        img_pattern.sub(fix_img_src, html_content), str(package_assets)
+                    )
 
         # Fix audio URLs (keep as files, not data URIs)
         for audio in (slide.get('audio') or []):
