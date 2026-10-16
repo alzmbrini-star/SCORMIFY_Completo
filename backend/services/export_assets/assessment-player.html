@@ -13,6 +13,21 @@ body{display:block!important;position:relative!important}
 .assessment .footer{flex:0 0 auto!important;position:relative!important;padding:10px 14px!important;z-index:2}
 .assessment .media-head{flex:0 0 38px!important}
 .assessment .panel h1{font-size:clamp(18px,2vw,26px)}
+/* Keep exported questions readable at their actual iframe viewport size. */
+.assessment{font-family:Arial,Helvetica,sans-serif;line-height:1.45}
+.assessment button{font-family:inherit;line-height:1.4}
+.assessment .panel h1{font-size:clamp(22px,2vw,32px);line-height:1.2}
+.assessment .panel .prompt{font-size:clamp(17px,1.35vw,23px);line-height:1.45;font-weight:600}
+.assessment .option,.assessment .card,.assessment .feedback{font-size:clamp(16px,1.2vw,21px);line-height:1.45;font-weight:600;overflow-wrap:anywhere}
+.assessment .instructions,.assessment .zone .hint{font-size:clamp(14px,1vw,18px);color:#dce6ff;line-height:1.5}
+.assessment .cat,.assessment .eyebrow,.assessment .badge,.assessment .tag{font-size:clamp(12px,.85vw,16px);line-height:1.4}
+.assessment .media-head,.assessment .footer button,.assessment .top>span,.assessment .top>.skip{font-size:clamp(14px,1.05vw,19px)}
+.assessment .num{font-size:15px;width:32px;height:32px}
+.assessment .tray{display:grid;grid-template-columns:1fr;gap:10px;padding:12px 0;align-content:start}
+.assessment .card{margin:0;padding:12px;text-align:left;white-space:normal}
+.assessment .zone .card{margin-top:10px}
+.assessment .option{white-space:normal;padding:12px}
+.assessment .order .option{min-width:0}
 .assessment .media-head{gap:8px;padding:0 10px}.media-head>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .image-expand,.image-close{border:1px solid #b8caff66;border-radius:8px;padding:7px 12px;background:#203678;color:white;cursor:pointer;white-space:nowrap}
 .visual-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;width:100%;margin:auto;align-content:start}
