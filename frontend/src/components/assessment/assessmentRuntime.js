@@ -93,10 +93,22 @@ export function assessmentRuntime() {
     const img = node('img', 'card-image', undefined, parent);
     img.src = url; img.alt = item.media.name || item.text; img.draggable = false;
   }
+  function enlarge(q) {
+    const overlay = node('div', 'image-overlay', undefined, root);
+    overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Imagem ampliada');
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = event => { if (event.key === 'Escape') close(); };
+    const closeButton = button('Fechar imagem ×', 'image-close', close, overlay);
+    const img = node('img', '', undefined, overlay); img.src = safeUrl(q.media.url); img.alt = q.media.name || q.title;
+    overlay.onclick = event => { if (event.target === overlay) close(); };
+    document.addEventListener('keydown', onKey); closeButton.focus();
+  }
   function render() {
     root.replaceChildren(); const main = node('main', 'assessment', undefined, root);
     if (!questions.length) { node('div', 'summary', 'Nenhuma questão selecionada.', main); return; }
     const q = questions[index], a = value(q), locked = submitted.has(q.id);
+    const visualChoices = ['single_choice', 'multiple_choice'].includes(q.type) && !q.media && q.options.some(option => option.media?.kind === 'image');
     const top = node('header', 'top', undefined, main); const groups = new Map();
     questions.forEach((item, i) => { const category = item.category || 'Geral'; if (!groups.has(category)) groups.set(category, []); groups.get(category).push(i); });
     const nav = node('nav', 'categories', undefined, top); nav.setAttribute('aria-label', 'Categorias e questões');
@@ -108,6 +120,7 @@ export function assessmentRuntime() {
     button('Finalizar', 'skip', finish, top, data.allowSkip === false && submitted.size !== questions.length);
     const shell = node('section', 'shell', undefined, main); const work = node('section', 'work', undefined, shell);
     const head = node('div', 'media-head', undefined, work); node('span', '', q.media?.name || q.title, head); node('span', 'badge', q.category, head);
+    if (q.media?.kind === 'image') button('⤢ Ampliar', 'image-expand', () => enlarge(q), head);
     const stage = node('div', 'stage', undefined, work);
     const panel = node('section', 'panel', undefined, shell); const body = node('div', 'panel-body', undefined, panel);
     node('span', 'tag', labels[q.type], body); node('div', 'eyebrow', `QUESTÃO ${index + 1} DE ${questions.length}`, body);
@@ -126,7 +139,9 @@ export function assessmentRuntime() {
       q.items.filter(item => !a[item.id]).forEach(item => card(item, tray));
       if (q.media) { const support = node('div', 'assessment-support', undefined, body); media(q, support); }
     } else {
-      media(q, stage);
+      if (!visualChoices) media(q, stage);
+      const choices = visualChoices ? node('div', 'visual-choices', undefined, stage) : body;
+      if (visualChoices) node('p', 'instructions', q.type === 'single_choice' ? 'Clique na imagem que responde à pergunta.' : 'Selecione todas as imagens corretas.', body);
       if (q.type === 'ordering') {
         a.forEach((id, i) => {
           const item = q.items.find(x => x.id === id); const row = node('div', 'order', undefined, body);
@@ -144,9 +159,16 @@ export function assessmentRuntime() {
           button('↑', '', () => move(-1), row, locked || i === 0); button('↓', '', () => move(1), row, locked || i === a.length - 1);
         });
       } else q.options.forEach((option, i) => {
-        const b = button(`${String.fromCharCode(65 + i)}. ${option.text}`, `option ${a.includes(option.id) ? 'selected' : ''}`, () => {
+        const selected = a.includes(option.id);
+        const review = locked ? option.isCorrect ? ' answer-correct' : selected ? ' answer-incorrect' : '' : '';
+        const b = button(visualChoices ? undefined : `${String.fromCharCode(65 + i)}. ${option.text}`, `option ${visualChoices ? 'visual-choice' : ''} ${selected ? 'selected' : ''}${review}`, () => {
           answers.set(q.id, q.type === 'single_choice' ? [option.id] : a.includes(option.id) ? a.filter(id => id !== option.id) : [...a, option.id]); render();
-        }, body, locked); cardImage(option, b); b.setAttribute('aria-pressed', String(a.includes(option.id)));
+        }, choices, locked); cardImage(option, b);
+        if (visualChoices) {
+          node('span', 'visual-caption', option.text || `Alternativa ${String.fromCharCode(65 + i)}`, b);
+          node('span', 'visual-marker', locked && option.isCorrect ? '✓ Correta' : locked && selected ? '× Incorreta' : selected ? '✓ Selecionada' : String.fromCharCode(65 + i), b);
+        }
+        b.setAttribute('aria-pressed', String(selected));
       });
     }
     if (locked) node('div', `feedback ${correct(q, submitted.get(q.id)) ? 'ok' : 'no'}`, `${correct(q, submitted.get(q.id)) ? 'Resposta correta. ' : 'Resposta incorreta. '}${q.explanation || ''}`, body);
