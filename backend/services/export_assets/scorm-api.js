@@ -6,6 +6,18 @@ var ScormAPI = (function() {
     var initialized = false;
     var finished = false;
     var startTime = null;
+    function accepted(result) { return result === true || result === 'true'; }
+    function write(api, key, value) {
+        try {
+            if (accepted(api.LMSSetValue(key, String(value)))) return true;
+            console.error('[ScormAPI] LMS rejected', key, api.LMSGetLastError ? api.LMSGetLastError() : '');
+        } catch (error) { console.error('[ScormAPI] LMS write failed', key, error); }
+        return false;
+    }
+    function save(api) {
+        try { return accepted(api.LMSCommit('')); }
+        catch (error) { console.error('[ScormAPI] Commit failed', error); return false; }
+    }
     
     function findAPI(win) {
         var findAPITries = 0;
@@ -79,10 +91,10 @@ var ScormAPI = (function() {
                     api.LMSSetValue("cmi.core.session_time", formatTime(totalSeconds));
                 }
                 
-                api.LMSCommit("");
+                if (!save(api)) return false;
                 var result = api.LMSFinish("");
-                finished = true;
-                return result === "true" || result === true;
+                finished = accepted(result);
+                return finished;
             }
             return false;
         },
@@ -118,14 +130,20 @@ var ScormAPI = (function() {
             
             var api = getAPI();
             if (api) {
-                // SCORM 1.2 uses one combined lesson_status field. Keep the
-                // final value as "completed"; writing "passed" immediately
-                // afterwards made completion reporting differ between LMSs
-                // and hid the exact Complete state requested by navigation.
-                api.LMSSetValue("cmi.core.lesson_status", "completed");
-                api.LMSCommit("");
-                console.log('[ScormAPI] lesson_status set to completed');
-                return true;
+                try {
+                    var raw = api.LMSGetValue('cmi.core.score.raw');
+                    var mastery = api.LMSGetValue('cmi.student_data.mastery_score');
+                    var hasScore = raw !== null && String(raw).trim() !== '' && isFinite(Number(raw));
+                    // The package declares 80. Prefer the threshold supplied by
+                    // the LMS so it cannot reinterpret a passing result as failed.
+                    var threshold = mastery !== null && String(mastery).trim() !== '' && isFinite(Number(mastery)) ? Number(mastery) : 80;
+                    var status = hasScore ? (Number(raw) >= threshold ? 'passed' : 'failed') : 'completed';
+                    if (!write(api, 'cmi.core.lesson_status', status)) return false;
+                    if (!write(api, 'cmi.core.exit', '')) return false;
+                    if (!save(api)) return false;
+                    console.log('[ScormAPI] lesson_status saved:', status);
+                    return true;
+                } catch (error) { console.error('[ScormAPI] Completion failed', error); return false; }
             }
             console.warn('[ScormAPI] setComplete failed - no API');
             return false;
@@ -136,13 +154,22 @@ var ScormAPI = (function() {
             
             var api = getAPI();
             if (api) {
-                api.LMSSetValue("cmi.core.score.raw", String(score));
-                api.LMSSetValue("cmi.core.score.min", "0");
-                api.LMSSetValue("cmi.core.score.max", "100");
-                api.LMSCommit("");
-                return true;
+                if (!isFinite(Number(score)) || Number(score) < 0 || Number(score) > 100) return false;
+                var minSaved = write(api, 'cmi.core.score.min', '0');
+                var maxSaved = write(api, 'cmi.core.score.max', '100');
+                var rawSaved = write(api, 'cmi.core.score.raw', score);
+                return minSaved && maxSaved && rawSaved && save(api);
             }
             return false;
+        },
+
+        getPassingScore: function(fallback) {
+            var api = getAPI();
+            try {
+                var mastery = initialized && api ? api.LMSGetValue('cmi.student_data.mastery_score') : '';
+                if (mastery !== null && String(mastery).trim() !== '' && isFinite(Number(mastery))) return Number(mastery);
+            } catch (error) { console.warn('[ScormAPI] Could not read mastery score', error); }
+            return typeof fallback === 'number' ? fallback : 80;
         },
         
         commit: function() {

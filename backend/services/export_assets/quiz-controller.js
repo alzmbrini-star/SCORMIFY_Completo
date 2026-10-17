@@ -287,7 +287,9 @@ var QuizController = (function() {
             var totalCount = quiz.answers.length;
             var percentage = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
             var score = Math.round(percentage) / 10; // 0-10 scale
-            var passed = percentage >= (quiz.config.passingScore || 60);
+            var passingScore = typeof ScormAPI !== 'undefined' && ScormAPI.getPassingScore
+                ? ScormAPI.getPassingScore(80) : (quiz.config.passingScore || 60);
+            var passed = percentage >= passingScore;
             
             // Get font size from config (default 16px)
             var baseFontSize = quiz.config.fontSize || 16;

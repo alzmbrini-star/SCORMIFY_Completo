@@ -2050,6 +2050,11 @@ var CoursePlayer = (function() {
         } else if (currentSlide === totalSlides - 1 && !courseCompleted) {
             completionRequested = true;
             checkAndSetCompletion();
+            if (!courseCompleted) {
+                window.alert(courseHasQuiz && Object.keys(completedQuizzes).length < totalQuizzes
+                    ? 'Conclua todos os quizzes antes de finalizar o curso.'
+                    : 'O LMS não confirmou a gravação do resultado. Mantenha esta janela aberta e tente Concluir curso novamente.');
+            }
         }
     }
     
