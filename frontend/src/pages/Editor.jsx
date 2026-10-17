@@ -941,9 +941,18 @@ export default function Editor() {
         .filter(Boolean)
         .join(' | ');
       const courseContext = [
-        currentProject?.name || currentProject?.title,
-        currentSlide?.title,
-        slideContext,
+        `Curso: ${currentProject?.name || currentProject?.title || ''}`,
+        `Slide atual: ${currentSlide?.title || ''}`,
+        `Conteúdo atual: ${slideContext.slice(0, 3000)}`,
+        `Configuração pedagógica: ${JSON.stringify(currentProject?.agentConfig || {}).slice(0, 1200)}`,
+        'Conteúdo e sequência do curso:',
+        ...slides.map(slide => {
+          const text = (slide.elements || []).map(element => element.content || element.text || '')
+            .filter(value => typeof value === 'string').join(' ')
+            .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          return `${slide.moduleName || ''} / ${slide.title || ''}: ${(slide.narrationScript || text).slice(0, 350)}`;
+        }),
       ].filter(Boolean).join(' — ').slice(0, 8000);
       const res = await fetch(`${API_URL}/api/generate-html`, {
         method: 'POST',

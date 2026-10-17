@@ -31,7 +31,18 @@ DECISIONS = dict(BASE, template="decisions", title="Liderança sob pressão",
         dict(label="Dividir o trabalho com outra equipe", effects=[-5,10,5], feedback="A carga é compartilhada, mas a coordenação inicial reduz a confiança no processo.")])
         for t in ["Um prazo apertado", "Uma demanda inesperada", "O fechamento do projeto"]])
 
-LOCK_PLAN = dict(BASE, title="Operação de eclusa para navegação",
+LEARNING_DESIGN = dict(kind="physical", audience="Operadores em treinamento",
+    difficulty="Intermediário, aplicando equalização e leitura de nível",
+    courseConnection="Aplicar equalização de níveis e sequência operacional do curso de navegação.",
+    visualHierarchy="Cena da eclusa, instrumentos e controles agrupados ao lado.",
+    objectives=["Interpretar níveis antes de abrir comportas", "Operar a sequência com segurança"],
+    stages=[dict(title=title, challenge=challenge, consequence=consequence) for title, challenge, consequence in [
+        ("Entrada", "Posicionar o barco", "Barco entra na câmara"),
+        ("Equalização", "Fechar entrada e ajustar o nível", "A saída fica disponível com nível compatível"),
+        ("Saída", "Verificar folga e abrir saída", "Travessia concluída ou bloqueada pela folga")]],
+    endings=[dict(label="Travessia concluída", condition="Barco sai com nível e folga compatíveis"),
+             dict(label="Travessia bloqueada", condition="Calado impede passagem sem ajuste")])
+LOCK_PLAN = dict(BASE, learningDesign=LEARNING_DESIGN, title="Operação de eclusa para navegação",
     scene="Barco flutuante dentro da câmara entre comportas de montante e jusante.",
     mechanism="Encher/esvaziar a câmara e abrir as comportas somente após igualar os níveis. Reiniciar restaura o barco a jusante.",
     controls=[dict(label="Encher câmara", action="Aumenta o nível e eleva o barco"),
@@ -73,6 +84,18 @@ def custom_document(title):
 
 
 class VisualSimulatorTests(unittest.TestCase):
+    def test_learning_design_rejects_shallow_human_case(self):
+        from services.visual_simulators import validate_learning_design
+        human = copy.deepcopy(LEARNING_DESIGN)
+        human['kind'] = 'human'
+        with self.assertRaisesRegex(ValueError, '6 a 10'):
+            validate_learning_design(human)
+        human['stages'] += [dict(title=f'Objeção {i}', challenge='Investigar a objeção com uma pergunta concreta',
+                                 consequence=f'Revelar a restrição {i} e adaptar a proposta') for i in range(3)]
+        result = validate_learning_design(human)
+        self.assertEqual(len(result['stages']), 6)
+        self.assertEqual(result['courseConnection'], human['courseConnection'])
+
     def test_bespoke_scenario_does_not_select_a_pump_template(self):
         spec = validate_custom_plan(LOCK_PLAN)
         result = validate_custom_html(custom_document(spec['title']), spec)
@@ -163,7 +186,8 @@ class VisualSimulatorTests(unittest.TestCase):
     def test_provider_and_one_repair_attempt(self):
         class FakeChat:
             calls = 0
-            def __init__(self, **kwargs): pass
+            messages = []
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
             def with_model(self, provider, model):
                 self.provider = provider
                 assert provider == 'openai'
@@ -171,15 +195,33 @@ class VisualSimulatorTests(unittest.TestCase):
             def with_params(self, **kwargs): return self
             async def send_message(self, message):
                 FakeChat.calls += 1
+                FakeChat.messages.append((self.session, message.text))
                 if FakeChat.calls == 1: return '{}'
                 if FakeChat.calls == 2: return json.dumps(LOCK_PLAN)
                 if FakeChat.calls == 4: return json.dumps({'pass': True, 'issues': []})
                 return custom_document(LOCK_PLAN['title'])
         with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', FakeChat):
-            result = asyncio.run(generate_visual_simulator('Simulador de operação portuária'))
+            result = asyncio.run(generate_visual_simulator('Simulador de operação portuária', 'Curso de operadores: equalização, calado e níveis.'))
             self.assertEqual(FakeChat.calls, 4)
             self.assertEqual(result['spec']['template'], 'custom')
             self.assertIn('<svg', result['html'])
+            for stage in ('-plan', '-scene', '-review'):
+                self.assertTrue(any(session.endswith(stage) and 'Curso de operadores: equalização, calado e níveis.' in message
+                                    for session, message in FakeChat.messages), stage)
+
+    def test_generation_requires_learning_design_before_render(self):
+        class ShallowPlanner:
+            def __init__(self, **kwargs):
+                assert kwargs['session_id'].endswith('-plan')
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                plan = dict(LOCK_PLAN)
+                plan.pop('learningDesign')
+                return json.dumps(plan)
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat', ShallowPlanner):
+            with self.assertRaisesRegex(ValueError, 'learningDesign'):
+                asyncio.run(generate_visual_simulator('Simulador de negociação'))
 
     def test_review_requests_correction_before_accepting_output(self):
         class ReviewedChat:

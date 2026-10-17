@@ -1000,7 +1000,9 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             from services.visual_simulators import generate_visual_simulator
             source = batch[0]
             generated = await generate_visual_simulator(
-                json.dumps(source, ensure_ascii=False), content_text,
+                json.dumps(source, ensure_ascii=False),
+                json.dumps({"course": {key: config[key] for key in ("title", "targetAudience", "audience", "depth", "learningObjectives", "objectives") if key in config}, "module": source.get("moduleName"),
+                            "objective": source.get("purpose"), "reference": content_text[:6000]}, ensure_ascii=False),
                 f"{session_id}_visual_simulator_{batch_start}",
             )
             spec = generated["spec"]
@@ -4566,7 +4568,11 @@ Retorne JSON com os slides a atualizar:
         if slide.get("type") == "simulator" or (slide.get("slideIndex") is not None and slide.get("slideIndex") in simulator_indices):
             generated = await generate_visual_simulator(
                 json.dumps({k: v for k, v in slide.items() if k != "elements"}, ensure_ascii=False),
-                prompt[:6500], f"agent-edit-simulator-{session_id}",
+                json.dumps({"courseTitle": project.get("name") or project.get("title"),
+                            "config": {key: project.get("agentConfig", {})[key] for key in ("title", "targetAudience", "audience", "depth", "learningObjectives", "objectives") if key in project.get("agentConfig", {})},
+                            "currentSlide": next((s for s in slides_content if s["index"] == slide.get("slideIndex")), {}),
+                            "courseContent": slides_content}, ensure_ascii=False)[:8000],
+                f"agent-edit-simulator-{session_id}",
             )
             slide["type"] = "simulator"
             slide["elements"] = [{"type": "html", "htmlContent": generated["html"], "width": 960, "height": 540}]
