@@ -2100,6 +2100,15 @@ async def agent_generate_course(session_id: str, request: Request):
                 q["updatedAt"] = datetime.now(timezone.utc).isoformat()
                 loop.run_until_complete(_db.questions.insert_one({**q, "_id": q["id"]}))
 
+            # Persist exactly the contextual snapshot embedded in each game.
+            # IDs are generated server-side; ownership comes from this project.
+            for question in course_data.get("gameQuestions", []):
+                record = {**question, "projectId": project.id,
+                          "companyId": _s.get("companyId") or ""}
+                loop.run_until_complete(_db.game_questions.update_one(
+                    {"id": record["id"], "projectId": project.id, "companyId": record["companyId"]},
+                    {"$setOnInsert": record}, upsert=True))
+
             # Handle narration (global toggle with per-slide control)
             narration_enabled = config.get("narrationEnabled", False)
             narration_voice = config.get("narrationVoiceId", "")
