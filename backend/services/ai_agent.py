@@ -1014,6 +1014,20 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             })
             continue
 
+        if len(batch) == 1 and batch[0].get("type") == "case_study":
+            from services.case_studies import generate_case_study
+            source = batch[0]
+            generated = await generate_case_study(
+                json.dumps({"slide": source, "courseTitle": config.get("title"),
+                            "audience": config.get("audience"), "depth": config.get("depth")}, ensure_ascii=False),
+                content_text, _resilient_send, f"{session_id}-case-{batch_start}")
+            spec = generated["spec"]
+            all_slides.append({**source, "elements": [{"type": "html", "htmlContent": generated["html"],
+                                                       "width": 960, "height": 540}],
+                               "notes": spec["context"], "narrationScript": spec["context"] + ' ' + spec["mission"],
+                               "quizQuestions": []})
+            continue
+
         prompt = f"""Você é um designer instrucional experiente. Gere conteúdo DETALHADO, APROFUNDADO e EDUCACIONAL para {len(batch)} slides do curso "{config.get('title', '')}".
 
 Nível do curso: {config.get('depth', 'intermediario')}
@@ -2575,6 +2589,8 @@ _FIT_UPGRADE_SNIPPET = (
 
 def _wrap_interactive_fullbleed(html_content: str) -> str:
     """Inject the auto-fit snippet into interactive HTML (idempotent)."""
+    if 'data-case-study-version="2"' in html_content:
+        return html_content
     if "__scormify_fit_v3" in html_content:
         return html_content
     if "__stage" in html_content:
@@ -2897,7 +2913,7 @@ def _build_simulator_fallback_html(sb_slide: dict) -> str:
 def _game_question_reference(slide: dict, slides: list, config: dict) -> str:
     """Use teaching content, never another game's HTML or the global bank."""
     module = slide.get("moduleName")
-    candidates = [item for item in slides if item.get("type") not in {"game", "quiz", "simulator"}]
+    candidates = [item for item in slides if item.get("type") not in {"game", "quiz", "simulator", "case_study"}]
     local = [item for item in candidates if module and item.get("moduleName") == module]
     selected = local or candidates
     parts = [_slide_plain_text(item) for item in selected]
@@ -3866,6 +3882,14 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     if content and ("<!DOCTYPE" in content or "<html" in content or "<script" in content):
                         html_content = content
                         break
+            if stype == "case_study" and 'data-case-study-version="2"' not in html_content:
+                from services.case_studies import generate_case_study
+                generated = await generate_case_study(
+                    json.dumps({"slideTitle": sb_slide.get("title"), "module": module_name,
+                                "courseTitle": config.get("title"), "audience": config.get("audience")}, ensure_ascii=False),
+                    _game_question_reference(sb_slide, slides_data, config),
+                    _resilient_send, f"{session_id}-case-{i}")
+                html_content = generated["html"]
             if stype == "flashcard" and not _interactive_html_is_functional(html_content, stype):
                 if html_content:
                     logger.warning("Rejected placeholder flashcard HTML on slide %s; using safe fallback", i)

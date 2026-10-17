@@ -311,7 +311,8 @@ async def generate_html_with_ai(
 
     api_key, model = _html_generation_credentials()
     provider = "openai"
-    is_simulator = bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE))
+    is_case_study = bool(re.search(r"estudo[s]?\s+de\s+caso|an[aá]lise\s+de\s+caso|case\s+stud(?:y|ies)", body.prompt, re.IGNORECASE))
+    is_simulator = not is_case_study and bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE))
     if is_simulator:
         from services.llm_config import simulator_generation_config
         try:
@@ -359,6 +360,12 @@ Solicitação do usuário: {body.prompt}
 Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>. Sem explicações."""
 
     try:
+        if is_case_study:
+            from services.case_studies import generate_case_study
+            from services.ai_agent import _resilient_send
+            generated = await generate_case_study(body.prompt, body.courseContext or "", _resilient_send,
+                                                  f"editor-case-{uuid.uuid4().hex[:8]}")
+            return {"html": _clean_generated_interactive_html(generated["html"])}
         if is_simulator:
             from services.visual_simulators import generate_visual_simulator
             generated = await generate_visual_simulator(
