@@ -205,6 +205,11 @@ abertura só é possível com níveis compatíveis. Encher/esvaziar é separado 
 comportas. Mantenha estados para ambas as comportas, válvulas, nível e barco;
 atualize o y do barco com a superfície e o desenho das comportas com seu estado.
 Controles operacionais fixos do plano devem aparecer identificados e realizar sua ação.
+Cada controle do plano tem um id estável: coloque data-sim-control="ID" no botão,
+input ou select correspondente. Para escolhas dinâmicas, coloque esse atributo
+no fieldset/div que contém as alternativas. Preserve o id mesmo se adaptar o
+rótulo para 'Unidade', 'Unidades' ou uma ação concreta. Não use esse atributo em
+script, metadados ou elementos decorativos; o controle deve realizar a ação planejada.
 Em conversas, 'Escolher resposta' descreve o grupo de alternativas: mostre as falas
 concretas de cada turno em botões, não um botão extra com esse rótulo genérico.
 Inclua um botão acessível de reinício, rotulado Reiniciar, Recomeçar ou Tentar novamente,
@@ -366,6 +371,9 @@ class _OfflineDocument(HTMLParser):
         self.scene = self.control = False
         self.button_names = []
         self.in_button = False
+        self.control_ids = set()
+        self.select_count = 0
+        self.option_count = 0
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
@@ -379,6 +387,10 @@ class _OfflineDocument(HTMLParser):
                     raise ValueError("A cena contém um recurso externo")
         self.scene |= tag in {"svg", "canvas"}
         self.control |= tag in {"input", "button", "select"}
+        if tag in {"input", "button", "select", "textarea", "fieldset", "div", "section"} and attributes.get('data-sim-control'):
+            self.control_ids.add(attributes['data-sim-control'])
+        if tag == 'select': self.select_count += 1
+        if tag == 'option': self.option_count += 1
         if tag == "button":
             self.in_button = True
             self.button_names.append(" ".join(attributes.get(k) or "" for k in ("id", "aria-label", "title")))
@@ -439,11 +451,17 @@ def validate_custom_html(value, spec):
     static_choices = spec.get("learningDesign", {}).get("kind") in {"human", "diagnostic"} and len(document.button_names) >= 3
     for control in spec["controls"]:
         label = _control_text(control["label"])
+        if control.get('id') in document.control_ids:
+            continue
         if label in normalized_code:
             continue
         if re.search(_RESET_LABEL, label) and (dynamic_reset or any(re.search(_RESET_LABEL, _control_text(name)) for name in document.button_names)):
             continue
         if (dynamic_choices or static_choices) and re.search(r"escolh|selecion|responder|tomar", label) and re.search(r"respost|alternativ|opcao|decis|acao", label):
+            continue
+        if (re.search(r'^(?:escolher|selecionar|alterar|definir) (?:as? |o |os )?unidades?$', label)
+                and document.select_count and document.option_count >= 2
+                and re.search(r'\b(?:unidades?|units?)\b', normalized_code)):
             continue
         if label not in normalized_code:
             raise ValueError(f"Falta implementar o controle planejado: {control['label']}")
@@ -483,6 +501,9 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
     else:
         raise ValueError("Não foi possível planejar a simulação. " + last_error)
 
+    # Stable identities let the renderer adapt visible text without making
+    # legitimate selectors or dialogue options fail literal-label validation.
+    spec['controls'] = [dict(control, id=f'control_{i + 1}') for i, control in enumerate(spec['controls'])]
     if _navigation_lock_request(prompt):
         return render_navigation_lock(spec)
 

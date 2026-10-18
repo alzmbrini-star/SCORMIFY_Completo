@@ -388,12 +388,15 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
         raise
     except ValueError as e:
         logger.warning("HTML generation rejected unsafe/invalid output: %s", e)
+        detail = "A IA retornou um HTML inválido ou inseguro. Reformule o pedido e tente novamente."
+        if is_simulator or is_case_study:
+            from services.generation_errors import StoryboardActivityError, storyboard_error_message
+            activity = "simulador" if is_simulator else "estudo de caso"
+            detail = storyboard_error_message(StoryboardActivityError(activity, "do Editor", e)).replace(
+                "Sua estrutura foi preservada.", "Seu curso não foi alterado.")
         raise HTTPException(
             status_code=422,
-            detail=(
-                "A IA retornou um HTML inválido ou inseguro. "
-                "Reformule o pedido e tente novamente."
-            ),
+            detail=detail,
         )
     except Exception as e:
         logger.error(f"HTML generation error: {e}")

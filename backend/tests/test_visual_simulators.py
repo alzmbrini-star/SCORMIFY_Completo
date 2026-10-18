@@ -159,6 +159,25 @@ class VisualSimulatorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Comporta de montante'):
             validate_custom_html(custom_document(spec['title']).replace('Comporta de montante', 'Controle sem nome'), spec)
 
+    def test_units_selector_accepts_short_visible_label(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        spec['controls'].append({'label': 'Escolher Unidades', 'action': 'Trocar unidades exibidas'})
+        selector = '''<label for="units">Unidade</label><select id="units" onchange="document.getElementById('feedback').textContent=this.value"><option value="m">Metros</option><option value="cm">Centímetros</option></select>'''
+        code = custom_document(spec['title']).replace('</aside>', selector + '</aside>')
+        self.assertIn('scormify-simulator-plan', validate_custom_html(code, spec))
+        with self.assertRaisesRegex(ValueError, 'Escolher Unidades'):
+            validate_custom_html(custom_document(spec['title']), spec)
+
+    def test_stable_control_id_supports_label_changes_but_not_metadata_only(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        spec['controls'].append({'id': 'control_units', 'label': 'Escolher Unidades', 'action': 'Trocar a escala'})
+        selector = '''<select data-sim-control="control_units" aria-label="Escala" onchange="document.getElementById('feedback').textContent=this.value"><option>SI</option><option>Imperial</option></select>'''
+        code = custom_document(spec['title']).replace('</aside>', selector + '</aside>')
+        self.assertIn('scormify-simulator-plan', validate_custom_html(code, spec))
+        bad = custom_document(spec['title']).replace('</script>', '''const marker='data-sim-control="control_units"';</script>''')
+        with self.assertRaisesRegex(ValueError, 'Escolher Unidades'):
+            validate_custom_html(bad, spec)
+
     def test_editor_sanitizer_and_agent_keep_runtime(self):
         from services.ai_agent import _normalize_interactive_storyboard_slide
         # Load the pure sanitizer without requiring the API server dependencies.
@@ -229,6 +248,7 @@ class VisualSimulatorTests(unittest.TestCase):
             self.assertEqual(FakeChat.calls, 4)
             self.assertEqual(result['spec']['template'], 'custom')
             self.assertIn('<svg', result['html'])
+            self.assertEqual(result['spec']['controls'][0]['id'], 'control_1')
             for stage in ('-plan', '-scene', '-review'):
                 self.assertTrue(any(session.endswith(stage) and 'Curso de operadores: equalização, calado e níveis.' in message
                                     for session, message in FakeChat.messages), stage)
