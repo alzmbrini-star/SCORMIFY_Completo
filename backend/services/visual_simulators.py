@@ -5,6 +5,7 @@ import json
 import math
 import re
 import html
+import unicodedata
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -203,7 +204,11 @@ Se houver eclusa, o barco flutua na água da câmara e não atravessa comporta f
 abertura só é possível com níveis compatíveis. Encher/esvaziar é separado de abrir
 comportas. Mantenha estados para ambas as comportas, válvulas, nível e barco;
 atualize o y do barco com a superfície e o desenho das comportas com seu estado.
-Todos os controles do plano devem aparecer com o mesmo label e realizar sua ação.
+Controles operacionais fixos do plano devem aparecer identificados e realizar sua ação.
+Em conversas, 'Escolher resposta' descreve o grupo de alternativas: mostre as falas
+concretas de cada turno em botões, não um botão extra com esse rótulo genérico.
+Inclua um botão acessível de reinício, rotulado Reiniciar, Recomeçar ou Tentar novamente,
+que realmente restaure o estado inicial e limpe o histórico.
 Sem handlers vazios, TODOs ou comentários substituindo lógica. Mostre a missão e
 uma instrução inicial; a mensagem de sucesso só aparece após concluir a travessia.
 Mostre por que uma ação foi bloqueada.
@@ -386,6 +391,18 @@ class _OfflineDocument(HTMLParser):
         if tag == "button": self.in_button = False
 
 
+def _control_text(value):
+    """Compare visible labels, including JS unicode escapes, without executing code."""
+    value = re.sub(r"\\u([0-9a-fA-F]{4})|\\x([0-9a-fA-F]{2})",
+                   lambda match: chr(int(match.group(1) or match.group(2), 16)), str(value))
+    value = html.unescape(value)
+    return re.sub(r"\s+", " ", ''.join(c for c in unicodedata.normalize('NFKD', value)
+                                        if not unicodedata.combining(c))).casefold()
+
+
+_RESET_LABEL = r"reiniciar|recomecar|reset|restart|startover|start.over|tentar (?:novamente|de novo)|nova tentativa|iniciar novamente|refazer|voltar ao inicio"
+
+
 def validate_custom_html(value, spec):
     code = re.sub(r"^```(?:html)?\s*|\s*```$", "", str(value or "").strip(), flags=re.I).strip()
     if not 1500 <= len(code) <= 180_000 or not re.search(r"</html>\s*$", code, re.I):
@@ -404,18 +421,31 @@ def validate_custom_html(value, spec):
         raise ValueError("O documento está incompleto ou usa uma estrutura de quiz")
     if not re.search(r"addEventListener\s*\(|\bon(?:click|input|change)\s*=", code, re.I):
         raise ValueError("Os controles precisam de ações JavaScript")
-    reset_pattern = r"reiniciar|recome[cç]ar|reset|restart"
-    dynamic_reset = re.search(reset_pattern, "\n".join(re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", code, re.I)), re.I)
-    if not (any(re.search(reset_pattern, name, re.I) for name in document.button_names) or dynamic_reset):
-        raise ValueError("Inclua um botão Reiniciar que restaure o estado e cancele animações")
     executable = "\n".join(re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", code, re.I))
+    dynamic_reset = re.search(_RESET_LABEL, _control_text(executable))
+    if not (any(re.search(_RESET_LABEL, _control_text(name)) for name in document.button_names) or dynamic_reset):
+        raise ValueError("Inclua um botão Reiniciar que restaure o estado e cancele animações")
     # Match comment-only bodies in place. Removing // globally corrupts strings
     # such as the SVG namespace and can hide an entire compact animation script.
     empty_body = r"(?:\s|/\*[\s\S]*?\*/|//[^\n]*(?:\n|$))*"
     if re.search(r"(?:=>|function\s*\([^)]*\))\s*\{" + empty_body + r"\}", executable):
         raise ValueError("Há um callback vazio. Implemente as ações de todos os controles")
+    normalized_code = _control_text(code)
+    # A decision's options are actual questions/actions, not a button literally
+    # labelled "Escolher Resposta". The reviewer checks their state transitions.
+    dynamic_choices = bool(re.search(r"createElement\s*\(\s*['\"]button['\"]", executable, re.I)
+                           and re.search(r"choices|alternatives|options|opcoes|respostas|actions|acoes", _control_text(executable))
+                           and re.search(r"\.\s*(?:map|forEach)\s*\(", executable))
+    static_choices = spec.get("learningDesign", {}).get("kind") in {"human", "diagnostic"} and len(document.button_names) >= 3
     for control in spec["controls"]:
-        if control["label"].casefold() not in html.unescape(code).casefold():
+        label = _control_text(control["label"])
+        if label in normalized_code:
+            continue
+        if re.search(_RESET_LABEL, label) and (dynamic_reset or any(re.search(_RESET_LABEL, _control_text(name)) for name in document.button_names)):
+            continue
+        if (dynamic_choices or static_choices) and re.search(r"escolh|selecion|responder|tomar", label) and re.search(r"respost|alternativ|opcao|decis|acao", label):
+            continue
+        if label not in normalized_code:
             raise ValueError(f"Falta implementar o controle planejado: {control['label']}")
     if re.search(r"eclusa|comporta", spec["scene"], re.I) and re.search(r"barco|embarca", spec["scene"], re.I):
         if not (re.search(r"(?:requestAnimationFrame|setInterval|setTimeout)\s*\(", executable)

@@ -135,6 +135,30 @@ class VisualSimulatorTests(unittest.TestCase):
         code = custom_document(spec['title']).replace('<button id="reset">Reiniciar</button>', '<button id="reset" aria-label="Reiniciar">↻</button>')
         self.assertIn('aria-label="Reiniciar"', validate_custom_html(code, spec))
 
+    def test_reset_synonyms_and_unicode_labels_do_not_abort_storyboard(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        code = custom_document(spec['title']).replace('Reiniciar', 'Tentar novamente').replace('reset', 'again')
+        self.assertIn('Tentar novamente', validate_custom_html(code, spec))
+        escaped = custom_document(spec['title']).replace('Reiniciar', r'\u0052einiciar')
+        self.assertIn('scormify-simulator-plan', validate_custom_html(escaped, spec))
+
+    def test_dynamic_response_choices_are_not_required_to_have_generic_label(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        spec['controls'].append({'label': 'Escolher Resposta', 'action': 'Escolher uma alternativa concreta da conversa'})
+        code = custom_document(spec['title']).replace('</script>', """
+        const choices=['Perguntar pelos obstáculos','Descrever o impacto no prazo'];
+        choices.forEach(text=>{const button=document.createElement('button');button.textContent=text;
+        button.onclick=()=>{document.getElementById('feedback').textContent=text};document.body.appendChild(button)});
+        </script>""")
+        self.assertIn('scormify-simulator-plan', validate_custom_html(code, spec))
+        with self.assertRaisesRegex(ValueError, 'Escolher Resposta'):
+            validate_custom_html(custom_document(spec['title']), spec)
+
+    def test_missing_physical_control_still_rejected(self):
+        spec = validate_custom_plan(LOCK_PLAN)
+        with self.assertRaisesRegex(ValueError, 'Comporta de montante'):
+            validate_custom_html(custom_document(spec['title']).replace('Comporta de montante', 'Controle sem nome'), spec)
+
     def test_editor_sanitizer_and_agent_keep_runtime(self):
         from services.ai_agent import _normalize_interactive_storyboard_slide
         # Load the pure sanitizer without requiring the API server dependencies.

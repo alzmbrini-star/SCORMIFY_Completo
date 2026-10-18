@@ -48,6 +48,7 @@ async def _get_motor_db():
     return None
 
 from services.llm_config import openai_api_key, simulator_generation_config
+from services.generation_errors import StoryboardActivityError
 
 OPENAI_KEY = openai_api_key()
 
@@ -999,12 +1000,15 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         if len(batch) == 1 and batch[0].get("type") == "simulator":
             from services.visual_simulators import generate_visual_simulator
             source = batch[0]
-            generated = await generate_visual_simulator(
-                json.dumps(source, ensure_ascii=False),
-                json.dumps({"course": {key: config[key] for key in ("title", "targetAudience", "audience", "depth", "learningObjectives", "objectives") if key in config}, "module": source.get("moduleName"),
-                            "objective": source.get("purpose"), "reference": content_text[:6000]}, ensure_ascii=False),
-                f"{session_id}_visual_simulator_{batch_start}",
-            )
+            try:
+                generated = await generate_visual_simulator(
+                    json.dumps(source, ensure_ascii=False),
+                    json.dumps({"course": {key: config[key] for key in ("title", "targetAudience", "audience", "depth", "learningObjectives", "objectives") if key in config}, "module": source.get("moduleName"),
+                                "objective": source.get("purpose"), "reference": content_text[:6000]}, ensure_ascii=False),
+                    f"{session_id}_visual_simulator_{batch_start}",
+                )
+            except Exception as exc:
+                raise StoryboardActivityError('simulador', source.get('title'), exc) from exc
             spec = generated["spec"]
             all_slides.append({
                 **source, "type": "simulator", "title": source.get("title") or spec["title"],
@@ -1017,10 +1021,13 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         if len(batch) == 1 and batch[0].get("type") == "case_study":
             from services.case_studies import generate_case_study
             source = batch[0]
-            generated = await generate_case_study(
-                json.dumps({"slide": source, "courseTitle": config.get("title"),
-                            "audience": config.get("audience"), "depth": config.get("depth")}, ensure_ascii=False),
-                content_text, _resilient_send, f"{session_id}-case-{batch_start}")
+            try:
+                generated = await generate_case_study(
+                    json.dumps({"slide": source, "courseTitle": config.get("title"),
+                                "audience": config.get("audience"), "depth": config.get("depth")}, ensure_ascii=False),
+                    content_text, _resilient_send, f"{session_id}-case-{batch_start}")
+            except Exception as exc:
+                raise StoryboardActivityError('estudo de caso', source.get('title'), exc) from exc
             spec = generated["spec"]
             all_slides.append({**source, "elements": [{"type": "html", "htmlContent": generated["html"],
                                                        "width": 960, "height": 540}],

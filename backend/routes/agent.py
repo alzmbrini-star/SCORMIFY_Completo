@@ -910,7 +910,8 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     # Mark as processing
     await db.agent_sessions.update_one(
         {"id": session_id},
-        {"$set": {"step": "storyboarding", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"step": "storyboarding", "error": None, "storyboardProgress": None,
+                  "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
 
     def _sync_generate():
@@ -937,16 +938,12 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             _bgdb = _get_bg_db()
             _bgdb.agent_sessions.update_one(
                 {"id": session_id},
-                {"$set": {"storyboard": storyboard, "step": "storyboarded", "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                {"$set": {"storyboard": storyboard, "step": "storyboarded", "error": None, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
         except Exception as e:
-            err_msg = str(e)
-            logger.error(f"Storyboard generation error: {err_msg}")
-            error_detail = "Erro ao gerar storyboard."
-            if "Budget" in err_msg or "budget" in err_msg:
-                error_detail = "Orçamento da chave LLM excedido. Acesse Profile > Universal Key > Add Balance para adicionar saldo."
-            elif "502" in err_msg or "BadGateway" in err_msg:
-                error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
+            from services.generation_errors import storyboard_error_message
+            logger.exception("Storyboard generation error: session=%s", session_id)
+            error_detail = storyboard_error_message(e)
             try:
                 _bgdb = _get_bg_db()
                 _bgdb.agent_sessions.update_one(
