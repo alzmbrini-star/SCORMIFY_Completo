@@ -2596,7 +2596,7 @@ _FIT_UPGRADE_SNIPPET = (
 
 def _wrap_interactive_fullbleed(html_content: str) -> str:
     """Inject the auto-fit snippet into interactive HTML (idempotent)."""
-    if 'data-case-study-version="2"' in html_content:
+    if 'data-case-study-version="2"' in html_content or 'data-human-simulator-version="1"' in html_content:
         return html_content
     if "__scormify_fit_v3" in html_content:
         return html_content
