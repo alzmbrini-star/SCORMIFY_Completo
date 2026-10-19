@@ -168,13 +168,14 @@ export function HtmlDialog({
   htmlDialogTab, setHtmlDialogTab,
   aiHtmlPrompt, setAiHtmlPrompt,
   aiHtmlResult, setAiHtmlResult,
-  aiHtmlLoading,
+  aiHtmlLoading, aiHtmlProgress,
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => {
       onOpenChange(o);
-      if (!o) { setAiHtmlResult(''); setAiHtmlPrompt(''); setHtmlDialogTab('paste'); }
+      // Keep the prompt/result on close, so an interrupted connection can resume.
+      if (!o && !aiHtmlLoading) { setHtmlDialogTab('paste'); }
     }}>
       <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col overflow-y-auto">
         <DialogHeader><DialogTitle>Adicionar HTML Personalizado</DialogTitle></DialogHeader>
@@ -202,6 +203,7 @@ export function HtmlDialog({
                 <textarea className="w-full h-24 p-3 rounded-md border bg-background text-sm resize-none"
                   placeholder="Ex: Um quiz interativo sobre segurança do trabalho..."
                   value={aiHtmlPrompt} onChange={(e) => setAiHtmlPrompt(e.target.value)}
+                  disabled={aiHtmlLoading}
                   onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && !aiHtmlLoading) handleGenerateHtmlAI(); }}
                   maxLength={5000}
                   data-testid="ai-html-prompt" />
@@ -214,6 +216,7 @@ export function HtmlDialog({
                     {aiHtmlLoading ? 'Gerando...' : 'Gerar HTML'}
                   </Button>
                 </div>
+                {!aiHtmlResult && aiHtmlProgress && <p role="status" className="text-sm text-muted-foreground mt-2">{aiHtmlProgress}</p>}
               </div>
               {aiHtmlResult && (
                 <div className="flex flex-col shrink-0 border rounded-lg overflow-hidden">

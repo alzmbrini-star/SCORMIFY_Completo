@@ -187,6 +187,8 @@ app.include_router(assessments_routes.router, prefix="/api")
 if enable_legacy_ai_routes:
     from routes import agent as agent_routes
     app.include_router(agent_routes.router, prefix="/api")
+    from routes import html_generation_jobs
+    app.include_router(html_generation_jobs.router, prefix="/api")
 
     from routes import agent_approvals as agent_approvals_routes
     app.include_router(agent_approvals_routes.router, prefix="/api")
@@ -407,6 +409,7 @@ async def _run_create_indexes():
             [("companyId", 1), ("createdAt", -1)], background=True
         )
         await db.agent_sessions.create_index([("id", 1)], unique=True, background=True)
+        await db.html_generation_jobs.create_index('createdAtDate', expireAfterSeconds=24 * 60 * 60, background=True)
         # apply_jobs: TTL on createdAtDate (auto-delete done/error jobs after 24h)
         await db.apply_jobs.create_index(
             "createdAtDate",

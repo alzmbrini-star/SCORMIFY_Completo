@@ -5,6 +5,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { authHeaders } from '../contexts/AuthContext';
 import { resolveAssetUrls } from '../utils/htmlUtils';
+import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -316,6 +317,7 @@ export default function Editor() {
   const [aiHtmlPrompt, setAiHtmlPrompt] = useState('');
   const [aiHtmlResult, setAiHtmlResult] = useState('');
   const [aiHtmlLoading, setAiHtmlLoading] = useState(false);
+  const [aiHtmlProgress, setAiHtmlProgress] = useState('');
   const [htmlDialogTab, setHtmlDialogTab] = useState('paste');
   const [flipbookConfig, setFlipbookConfig] = useState({ type: 'external', url: '', pages: [] });
   const [timelineTime, setTimelineTime] = useState(0);
@@ -925,11 +927,13 @@ export default function Editor() {
 
   // Generate HTML with AI
   const handleGenerateHtmlAI = async () => {
+    if (aiHtmlLoading) return;
     if (!aiHtmlPrompt.trim()) {
       toast.error('Digite uma descrição do que deseja gerar');
       return;
     }
     setAiHtmlLoading(true);
+    setAiHtmlProgress('Enviando pedido de geração…');
     setAiHtmlResult('');
     try {
       const slideContext = (currentSlide?.elements || [])
@@ -954,23 +958,13 @@ export default function Editor() {
           return `${slide.moduleName || ''} / ${slide.title || ''}: ${(slide.narrationScript || text).slice(0, 350)}`;
         }),
       ].filter(Boolean).join(' — ').slice(0, 8000);
-      const res = await fetch(`${API_URL}/api/generate-html`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        credentials: 'include',
-        body: JSON.stringify({
-          prompt: aiHtmlPrompt,
-          courseContext,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erro ao gerar HTML');
-      }
-      const data = await res.json();
-      setAiHtmlResult(data.html || '');
+      const html = await generateHtmlJob(API_URL, {
+        prompt: aiHtmlPrompt, courseContext, projectId: currentProject?.id || projectId || '',
+      }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
+      setAiHtmlResult(html);
       toast.success('HTML gerado com sucesso!');
     } catch (err) {
+      setAiHtmlProgress(err.message || 'Erro ao gerar HTML');
       toast.error(err.message || 'Erro ao gerar HTML');
     } finally {
       setAiHtmlLoading(false);
@@ -2439,7 +2433,7 @@ export default function Editor() {
           htmlDialogTab={htmlDialogTab} setHtmlDialogTab={setHtmlDialogTab}
           aiHtmlPrompt={aiHtmlPrompt} setAiHtmlPrompt={setAiHtmlPrompt}
           aiHtmlResult={aiHtmlResult} setAiHtmlResult={setAiHtmlResult}
-          aiHtmlLoading={aiHtmlLoading}
+          aiHtmlLoading={aiHtmlLoading} aiHtmlProgress={aiHtmlProgress}
           handleAddHtml={handleAddHtml} handleGenerateHtmlAI={handleGenerateHtmlAI} handleInsertAiHtml={handleInsertAiHtml}
         />
 
