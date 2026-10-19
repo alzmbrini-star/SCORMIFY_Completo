@@ -18,6 +18,34 @@ def fixture():
 
 
 class CaseStudyTests(unittest.IsolatedAsyncioTestCase):
+    def test_editorial_overruns_are_preserved_with_bounded_hard_limits(self):
+        raw=fixture()
+        raw.update(context='Contexto detalhado. '*100, mission='Uma missão contextualizada. '*20,
+            debrief='Uma reflexão com consequências. '*35)
+        raw['evidence'][0]['text']='Uma evidência fictícia contextualizada. '*30
+        raw['decisions'][0]['choices'][0]['feedback']='Consequência explicada. '*35
+        validated=validate_case(raw,REFERENCE)
+        self.assertEqual(validated['context'],raw['context'].strip())
+        self.assertEqual(validated['evidence'][0]['text'],raw['evidence'][0]['text'].strip())
+        self.assertGreater(len(validated['debrief']),650)
+
+    async def test_missing_text_and_excess_text_identify_the_exact_field_for_repair(self):
+        for value, expected in [('', 'Campo obrigatório ausente'),(None,'Campo obrigatório ausente'),('x'*5001,'5001 caracteres; máximo 5000')]:
+            bad=fixture();bad['context']=value
+            with self.subTest(value=str(value)[:10]),self.assertRaisesRegex(ValueError,expected) as caught:
+                validate_case(bad,REFERENCE)
+            self.assertIn('context',str(caught.exception))
+        bad=fixture();bad['decisions'][1]['choices'][2]['feedback']=''
+        with self.assertRaisesRegex(ValueError,r'decisions\[1\].choices\[2\].feedback'):
+            validate_case(bad,REFERENCE)
+        requests=[]
+        async def send(session,system,request):
+            requests.append(json.loads(request))
+            return json.dumps(bad if len(requests)==1 else fixture())
+        await generate_case_study('Estrutura aplicada',REFERENCE,send,'test')
+        self.assertIn('decisions[1].choices[2].feedback',requests[1]['repairError'])
+        self.assertIn('previousResponse',requests[1])
+
     def test_generation_prompt_has_one_unambiguous_contract(self):
         from services.case_studies import PROMPT
         from services.human_simulators import HUMAN_PROMPT
