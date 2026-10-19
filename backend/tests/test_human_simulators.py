@@ -38,6 +38,64 @@ def human_plan():
 
 
 class HumanSimulatorTests(unittest.TestCase):
+    def test_missing_planned_turns_are_completed_without_discarding_valid_dialogue(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        plan = human_plan()
+        plan['learningDesign']['stages'] += [dict(title=f'Etapa {i}', challenge=f'Aplicar conceito {i}',
+            consequence=f'Verificar acordo {i}') for i in range(6, 8)]
+        original = dialogue_fixture()
+        additions = copy.deepcopy(original['turns'][-2:])
+        for i, turn in enumerate(additions, 6): turn['title'] = f'Etapa {i}'
+        calls = []
+        class Chat:
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(plan)
+                request = json.loads(message.text)
+                calls.append(request)
+                if len(calls) == 1: return json.dumps(original)
+                return json.dumps({'turns': additions})
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-only', 'SIMULATOR_AI_PROVIDER': 'openai'}), patch('services.visual_simulators.LlmChat', Chat):
+            result = asyncio.run(generate_visual_simulator('Simulador de feedback', 'Curso: escuta e acordo.'))
+        self.assertEqual(calls[0]['generationContract']['turnCount'], 8)
+        self.assertEqual(calls[1]['requiredAdditionalTurns'], 2)
+        self.assertEqual(calls[1]['existingDialogue'], original)
+        self.assertEqual(calls[1]['remainingStages'], plan['learningDesign']['stages'][6:])
+        self.assertEqual(calls[1]['courseContext'], 'Curso: escuta e acordo.')
+        self.assertIn('Etapa 7', result['html'])
+        self.assertIn(original['turns'][0]['choices'][0]['label'], result['html'])
+
+    def test_failed_completion_does_not_silently_drop_plan_stages(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        plan = human_plan()
+        plan['learningDesign']['stages'] += [dict(title='Acompanhar', challenge='Rever acordo', consequence='Ajustar plano')]
+        class Chat:
+            def __init__(self, **kwargs): self.session = kwargs['session_id']; self.calls = 0
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(plan)
+                self.calls += 1
+                return json.dumps(dialogue_fixture() if self.calls == 1 else {'turns': []})
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-only', 'SIMULATOR_AI_PROVIDER': 'openai'}), patch('services.visual_simulators.LlmChat', Chat):
+            with self.assertRaisesRegex(ValueError, '6 turnos para 7 etapas'):
+                asyncio.run(generate_visual_simulator('Simulador de feedback'))
+
+    def test_incomplete_and_invalid_completion_still_rejected(self):
+        plan = human_plan()
+        plan['learningDesign']['stages'] += copy.deepcopy(plan['learningDesign']['stages'][:2])
+        with self.assertRaisesRegex(ValueError, '6 turnos para 8 etapas'):
+            validate_dialogue(dialogue_fixture(), plan)
+        bad = dialogue_fixture()
+        bad['turns'] += copy.deepcopy(bad['turns'][:2])
+        bad['turns'][-1]['choices'][0]['requiresFact'] = 'nonexistent'
+        with self.assertRaisesRegex(ValueError, 'pré-requisito'):
+            validate_dialogue(bad, plan)
+
     def test_state_data_requires_meaningful_consequences_and_history(self):
         self.assertEqual(len(validate_dialogue(dialogue_fixture(),human_plan())['turns']),6)
         for invalid in ('effects','reactions','requires','condition'):

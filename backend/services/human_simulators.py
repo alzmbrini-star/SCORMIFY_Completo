@@ -7,6 +7,9 @@ HUMAN_PROMPT = """Escreva os dados de uma simulação de conversa em português 
 o plano e o contexto do curso fornecidos. O motor de diálogo, indicadores, retrato,
 memória, ramificações, funil e debrief já existem. NÃO gere HTML, código ou URLs.
 Preserve o tema, público, dificuldade e todas as etapas do plano. Para feedback,
+Use pelo menos um turno para cada etapa de learningDesign.stages, na ordem do
+plano. Se há oito etapas, seis turnos NÃO são suficientes. Respeite a quantidade
+exata solicitada no contrato de geração e identifique o conceito da etapa no título.
 encene fatos observáveis, escuta, impacto, acordo e acompanhamento; para SPIN,
 encene perguntas concretas de Situação, Problema, Implicação e Necessidade.
 Não use nomes de etapas como ações que somam pontos. Cada alternativa é uma fala
@@ -75,7 +78,7 @@ def validate_dialogue(raw, spec):
     if not isinstance(turns,list) or not 6 <= len(turns) <= 10:
         raise ValueError('A conversa precisa de seis a dez turnos')
     if len(turns) < len(spec.get('learningDesign',{}).get('stages',[])):
-        raise ValueError('Implemente todas as etapas planejadas na conversa')
+        raise ValueError(f"Implemente todas as etapas planejadas na conversa: recebidos {len(turns)} turnos para {len(spec['learningDesign']['stages'])} etapas")
     result['turns'], reachable, has_condition = [], set(), False
     for turn in turns:
         if not isinstance(turn,dict): raise ValueError('Turno inválido')

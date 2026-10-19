@@ -538,17 +538,46 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
         # Human conversations use generated content in a tested runtime. State,
         # emotional reactions and prerequisites cannot become decorative HTML.
         from services.human_simulators import HUMAN_PROMPT, validate_dialogue, render_dialogue
-        conversation = LlmChat(api_key=key, session_id=session_id + '-dialogue', system_message=HUMAN_PROMPT).with_model(provider, model).with_params(temperature=0.4, max_tokens=10000)
-        request = json.dumps({'request': prompt[:5000], 'courseContext': reference, 'plan': spec}, ensure_ascii=False)
+        stages = spec['learningDesign']['stages']
+        required_turns = max(6, len(stages))
+        conversation = LlmChat(api_key=key, session_id=session_id + '-dialogue', system_message=HUMAN_PROMPT).with_model(provider, model).with_params(temperature=0.4, max_tokens=16000)
+        original_request = json.dumps({'request': prompt[:5000], 'courseContext': reference, 'plan': spec,
+            'generationContract': {'turnCount': required_turns,
+                'instruction': 'Gere exatamente turnCount turnos, um para cada etapa na ordem do plano; não omita etapas.'}}, ensure_ascii=False)
+        request, partial = original_request, None
         for attempt in range(2):
             response = await asyncio.wait_for(conversation.send_message(UserMessage(text=request)), timeout=120)
+            raw = None
             try:
                 raw = json.loads(re.sub(r'^```(?:json)?\s*|\s*```$', '', str(response).strip(), flags=re.I))
+                if partial is not None:
+                    if not isinstance(raw, dict) or not isinstance(raw.get('turns'), list):
+                        raise ValueError('Retorne os turnos restantes em um objeto turns')
+                    raw = dict(partial, turns=partial['turns'] + raw['turns'])
                 dialogue = validate_dialogue(raw, spec)
                 return {'html': render_dialogue(dialogue, spec), 'spec': spec}
             except (ValueError, TypeError) as exc:
                 last_error = str(exc)
-                request = f'Corrija os dados completos da conversa. Erro: {last_error}\n{request}'
+                # Preserve a valid prefix and request only the missing stages.
+                # Regenerating the entire long dialogue often repeats the same
+                # six-turn default or exhausts the output budget again.
+                candidate = raw
+                turns = candidate.get('turns') if isinstance(candidate, dict) else None
+                if isinstance(turns, list) and 6 <= len(turns) < len(stages):
+                    prefix_spec = dict(spec, learningDesign=dict(spec['learningDesign'], stages=stages[:len(turns)]))
+                    try:
+                        validate_dialogue(candidate, prefix_spec)
+                    except (ValueError, TypeError):
+                        partial = None
+                    else:
+                        partial = candidate
+                        request = json.dumps({'task': 'Complete a conversa existente sem reescrever os turnos já válidos.',
+                            'request': prompt[:5000], 'courseContext': reference, 'existingDialogue': partial,
+                            'remainingStages': stages[len(turns):], 'requiredAdditionalTurns': len(stages) - len(turns),
+                            'output': 'Retorne somente {"turns":[...]} com um novo turno por etapa restante, três escolhas por turno e os mesmos IDs de fatos. Pré-requisitos só podem usar fatos descobertos antes.'}, ensure_ascii=False)
+                        continue
+                partial = None
+                request = f'Corrija os dados completos da conversa. Erro: {last_error}\n{original_request}'
         raise ValueError('Não foi possível construir a conversa contextualizada. ' + last_error)
 
     renderer = LlmChat(api_key=key, session_id=session_id + "-scene", system_message=CUSTOM_HTML_PROMPT).with_model(provider, model).with_params(temperature=0.45, max_tokens=12000)
