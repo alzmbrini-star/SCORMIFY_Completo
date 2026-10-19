@@ -81,10 +81,14 @@ export function assessmentRuntime(resolveVideoLink) {
       try { embed = resolveVideoLink(m.url); } catch (_) { node('p', '', 'Link de vídeo inválido. Edite a questão e informe um link do YouTube, Vimeo ou Bunny Stream.', stage); return; }
       const box = node('div', 'external-video', undefined, stage);
       box.style.cssText = 'width:100%;height:100%;min-height:220px;display:flex;flex-direction:column;gap:8px';
-      const frame = node('iframe', '', undefined, box); frame.src = embed.url; frame.title = m.name || `Vídeo · ${embed.provider}`;
+      const frame = node('iframe', '', undefined, box);
+      // Match normal Editor video insertion: some Bunny libraries accept
+      // direct playback but reject an external Referer with a 403 player.
+      // Set policy before src so the first navigation uses the right headers.
+      frame.referrerPolicy = embed.provider === 'Bunny Stream' ? 'no-referrer' : 'strict-origin-when-cross-origin';
+      frame.src = embed.url; frame.title = m.name || `Vídeo · ${embed.provider}`;
       frame.style.cssText = 'width:100%;flex:1;min-height:200px;border:0';
       frame.allow = 'encrypted-media; picture-in-picture; fullscreen'; frame.allowFullscreen = true;
-      frame.referrerPolicy = 'strict-origin-when-cross-origin';
       const link = node('a', '', 'Abrir vídeo em nova aba ↗', box); link.href = embed.url; link.target = '_blank'; link.rel = 'noopener';
       link.style.cssText = 'color:#9cdbff;font-size:13px;text-align:center';
     }
