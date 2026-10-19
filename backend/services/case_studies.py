@@ -2,6 +2,7 @@
 import json
 import re
 from pathlib import Path
+from services.activity_contracts import strategy_choices
 
 
 PROMPT = """Crie um estudo de caso fictício mas realista, em português, ligado ao
@@ -26,6 +27,57 @@ importância abstrata, respostas óbvias e 'revelar sugestão'. Relacione feedba
 evidências. Consequências diferentes, ganhos e custos; indicadores são índices
 didáticos. Não invente regras de segurança, normas, saúde nem precisão científica.
 Adapte público e dificuldade ao contexto fornecido."""
+PROMPT += """\nCONTRATO ESTRUTURAL (substitui os arrays correspondentes acima):
+evidence é um objeto com exatamente e1, e2, e3. Cada valor contém title, text e
+sourceId, escolhido do sourceCatalog fornecido. Não copie citações nem invente
+sourceEvidence: o motor insere o trecho literal correspondente ao sourceId.
+Escolha o trecho cujo significado fundamenta a evidência fictícia, não um ID aleatório.
+decisions é um objeto com exatamente investigate, decide e follow_up, nesta sequência
+pedagógica. Cada valor contém title, question, evidenceIds e choices.
+choices é um objeto com exatamente risky, partial, grounded, cada um com label,
+feedback e effects. Não gere quality; o motor atribui 0,1,2. As falas e consequências
+devem ser distintas e contextualizadas. evidenceIds usa apenas e1, e2, e3.
+Complete todas as três decisões. Nunca descarte o acompanhamento do caso."""
+
+
+def source_catalog(reference):
+    """Actual contiguous excerpts, not model-reconstructed citations."""
+    text = re.sub(r'\s+', ' ', reference).strip()
+    result = []
+    while len(text) >= 24:
+        end = min(len(text), 360)
+        if end < len(text):
+            boundary = text.rfind(' ', 24, end + 1)
+            if boundary >= 24: end = boundary
+        excerpt, text = text[:end].strip(), text[end:].strip()
+        result.append({'id': f'source_{len(result)+1}', 'text': excerpt})
+    return result
+
+
+def compile_case_content(raw, catalog):
+    if not isinstance(raw, dict): return raw
+    result = dict(raw)
+    evidence = raw.get('evidence')
+    if isinstance(evidence, dict):
+        if set(evidence) != {'e1','e2','e3'} or any(not isinstance(v,dict) for v in evidence.values()):
+            raise ValueError('Complete as três evidências e1, e2 e e3')
+        evidence = [dict(evidence[key], id=key) for key in ('e1','e2','e3')]
+    sources = {entry['id']: entry['text'] for entry in catalog}
+    if isinstance(evidence, list):
+        result['evidence'] = []
+        for item in evidence:
+            if isinstance(item,dict) and 'sourceId' in item:
+                if not isinstance(item['sourceId'],str) or item['sourceId'] not in sources:
+                    raise ValueError('sourceId da evidência deve existir no sourceCatalog: ' + ', '.join(sources))
+                item = dict(item, sourceEvidence=sources[item['sourceId']])
+            result['evidence'].append(item)
+    decisions = raw.get('decisions')
+    if isinstance(decisions, dict):
+        if set(decisions) != {'investigate','decide','follow_up'}:
+            raise ValueError('Complete investigate, decide e follow_up, sem omitir decisões')
+        decisions = [decisions[key] for key in ('investigate','decide','follow_up')]
+    result['decisions'] = decisions
+    return result
 
 
 def _text(value, limit):
@@ -64,13 +116,13 @@ def validate_case(raw, reference):
     if not isinstance(decisions, list) or len(decisions) != 3:
         raise ValueError('Planeje três decisões encadeadas')
     result['decisions'] = []
-    for item in decisions:
+    for decision_index, item in enumerate(decisions):
         if not isinstance(item, dict):
             raise ValueError('Decisão inválida')
         links = item.get('evidenceIds')
         if not isinstance(links, list) or not links or any(not isinstance(key, str) or key not in ids for key in links):
             raise ValueError('Relacione cada decisão a evidências existentes')
-        choices = item.get('choices')
+        choices = strategy_choices(item.get('choices'), decision_index)
         if not isinstance(choices, list) or len(choices) != 3:
             raise ValueError('Cada decisão exige três alternativas')
         clean = []
@@ -101,15 +153,20 @@ async def generate_case_study(prompt, reference, send, session_id):
     if len(reference.strip()) < 80:
         raise ValueError('O estudo de caso precisa de conteúdo didático do curso. Revise o storyboard.')
     reference = reference[:10000]
-    request = json.dumps({'request': prompt, 'reference': reference}, ensure_ascii=False)
+    catalog = source_catalog(reference)
+    original = {'request': prompt, 'reference': reference, 'sourceCatalog': catalog,
+        'requiredDecisionKeys': ['investigate','decide','follow_up'], 'strategyKeys': ['risky','partial','grounded']}
+    request = json.dumps(original, ensure_ascii=False)
     error = ''
     for attempt in range(2):
         response = await send(f'{session_id}-case-{attempt}', PROMPT, request)
         try:
             raw = json.loads(re.sub(r'^```(?:json)?\s*|\s*```$', '', str(response).strip(), flags=re.I))
-            spec = validate_case(raw, reference)
+            spec = validate_case(compile_case_content(raw,catalog), reference)
             return {'html': render_case(spec), 'spec': spec}
         except (ValueError, TypeError, AttributeError) as exc:
             error = str(exc)
-            request = f'Corrija o JSON completo. Erro: {error}\n{request}'
+            request = json.dumps(dict(original, repairError=error,
+                previousResponse=str(response)[:64000],
+                repairInstruction='Corrija os dados anteriores sem omitir evidências ou decisões. Use os IDs do catálogo e os objetos de chaves fixas do contrato.'), ensure_ascii=False)
     raise ValueError('Não foi possível criar o estudo de caso contextualizado: ' + error)

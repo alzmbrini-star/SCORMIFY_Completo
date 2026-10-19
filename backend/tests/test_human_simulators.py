@@ -38,6 +38,26 @@ def human_plan():
 
 
 class HumanSimulatorTests(unittest.TestCase):
+    def test_named_strategies_have_engine_owned_quality_and_vary_position(self):
+        from services.human_simulators import build_history_contract,compile_history_contract
+        raw=dialogue_fixture()
+        for turn in raw['turns']:
+            turn['choices']={strategy:dict(choice,quality=99) for strategy,choice in zip(
+                ('risky','partial','grounded'),turn['choices'])}
+        validated=validate_dialogue(raw,human_plan())
+        positions=[]
+        for turn in validated['turns']:
+            self.assertEqual({c['quality'] for c in turn['choices']},{0,1,2})
+            positions.append(next(i for i,c in enumerate(turn['choices']) if c['quality']==2))
+        self.assertEqual(set(positions),{0,1,2})
+        compiled=compile_history_contract(raw,build_history_contract(raw,6))
+        self.assertEqual(len(validate_dialogue(compiled,human_plan())['turns']),6)
+        bad=copy.deepcopy(raw);bad['turns'][0]['choices'].pop('partial')
+        with self.assertRaisesRegex(ValueError,'partial'): validate_dialogue(bad,human_plan())
+        bad=copy.deepcopy(raw)
+        for choice in bad['turns'][0]['choices'].values(): choice['label']='A mesma fala'
+        with self.assertRaisesRegex(ValueError,'distintas'): validate_dialogue(bad,human_plan())
+
     def test_history_diagnostics_distinguish_missing_discoveries_and_conditions(self):
         from services.human_simulators import DialogueHistoryError
         broken = dialogue_fixture()

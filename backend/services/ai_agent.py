@@ -441,7 +441,7 @@ async def _resilient_send(session_id_prefix: str, system_msg: str, prompt: str) 
                     api_key=OPENAI_KEY,
                     session_id=f"{session_id_prefix}_r{attempt}_{retry}",
                     system_message=system_msg,
-                ).with_model(provider, model)
+                ).with_model(provider, model).with_params(max_tokens=16000)
                 response = await chat.send_message(UserMessage(text=prompt))
                 return response
             except Exception as e:

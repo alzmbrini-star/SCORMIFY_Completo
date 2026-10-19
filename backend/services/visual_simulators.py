@@ -544,6 +544,8 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
         conversation = LlmChat(api_key=key, session_id=session_id + '-dialogue', system_message=HUMAN_PROMPT).with_model(provider, model).with_params(temperature=0.4, max_tokens=16000)
         original_request = json.dumps({'request': prompt[:5000], 'courseContext': reference, 'plan': spec,
             'generationContract': {'turnCount': required_turns,
+                'strategyKeys': ['risky','partial','grounded'],
+                'strategyInstruction': 'choices é um objeto com essas três chaves, não uma lista. O motor atribui quality; escreva três falas e consequências realmente diferentes.',
                 'instruction': 'Gere exatamente turnCount turnos, um para cada etapa na ordem do plano; não omita etapas.',
                 'history': 'Um caminho completo deve revelar pelo menos três IDs distintos de facts e usar uma decisão posterior cujo requiresFact dependa de uma descoberta feita antes nesse mesmo caminho. Inclua alternativa de recuperação sem pré-requisito em cada turno.'}}, ensure_ascii=False)
         request, partial, milestone_partial, history_partial = original_request, None, None, None
@@ -584,7 +586,7 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
                         'request': prompt[:5000], 'courseContext': reference, 'plan': spec,
                         'existingDialogue': raw, 'diagnostics': exc.diagnostics,
                         'requiredTurnCount': required_turns, 'allowedFacts': raw['facts'], 'historyContract': history_contract,
-                        'output': 'Retorne somente {"turns":[...]} com exatamente requiredTurnCount turnos, três estratégias de quality 0,1,2 por turno em ordem variada. Cada turno mantém sua etapa do plano. A fala de quality 2 deve investigar a discovery especificada, quando houver, e usar a informação de requiresFact quando definida. O motor anexará a informação compartilhada à reação e registrará o fato. As opções de quality 0 e 1 são erros plausíveis ou recuperação, sem pré-requisito; não pressuponham descobertas que o aluno pode não ter feito. Reações receptiva/defensiva distintas com até 400 caracteres e efeitos/feedback causais coerentes com as falas. Não substitua o caso por um diálogo genérico.'}, ensure_ascii=False)
+                        'output': 'Retorne somente {"turns":[...]} com exatamente requiredTurnCount turnos. Cada choices é um objeto {"risky":{...},"partial":{...},"grounded":{...}}. O motor atribui quality 0,1,2; não gere quality. Cada turno mantém sua etapa do plano. A fala grounded deve investigar a discovery especificada, quando houver, e usar a informação de requiresFact quando definida. O motor anexará a informação compartilhada à reação e registrará o fato. As opções risky e partial são erros plausíveis ou recuperação, sem pré-requisito; não pressuponham descobertas que o aluno pode não ter feito. Reações receptiva/defensiva distintas com até 400 caracteres e efeitos/feedback causais coerentes com as falas. Não substitua o caso por um diálogo genérico.'}, ensure_ascii=False)
                     continue
                 milestone_partial, history_partial = None, None
                 # Preserve a valid prefix and request only the missing stages.

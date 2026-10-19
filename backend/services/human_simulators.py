@@ -3,6 +3,7 @@ import json
 import copy
 import re
 from pathlib import Path
+from services.activity_contracts import strategy_choices
 
 HUMAN_PROMPT = """Escreva os dados de uma simulação de conversa em português para
 o plano e o contexto do curso fornecidos. O motor de diálogo, indicadores, retrato,
@@ -48,6 +49,14 @@ requiresFact também usa esses IDs ou string vazia. Por exemplo, se facts conté
 {\"id\":\"f1\",\"text\":\"O prazo foi alterado sem aviso\"}, use factIds:[\"f1\"].
 Cada vínculo deve ter relação causal com o significado da descoberta, não apenas
 apontar para qualquer ID válido. Confira todos os vínculos antes de retornar."""
+HUMAN_PROMPT += """\nCONTRATO DE ESTRATÉGIAS (substitui o formato de choices acima): em cada turno,
+choices é um OBJETO com exatamente três chaves: risky, partial e grounded.
+Cada chave contém label, openResponse, guardedResponse, feedback, effects, reveals
+e requiresFact. Não gere quality: o motor atribui 0, 1 e 2 respectivamente.
+risky é uma abordagem inadequada plausível; partial é uma tentativa incompleta ou
+recuperação; grounded investiga e aplica evidências. As três falas devem ser distintas,
+com reações e consequências coerentes, não apenas números ou nomes de estratégias.
+Não retorne três cópias da mesma opção nem transforme partial em outra ação ideal."""
 
 
 class MilestoneLinkError(ValueError):
@@ -105,7 +114,8 @@ def compile_history_contract(data, contract):
         raise ValueError('A conversa deve implementar todos os turnos do percurso definido')
     fact_map = {fact['id']: fact['text'] for fact in result['facts']}
     for turn, row in zip(result['turns'], contract):
-        choices = turn.get('choices') if isinstance(turn, dict) else None
+        choices = strategy_choices(turn.get('choices'), row['turnIndex']) if isinstance(turn, dict) else None
+        if isinstance(turn, dict): turn['choices'] = choices
         if not isinstance(choices, list) or len(choices) != 3 or any(not isinstance(c, dict) for c in choices):
             raise ValueError('Cada turno do percurso precisa de três ações')
         if any(type(c.get('quality')) is not int for c in choices) or {c['quality'] for c in choices} != {0,1,2}:
@@ -164,11 +174,11 @@ def validate_dialogue(raw, spec):
     result['turns'], reachable, has_condition = [], set(), False
     # Track real paths, not the union of facts from mutually exclusive choices.
     history_paths = {(frozenset(), False)}
-    for turn in turns:
+    for turn_index, turn in enumerate(turns):
         if not isinstance(turn,dict): raise ValueError('Turno inválido')
         clean = {key:_text(turn.get(key),limit) for key,limit in [('title',100),('openPrompt',350),('guardedPrompt',350)]}
         if clean['openPrompt'] == clean['guardedPrompt']: raise ValueError('A reação precisa variar com a confiança')
-        choices = turn.get('choices')
+        choices = strategy_choices(turn.get('choices'), turn_index)
         if not isinstance(choices,list) or len(choices) != 3: raise ValueError('Cada turno precisa de três ações')
         clean['choices'] = []
         for choice in choices:
