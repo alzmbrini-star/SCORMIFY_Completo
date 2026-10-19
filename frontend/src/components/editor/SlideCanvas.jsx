@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
 import { useProject } from '../../contexts/ProjectContext';
 import { Trash2, Move, RotateCw } from 'lucide-react';
 import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
@@ -1071,6 +1072,7 @@ const SlideCanvas = ({
                 <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: 'hidden', contain: 'strict', isolation: 'isolate' }}>
                   <iframe
                     srcDoc={(() => {
+                      if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                       const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
                       if (isFullDoc) {
@@ -1139,7 +1141,9 @@ const SlideCanvas = ({
                       </html>`;
                     })()}
                     className="border-0"
-                    sandbox={element.assessmentConfig ? 'allow-scripts allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals' : 'allow-scripts allow-forms'}
+                    sandbox={element.assessmentConfig ? assessmentFrameSandbox : 'allow-scripts allow-forms'}
+                    allow={element.assessmentConfig ? assessmentFrameAllow : undefined}
+                    allowFullScreen={Boolean(element.assessmentConfig)}
                     title="Página HTML interativa"
                     style={{
                       width: `${htmlViewportWidth}px`,

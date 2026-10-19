@@ -177,7 +177,8 @@ async def get_project_by_id(project_id: str) -> Optional[dict]:
     """Get project from database"""
     doc = await db.projects.find_one({"id": project_id}, {"_id": 0})
     from services.editorial_layout import repair_legacy_agent_project
-    return repair_legacy_agent_project(doc)
+    from services.assessment_renderer import refresh_assessment_documents
+    return refresh_assessment_documents(repair_legacy_agent_project(doc))
 
 
 async def update_project(project_id: str, update_data: dict):

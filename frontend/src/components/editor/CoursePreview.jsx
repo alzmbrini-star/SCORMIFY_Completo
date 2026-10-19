@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
 import axios from 'axios';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -864,6 +865,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 {element.type === 'html' && (
                   <iframe
                     srcDoc={(() => {
+                      if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                       const raw = processHtmlContent(element.htmlContent, projectId);
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
                       if (isFullDoc) return wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page');
@@ -952,7 +954,9 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       scrollbarWidth: 'none',
                       msOverflowStyle: 'none'
                     }}
-                    sandbox={element.assessmentConfig ? 'allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals' : 'allow-scripts'}
+                    sandbox={element.assessmentConfig ? assessmentFrameSandbox : 'allow-scripts'}
+                    allow={element.assessmentConfig ? assessmentFrameAllow : undefined}
+                    allowFullScreen={Boolean(element.assessmentConfig)}
                     title="HTML Content"
                   />
                 )}

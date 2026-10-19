@@ -1160,7 +1160,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
-            f'<iframe sandbox="{sandbox}" loading="lazy" '
+            f'<iframe sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
             f'src="data:text/html;charset=utf-8;base64,{b64}" '
             f'style="width:100%;{iframe_height_css};border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '

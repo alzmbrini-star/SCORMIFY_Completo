@@ -1570,6 +1570,10 @@ var CoursePlayer = (function() {
                 htmlIframe.sandbox = element.assessmentConfig
                     ? 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
                     : 'allow-scripts allow-same-origin';
+                if (element.assessmentConfig) {
+                    htmlIframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+                    htmlIframe.allowFullscreen = true;
+                }
                 el.style.overflow = 'hidden';
                 el.appendChild(htmlIframe);
                 break;
