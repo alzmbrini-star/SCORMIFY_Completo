@@ -522,7 +522,24 @@ export default function Editor() {
           // Silent refresh: do not activate the Editor's full-screen loading
           // state and do not reset the selected slide/layer.
           const projectResponse = await axios.get(`${API_URL}/api/projects/${currentProject.id}`);
-          if (!cancelled) setCurrentProject(projectResponse.data);
+          if (!cancelled) setCurrentProject(previous => {
+            if (previous?.id !== currentProject.id) return previous;
+            const latest = projectResponse.data;
+            return {...previous, klingPending:latest.klingPending, course:{...previous.course,
+              slides:previous.course.slides.map(slide => {
+                const saved = latest.course?.slides?.find(s => s.id === slide.id);
+                if (!saved) return slide;
+                return {...slide, elements:(slide.elements || []).map(element => {
+                  if (!(element.htmlContent || '').includes('data-kling-slide=')) return element;
+                  const replacement = (saved.elements || []).find(el => el.id === element.id);
+                  if (replacement?.provider === 'kling') return {...replacement,x:element.x,y:element.y,width:element.width,height:element.height};
+                  if (replacement) return element;
+                  const originalPosition = (slide.elements || []).findIndex(el => el.id === element.id);
+                  const video = saved.elements?.[originalPosition];
+                  return video?.provider === 'kling' ? {...video, x:element.x,y:element.y,width:element.width,height:element.height} : element;
+                })};
+              })}};
+          });
         }
         if (status.status === 'all_done' || status.status === 'completed_with_errors') {
           window.clearInterval(interval);
@@ -755,6 +772,47 @@ export default function Editor() {
       setSelectedElementId(element.id);
     } catch (err) {
       toast.error('Failed to add element');
+    }
+  };
+
+  const handleGenerateKling = async (options) => {
+    const targetProject = currentProject?.id;
+    const targetSlide = currentSlide?.id;
+    if (!targetProject || !targetSlide) throw new Error('Abra um slide antes de gerar o vídeo.');
+    if ((currentSlide.elements || []).some(el => (el.htmlContent || '').includes('data-kling-slide='))) {
+      throw new Error('Este slide já tem um marcador Kling. Aguarde a geração atual ou remova o marcador de uma tentativa encerrada antes de criar outra.');
+    }
+    try {
+      const response = await axios.post(`${API_URL}/api/kling/generate`, {
+        ...options, projectId:targetProject, slideId:targetSlide,
+        title:currentSlide.title || 'Vídeo Kling do Editor', insertPlaceholder:true,
+      }, { headers:authHeaders() });
+      const placeholder = response.data.placeholder;
+      if (!placeholder) throw new Error('A geração foi enviada, mas o marcador não foi recebido. Reabra o projeto para acompanhar; não envie outra geração.');
+      klingCompletionRef.current = {projectId:targetProject, completed:0};
+      klingErrorToastRef.current = '';
+      setCurrentProject(previous => previous?.id !== targetProject ? previous : ({
+        ...previous, course:{...previous.course, slides:previous.course.slides.map(slide => slide.id !== targetSlide ? slide : ({
+          ...slide, duration:Math.max(Number(slide.duration || 5), options.duration),
+          elements:slide.elements.some(el => el.id === placeholder.id) ? slide.elements : [...slide.elements, placeholder],
+        }))},
+      }));
+      setShowMediaDialog(false);
+      toast.success('Geração Kling iniciada. O vídeo será inserido neste slide quando estiver pronto.');
+    } catch (err) {
+      // A request may have reached the provider even if the browser lost the
+      // response. Refresh durable state once; never automatically resubmit.
+      try {
+        const latest = await axios.get(`${API_URL}/api/projects/${targetProject}`, {headers:authHeaders()});
+        setCurrentProject(previous => previous?.id === targetProject ? {...previous, klingPending:latest.data.klingPending,
+          course:{...previous.course, slides:previous.course.slides.map(slide => {
+            const saved = latest.data.course?.slides?.find(s => s.id === slide.id);
+            const slots = (saved?.elements || []).filter(el => (el.htmlContent || '').includes('data-kling-editor-job='));
+            return slots.length ? {...slide, elements:[...(slide.elements || []), ...slots.filter(slot => !(slide.elements || []).some(el => el.id === slot.id))]} : slide;
+          })}} : previous);
+      } catch (_) { /* Keep the current course; show the original error. */ }
+      if (!err.response) throw new Error('Não foi possível confirmar a resposta do Kling. A solicitação pode ter sido enviada; acompanhe o status ou reabra o projeto antes de tentar novamente, para evitar outra cobrança.');
+      throw err;
     }
   };
 
@@ -2411,6 +2469,8 @@ export default function Editor() {
         <MediaDialog
           open={showMediaDialog} onOpenChange={setShowMediaDialog}
           videoUrl={videoUrl} setVideoUrl={setVideoUrl} handleAddMedia={handleAddMedia}
+          handleGenerateKling={handleGenerateKling}
+          klingContext={`Curso: ${currentProject?.name || ''}. Slide: ${currentSlide?.title || ''}. ${currentSlide?.notes || ''}`}
         />
 
         <AudioDialog

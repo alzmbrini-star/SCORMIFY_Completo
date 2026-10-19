@@ -7,6 +7,7 @@ import { Input } from '../../../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash2, FileText, Upload } from 'lucide-react';
 import RichTextEditor from '../../../components/RichTextEditor';
+import KlingVideoForm from './KlingVideoForm';
 
 // Gallery image with auto-retry on load failure
 function GalleryImage({ src, alt }) {
@@ -35,11 +36,18 @@ function GalleryImage({ src, alt }) {
   return <img src={`${src}${retries > 0 ? `?r=${retries}` : ''}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onError={handleError} />;
 }
 
-export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleAddMedia }) {
+export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleAddMedia, handleGenerateKling, klingContext }) {
+  const [busy, setBusy] = useState(false);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={next => { if (!busy) onOpenChange(next); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Adicionar Vídeo</DialogTitle></DialogHeader>
+        <Tabs defaultValue="link">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="link" disabled={busy}>Inserir por link</TabsTrigger>
+            <TabsTrigger value="kling" disabled={busy}>Criar com Kling</TabsTrigger>
+          </TabsList>
+          <TabsContent value="link">
         <div className="py-4">
           <Input placeholder="YouTube, Vimeo ou Bunny Stream (URL ou iframe)" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} data-testid="video-url-input" />
           <p className="text-xs text-muted-foreground mt-2">
@@ -53,6 +61,9 @@ export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleA
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleAddMedia} data-testid="add-video-confirm-btn">Add Video</Button>
         </DialogFooter>
+          </TabsContent>
+          <TabsContent value="kling"><KlingVideoForm onGenerate={handleGenerateKling} context={klingContext} onBusyChange={setBusy} /></TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

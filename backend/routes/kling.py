@@ -162,6 +162,17 @@ async def kling_generate(request: Request, user: dict = Depends(require_auth)):
     project = await load_authorized_project(project_id, user)
     if not any(s.get("id") == slide_id for s in project.get("course", {}).get("slides", [])):
         raise HTTPException(404, "Slide não encontrado no projeto.")
+    if any(row.get('slideId') == slide_id and row.get('status') not in ('completed','failed') for row in project.get('klingPending', [])):
+        raise HTTPException(409, 'Já existe uma geração Kling em andamento neste slide. Aguarde o resultado antes de solicitar outra.')
+    placeholder = None
+    marker = None
+    if body.get('insertPlaceholder') is True:
+        from services.kling_editor import editor_video_placeholder
+        slide = next(s for s in project['course']['slides'] if s.get('id') == slide_id)
+        try:
+            placeholder, marker = editor_video_placeholder(slide, body)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
     item = {
         "slideId": slide_id,
         "slideIndex": next(
@@ -177,20 +188,27 @@ async def kling_generate(request: Request, user: dict = Depends(require_auth)):
         "duration": body.get("duration", 5),
         "audio": body.get("audio", "off"),
         "multiShot": bool(body.get("multiShot", False)),
-        "status": "pending",
+        "status": "submitting",
         "createdAt": _now(),
     }
+    if marker:
+        item['placeholderId'] = marker
     await db.projects.update_one(
         {"id": project_id},
         {"$pull": {"klingPending": {"slideId": slide_id}}},
     )
-    await db.projects.update_one(
-        {"id": project_id},
-        {"$push": {"klingPending": item}, "$set": {"updatedAt": _now()}},
-    )
+    updates = {"$push": {"klingPending": item}, "$set": {"updatedAt": _now()}}
+    if placeholder:
+        updates['$push'][f"course.slides.{item['slideIndex']}.elements"] = placeholder
+        updates['$max'] = {f"course.slides.{item['slideIndex']}.duration": item['duration']}
+    await db.projects.update_one({"id": project_id}, updates)
     try:
-        return await _submit_pending(project_id, item)
+        submitted = await _submit_pending(project_id, item)
+        return {**submitted, 'placeholder': placeholder}
     except Exception as exc:
+        await db.projects.update_one(
+            {'id':project_id, 'klingPending.slideId':slide_id},
+            {'$set':{'klingPending.$.status':'failed','klingPending.$.error':_public_job_error(exc)}})
         raise _safe_error(exc)
 
 
@@ -271,7 +289,7 @@ async def _replace_placeholder(
     # fallback and select only a Kling placeholder on that exact slide.
     if not matches and isinstance(slide_index, int) and 0 <= slide_index < len(slides):
         for element_index, element in enumerate(slides[slide_index].get("elements", [])):
-            if "data-kling-slide=" in (element.get("htmlContent") or ""):
+            if "data-kling-slide=" in (element.get("htmlContent") or "") and 'data-kling-editor-job=' not in (element.get('htmlContent') or ''):
                 matches.append((slide_index, element_index, element))
 
     if not matches:
@@ -279,7 +297,7 @@ async def _replace_placeholder(
 
     for current_slide_index, element_index, element in matches[:1]:
         new_element = {
-            "id": str(uuid.uuid4()),
+            "id": element.get('id') or str(uuid.uuid4()),
             "type": "video",
             "src": public_url,
             "x": element.get("x", 1120),
@@ -320,7 +338,8 @@ async def _persist_completed(project_id: str, item: dict, task: dict) -> str:
         raise kling_ai.KlingAPIError("Não foi possível salvar o vídeo Kling permanentemente.")
     public_url = f"/api/projects/{project_id}/assets/{filename}"
     replaced = await _replace_placeholder(
-        project_id, item["slideId"], public_url, item.get("slideIndex")
+        project_id, item.get('placeholderId') or item["slideId"], public_url,
+        None if item.get('placeholderId') else item.get("slideIndex")
     )
     if not replaced:
         raise kling_ai.KlingAPIError(
@@ -363,9 +382,9 @@ async def kling_project_status(project_id: str, user: dict = Depends(require_aut
             try:
                 await _replace_placeholder(
                     project_id,
-                    item.get("slideId", ""),
+                    item.get('placeholderId') or item.get("slideId", ""),
                     item["videoUrl"],
-                    item.get("slideIndex"),
+                    None if item.get('placeholderId') else item.get("slideIndex"),
                 )
             except Exception as exc:
                 logger.warning("Kling completed-scene repair failed for %s: %s", task_id, exc)
