@@ -38,6 +38,63 @@ def human_plan():
 
 
 class HumanSimulatorTests(unittest.TestCase):
+    def test_milestone_links_require_exact_existing_fact_ids(self):
+        from services.human_simulators import MilestoneLinkError
+        for links in ([], ['missing'], [{'id':'f0'}], 'f0', ['Informação descoberta 0']):
+            with self.subTest(links=links):
+                bad = dialogue_fixture()
+                bad['milestones'][1]['factIds'] = links
+                with self.assertRaises(MilestoneLinkError) as caught:
+                    validate_dialogue(bad, human_plan())
+                self.assertEqual(caught.exception.path, 'milestones[1].factIds')
+                self.assertEqual(caught.exception.allowed_ids, ['f0','f1','f2','f3'])
+
+    def test_targeted_link_repair_then_missing_stage_completion_preserves_content(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        plan, original = human_plan(), dialogue_fixture()
+        plan['learningDesign']['stages'].append(dict(title='Acompanhar', challenge='Verificar acordo', consequence='Rever plano'))
+        broken = copy.deepcopy(original)
+        broken['milestones'][1]['factIds'] = ['invented-id']
+        extra = copy.deepcopy(original['turns'][-1]); extra['title'] = 'Acompanhar o acordo'
+        requests = []
+        class Chat:
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(plan)
+                requests.append(json.loads(message.text))
+                return json.dumps([broken, {'milestones':original['milestones']}, {'turns':[extra]}][len(requests)-1])
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat',Chat):
+            result = asyncio.run(generate_visual_simulator('Simulador de feedback', 'Curso de feedback com fatos e acompanhamento.'))
+        self.assertEqual(len(requests), 3)
+        self.assertEqual(requests[1]['invalidPath'], 'milestones[1].factIds')
+        self.assertEqual(requests[1]['allowedFactIds'], ['f0','f1','f2','f3'])
+        self.assertEqual(requests[1]['existingDialogue']['turns'], original['turns'])
+        self.assertEqual(requests[2]['requiredAdditionalTurns'], 1)
+        self.assertEqual(requests[2]['existingDialogue']['milestones'], original['milestones'])
+        self.assertTrue(all('Curso de feedback' in request['courseContext'] for request in requests))
+        self.assertIn('Acompanhar o acordo', result['html'])
+
+    def test_invalid_link_repairs_stay_bounded_and_are_never_silently_accepted(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        broken = dialogue_fixture(); broken['milestones'][0]['factIds'] = ['missing']
+        count = []
+        class Chat:
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(human_plan())
+                count.append(1)
+                return json.dumps(broken if len(count)==1 else {'milestones':broken['milestones']})
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat',Chat):
+            with self.assertRaisesRegex(ValueError, 'milestones\\[0\\].factIds'):
+                asyncio.run(generate_visual_simulator('Simulador de feedback'))
+        self.assertEqual(len(count), 3)
+
     def test_missing_planned_turns_are_completed_without_discarding_valid_dialogue(self):
         import asyncio
         from services.visual_simulators import generate_visual_simulator
