@@ -18,6 +18,15 @@ def fixture():
 
 
 class CaseStudyTests(unittest.IsolatedAsyncioTestCase):
+    def test_generation_prompt_has_one_unambiguous_contract(self):
+        from services.case_studies import PROMPT
+        from services.human_simulators import HUMAN_PROMPT
+        self.assertNotIn('"sourceEvidence":"trecho LITERAL',PROMPT)
+        self.assertNotIn('"decisions":[',PROMPT)
+        self.assertNotIn('"choices":[',HUMAN_PROMPT)
+        self.assertIn('"sourceId"',PROMPT)
+        self.assertIn('"risky":ACAO',HUMAN_PROMPT)
+
     async def test_fixed_decision_keys_and_server_selected_literal_sources(self):
         from services.case_studies import source_catalog
         original = fixture()

@@ -129,7 +129,8 @@ def normalise(raw: dict, project: dict, user_id: str, item_id: str = "") -> dict
         if source_media.get('kind') != 'video':
             raise ValueError('Links externos são permitidos apenas para vídeos de apoio')
         from services.assessment_video_links import assessment_video_link
-        video = assessment_video_link(media_url)
+        # Parse the original snippet before any whitespace cleanup/truncation.
+        video = assessment_video_link(source_media.get('url') or raw.get('mediaUrl') or '')
         media = {'url': video['url'], 'kind': 'video', 'source': 'external',
                  'provider': video['provider'], 'name': clean(source_media.get('name'),300) or 'Vídeo · ' + video['provider']}
     else:

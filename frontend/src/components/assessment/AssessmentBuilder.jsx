@@ -72,10 +72,11 @@ function ExternalVideoInput({ media, onChange }) {
     } catch (failure) { setError(failure.message); }
   };
   return <section className="space-y-2 rounded-lg border border-dashed p-3" aria-label="Vídeo por link">
-    <Label htmlFor="assessment-video-link">Vídeo por link — alternativa ao upload</Label>
-    <div className="flex flex-wrap gap-2"><Input id="assessment-video-link" type="url" className="min-w-0 flex-1" value={link} onChange={event => { setLink(event.target.value); setError(''); }} placeholder="https://… YouTube, Vimeo ou Bunny Stream" />
+    <Label htmlFor="assessment-video-link">Vídeo por link ou iframe — alternativa ao upload</Label>
+    <div className="flex flex-wrap gap-2"><Input id="assessment-video-link" type="text" className="min-w-0 flex-1" value={link} onChange={event => { setLink(event.target.value); setError(''); }} placeholder="URL ou iframe completo do Bunny, Vimeo ou YouTube" />
       <Button type="button" variant="outline" onClick={apply} disabled={!link.trim()}>Usar link de vídeo</Button></div>
     {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+    <p className="text-xs text-amber-500">Bunny protegido: cole o iframe completo para preservar token e expires. Se aparecer 403 apenas no Editor, autorize scormify-app.onrender.com (e seu domínio personalizado) em Stream → Security → Allowed domains. Para HTML/SCORM, autorize também o domínio onde o curso será publicado. Não é necessário desativar a proteção.</p>
     <p className="text-xs text-muted-foreground">Não envia o vídeo ao servidor. Requer internet no HTML/SCORM e permissão de incorporação no provedor. No Bunny, use o link Embed ou Direct Play; no Vimeo não listado, mantenha o link completo. Links assinados podem expirar. Usar um link substitui o anexo atual; depois, salve a questão no Banco.</p>
     {media?.source === 'external' && <><iframe title={`Prévia do vídeo · ${media.provider}`} src={media.url} className="aspect-video w-full rounded border" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
       <a href={media.url} target="_blank" rel="noopener" className="text-sm underline">Abrir vídeo em nova aba</a></>}

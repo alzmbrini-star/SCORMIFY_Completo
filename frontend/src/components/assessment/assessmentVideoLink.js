@@ -1,7 +1,11 @@
 // Pure, self-contained: serialized into the offline assessment player as well.
 export function assessmentVideoLink(raw) {
-  const invalid = () => { throw new Error('Use um link HTTPS de vídeo do YouTube, Vimeo ou Bunny Stream (não cole código HTML).'); };
-  if (typeof raw !== 'string' || raw.length > 4000 || /[<>\\\u0000-\u0020]/.test(raw.trim())) return invalid();
+  const invalid = () => { throw new Error('Use um link HTTPS de vídeo ou o iframe completo do Bunny, Vimeo ou YouTube.'); };
+  if (typeof raw !== 'string' || raw.length > 16000) return invalid();
+  // Extract data only. Never render pasted HTML, scripts or event handlers.
+  const iframe = raw.match(/<iframe\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/is);
+  raw = (iframe ? iframe[2] : raw).trim().replace(/&(?:amp|#0*38|#x0*26);/gi, '&');
+  if (raw.length > 4000 || /[<>\\\u0000-\u0020]/.test(raw)) return invalid();
   let u;
   try { u = new URL(raw.trim()); } catch { return invalid(); }
   if (u.protocol !== 'https:' || u.username || u.password || u.port) return invalid();
@@ -27,9 +31,9 @@ export function assessmentVideoLink(raw) {
   if (['iframe.mediadelivery.net', 'player.mediadelivery.net'].includes(host)) {
     const match = p.match(/^\/(?:embed|play)\/(\d+)\/([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})\/?$/);
     if (!match) return invalid();
-    u.pathname = `/embed/${match[1]}/${match[2]}`;
-    u.hash = ''; u.searchParams.set('autoplay', 'false');
-    return { provider: 'Bunny Stream', url: u.href };
+    // Match the Editor: preserve the signed URL byte-for-byte. Rebuilding the
+    // path/query (including autoplay or play→embed) can invalidate signatures.
+    return { provider: 'Bunny Stream', url: raw };
   }
   return invalid();
 }

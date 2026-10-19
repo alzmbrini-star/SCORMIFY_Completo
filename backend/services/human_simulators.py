@@ -27,12 +27,14 @@ terceiro compromisso/progresso, todos com sentido positivo crescente],
 das informações necessárias para cumprir essa etapa]}],
 "turns":[6 a 10 {"title":"etapa até 100","openPrompt":"fala de quem está
 receptivo, até 350","guardedPrompt":"fala de quem está resistente, até 350",
-"choices":[3 {"label":"fala do aluno até 220","openResponse":"reação receptiva
-específica à ação, até 400","guardedResponse":"reação defensiva à mesma ação,
-até 400","feedback":"consequência causal e conceito do curso até 350",
-"effects":[3 inteiros de -20 a 20],"quality":0|1|2,
-"reveals":[IDs de informações descobertas],"requiresFact":"ID ou string vazia"}]}]}
-Cada turno tem as qualidades 0,1,2 em ordem variada, efeitos diferentes e pelo
+"choices":{"risky":ACAO,"partial":ACAO,"grounded":ACAO}}]}
+ACAO significa objeto {"label":"fala concreta do aluno até 220",
+"openResponse":"reação receptiva específica até 400",
+"guardedResponse":"reação defensiva distinta até 400",
+"feedback":"consequência causal e conceito do curso até 350",
+"effects":[3 inteiros de -20 a 20],"reveals":[IDs de facts],
+"requiresFact":"ID de facts ou string vazia"}. Não gere quality nem arrays de choices.
+Cada turno tem estratégias risky, partial, grounded, efeitos diferentes e pelo
 menos uma consequência negativa. A melhor ação depende de escuta e evidências,
 não de palavras mágicas. Pelo menos uma opção da conversa exige uma informação
 descoberta antes; cada turno também tem uma opção sem pré-requisito para permitir
@@ -49,7 +51,7 @@ requiresFact também usa esses IDs ou string vazia. Por exemplo, se facts conté
 {\"id\":\"f1\",\"text\":\"O prazo foi alterado sem aviso\"}, use factIds:[\"f1\"].
 Cada vínculo deve ter relação causal com o significado da descoberta, não apenas
 apontar para qualquer ID válido. Confira todos os vínculos antes de retornar."""
-HUMAN_PROMPT += """\nCONTRATO DE ESTRATÉGIAS (substitui o formato de choices acima): em cada turno,
+HUMAN_PROMPT += """\nCONTRATO DE ESTRATÉGIAS: em cada turno,
 choices é um OBJETO com exatamente três chaves: risky, partial e grounded.
 Cada chave contém label, openResponse, guardedResponse, feedback, effects, reveals
 e requiresFact. Não gere quality: o motor atribui 0, 1 e 2 respectivamente.

@@ -1,12 +1,16 @@
 """Allowlisted embed normalization, without fetching or storing video files."""
 import re
-from urllib.parse import urlsplit, parse_qs, urlencode, urlunsplit
+from urllib.parse import urlsplit, parse_qs, urlencode
 
 
 def assessment_video_link(raw):
-    message = 'Use um link HTTPS de vídeo do YouTube, Vimeo ou Bunny Stream (não cole código HTML).'
+    message = 'Use um link HTTPS de vídeo ou o iframe completo do Bunny, Vimeo ou YouTube.'
     def invalid(): raise ValueError(message)
-    if not isinstance(raw, str) or len(raw) > 4000 or re.search(r'[<>\\\x00-\x20]', raw.strip()): invalid()
+    if not isinstance(raw, str) or len(raw) > 16000: invalid()
+    iframe = re.search(r'''<iframe\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1''',raw,re.I|re.S)
+    raw = (iframe[2] if iframe else raw).strip()
+    raw = re.sub(r'&(?:amp|#0*38|#x0*26);','&',raw,flags=re.I)
+    if len(raw) > 4000 or re.search(r'[<>\\\x00-\x20]', raw): invalid()
     try:
         u = urlsplit(raw.strip())
         if u.scheme != 'https' or u.username or u.password or u.port not in (None,443): invalid()
@@ -31,7 +35,5 @@ def assessment_video_link(raw):
     if host in {'iframe.mediadelivery.net','player.mediadelivery.net'}:
         match = re.fullmatch(r'/(?:embed|play)/(\d+)/([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})/?', path, re.ASCII)
         if not match: invalid()
-        pairs = [(key,value) for key, values in query.items() if key != 'autoplay' for value in values]
-        pairs.append(('autoplay','false'))
-        return {'provider': 'Bunny Stream', 'url': urlunsplit(('https',host,f'/embed/{match[1]}/{match[2]}',urlencode(pairs),''))}
+        return {'provider': 'Bunny Stream', 'url': raw}
     invalid()

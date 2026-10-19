@@ -19,8 +19,8 @@ class AssessmentVideoLinks(unittest.TestCase):
             ('https://www.youtube.com/shorts/M7lc1UVf-VE', 'https://www.youtube-nocookie.com/embed/M7lc1UVf-VE'),
             ('https://vimeo.com/76979871/abc123', 'https://player.vimeo.com/video/76979871?h=abc123'),
             ('https://player.vimeo.com/video/76979871?h=abc123&autoplay=1', 'https://player.vimeo.com/video/76979871?h=abc123'),
-            ('https://iframe.mediadelivery.net/play/123/12345678-1234-1234-1234-123456789abc?token=secret&expires=123', 'https://iframe.mediadelivery.net/embed/123/12345678-1234-1234-1234-123456789abc?token=secret&expires=123&autoplay=false'),
-            ('https://player.mediadelivery.net/embed/123/12345678-1234-1234-1234-123456789abc', 'https://player.mediadelivery.net/embed/123/12345678-1234-1234-1234-123456789abc?autoplay=false'),
+            ('https://iframe.mediadelivery.net/play/123/12345678-1234-1234-1234-123456789abc?token=secret&expires=123', 'https://iframe.mediadelivery.net/play/123/12345678-1234-1234-1234-123456789abc?token=secret&expires=123'),
+            ('https://player.mediadelivery.net/embed/123/12345678-1234-1234-1234-123456789abc', 'https://player.mediadelivery.net/embed/123/12345678-1234-1234-1234-123456789abc'),
         ]
         for raw, expected in cases:
             with self.subTest(raw=raw):
@@ -31,10 +31,17 @@ class AssessmentVideoLinks(unittest.TestCase):
         for raw in ['javascript:alert(1)', 'http://youtu.be/M7lc1UVf-VE',
             'https://youtube.com.evil.test/watch?v=M7lc1UVf-VE', 'https://evil.test/video.mp4',
             'https://user:password@vimeo.com/123', 'https://vimeo.com:444/123',
-            '<iframe src="https://vimeo.com/123"></iframe>', 'https://vimeo.com/123?x=<>',
+            '<iframe src="https://evil.test/video"></iframe>', 'https://vimeo.com/123?x=<>',
             'https://vimeo.com/channels/123', 'https://youtube.com/watch?v=bad',
             'https://iframe.mediadelivery.net/embed/123/not-a-video', '//vimeo.com/123']:
             with self.subTest(raw=raw), self.assertRaises(ValueError): assessment_video_link(raw)
+
+    def test_bunny_iframe_extracts_only_src_and_preserves_signed_bytes(self):
+        signed='https://iframe.mediadelivery.net/play/123/12345678-1234-1234-1234-123456789abc?token=a%2Bb%3D&expires=9999999999&autoplay=true&muted=false'
+        snippet='<div><iframe allow="autoplay" src="'+signed.replace('&','&amp;')+'" onload="alert(1)"></iframe></div>'
+        self.assertEqual(assessment_video_link(snippet)['url'],signed)
+        self.assertEqual(assessment_video_link(signed)['url'],signed)
+        self.assertNotIn('onload',assessment_video_link(snippet)['url'])
 
     def test_bank_normalisation_and_exports_keep_link_without_upload(self):
         route = Path(__file__).resolve().parents[1] / 'routes' / 'assessments.py'
