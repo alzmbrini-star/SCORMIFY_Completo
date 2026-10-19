@@ -537,14 +537,15 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
     if spec.get('learningDesign', {}).get('kind') == 'human':
         # Human conversations use generated content in a tested runtime. State,
         # emotional reactions and prerequisites cannot become decorative HTML.
-        from services.human_simulators import HUMAN_PROMPT, MilestoneLinkError, validate_dialogue, render_dialogue
+        from services.human_simulators import HUMAN_PROMPT, MilestoneLinkError, DialogueHistoryError, validate_dialogue, render_dialogue
         stages = spec['learningDesign']['stages']
         required_turns = max(6, len(stages))
         conversation = LlmChat(api_key=key, session_id=session_id + '-dialogue', system_message=HUMAN_PROMPT).with_model(provider, model).with_params(temperature=0.4, max_tokens=16000)
         original_request = json.dumps({'request': prompt[:5000], 'courseContext': reference, 'plan': spec,
             'generationContract': {'turnCount': required_turns,
-                'instruction': 'Gere exatamente turnCount turnos, um para cada etapa na ordem do plano; não omita etapas.'}}, ensure_ascii=False)
-        request, partial, milestone_partial = original_request, None, None
+                'instruction': 'Gere exatamente turnCount turnos, um para cada etapa na ordem do plano; não omita etapas.',
+                'history': 'Um caminho completo deve revelar pelo menos três IDs distintos de facts e usar uma decisão posterior cujo requiresFact dependa de uma descoberta feita antes nesse mesmo caminho. Inclua alternativa de recuperação sem pré-requisito em cada turno.'}}, ensure_ascii=False)
+        request, partial, milestone_partial, history_partial = original_request, None, None, None
         for attempt in range(3):
             response = await asyncio.wait_for(conversation.send_message(UserMessage(text=request)), timeout=120)
             raw = None
@@ -558,18 +559,30 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
                     if not isinstance(raw, dict) or not isinstance(raw.get('milestones'), list):
                         raise ValueError('Retorne somente o objeto milestones com os vínculos corrigidos')
                     raw = dict(milestone_partial, milestones=raw['milestones'])
+                elif history_partial is not None:
+                    if not isinstance(raw, dict) or not isinstance(raw.get('turns'), list):
+                        raise ValueError('Retorne o objeto turns com as decisões e descobertas corrigidas')
+                    raw = dict(history_partial, turns=raw['turns'])
                 dialogue = validate_dialogue(raw, spec)
                 return {'html': render_dialogue(dialogue, spec), 'spec': spec}
             except (ValueError, TypeError) as exc:
                 last_error = str(exc)
                 if isinstance(exc, MilestoneLinkError) and isinstance(raw, dict):
-                    partial, milestone_partial = None, raw
+                    partial, milestone_partial, history_partial = None, raw, None
                     request = json.dumps({'task': 'Corrija somente os vínculos de milestones com facts, preservando o significado pedagógico das etapas.',
                         'request': prompt[:5000], 'courseContext': reference, 'plan': spec,
                         'existingDialogue': raw, 'invalidPath': exc.path, 'allowedFactIds': exc.allowed_ids,
                         'output': 'Retorne somente {"milestones":[{"title":"...","factIds":["ID existente"]}]}. Preserve todas as etapas de progresso. factIds é uma lista não vazia de strings exatamente iguais a facts[].id. Escolha apenas descobertas cujo significado justifique a etapa; não invente fatos nem escolha IDs arbitrários.'}, ensure_ascii=False)
                     continue
-                milestone_partial = None
+                if isinstance(exc, DialogueHistoryError) and isinstance(raw, dict):
+                    partial, milestone_partial, history_partial = None, None, raw
+                    request = json.dumps({'task': 'Corrija a lógica de descobertas e decisões dependentes do histórico. Não reescreva o personagem, fatos nem marcos de progresso.',
+                        'request': prompt[:5000], 'courseContext': reference, 'plan': spec,
+                        'existingDialogue': raw, 'diagnostics': exc.diagnostics,
+                        'requiredTurnCount': required_turns, 'allowedFacts': raw['facts'],
+                        'output': 'Retorne somente {"turns":[...]} com todos os turnos corrigidos. No caminho fundamentado, ações de investigação revelam pelo menos três IDs distintos de facts em reveals e as respostas explicam essas descobertas. Em um turno posterior, uma ação usa requiresFact igual a um ID revelado antes nesse mesmo caminho; sua fala deve aplicar aquela informação. Não basta mencionar o histórico no texto: preencha reveals e requiresFact. No primeiro turno requiresFact é vazio. Preserve as etapas do plano, reações, efeitos distintos e pelo menos uma opção sem pré-requisito por turno. Não invente fatos, não use IDs arbitrários, nem imponha condições circulares.'}, ensure_ascii=False)
+                    continue
+                milestone_partial, history_partial = None, None
                 # Preserve a valid prefix and request only the missing stages.
                 # Regenerating the entire long dialogue often repeats the same
                 # six-turn default or exhausts the output budget again.

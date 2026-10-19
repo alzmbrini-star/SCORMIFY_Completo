@@ -38,6 +38,81 @@ def human_plan():
 
 
 class HumanSimulatorTests(unittest.TestCase):
+    def test_history_diagnostics_distinguish_missing_discoveries_and_conditions(self):
+        from services.human_simulators import DialogueHistoryError
+        broken = dialogue_fixture()
+        for turn in broken['turns']:
+            for choice in turn['choices']:
+                choice['reveals'] = []
+                choice['requiresFact'] = ''
+        with self.assertRaises(DialogueHistoryError) as caught:
+            validate_dialogue(broken, human_plan())
+        self.assertEqual(caught.exception.diagnostics['discoverableFactIds'], [])
+        self.assertFalse(caught.exception.diagnostics['hasConditionalDecision'])
+
+    def test_union_of_mutually_exclusive_discoveries_is_not_a_viable_history(self):
+        from services.human_simulators import DialogueHistoryError
+        broken = dialogue_fixture()
+        for turn in broken['turns']:
+            for choice in turn['choices']:
+                choice['reveals'] = []
+        for i, choice in enumerate(broken['turns'][0]['choices']): choice['reveals'] = [f'f{i}']
+        with self.assertRaises(DialogueHistoryError) as caught:
+            validate_dialogue(broken, human_plan())
+        self.assertEqual(len(caught.exception.diagnostics['discoverableFactIds']), 3)
+        self.assertTrue(caught.exception.diagnostics['hasConditionalDecision'])
+        self.assertFalse(caught.exception.diagnostics['hasCompletablePathWithDiscoveriesAndConditionalDecision'])
+
+    def test_history_repair_preserves_facts_and_milestones_and_can_fill_missing_stage(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        plan = human_plan()
+        plan['learningDesign']['stages'].append(dict(title='Acompanhar', challenge='Conferir acordo', consequence='Rever plano'))
+        original, broken = dialogue_fixture(), dialogue_fixture()
+        for turn in broken['turns']:
+            for choice in turn['choices']:
+                choice['reveals'], choice['requiresFact'] = [], ''
+        corrected = original['turns'] + copy.deepcopy(original['turns'][-1:])
+        corrected[-1]['title'] = 'Acompanhamento do acordo'
+        requests = []
+        class Chat:
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(plan)
+                requests.append(json.loads(message.text))
+                return json.dumps(broken if len(requests)==1 else {'turns': corrected,
+                    'facts':[{'id':'invented','text':'Must not replace facts'}]})
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat',Chat):
+            result = asyncio.run(generate_visual_simulator('Simulador de feedback', 'Curso: escuta baseada em fatos.'))
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[1]['requiredTurnCount'], 7)
+        self.assertEqual(requests[1]['allowedFacts'], original['facts'])
+        self.assertIn('escuta baseada em fatos', requests[1]['courseContext'])
+        self.assertIn('Acompanhamento do acordo', result['html'])
+        self.assertNotIn('Must not replace facts', result['html'])
+
+    def test_history_repair_budget_does_not_allow_shallow_simulation(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        broken = dialogue_fixture()
+        for turn in broken['turns']:
+            for choice in turn['choices']: choice['requiresFact'] = ''
+        calls = []
+        class Chat:
+            def __init__(self, **kwargs): self.session = kwargs['session_id']
+            def with_model(self, *args): return self
+            def with_params(self, **kwargs): return self
+            async def send_message(self, message):
+                if self.session.endswith('-plan'): return json.dumps(human_plan())
+                calls.append(1)
+                return json.dumps(broken if len(calls)==1 else {'turns':broken['turns']})
+        with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat',Chat):
+            with self.assertRaisesRegex(ValueError, 'nenhuma decisão usa requiresFact'):
+                asyncio.run(generate_visual_simulator('Simulador de feedback'))
+        self.assertEqual(len(calls), 3)
+
     def test_milestone_links_require_exact_existing_fact_ids(self):
         from services.human_simulators import MilestoneLinkError
         for links in ([], ['missing'], [{'id':'f0'}], 'f0', ['Informação descoberta 0']):

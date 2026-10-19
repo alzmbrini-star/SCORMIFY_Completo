@@ -57,6 +57,21 @@ class MilestoneLinkError(ValueError):
         super().__init__(f'Vincule o progresso às descobertas existentes: {self.path} deve conter uma lista não vazia de IDs de facts. IDs permitidos: {", ".join(self.allowed_ids)}')
 
 
+class DialogueHistoryError(ValueError):
+    def __init__(self, discovered_ids, has_condition, viable_path):
+        self.diagnostics = {'discoverableFactIds': sorted(discovered_ids),
+            'minimumDistinctDiscoveries': 3, 'hasConditionalDecision': has_condition,
+            'hasCompletablePathWithDiscoveriesAndConditionalDecision': viable_path}
+        issues = []
+        if len(discovered_ids) < 3:
+            issues.append(f'apenas {len(discovered_ids)} descobertas reveláveis; mínimo 3')
+        if not has_condition:
+            issues.append('nenhuma decisão usa requiresFact de um turno anterior')
+        if not viable_path:
+            issues.append('falta um caminho completo com três descobertas e decisão condicionada ao histórico')
+        super().__init__('Inclua descobertas e decisões dependentes do histórico: ' + '; '.join(issues))
+
+
 def _text(value, limit):
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise ValueError('Texto ausente ou muito longo no diálogo')
@@ -93,9 +108,9 @@ def validate_dialogue(raw, spec):
         result['milestones'].append({'title':_text(milestone.get('title'),60),'factIds':links})
     if not isinstance(turns,list) or not 6 <= len(turns) <= 10:
         raise ValueError('A conversa precisa de seis a dez turnos')
-    if len(turns) < len(spec.get('learningDesign',{}).get('stages',[])):
-        raise ValueError(f"Implemente todas as etapas planejadas na conversa: recebidos {len(turns)} turnos para {len(spec['learningDesign']['stages'])} etapas")
     result['turns'], reachable, has_condition = [], set(), False
+    # Track real paths, not the union of facts from mutually exclusive choices.
+    history_paths = {(frozenset(), False)}
     for turn in turns:
         if not isinstance(turn,dict): raise ValueError('Turno inválido')
         clean = {key:_text(turn.get(key),limit) for key,limit in [('title',100),('openPrompt',350),('guardedPrompt',350)]}
@@ -126,8 +141,15 @@ def validate_dialogue(raw, spec):
             raise ValueError('As decisões precisam de consequências diferentes, incluindo perdas')
         if all(choice['requiresFact'] for choice in clean['choices']): raise ValueError('Permita uma ação de recuperação sem pré-requisito')
         reachable.update(key for choice in clean['choices'] for key in choice['reveals'])
+        history_paths = {(known.union(choice['reveals']), used_condition or bool(choice['requiresFact']))
+            for known, used_condition in history_paths for choice in clean['choices']
+            if not choice['requiresFact'] or choice['requiresFact'] in known}
         result['turns'].append(clean)
-    if not has_condition or len(reachable) < 3: raise ValueError('Inclua descobertas e decisões dependentes do histórico')
+    viable_path = any(len(known) >= 3 and used_condition for known, used_condition in history_paths)
+    if not has_condition or len(reachable) < 3 or not viable_path:
+        raise DialogueHistoryError(reachable, has_condition, viable_path)
+    if len(turns) < len(spec.get('learningDesign',{}).get('stages',[])):
+        raise ValueError(f"Implemente todas as etapas planejadas na conversa: recebidos {len(turns)} turnos para {len(spec['learningDesign']['stages'])} etapas")
     result['title'],result['mission'],result['debrief'] = spec['title'],spec['mission'],spec['debrief']
     return result
 
