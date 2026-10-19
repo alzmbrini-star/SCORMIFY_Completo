@@ -131,6 +131,11 @@ relações causais, condições de sucesso, bloqueios e reinício; até 1800),
 controls (2 a 8 objetos {label: até 80, action: até 240}),
 indicators (2 a 6 objetos {label: até 80, meaning: até 240}).
 As regras devem permitir experimentar e observar consequências reais no desenho.
+Adapte a complexidade ao instrumento solicitado: cronômetro, relógio e calculadora
+precisam de painel próprio e estado funcional, não de uma operação industrial ou
+negociação artificial. Um cronômetro deve iniciar, pausar, retomar, registrar voltas
+e zerar, sem contar duas vezes nem incluir o tempo pausado. Use o contexto do curso
+em exercícios e orientações pertinentes, sem substituir o instrumento pedido.
 Use unidades do domínio quando pertinentes. Declare simplificações didáticas.
 O pedido define a atividade; o contexto define público, vocabulário, setor,
 objetivos e dificuldade. Use os dois: não troque um pedido de vendas por outro
@@ -183,7 +188,10 @@ Crie um documento HTML COMPLETO com CSS e JavaScript inline, em português brasi
 Retorne somente HTML, sem markdown. Implemente exatamente o plano fornecido.
 Cada tema recebe desenho e lógica próprios; nenhum template de assunto é obrigatório.
 QUALIDADE VISUAL: inclua representação do domínio em SVG inline ou Canvas 2D com
-componentes identificáveis. Em operações físicas ela ocupa a maior parte da tela;
+componentes identificáveis. Instrumentos digitais (cronômetro, relógio, calculadora)
+também podem usar HTML/CSS com visor legível e atualização real do estado: marque
+o painel principal com data-sim-scene="instrument" e use role="timer" no cronômetro.
+Não adicione um SVG decorativo só para satisfazer a validação. Em operações físicas ela ocupa a maior parte da tela;
 em situações humanas, priorize conversa e decisões, com ilustração de apoio.
 Não substitua o objeto por um emoji, gráfico de barras genérico ou formulário.
 Os objetos precisam ser reconhecíveis: barco com casco desenhado por path/polygon,
@@ -215,7 +223,7 @@ concretas de cada turno em botões, não um botão extra com esse rótulo genér
 Inclua um botão acessível de reinício, rotulado Reiniciar, Recomeçar ou Tentar novamente,
 que realmente restaure o estado inicial e limpe o histórico.
 Sem handlers vazios, TODOs ou comentários substituindo lógica. Mostre a missão e
-uma instrução inicial; a mensagem de sucesso só aparece após concluir a travessia.
+uma instrução inicial; a mensagem de sucesso só aparece após atingir a meta do plano.
 Mostre por que uma ação foi bloqueada.
 Use labels/aria-label para inputs e botões descritivos. Feedback role=status.
 Renderize título, missão, orientação e síntese do plano como conteúdo visível.
@@ -265,6 +273,11 @@ Pêndulos devem mudar período/movimento ao alterar parâmetros e respeitar paus
 Não exija precisão de engenharia, assets externos ou bibliotecas. Não reprove
 por preferências cosméticas menores. Aponte até 6 falhas CONCRETAS, com como corrigi-las.
 Não aprove código com falhas de desenho/estado que prejudiquem a compreensão.
+Instrumentos digitais podem ter sua representação principal em HTML/CSS, sem
+SVG/Canvas: avalie o visor, precisão didática, controles e mudanças de estado.
+Cronômetros devem iniciar, pausar, retomar, registrar voltas e zerar corretamente;
+cliques repetidos não duplicam intervalos e o tempo pausado não deve ser somado.
+Não imponha negociação, operação industrial, quiz ou complexidade alheia ao pedido.
 Compare também learningDesign com a implementação. Reprove quando não aplicar os
 conceitos do curso declarados no plano, tiver dificuldade incompatível com o público,
 etapas decorativas ou desfechos que ignoram o histórico. Casos humanos devem ter
@@ -375,6 +388,7 @@ class _OfflineDocument(HTMLParser):
     def __init__(self):
         super().__init__()
         self.scene = self.control = False
+        self.dom_scene = False
         self.button_names = []
         self.in_button = False
         self.control_ids = set()
@@ -392,6 +406,11 @@ class _OfflineDocument(HTMLParser):
                 if not value.startswith(("#", "data:")):
                     raise ValueError("A cena contém um recurso externo")
         self.scene |= tag in {"svg", "canvas"}
+        # A digital instrument is legitimately drawn with DOM/CSS, not SVG.
+        # Functionality and domain fidelity are still checked below and by review.
+        if tag in {'main', 'section', 'div', 'output', 'time'}:
+            self.dom_scene |= (bool(attributes.get('data-sim-scene'))
+                               or attributes.get('role') == 'timer')
         self.control |= tag in {"input", "button", "select"}
         if tag in {"input", "button", "select", "textarea", "fieldset", "div", "section"} and attributes.get('data-sim-control'):
             self.control_ids.add(attributes['data-sim-control'])
@@ -432,8 +451,10 @@ def validate_custom_html(value, spec):
         raise ValueError("Use apenas recursos locais inline, sem acesso à rede ou ao navegador")
     document = _OfflineDocument()
     document.feed(code)
-    if not document.scene or not document.control:
-        raise ValueError("Faltam a cena SVG/Canvas e controles de experimentação")
+    if not document.scene and not document.dom_scene:
+        raise ValueError("Falta a representação visual: use SVG/Canvas ou um painel HTML/CSS identificado com data-sim-scene, com estado visível e funcional")
+    if not document.control:
+        raise ValueError("Faltam controles interativos para operar o simulador")
     from services.ai_agent import _interactive_html_is_functional
     if not _interactive_html_is_functional(code, "simulator"):
         raise ValueError("O documento está incompleto ou usa uma estrutura de quiz")

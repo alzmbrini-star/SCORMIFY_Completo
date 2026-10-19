@@ -84,6 +84,43 @@ def custom_document(title):
 
 
 class VisualSimulatorTests(unittest.TestCase):
+    def test_digital_instrument_accepts_dom_css_without_decorative_svg(self):
+        spec = validate_custom_plan(dict(LOCK_PLAN, title='Cronômetro de prática',
+            scene='Painel digital com visor de tempo e lista de voltas',
+            controls=[dict(label=label, action='Atualizar o estado do cronômetro')
+                      for label in ('Iniciar', 'Pausar', 'Volta', 'Reiniciar')]))
+        code = '''<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+        <style>body{font-family:system-ui;background:#0b1631;color:#eef6ff;margin:0;padding:24px}
+        main{max-width:960px;margin:auto;display:grid;gap:20px}section{padding:24px;border:1px solid #5ba9dd;border-radius:20px}
+        output{display:block;font-size:clamp(36px,8vw,90px);font-variant-numeric:tabular-nums;color:#7fe8ef}
+        button{min-height:44px;padding:12px 18px;border-radius:10px;background:#2460cb;color:white;border:0}
+        nav{display:flex;flex-wrap:wrap;gap:12px}li{padding:8px;border-bottom:1px solid #587}</style>
+        </head><body><main><h1>Cronômetro de prática</h1>
+        <p>Meça a duração de uma tarefa do curso. Compare as voltas e observe como a pausa preserva o tempo acumulado.</p>
+        <section data-sim-scene="instrument" aria-label="Painel do cronômetro"><output id="clock" role="timer">0.00 s</output>
+        <nav><button id="start">Iniciar</button><button id="pause">Pausar</button><button id="lap">Volta</button><button id="reset">Reiniciar</button></nav>
+        <p id="status" role="status">Pronto para medir.</p><ol id="laps"></ol></section></main>
+        <script>let accumulated=0,started=0,loop=null;
+        const clock=document.getElementById('clock'),status=document.getElementById('status');
+        function elapsed(){return accumulated+(loop!==null?performance.now()-started:0)}
+        function draw(){clock.textContent=(elapsed()/1000).toFixed(2)+' s'}
+        document.getElementById('start').onclick=()=>{if(loop!==null)return;started=performance.now();loop=setInterval(draw,30);status.textContent='Em medição'};
+        document.getElementById('pause').onclick=()=>{if(loop===null)return;accumulated=elapsed();clearInterval(loop);loop=null;draw();status.textContent='Pausado'};
+        document.getElementById('lap').onclick=()=>{const li=document.createElement('li');li.textContent=(elapsed()/1000).toFixed(2)+' s';document.getElementById('laps').appendChild(li)};
+        document.getElementById('reset').onclick=()=>{clearInterval(loop);loop=null;accumulated=0;started=0;document.getElementById('laps').replaceChildren();draw();status.textContent='Pronto para medir'};
+        </script></body></html>'''
+        self.assertIn('data-simulator-version="3"', validate_custom_html(code, spec))
+        # Native timer semantics work without the optional scene marker too.
+        self.assertIn('role="timer"', validate_custom_html(code.replace('data-sim-scene="instrument"', ''), spec))
+        with self.assertRaisesRegex(ValueError, 'representação visual'):
+            validate_custom_html(code.replace('data-sim-scene="instrument"', '').replace('role="timer"', ''), spec)
+        with self.assertRaisesRegex(ValueError, 'controles interativos'):
+            validate_custom_html(re.sub(r'<button\b[^>]*>.*?</button>', '', code), spec)
+        with self.assertRaisesRegex(ValueError, 'callback vazio'):
+            validate_custom_html(code.replace('if(loop!==null)return;started=performance.now();loop=setInterval(draw,30);status.textContent=\'Em medição\'', ''), spec)
+        with self.assertRaisesRegex(ValueError, 'recursos locais'):
+            validate_custom_html(code.replace('let accumulated=', 'fetch("https://example.com");let accumulated='), spec)
+
     def test_learning_design_rejects_shallow_human_case(self):
         from services.visual_simulators import validate_learning_design
         human = copy.deepcopy(LEARNING_DESIGN)
