@@ -5,6 +5,7 @@ import { Maximize2, Sparkles, Scissors, RotateCcw } from 'lucide-react';
 import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import RemoveBackgroundDialog from '../dialogs/RemoveBackgroundDialog';
 import TextShadowControls from '../../../components/editor/TextShadowControls';
+import InteractiveTextColorControls from '../../../components/editor/InteractiveTextColorControls';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
@@ -153,6 +154,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
           available for them too. Renders `text-shadow` inside the iframe. */}
       {element.type === 'html' && (
         <>
+          <InteractiveTextColorControls element={element} onUpdate={onUpdate} />
           <div className="panel-section" data-testid="html-display-mode-section">
             <h4 className="text-sm font-medium mb-2">Exibição do HTML</h4>
             <div className="grid grid-cols-2 gap-2">
