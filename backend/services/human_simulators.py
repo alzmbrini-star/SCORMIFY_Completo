@@ -84,6 +84,17 @@ class DialogueHistoryError(ValueError):
         super().__init__('Inclua descobertas e decisões dependentes do histórico: ' + '; '.join(issues))
 
 
+class DialogueDependencyError(DialogueHistoryError):
+    """Route invalid edges through graph repair, not generic full regeneration."""
+    def __init__(self, turn_index, available, required, recovery=False):
+        self.diagnostics = {'invalidTurnIndex': turn_index,
+            'availableEarlierFactIds': sorted(available),
+            'requiredFact': required if isinstance(required, str) else None,
+            'missingRecoveryAction': recovery}
+        ValueError.__init__(self, 'Permita uma ação de recuperação sem pré-requisito' if recovery else
+            f'O pré-requisito precisa estar disponível em um turno anterior: turno {turn_index + 1}; IDs anteriores: {", ".join(sorted(available)) or "nenhum"}')
+
+
 def build_history_contract(data, turn_count):
     """A feasible authored graph; the model supplies contextual speech, not edges."""
     if not 6 <= turn_count <= 10 or len(data['facts']) < 3:
@@ -195,7 +206,7 @@ def validate_dialogue(raw, spec):
             if not isinstance(reveals,list) or any(not isinstance(key,str) or key not in ids for key in reveals):
                 raise ValueError('A ação revela informações inexistentes')
             if not isinstance(requires,str) or (requires and requires not in reachable):
-                raise ValueError('O pré-requisito precisa estar disponível em um turno anterior')
+                raise DialogueDependencyError(turn_index, reachable, requires)
             if action['openResponse'] == action['guardedResponse']: raise ValueError('A resposta do personagem deve refletir seu estado')
             action.update(effects=effects,quality=quality,reveals=reveals,requiresFact=requires)
             clean['choices'].append(action)
@@ -204,7 +215,8 @@ def validate_dialogue(raw, spec):
             raise ValueError('As ações precisam ser distintas e apresentar estratégias diferentes')
         if len({tuple(choice['effects']) for choice in clean['choices']}) != 3 or not any(min(choice['effects']) < 0 for choice in clean['choices']):
             raise ValueError('As decisões precisam de consequências diferentes, incluindo perdas')
-        if all(choice['requiresFact'] for choice in clean['choices']): raise ValueError('Permita uma ação de recuperação sem pré-requisito')
+        if all(choice['requiresFact'] for choice in clean['choices']):
+            raise DialogueDependencyError(turn_index, reachable, '', recovery=True)
         reachable.update(key for choice in clean['choices'] for key in choice['reveals'])
         history_paths = {(known.union(choice['reveals']), used_condition or bool(choice['requiresFact']))
             for known, used_condition in history_paths for choice in clean['choices']

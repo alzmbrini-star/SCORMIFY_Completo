@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import re
 import unittest
 from unittest.mock import patch
 from services.human_simulators import validate_dialogue, render_dialogue
@@ -38,6 +39,51 @@ def human_plan():
 
 
 class HumanSimulatorTests(unittest.TestCase):
+    def test_invalid_dependency_edges_use_specific_graph_repair_diagnostics(self):
+        from services.human_simulators import DialogueDependencyError, DialogueHistoryError
+        for required in ('f0', 'f3', 'unknown', None):
+            bad=dialogue_fixture();bad['turns'][0]['choices'][2]['requiresFact']=required
+            with self.subTest(required=required), self.assertRaises(DialogueDependencyError) as caught:
+                validate_dialogue(bad,human_plan())
+            self.assertIsInstance(caught.exception,DialogueHistoryError)
+            self.assertEqual(caught.exception.diagnostics['invalidTurnIndex'],0)
+            self.assertEqual(caught.exception.diagnostics['availableEarlierFactIds'],[])
+        bad=dialogue_fixture()
+        for choice in bad['turns'][1]['choices']: choice['requiresFact']='f0'
+        with self.assertRaises(DialogueDependencyError) as caught: validate_dialogue(bad,human_plan())
+        self.assertTrue(caught.exception.diagnostics['missingRecoveryAction'])
+
+    def test_first_turn_future_dependency_is_repaired_via_compiled_graph(self):
+        import asyncio
+        from services.visual_simulators import generate_visual_simulator
+        original=dialogue_fixture();broken=copy.deepcopy(original)
+        broken['turns'][0]['choices'][2]['requiresFact']='f3'
+        requests=[]
+        class Chat:
+            def __init__(self,**kwargs): self.session=kwargs['session_id']
+            def with_model(self,*args): return self
+            def with_params(self,**kwargs): return self
+            async def send_message(self,message):
+                if self.session.endswith('-plan'): return json.dumps(human_plan())
+                request=json.loads(message.text);requests.append(request)
+                if len(requests)==1:return json.dumps(broken)
+                # Still-invalid model edges are compiled from the contract, not
+                # accepted or blindly retried as another full conversation.
+                return json.dumps({'turns':broken['turns']})
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}),patch('services.visual_simulators.LlmChat',Chat):
+            result=asyncio.run(generate_visual_simulator('Aplicação de Feedback em Cenários','Curso: escuta, fatos e acordos verificáveis.'))
+        self.assertEqual(len(requests),2)
+        self.assertEqual(requests[1]['diagnostics']['invalidTurnIndex'],0)
+        self.assertEqual(requests[1]['historyContract'][0]['requiresFact'],'')
+        self.assertIn('acordos verificáveis',requests[1]['courseContext'])
+        data=json.loads(re.search(r'<script id="dialogue-data" type="application/json">(.*?)</script>',result['html'],re.S)[1])
+        known=set()
+        for turn in data['turns']:
+            best=next(c for c in turn['choices'] if c['quality']==2)
+            self.assertTrue(not best['requiresFact'] or best['requiresFact'] in known)
+            known.update(best['reveals'])
+        self.assertGreaterEqual(len(known),3)
+
     def test_named_strategies_have_engine_owned_quality_and_vary_position(self):
         from services.human_simulators import build_history_contract,compile_history_contract
         raw=dialogue_fixture()
