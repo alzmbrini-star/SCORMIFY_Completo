@@ -100,6 +100,8 @@ class HumanSimulatorTests(unittest.TestCase):
         for turn in broken['turns']:
             for choice in turn['choices']: choice['requiresFact'] = ''
         calls = []
+        invalid = copy.deepcopy(broken)
+        for choice in invalid['turns'][0]['choices']: choice['quality'] = 0
         class Chat:
             def __init__(self, **kwargs): self.session = kwargs['session_id']
             def with_model(self, *args): return self
@@ -107,11 +109,51 @@ class HumanSimulatorTests(unittest.TestCase):
             async def send_message(self, message):
                 if self.session.endswith('-plan'): return json.dumps(human_plan())
                 calls.append(1)
-                return json.dumps(broken if len(calls)==1 else {'turns':broken['turns']})
+                return json.dumps(broken if len(calls)==1 else invalid)
         with patch.dict(os.environ, {'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}), patch('services.visual_simulators.LlmChat',Chat):
-            with self.assertRaisesRegex(ValueError, 'nenhuma decisão usa requiresFact'):
+            with self.assertRaisesRegex(ValueError, 'estratégias diferentes'):
                 asyncio.run(generate_visual_simulator('Simulador de feedback'))
         self.assertEqual(len(calls), 3)
+
+    def test_compiled_graph_has_executable_paths_and_visible_discoveries_for_all_sizes(self):
+        from services.human_simulators import build_history_contract, compile_history_contract
+        for turn_count in range(6,11):
+            for fact_count in range(4,9):
+                with self.subTest(turns=turn_count, facts=fact_count):
+                    raw, plan = dialogue_fixture(), human_plan()
+                    raw['facts'] = [{'id':f'case_{i}', 'text':f'Descoberta concreta {i}: ' + 'x'*190} for i in range(fact_count)]
+                    raw['milestones'] = [{'title':f'Marco {i}','factIds':[f'case_{i}']} for i in range(3)]
+                    raw['turns'] += copy.deepcopy(raw['turns'][:turn_count-6])
+                    for turn in raw['turns']:
+                        for choice in turn['choices']:
+                            choice['reveals'],choice['requiresFact'] = ['invalid-from-model'], 'circular'
+                    before = copy.deepcopy(raw)
+                    contract = build_history_contract(raw, turn_count)
+                    compiled = compile_history_contract(raw, contract)
+                    validated = validate_dialogue(compiled, plan)
+                    self.assertEqual(raw, before, 'Compilation must not mutate source data')
+                    acquired = set()
+                    for index, turn in enumerate(validated['turns']):
+                        best = next(c for c in turn['choices'] if c['quality']==2)
+                        self.assertTrue(not best['requiresFact'] or best['requiresFact'] in acquired)
+                        self.assertEqual(sum(not c['requiresFact'] for c in turn['choices']), 3 if index==0 else 2)
+                        for key in best['reveals']:
+                            fact = next(f['text'] for f in raw['facts'] if f['id']==key)
+                            self.assertIn(fact, best['openResponse'])
+                            self.assertIn(fact, best['guardedResponse'])
+                        acquired.update(best['reveals'])
+                    self.assertEqual(acquired, {f['id'] for f in raw['facts']})
+                    self.assertEqual(compiled['profile'], raw['profile'])
+                    self.assertEqual(compiled['milestones'], raw['milestones'])
+
+    def test_contract_compiler_does_not_accept_missing_turns_or_empty_reactions(self):
+        from services.human_simulators import build_history_contract, compile_history_contract
+        raw = dialogue_fixture(); contract = build_history_contract(raw,6)
+        for invalid in ('turns', 'reaction'):
+            broken = copy.deepcopy(raw)
+            if invalid=='turns': broken['turns'].pop()
+            else: broken['turns'][0]['choices'][2]['openResponse'] = ''
+            with self.assertRaises(ValueError): compile_history_contract(broken,contract)
 
     def test_milestone_links_require_exact_existing_fact_ids(self):
         from services.human_simulators import MilestoneLinkError

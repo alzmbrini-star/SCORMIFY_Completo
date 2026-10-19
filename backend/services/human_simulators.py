@@ -1,5 +1,6 @@
 """Conversation content separated from a verified, stateful offline runtime."""
 import json
+import copy
 import re
 from pathlib import Path
 
@@ -72,6 +73,58 @@ class DialogueHistoryError(ValueError):
         super().__init__('Inclua descobertas e decisões dependentes do histórico: ' + '; '.join(issues))
 
 
+def build_history_contract(data, turn_count):
+    """A feasible authored graph; the model supplies contextual speech, not edges."""
+    if not 6 <= turn_count <= 10 or len(data['facts']) < 3:
+        raise ValueError('Não há etapas ou descobertas suficientes para o percurso')
+    facts = data['facts']
+    # Spread all case facts across the conversation, leaving a later turn to
+    # apply the final discovery. Progress milestones cannot become unreachable.
+    positions = [i * (turn_count - 2) // (len(facts) - 1) for i in range(len(facts))]
+    rows = []
+    previous = ''
+    for index in range(turn_count):
+        discoveries = [fact for fact, position in zip(facts, positions) if position == index]
+        rows.append({'turnIndex': index, 'bestChoiceQuality': 2,
+            'requiresFact': previous, 'reveals': [fact['id'] for fact in discoveries],
+            'discovery': ' · '.join(fact['text'] for fact in discoveries),
+            'recoveryChoiceQualities': [0, 1]})
+        if discoveries: previous = discoveries[-1]['id']
+    return rows
+
+
+def compile_history_contract(data, contract):
+    """Compile declared edges and show every acquired fact in the actual reply.
+
+    This never invents facts: all discoveries come from the existing case. The
+    rewritten choices must follow the contract sent to the content generator.
+    The regular validator still checks the resulting graph and all content.
+    """
+    result = copy.deepcopy(data)
+    if not isinstance(result.get('turns'), list) or len(result['turns']) != len(contract):
+        raise ValueError('A conversa deve implementar todos os turnos do percurso definido')
+    fact_map = {fact['id']: fact['text'] for fact in result['facts']}
+    for turn, row in zip(result['turns'], contract):
+        choices = turn.get('choices') if isinstance(turn, dict) else None
+        if not isinstance(choices, list) or len(choices) != 3 or any(not isinstance(c, dict) for c in choices):
+            raise ValueError('Cada turno do percurso precisa de três ações')
+        if any(type(c.get('quality')) is not int for c in choices) or {c['quality'] for c in choices} != {0,1,2}:
+            raise ValueError('O percurso precisa de três estratégias distintas')
+        for choice in choices:
+            best = choice['quality'] == 2
+            choice['requiresFact'] = row['requiresFact'] if best else ''
+            choice['reveals'] = list(row['reveals']) if best else []
+            for key in ('openResponse', 'guardedResponse'):
+                response = _text(choice.get(key), 400)
+                if best and row['reveals']:
+                    discovery = ' · '.join(fact_map[key] for key in row['reveals'])
+                    # Facts are not hidden metadata: the learner sees the exact
+                    # information that the motor records as newly discovered.
+                    response += '\nInformação compartilhada: ' + discovery
+                choice[key] = response
+    return result
+
+
 def _text(value, limit):
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise ValueError('Texto ausente ou muito longo no diálogo')
@@ -121,7 +174,7 @@ def validate_dialogue(raw, spec):
         for choice in choices:
             if not isinstance(choice,dict): raise ValueError('Ação inválida')
             action = {key:_text(choice.get(key),limit) for key,limit in
-                      [('label',220),('openResponse',400),('guardedResponse',400),('feedback',350)]}
+                      [('label',220),('openResponse',1000),('guardedResponse',1000),('feedback',350)]}
             effects, quality = choice.get('effects'), choice.get('quality')
             if not isinstance(effects,list) or len(effects) != 3 or any(type(v) is not int or not -20 <= v <= 20 for v in effects):
                 raise ValueError('Defina efeitos reais nos três indicadores')
