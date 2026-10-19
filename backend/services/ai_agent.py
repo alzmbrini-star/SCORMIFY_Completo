@@ -1872,8 +1872,8 @@ def _tokens(palette: dict) -> dict:
         return {
             "mode": "dark", "accent": accent,
             "text": palette.get("text", "#f4f4f5"),
-            "muted": "rgba(244,244,245,0.62)",
-            "faint": "rgba(244,244,245,0.38)",
+            "muted": "rgba(244,244,245,0.80)",
+            "faint": "rgba(244,244,245,0.65)",
             "card_bg": "rgba(255,255,255,0.045)",
             "card_border": "rgba(255,255,255,0.10)",
             "heading": palette.get("fontHeading", "'Manrope', sans-serif"),
@@ -1884,8 +1884,8 @@ def _tokens(palette: dict) -> dict:
     return {
         "mode": "light", "accent": accent,
         "text": text,
-        "muted": f"{text}b3",   # ~70%
-        "faint": f"{text}66",   # ~40%
+        "muted": f"{text}cc",   # ~80%
+        "faint": f"{text}b3",   # ~70%
         "card_bg": "#ffffff",
         "card_border": "rgba(0,0,0,0.08)",
         "heading": palette.get("fontHeading", "'Manrope', sans-serif"),
@@ -2000,21 +2000,8 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     # Beat-specific compositions replace the former fixed two-column layout.
     if image_url:
         styled_text = _style_content_html(text_content, palette["text"], palette)
-        if journey_layout == "cinematic_scene":
-            text_box = {"x": 120, "y": 500, "width": 980, "height": 250}
-            image_box = {"x": 120, "y": 105, "width": 1680, "height": 610}
-        elif journey_layout == "guided_observation":
-            text_box = {"x": 1250, "y": 145, "width": 520, "height": 560}
-            image_box = {"x": 120, "y": 105, "width": 1050, "height": 610}
-        elif journey_layout == "decision_split":
-            text_box = {"x": 980, "y": 125, "width": 790, "height": 600}
-            image_box = {"x": 120, "y": 125, "width": 760, "height": 560}
-        elif journey_layout == "workbench":
-            text_box = {"x": 120, "y": 125, "width": 650, "height": 590}
-            image_box = {"x": 850, "y": 105, "width": 950, "height": 620}
-        else:
-            text_box = {"x": 180, "y": 500, "width": 1560, "height": 220}
-            image_box = {"x": 360, "y": 115, "width": 1200, "height": 390}
+        from services.editorial_layout import content_boxes
+        text_box, image_box = content_boxes(journey_layout)
         elements.append({
             "id": generate_id(), "type": "html", **text_box,
             "htmlContent": styled_text,
@@ -2180,34 +2167,16 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
 
 
 def _style_content_html(raw_html: str, text_color: str, palette: dict = None) -> str:
-    """Clean typographic scale for content HTML (light/dark aware)."""
-    import re
-    tk = _tokens(palette or {"accent": "#2563eb", "text": text_color, "mode": "light"})
-    text = text_color or tk["text"]
-    muted = tk["muted"] if palette else f"{text}b3"
-    styled = raw_html
-    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{tk["heading"]};font-size:40px;font-weight:700;letter-spacing:-0.5px;color:{text};margin:0 0 22px 0;line-height:1.2;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{tk["heading"]};font-size:32px;font-weight:700;letter-spacing:-0.3px;color:{text};margin:0 0 18px 0;line-height:1.25;">', styled)
-    styled = re.sub(r'<h3([^>]*)>', f'<h3\\1 style="font-family:{tk["heading"]};font-size:24px;font-weight:600;color:{text};margin:0 0 14px 0;line-height:1.3;">', styled)
-    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{tk["body"]};font-size:21px;color:{muted};line-height:1.65;margin:0 0 16px 0;max-width:920px;">', styled)
-    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:12px 0;max-width:920px;">', styled)
-    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{tk["body"]};font-size:20px;color:{muted};line-height:1.6;margin-bottom:12px;padding-left:26px;position:relative;"><span style="position:absolute;left:0;top:0.62em;width:14px;height:3px;border-radius:2px;background:{tk["accent"]};"></span>', styled)
-    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{text};font-weight:600;">', styled)
-    return f'<div style="padding:6px 0;font-family:{tk["body"]};">{styled}</div>'
+    """Semantic editorial copy with theme-owned styles and bounded scrolling."""
+    from services.editorial_layout import style_editorial_copy
+    tokens = _tokens(palette or {"accent": "#2563eb", "text": text_color, "mode": "light"})
+    return style_editorial_copy(raw_html, tokens)
 
 
 def _style_summary_html(raw_html: str, accent: str, palette: dict = None) -> str:
-    """Clean summary styling: left-aligned headings + light key-point cards."""
-    import re
-    tk = _tokens(palette or {"accent": accent, "text": "#1c1917", "mode": "light"})
-    styled = raw_html
-    styled = re.sub(r'<h1([^>]*)>', f'<h1\\1 style="font-family:{tk["heading"]};font-size:36px;font-weight:700;letter-spacing:-0.5px;color:{tk["text"]};margin:0 0 24px 0;text-align:left;">', styled)
-    styled = re.sub(r'<h2([^>]*)>', f'<h2\\1 style="font-family:{tk["heading"]};font-size:28px;font-weight:700;color:{tk["text"]};margin:24px 0 16px 0;text-align:left;">', styled)
-    styled = re.sub(r'<p([^>]*)>', f'<p\\1 style="font-family:{tk["body"]};font-size:20px;color:{tk["muted"]};line-height:1.65;margin:0 0 14px 0;text-align:left;max-width:920px;">', styled)
-    styled = re.sub(r'<ul([^>]*)>', '<ul\\1 style="list-style:none;padding:0;margin:18px 0;max-width:980px;">', styled)
-    styled = re.sub(r'<li([^>]*)>', f'<li\\1 style="font-family:{tk["body"]};font-size:19px;color:{tk["muted"]};line-height:1.55;padding:16px 22px;margin-bottom:12px;background:{tk["card_bg"]};border:1px solid {tk["card_border"]};border-left:3px solid {tk["accent"]};border-radius:12px;">', styled)
-    styled = re.sub(r'<strong([^>]*)>', f'<strong\\1 style="color:{tk["text"]};font-weight:600;">', styled)
-    return f'<div style="padding:6px 0;font-family:{tk["body"]};">{styled}</div>'
+    """Theme-owned summary cards, without conflicting model inline styles."""
+    from services.editorial_layout import style_editorial_copy
+    return style_editorial_copy(raw_html, _tokens(palette or {"accent": accent, "text": "#1c1917", "mode": "light"}), summary=True)
 
 
 def _parse_video_url(url: str) -> Optional[dict]:
