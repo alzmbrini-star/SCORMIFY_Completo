@@ -1,5 +1,5 @@
 // Serialized into the assessment document; do not reference module scope.
-export function assessmentRuntime() {
+export function assessmentRuntime(resolveVideoLink) {
   const data = JSON.parse(document.getElementById('assessment-data').textContent);
   const questions = data.questions || [];
   const root = document.getElementById('app');
@@ -76,6 +76,18 @@ export function assessmentRuntime() {
     const m = q.media; const url = m && safeUrl(m.url);
     if (!url) { node('div', 'asset-empty', q.category || 'Avaliação de aprendizagem', stage); return; }
     if (m.kind === 'image') { const img = node('img', '', undefined, stage); img.src = url; img.alt = m.name || 'Material de apoio'; }
+    else if (m.kind === 'video' && m.source === 'external') {
+      let embed;
+      try { embed = resolveVideoLink(m.url); } catch (_) { node('p', '', 'Link de vídeo inválido. Edite a questão e informe um link do YouTube, Vimeo ou Bunny Stream.', stage); return; }
+      const box = node('div', 'external-video', undefined, stage);
+      box.style.cssText = 'width:100%;height:100%;min-height:220px;display:flex;flex-direction:column;gap:8px';
+      const frame = node('iframe', '', undefined, box); frame.src = embed.url; frame.title = m.name || `Vídeo · ${embed.provider}`;
+      frame.style.cssText = 'width:100%;flex:1;min-height:200px;border:0';
+      frame.allow = 'encrypted-media; picture-in-picture; fullscreen'; frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      const link = node('a', '', 'Abrir vídeo em nova aba ↗', box); link.href = embed.url; link.target = '_blank'; link.rel = 'noopener';
+      link.style.cssText = 'color:#9cdbff;font-size:13px;text-align:center';
+    }
     else if (m.kind === 'video') { const video = node('video', '', undefined, stage); video.src = url; video.controls = true; }
     else {
       if (/\.pdf(?:[?#]|$)/i.test(m.name || m.url) || /^data:application\/pdf/i.test(url)) {

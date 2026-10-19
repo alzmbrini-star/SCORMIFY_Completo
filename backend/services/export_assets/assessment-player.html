@@ -36,7 +36,8 @@ body{display:block!important;position:relative!important}
 .visual-caption{font-size:clamp(13px,1.3vw,20px);font-weight:800;overflow-wrap:anywhere}.visual-marker{font-size:11px;border-radius:20px;padding:3px 7px;background:#142344;color:white}
 .assessment .visual-choice.selected{border-color:#ffd057;background:#fff6d8;box-shadow:0 0 0 2px #ffd05755}.assessment .visual-choice.answer-correct{border-color:#37dba0;background:#e3fff1}.assessment .visual-choice.answer-incorrect{border-color:#ff6576;background:#ffe8ec}.assessment .visual-choice:disabled{opacity:1}.visual-choice:focus-visible,.image-expand:focus-visible{outline:3px solid #ffd057;outline-offset:2px}
 .image-overlay{position:fixed;inset:0;z-index:1000;background:#03091cf2;display:flex;align-items:center;justify-content:center;padding:60px 20px 20px}.image-overlay>img{max-width:100%;max-height:100%;object-fit:contain}.image-close{position:absolute;top:12px;right:14px}
-@media(max-width:650px){.assessment .shell{grid-template-columns:1fr!important;grid-template-rows:minmax(90px,32%) minmax(0,1fr)!important}.assessment .panel-body{padding:10px!important}.assessment .panel h1{margin:8px 0}.assessment .footer{padding:8px!important}.assessment .top{max-height:22%!important}}</style></head><body><main id="app"></main><script id="assessment-data" type="application/json">__ASSESSMENT_DATA__</script><script>(function assessmentRuntime() {
+@media(max-width:650px){.assessment .shell{grid-template-columns:1fr!important;grid-template-rows:minmax(90px,32%) minmax(0,1fr)!important}.assessment .panel-body{padding:10px!important}.assessment .panel h1{margin:8px 0}.assessment .footer{padding:8px!important}.assessment .top{max-height:22%!important}}</style></head><body><main id="app"></main><script id="assessment-data" type="application/json">__ASSESSMENT_DATA__</script><script>(// Serialized into the assessment document; do not reference module scope.
+function assessmentRuntime(resolveVideoLink) {
   const data = JSON.parse(document.getElementById('assessment-data').textContent);
   const questions = data.questions || [];
   const root = document.getElementById('app');
@@ -113,6 +114,18 @@ body{display:block!important;position:relative!important}
     const m = q.media; const url = m && safeUrl(m.url);
     if (!url) { node('div', 'asset-empty', q.category || 'Avaliação de aprendizagem', stage); return; }
     if (m.kind === 'image') { const img = node('img', '', undefined, stage); img.src = url; img.alt = m.name || 'Material de apoio'; }
+    else if (m.kind === 'video' && m.source === 'external') {
+      let embed;
+      try { embed = resolveVideoLink(m.url); } catch (_) { node('p', '', 'Link de vídeo inválido. Edite a questão e informe um link do YouTube, Vimeo ou Bunny Stream.', stage); return; }
+      const box = node('div', 'external-video', undefined, stage);
+      box.style.cssText = 'width:100%;height:100%;min-height:220px;display:flex;flex-direction:column;gap:8px';
+      const frame = node('iframe', '', undefined, box); frame.src = embed.url; frame.title = m.name || `Vídeo · ${embed.provider}`;
+      frame.style.cssText = 'width:100%;flex:1;min-height:200px;border:0';
+      frame.allow = 'encrypted-media; picture-in-picture; fullscreen'; frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      const link = node('a', '', 'Abrir vídeo em nova aba ↗', box); link.href = embed.url; link.target = '_blank'; link.rel = 'noopener';
+      link.style.cssText = 'color:#9cdbff;font-size:13px;text-align:center';
+    }
     else if (m.kind === 'video') { const video = node('video', '', undefined, stage); video.src = url; video.controls = true; }
     else {
       if (/\.pdf(?:[?#]|$)/i.test(m.name || m.url) || /^data:application\/pdf/i.test(url)) {
@@ -216,4 +229,38 @@ body{display:block!important;position:relative!important}
     if (data.allowSkip !== false && !locked) button('Pular', 'skip', advance, footer);
   }
   render();
-})();</script></body></html>
+})(// Pure, self-contained: serialized into the offline assessment player as well.
+function assessmentVideoLink(raw) {
+  const invalid = () => { throw new Error('Use um link HTTPS de vídeo do YouTube, Vimeo ou Bunny Stream (não cole código HTML).'); };
+  if (typeof raw !== 'string' || raw.length > 4000 || /[<>\\\u0000-\u0020]/.test(raw.trim())) return invalid();
+  let u;
+  try { u = new URL(raw.trim()); } catch { return invalid(); }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return invalid();
+  const host = u.hostname.toLowerCase();
+  const p = u.pathname;
+  let id;
+  if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'www.youtube-nocookie.com', 'youtube-nocookie.com'].includes(host)) {
+    id = host === 'youtu.be' ? p.slice(1) : p === '/watch' ? u.searchParams.get('v') : p.match(/^\/(?:embed|shorts|live)\/([\w-]+)\/?$/)?.[1];
+    if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return invalid();
+    const result = new URL(`https://www.youtube-nocookie.com/embed/${id}`);
+    const start = u.searchParams.get('start') || u.searchParams.get('t');
+    if (start && /^\d+s?$/.test(start)) result.searchParams.set('start', start.replace(/s$/, ''));
+    return { provider: 'YouTube', url: result.href };
+  }
+  if (['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'].includes(host)) {
+    const match = p.match(/^\/(?:video\/)?(\d+)(?:\/([A-Za-z0-9]+))?\/?$/);
+    if (!match) return invalid();
+    const result = new URL(`https://player.vimeo.com/video/${match[1]}`);
+    const hash = u.searchParams.get('h') || match[2];
+    if (hash) { if (!/^[A-Za-z0-9]+$/.test(hash)) return invalid(); result.searchParams.set('h', hash); }
+    return { provider: 'Vimeo', url: result.href };
+  }
+  if (['iframe.mediadelivery.net', 'player.mediadelivery.net'].includes(host)) {
+    const match = p.match(/^\/(?:embed|play)\/(\d+)\/([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})\/?$/);
+    if (!match) return invalid();
+    u.pathname = `/embed/${match[1]}/${match[2]}`;
+    u.hash = ''; u.searchParams.set('autoplay', 'false');
+    return { provider: 'Bunny Stream', url: u.href };
+  }
+  return invalid();
+});</script></body></html>
