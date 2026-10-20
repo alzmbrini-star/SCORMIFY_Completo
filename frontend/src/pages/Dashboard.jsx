@@ -4,6 +4,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
+import { slidePreviewText } from '../utils/slidePreviewText';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
@@ -864,14 +865,12 @@ function SlideMinPreview({ slide, title }) {
   const titleEl = elements.find(e => e.htmlContent?.includes('<h1') || e.htmlContent?.includes('font-size:4'));
   let titleText = title || slide.title || '';
   if (titleEl?.htmlContent) {
-    const m = titleEl.htmlContent.match(/>([^<]{3,})</);
-    if (m) titleText = m[1];
+    titleText = slidePreviewText(titleEl.htmlContent, ['h1','h2','[role="heading"]']) || titleText;
   }
   const subtitleEl = elements.find(e => e !== titleEl && (e.htmlContent?.includes('<p') || e.htmlContent?.includes('font-size:1')));
   let subtitleText = '';
   if (subtitleEl?.htmlContent) {
-    const m = subtitleEl.htmlContent.match(/>([^<]{3,})</);
-    if (m) subtitleText = m[1];
+    subtitleText = slidePreviewText(subtitleEl.htmlContent, ['p']);
   }
   const textColor = elements[0]?.style?.color || (isGradient || bg < '#888' ? '#e2e8f0' : '#1e293b');
   const accentEl = elements.find(e => e.htmlContent?.includes('background:') || e.htmlContent?.includes('background-color:'));
