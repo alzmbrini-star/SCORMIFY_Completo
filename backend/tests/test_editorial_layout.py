@@ -106,6 +106,15 @@ class EditorialLayoutTests(unittest.TestCase):
             html=slide['elements'][0]['htmlContent']
             self.assertIn('color:'+palette['text'],html)
 
+    def test_user_summary_color_override_survives_legacy_project_read(self):
+        project=self.fixture()
+        slide=project['course']['slides'][0]
+        slide['contentType']='summary'
+        html=slide['elements'][0]['htmlContent']+'<style id="scormify-editorial-text-colors">body li{color:#172c49!important}</style>'
+        slide['elements'][0]['htmlContent']=html
+        repair_legacy_agent_project(project)
+        self.assertEqual(slide['elements'][0]['htmlContent'],html)
+
 
 class ProjectReadTests(unittest.IsolatedAsyncioTestCase):
     async def test_shared_project_read_repairs_without_database_write(self):

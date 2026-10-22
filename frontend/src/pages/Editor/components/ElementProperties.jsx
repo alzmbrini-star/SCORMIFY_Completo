@@ -6,6 +6,7 @@ import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import RemoveBackgroundDialog from '../dialogs/RemoveBackgroundDialog';
 import TextShadowControls from '../../../components/editor/TextShadowControls';
 import InteractiveTextColorControls from '../../../components/editor/InteractiveTextColorControls';
+import EditorialTextColorControls from '../../../components/editor/EditorialTextColorControls';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
@@ -155,6 +156,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
       {element.type === 'html' && (
         <>
           <InteractiveTextColorControls element={element} onUpdate={onUpdate} />
+          <EditorialTextColorControls element={element} onUpdate={onUpdate} />
           <div className="panel-section" data-testid="html-display-mode-section">
             <h4 className="text-sm font-medium mb-2">Exibição do HTML</h4>
             <div className="grid grid-cols-2 gap-2">

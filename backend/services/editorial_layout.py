@@ -113,7 +113,7 @@ def repair_legacy_agent_project(project):
             html = element.get('htmlContent') or ''
             if element.get('type') != 'html' or not isinstance(html, str):
                 continue
-            if html.startswith('<div style="padding:6px 0;font-family:') and 'data-agent-copy-version' not in html:
+            if html.startswith('<div style="padding:6px 0;font-family:') and 'data-agent-copy-version' not in html and 'scormify-editorial-text-colors' not in html:
                 element['htmlContent'] = style_editorial_copy(html, tokens, slide['contentType'] == 'summary')
         copies = [e for e in elements if e.get('journeyRole') == 'learning_copy']
         scenes = [e for e in elements if e.get('journeyRole') == 'evidence_scene']
