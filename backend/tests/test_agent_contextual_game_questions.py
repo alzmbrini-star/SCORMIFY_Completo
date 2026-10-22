@@ -24,6 +24,36 @@ def rows():
 
 
 class ContextualGameTests(unittest.IsolatedAsyncioTestCase):
+    async def test_source_survives_activity_only_course_and_catalog_supplies_literal_evidence(self):
+        reference=EVIDENCE+' Use senhas únicas e revise as permissões de acesso regularmente.'
+        async def reply(session,system,prompt):
+            request=json.loads(prompt)
+            self.assertEqual(request['reference'],reference)
+            self.assertIn('sourceId',system)
+            generated=rows()
+            for row in generated:
+                row.pop('sourceEvidence')
+                row['sourceId']=request['sourceCatalog'][0]['id']
+            return json.dumps({'questions':generated})
+        with patch.object(ai_agent,'_resilient_send',reply):
+            result=await ai_agent._generate_course_game_questions(GAME,[GAME],
+                {'_courseSourceText':reference},'p','c','test')
+        self.assertEqual(len(result),6)
+        self.assertTrue(all(q['sourceEvidence'] in reference for q in result))
+
+    async def test_unknown_catalog_id_is_rejected_and_repair_receives_previous_response(self):
+        requests=[]
+        async def reply(session,system,prompt):
+            request=json.loads(prompt);requests.append(request)
+            generated=rows()
+            for row in generated:row['sourceId']='nonexistent'
+            return json.dumps({'questions':generated})
+        with patch.object(ai_agent,'_resilient_send',reply):
+            with self.assertRaisesRegex(ValueError,'sourceId'):
+                await ai_agent._generate_course_game_questions(GAME,[CONTENT],{},'p','c','test')
+        self.assertIn('previousResponse',requests[1])
+        self.assertIn('sourceId',requests[1]['repairError'])
+
     async def test_generated_questions_keep_course_and_company_ownership(self):
         calls = []
         async def reply(session, system, prompt):

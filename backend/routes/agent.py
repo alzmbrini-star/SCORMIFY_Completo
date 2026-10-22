@@ -2032,7 +2032,7 @@ async def agent_generate_course(session_id: str, request: Request):
             ))
 
             course_data = loop.run_until_complete(generate_course_from_storyboard(
-                session_id, _s["storyboard"], config,
+                session_id, _s["storyboard"], {**config, '_courseSourceText': _s.get('contentText') or ''},
                 project_dir=str(PROJECTS_DIR), project_id=project.id,
                 media_config=media_config, bg_config=bg_config,
                 global_text_color=global_text_color, global_font_size=global_font_size, global_animation=global_animation,
@@ -2301,12 +2301,14 @@ async def agent_generate_course(session_id: str, request: Request):
 
         except Exception as e:
             err_msg = str(e)
-            logger.error(f"Course generation error: {err_msg}")
+            logger.exception(f"Course generation error: {err_msg}")
             error_detail = "Erro ao gerar curso."
             if "Budget" in err_msg or "budget" in err_msg:
                 error_detail = "Orçamento da chave LLM excedido. Acesse Profile > Universal Key > Add Balance para adicionar saldo."
             elif "502" in err_msg or "BadGateway" in err_msg:
                 error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
+            elif isinstance(e, ValueError) and ('O game precisa de conteúdo didático' in err_msg or 'Não foi possível gerar questões vinculadas' in err_msg):
+                error_detail = 'Falha nas questões do game: ' + err_msg[:450] + '. O storyboard foi preservado.'
             try:
                 from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient2
                 _c2 = _MotorClient2(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, maxPoolSize=2)

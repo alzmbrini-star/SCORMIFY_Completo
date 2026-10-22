@@ -2887,6 +2887,9 @@ def _build_simulator_fallback_html(sb_slide: dict) -> str:
 
 
 def _game_question_reference(slide: dict, slides: list, config: dict) -> str:
+    original = str(config.get('_courseSourceText') or '').strip()
+    if len(original) >= 80:
+        return original[:10000]
     """Use teaching content, never another game's HTML or the global bank."""
     module = slide.get("moduleName")
     candidates = [item for item in slides if item.get("type") not in {"game", "quiz", "simulator", "case_study"}]
@@ -2903,6 +2906,9 @@ async def _generate_course_game_questions(slide: dict, slides: list, config: dic
                                           project_id: str, company_id: str, session_id: str) -> list:
     from services.question_engine import normalize_question
     reference = _game_question_reference(slide, slides, config)
+    from services.case_studies import source_catalog
+    catalog = source_catalog(reference)
+    sources = {item['id']:item['text'] for item in catalog}
     system = """Crie exatamente 6 questões para um game educacional em português.
 Use SOMENTE os conceitos do material de referência fornecido. Título e objetivo
 definem o recorte; não crie perguntas sobre regras do jogo, motivação ou aprender.
@@ -2913,12 +2919,14 @@ Retorne JSON {"questions":[{"question":"Enunciado específico",
 "alternatives":[{"id":"A","text":"..."},{"id":"B","text":"..."},
 {"id":"C","text":"..."},{"id":"D","text":"..."}],
 "correctAnswer":"A","explanation":"Por que a resposta é correta no conteúdo",
-"difficulty":"facil|medio|dificil","sourceEvidence":"Trecho LITERAL do material, de 24 a 500 caracteres, que fundamenta a resposta"}]}.
+"difficulty":"facil|medio|dificil","sourceId":"ID do sourceCatalog que fundamenta a resposta"}]}.
 Uma única resposta correta; seis enunciados diferentes e explicações específicas."""
-    request = json.dumps({"courseTitle": config.get("title"), "module": slide.get("moduleName"),
+    system += '\nUse sourceId com um ID do sourceCatalog que fundamenta cada resposta. Não escreva sourceEvidence: o servidor insere a citação literal. Selecione o trecho pelo significado, não arbitrariamente.'
+    original_request = {"courseTitle": config.get("title"), "module": slide.get("moduleName"),
                           "gameTitle": slide.get("title"), "objective": slide.get("purpose"),
                           "audience": config.get("audience") or config.get("targetAudience"),
-                          "reference": reference}, ensure_ascii=False)
+                          "reference": reference, 'sourceCatalog':catalog}
+    request = json.dumps(original_request, ensure_ascii=False)
     error = ""
     for attempt in range(2):
         response = await _resilient_send(f"{session_id}-questions-{attempt}", system, request)
@@ -2932,6 +2940,10 @@ Uma única resposta correta; seis enunciados diferentes e explicações específ
             for row in rows:
                 if not isinstance(row, dict):
                     raise ValueError("Estrutura de questão inválida")
+                if 'sourceId' in row:
+                    if not isinstance(row['sourceId'],str) or row['sourceId'] not in sources:
+                        raise ValueError('sourceId da questão deve existir no catálogo do curso')
+                    row = dict(row, sourceEvidence=sources[row['sourceId']])
                 evidence = re.sub(r"\s+", " ", str(row.get("sourceEvidence") or "")).strip()
                 if not 24 <= len(evidence) <= 500 or evidence.casefold() not in normalized_reference:
                     raise ValueError("Cada resposta precisa de trecho literal do conteúdo do curso")
@@ -2952,7 +2964,8 @@ Uma única resposta correta; seis enunciados diferentes e explicações específ
             return result
         except (ValueError, TypeError, AttributeError) as exc:
             error = str(exc)
-            request = f"Corrija as seis questões para o mesmo material. Erro: {error}\n{request}"
+            request = json.dumps(dict(original_request, repairError=error, previousResponse=str(response)[:64000],
+                repairInstruction='Corrija as seis questões para o mesmo material; use sourceId existente cujo trecho sustente a resposta. Não consulte nem reutilize questões do banco.'), ensure_ascii=False)
     raise ValueError("Não foi possível gerar questões vinculadas ao conteúdo do curso: " + error)
 
 
