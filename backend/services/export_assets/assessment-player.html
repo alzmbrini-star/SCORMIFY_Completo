@@ -85,6 +85,10 @@ function assessmentRuntime(resolveVideoLink) {
     try {
       let owner = window;
       for (let depth = 0; depth < 8; depth++) {
+        if(owner.ScormAPI && owner.ScormAPI.recordAssessment && owner.CoursePlayer){
+          window.parent.postMessage({type:'scormify-assessment-result',score:Math.round(total ? points / total * 100 : 0)},'*');
+          break;
+        }
         const api = owner.API || owner.API_1484_11;
         if (api) {
           const modern = !owner.API;
@@ -104,6 +108,7 @@ function assessmentRuntime(resolveVideoLink) {
     node('div', 'score', `${Math.round(total ? points / total * 100 : 0)}%`, box);
     node('p', '', `${points} de ${total} pontos · ${submitted.size} de ${questions.length} respondidas`, box);
     button('Revisar respostas', '', () => { index = 0; render(); }, box);
+    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; selectedCard = null; window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
   }
   function advance() {
     if (index < questions.length - 1) navigate(index + 1); else finish();

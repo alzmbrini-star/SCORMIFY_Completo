@@ -301,7 +301,7 @@ var QuizController = (function() {
             var buttonFontSize = Math.round(baseFontSize * 0.875); // 14px at 16
             
             // Report score to SCORM
-            if (typeof ScormAPI !== 'undefined') {
+            if (typeof ScormAPI !== 'undefined' && !(typeof CoursePlayer !== 'undefined' && CoursePlayer.onQuizComplete)) {
                 ScormAPI.setScore(Math.round(percentage));
                 console.log('[QuizController] Score sent to SCORM:', Math.round(percentage));
             }
@@ -310,7 +310,7 @@ var QuizController = (function() {
             // CoursePlayer will check if all quizzes/scenarios are done before setting SCORM complete
             console.log('[QuizController] Quiz ended. ElementId:', elementId, 'Score:', Math.round(percentage) + '%');
             if (typeof CoursePlayer !== 'undefined' && CoursePlayer.onQuizComplete) {
-                CoursePlayer.onQuizComplete(elementId);
+                CoursePlayer.onQuizComplete(elementId, Math.round(percentage));
                 console.log('[QuizController] CoursePlayer.onQuizComplete called successfully');
             } else {
                 console.error('[QuizController] CoursePlayer NOT available!', typeof CoursePlayer);
@@ -348,7 +348,7 @@ var QuizController = (function() {
                 '<div style="display:flex;justify-content:space-between;font-size:' + Math.round(baseFontSize * 0.75) + 'px;margin-bottom:4px;"><span>Aproveitamento</span><span>' + Math.round(percentage) + '%</span></div>' +
                 '<div style="height:8px;background:#334155;border-radius:4px;overflow:hidden;">' +
                 '<div style="height:100%;width:' + percentage + '%;transition:width 0.5s;' + (passed ? 'background:#22c55e;' : 'background:#ef4444;') + '"></div></div>' +
-                '<p style="font-size:' + smallFontSize + 'px;color:#94a3b8;margin-top:4px;">Nota mínima: ' + (quiz.config.passingScore || 60) + '%</p></div>' +
+                '<p style="font-size:' + smallFontSize + 'px;color:#94a3b8;margin-top:4px;">Nota mínima do LMS: ' + passingScore + '%</p></div>' +
                 
                 // Restart button - compact
                 '<button style="width:100%;padding:10px 20px;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:' + buttonFontSize + 'px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="QuizController.restartQuiz(\'' + elementId + '\')">' +
@@ -370,6 +370,7 @@ var QuizController = (function() {
         restartQuiz: function(elementId) {
             var quiz = quizzes[elementId];
             if (!quiz) return;
+            if(typeof CoursePlayer!=='undefined'&&CoursePlayer.onQuizRetry)CoursePlayer.onQuizRetry(elementId);
             
             quiz.currentIndex = 0;
             quiz.answers = [];

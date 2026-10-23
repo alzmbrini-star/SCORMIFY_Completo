@@ -6,6 +6,23 @@ var ScormAPI = (function() {
     var initialized = false;
     var finished = false;
     var startTime = null;
+    var lastResult = null;
+    var expectedResults = null;
+    var results = {};
+    function aggregate() {
+        var ids = Object.keys(expectedResults || {}), total = 0, earned = 0;
+        if (!ids.length) return {ready:true, score:null};
+        for (var i=0;i<ids.length;i++) {
+            var id=ids[i];
+            if (!Object.prototype.hasOwnProperty.call(results,id)) return {ready:false,score:null};
+            total += expectedResults[id]; earned += results[id]*expectedResults[id];
+        }
+        return {ready:true,score:Math.round(earned/total)};
+    }
+    function persistResults(api) {
+        var snapshot=JSON.stringify({scormifyResults:1,results:results});
+        return snapshot.length<=4000 && write(api,'cmi.suspend_data',snapshot);
+    }
     function accepted(result) { return result === true || result === 'true'; }
     function write(api, key, value) {
         try {
@@ -65,6 +82,7 @@ var ScormAPI = (function() {
                     if (status === "" || status === "not attempted") {
                         api.LMSSetValue("cmi.core.lesson_status", "incomplete");
                     }
+                    if (status !== 'passed' && status !== 'completed') write(api,'cmi.core.exit','suspend');
                     
                     // Restore bookmark
                     var location = api.LMSGetValue("cmi.core.lesson_location");
@@ -131,16 +149,20 @@ var ScormAPI = (function() {
             var api = getAPI();
             if (api) {
                 try {
+                    var combined=expectedResults===null?null:aggregate();
+                    if (combined && !combined.ready) {lastResult={status:'incomplete',reason:'pending'};return false;}
+                    if (combined && combined.score!==null && !this.setScore(combined.score)) return false;
                     var raw = api.LMSGetValue('cmi.core.score.raw');
                     var mastery = api.LMSGetValue('cmi.student_data.mastery_score');
-                    var hasScore = raw !== null && String(raw).trim() !== '' && isFinite(Number(raw));
+                    var hasScore = !(combined && combined.score===null) && raw !== null && String(raw).trim() !== '' && isFinite(Number(raw));
                     // The package declares 80. Prefer the threshold supplied by
                     // the LMS so it cannot reinterpret a passing result as failed.
                     var threshold = mastery !== null && String(mastery).trim() !== '' && isFinite(Number(mastery)) ? Number(mastery) : 80;
                     var status = hasScore ? (Number(raw) >= threshold ? 'passed' : 'failed') : 'completed';
                     if (!write(api, 'cmi.core.lesson_status', status)) return false;
-                    if (!write(api, 'cmi.core.exit', '')) return false;
+                    if (!write(api, 'cmi.core.exit', status==='failed'?'suspend':'')) return false;
                     if (!save(api)) return false;
+                    lastResult={status:status,score:hasScore?Number(raw):null,threshold:threshold};
                     console.log('[ScormAPI] lesson_status saved:', status);
                     return true;
                 } catch (error) { console.error('[ScormAPI] Completion failed', error); return false; }
@@ -155,6 +177,11 @@ var ScormAPI = (function() {
             var api = getAPI();
             if (api) {
                 if (!isFinite(Number(score)) || Number(score) < 0 || Number(score) > 100) return false;
+                // Reviewing a previously passed attempt must not demote it.
+                if (api.LMSGetValue('cmi.core.lesson_status')==='passed') {
+                    var old=Number(api.LMSGetValue('cmi.core.score.raw'));
+                    if (isFinite(old) && old>Number(score)) score=old;
+                }
                 var minSaved = write(api, 'cmi.core.score.min', '0');
                 var maxSaved = write(api, 'cmi.core.score.max', '100');
                 var rawSaved = write(api, 'cmi.core.score.raw', score);
@@ -163,6 +190,38 @@ var ScormAPI = (function() {
             return false;
         },
 
+        configureResults: function(entries) {
+            expectedResults={};results={};
+            entries.forEach(function(entry){expectedResults[entry.id]=Math.max(1,Number(entry.weight)||1);});
+            var api=getAPI();
+            try {
+                var stored=JSON.parse(api.LMSGetValue('cmi.suspend_data')||'null');
+                if(stored && stored.scormifyResults===1 && stored.results) Object.keys(expectedResults).forEach(function(id){
+                    var value=stored.results[id];
+                    if(typeof value==='number'&&isFinite(value)&&value>=0&&value<=100)results[id]=value;
+                });
+            } catch (_) {}
+            return Object.keys(results);
+        },
+        recordAssessment: function(id,score) {
+            if(!initialized||!expectedResults||!Object.prototype.hasOwnProperty.call(expectedResults,id)||!isFinite(Number(score))||Number(score)<0||Number(score)>100)return false;
+            results[id]=Number(score);
+            var api=getAPI();
+            persistResults(api);
+            // Send the aggregate grade only on explicit course completion,
+            // not when an assessment finishes before the final slide.
+            return save(api);
+        },
+        beginRetry: function(id) {
+            if(!initialized)return false;
+            if(expectedResults && Object.prototype.hasOwnProperty.call(expectedResults,id))delete results[id];
+            lastResult=null;
+            var api=getAPI();
+            if(api.LMSGetValue('cmi.core.lesson_status')!=='passed')write(api,'cmi.core.lesson_status','incomplete');
+            write(api,'cmi.core.exit','suspend');persistResults(api);return save(api);
+        },
+        getCompletionResult: function(){return lastResult;},
+        getResults: function(){return Object.assign({},results);},
         getPassingScore: function(fallback) {
             var api = getAPI();
             try {

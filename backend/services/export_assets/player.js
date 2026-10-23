@@ -461,7 +461,7 @@ var CoursePlayer = (function() {
         // If so, completion must be sent from QuizController.showResults(), not from navigation.
         courseHasQuiz = course.slides.some(function(s) {
             return s.elements && s.elements.some(function(el) {
-                return (el.type || '').toLowerCase() === 'quiz';
+                return (el.type || '').toLowerCase() === 'quiz' || Boolean(el.assessmentConfig);
             });
         });
         
@@ -478,7 +478,7 @@ var CoursePlayer = (function() {
         course.slides.forEach(function(s, slideIndex) {
             if (s.elements) {
                 s.elements.forEach(function(el) {
-                    if ((el.type || '').toLowerCase() === 'quiz') {
+                    if ((el.type || '').toLowerCase() === 'quiz' || el.assessmentConfig) {
                         totalQuizzes++;
                     }
                     if ((el.type || '').toLowerCase() === 'scenario') {
@@ -488,6 +488,11 @@ var CoursePlayer = (function() {
             }
         });
         
+        var gradedEntries=[];
+        course.slides.forEach(function(slide){(slide.elements||[]).forEach(function(el){
+            if(el.type==='quiz'||el.assessmentConfig)gradedEntries.push({id:el.id,weight:(el.quizConfig||el.assessmentConfig||{}).questionCount||1});
+        });});
+        if(ScormAPI.configureResults)ScormAPI.configureResults(gradedEntries).forEach(function(id){completedQuizzes[id]=true;});
         console.log('[Player] courseHasQuiz:', courseHasQuiz, 'totalQuizzes:', totalQuizzes);
         console.log('[Player] courseHasScenario:', courseHasScenario, 'totalScenarios:', totalScenarios);
         
@@ -1183,7 +1188,7 @@ var CoursePlayer = (function() {
         
         // All conditions met: visited last slide + all quizzes done (if any)
         if (ScormAPI.setComplete()) {
-            courseCompleted = true;
+            courseCompleted = !ScormAPI.getCompletionResult || ScormAPI.getCompletionResult().status !== 'failed';
             updateSidebar();
             updateNavigation();
             console.log('[Player] Course marked COMPLETE! (lastSlide=' + visitedLastSlide + ', quizzes=' + Object.keys(completedQuizzes).length + '/' + totalQuizzes + ', scenarios=' + Object.keys(completedScenarios).length + '/' + totalScenarios + ')');
@@ -1193,10 +1198,17 @@ var CoursePlayer = (function() {
     }
     
     // Called by QuizController when a quiz is completed
-    function onQuizComplete(elementId) {
+    function onQuizComplete(elementId, score) {
+        if(typeof score==='number' && ScormAPI.recordAssessment)ScormAPI.recordAssessment(elementId,score);
         completedQuizzes[elementId] = true;
         console.log('[Player] Quiz completed:', elementId, '- Total:', Object.keys(completedQuizzes).length, '/', totalQuizzes);
         checkAndSetCompletion();
+    }
+
+    function onQuizRetry(elementId) {
+        delete completedQuizzes[elementId];completionRequested=false;courseCompleted=false;
+        if(ScormAPI.beginRetry)ScormAPI.beginRetry(elementId);
+        updateNavigation();updateSidebar();
     }
     
     // Called by ScenarioController when a scenario is completed
@@ -1573,6 +1585,11 @@ var CoursePlayer = (function() {
                 if (element.assessmentConfig) {
                     htmlIframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
                     htmlIframe.allowFullscreen = true;
+                    window.addEventListener('message',function(event){
+                        if(event.source!==htmlIframe.contentWindow || !event.data)return;
+                        if(event.data.type==='scormify-assessment-result' && typeof event.data.score==='number' && isFinite(event.data.score) && event.data.score>=0 && event.data.score<=100)onQuizComplete(element.id,event.data.score);
+                        if(event.data.type==='scormify-assessment-retry')onQuizRetry(element.id);
+                    });
                 }
                 el.style.overflow = 'hidden';
                 el.appendChild(htmlIframe);
@@ -2054,10 +2071,21 @@ var CoursePlayer = (function() {
             updateProgress();
             if (typeof AiTutor !== 'undefined') AiTutor.onSlideChange(currentSlide);
         } else if (currentSlide === totalSlides - 1 && !courseCompleted) {
+            var previousResult=ScormAPI.getCompletionResult && ScormAPI.getCompletionResult();
+            if(previousResult && previousResult.status==='failed' && ScormAPI.getResults){
+                var scores=ScormAPI.getResults();
+                var reviewSlide=course.slides.findIndex(function(slide){return (slide.elements||[]).some(function(el){
+                    return (el.type==='quiz'||el.assessmentConfig) && (scores[el.id]===undefined||scores[el.id]<previousResult.threshold);
+                });});
+                if(reviewSlide>=0){currentSlide=reviewSlide;renderSlide(currentSlide);updateProgress();return;}
+            }
             completionRequested = true;
             checkAndSetCompletion();
             if (!courseCompleted) {
-                window.alert(courseHasQuiz && Object.keys(completedQuizzes).length < totalQuizzes
+                var result=ScormAPI.getCompletionResult && ScormAPI.getCompletionResult();
+                window.alert(result && result.status==='failed'
+                    ? 'Resultado gravado: '+result.score+'%. Nota mínima do LMS: '+result.threshold+'%. O curso não está aprovado. Volte às avaliações pelo menu, use Tentar novamente e depois Concluir curso. Você pode continuar nesta tentativa.'
+                    : courseHasQuiz && Object.keys(completedQuizzes).length < totalQuizzes
                     ? 'Conclua todos os quizzes antes de finalizar o curso.'
                     : 'O LMS não confirmou a gravação do resultado. Mantenha esta janela aberta e tente Concluir curso novamente.');
             }
@@ -2164,7 +2192,7 @@ var CoursePlayer = (function() {
         if (nextBtn) {
             nextBtn.disabled = courseCompleted;
             nextBtn.innerHTML = currentSlide === totalSlides - 1
-                ? (courseCompleted ? '✓ Curso concluído' : 'Concluir curso ✓')
+                ? (courseCompleted ? '✓ Curso concluído' : (ScormAPI.getCompletionResult && ScormAPI.getCompletionResult()?.status==='failed' ? 'Rever avaliações ↺' : 'Concluir curso ✓'))
                 : 'Próximo →';
         }
     }
@@ -2402,6 +2430,7 @@ var CoursePlayer = (function() {
         toggleSidebar: toggleSidebar,
         updateScale: updateSlideScale,
         onQuizComplete: onQuizComplete,
+        onQuizRetry: onQuizRetry,
         onScenarioComplete: onScenarioComplete,
         // Final check before page unload - ensures completion is set if all activities are done
         finalCompletionCheck: function() {
@@ -2418,7 +2447,7 @@ var CoursePlayer = (function() {
             // Mark complete if user visited last slide and all quizzes are done
             if (visitedLastSlide && completionRequested && (!courseHasQuiz || quizzesComplete)) {
                 if (ScormAPI.setComplete()) {
-                    courseCompleted = true;
+                    courseCompleted = !ScormAPI.getCompletionResult || ScormAPI.getCompletionResult().status !== 'failed';
                     updateSidebar();
                     updateNavigation();
                     console.log('[Player] Final check: Marked complete');
