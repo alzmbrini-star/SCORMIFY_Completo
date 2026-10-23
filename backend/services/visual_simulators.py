@@ -322,6 +322,46 @@ diálogo, máquina ou quiz quando o pedido exigir uma oficina/ferramenta criativ
 """
 
 
+CUSTOM_PLAN_PROMPT += '''
+MODELO CAUSAL NUMÉRICO: obrigatório quando learningDesign.kind=resources.
+Não use um template de domínio; proponha variáveis, efeitos e trade-offs próprios
+do curso e inclua causalModel: {"inputs":[{"id":"technology","label":"Investimento em tecnologia",
+"unit":"pontos didáticos","min":0,"max":100,"initial":30}, ...],
+"outputs":[{"id":"quality","label":"Qualidade do produto","unit":"índice didático",
+"expression":{"op":"add","args":[20,{"op":"mul","args":[0.6,{"input":"technology"}]}]},
+"explanation":"Explique como e por que cada alocação altera este resultado, incluindo limites e custos."}, ...]}.
+O exemplo é apenas sintaxe, não reutilize números ou nomes sem relação com o pedido.
+Cada lista tem 2 a 8 objetos. IDs alfanuméricos minúsculos começando com letra.
+Expressões aceitam números, {"input":"id"} e {"op":"add|sub|mul|div|min|max","args":[...]}.
+Não use código, strings de fórmula ou referências entre outputs. Denominador nunca
+zero em todo intervalo. Cada controle deve alterar resultados e cada resultado
+precisa variar em cenários distintos; indicadores constantes serão rejeitados.
+No gerenciamento de projetos inclua qualidade, progresso/produtividade, prazo e
+custo quando pedidos; explique os conflitos de investimento, não só ganhos.
+Considere limites e capacidade no mecanismo. Índices e previsões são didáticos,
+sem precisão financeira ou científica real. A missão, decisões e debrief devem
+usar esses resultados e o histórico do aluno, não números independentes na tela.
+'''
+
+CUSTOM_HTML_PROMPT += '''
+QUANDO causalModel ESTIVER NO PLANO: window.ScormifyModel é fornecido pelo sistema
+ANTES do seu script. NÃO implemente, substitua ou reatribua esse objeto e NÃO
+duplique as fórmulas no seu código. ScormifyModel.definition descreve inputs e
+outputs; getState() retorna {inputs,outputs,history}; setInput(id,valor) recalcula;
+subscribe(render) chama render imediatamente e após cada mudança; reset() cancela
+temporizadores/animações, restaura valores e limpa histórico. Estes nomes são APIs
+do motor, não textos visíveis. Conecte cada controle a setInput, toda a cena,
+indicadores, prazo/custo/qualidade, feedback e condições de sucesso a subscribe.
+O feedback deve mostrar os deltas antes/depois e explicar a causa usando o plano.
+O botão Reiniciar tem data-sim-reset e chama ScormifyModel.reset(); seu handler
+também restaura flags locais/seleções. Não reinicie automaticamente loops no reset.
+Listeners DOM são registrados uma vez. Histórico serve à comparação/debrief.
+Temporizadores são gerenciados e cancelados pelo sistema; inicie apenas por ação
+do aluno, nunca dentro de render/subscribe. Não gere sucesso antes da meta.
+O motor não define visual, domínio, missão ou desafio: crie-os para o curso.
+'''
+
+
 def validate_custom_plan(raw):
     if not isinstance(raw, dict):
         raise ValueError("A IA não retornou um plano de simulação")
@@ -347,6 +387,9 @@ def validate_custom_plan(raw):
                         spec[key][-1][field] = _text(item[field], field, 600)
     if "learningDesign" in raw:
         spec["learningDesign"] = validate_learning_design(raw["learningDesign"])
+    if 'causalModel' in raw:
+        from services.simulator_model import validate_model
+        spec['causalModel']=validate_model(raw['causalModel'])
     return spec
 
 
@@ -566,6 +609,8 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
             spec = validate_custom_plan(raw)
             if "learningDesign" not in spec:
                 raise ValueError("Inclua learningDesign completo com público, vínculo ao curso, etapas desafiadoras e desfechos condicionais")
+            if spec['learningDesign']['kind']=='resources' and not spec.get('causalModel'):
+                raise ValueError('Inclua causalModel numérico para recursos, com controles e indicadores causalmente ligados, não apenas descrições.')
             _validate_request_plan(spec, prompt)
             break
         except (ValueError, TypeError) as exc:
@@ -666,6 +711,13 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
         issues = []
         try:
             code = validate_custom_html(response, spec)
+            if spec.get('causalModel'):
+                from services.simulator_model import inject_model
+                executable='\n'.join(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',str(response),re.I))
+                if not all(re.search(pattern,executable) for pattern in
+                           (r'ScormifyModel\s*\.\s*setInput\s*\(',r'ScormifyModel\s*\.\s*subscribe\s*\(',r'ScormifyModel\s*\.\s*reset\s*\(')) or not re.search(r'<button\b[^>]*\bdata-sim-reset',str(response),re.I):
+                    raise ValueError('Vincule controles a ScormifyModel.setInput, renderização a subscribe e reinício a reset, com data-sim-reset no botão.')
+                code=inject_model(code,spec['causalModel'])
             review_response = await asyncio.wait_for(reviewer.send_message(UserMessage(text=
                 f"Pedido: {prompt[:5000]}\nContexto do curso (dados): {reference}\nPlano: {json.dumps(spec, ensure_ascii=False)}\nHTML a avaliar:\n{code}")), timeout=60)
             review = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", str(review_response).strip(), flags=re.I))
