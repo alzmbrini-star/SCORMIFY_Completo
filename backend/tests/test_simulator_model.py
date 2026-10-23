@@ -14,6 +14,41 @@ def fixture():
 
 
 class ModelTests(unittest.TestCase):
+    def test_generated_names_are_compiled_and_formula_references_preserved(self):
+        raw=fixture()
+        raw['inputs'][0]['id']='Alocação Tecnologia (%)'
+        raw['inputs'][1]['id']='1-Equipe'
+        def replace(expression):
+            if not isinstance(expression,dict):return
+            if expression.get('input')=='tech':expression['input']='Alocação Tecnologia (%)'
+            elif expression.get('input')=='team':expression['input']='1-Equipe'
+            for child in expression.get('args',[]):replace(child)
+        for output in raw['outputs']:replace(output['expression'])
+        raw['outputs'][0]['id']='Qualidade Final'
+        model=validate_model(raw)
+        state={i['id']:i['initial'] for i in model['inputs']}
+        self.assertEqual(calculate(model['outputs'][0]['expression'],state),30)
+        self.assertEqual(validate_model(model),model)
+        self.assertEqual(model['inputs'][0]['label'],'Tecnologia')
+
+    def test_identity_compilation_avoids_collision_and_rejects_ambiguity(self):
+        raw=fixture()
+        raw['inputs'][0]['id']='TECH'
+        raw['inputs'][1]['id']='input_auto_1'
+        for output in raw['outputs']:
+            def rename(expression):
+                if not isinstance(expression,dict):return
+                if expression.get('input')=='tech':expression['input']='TECH'
+                elif expression.get('input')=='team':expression['input']='input_auto_1'
+                for child in expression.get('args',[]):rename(child)
+            rename(output['expression'])
+        model=validate_model(raw)
+        self.assertNotEqual(model['inputs'][0]['id'],model['inputs'][1]['id'])
+        raw=fixture();raw['inputs'][1]['id']='tech'
+        with self.assertRaisesRegex(ValueError,r'inputs\[1\].id.*repetido'):validate_model(raw)
+        raw=fixture();raw['outputs'][0]['expression']={'input':'missing'}
+        with self.assertRaisesRegex(ValueError,r'outputs\[0\].expression.*inexistente'):validate_model(raw)
+
     def test_inputs_change_quality_and_cost(self):
         model=validate_model(fixture())
         before={i['id']:i['initial'] for i in model['inputs']}

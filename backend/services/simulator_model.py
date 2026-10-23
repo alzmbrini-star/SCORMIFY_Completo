@@ -3,6 +3,50 @@ import json
 import math
 import itertools
 from pathlib import Path
+import re
+
+
+def compile_identifiers(raw):
+    """Compile model labels/IDs to safe identities without guessing references."""
+    if not isinstance(raw,dict):return raw
+    result=dict(raw)
+    mapping={}
+    for key in ('inputs','outputs'):
+        rows=raw.get(key)
+        if not isinstance(rows,list):continue
+        used={row['id'] for row in rows if isinstance(row,dict) and isinstance(row.get('id'),str) and re.fullmatch('[a-z][a-z0-9_]{0,39}',row['id'])}
+        seen=set();compiled=[]
+        for index,row in enumerate(rows):
+            path=f'causalModel.{key}[{index}].id'
+            if not isinstance(row,dict):raise ValueError(path+': variável inválida')
+            identifier=row.get('id')
+            if not isinstance(identifier,str) or not identifier.strip() or len(identifier)>120:
+                raise ValueError(path+': informe um identificador textual não vazio, até 120 caracteres')
+            if identifier in seen:
+                raise ValueError(path+': identificador repetido; cada variável precisa de identidade distinta e as fórmulas devem usar o ID correspondente')
+            seen.add(identifier)
+            safe=identifier
+            if not re.fullmatch('[a-z][a-z0-9_]{0,39}',safe):
+                safe=f'{key[:-1]}_auto_{index+1}'
+                while safe in used:safe+='x'
+                used.add(safe)
+            compiled.append(dict(row,id=safe))
+            if key=='inputs':mapping[identifier]=safe
+        result[key]=compiled
+    def expression(value,path,depth=0):
+        if depth>16:raise ValueError(path+': expressão causal muito profunda')
+        if not isinstance(value,dict):return value
+        if set(value)=={'input'}:
+            reference=value['input']
+            if not isinstance(reference,str) or reference not in mapping:
+                raise ValueError(path+': referência input inexistente; use exatamente um ID de causalModel.inputs')
+            return {'input':mapping[reference]}
+        if isinstance(value.get('args'),list):
+            return dict(value,args=[expression(arg,f'{path}.args[{i}]',depth+1) for i,arg in enumerate(value['args'])])
+        return value
+    if isinstance(result.get('outputs'),list):
+        result['outputs']=[dict(row,expression=expression(row.get('expression'),f'causalModel.outputs[{i}].expression')) for i,row in enumerate(result['outputs'])]
+    return result
 
 
 def calculate(expression, inputs, depth=0):
@@ -35,11 +79,11 @@ def calculate(expression, inputs, depth=0):
 
 def validate_model(raw):
     if not isinstance(raw,dict):raise ValueError('Inclua causalModel com inputs e outputs')
+    raw=compile_identifiers(raw)
     inputs,outputs=raw.get('inputs'),raw.get('outputs')
     if not isinstance(inputs,list) or not 2<=len(inputs)<=8 or not isinstance(outputs,list) or not 2<=len(outputs)<=8:
         raise ValueError('Defina 2 a 8 entradas e 2 a 8 resultados no modelo causal')
     clean={'inputs':[],'outputs':[]}
-    import re
     for key,rows in [('inputs',inputs),('outputs',outputs)]:
         ids=set()
         for row in rows:

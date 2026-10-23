@@ -615,7 +615,9 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
             break
         except (ValueError, TypeError) as exc:
             last_error = str(exc)
-            request = f"Revise o JSON completo para o mesmo pedido. Problema de validação: {last_error}.\n{request}"
+            request = json.dumps({'request':prompt[:5000], 'courseContext':reference,
+                'previousResponse':str(response)[:64000], 'repairError':last_error,
+                'repairInstruction':'Corrija o plano anterior completo, preservando domínio, conteúdo e relações causais. IDs de inputs devem identificar variáveis distintas; cada referência input nas fórmulas corresponde exatamente a um desses IDs. Não repita variáveis nem remova relações para contornar a validação.'}, ensure_ascii=False)
     else:
         raise ValueError("Não foi possível planejar a simulação. " + last_error)
 
