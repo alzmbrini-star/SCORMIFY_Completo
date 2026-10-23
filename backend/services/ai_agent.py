@@ -1894,53 +1894,10 @@ def _tokens(palette: dict) -> dict:
     }
 
 
-def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list) -> dict:
-    """Clean, modern cover slide: big left-aligned typography, one accent
-    detail, generous whitespace. Only 2 simple elements → easy to edit."""
-    from models import generate_id
-    tk = _tokens(palette)
-    accent = tk["accent"]
-    elements = []
-
-    title_text = sb_slide.get("title", course_title)
-    elements_html = sb_slide.get("elements", [])
-    subtitle = ""
-    for el in elements_html:
-        c = el.get("content", "")
-        if "<p>" in c:
-            import re
-            p_match = re.search(r"<p>(.*?)</p>", c, re.DOTALL)
-            if p_match:
-                subtitle = p_match.group(1).strip()
-                break
-
-    title_html = f'''<div style="text-align:left;padding:8px 0;">
-<div style="width:52px;height:4px;background:{accent};border-radius:2px;margin-bottom:36px;"></div>
-<h1 style="font-family:{tk["heading"]};font-size:62px;font-weight:700;letter-spacing:-1.5px;color:{tk["text"]};margin:0 0 24px 0;line-height:1.12;max-width:1240px;">{title_text}</h1>
-{f'<p style="font-family:{tk["body"]};font-size:22px;color:{tk["muted"]};margin:0;max-width:880px;line-height:1.6;">{subtitle}</p>' if subtitle else ''}
-</div>'''
-    elements.append({
-        "id": generate_id(), "type": "html", "x": 160, "y": 170, "width": 1600, "height": 380,
-        "htmlContent": title_html,
-        "style": {"fontFamily": tk["body"]}, "startTime": 0,
-        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.6, "delay": 0}],
-    })
-
-    # Module list — quiet numbered index, no chips/borders.
-    if module_names:
-        modules_html = f'<div style="text-align:left;"><p style="font-family:{tk["heading"]};font-size:13px;font-weight:600;color:{tk["faint"]};margin:0 0 18px 0;text-transform:uppercase;letter-spacing:2.5px;">Trilha do Curso</p>'
-        modules_html += '<div style="display:flex;flex-wrap:wrap;gap:10px 44px;">'
-        for idx, mn in enumerate(module_names):
-            modules_html += f'<div style="display:flex;align-items:baseline;gap:10px;"><span style="font-family:{tk["heading"]};font-size:14px;font-weight:700;color:{accent};">{idx+1:02d}</span><span style="font-family:{tk["body"]};font-size:16px;color:{tk["muted"]};">{mn}</span></div>'
-        modules_html += '</div></div>'
-        elements.append({
-            "id": generate_id(), "type": "html", "x": 160, "y": 580, "width": 1600, "height": 180,
-            "htmlContent": modules_html,
-            "style": {"fontFamily": tk["body"]}, "startTime": 0,
-            "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.4}],
-        })
-
-    return elements
+def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list, image_url=None) -> list:
+    """Course-owned title, contextual media and editable split cover."""
+    from services.course_cover import build_cover
+    return build_cover(sb_slide, palette, course_title, module_names, image_url)
 
 
 def _build_header_bar(palette: dict, left_text: str, right_text: str = "") -> str:
@@ -3483,7 +3440,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     ai_image_tasks = []
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
-        if stype != "content":
+        if stype not in ("content", "title"):
+            continue
+        # A specifically chosen cover image is honored. Without one, reuse
+        # contextual course media after generation, with no extra paid request.
+        if stype == 'title' and str(i) not in media_config:
             continue
         mc = media_config.get(str(i), {})
         media_type = mc.get("type", "ai_image")  # default to ai_image
@@ -3729,7 +3690,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
 
         if stype == "title":
             bg = palette.get("coverBg", palette["primary"])
-            slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names)
+            cover_media=slide_media.get(i,{})
+            cover_image=cover_media.get('url') if cover_media.get('type')=='image' else None
+            if not cover_image and media_config.get(str(i),{}).get('type')!='none':
+                cover_image=next((media.get('url') for index,media in slide_media.items() if index!=i and media.get('type')=='image' and media.get('url')),None)
+            slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names, cover_image)
         elif stype == "quiz":
             bg = palette.get("coverBg", palette["primary"])
             slide_elements = _build_quiz_slide(sb_slide, palette, module_name, slide_question_ids)
@@ -4057,7 +4022,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
 
         slide = {
             "id": actual_slide_id,
-            "title": sb_slide.get("title", f"Slide {i+1}"),
+            "title": (config.get('title') or sb_slide.get('title') or 'Sua jornada de aprendizagem') if stype=='title' else sb_slide.get("title", f"Slide {i+1}"),
             "order": i,
             "width": 1920,
             "height": 820,
@@ -4096,10 +4061,6 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         }
         project_slides.append(slide)
 
-    # Brand watermark: apply via shared helper so the same logic powers
-    # both the initial generation AND the manual "apply to all" endpoint.
-    apply_brand_logo_to_slides(project_slides, brand_kit)
-
     # Collect narration pending info from media config
     narration_pending = []
     for i, sb_slide in enumerate(slides_data):
@@ -4112,6 +4073,16 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "script": narr["selectedScript"],
                 "voiceId": narr["voiceId"],
             })
+
+    # Insert only after source-indexed media/narration work, then remap queues.
+    import re as _cover_re
+    if project_slides and project_slides[0].get('contentType')=='title' and module_names and not any(_cover_re.search(r'jornada de aprendizagem|trilha do curso',str(s.get('title','')),_cover_re.I) for s in project_slides[1:]):
+        from services.course_cover import build_journey
+        project_slides.insert(1,build_journey(module_names,base_palette))
+        for queue in (heygen_pending,kling_pending,narration_pending):
+            for item in queue:
+                if isinstance(item.get('slideIndex'),int) and item['slideIndex']>=1:item['slideIndex']+=1
+    apply_brand_logo_to_slides(project_slides, brand_kit)
 
     # Apply global animation to all text elements
     if global_animation:
