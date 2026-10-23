@@ -575,7 +575,11 @@ def validate_custom_html(value, spec):
             raise ValueError("Anime gradualmente o nível e o barco; não use saltos instantâneos")
     visible = html.unescape(re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>|<[^>]+>", " ", code, flags=re.I))
     if spec["title"].casefold() not in re.sub(r"\s+", " ", visible).casefold():
-        raise ValueError("A cena deve mostrar o título do cenário planejado")
+        from services.simulator_heading import reconcile_heading
+        reconciled=reconcile_heading(code,spec['title'])
+        if reconciled==code:
+            raise ValueError('Inclua um cabeçalho visível h1 com o título do plano. Preserve os IDs interativos em outros elementos, para que o sistema possa padronizar apenas o título.')
+        code=reconciled
     payload = json.dumps(spec, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     # Record the plan for inspection without executing model-provided metadata.
     code = re.sub(r"<body\b", '<body data-simulator-version="3"', code, count=1, flags=re.I)
