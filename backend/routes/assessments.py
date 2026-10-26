@@ -1,21 +1,26 @@
 """Project-scoped bank for rich assessment questions."""
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
+import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pymongo.errors import DuplicateKeyError
 
 from routes.auth import require_auth
-from routes.deps import db
+from routes.deps import db, PROJECTS_DIR
 from routes.projects_common import load_authorized_project
 
 router = APIRouter(prefix="/assessment-questions", tags=["Assessment Bank"])
 QUESTION_TYPES = {"single_choice", "multiple_choice", "ordering", "categorization"}
+logger = logging.getLogger(__name__)
 
 
 def now() -> str:
@@ -193,6 +198,10 @@ async def delete_question(question_id: str, projectId: str, user: dict = Depends
 @router.post("/generate")
 async def generate_questions(payload: dict, user: dict = Depends(require_auth)):
     project = await load_authorized_project(clean(payload.get("projectId"), 120), user)
+    return await _create_questions(payload, project, str(user.get('user_id') or ''))
+
+
+async def _create_questions(payload, project, user_id, progress=None):
     topic = clean(payload.get("prompt"), 6000)
     try:
         count = max(1, min(12, int(payload.get("count") or 5)))
@@ -218,14 +227,121 @@ Formato: {"questions":[{...}]}'''
         questions, warnings = [], []
         for raw in (parsed.get("questions") or [])[:count]:
             try:
-                questions.append(normalise(raw, project, str(user.get("user_id") or ""), make_id()))
+                question = normalise(raw, project, user_id, make_id())
+                question.update(media=None, imageGenerationStatus='pending')
+                questions.append(question)
             except (ValueError, TypeError) as exc:
                 warnings.append(str(exc))
         if not questions:
             raise ValueError("A IA não produziu questões válidas")
         await db.assessment_questions.insert_many([dict(question) for question in questions])
-        return {"items": questions, "generated": len(questions), "warnings": warnings[:5]}
+        if progress:
+            await progress(0, len(questions))
+        from services.assessment_images import create_support_image
+        semaphore = asyncio.Semaphore(2)
+        completed = 0
+        async def illustrate(question):
+            nonlocal completed
+            async with semaphore:
+                try:
+                    media = await create_support_image(question, project, db, PROJECTS_DIR)
+                    question.update(media=media, imageGenerationStatus='ready')
+                except Exception:
+                    logger.exception('Assessment image failed for %s', question['id'])
+                    question['imageGenerationStatus'] = 'failed'
+                    warnings.append(f'A imagem de “{question["title"]}” não pôde ser gerada. A questão foi preservada no Banco para anexar o apoio manualmente.')
+                question['updatedAt'] = now()
+                await db.assessment_questions.update_one(
+                    {'id': question['id'], 'projectId': project['id']},
+                    {'$set': {'media': question['media'], 'imageGenerationStatus': question['imageGenerationStatus'], 'updatedAt': question['updatedAt']}})
+                completed += 1
+                if progress:
+                    await progress(completed, len(questions))
+        await asyncio.gather(*(illustrate(question) for question in questions))
+        return {"items": questions, "generated": len(questions),
+                'imagesGenerated': sum(q['imageGenerationStatus'] == 'ready' for q in questions), "warnings": warnings[:15]}
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(502, f"Não foi possível gerar a avaliação: {str(exc)[:220]}") from exc
+
+
+def _public_job(job):
+    result = {key: job[key] for key in ('jobId', 'status', 'imagesCompleted', 'imagesTotal') if key in job}
+    if job['status'] == 'done':
+        result.update(job.get('result') or {})
+    if job['status'] == 'error':
+        result['error'] = job.get('error') or 'Não foi possível concluir a geração.'
+    return result
+
+
+async def _run_generation(job_id, project, payload, user_id):
+    jobs = db.assessment_generation_jobs
+    claim = await jobs.update_one({'_id': job_id, 'status': 'queued'}, {'$set': {'status': 'running', 'updatedAt': now()}})
+    if not claim.modified_count:
+        return
+    async def progress(completed, total):
+        await jobs.update_one({'_id': job_id}, {'$set': {
+            'imagesCompleted': completed, 'imagesTotal': total, 'updatedAt': now()}})
+    try:
+        result = await asyncio.wait_for(_create_questions(payload, project, user_id, progress), timeout=16*60)
+        update = {'status': 'done', 'result': result}
+    except asyncio.CancelledError:
+        await jobs.update_one({'_id': job_id}, {'$set': {'status': 'error', 'updatedAt': now(),
+            'error': 'A geração foi interrompida. As questões já criadas estão no Banco.'}})
+        raise
+    except Exception:
+        logger.exception('Assessment generation failed: %s', job_id)
+        update = {'status': 'error', 'error': 'Não foi possível concluir a geração. Verifique os serviços de IA. As questões já criadas foram preservadas no Banco.'}
+    await jobs.update_one({'_id': job_id}, {'$set': {**update, 'updatedAt': now()}})
+
+
+@router.post('/generate/jobs', status_code=202)
+async def start_generation(payload: dict, tasks: BackgroundTasks, user: dict = Depends(require_auth)):
+    project = await load_authorized_project(clean(payload.get('projectId'), 120), user)
+    owner = str(user.get('user_id') or '')
+    if not owner:
+        raise HTTPException(401, 'Sua sessão expirou.')
+    request_id = str(payload.get('requestId') or '')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,100}', request_id):
+        raise HTTPException(400, 'Identificador de geração inválido')
+    request = {'projectId': str(project['id']), 'prompt': clean(payload.get('prompt'), 6000)}
+    try:
+        request['count'] = max(1, min(12, int(payload.get('count') or 5)))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, 'Quantidade de questões inválida') from exc
+    if not request['prompt']:
+        raise HTTPException(400, 'Informe o tema ou conteúdo da avaliação')
+    if not os.environ.get('OPENAI_API_KEY', '').strip():
+        raise HTTPException(503, 'A geração de questões e imagens requer OPENAI_API_KEY configurada no servidor')
+    job_id = 'assessment_' + hashlib.sha256((owner + ':' + request_id).encode()).hexdigest()
+    signature = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
+    jobs = db.assessment_generation_jobs
+    job = await jobs.find_one({'_id': job_id, 'ownerId': owner})
+    if not job:
+        job = {'_id': job_id, 'jobId': job_id, 'ownerId': owner, 'projectId': request['projectId'],
+               'requestHash': signature, 'status': 'queued', 'createdAt': now(), 'updatedAt': now()}
+        try:
+            await jobs.insert_one(dict(job))
+        except DuplicateKeyError:
+            job = await jobs.find_one({'_id': job_id, 'ownerId': owner})
+    if not job or job['requestHash'] != signature:
+        raise HTTPException(409, 'Este pedido já pertence a outra geração. Inicie uma nova tentativa.')
+    if job['status'] == 'queued':
+        tasks.add_task(_run_generation, job_id, project, request, owner)
+    return _public_job(job)
+
+
+@router.get('/generate/jobs/{job_id}')
+async def generation_status(job_id: str, user: dict = Depends(require_auth)):
+    jobs = db.assessment_generation_jobs
+    job = await jobs.find_one({'_id': job_id, 'ownerId': str(user.get('user_id') or '')})
+    if not job:
+        raise HTTPException(404, 'Geração não encontrada para este usuário')
+    await load_authorized_project(job['projectId'], user)
+    updated = datetime.fromisoformat(job['updatedAt'])
+    if job['status'] in ('queued', 'running') and datetime.now(timezone.utc) - updated > timedelta(minutes=18):
+        await jobs.update_one({'_id': job_id, 'status': job['status'], 'updatedAt': job['updatedAt']},
+            {'$set': {'status': 'error', 'error': 'A geração foi interrompida. As questões já criadas estão no Banco.'}})
+        job = await jobs.find_one({'_id': job_id})
+    return _public_job(job)

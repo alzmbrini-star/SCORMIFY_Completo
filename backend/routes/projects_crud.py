@@ -42,6 +42,7 @@ PROJECT_CLEANUP_FILTERS = {
     "agent_sessions": lambda project_id: {"projectId": project_id},
     "ppt_uploads": lambda project_id: {"projectId": project_id},
     "questions": lambda project_id: {"projectId": project_id},
+    "assessment_generation_jobs": lambda project_id: {"projectId": project_id},
     "quiz_attempts": lambda project_id: {"projectId": project_id},
     "scenarios": lambda project_id: {"project_id": project_id},
     "generation_tasks": lambda project_id: {"project_id": project_id},

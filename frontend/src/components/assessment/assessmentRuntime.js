@@ -146,6 +146,7 @@ export function assessmentRuntime(resolveVideoLink) {
     node('h1', '', q.title, body); node('p', 'prompt', q.prompt, body);
     node('p', 'instructions', q.instructions || (q.type === 'categorization' ? 'Arraste um cartão ou clique nele e depois no destino.' : 'Responda e confirme para avançar.'), body);
     if (q.type === 'categorization') {
+      if (q.media) { stage.className += ' has-support'; const support = node('div', 'assessment-support', undefined, stage); media(q, support); }
       const zones = node('div', 'dropzones', undefined, stage); const tray = node('div', 'tray', undefined, body);
       const assign = (id, target) => { if (locked || !q.items.some(x => x.id === id)) return; a[id] = target; selectedCard = null; render(); };
       const card = (item, parent) => { const b = button(item.text, `card ${selectedCard === item.id ? 'selected' : ''}`, () => { selectedCard = item.id; render(); }, parent, locked); cardImage(item, b); b.draggable = !locked; b.ondragstart = ev => ev.dataTransfer.setData('text/plain', item.id); };
@@ -156,7 +157,6 @@ export function assessmentRuntime(resolveVideoLink) {
         q.items.filter(item => a[item.id] === target.id).forEach(item => card(item, zone));
       });
       q.items.filter(item => !a[item.id]).forEach(item => card(item, tray));
-      if (q.media) { const support = node('div', 'assessment-support', undefined, body); media(q, support); }
     } else {
       if (!visualChoices) media(q, stage);
       const choices = visualChoices ? node('div', 'visual-choices', undefined, stage) : body;
