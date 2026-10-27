@@ -195,7 +195,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
 
       {element.type === 'text' && (
         <div className="panel-section">
-          <h4 className="text-sm font-medium mb-3">Text</h4>
+          <h4 className="text-sm font-medium mb-3">Texto / Cores dos textos</h4>
           <div className="space-y-2">
             <div>
               <label className="text-xs text-muted-foreground">Font Family</label>
@@ -254,7 +254,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Color</label>
+              <label className="text-xs text-muted-foreground">Cor do texto</label>
               <Input
                 type="color"
                 value={style.fontColor || '#000000'}

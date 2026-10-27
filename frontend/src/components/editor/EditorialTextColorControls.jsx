@@ -4,16 +4,18 @@ import { applyEditorialTextColors, readEditorialTextColors } from '../../utils/e
 
 export default function EditorialTextColorControls({element,onUpdate}) {
   const html = element.htmlContent || '';
-  // Only editorial text blocks, never interactive players or arbitrary scripts.
-  if (element.assessmentConfig || /<script\b|data-human-simulator-version|data-case-study-version/i.test(html) || !/<(?:h[1-4]|p|li)\b/i.test(html)) return null;
-  const colors = readEditorialTextColors(html);
-  const update = next => onUpdate({htmlContent:applyEditorialTextColors(html,next)});
+  // Structured conversations retain their dedicated regional controls.
+  // All other HTML, including scripted activities, can receive CSS-only edits.
+  if (!element.assessmentConfig && /data-human-simulator-version|data-case-study-version|class=["'][^"']*(?:conversation|dossier)/i.test(html)) return null;
+  const colors = element.assessmentConfig?.textColors || readEditorialTextColors(html);
+  const update = next => onUpdate({htmlContent:applyEditorialTextColors(html,next),
+    ...(element.assessmentConfig ? {assessmentConfig:{...element.assessmentConfig,textColors:next}} : {})});
   return <div className="panel-section" data-testid="editorial-text-colors">
-    <h4 className="text-sm font-medium mb-2">Cores do resumo / texto</h4>
-    <p className="text-xs text-muted-foreground mb-3">Ajuste o bloco selecionado. Os cartões são os itens da lista do resumo. As alterações ficam salvas e acompanham HTML/SCORM.</p>
+    <h4 className="text-sm font-medium mb-2">Cores dos textos</h4>
+    <p className="text-xs text-muted-foreground mb-3">Ajuste títulos, textos e listas do bloco selecionado, em qualquer slide. As cores ficam salvas e acompanham HTML/SCORM, sem alterar imagens, pontuação ou funcionamento. Textos dentro de imagens e vídeos não são alterados.</p>
     {[
       ['title','Títulos','#f4f4f5'], ['text','Texto geral','#e2e8f0'],
-      ['card','Texto dos cartões','#172c49'], ['cardBackground','Fundo dos cartões','#ffffff'],
+      ['card','Texto dos itens de lista','#172c49'], ['cardBackground','Fundo dos itens de lista','#ffffff'],
     ].map(([key,label,fallback]) => <label key={key} className="flex items-center justify-between gap-2 mb-3 text-xs">
       <span>{label}{colors[key] ? '' : ' · original'}</span>
       <input aria-label={label} type="color" value={colors[key] || fallback} className="w-10 h-8 cursor-pointer rounded border"

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import uuid
 import re
+from services.editorial_text_colors import apply_editorial_text_colors
 
 
 def refresh_assessment_documents(project):
@@ -31,7 +32,8 @@ def refresh_assessment_documents(project):
                 config['questions'] = snapshot['questions']
             if template is None:
                 template = (Path(__file__).parent / 'export_assets' / 'assessment-player.html').read_text(encoding='utf-8')
-            element['htmlContent'] = template.replace('__ASSESSMENT_DATA__', json.dumps(config, ensure_ascii=False).replace('<', '\\u003c'))
+            document = template.replace('__ASSESSMENT_DATA__', json.dumps(config, ensure_ascii=False).replace('<', '\\u003c'))
+            element['htmlContent'] = apply_editorial_text_colors(document, config.get('textColors'))
     return project
 
 
