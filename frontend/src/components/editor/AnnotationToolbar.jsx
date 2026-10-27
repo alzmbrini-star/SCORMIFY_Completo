@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '../ui/button';
 import {
   Tooltip,
@@ -21,9 +21,7 @@ import {
   Palette,
 } from 'lucide-react';
 
-const AnnotationToolbar = ({ annotationMode, setAnnotationMode }) => {
-  const [annotationColor, setAnnotationColor] = useState('#EF4444');
-  const [strokeWidth, setStrokeWidth] = useState(2);
+const AnnotationToolbar = ({ annotationMode, setAnnotationMode, annotationColor, setAnnotationColor, strokeWidth, setStrokeWidth }) => {
 
   const tools = [
     { id: 'freehand', icon: Pencil, label: 'Pen' },

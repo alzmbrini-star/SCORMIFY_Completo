@@ -81,6 +81,8 @@ const SlideCanvas = ({
   onPasteElement,
   copiedElement,
   annotationMode,
+  annotationColor = '#EF4444',
+  annotationStrokeWidth = 2,
   timelineTime = 0,
   timelineIsPlaying = false,
   onEditHtmlElement, // New prop for editing HTML elements
@@ -456,8 +458,8 @@ const SlideCanvas = ({
         await addAnnotation(slide.id, {
           type: annotationMode,
           points: finalAnnotationPoints,
-          color: '#EF4444',
-          strokeWidth: 3,
+          color: annotationColor,
+          strokeWidth: annotationStrokeWidth,
           includeInExport: true,
         });
         console.log('Annotation saved:', annotationMode, finalAnnotationPoints.length, 'points');
@@ -465,7 +467,7 @@ const SlideCanvas = ({
         console.error('Failed to save annotation:', err);
       }
     }
-  }, [isDragging, isResizing, isDrawing, annotationMode, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement, releaseCapturedPointer]);
+  }, [isDragging, isResizing, isDrawing, annotationMode, annotationColor, annotationStrokeWidth, annotationPoints, slide, addAnnotation, selectedElementId, onUpdateElement, releaseCapturedPointer]);
 
   const handleCanvasPointerDown = useCallback((e) => {
     if (annotationMode) {
@@ -1538,8 +1540,8 @@ const SlideCanvas = ({
             {annotationMode === 'freehand' && (
               <path
                 d={`M ${annotationPoints[0].x} ${annotationPoints[0].y} ${annotationPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')}`}
-                stroke="#EF4444"
-                strokeWidth={2}
+                stroke={annotationColor}
+                strokeWidth={annotationStrokeWidth}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1556,7 +1558,7 @@ const SlideCanvas = ({
                     refY="3.5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 3.5, 0 7" fill="#EF4444" />
+                    <polygon points="0 0, 10 3.5, 0 7" fill={annotationColor} />
                   </marker>
                 </defs>
                 <line
@@ -1564,8 +1566,8 @@ const SlideCanvas = ({
                   y1={annotationPoints[0].y}
                   x2={annotationPoints[1].x}
                   y2={annotationPoints[1].y}
-                  stroke="#EF4444"
-                  strokeWidth={2}
+                  stroke={annotationColor}
+                  strokeWidth={annotationStrokeWidth}
                   markerEnd="url(#arrowhead-preview)"
                 />
               </>
@@ -1581,8 +1583,8 @@ const SlideCanvas = ({
                   cy={cy}
                   rx={rx}
                   ry={ry}
-                  stroke="#EF4444"
-                  strokeWidth={2}
+                  stroke={annotationColor}
+                  strokeWidth={annotationStrokeWidth}
                   fill="none"
                 />
               );
@@ -1593,8 +1595,8 @@ const SlideCanvas = ({
                 y={Math.min(annotationPoints[0].y, annotationPoints[1].y)}
                 width={Math.abs(annotationPoints[1].x - annotationPoints[0].x)}
                 height={Math.abs(annotationPoints[1].y - annotationPoints[0].y)}
-                stroke="#EF4444"
-                strokeWidth={2}
+                stroke={annotationColor}
+                strokeWidth={annotationStrokeWidth}
                 fill="none"
               />
             )}

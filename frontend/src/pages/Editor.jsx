@@ -293,6 +293,8 @@ export default function Editor() {
   const [mediaType, setMediaType] = useState('image');
   const [videoUrl, setVideoUrl] = useState('');
   const [annotationMode, setAnnotationMode] = useState(null);
+  const [annotationColor, setAnnotationColor] = useState('#EF4444');
+  const [annotationStrokeWidth, setAnnotationStrokeWidth] = useState(2);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null);
   const [showTimeline, setShowTimeline] = useState(true);
   const [showTimelineExpanded, setShowTimelineExpanded] = useState(false);
@@ -1936,6 +1938,10 @@ export default function Editor() {
               <AnnotationToolbar
                 annotationMode={annotationMode}
                 setAnnotationMode={setAnnotationMode}
+                annotationColor={annotationColor}
+                setAnnotationColor={setAnnotationColor}
+                strokeWidth={annotationStrokeWidth}
+                setStrokeWidth={setAnnotationStrokeWidth}
               />
 
               <Separator orientation="vertical" className="h-6" />
@@ -1982,6 +1988,8 @@ export default function Editor() {
                 onPasteElement={handlePasteElement}
                 copiedElement={copiedElement}
                 annotationMode={annotationMode}
+                annotationColor={annotationColor}
+                annotationStrokeWidth={annotationStrokeWidth}
                 timelineTime={timelineTime}
                 timelineIsPlaying={timelineIsPlaying}
                 onEditHtmlElement={handleEditHtmlElement}

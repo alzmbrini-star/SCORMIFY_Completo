@@ -4,6 +4,8 @@ import SlideCanvas from './SlideCanvas';
 import { getApiUrl } from '../../utils/apiUrl';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+// Assessment rendering has separate tests; avoid loading its full dialog tree.
+jest.mock('../assessment/AssessmentBuilder', () => ({ buildAssessmentHtml: jest.fn() }));
 
 jest.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
