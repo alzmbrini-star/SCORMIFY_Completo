@@ -1096,7 +1096,8 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
     from services.crossword_upgrade import upgrade_crossword_html
     from services.battle_upgrade import upgrade_battle_html
     from services.treasure_upgrade import upgrade_treasure_html
-    raw = upgrade_treasure_html(upgrade_battle_html(upgrade_crossword_html(upgrade_game_hud(_inject_fixed_game_stage_fit(raw)))))
+    from services.climb_upgrade import upgrade_climb_html
+    raw = upgrade_climb_html(upgrade_treasure_html(upgrade_battle_html(upgrade_crossword_html(upgrade_game_hud(_inject_fixed_game_stage_fit(raw))))))
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
     # Element-level text-shadow — captured here so each branch below (iframe
     # / inline interactive / direct-inline) can apply it in the correct scope.

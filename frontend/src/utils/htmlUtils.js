@@ -9,6 +9,7 @@ import { upgradeGameHud } from './gameHud';
 import { upgradeCrosswordHtml } from './crosswordHtml';
 import { upgradeBattleHtml } from './battleHtml';
 import { upgradeTreasureHtml } from './treasureHtml';
+import { upgradeClimbHtml } from './climbHtml';
 const API_URL = getApiUrl();
 
 /**
@@ -207,7 +208,7 @@ export const wrapInteractiveFullbleed = (html, mode = 'page') => {
     return injectDocumentSnippet(html, '<style id="assessment-viewport">' + assessmentLayout + '</style>');
   }
   const isGeneratedGame = isGeneratedGameHtml(html);
-  if (isGeneratedGame) html = upgradeTreasureHtml(upgradeBattleHtml(upgradeCrosswordHtml(upgradeGameHud(html))));
+  if (isGeneratedGame) html = upgradeClimbHtml(upgradeTreasureHtml(upgradeBattleHtml(upgradeCrosswordHtml(upgradeGameHud(html)))));
   if (isGeneratedGame && !html.includes('__scormify_game_fit_v9')) {
     const upgraded = html.includes('__stage')
       ? html
