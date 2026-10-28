@@ -181,7 +181,8 @@ async def get_project_by_id(project_id: str) -> Optional[dict]:
     from services.game_hud import refresh_game_huds
     from services.crossword_upgrade import refresh_crosswords
     from services.battle_upgrade import refresh_battles
-    return refresh_battles(refresh_crosswords(refresh_game_huds(refresh_assessment_documents(repair_legacy_agent_project(doc)))))
+    from services.treasure_upgrade import refresh_treasures
+    return refresh_treasures(refresh_battles(refresh_crosswords(refresh_game_huds(refresh_assessment_documents(repair_legacy_agent_project(doc))))))
 
 
 async def update_project(project_id: str, update_data: dict):

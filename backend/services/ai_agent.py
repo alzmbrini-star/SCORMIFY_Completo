@@ -2633,6 +2633,8 @@ def _build_editor_game_html(mechanic: str, title: str, questions: list[dict]) ->
         template = template.replace("${crosswordRuntime.toString()}", crossword_runtime_source())
         from services.battle_upgrade import battle_runtime_source
         template = template.replace("${battleRuntime.toString()}", battle_runtime_source())
+        from services.treasure_upgrade import treasure_runtime_source
+        template = template.replace("${treasureRuntime.toString()}", treasure_runtime_source())
     else:
         template = template.replace("${settings}", encoded_settings).replace("${encoded}", encoded_bank)
     template = template.replace('<main class="app">', '<main class="app" data-agent-game-template="editor-v1">', 1)
