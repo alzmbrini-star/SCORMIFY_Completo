@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { generateEducationalGameHtml } from './gameTemplates';
+import { upgradeGameHud } from '../../utils/gameHud';
 
 const API = getApiUrl();
 const TYPES = [
@@ -64,7 +65,7 @@ export default function EducationalGameDialog({ open, onOpenChange, onGameCreate
       toast.error(requiresFourQuestions ? 'Selecione pelo menos 4 questões para este modelo de jogo.' : 'Cadastre ou selecione questões para criar o jogo.');
       return '';
     }
-    const html = generateEducationalGameHtml({ gameType: type, title, questions: chosen, config });
+    const html = upgradeGameHud(generateEducationalGameHtml({ gameType: type, title, questions: chosen, config }));
     setPreview(html);
     return html;
   };

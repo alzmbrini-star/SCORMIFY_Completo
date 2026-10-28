@@ -5,6 +5,7 @@
 
 import { getApiUrl } from './apiUrl';
 import { assessmentLayout } from '../components/assessment/assessmentLayout';
+import { upgradeGameHud } from './gameHud';
 const API_URL = getApiUrl();
 
 /**
@@ -203,6 +204,7 @@ export const wrapInteractiveFullbleed = (html, mode = 'page') => {
     return injectDocumentSnippet(html, '<style id="assessment-viewport">' + assessmentLayout + '</style>');
   }
   const isGeneratedGame = isGeneratedGameHtml(html);
+  if (isGeneratedGame) html = upgradeGameHud(html);
   if (isGeneratedGame && !html.includes('__scormify_game_fit_v9')) {
     const upgraded = html.includes('__stage')
       ? html

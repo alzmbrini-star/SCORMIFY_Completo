@@ -1092,7 +1092,8 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             "(innerHeight-pad*2)/ch,1);s=Math.max(.1,s);",
             "(innerHeight-pad*2)/ch,1.35);s=Math.max(.1,s);",
         )
-    raw = _inject_fixed_game_stage_fit(raw)
+    from services.game_hud import upgrade_game_hud
+    raw = upgrade_game_hud(_inject_fixed_game_stage_fit(raw))
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
     # Element-level text-shadow — captured here so each branch below (iframe
     # / inline interactive / direct-inline) can apply it in the correct scope.

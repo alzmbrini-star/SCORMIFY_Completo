@@ -2632,7 +2632,8 @@ def _build_editor_game_html(mechanic: str, title: str, questions: list[dict]) ->
     else:
         template = template.replace("${settings}", encoded_settings).replace("${encoded}", encoded_bank)
     template = template.replace('<main class="app">', '<main class="app" data-agent-game-template="editor-v1">', 1)
-    return template
+    from services.game_hud import upgrade_game_hud
+    return upgrade_game_hud(template)
 
 
 def _game_html_uses_legacy_single_stage(html_content: str) -> bool:
