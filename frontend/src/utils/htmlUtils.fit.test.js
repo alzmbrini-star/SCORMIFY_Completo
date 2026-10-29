@@ -1,6 +1,11 @@
 import { fitGameElementToSlide, isGeneratedGameHtml, wrapInteractiveFullbleed } from './htmlUtils';
 
 describe('interactive fixed-stage fitting', () => {
+  test('generic rules workspace fills the slide without scaling away readable controls',()=>{
+    const html='<html><body data-sim-engine="finite-rules-v1"><main>Simulação</main></body></html>';
+    expect(wrapInteractiveFullbleed(html,'fit')).toBe(html);
+    expect(fitGameElementToSlide({type:'html',htmlContent:html},960,540)).toMatchObject({x:0,y:0,width:960,height:540});
+  });
   test('planning workspace owns a readable scrolling viewport without content-height scaling',()=>{
     const html='<html><body data-sim-engine="entity-planning-v1"><main>Planejamento</main></body></html>';
     expect(wrapInteractiveFullbleed(html,'fit')).toBe(html);

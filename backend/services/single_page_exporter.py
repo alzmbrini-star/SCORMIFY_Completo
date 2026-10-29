@@ -1138,6 +1138,10 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             'height:100%;overflow:hidden;box-sizing:border-box}'
             '*{box-sizing:border-box}</style>'
         )
+        if 'data-sim-engine="finite-rules-v1"' in raw:
+            # This responsive workspace owns its scrolling viewport. Hiding body
+            # overflow would strand actions/history below the exported frame.
+            reset_css = ''
         # For thin headers (< 100px) authors often use `margin-left:auto` to push text
         # to the right edge of the slide. In Single Page the iframe is narrower than
         # the original slide canvas, so right-aligned text gets clipped at the edge.

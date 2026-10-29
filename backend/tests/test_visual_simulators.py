@@ -9,7 +9,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from services.visual_simulators import generate_visual_simulator, render_simulator, validate_spec, validate_custom_html, validate_custom_plan, render_navigation_lock
+from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator, render_simulator, validate_spec, validate_custom_html, validate_custom_plan, render_navigation_lock
 
 BASE = dict(title="Laboratório de decisões", subtitle="Experimente, observe e compare.",
             mission="Compare estratégias para alcançar o objetivo com os recursos disponíveis.",

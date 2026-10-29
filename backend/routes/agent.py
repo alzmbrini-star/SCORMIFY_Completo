@@ -371,7 +371,7 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
             generated = await generate_visual_simulator(
                 body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}"
             )
-            if generated.get('spec', {}).get('mechanic') == 'entity-planning-v1':
+            if generated.get('spec', {}).get('mechanic') in {'entity-planning-v1', 'finite-rules-v1'}:
                 # This HTML is compiled from validated data and our own assets,
                 # not AI-authored code. Topic text may legitimately mention API
                 # names such as fetch/localStorage without invoking those APIs.

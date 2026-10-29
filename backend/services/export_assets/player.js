@@ -1517,6 +1517,7 @@ var CoursePlayer = (function() {
                             wrappedHtml += pageViewportStyle;
                         }
                     } else if (wrappedHtml.indexOf('__stage') === -1 &&
+                               wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 &&
                                wrappedHtml.indexOf('data-case-study-version="2"') === -1 &&
                                wrappedHtml.indexOf('data-human-simulator-version="1"') === -1 &&
                                (element.htmlDisplayMode || 'page') === 'fit') {

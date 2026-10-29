@@ -85,8 +85,8 @@ class PlanningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'reflexivo e neutro'):
             validate_planning(data)
 
-    def test_agent_and_editor_canonical_generator_request_only_data(self):
-        from services.visual_simulators import generate_visual_simulator
+    def test_legacy_planning_generator_requests_only_data(self):
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         class Chat:
             sessions=[]
             def __init__(self,**kwargs):Chat.sessions.append(kwargs['session_id'])

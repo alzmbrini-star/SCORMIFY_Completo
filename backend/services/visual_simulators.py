@@ -758,6 +758,22 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
 
 
 async def _generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
+    """All new simulations use the same rules kernel, irrespective of subject."""
+    from services.rule_simulators import generate_rule_simulator
+    provider, key, model = simulator_generation_config()
+    if not key:
+        raise RuntimeError(f"Configure {provider.upper()}_API_KEY para gerar simuladores")
+    return await generate_rule_simulator(prompt, context, session_id, provider, key, model)
+
+
+async def _generate_legacy_visual_simulator(prompt, context="", session_id="visual-simulator"):
+    """Retained for regression checks of saved formats, not new generation."""
+    from services.simulator_diagnostics import capture_generation
+    provider, _key, model = simulator_generation_config()
+    return await capture_generation(_generate_legacy_simulator_code, prompt, context, session_id, [provider, model])
+
+
+async def _generate_legacy_simulator_code(prompt, context="", session_id="visual-simulator"):
     provider, key, model = simulator_generation_config()
     if not key:
         raise RuntimeError(f"Configure {provider.upper()}_API_KEY para gerar simuladores")

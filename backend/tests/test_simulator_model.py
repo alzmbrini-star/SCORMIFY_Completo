@@ -78,7 +78,7 @@ class ModelTests(unittest.TestCase):
 
     def test_resource_generation_uses_validated_model_with_free_scene(self):
         from test_visual_simulators import LOCK_PLAN,custom_document
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         plan=copy.deepcopy(LOCK_PLAN)
         plan['learningDesign']['kind']='resources'
         plan['causalModel']=fixture()
@@ -102,7 +102,7 @@ class ModelTests(unittest.TestCase):
 
     def test_resource_planner_cannot_omit_causal_model(self):
         from test_visual_simulators import LOCK_PLAN
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         plan=copy.deepcopy(LOCK_PLAN);plan['learningDesign']['kind']='resources'
         class Chat:
             def __init__(self,**kwargs):self.session=kwargs['session_id']

@@ -5,7 +5,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from services.visual_simulators import generate_visual_simulator, validate_custom_plan, normalize_review_issues
+from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator, validate_custom_plan, normalize_review_issues
 from services.visual_simulators import apply_simulator_repairs
 from services.visual_simulators import validate_simulator_candidate, SimulatorCandidateError
 from test_visual_simulators import LOCK_PLAN, custom_document

@@ -55,7 +55,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_first_turn_future_dependency_is_repaired_via_compiled_graph(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         original=dialogue_fixture();broken=copy.deepcopy(original)
         broken['turns'][0]['choices'][2]['requiresFact']='f3'
         requests=[]
@@ -131,7 +131,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_history_repair_preserves_facts_and_milestones_and_can_fill_missing_stage(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         plan = human_plan()
         plan['learningDesign']['stages'].append(dict(title='Acompanhar', challenge='Conferir acordo', consequence='Rever plano'))
         original, broken = dialogue_fixture(), dialogue_fixture()
@@ -161,7 +161,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_history_repair_budget_does_not_allow_shallow_simulation(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         broken = dialogue_fixture()
         for turn in broken['turns']:
             for choice in turn['choices']: choice['requiresFact'] = ''
@@ -234,7 +234,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_targeted_link_repair_then_missing_stage_completion_preserves_content(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         plan, original = human_plan(), dialogue_fixture()
         plan['learningDesign']['stages'].append(dict(title='Acompanhar', challenge='Verificar acordo', consequence='Rever plano'))
         broken = copy.deepcopy(original)
@@ -262,7 +262,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_invalid_link_repairs_stay_bounded_and_are_never_silently_accepted(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         broken = dialogue_fixture(); broken['milestones'][0]['factIds'] = ['missing']
         count = []
         class Chat:
@@ -280,7 +280,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_missing_planned_turns_are_completed_without_discarding_valid_dialogue(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         plan = human_plan()
         plan['learningDesign']['stages'] += [dict(title=f'Etapa {i}', challenge=f'Aplicar conceito {i}',
             consequence=f'Verificar acordo {i}') for i in range(6, 8)]
@@ -310,7 +310,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_failed_completion_does_not_silently_drop_plan_stages(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         plan = human_plan()
         plan['learningDesign']['stages'] += [dict(title='Acompanhar', challenge='Rever acordo', consequence='Ajustar plano')]
         class Chat:
@@ -362,7 +362,7 @@ class HumanSimulatorTests(unittest.TestCase):
 
     def test_human_generation_uses_verified_runtime_without_html_review_loop(self):
         import asyncio
-        from services.visual_simulators import generate_visual_simulator
+        from services.visual_simulators import _generate_legacy_visual_simulator as generate_visual_simulator
         calls=[]
         class Chat:
             def __init__(self,**kwargs): self.session=kwargs['session_id']
