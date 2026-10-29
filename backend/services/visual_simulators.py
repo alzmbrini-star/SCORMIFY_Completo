@@ -406,6 +406,9 @@ Em planejamento, exija decisões sobre dados concretos e cálculos coerentes com
 esses dados, não percentuais fixos. Não exija diálogo ou escritório fotográfico
 quando o objeto principal é o workspace. Aponte trecho/função e percurso concreto
 para cada falha funcional; não repita listas genéricas sem evidência.
+Salvar/registrar pode manter snapshots comparáveis em memória durante a atividade.
+Não recomende localStorage, rede ou backend: a atividade deve funcionar offline.
+Um aviso sem snapshot não é salvamento, mas um histórico em memória funcional é.
 '''
 
 
@@ -671,6 +674,28 @@ def normalize_review_issues(issues):
     return result or [{'issue':'A revisão não confirmou a atividade. Revise o fluxo de estados e os controles.', 'context':'', 'action':'Inspecione cada transição antes de retornar o documento completo.'}]
 
 
+def apply_simulator_repairs(response, previous):
+    """Apply literal, unambiguous edits; never execute model-authored patches."""
+    if re.match(r'```html|<!doctype|<html', str(response).strip(), re.I):
+        return str(response)
+    text = re.sub(r'^```(?:json)?\s*|\s*```$', '', str(response).strip(), flags=re.I)
+    # Accept a complete document from older providers, then validate it normally.
+    raw = json.loads(text)
+    replacements = raw.get('replacements') if isinstance(raw, dict) else None
+    if not isinstance(replacements, list) or not 1 <= len(replacements) <= 24:
+        raise ValueError('Retorne replacements com 1 a 24 alterações literais completas')
+    document = previous
+    for replacement in replacements:
+        if not isinstance(replacement, dict) or not isinstance(replacement.get('old'), str) or not replacement['old'] or not isinstance(replacement.get('new'), str):
+            raise ValueError('Cada correção exige old e new textuais, sem omitir a implementação')
+        if document.count(replacement['old']) != 1:
+            raise ValueError('O trecho old deve corresponder exatamente a uma única ocorrência no documento anterior')
+        document = document.replace(replacement['old'], replacement['new'], 1)
+        if len(document) > 180000:
+            raise ValueError('O documento corrigido excedeu o tamanho permitido')
+    return document
+
+
 async def generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
     from services.simulator_diagnostics import capture_generation
     provider, _key, model = simulator_generation_config()
@@ -790,15 +815,28 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
         raise ValueError('Não foi possível construir a conversa contextualizada. ' + last_error)
 
     renderer = LlmChat(api_key=key, session_id=session_id + "-scene", system_message=CUSTOM_HTML_PROMPT).with_model(provider, model).with_params(temperature=0.45, max_tokens=16000)
-    reviewer = LlmChat(api_key=key, session_id=session_id + "-review", system_message=CUSTOM_REVIEW_PROMPT).with_model(provider, model).with_params(temperature=0.1, max_tokens=1800)
     original_request = {'request':prompt[:5000], 'courseContext':reference, 'plan':spec}
     request = json.dumps(original_request, ensure_ascii=False)
+    previous_document = ''
     for attempt in range(3):
+        if attempt:
+            repair_prompt = CUSTOM_HTML_PROMPT.replace('Retorne somente HTML, sem markdown.', 'Nesta fase retorne somente JSON de correções literais, sem markdown.')
+            repair_prompt += '\nCORREÇÃO PONTUAL: não reescreva o documento completo. Retorne {"replacements":[{"old":"trecho exato e único do documento anterior","new":"implementação completa substituta"}]}. Implemente TODAS as funções faltantes e remova comentários que adiam lógica. Não use localStorage, rede ou alert para fingir salvamento: mantenha snapshots comparáveis na memória da atividade. Corrija também o cálculo, feedback e debrief. Preserve estrutura e conteúdo que já funcionam.'
+            renderer = LlmChat(api_key=key, session_id=f'{session_id}-repair-{attempt}-scene', system_message=repair_prompt).with_model(provider, model).with_params(temperature=0.3, max_tokens=16000)
         response = await asyncio.wait_for(renderer.send_message(UserMessage(text=request)), timeout=120)
         issues = []
         review_response = ''
         try:
+            if attempt:
+                response = apply_simulator_repairs(response, previous_document)
+            previous_document = str(response)
             code = validate_custom_html(response, spec)
+            executable='\n'.join(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',str(response),re.I))
+            stub = re.search(r'(?://|/\*)\s*(?:TODO\b|FIXME\b|implementar\s+(?:a\s+)?(?:l[oó]gica|c[aá]lculo|funcionalidade))[^\n]*', executable, re.I)
+            if stub:
+                raise ValueError('Substitua a implementação adiada por código funcional: '+stub.group(0)[:220])
+            if re.search(r'\b(?:prompt|alert|confirm)\s*\(', executable):
+                raise ValueError('Substitua prompt/alert/confirm por campos inline em fieldset/div e feedback role=status. Salvar deve manter um snapshot real em memória, não apenas anunciar sucesso.')
             if spec.get('causalModel'):
                 from services.simulator_model import inject_model
                 executable='\n'.join(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',str(response),re.I))
@@ -815,6 +853,8 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
                         continue
                     if not re.search(r'ScormifyModel\s*\.\s*setInput\s*\(\s*["\']'+re.escape(entry['id'])+r'["\']\s*,', executable):
                         raise ValueError('Falta vincular um controle real a ScormifyModel.setInput("'+entry['id']+'", valor) para '+entry['label']+'. Não deixe entradas do modelo sem interação.')
+            # A previous rejection must not anchor the review of a repaired file.
+            reviewer = LlmChat(api_key=key, session_id=f'{session_id}-attempt-{attempt}-review', system_message=CUSTOM_REVIEW_PROMPT).with_model(provider, model).with_params(temperature=0.1, max_tokens=3000)
             review_response = await asyncio.wait_for(reviewer.send_message(UserMessage(text=
                 f"Pedido: {prompt[:5000]}\nContexto do curso (dados): {reference}\nPlano: {json.dumps(spec, ensure_ascii=False)}\nHTML a avaliar:\n{code}")), timeout=60)
             review = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", str(review_response).strip(), flags=re.I))
@@ -831,6 +871,6 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
             record_attempt(response, spec, issues, error=last_error, review=review_response)
             request = json.dumps(dict(original_request,
                 repairError=last_error, repairIssues=issues,
-                previousDocument=str(response)[:180000],
-                repairInstruction='Corrija o documento fornecido, preservando a atividade e o plano. Retorne HTML completo. Inspecione o estado inicial e siga cada transição de enabledWhen/stateChange: ação inicial, edição, geração, comparação quando existir e reinício. Corrija a causa concreta, não apenas remova disabled de todos os botões. Mantenha bloqueios legítimos e explique-os ao aluno. Não substitua por um modelo genérico.'), ensure_ascii=False)
+                previousDocument=previous_document[:180000],
+                repairInstruction='Corrija o documento fornecido, preservando a atividade e o plano. Retorne JSON replacements com old exato e único e new completo, sem omitir lógica. Inspecione o estado inicial e siga cada transição de enabledWhen/stateChange: ação inicial, edição, geração, comparação quando existir e reinício. Corrija a causa concreta, não apenas remova disabled de todos os botões. Mantenha bloqueios legítimos e explique-os ao aluno. Não substitua por um modelo genérico. Não deixe funções retornando exemplos fixos nem comentários de implementação futura.'), ensure_ascii=False)
     raise ValueError("O simulador precisa de correção antes de ser inserido. " + last_error)

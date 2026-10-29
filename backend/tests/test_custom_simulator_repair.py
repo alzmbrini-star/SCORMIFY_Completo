@@ -6,10 +6,19 @@ import unittest
 from unittest.mock import patch
 
 from services.visual_simulators import generate_visual_simulator, validate_custom_plan, normalize_review_issues
+from services.visual_simulators import apply_simulator_repairs
 from test_visual_simulators import LOCK_PLAN, custom_document
 
 
 class CustomRepairTests(unittest.TestCase):
+    def test_literal_repairs_are_atomic_unambiguous_and_never_execute_code(self):
+        source='<html><script>function calculate(){return 50;}</script></html>'
+        response=json.dumps({'replacements':[{'old':'return 50;','new':'return tasks.reduce((sum,task)=>sum+task.duration,0);'}]})
+        self.assertIn('tasks.reduce',apply_simulator_repairs(response,source))
+        with self.assertRaisesRegex(ValueError,'única ocorrência'):
+            apply_simulator_repairs(response,source.replace('return 50;','return 50;return 50;'))
+        self.assertEqual(apply_simulator_repairs('```html\n'+source+'\n```',source),'```html\n'+source+'\n```')
+
     def plan(self):
         plan=copy.deepcopy(LOCK_PLAN)
         plan['title']='Desenvolvimento de Prompts Criativos'
@@ -90,6 +99,32 @@ class CustomRepairTests(unittest.TestCase):
     def test_review_issues_normalized_for_legacy_and_bad_review(self):
         self.assertEqual(normalize_review_issues(['Erro concreto'])[0]['issue'],'Erro concreto')
         self.assertTrue(normalize_review_issues(None)[0]['issue'])
+
+    def test_incomplete_calculation_is_repaired_with_literal_patch_before_review(self):
+        plan=self.plan()
+        stub='function metric(){\n// Implementar lógica de cálculo\nreturn 50;\n}'
+        document=custom_document(plan['title']).replace('</script>',stub+'</script>')
+        class Chat:
+            scenes=0
+            reviews=0
+            def __init__(self,**kwargs):self.session=kwargs['session_id']
+            def with_model(self,*args):return self
+            def with_params(self,**kwargs):return self
+            async def send_message(self,message):
+                if self.session.endswith('-plan'):return json.dumps(plan)
+                if self.session.endswith('-scene'):
+                    Chat.scenes+=1
+                    if Chat.scenes==1:return document
+                    self_test=json.loads(message.text)
+                    assert 'implementação adiada' in self_test['repairError']
+                    return json.dumps({'replacements':[{'old':stub,'new':'function metric(){return Number(level.value); }'}]})
+                Chat.reviews+=1
+                return json.dumps({'pass':True,'issues':[]})
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}),patch('services.visual_simulators.LlmChat',Chat):
+            result=asyncio.run(generate_visual_simulator('Oficina','Contexto do curso'))
+        self.assertEqual(Chat.scenes,2)
+        self.assertEqual(Chat.reviews,1)
+        self.assertNotIn('Implementar lógica',result['html'])
 
     def test_diagnostic_scope_retains_all_rejected_documents_and_reviews(self):
         from services.simulator_diagnostics import diagnostic_scope
