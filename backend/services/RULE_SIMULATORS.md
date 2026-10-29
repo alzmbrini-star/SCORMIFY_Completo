@@ -21,6 +21,11 @@ lógica booleana, soma, subtração, multiplicação, mínimo e máximo (inclusi
 três ou mais critérios). Erros indicam a ação/campo e a aridade problemática. Não há `eval`,
 funções geradas, acesso a rede ou código vindo do modelo.
 
+Na entrada JSON, somente os sinônimos booleanos exatos `and`/`or` são traduzidos
+para `all`/`any`. A compilação mantém aridade, tipos, referências e limites de
+profundidade/tamanho; não interpreta strings, JS ou operadores desconhecidos.
+HTML e exportações recebem apenas os operadores canônicos já suportados.
+
 Todos os efeitos leem o estado anterior e são aplicados juntos. Ações são
 desabilitadas com explicação quando os requisitos não são satisfeitos, o efeito
 ultrapassa limites ou não há mudança. Fracasso tem precedência sobre sucesso.

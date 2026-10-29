@@ -92,6 +92,36 @@ def experiment_fixture():
 
 
 class RuleTests(unittest.TestCase):
+    def test_predicate_aliases_compile_to_same_canonical_rules_in_every_theme(self):
+        def aliases(node):
+            if isinstance(node,list):return [aliases(value) for value in node]
+            if not isinstance(node,dict):return node
+            result={key:aliases(value) for key,value in node.items()}
+            if result.get('op') in {'all','any'}:
+                result['op']={'all':'and','any':'or'}[result['op']]
+            return result
+        for raw in fixtures():
+            expected=validate_rules(raw)
+            actual=validate_rules(aliases(raw))
+            self.assertEqual(actual,expected)
+            self.assertEqual(solve_rules(actual),solve_rules(expected))
+        nested=op('and',op('eq',ref('x'),1),op('or',op('eq',ref('y'),2),op('eq',ref('y'),3)))
+        canonical=expression(nested,{'x','y'},True)
+        self.assertEqual(canonical['op'],'all')
+        self.assertEqual(canonical['args'][1]['op'],'any')
+        self.assertTrue(evaluate(canonical,{'x':1,'y':3}))
+        self.assertFalse(evaluate(canonical,{'x':1,'y':4}))
+
+    def test_aliases_do_not_relax_types_arity_code_or_expression_limits(self):
+        for node,boolean in [(op('and',True),True),(op('or',*[True]*11),True),
+            (op('and',1,2),True),(op('or',True,'x'),True),(op('and',True,False),False),
+            (op('AND',True,False),True),(op('&&',True,False),True),
+            ({'op':'and','args':[True,True],'code':'alert(1)'},True)]:
+            with self.assertRaises(ValueError):expression(node,{'x'},boolean)
+        node=True
+        for _ in range(10):node=op('and',True,node)
+        with self.assertRaisesRegex(ValueError,'profundidade'):expression(node,set(),True)
+
     def test_different_mechanics_use_exact_same_interpreter(self):
         for raw in fixtures():
             data=validate_rules(raw);proof=solve_rules(data)

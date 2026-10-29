@@ -127,6 +127,12 @@ def expression(node, ids, boolean=False, depth=0, counter=None):
     compare = {'eq','ne','lt','le','gt','ge'}
     if set(node) != {'op','args'} or not isinstance(op, str) or not isinstance(args, list):
         raise ValueError('Expressão deve conter op e args válidos')
+    # Lossless translation of JSON predicate vocabulary, not permissive execution.
+    # Only these exact aliases are supported; arity, operand types, references,
+    # depth and total expression size are still checked below. Runtimes receive
+    # only the canonical all/any contract and never evaluate model-written code.
+    if boolean:
+        op = {'and': 'all', 'or': 'any'}.get(op, op)
     if not boolean and op in numeric and (len(args) == 2 or (op in {'min','max'} and 2 <= len(args) <= 10)):
         child_type = False
     elif boolean and op in compare and len(args) == 2:
