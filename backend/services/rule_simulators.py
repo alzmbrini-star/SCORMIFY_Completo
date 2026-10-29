@@ -199,21 +199,27 @@ def solve_rules(spec, budget=SEARCH_BUDGET):
     ids = [v['id'] for v in spec['variables']]
     queue = deque([(initial, [])]); seen = {(tuple(initial[k] for k in ids),0)}
     nodes = 0; witness = None; failure = None; enabled = set()
+    observed={key:[initial[key],initial[key]] for key in ids}
+    def observe(state):
+        for key in ids:
+            observed[key][0]=min(observed[key][0],state[key])
+            observed[key][1]=max(observed[key][1],state[key])
     while queue:
         if nodes >= budget:
             return {'status':'verified' if witness and failure else 'budget', 'success':witness,
-                    'failure':failure, 'nodes':nodes, 'reachableActions':sorted(enabled)}
+                    'failure':failure, 'nodes':nodes, 'reachableActions':sorted(enabled),'observedRanges':observed}
         state, path = queue.popleft(); nodes += 1
         result = outcome(spec,state,len(path))
         if result != 'active':
             if result == 'success' and witness is None: witness = path
             if result == 'failure' and failure is None: failure = path
             if witness is not None and failure is not None:
-                return {'status':'verified','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled)}
+                return {'status':'verified','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled),'observedRanges':observed}
             continue
         for action in spec['actions']:
             updated = transition(spec,state,action)
             if updated is None: continue
+            observe(updated)
             enabled.add(action['id']); new_path = path+[action['id']]
             result = outcome(spec,updated,len(new_path))
             key = (tuple(updated[k] for k in ids),len(new_path))
@@ -221,10 +227,10 @@ def solve_rules(spec, budget=SEARCH_BUDGET):
             if result == 'success' and witness is None: witness = new_path
             if result == 'failure' and failure is None: failure = new_path
             if witness is not None and failure is not None:
-                return {'status':'verified','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled)}
+                return {'status':'verified','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled),'observedRanges':observed}
             if key not in seen and result == 'active':
                 seen.add(key); queue.append((updated,new_path))
-    return {'status':'exhausted','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled)}
+    return {'status':'exhausted','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled),'observedRanges':observed}
 
 
 def _refs(node):
@@ -340,7 +346,13 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     if errors: raise ValueError(' | '.join(errors))
     by_id={a['id']:a for a in spec['actions']}
     proof=solve_rules(spec,budget)
-    if proof['success'] is None: raise ValueError('Busca esgotou o orçamento sem provar solução' if proof['status']=='budget' else 'Objetivo inalcançável pelas regras')
+    if proof['success'] is None:
+        reason='Busca esgotou o orçamento sem provar solução' if proof['status']=='budget' else 'Objetivo inalcançável pelas regras'
+        raise ValueError(reason+'. Faixas observadas nos estados explorados (não são combinações garantidas): '
+            +json.dumps(proof['observedRanges'],ensure_ascii=False)+'. Ações que puderam ser executadas: '
+            +json.dumps(proof['reachableActions'],ensure_ascii=False)+'. Compare com goal.when e com os custos/requisitos '
+            'das ações. Corrija a inconsistência preservando o desafio e as premissas do pedido; não marque sucesso constante. '
+            'Faixas observadas em busca com orçamento esgotado são parciais e não provam impossibilidade.')
     if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos. Ação fora de min/max é desabilitada e não altera o estado; escolha um limiar de fracasso dentro dos limites e alcançável por ações habilitadas. Se houver avaliação, permita avaliar também uma preparação insuficiente, sem exigir os critérios de sucesso para habilitá-la. O limite de decisões não substitui failure.when. Verifique a sequência negativa ação por ação antes de retornar as regras.')
     if len(proof['success']) < 3: raise ValueError('Conclusão trivial: exija pelo menos três decisões')
     state=dict(initial); visited_scenes=set(); scene_trace=[]

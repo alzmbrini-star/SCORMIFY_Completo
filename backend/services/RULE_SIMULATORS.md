@@ -57,6 +57,9 @@ fallback e garante cobertura de estados, sem alterar as ações ou os objetivos.
 Quando a cena não muda na solução, a revisão recebe a trajetória executada com
 estados e cenas selecionadas. Isso permite corrigir predicados e prioridade sem
 adivinhar valores ou reduzir o desafio já comprovado.
+Quando o objetivo não é comprovado, a revisão também recebe as faixas observadas
+e as ações executáveis. As faixas não implicam combinações alcançáveis; numa
+busca interrompida pelo orçamento, são parciais e não provam impossibilidade.
 
 Além da validade formal, a geração de desafios testa cada ação repetida sozinha:
 se uma delas já permite vencer por repetição, a IA recebe esse contraexemplo para

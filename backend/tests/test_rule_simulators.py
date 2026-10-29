@@ -158,6 +158,10 @@ class RuleTests(unittest.TestCase):
         data['actions'][2]['effects']['acordo']=0
         proof=solve_rules(data)
         self.assertEqual(proof['status'],'exhausted');self.assertIsNone(proof['success'])
+        self.assertEqual(proof['observedRanges']['acordo'],[0,0])
+        with self.assertRaisesRegex(ValueError,'Faixas observadas') as error:validate_rules(data)
+        self.assertIn('"acordo": [0, 0]',str(error.exception))
+        self.assertIn('não são combinações garantidas',str(error.exception))
 
     def test_single_page_and_classic_exports_keep_readable_workspace(self):
         import base64, re
