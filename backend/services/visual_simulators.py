@@ -696,6 +696,52 @@ def apply_simulator_repairs(response, previous):
     return document
 
 
+class SimulatorCandidateError(ValueError):
+    def __init__(self, issues):
+        self.issues = issues
+        super().__init__('; '.join(issue['issue'] for issue in issues))
+
+
+def validate_simulator_candidate(response, spec):
+    """Collect independent faults before spending a repair on just one of them."""
+    issues=[]
+    code=None
+    try:
+        code=validate_custom_html(response,spec)
+    except ValueError as exc:
+        issues.append({'issue':str(exc),'context':'Validação estrutural/offline do documento completo.',
+                       'action':'Corrija esta falha preservando o domínio e implemente também todos os outros itens deste relatório.'})
+    executable='\n'.join(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',str(response),re.I))
+    stubs=re.findall(r'(?://|/\*)\s*(?:TODO\b|FIXME\b|implementar\s+(?:a\s+)?(?:l[oó]gica|c[aá]lculo|funcionalidade))[^\n]*',executable,re.I)
+    if stubs:
+        issues.append({'issue':'Existem funções com implementação adiada ou de exemplo.',
+            'context':'\n'.join(stubs[:8])[:1800],
+            'action':'Implemente todas as funções indicadas com cálculos derivados do estado. Não apenas apague o comentário mantendo return 50/true ou outro resultado constante.'})
+    dialogs=re.findall(r'.{0,70}\b(?:prompt|alert|confirm)\s*\(.{0,140}',executable,re.I)
+    if dialogs:
+        issues.append({'issue':'Existem prompt/alert/confirm em vez de interação inline.',
+            'context':'\n'.join(dialogs[:8])[:1800],
+            'action':'Substitua TODOS os diálogos por campos inline em fieldset/div e feedback role=status. Salvar deve registrar um snapshot em memória, não apenas anunciar sucesso.'})
+    if spec.get('causalModel'):
+        if not all(re.search(pattern,executable) for pattern in (r'ScormifyModel\s*\.\s*setInput\s*\(',r'ScormifyModel\s*\.\s*subscribe\s*\(',r'ScormifyModel\s*\.\s*reset\s*\(')) or not re.search(r'<button\b[^>]*\bdata-sim-reset',str(response),re.I):
+            issues.append({'issue':'Controles, renderização e reinício não estão vinculados ao motor causal.', 'context':'Contrato de ScormifyModel.',
+                'action':'Vincule controles a ScormifyModel.setInput, renderização a subscribe e reinício a reset; identifique o botão com data-sim-reset.'})
+        if not re.search(r'\.\s*outputs\b|\[\s*["\']outputs["\']\s*\]|\{\s*outputs\s*[,}]',executable):
+            issues.append({'issue':'A renderização não lê outputs do motor.', 'context':'Os resultados calculados não são lidos pelo documento.',
+                'action':'Receba o estado em subscribe(state => render(state)) e use state.outputs. Não duplique fórmulas em constantes locais.'})
+        if not re.search(r'ScormifyModel\s*\.\s*definition\s*\.\s*inputs',executable):
+            for entry in spec['causalModel']['inputs']:
+                if not re.search(r'ScormifyModel\s*\.\s*setInput\s*\(\s*["\']'+re.escape(entry['id'])+r'["\']\s*,',executable):
+                    issues.append({'issue':'Entrada causal sem controle: '+entry['label'], 'context':'ID: '+entry['id'],
+                        'action':'Implemente controle real que chame ScormifyModel.setInput("'+entry['id']+'", valor). Mantenha o ID exato do modelo.'})
+    if issues:
+        raise SimulatorCandidateError(issues)
+    if spec.get('causalModel'):
+        from services.simulator_model import inject_model
+        code=inject_model(code,spec['causalModel'])
+    return code
+
+
 async def generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
     from services.simulator_diagnostics import capture_generation
     provider, _key, model = simulator_generation_config()
@@ -830,29 +876,7 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
             if attempt:
                 response = apply_simulator_repairs(response, previous_document)
             previous_document = str(response)
-            code = validate_custom_html(response, spec)
-            executable='\n'.join(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',str(response),re.I))
-            stub = re.search(r'(?://|/\*)\s*(?:TODO\b|FIXME\b|implementar\s+(?:a\s+)?(?:l[oó]gica|c[aá]lculo|funcionalidade))[^\n]*', executable, re.I)
-            if stub:
-                raise ValueError('Substitua a implementação adiada por código funcional: '+stub.group(0)[:220])
-            if re.search(r'\b(?:prompt|alert|confirm)\s*\(', executable):
-                raise ValueError('Substitua prompt/alert/confirm por campos inline em fieldset/div e feedback role=status. Salvar deve manter um snapshot real em memória, não apenas anunciar sucesso.')
-            if spec.get('causalModel'):
-                from services.simulator_model import inject_model
-                executable='\n'.join(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',str(response),re.I))
-                if not all(re.search(pattern,executable) for pattern in
-                           (r'ScormifyModel\s*\.\s*setInput\s*\(',r'ScormifyModel\s*\.\s*subscribe\s*\(',r'ScormifyModel\s*\.\s*reset\s*\(')) or not re.search(r'<button\b[^>]*\bdata-sim-reset',str(response),re.I):
-                    raise ValueError('Vincule controles a ScormifyModel.setInput, renderização a subscribe e reinício a reset, com data-sim-reset no botão.')
-                code=inject_model(code,spec['causalModel'])
-                if not re.search(r'\.\s*outputs\b|\[\s*["\']outputs["\']\s*\]', executable):
-                    raise ValueError('A renderização não lê outputs do motor. Receba o estado em subscribe(state => render(state)) e leia state.outputs; não recalcule indicadores a partir de constantes locais.')
-                for entry in spec['causalModel']['inputs']:
-                    if re.search(r'ScormifyModel\s*\.\s*definition\s*\.\s*inputs', executable):
-                        # A renderer may create all controls from the definition
-                        # instead of hardcoding each numeric input identity.
-                        continue
-                    if not re.search(r'ScormifyModel\s*\.\s*setInput\s*\(\s*["\']'+re.escape(entry['id'])+r'["\']\s*,', executable):
-                        raise ValueError('Falta vincular um controle real a ScormifyModel.setInput("'+entry['id']+'", valor) para '+entry['label']+'. Não deixe entradas do modelo sem interação.')
+            code = validate_simulator_candidate(response, spec)
             # A previous rejection must not anchor the review of a repaired file.
             reviewer = LlmChat(api_key=key, session_id=f'{session_id}-attempt-{attempt}-review', system_message=CUSTOM_REVIEW_PROMPT).with_model(provider, model).with_params(temperature=0.1, max_tokens=3000)
             review_response = await asyncio.wait_for(reviewer.send_message(UserMessage(text=
@@ -867,6 +891,7 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
             return {"html": code, "spec": spec}
         except ValueError as exc:
             last_error = str(exc)
+            issues = getattr(exc, 'issues', issues)
             from services.simulator_diagnostics import record_attempt
             record_attempt(response, spec, issues, error=last_error, review=review_response)
             request = json.dumps(dict(original_request,

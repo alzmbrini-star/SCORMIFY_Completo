@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from services.visual_simulators import generate_visual_simulator, validate_custom_plan, normalize_review_issues
 from services.visual_simulators import apply_simulator_repairs
+from services.visual_simulators import validate_simulator_candidate, SimulatorCandidateError
 from test_visual_simulators import LOCK_PLAN, custom_document
 
 
@@ -18,6 +19,18 @@ class CustomRepairTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'única ocorrência'):
             apply_simulator_repairs(response,source.replace('return 50;','return 50;return 50;'))
         self.assertEqual(apply_simulator_repairs('```html\n'+source+'\n```',source),'```html\n'+source+'\n```')
+
+    def test_independent_faults_are_reported_together_not_one_per_paid_repair(self):
+        spec=validate_custom_plan(self.plan())
+        document=custom_document(spec['title']).replace('</body>',
+            '<img src="https://example.invalid/image.png"><script>function pending(){// Implementar lógica de cálculo\nreturn 50;}function edit(){prompt("Nome");alert("Salvo");}</script></body>')
+        with self.assertRaises(SimulatorCandidateError) as captured:
+            validate_simulator_candidate(document,spec)
+        descriptions=' '.join(issue['issue'] for issue in captured.exception.issues)
+        self.assertIn('externo',descriptions)
+        self.assertIn('implementação adiada',descriptions)
+        self.assertIn('prompt/alert/confirm',descriptions)
+        self.assertEqual(len(captured.exception.issues),3)
 
     def plan(self):
         plan=copy.deepcopy(LOCK_PLAN)
