@@ -599,6 +599,12 @@ def normalize_review_issues(issues):
 
 
 async def generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
+    from services.simulator_diagnostics import capture_generation
+    provider, _key, model = simulator_generation_config()
+    return await capture_generation(_generate_visual_simulator, prompt, context, session_id, [provider, model])
+
+
+async def _generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
     provider, key, model = simulator_generation_config()
     if not key:
         raise RuntimeError(f"Configure {provider.upper()}_API_KEY para gerar simuladores")
@@ -715,6 +721,7 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
     for attempt in range(3):
         response = await asyncio.wait_for(renderer.send_message(UserMessage(text=request)), timeout=120)
         issues = []
+        review_response = ''
         try:
             code = validate_custom_html(response, spec)
             if spec.get('causalModel'):
@@ -731,9 +738,13 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
                 issues = review.get("issues", []) if isinstance(review, dict) else []
                 issues = normalize_review_issues(issues)
                 raise ValueError("Revisão didática: " + "; ".join(i['issue'] for i in issues[:6]))
+            from services.simulator_diagnostics import record_attempt
+            record_attempt(response, spec, [], review=review_response)
             return {"html": code, "spec": spec}
         except ValueError as exc:
             last_error = str(exc)
+            from services.simulator_diagnostics import record_attempt
+            record_attempt(response, spec, issues, error=last_error, review=review_response)
             request = json.dumps(dict(original_request,
                 repairError=last_error, repairIssues=issues,
                 previousDocument=str(response)[:180000],

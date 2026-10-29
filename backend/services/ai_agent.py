@@ -999,12 +999,12 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
 
         if len(batch) == 1 and batch[0].get("type") == "simulator":
             from services.visual_simulators import generate_visual_simulator
+            from services.simulator_diagnostics import simulator_request
             source = batch[0]
             try:
+                simulator_prompt, simulator_context = simulator_request(source, content_text, config)
                 generated = await generate_visual_simulator(
-                    json.dumps(source, ensure_ascii=False),
-                    json.dumps({"course": {key: config[key] for key in ("title", "targetAudience", "audience", "depth", "learningObjectives", "objectives") if key in config}, "module": source.get("moduleName"),
-                                "objective": source.get("purpose"), "reference": content_text[:6000]}, ensure_ascii=False),
+                    simulator_prompt, simulator_context,
                     f"{session_id}_visual_simulator_{batch_start}",
                 )
             except Exception as exc:

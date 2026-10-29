@@ -410,6 +410,7 @@ async def _run_create_indexes():
         )
         await db.agent_sessions.create_index([("id", 1)], unique=True, background=True)
         await db.html_generation_jobs.create_index('createdAtDate', expireAfterSeconds=24 * 60 * 60, background=True)
+        await db.simulator_diagnostics.create_index('expiresAt', expireAfterSeconds=0, background=True)
         # apply_jobs: TTL on createdAtDate (auto-delete done/error jobs after 24h)
         await db.apply_jobs.create_index(
             "createdAtDate",

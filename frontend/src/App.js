@@ -7,6 +7,7 @@ import { Toaster } from './components/ui/sonner';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
 import Agent from './pages/Agent';
+import SimulatorDiagnostics from './pages/SimulatorDiagnostics';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
 import AuthCallback from './pages/AuthCallback';
@@ -70,6 +71,7 @@ function AppRouter() {
           <Agent />
         </ProtectedRoute>
       } />
+      <Route path="/agent-diagnostics" element={<ProtectedRoute><SimulatorDiagnostics /></ProtectedRoute>} />
       <Route path="/change-password" element={
         <ProtectedRoute>
           <ChangePassword />

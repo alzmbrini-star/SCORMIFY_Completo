@@ -893,13 +893,17 @@ async def agent_generate_structure(session_id: str, request: Request):
     return {"status": "processing", "message": "Gerando estrutura em segundo plano..."}
 
 @router.post("/agent/sessions/{session_id}/generate-storyboard")
-async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks, force: bool = False):
+async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks, force: bool = False, user: dict = Depends(require_agent_access)):
     """Step 3: Generate detailed storyboard (runs in thread pool to avoid blocking event loop)."""
-    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    s = await _owned_diagnostic_session(session_id, user)
     if not s:
         raise HTTPException(404, "Session not found")
     if not s.get("structure"):
         raise HTTPException(400, "Structure not generated yet")
+    diagnostic_run = await db.simulator_diagnostic_runs.find_one({'_id': session_id, 'status': 'running',
+        'updatedAt': {'$gt': datetime.now(timezone.utc)-timedelta(minutes=20)}})
+    if diagnostic_run:
+        raise HTTPException(409, 'Aguarde a tentativa isolada do simulador antes de retomar o Storyboard.')
 
     # If storyboard already exists, return it (unless forced redo).
     if (not force and s.get("storyboard")
@@ -935,9 +939,15 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
                     }}
                 )
 
-            storyboard = loop.run_until_complete(
-                generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress)
-            )
+            from services.simulator_diagnostics import diagnostic_scope
+            diagnostic_db = _get_bg_db()
+            cached = list(diagnostic_db.simulator_diagnostics.find({
+                'sessionId': session_id, 'ownerId': s.get('userId'), 'status': 'accepted',
+                'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
+            with diagnostic_scope(_simulator_diagnostic_sink(diagnostic_db, s), cached):
+                storyboard = loop.run_until_complete(
+                    generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress)
+                )
             _bgdb = _get_bg_db()
             _bgdb.agent_sessions.update_one(
                 {"id": session_id},
@@ -963,6 +973,101 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     thread = threading.Thread(target=_sync_generate, daemon=True)
     thread.start()
     return {"status": "processing", "message": "Storyboard being generated..."}
+
+
+def _simulator_diagnostic_sink(database, session):
+    """Store generated source privately, never in logs or public project assets."""
+    def save(record):
+        now = datetime.now(timezone.utc)
+        database.simulator_diagnostics.replace_one(
+            {'_id': session['id'] + ':' + record['generationKey']},
+            dict(record, sessionId=session['id'], ownerId=session.get('userId'),
+                 updatedAt=now, expiresAt=now + timedelta(days=7)), upsert=True)
+    return save
+
+
+async def _owned_diagnostic_session(session_id, user):
+    owner = user.get('user_id')
+    if not owner:
+        raise HTTPException(401, 'Sua sessão expirou.')
+    session = await db.agent_sessions.find_one({'id': session_id, 'userId': owner}, {'_id': 0})
+    if not session:
+        raise HTTPException(404, 'Sessão não encontrada para este usuário.')
+    return session
+
+
+@router.get('/agent/simulator-diagnostics/sessions')
+async def simulator_diagnostic_sessions(user: dict = Depends(require_agent_access)):
+    from services.simulator_diagnostics import simulator_sources
+    if not user.get('user_id'):
+        raise HTTPException(401, 'Sua sessão expirou.')
+    sessions = await db.agent_sessions.find({'userId': user['user_id'], 'structure': {'$ne': None}},
+        {'_id': 0, 'id': 1, 'config.title': 1, 'structure': 1, 'step': 1, 'error': 1, 'updatedAt': 1}).sort('updatedAt', -1).limit(20).to_list(20)
+    return [{'id': s['id'], 'title': s.get('config', {}).get('title') or (s.get('structure') or {}).get('title') or 'Curso',
+             'error': s.get('error'), 'step': s.get('step'),
+             'simulators': [{'index': index, 'title': source.get('title', 'Simulador')} for index, source in simulator_sources(s)]}
+            for s in sessions]
+
+
+@router.get('/agent/sessions/{session_id}/simulator-diagnostics')
+async def get_simulator_diagnostics(session_id: str, full: bool = False, user: dict = Depends(require_agent_access)):
+    await _owned_diagnostic_session(session_id, user)
+    projection = {'_id': 0, 'ownerId': 0}
+    if not full:
+        projection.update({'result': 0, 'attempts.document': 0, 'attempts.review': 0})
+    records = await db.simulator_diagnostics.find({'sessionId': session_id, 'ownerId': user['user_id'],
+        'expiresAt': {'$gt': datetime.now(timezone.utc)}}, projection).sort('updatedAt', -1).limit(3).to_list(3)
+    run = await db.simulator_diagnostic_runs.find_one({'_id': session_id, 'ownerId': user['user_id']}, {'_id': 0, 'ownerId': 0})
+    if run and run.get('status') == 'running' and run['updatedAt'].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc)-timedelta(minutes=20):
+        run = dict(run, status='failed', error='A tentativa foi interrompida ou excedeu o tempo. Você pode tentar novamente.')
+    return {'records': records, 'run': run}
+
+
+class SimulatorDiagnosticRetry(BaseModel):
+    slideIndex: int = Field(ge=0, le=1000)
+
+
+@router.post('/agent/sessions/{session_id}/simulator-diagnostics/retry', status_code=202)
+async def retry_simulator_diagnostic(session_id: str, body: SimulatorDiagnosticRetry, user: dict = Depends(require_agent_access)):
+    from services.simulator_diagnostics import simulator_sources
+    session = await _owned_diagnostic_session(session_id, user)
+    source = dict(simulator_sources(session)).get(body.slideIndex)
+    if source is None:
+        raise HTTPException(400, 'Escolha um simulador existente na estrutura.')
+    if session.get('step') == 'storyboarding':
+        raise HTTPException(409, 'O Storyboard já está sendo gerado. Aguarde a conclusão.')
+    from pymongo.errors import DuplicateKeyError
+    now = datetime.now(timezone.utc)
+    run_id = str(uuid.uuid4())
+    try:
+        claimed = await db.simulator_diagnostic_runs.update_one(
+            {'_id': session_id, '$or': [{'status': {'$ne': 'running'}}, {'updatedAt': {'$lt': now-timedelta(minutes=20)}}]},
+            {'$set': {'ownerId': user['user_id'], 'status': 'running', 'runId': run_id,
+                      'slideIndex': body.slideIndex, 'title': source.get('title'), 'error': None, 'updatedAt': now}}, upsert=True)
+    except DuplicateKeyError:
+        raise HTTPException(409, 'Já existe uma tentativa em andamento para este curso.')
+    if not (claimed.modified_count or claimed.upserted_id):
+        raise HTTPException(409, 'Já existe uma tentativa em andamento.')
+
+    def work():
+        from services.simulator_diagnostics import diagnostic_scope, simulator_request
+        from services.visual_simulators import generate_visual_simulator
+        database = _get_bg_db()
+        try:
+            cached = list(database.simulator_diagnostics.find({'sessionId': session_id, 'ownerId': user['user_id'],
+                'status': 'accepted', 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
+            prompt, context = simulator_request(source, session.get('contentText', ''), session.get('config', {}))
+            with diagnostic_scope(_simulator_diagnostic_sink(database, session), cached):
+                asyncio.run(generate_visual_simulator(prompt, context, f'{session_id}_visual_simulator_{body.slideIndex}'))
+            update = {'status': 'accepted', 'error': None}
+        except Exception as exc:
+            update = {'status': 'failed', 'error': str(exc)[:12000]}
+            logger.warning('Simulator diagnostic retry failed: session=%s slide=%s type=%s', session_id, body.slideIndex, type(exc).__name__)
+        update['updatedAt'] = datetime.now(timezone.utc)
+        database.simulator_diagnostic_runs.update_one({'_id': session_id, 'runId': run_id}, {'$set': update})
+    import threading
+    threading.Thread(target=work, daemon=True).start()
+    return {'status': 'running', 'runId': run_id}
 
 
 @router.post("/agent/generate-bg-image")
