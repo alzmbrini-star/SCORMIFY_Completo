@@ -45,6 +45,12 @@ Exemplo efeito: {confianca:{op:"add",args:[{var:"confianca"},10]},evidencia:1}.
 O motor DESABILITA uma ação se o requisito for falso OU se qualquer efeito sair
 dos limites. Não há clamp oculto. Não presuma variáveis implícitas ou tempo real:
 custos de tempo, qualidade e orçamento devem estar explícitos nos efeitos.
+Declare ao menos uma trajetória executável que atinja failure.when, além da solução.
+Uma ação desabilitada por exceder min/max NÃO causa fracasso: o estado não muda.
+O limite de decisões também NÃO substitui a prova de failure.when. Se o orçamento
+esgota, represente o limiar de fracasso DENTRO dos limites permitidos; se há uma
+entrega malsucedida, a ação de avaliar deve permitir avaliar também preparo
+insuficiente. Não exija já estar aprovado para habilitar a única avaliação.
 As cenas são avaliadas em ordem: a PRIMEIRA com when=true é exibida; termine
 com uma cena when=true. Mude a cena com as descobertas/estado, não apenas pontuação.
 Pelo menos duas ações devem estar disponíveis inicialmente. Deve haver decisões
@@ -329,7 +335,7 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     by_id={a['id']:a for a in spec['actions']}
     proof=solve_rules(spec,budget)
     if proof['success'] is None: raise ValueError('Busca esgotou o orçamento sem provar solução' if proof['status']=='budget' else 'Objetivo inalcançável pelas regras')
-    if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos.')
+    if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos. Ação fora de min/max é desabilitada e não altera o estado; escolha um limiar de fracasso dentro dos limites e alcançável por ações habilitadas. Se houver avaliação, permita avaliar também uma preparação insuficiente, sem exigir os critérios de sucesso para habilitá-la. O limite de decisões não substitui failure.when. Verifique a sequência negativa ação por ação antes de retornar as regras.')
     if len(proof['success']) < 3: raise ValueError('Conclusão trivial: exija pelo menos três decisões')
     state=dict(initial); visited_scenes=set()
     for key in proof['success']:
