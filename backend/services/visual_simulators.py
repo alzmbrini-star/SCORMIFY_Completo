@@ -766,7 +766,9 @@ async def _enrich_rule_visual(result,prompt,context,session_id):
     provider,key,model=simulator_generation_config()
     if not key:return result
     visual,notice=await generate_visual(spec,prompt,context,session_id,provider,key,model)
-    if visual is not None:spec['visual']=visual
+    if visual is not None:
+        spec['visual']=visual
+        spec.pop('visualNotice',None)
     if notice:spec['visualNotice']=notice
     spec.setdefault('verification',{})['visualMode']='illustrated' if visual else 'conceptual'
     return {'html':render_rules(spec),'spec':spec}

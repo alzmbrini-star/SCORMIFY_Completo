@@ -83,7 +83,37 @@ def normalize_visual(raw):
             row.setdefault('label',str(row.get('id','Objeto')).replace('_',' '))
             flat.append(row)
             if children is not None:walk(children,row.get('id'),depth+1)
-    walk(raw.get('nodes'));raw['nodes']=flat
+    walk(raw.get('nodes'))
+    byid={row.get('id'):row for row in flat}
+    if len(byid)!=len(flat):raise ValueError('ID visual repetido')
+    # Some scene descriptions attach a caption to a rectangle. SVG primitives
+    # cannot contain rendered children: compile an identity group around both,
+    # retaining their authored coordinates, rather than inventing a translation.
+    used=set(byid);wrappers={}
+    for row in list(flat):
+        parent=byid.get(row.get('parent'))
+        if parent and parent.get('type')!='group' and parent.get('id') not in wrappers:
+            key='container_'+str(len(wrappers))
+            while key in used:key+='x'
+            used.add(key);wrapper={'id':key,'type':'group','label':parent.get('label',key),'attrs':{}}
+            if parent.get('parent'):wrapper['parent']=parent['parent']
+            if 'visibleWhen' in parent:wrapper['visibleWhen']=parent['visibleWhen']
+            wrappers[parent['id']]=wrapper
+    for row in flat:
+        if row.get('parent') in wrappers:row['parent']=wrappers[row['parent']]['id']
+    for original,wrapper in wrappers.items():byid[original]['parent']=wrapper['id'];flat.append(wrapper)
+    byid={row.get('id'):row for row in flat};ordered=[];visiting=set();done=set()
+    def place(row):
+        key=row.get('id')
+        if key in done:return
+        if key in visiting:raise ValueError('Ciclo entre grupos visuais')
+        visiting.add(key)
+        if row.get('parent'):
+            if row['parent'] not in byid:raise ValueError('Parent visual inexistente: '+str(row['parent']))
+            place(byid[row['parent']])
+        visiting.remove(key);done.add(key);ordered.append(row)
+    for row in flat:place(row)
+    raw['nodes']=ordered
     return raw
 
 
@@ -107,7 +137,7 @@ def validate_visual(raw, spec):
         node={'id':key,'type':kind,'label':_text(row.get('label'),120)}
         if row.get('parent'):
             parent=row['parent']
-            if parent not in seen or seen[parent]!='group':raise ValueError('Parent deve ser grupo declarado anteriormente')
+            if parent not in seen or seen[parent]!='group':raise ValueError('Parent de '+key+' deve ser grupo existente; recebido '+str(parent))
             node['parent']=parent
         attrs=row.get('attrs',{})
         if not isinstance(attrs,dict) or set(attrs)-ALLOWED[kind]:raise ValueError('Atributos não permitidos para '+str(kind))
@@ -213,7 +243,7 @@ states: [{when:PREDICADO,set:{atributos permitidos}}] primeira condição verdad
 async def generate_visual(data,prompt,context,session_id,provider,key,model):
     from emergentintegrations.llm.chat import LlmChat,UserMessage
     from services.simulator_diagnostics import record_attempt
-    source={k:v for k,v in data.items() if k not in {'checks','verification','visual','template','mechanic'}}
+    source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
              'sceneInstructions':'Prefira lista plana nodes com parent. A cena deve alterar os próprios objetos do ambiente, não só barras de indicadores. Preserve formas visíveis dentro de 800x450 no estado inicial e nos finais. Para uma barra/volume que cresce para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
     for attempt in range(2):
@@ -226,7 +256,8 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         except Exception as exc:
             error=str(exc)
             record_attempt(str(response),dict(mechanic='finite-rules-v1'),[{'issue':error,'context':'Cena visual; lógica preservada','action':'Corrigir apenas as formas e os vínculos visuais'}],error=error)
-            request.update(previousScene=str(response)[:35000],repairError=error)
+            request.update(previousScene=str(response)[:35000],repairError=error,
+                           repairInstruction='Corrija concretamente os objetos/atributos identificados no erro, não repita a cena anterior sem mudar. Retorne a cena JSON completa preservando os IDs das variáveis do modelo.')
     return None,'A cena ilustrada não pôde ser validada. Exibindo diagrama conceitual dos estados; regras preservadas.'
 
 
