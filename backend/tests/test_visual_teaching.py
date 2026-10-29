@@ -1,6 +1,6 @@
 import asyncio,copy,json,unittest
 from unittest.mock import patch,AsyncMock
-from services.visual_teaching import validate_scene_plan,validate_teaching,validate_review,generate_teaching_visual
+from services.visual_teaching import validate_scene_plan,validate_teaching,validate_review,generate_teaching_visual,observed_changes
 from services.rule_simulators import validate_rules,render_rules
 from services.rule_visuals import validate_visual
 from test_rule_visuals import lock_fixture
@@ -26,6 +26,12 @@ def scene_plan():
 
 
 class TeachingTests(unittest.TestCase):
+    def test_art_receives_executed_changes_without_solution_sequences(self):
+        data=validate_rules(teaching_fixture());changes=observed_changes(data)
+        self.assertIn([0,1],changes['entrada']['observedChanges'])
+        self.assertIn([0,2],changes['nivel']['observedChanges'])
+        self.assertNotIn('actions',json.dumps(changes))
+
     def test_composition_repairs_invalid_ids_before_drawing_any_art(self):
         data=validate_rules(teaching_fixture());data.pop('visual')
         bad=scene_plan();bad['mechanisms'][0]['var']='invented'
