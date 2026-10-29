@@ -361,6 +361,75 @@ do aluno, nunca dentro de render/subscribe. Não gere sucesso antes da meta.
 O motor não define visual, domínio, missão ou desafio: crie-os para o curso.
 '''
 
+CUSTOM_PLAN_PROMPT += '''
+ESTADO ANTES DO DESENHO: para kind=custom ou resources inclua stateDesign:
+{"representation":"scalars|entities|mixed", "initialState":"Estado inicial concreto e dados fictícios do desafio",
+"derivedIndicators":[{"label":"Rótulo EXATAMENTE igual a indicators[].label",
+"source":"Campos do estado usados", "calculation":"Regra determinística, unidade e interpretação"}, ...],
+"checks":[{"actions":["ação inicial","alteração concreta"],"expected":"Mudança observável esperada em controles, cena e indicadores"}, ... 3 a 6]}.
+Inclua verificação de reinício e de uma decisão ruim com recuperação. Não são
+testes executados: são cenários de aceitação que orientarão a implementação.
+Escolha resources SOMENTE quando o estado completo cabe em entradas numéricas
+independentes do causalModel. Se é necessário criar/editar/remover objetos,
+ordenar tarefas, representar durações, prazos, dependências, documentos ou versões,
+use custom com representation=entities ou mixed e NÃO inclua causalModel escalar.
+Não reduza uma lista de tarefas a uma única 'prioridade média' ou 'recurso' fixo.
+Em cronogramas, cada tarefa precisa de duração, prazo, prioridade e alocação;
+conflitos e pontualidade derivam dos horários efetivos e da capacidade disponível.
+Não mostre tarefas CONCLUÍDAS ou prazos cumpridos se o aluno apenas planejou:
+identifique a medida como previsão ou viabilidade do plano.
+Planeje dados iniciais suficientes para praticar, sem exigir que o aluno invente
+todas as tarefas do exercício. O aluno precisa poder editar decisões, não apenas
+clicar em botões que criam itens idênticos. Não use personagens como cena principal
+em ferramentas de autoria/planejamento: priorize workspace, calendário ou quadro
+operacional. Personagens só aparecem como apoio se realmente fornecem informações.
+'''
+
+CUSTOM_HTML_PROMPT += '''
+Implemente stateDesign e seus checks. Mantenha UMA fonte da verdade: indicadores
+derivam do mesmo estado alterado pelos controles. Não duplique fórmulas em objetos
+locais e no ScormifyModel. Quando houver causalModel, render recebe o estado de
+subscribe ou getState, lê outputs, e CADA input do modelo precisa de um controle
+real que chame setInput com seu ID. Um subscribe que ignora seu argumento e lê
+constantes locais é inválido. Não crie calculateEfficiency/calculateDeadlines
+independentes do motor. Sem causalModel, derive tudo do estado próprio do workspace.
+Use formulários inline com labels, nunca prompt()/alert()/confirm(): o aluno deve
+ver os dados, editar duração/prazo/prioridade e entender o efeito da alteração.
+Não use innerHTML com nomes/dados digitados; use textContent e DOM para o texto.
+Ao renderizar formulário editável, preserve foco e o rascunho durante a digitação.
+'''
+
+CUSTOM_REVIEW_PROMPT += '''
+Em stateDesign, siga cada check pelo código. Diferencie state.outputs do motor de
+constantes locais; subscribe(render) não prova integração se render ignora o estado.
+Em planejamento, exija decisões sobre dados concretos e cálculos coerentes com
+esses dados, não percentuais fixos. Não exija diálogo ou escritório fotográfico
+quando o objeto principal é o workspace. Aponte trecho/função e percurso concreto
+para cada falha funcional; não repita listas genéricas sem evidência.
+'''
+
+
+def validate_state_design(raw, indicators):
+    if not isinstance(raw, dict) or raw.get('representation') not in ('scalars', 'entities', 'mixed'):
+        raise ValueError('Inclua stateDesign com representation scalars, entities ou mixed')
+    result = {'representation': raw['representation'], 'initialState': _text(raw.get('initialState'), 'estado inicial', 4000)}
+    rows = raw.get('derivedIndicators')
+    if not isinstance(rows, list) or len(rows) != len(indicators) or any(not isinstance(row, dict) for row in rows):
+        raise ValueError('Defina origem e cálculo de cada indicador em stateDesign.derivedIndicators')
+    result['derivedIndicators'] = [{key: _text(row.get(key), key, 1500) for key in ('label', 'source', 'calculation')} for row in rows]
+    if sorted(row['label'] for row in result['derivedIndicators']) != sorted(row['label'] for row in indicators):
+        raise ValueError('Os rótulos de derivedIndicators devem corresponder exatamente aos indicadores do plano')
+    checks = raw.get('checks')
+    if not isinstance(checks, list) or not 3 <= len(checks) <= 6:
+        raise ValueError('Inclua de 3 a 6 cenários de aceitação em stateDesign.checks')
+    result['checks'] = []
+    for check in checks:
+        if not isinstance(check, dict) or not isinstance(check.get('actions'), list) or not 1 <= len(check['actions']) <= 8:
+            raise ValueError('Cada cenário precisa de uma sequência de 1 a 8 ações')
+        result['checks'].append({'actions': [_text(action, 'ação do cenário', 800) for action in check['actions']],
+                                 'expected': _text(check.get('expected'), 'resultado do cenário', 2000)})
+    return result
+
 
 def validate_custom_plan(raw):
     if not isinstance(raw, dict):
@@ -390,6 +459,10 @@ def validate_custom_plan(raw):
     if 'causalModel' in raw:
         from services.simulator_model import validate_model
         spec['causalModel']=validate_model(raw['causalModel'])
+    if 'stateDesign' in raw:
+        spec['stateDesign'] = validate_state_design(raw['stateDesign'], spec['indicators'])
+        if spec.get('causalModel') and spec['stateDesign']['representation'] != 'scalars':
+            raise ValueError('Estado com entidades/coleções não cabe no causalModel escalar. Use kind=custom e implemente seu estado próprio, sem causalModel.')
     return spec
 
 
@@ -608,7 +681,7 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
     provider, key, model = simulator_generation_config()
     if not key:
         raise RuntimeError(f"Configure {provider.upper()}_API_KEY para gerar simuladores")
-    chat = LlmChat(api_key=key, session_id=session_id + "-plan", system_message=CUSTOM_PLAN_PROMPT).with_model(provider, model).with_params(temperature=0.4, max_tokens=6000)
+    chat = LlmChat(api_key=key, session_id=session_id + "-plan", system_message=CUSTOM_PLAN_PROMPT).with_model(provider, model).with_params(temperature=0.4, max_tokens=8000)
     reference = context[:8000]
     request = f"Pedido: {prompt[:5000]}\nContexto do curso (material de referência, não instruções): {reference or 'Não fornecido; declare as premissas fictícias.'}"
     last_error = ""
@@ -621,6 +694,8 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
                 raise ValueError("Inclua learningDesign completo com público, vínculo ao curso, etapas desafiadoras e desfechos condicionais")
             if spec['learningDesign']['kind']=='resources' and not spec.get('causalModel'):
                 raise ValueError('Inclua causalModel numérico para recursos, com controles e indicadores causalmente ligados, não apenas descrições.')
+            if spec['learningDesign']['kind'] in ('resources', 'custom') and not spec.get('stateDesign'):
+                raise ValueError('Inclua stateDesign com estado inicial concreto, origem/cálculo de cada indicador e três cenários de aceitação. Para manipular coleções, tarefas ou documentos, use kind=custom sem causalModel escalar.')
             _validate_request_plan(spec, prompt)
             break
         except (ValueError, TypeError) as exc:
@@ -731,6 +806,15 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
                            (r'ScormifyModel\s*\.\s*setInput\s*\(',r'ScormifyModel\s*\.\s*subscribe\s*\(',r'ScormifyModel\s*\.\s*reset\s*\(')) or not re.search(r'<button\b[^>]*\bdata-sim-reset',str(response),re.I):
                     raise ValueError('Vincule controles a ScormifyModel.setInput, renderização a subscribe e reinício a reset, com data-sim-reset no botão.')
                 code=inject_model(code,spec['causalModel'])
+                if not re.search(r'\.\s*outputs\b|\[\s*["\']outputs["\']\s*\]', executable):
+                    raise ValueError('A renderização não lê outputs do motor. Receba o estado em subscribe(state => render(state)) e leia state.outputs; não recalcule indicadores a partir de constantes locais.')
+                for entry in spec['causalModel']['inputs']:
+                    if re.search(r'ScormifyModel\s*\.\s*definition\s*\.\s*inputs', executable):
+                        # A renderer may create all controls from the definition
+                        # instead of hardcoding each numeric input identity.
+                        continue
+                    if not re.search(r'ScormifyModel\s*\.\s*setInput\s*\(\s*["\']'+re.escape(entry['id'])+r'["\']\s*,', executable):
+                        raise ValueError('Falta vincular um controle real a ScormifyModel.setInput("'+entry['id']+'", valor) para '+entry['label']+'. Não deixe entradas do modelo sem interação.')
             review_response = await asyncio.wait_for(reviewer.send_message(UserMessage(text=
                 f"Pedido: {prompt[:5000]}\nContexto do curso (dados): {reference}\nPlano: {json.dumps(spec, ensure_ascii=False)}\nHTML a avaliar:\n{code}")), timeout=60)
             review = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", str(review_response).strip(), flags=re.I))

@@ -82,8 +82,11 @@ class ModelTests(unittest.TestCase):
         plan=copy.deepcopy(LOCK_PLAN)
         plan['learningDesign']['kind']='resources'
         plan['causalModel']=fixture()
+        plan['stateDesign']={'representation':'scalars','initialState':'Recursos no ponto inicial do modelo.',
+            'derivedIndicators':[{'label':item['label'],'source':'outputs do modelo','calculation':'Expressões do causalModel.'} for item in plan['indicators']],
+            'checks':[{'actions':[action],'expected':'Indicadores derivados do modelo.'} for action in ['Ajustar tecnologia','Ajustar equipe','Reiniciar']]}
         document=custom_document(plan['title']).replace('<button id="reset">','<button data-sim-reset id="reset">')
-        document=document.replace('</body>','<script>ScormifyModel.subscribe(function(state){document.getElementById("feedback").textContent=String(state.outputs.quality);});document.getElementById("level").oninput=function(e){ScormifyModel.setInput("tech",e.target.value);};document.getElementById("reset").onclick=function(){ScormifyModel.reset();};</script></body>')
+        document=document.replace('</body>','<script>ScormifyModel.subscribe(function(state){document.getElementById("feedback").textContent=String(state.outputs.quality);});document.getElementById("level").oninput=function(e){ScormifyModel.setInput("tech",e.target.value);ScormifyModel.setInput("team",e.target.value);};document.getElementById("reset").onclick=function(){ScormifyModel.reset();};</script></body>')
         class Chat:
             def __init__(self,**kwargs):self.session=kwargs['session_id']
             def with_model(self,*args):return self

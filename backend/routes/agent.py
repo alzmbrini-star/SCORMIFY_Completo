@@ -1018,6 +1018,14 @@ async def get_simulator_diagnostics(session_id: str, full: bool = False, user: d
     records = await db.simulator_diagnostics.find({'sessionId': session_id, 'ownerId': user['user_id'],
         'expiresAt': {'$gt': datetime.now(timezone.utc)}}, projection).sort('updatedAt', -1).limit(3).to_list(3)
     run = await db.simulator_diagnostic_runs.find_one({'_id': session_id, 'ownerId': user['user_id']}, {'_id': 0, 'ownerId': 0})
+    if run and run.get('status') == 'running':
+        terminal = next((record for record in records if record.get('status') in ('accepted', 'failed')
+            and record.get('generatorSessionId') == f"{session_id}_visual_simulator_{run['slideIndex']}"
+            and record['updatedAt'].replace(tzinfo=timezone.utc) >= run['updatedAt'].replace(tzinfo=timezone.utc)), None)
+        if terminal:
+            update = {'status': terminal['status'], 'error': terminal.get('error'), 'updatedAt': terminal['updatedAt']}
+            await db.simulator_diagnostic_runs.update_one({'_id': session_id, 'runId': run['runId'], 'status': 'running'}, {'$set': update})
+            run = dict(run, **update)
     if run and run.get('status') == 'running' and run['updatedAt'].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc)-timedelta(minutes=20):
         run = dict(run, status='failed', error='A tentativa foi interrompida ou excedeu o tempo. Você pode tentar novamente.')
     return {'records': records, 'run': run}
@@ -1053,18 +1061,20 @@ async def retry_simulator_diagnostic(session_id: str, body: SimulatorDiagnosticR
         from services.simulator_diagnostics import diagnostic_scope, simulator_request
         from services.visual_simulators import generate_visual_simulator
         database = _get_bg_db()
+        loop = asyncio.new_event_loop()
         try:
             cached = list(database.simulator_diagnostics.find({'sessionId': session_id, 'ownerId': user['user_id'],
                 'status': 'accepted', 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
             prompt, context = simulator_request(source, session.get('contentText', ''), session.get('config', {}))
             with diagnostic_scope(_simulator_diagnostic_sink(database, session), cached):
-                asyncio.run(generate_visual_simulator(prompt, context, f'{session_id}_visual_simulator_{body.slideIndex}'))
+                loop.run_until_complete(generate_visual_simulator(prompt, context, f'{session_id}_visual_simulator_{body.slideIndex}'))
             update = {'status': 'accepted', 'error': None}
         except Exception as exc:
             update = {'status': 'failed', 'error': str(exc)[:12000]}
             logger.warning('Simulator diagnostic retry failed: session=%s slide=%s type=%s', session_id, body.slideIndex, type(exc).__name__)
         update['updatedAt'] = datetime.now(timezone.utc)
         database.simulator_diagnostic_runs.update_one({'_id': session_id, 'runId': run_id}, {'$set': update})
+        loop.close()
     import threading
     threading.Thread(target=work, daemon=True).start()
     return {'status': 'running', 'runId': run_id}

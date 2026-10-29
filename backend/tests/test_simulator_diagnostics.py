@@ -112,6 +112,20 @@ class DiagnosticRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(projection['result'],0)
         cursor.limit.assert_called_once_with(3)
 
+    async def test_finished_record_recovers_running_status_without_running_again(self):
+        ns=self.namespace()
+        now=ns['datetime'].now(ns['timezone'].utc)
+        ns['db'].agent_sessions.find_one.return_value={'id':'session','userId':'owner'}
+        terminal={'status':'failed','generatorSessionId':'session_visual_simulator_8','updatedAt':now,'error':'Indicador constante'}
+        cursor=Mock();cursor.sort.return_value=cursor;cursor.limit.return_value=cursor;cursor.to_list=AsyncMock(return_value=[terminal])
+        ns['db'].simulator_diagnostics=SimpleNamespace(find=Mock(return_value=cursor))
+        ns['db'].simulator_diagnostic_runs=SimpleNamespace(find_one=AsyncMock(return_value={
+            'status':'running','slideIndex':8,'runId':'run','updatedAt':now-ns['timedelta'](minutes=1)}),update_one=AsyncMock())
+        result=await ns['get_simulator_diagnostics']('session',False,{'user_id':'owner'})
+        self.assertEqual(result['run']['status'],'failed')
+        self.assertEqual(result['run']['error'],'Indicador constante')
+        ns['db'].simulator_diagnostic_runs.update_one.assert_awaited_once()
+
     def test_private_sink_has_expiry_and_never_modifies_storyboard_or_structure(self):
         ns=self.namespace()
         collection=Mock();database=SimpleNamespace(simulator_diagnostics=collection)

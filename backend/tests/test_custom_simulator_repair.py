@@ -14,6 +14,9 @@ class CustomRepairTests(unittest.TestCase):
         plan=copy.deepcopy(LOCK_PLAN)
         plan['title']='Desenvolvimento de Prompts Criativos'
         plan['learningDesign']['kind']='custom'
+        plan['stateDesign']={'representation':'entities','initialState':'Rascunho vazio, nenhuma versão gerada.',
+            'derivedIndicators':[{'label':indicator['label'],'source':'versões e rascunho','calculation':'Derivar do histórico de versões.'} for indicator in plan['indicators']],
+            'checks':[{'actions':[action],'expected':'O estado e os controles refletem a mudança.'} for action in ['Criar rascunho','Gerar versão','Reiniciar']]}
         for control in plan['controls']:
             control['enabledWhen']='Depois de criar um rascunho não vazio.'
             control['stateChange']='Atualiza a versão atual e preserva o histórico.'
@@ -24,6 +27,16 @@ class CustomRepairTests(unittest.TestCase):
         self.assertEqual(plan['learningDesign']['kind'],'custom')
         self.assertIn('enabledWhen',plan['controls'][0])
         self.assertIn('stateChange',plan['controls'][0])
+        self.assertEqual(plan['stateDesign']['representation'],'entities')
+
+    def test_state_design_maps_every_indicator_and_requires_acceptance_sequences(self):
+        plan=self.plan()
+        plan['stateDesign']['derivedIndicators'][0]['label']='Outro indicador'
+        with self.assertRaisesRegex(ValueError,'corresponder exatamente'):
+            validate_custom_plan(plan)
+        plan=self.plan();plan['stateDesign']['checks']=[]
+        with self.assertRaisesRegex(ValueError,'cenários de aceitação'):
+            validate_custom_plan(plan)
 
     def test_repair_receives_exact_document_structured_diagnostics_and_original_context(self):
         plan=self.plan()
@@ -77,6 +90,28 @@ class CustomRepairTests(unittest.TestCase):
     def test_review_issues_normalized_for_legacy_and_bad_review(self):
         self.assertEqual(normalize_review_issues(['Erro concreto'])[0]['issue'],'Erro concreto')
         self.assertTrue(normalize_review_issues(None)[0]['issue'])
+
+    def test_diagnostic_scope_retains_all_rejected_documents_and_reviews(self):
+        from services.simulator_diagnostics import diagnostic_scope
+        plan=self.plan()
+        saved=[]
+        class Chat:
+            def __init__(self,**kwargs):self.session=kwargs['session_id']
+            def with_model(self,*args):return self
+            def with_params(self,**kwargs):return self
+            async def send_message(self,message):
+                if self.session.endswith('-plan'):return json.dumps(plan)
+                if self.session.endswith('-scene'):return custom_document(plan['title'])
+                return json.dumps({'pass':False,'issues':[{'issue':'Indicador congelado','context':'Após ajustar a duração','action':'Atualizar o indicador a partir do estado'}]})
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}),patch('services.visual_simulators.LlmChat',Chat),diagnostic_scope(saved.append):
+            with self.assertRaisesRegex(ValueError,'Indicador congelado'):
+                asyncio.run(generate_visual_simulator('Montando Seu Cronograma','Gestão do Tempo'))
+        failure=saved[-1]
+        self.assertEqual(failure['status'],'failed')
+        self.assertEqual(len(failure['attempts']),3)
+        self.assertEqual(failure['attempts'][0]['document'],custom_document(plan['title']))
+        self.assertIn('Indicador congelado',failure['attempts'][0]['review'])
+        self.assertNotIn('test-only',json.dumps(failure))
 
 
 if __name__=='__main__':unittest.main()
