@@ -241,7 +241,7 @@ class RuleTests(unittest.TestCase):
             async def send_message(self,message):
                 Chat.calls+=1
                 return '<script>bad code</script>' if Chat.calls==1 else json.dumps(fixtures()[3])
-        with patch('emergentintegrations.llm.chat.LlmChat',Chat):
+        with patch('emergentintegrations.llm.chat.LlmChat',Chat),patch('services.rule_visuals.generate_visual',AsyncMock(return_value=(None,'Diagrama conceitual para este teste'))):
             result=asyncio.run(generate_rule_simulator('Criatividade','Contexto','test','openai','fake','model'))
         self.assertEqual(Chat.calls,2);self.assertEqual(result['spec']['mechanic'],ENGINE)
 

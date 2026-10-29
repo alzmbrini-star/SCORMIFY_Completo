@@ -3,7 +3,7 @@ import base64
 from pathlib import Path
 import re
 
-MARKER = 'scormify-simulator-slide-v1'
+MARKER = 'scormify-simulator-slide-v2'
 ENGINE = re.compile(r'<body\b[^>]*\bdata-sim-engine=["\'](?:finite-rules-v1|entity-planning-v1)["\']', re.I)
 
 
@@ -25,8 +25,12 @@ def upgrade_simulator_slide(document):
             return '__B64__:'+base64.b64encode(updated.encode()).decode() if updated!=source else document
         except (ValueError,UnicodeError):
             return document
-    if not ENGINE.search(document) or f'id="{MARKER}"' in document or 'id="scormify-simulator-plan"' not in document:
+    if not ENGINE.search(document) or 'id="scormify-simulator-plan"' not in document:
         return document
+    from services.rule_visuals import upgrade_visual_document
+    document=upgrade_visual_document(document)
+    if f'id="{MARKER}"' in document:return document
+    document=re.sub(r'<script id="scormify-simulator-slide-v1">[\s\S]*?</script>','',document,count=1)
     script='<script id="'+MARKER+'">('+simulator_slide_source()+')();</script>'
     return re.sub(r'</body>',lambda _:script+'</body>',document,count=1,flags=re.I) if re.search(r'</body>',document,re.I) else document+script
 

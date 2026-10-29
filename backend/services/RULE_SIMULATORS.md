@@ -37,7 +37,7 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso direto de diagnósticos exige a versão 12 do gerador. Dados
+HTML do aluno. Reuso direto de diagnósticos exige a versão 13 do gerador. Dados
 JSON de versões conhecidas do mesmo contrato podem ser revalidados, sem IA,
 somente se o hash corresponder exatamente ao pedido, contexto e modelo originais.
 As rotas filtram proprietário, sessão e validade de retenção. O compilador atual
@@ -72,8 +72,38 @@ para um assunto. O tema, por si só, não restringe a geração.
 HTML/CSS/JS confiáveis e autocontidos apresentam cena por estado, indicadores,
 ações disponíveis e bloqueadas, consequências específicas, deltas, histórico,
 comparação de estados e reinício. Texto é inserido com `textContent`; a serialização
-escapa delimitadores HTML. A interface é responsiva e rola em vez de reduzir a
-fonte para caber. HTML, SCORM clássico e Single Page preservam esse viewport.
+escapa delimitadores HTML. A interface ocupa o slide sem rolagem da página ou
+redução global da fonte. Textos longos e ações são paginados; contexto e histórico
+abrem em diálogos. HTML, SCORM clássico e Single Page preservam esse viewport.
+
+## Camada visual contextualizada
+
+Depois de aprovar a lógica, uma etapa separada solicita uma cena JSON original.
+O grafo usa grupos e primitivas SVG (formas, caminhos, polígonos e texto), não
+modelos temáticos nem código gerado. Interpolação limitada vincula variáveis
+reais a posição, tamanho, rotação e opacidade. Predicados selecionam aparência
+e visibilidade; textos podem mostrar valores existentes. Objetos acionáveis
+usam os mesmos controles e requisitos do motor, nunca efeitos próprios.
+
+`rule_visuals.py` valida referências, tipos, quantidade, atributos permitidos,
+cores e coordenadas. Exige vínculos com pelo menos duas variáveis causais e
+uma mudança geométrica, e executa as projeções de trajetórias positiva/negativa.
+O renderizador confiável lê uma ponte de estado do motor; não interpreta JS
+do modelo, não usa imagens externas e não altera notas ou variáveis. Animações
+são curtas, respeitam movimento reduzido e são canceladas no reinício. A cena
+pode ser ampliada sem perder a interação nem duplicar IDs.
+
+São até duas tentativas para a cena, independentes dos reparos das regras. Se
+ela não for validada ou o serviço estiver indisponível, a atividade mantém as
+regras e exibe um **diagrama conceitual explicitamente identificado**, com aviso
+de que a ilustração não está disponível. Não há garantia de fidelidade científica
+da ilustração: a revisão didática e visual do autor continua necessária.
+
+Documentos canônicos anteriores recebem a apresentação conceitual sem chamar
+IA. Para criar uma cena ilustrada contextualizada, é necessária uma nova geração
+ou a retomada do diagnóstico do mesmo pedido; nesse último caso as regras podem
+ser revalidadas e somente a cena ausente usa IA. Simuladores legados ilustrados
+não são convertidos nem substituídos. Pacotes já exportados exigem nova exportação.
 
 O modelo é didático e fictício. Não envia nota/completion ao LMS por conta própria;
 as regras existentes do curso continuam responsáveis pela aprovação. Comparação

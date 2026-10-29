@@ -350,6 +350,11 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     spec['verification']['recomputedProposedChecks']=proposal_mismatches
     spec['verification']['actionKindsInWitness']=len(set(proof['success']))
     spec['verification']['stateGuardedActions']=sum(bool(_refs(a['requires'])) for a in spec['actions'])
+    if raw.get('visual') is not None:
+        from services.rule_visuals import validate_visual
+        spec['visual']=validate_visual(raw['visual'],spec)
+    spec['verification']['visualMode']='illustrated' if spec.get('visual') else 'conceptual'
+    if isinstance(raw.get('visualNotice'),str):spec['visualNotice']=raw['visualNotice'][:500]
     return spec
 
 
@@ -382,6 +387,11 @@ async def generate_rule_simulator(prompt, context, session_id, provider, key, mo
                     +json.dumps(shortcuts,ensure_ascii=False)
                     +'. Exija combinar decisões que afetem causalmente os critérios do objetivo. Não acrescente apenas um botão obrigatório de confirmação nem travas decorativas.')
             data['verification']['noSingleActionShortcut']=True
+            from services.rule_visuals import generate_visual
+            visual,notice=await generate_visual(data,prompt,context,session_id,provider,key,model)
+            if visual is not None:data['visual']=visual
+            if notice:data['visualNotice']=notice
+            data['verification']['visualMode']='illustrated' if visual else 'conceptual'
             document=render_rules(data)
             spec=dict(data,template='custom',mechanic=ENGINE)
             record_attempt(document,spec,[],review='Regras tipadas executadas; caminho de sucesso comprovado por busca e testes de trajetórias. Não certifica precisão científica ou revisão visual.')

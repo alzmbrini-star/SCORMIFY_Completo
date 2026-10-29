@@ -12,7 +12,7 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 12
+VERSION = 13
 MAX_DOCUMENT = 1000000
 
 
@@ -47,13 +47,14 @@ def diagnostic_scope(sink, cached=()):
         _scope.reset(token)
 
 
-async def capture_generation(generate, prompt, context, session_id, config):
+async def capture_generation(generate, prompt, context, session_id, config, enrich=None):
     scope = _scope.get()
     if scope is None:
         return await generate(prompt, context, session_id)
     key = generation_key(prompt, context, config)
     cached = scope[1].get(key)
-    if cached:
+    if cached and not (enrich is not None and (cached.get('result',{}).get('spec') or {}).get('mechanic')=='finite-rules-v1'
+                       and not (cached.get('result',{}).get('spec') or {}).get('visual')):
         return copy.deepcopy(cached['result'])
     record = {'version': VERSION, 'generationKey': key, 'generatorSessionId': session_id,
               'status': 'running', 'attempts': [], 'error': ''}
@@ -69,7 +70,8 @@ async def capture_generation(generate, prompt, context, session_id, config):
         if result is None:
             result = await generate(prompt, context, session_id)
         else:
-            record_attempt(result['html'],result['spec'],[],review='Dados anteriores revalidados pelo compilador atual, sem chamada de IA. Solução e teste contra atalhos comprovados novamente; HTML anterior não foi executado.')
+            if enrich is not None:result=await enrich(result,prompt,context,session_id)
+            record_attempt(result['html'],result['spec'],[],review='Regras anteriores revalidadas sem gerar outra lógica; solução e teste contra atalhos comprovados novamente. A ilustração ausente é tratada separadamente quando solicitado pelo gerador. HTML anterior não foi executado.')
         record.update(status='accepted', plan=result.get('spec'), result=result)
         if len(json.dumps(result, ensure_ascii=True)) > MAX_DOCUMENT:
             record.pop('result', None)

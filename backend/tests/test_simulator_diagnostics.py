@@ -12,6 +12,21 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_revalidated_logic_can_receive_only_the_missing_visual_layer(self):
+        from test_rule_simulators import fixtures
+        raw=fixtures()[0]
+        prior={'version':12,'status':'accepted','generationKey':generation_key('request','context',['p','m'],12),
+               'plan':{'mechanic':'finite-rules-v1'},'result':{'spec':raw}}
+        generate=AsyncMock(side_effect=AssertionError('Do not regenerate rules'))
+        async def enrich(result,*args):
+            result['spec']['visualNotice']='Camada visual tratada separadamente'
+            return result
+        visual=AsyncMock(side_effect=enrich);saved=[]
+        with diagnostic_scope(saved.append,[prior]):
+            result=await capture_generation(generate,'request','context','session',['p','m'],enrich=visual)
+        generate.assert_not_awaited();visual.assert_awaited_once()
+        self.assertEqual(saved[-1]['result']['spec']['visualNotice'],result['spec']['visualNotice'])
+
     async def test_prior_json_is_recompiled_without_ai_only_for_exact_input_and_current_proof(self):
         from test_rule_simulators import fixtures
         raw=fixtures()[0]

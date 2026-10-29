@@ -754,7 +754,22 @@ def validate_simulator_candidate(response, spec):
 async def generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
     from services.simulator_diagnostics import capture_generation
     provider, _key, model = simulator_generation_config()
-    return await capture_generation(_generate_visual_simulator, prompt, context, session_id, [provider, model])
+    return await capture_generation(_generate_visual_simulator, prompt, context, session_id, [provider, model], enrich=_enrich_rule_visual)
+
+
+async def _enrich_rule_visual(result,prompt,context,session_id):
+    """Reuse proven rules; only the absent contextual illustration calls AI."""
+    from services.rule_visuals import generate_visual
+    from services.rule_simulators import render_rules,ENGINE
+    spec=result.get('spec') or {}
+    if spec.get('mechanic')!=ENGINE or spec.get('visual'):return result
+    provider,key,model=simulator_generation_config()
+    if not key:return result
+    visual,notice=await generate_visual(spec,prompt,context,session_id,provider,key,model)
+    if visual is not None:spec['visual']=visual
+    if notice:spec['visualNotice']=notice
+    spec.setdefault('verification',{})['visualMode']='illustrated' if visual else 'conceptual'
+    return {'html':render_rules(spec),'spec':spec}
 
 
 async def _generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
