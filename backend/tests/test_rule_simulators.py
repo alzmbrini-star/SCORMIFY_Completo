@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from services.rule_simulators import (ENGINE, evaluate, expression, outcome,
-    render_rules, solve_rules, transition, trace_rules, validate_rules)
+    render_rules, solve_rules, transition, trace_rules, validate_rules, single_action_shortcuts)
 
 
 def ref(key): return {'var':key}
@@ -197,6 +197,19 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(spec['verification']['stateGuardedActions'],0)
         self.assertEqual(spec['verification']['actionKindsInWitness'],2)
         self.assertEqual(trace_rules(spec,proof['success'])['outcome'],'success')
+
+    def test_generation_policy_detects_click_spam_without_rejecting_two_control_experiments(self):
+        for raw in fixtures():
+            self.assertEqual(single_action_shortcuts(validate_rules(raw)),[])
+        raw=fixtures()[0]
+        raw['actions'][0].update(requires=True,effects={
+            'descoberta':op('min',2,op('add',ref('descoberta'),1)),
+            'confianca':op('min',4,op('add',ref('confianca'),1)),
+            'acordo':op('min',1,op('max',0,op('sub',ref('descoberta'),1)))})
+        data=validate_rules(raw)
+        self.assertTrue(data['verification']['solutionVerified'])
+        self.assertEqual(single_action_shortcuts(data)[0]['action'],'investigar')
+        self.assertEqual(single_action_shortcuts(data)[0]['count'],3)
 
     def test_renderer_escapes_untrusted_text_and_omits_answer_traces(self):
         raw=fixtures()[0];raw['title']='</script><img src=x onerror=alert(1)>'

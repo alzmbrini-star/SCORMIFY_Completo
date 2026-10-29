@@ -59,6 +59,11 @@ não permitem novas ações. Ao atingir maxSteps sem objetivo o motor encerra se
 Mantenha espaço de busca pequeno (flags, estágios e escalas discretas), mas com
 desafio real: investigar antes de decidir, compensar custos e comparar consequências.
 Não use incremento de 1 repetido até 100 ou vitória por clicar em uma sequência óbvia.
+Para este desafio de tomada de decisão, NENHUMA ação pode alcançar o objetivo
+sozinha por repetição. O aluno precisa combinar pelo menos dois controles ou
+intervenções. Exemplo de falha a evitar: um botão 'equilibrar' que soma eficácia
+e experiência até vencer, independentemente dos critérios de qualidade. Declare
+requisitos/cálculos reais que vinculem o resultado às outras decisões do aluno.
 Verifique mentalmente que as ações afetam o objetivo, inclusive indicadores derivados:
 se qualidade é uma variável, ela só muda por um efeito declarado, NUNCA por uma
 fórmula implícita. Para avaliar um resultado após preparação, use uma ação de avaliar
@@ -219,6 +224,26 @@ def trace_rules(spec, path):
     return {'actions':list(path),'outcome':outcome(spec,state,len(path)),'expected':state}
 
 
+def single_action_shortcuts(spec):
+    """Generation quality policy, not a restriction of the generic interpreter.
+
+Reject click-spam wins without requiring three different controls or artificial
+locks. Real parameter experiments may combine/repeat two or more interventions.
+"""
+    shortcuts=[]
+    for action in spec['actions']:
+        state={v['id']:v['initial'] for v in spec['variables']}
+        for count in range(1,spec['maxSteps']+1):
+            updated=transition(spec,state,action)
+            if updated is None: break
+            state=updated; result=outcome(spec,state,count)
+            if result=='success':
+                shortcuts.append({'action':action['id'],'count':count,'state':state})
+                break
+            if result=='failure': break
+    return shortcuts
+
+
 def validate_rules(raw, budget=SEARCH_BUDGET):
     if not isinstance(raw,dict): raise ValueError('Retorne um objeto JSON')
     if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700))
@@ -341,7 +366,14 @@ async def generate_rule_simulator(prompt, context, session_id, provider, key, mo
         response=await asyncio.wait_for(chat.send_message(UserMessage(text=request)),timeout=180)
         try:
             raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I))
-            data=validate_rules(raw); document=render_rules(data)
+            data=validate_rules(raw)
+            shortcuts=single_action_shortcuts(data)
+            if shortcuts:
+                raise ValueError('Atalho sem tomada de decisão: repetir uma única ação já vence. Contraexemplos executados: '
+                    +json.dumps(shortcuts,ensure_ascii=False)
+                    +'. Exija combinar decisões que afetem causalmente os critérios do objetivo. Não acrescente apenas um botão obrigatório de confirmação nem travas decorativas.')
+            data['verification']['noSingleActionShortcut']=True
+            document=render_rules(data)
             spec=dict(data,template='custom',mechanic=ENGINE)
             record_attempt(document,spec,[],review='Regras tipadas executadas; caminho de sucesso comprovado por busca e testes de trajetórias. Não certifica precisão científica ou revisão visual.')
             return {'html':document,'spec':spec}

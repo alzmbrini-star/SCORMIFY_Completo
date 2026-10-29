@@ -36,11 +36,17 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso de diagnósticos exige a versão 10 do gerador. Propostas de
+HTML do aluno. Reuso de diagnósticos exige a versão 11 do gerador. Propostas de
 testes inconsistentes são substituídas por trajetórias comprovadas e contabilizadas
 nos metadados de verificação. Erros independentes de regras são reportados juntos;
 cada reparo usa uma conversa nova. O compilador coloca cenas incondicionais como
 fallback e garante cobertura de estados, sem alterar as ações ou os objetivos.
+
+Além da validade formal, a geração de desafios testa cada ação repetida sozinha:
+se uma delas já permite vencer por repetição, a IA recebe esse contraexemplo para
+corrigir o atalho. Esta é uma política de qualidade do gerador, não uma restrição
+do interpretador. Não exige três controles diferentes nem converte experimentos
+de parâmetros em conversas. O teste não substitui a revisão pedagógica do autor.
 
 Orçamento de busca esgotado significa **não comprovado**, nunca prova de que uma
 simulação é impossível. Há até três tentativas de correção dos dados. Falhas não
