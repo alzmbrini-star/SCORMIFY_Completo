@@ -26,6 +26,21 @@ def scene_plan():
 
 
 class TeachingTests(unittest.TestCase):
+    def test_composition_repairs_invalid_ids_before_drawing_any_art(self):
+        data=validate_rules(teaching_fixture());data.pop('visual')
+        bad=scene_plan();bad['mechanisms'][0]['var']='invented'
+        responses=[bad,scene_plan(),teaching_fixture()['visual'],{'approved':True,'issues':[],'summary':'Coerente com o modelo.'}]
+        messages=[]
+        class Chat:
+            def __init__(self,**kwargs):pass
+            def with_model(self,*args):return self
+            def with_params(self,**kwargs):return self
+            async def send_message(self,message):messages.append(message.text);return json.dumps(responses[len(messages)-1])
+        with patch('emergentintegrations.llm.chat.LlmChat',Chat):
+            visual,notice=asyncio.run(generate_teaching_visual(data,'tema','referência','qa','openai','test','test'))
+        self.assertFalse(notice);self.assertIn('teaching',visual)
+        self.assertIn('availableVariableIds',messages[1]);self.assertIn('repairError',messages[1])
+
     def test_refinement_revalidates_and_preserves_rules_without_generating_new_logic(self):
         from services.simulator_visual_refinement import refine_visual
         raw=teaching_fixture();expected=validate_rules(raw)

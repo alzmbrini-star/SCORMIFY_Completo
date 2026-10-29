@@ -245,7 +245,7 @@ export function HtmlDialog({
                     </TabsContent>
                     <TabsContent value="code" className="flex-1 min-h-0 p-2">
                       <textarea className="w-full h-full min-h-[200px] p-3 rounded border bg-background font-mono text-xs resize-none"
-                        value={aiHtmlResult} onChange={(e) => setAiHtmlResult(e.target.value)} data-testid="ai-html-code-editor" />
+                        value={aiHtmlResult} disabled={aiHtmlLoading} onChange={(e) => setAiHtmlResult(e.target.value)} data-testid="ai-html-code-editor" />
                     </TabsContent>
                   </Tabs>
                 </div>
