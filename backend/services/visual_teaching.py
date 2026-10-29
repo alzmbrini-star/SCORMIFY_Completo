@@ -13,19 +13,39 @@ def _text(value,limit):
     return value.strip()
 
 
-def observed_changes(spec):
-    """Private art guidance from executed checks, without solution/action sequences."""
-    from services.rule_simulators import transition
+def visual_transitions(spec):
+    """Bounded reachable samples, including optional choices absent from proof paths."""
+    from collections import deque
+    from services.rule_simulators import transition,outcome
     initial={v['id']:v['initial'] for v in spec['variables']}
-    changes={key:[] for key in initial};actions={a['id']:a for a in spec['actions']}
+    actions={a['id']:a for a in spec['actions']};samples=[]
     for check in spec.get('checks',[]):
         state=dict(initial)
         for key in check['actions']:
             after=transition(spec,state,actions[key])
-            for var in initial:
-                pair=[state[var],after[var]]
-                if pair[0]!=pair[1] and pair not in changes[var] and len(changes[var])<8:changes[var].append(pair)
-            state=after
+            if after is None:break
+            samples.append((state,after));state=after
+    ids=list(initial);queue=deque([(initial,0)]);seen={tuple(initial.values())};visited=0
+    while queue and visited<512 and len(samples)<4096:
+        state,steps=queue.popleft();visited+=1
+        if outcome(spec,state,steps)!='active':continue
+        for action in spec['actions']:
+            after=transition(spec,state,action)
+            if after is None:continue
+            samples.append((state,after));key=tuple(after[k] for k in ids)
+            if key not in seen:
+                seen.add(key);queue.append((after,steps+1))
+    return samples
+
+
+def observed_changes(spec):
+    """Private art guidance from executed checks, without solution/action sequences."""
+    initial={v['id']:v['initial'] for v in spec['variables']}
+    changes={key:[] for key in initial}
+    for state,after in visual_transitions(spec):
+        for var in initial:
+            pair=[state[var],after[var]]
+            if pair[0]!=pair[1] and pair not in changes[var] and len(changes[var])<8:changes[var].append(pair)
     return {key:{'initial':initial[key],'observedChanges':pairs} for key,pairs in changes.items() if pairs}
 
 
@@ -53,13 +73,7 @@ def validate_teaching(raw,visual,spec):
     nodes={n['id']:n for n in visual['nodes']};variables={v['id']:v for v in spec['variables']}
     links=raw.get('links')
     if not isinstance(links,list) or not 2<=len(links)<=4:raise ValueError('Inclua 2 a 4 vínculos entre objeto, variável e consequência')
-    traces=[]
-    initial={v['id']:v['initial'] for v in spec['variables']}
-    actions={a['id']:a for a in spec['actions']}
-    for check in spec.get('checks',[]):
-        state=dict(initial)
-        for key in check['actions']:
-            updated=transition(spec,state,actions[key]);traces.append((state,updated));state=updated
+    traces=visual_transitions(spec)
     result=[];seen=set()
     for link in links:
         if not isinstance(link,dict):raise ValueError('Vínculo didático inválido')

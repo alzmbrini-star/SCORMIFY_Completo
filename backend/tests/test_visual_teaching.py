@@ -26,6 +26,17 @@ def scene_plan():
 
 
 class TeachingTests(unittest.TestCase):
+    def test_visual_samples_include_optional_actions_not_only_solver_witnesses(self):
+        from services.visual_teaching import visual_transitions
+        data=validate_rules(teaching_fixture());data['checks']=[]
+        data['variables'].append({'id':'optional','initial':0,'min':0,'max':1})
+        data['actions'].append({'id':'optional_choice','requires':True,'effects':{'optional':1}})
+        self.assertIn([0,1],observed_changes(data)['optional']['observedChanges'])
+        initial={v['id']:v['initial'] for v in data['variables']}
+        from services.rule_simulators import evaluate
+        self.assertTrue(all(not evaluate(data['goal']['when'],before) and not evaluate(data['failure']['when'],before)
+                            for before,after in visual_transitions(data)))
+
     def test_art_receives_executed_changes_without_solution_sequences(self):
         data=validate_rules(teaching_fixture());changes=observed_changes(data)
         self.assertIn([0,1],changes['entrada']['observedChanges'])
