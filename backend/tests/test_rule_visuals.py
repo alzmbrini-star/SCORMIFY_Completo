@@ -90,6 +90,10 @@ class VisualTests(unittest.TestCase):
         bad['visual']['nodes'][8]['bindings'][0]['output']=[30,900]
         with self.assertRaises(ValueError) as error:validate_rules(bad)
         self.assertIn('agua_camara',str(error.exception));self.assertIn('casco',str(error.exception))
+        edge=copy.deepcopy(flat);edge['nodes'][10]['attrs'].update(x=760,y=425)
+        scene=validate_visual(edge,data)
+        fitted=next(n for n in scene['nodes'] if n['id']=='cliente')
+        self.assertLess(fitted['attrs']['x'],760);self.assertEqual(fitted['attrs']['fontSize'],30)
 
     def test_different_subjects_share_one_graph_and_unchanged_rule_engine(self):
         for raw in (lock_fixture(),sales_visual()):

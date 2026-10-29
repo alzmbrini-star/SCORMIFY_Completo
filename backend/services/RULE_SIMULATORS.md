@@ -88,6 +88,12 @@ usam os mesmos controles e requisitos do motor, nunca efeitos próprios.
 `rule_visuals.py` valida referências, tipos, quantidade, atributos permitidos,
 cores e coordenadas. Exige vínculos com pelo menos duas variáveis causais e
 uma mudança geométrica, e executa as projeções de trajetórias positiva/negativa.
+O compilador também normaliza grupos aninhados e coordenadas locais, verifica
+objetos móveis e sobreposição estimada de rótulos nas trajetórias executáveis.
+Rótulos estáticos próximos à borda podem ser reposicionados sem reduzir a fonte;
+colisões são verificadas novamente. Erros independentes de enquadramento são
+reportados juntos. Cenas JSON guardadas no diagnóstico do mesmo pedido podem
+ser recompiladas, sem outra chamada de IA, após validação atual completa.
 O renderizador confiável lê uma ponte de estado do motor; não interpreta JS
 do modelo, não usa imagens externas e não altera notas ou variáveis. Animações
 são curtas, respeitam movimento reduzido e são canceladas no reinício. A cena

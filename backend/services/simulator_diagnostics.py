@@ -127,6 +127,18 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                     data=validate_rules(logic)
                     data['verification']['visualRevalidationRequired']=True
                 if single_action_shortcuts(data): continue
+                if not data.get('visual'):
+                    from services.rule_visuals import validate_visual
+                    for attempt in reversed(previous.get('attempts',[])[-3:]):
+                        document=attempt.get('document')
+                        if attempt.get('truncated') or not isinstance(document,str):continue
+                        try:
+                            scene=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',document.strip(),flags=re.I))
+                            data['visual']=validate_visual(scene,data)
+                            data['verification'].update(visualMode='illustrated',visualRecompiled=True)
+                            data.pop('visualNotice',None)
+                            break
+                        except (ValueError,TypeError,KeyError,RecursionError):continue
                 data['verification'].update(noSingleActionShortcut=True,revalidatedFromVersion=version)
                 return {'html':render_rules(data),'spec':dict(data,template='custom',mechanic=ENGINE)}
             except (ValueError,TypeError,KeyError,RecursionError):

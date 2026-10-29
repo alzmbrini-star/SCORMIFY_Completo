@@ -12,6 +12,17 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_saved_scene_json_is_recompiled_without_another_ai_call(self):
+        from test_rule_visuals import sales_visual
+        raw=sales_visual();scene=raw.pop('visual');scene['nodes'][10]['attrs']['x']=760;raw['mechanic']='finite-rules-v1'
+        prior={'version':14,'status':'accepted','generationKey':generation_key('request','context',['p','m'],14),
+               'plan':{'mechanic':'finite-rules-v1'},'result':{'spec':raw},'attempts':[{'document':json.dumps(scene)}]}
+        generate=AsyncMock(side_effect=AssertionError('No additional AI call required'))
+        saved=[]
+        with diagnostic_scope(saved.append,[prior]):result=await capture_generation(generate,'request','context','session',['p','m'],enrich=AsyncMock(side_effect=lambda result,*args:result))
+        generate.assert_not_awaited();self.assertEqual(result['spec']['verification']['visualMode'],'illustrated')
+        self.assertTrue(result['spec']['verification']['visualRecompiled'])
+
     async def test_new_visual_checks_preserve_the_previous_rules(self):
         from test_rule_visuals import sales_visual
         raw=sales_visual();raw['visual']['nodes'][10]['attrs'].update(x=170,y=305)

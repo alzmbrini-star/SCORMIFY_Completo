@@ -179,8 +179,10 @@ def validate_visual(raw, spec):
             when=expression(state['when'],ids,True)
             node['states'].append({'when':when,'set':{k:_property(k,v,ids) for k,v in state['set'].items()}})
             dynamic.update(_refs(when)&changed)
+            if _refs(when)&changed and set(state['set'])&{'x','y','width','height','r','rx','ry','rotation','d','points'}:geometric+=1
         if 'visibleWhen' in row:
             node['visibleWhen']=expression(row['visibleWhen'],ids,True);dynamic.update(_refs(node['visibleWhen'])&changed)
+            if kind!='text' and _refs(node['visibleWhen'])&changed:geometric+=1
         if row.get('action'):
             if row['action'] not in {a['id'] for a in spec['actions']}:raise ValueError('Ação visual inexistente')
             node['action']=row['action']
@@ -201,7 +203,7 @@ def validate_visual(raw, spec):
     # Check moving objects at actual executable states, including intermediate
     # steps. A complementary y/height binding is evaluated together, not guessed.
     definitions={n['id']:n for n in result['nodes']}
-    clipped={};label_errors=set()
+    clipped={};label_errors=set();text_spans={}
     for state in states:
         projections={n['id']:n for n in visual_state(result,state)}
         labels=[]
@@ -218,6 +220,8 @@ def validate_visual(raw, spec):
                 width=len(a['text'])*a.get('fontSize',28)*0.55;anchor=a.get('anchor','start')
                 left=x-(width/2 if anchor=='middle' else width if anchor=='end' else 0)
                 bounds=(left,y-a.get('fontSize',28)*0.85,left+width,y+a.get('fontSize',28)*0.2)
+                prior=text_spans.get(node['id'],bounds)
+                text_spans[node['id']]=(min(prior[0],bounds[0]),min(prior[1],bounds[1]),max(prior[2],bounds[2]),max(prior[3],bounds[3]))
                 for other_id,other in labels:
                     overlap=max(0,min(bounds[2],other[2])-max(bounds[0],other[0]))*max(0,min(bounds[3],other[3])-max(bounds[1],other[1]))
                     area=min((bounds[2]-bounds[0])*(bounds[3]-bounds[1]),(other[2]-other[0])*(other[3]-other[1]))
@@ -232,6 +236,18 @@ def validate_visual(raw, spec):
             if bounds and (bounds[0]<-8 or bounds[1]<-8 or bounds[2]>808 or bounds[3]>458):
                 prior=clipped.get(node['id'],bounds)
                 clipped[node['id']]=(min(prior[0],bounds[0]),min(prior[1],bounds[1]),max(prior[2],bounds[2]),max(prior[3],bounds[3]))
+    # Fit static labels at the edge by translation, never by shrinking their
+    # font or changing a variable/binding. Recheck collisions after the move.
+    adjusted=False
+    for key,bounds in text_spans.items():
+        node=definitions[key]
+        if key not in clipped or bounds[2]-bounds[0]>776 or bounds[3]-bounds[1]>426:continue
+        if any(b['property'] in {'x','y'} for b in node['bindings']) or any(set(s['set'])&{'x','y'} for s in node['states']):continue
+        dx=12-bounds[0] if bounds[0]<12 else 788-bounds[2] if bounds[2]>788 else 0
+        dy=12-bounds[1] if bounds[1]<12 else 438-bounds[3] if bounds[3]>438 else 0
+        if dx or dy:
+            node['attrs']['x']=node['attrs'].get('x',0)+dx;node['attrs']['y']=node['attrs'].get('y',0)+dy;adjusted=True
+    if adjusted:return validate_visual(result,spec)
     errors=[]
     if clipped:errors.append('Objetos/rótulos fora do canvas 800x450: '+json.dumps(clipped,ensure_ascii=False)+'. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
     if label_errors:errors.append('Rótulos sobrepostos (estimativa conservadora): '+', '.join(sorted(label_errors)[:16])+'. Separe os textos ou reorganize os objetos; não reduza a fonte abaixo de 24.')
