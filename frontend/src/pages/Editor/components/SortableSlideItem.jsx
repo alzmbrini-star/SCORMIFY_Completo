@@ -54,10 +54,20 @@ const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDel
       onClick={onClick}
       data-testid={`slide-${index}`}
     >
+      <button
+        type="button"
+        className="slide-thumbnail-select"
+        aria-label={`Slide ${index + 1}${slide.title ? `: ${slide.title}` : ''}`}
+        aria-current={isActive ? 'step' : undefined}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+      />
+      <span className="slide-thumbnail-number" aria-hidden="true">{index + 1}</span>
+      {isActive && <span className="slide-thumbnail-current" aria-hidden="true">✓ No canvas</span>}
       <div
         {...attributes}
         {...listeners}
-        className="absolute left-1 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 z-10 p-1 bg-background/80 rounded"
+        className="absolute left-1 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 focus-visible:opacity-100 z-30 p-1 bg-background/80 rounded"
+        aria-label={`Mover slide ${index + 1}`}
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical className="w-3 h-3 text-muted-foreground" />
@@ -104,18 +114,14 @@ const SortableSlideItem = ({ slide, index, isActive, onClick, onDuplicate, onDel
             {index + 1}
           </div>
         )}
-        {hasElements && (
-          <div className="absolute bottom-0.5 left-0.5 px-1 rounded text-[9px] font-medium text-muted-foreground/60 bg-background/40">
-            {index + 1}
-          </div>
-        )}
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+            className="absolute top-1 right-1 z-30 h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            aria-label={`Opções do slide ${index + 1}`}
             onClick={(e) => e.stopPropagation()}
           >
             <MoreVertical className="w-3 h-3" />

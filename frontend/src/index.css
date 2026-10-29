@@ -120,7 +120,57 @@
   }
 
   .slide-thumbnail.active {
-    @apply border-primary/70 ring-2 ring-primary/20;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgb(56 189 248 / 45%);
+  }
+
+  .slide-thumbnail-select {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    cursor: pointer;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+  }
+
+  .slide-thumbnail-select:focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: -4px;
+  }
+
+  .slide-thumbnail-number, .slide-thumbnail-current {
+    position: absolute;
+    z-index: 20;
+    pointer-events: none;
+    color: #fff;
+    background: #0f172a;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    box-shadow: 0 1px 5px rgb(0 0 0 / 40%);
+    font: 700 14px/1.2 Inter, system-ui, sans-serif;
+  }
+
+  .slide-thumbnail-number {
+    top: 6px;
+    left: 6px;
+    min-width: 30px;
+    padding: 5px 7px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .slide-thumbnail.active .slide-thumbnail-number, .slide-thumbnail-current {
+    color: #082f49;
+    background: #7dd3fc;
+    border-color: #e0f2fe;
+  }
+
+  .slide-thumbnail-current {
+    bottom: 6px;
+    left: 6px;
+    padding: 4px 7px;
+    font-size: 12px;
   }
 
   .canvas-element {
