@@ -1084,6 +1084,8 @@ window.addEventListener('resize',gameFit);[0,80,360,1100,1900].forEach(function(
 def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
                                  slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
+    from services.simulator_slide import upgrade_simulator_slide
+    raw = upgrade_simulator_slide(raw)
     # Upgrade legacy interactive slides whose fit script prohibited upscaling.
     # This keeps existing games readable in the modern wide player without
     # forcing administrators to regenerate the course.
@@ -1138,7 +1140,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             'height:100%;overflow:hidden;box-sizing:border-box}'
             '*{box-sizing:border-box}</style>'
         )
-        if 'data-sim-engine="finite-rules-v1"' in raw:
+        if 'data-sim-engine="finite-rules-v1"' in raw or 'data-sim-engine="entity-planning-v1"' in raw:
             # This responsive workspace owns its scrolling viewport. Hiding body
             # overflow would strand actions/history below the exported frame.
             reset_css = ''
@@ -1507,6 +1509,9 @@ def generate_single_page_html(
     Gamification engine + hooks at quiz/scenario/course completion points
     (badges, feedback modals, final summary).
     """
+    import copy
+    from services.simulator_slide import refresh_simulator_slides
+    project_doc=refresh_simulator_slides(copy.deepcopy(project_doc))
     project_id = project_doc.get("id", "")
     name = project_doc.get("name", "Curso")
     course = project_doc.get("course", {}) or {}

@@ -5,6 +5,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { authHeaders } from '../contexts/AuthContext';
 import { resolveAssetUrls } from '../utils/htmlUtils';
+import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
@@ -971,7 +972,8 @@ export default function Editor() {
         y: 50,
         width: 400,
         height: 300,
-        htmlContent: htmlConfig.content,
+        ...(isSlideSimulator(htmlConfig.content) ? { x: 0, y: 0, width: Number(currentSlide?.width) || 1920, height: Number(currentSlide?.height) || 820 } : {}),
+        htmlContent: upgradeSimulatorSlide(htmlConfig.content),
         htmlDisplayMode: 'page',
       });
       setShowHtmlDialog(false);
@@ -1045,7 +1047,8 @@ export default function Editor() {
         y: 50,
         width: 400,
         height: 300,
-        htmlContent: aiHtmlResult,
+        ...(isSlideSimulator(aiHtmlResult) ? { x: 0, y: 0, width: Number(currentSlide?.width) || 1920, height: Number(currentSlide?.height) || 820 } : {}),
+        htmlContent: upgradeSimulatorSlide(aiHtmlResult),
         htmlDisplayMode: 'page',
       });
       setShowHtmlDialog(false);

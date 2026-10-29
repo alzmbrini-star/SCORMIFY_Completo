@@ -540,6 +540,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Prepare course.json - Fix asset URLs for SCORM package
     course_data = course.model_dump()
+    from services.simulator_slide import refresh_simulator_slides
+    refresh_simulator_slides({'course':course_data})
     
     # Convert datetime to string
     course_data['createdAt'] = course.createdAt.isoformat() if course.createdAt else None
@@ -765,6 +767,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             # Process HTML elements - fix image URLs inside htmlContent
             if elem_type == 'html':
                 html_content = element.get('htmlContent') or ''
+                from services.simulator_slide import upgrade_simulator_slide
+                html_content = upgrade_simulator_slide(html_content)
                 if html_content and isinstance(html_content, str):
                     # Normalize game geometry while building course.json. Some
                     # legacy Agent games have no interactiveType and may store

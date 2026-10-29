@@ -199,11 +199,12 @@ def solve_planning(spec, budget=50000):
 
 
 def render_planning(data):
+    from services.simulator_slide import upgrade_simulator_slide
     data=validate_planning(data)
     folder=Path(__file__).parent/'export_assets'
     payload=json.dumps(data,ensure_ascii=True).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
     document=(folder/'planning-simulator.html').read_text(encoding='utf-8')
-    return document.replace('__PLANNING_ENGINE__',(folder/'planning-engine.js').read_text(encoding='utf-8')).replace('__PLANNING_DATA__',payload)
+    return upgrade_simulator_slide(document.replace('__PLANNING_ENGINE__',(folder/'planning-engine.js').read_text(encoding='utf-8')).replace('__PLANNING_DATA__',payload))
 
 
 async def generate_planning_simulator(prompt, context, session_id, provider, key, model):

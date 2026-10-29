@@ -10,13 +10,14 @@ const fixtures=JSON.parse(execFileSync(python,['-c',`import json,sys
 sys.path.insert(0,'tests')
 from test_rule_simulators import fixtures
 from services.rule_simulators import *
+from services.simulator_slide import upgrade_simulator_slide
 out=[]
 source=fixtures()
 if len(sys.argv)>1:
  with open(sys.argv[1],encoding='utf-8-sig') as file: diagnostic=json.load(file)
  record=next(r for r in diagnostic['records'] if r['status']=='accepted' and r['result']['spec'].get('mechanic')==ENGINE)
  source=[record['result']['spec']]
- assert record['result']['html']==render_rules(source[0]), 'Downloaded HTML differs from the trusted compiler'
+ assert upgrade_simulator_slide(record['result']['html'])==render_rules(source[0]), 'Downloaded HTML differs from the trusted compiler'
 for raw in source:
  data=validate_rules(raw)
  paths=[]

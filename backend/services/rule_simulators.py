@@ -354,12 +354,13 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
 
 
 def render_rules(data):
+    from services.simulator_slide import upgrade_simulator_slide
     data=validate_rules(data)
     public={k:v for k,v in data.items() if k not in {'checks','verification'}}
     payload=json.dumps(public,ensure_ascii=True).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
     folder=Path(__file__).parent/'export_assets'
-    return (folder/'rule-simulator.html').read_text(encoding='utf-8').replace(
-        '__RULE_ENGINE__',(folder/'rule-engine.js').read_text(encoding='utf-8')).replace('__RULE_DATA__',payload)
+    return upgrade_simulator_slide((folder/'rule-simulator.html').read_text(encoding='utf-8').replace(
+        '__RULE_ENGINE__',(folder/'rule-engine.js').read_text(encoding='utf-8')).replace('__RULE_DATA__',payload))
 
 
 async def generate_rule_simulator(prompt, context, session_id, provider, key, model):

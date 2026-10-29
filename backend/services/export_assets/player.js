@@ -1488,7 +1488,7 @@ var CoursePlayer = (function() {
                     // so tall content was centered before scaling and its top
                     // and bottom were clipped. Absolute centering measures the
                     // full content first and then fits it with safe padding.
-                    if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v3') === -1) {
+                    if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v3') === -1 && wrappedHtml.indexOf('scormify-simulator-slide-v1') === -1) {
                         var fitUpgrade = '<style id="__scormify_fit_v3">html,body{overflow:hidden!important;}body{display:block!important;position:relative!important;}</style>' +
                             '<script>(function(){function u(){var st=document.getElementById("__stage");if(!st)return;st.style.position="absolute";st.style.left="0";st.style.top="0";st.style.margin="0";st.style.transformOrigin="0 0";function fit(){st.style.transform="none";var sr=st.getBoundingClientRect(),minX=0,minY=0,maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);Array.prototype.forEach.call(st.querySelectorAll("*"),function(n){var cs=getComputedStyle(n);if(cs.display==="none"||cs.visibility==="hidden")return;var r=n.getBoundingClientRect();if(!r.width&&!r.height)return;minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);});var cw=maxX-minX,ch=maxY-minY,p=12,s=Math.max(.1,Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1)),tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform="translate("+tx+"px,"+ty+"px) scale("+s+")";}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",u);else u();})();<\/script>';
                         var legacyBodyIdx = wrappedHtml.toLowerCase().lastIndexOf('</body>');
@@ -1518,6 +1518,7 @@ var CoursePlayer = (function() {
                         }
                     } else if (wrappedHtml.indexOf('__stage') === -1 &&
                                wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 &&
+                               wrappedHtml.indexOf('data-sim-engine="entity-planning-v1"') === -1 &&
                                wrappedHtml.indexOf('data-case-study-version="2"') === -1 &&
                                wrappedHtml.indexOf('data-human-simulator-version="1"') === -1 &&
                                (element.htmlDisplayMode || 'page') === 'fit') {

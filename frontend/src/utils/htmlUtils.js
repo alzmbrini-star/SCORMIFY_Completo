@@ -10,6 +10,7 @@ import { upgradeCrosswordHtml } from './crosswordHtml';
 import { upgradeBattleHtml } from './battleHtml';
 import { upgradeTreasureHtml } from './treasureHtml';
 import { upgradeClimbHtml } from './climbHtml';
+import { upgradeSimulatorSlide } from './simulatorSlide';
 const API_URL = getApiUrl();
 
 /**
@@ -203,6 +204,7 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
+  html = upgradeSimulatorSlide(html);
   if (/data-case-study-version=["']2["']|data-human-simulator-version=["']1["']|data-sim-engine=["'](?:entity-planning-v1|finite-rules-v1)["']/.test(html)) return html;
   if (/id=["']assessment-data["']/.test(html)) {
     return injectDocumentSnippet(html, '<style id="assessment-viewport">' + assessmentLayout + '</style>');

@@ -514,9 +514,10 @@ async def generate_standalone_html(
             
             # Process HTML elements (Rich Text Editor content with embedded images)
             if element.get('type') == 'html' and element.get('htmlContent'):
+                from services.simulator_slide import upgrade_simulator_slide
                 # Process any images inside the HTML content (including AI-generated images)
                 processed_html = await process_html_content_images(
-                    element['htmlContent'],
+                    upgrade_simulator_slide(element['htmlContent']),
                     assets_dir,
                     base_url
                 )
@@ -719,6 +720,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     # Create a deep copy and sanitize htmlContent fields to prevent JSON/JS issues
     import copy
     sanitized_data = copy.deepcopy(course_data)
+    from services.simulator_slide import refresh_simulator_slides
+    refresh_simulator_slides({'course':sanitized_data})
     
     # Pull the pre-resolved branded loader config from the course_data
     # envelope (set by `generate_standalone_html`). Fall back to neutral
@@ -2394,7 +2397,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 // Upgrade simulators saved with an older stage wrapper.
                                 // Measuring every visible descendant also includes
                                 // absolute/fixed controls outside the normal flow.
-                                if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v3') === -1) {{
+                                if (wrappedHtml.indexOf('__stage') !== -1 && wrappedHtml.indexOf('__scormify_fit_v3') === -1 && wrappedHtml.indexOf('scormify-simulator-slide-v1') === -1) {{
                                     var fitUpgrade = '<style id="__scormify_fit_v3">html,body{{overflow:hidden!important;}}body{{display:block!important;position:relative!important;}}</style>' +
                                         '<scr' + 'ipt>(function(){{function u(){{var st=document.getElementById("__stage");if(!st)return;st.style.position="absolute";st.style.left="0";st.style.top="0";st.style.margin="0";st.style.transformOrigin="0 0";function fit(){{st.style.transform="none";var sr=st.getBoundingClientRect(),minX=0,minY=0,maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);Array.prototype.forEach.call(st.querySelectorAll("*"),function(n){{var cs=getComputedStyle(n);if(cs.display==="none"||cs.visibility==="hidden")return;var r=n.getBoundingClientRect();if(!r.width&&!r.height)return;minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);}});var cw=maxX-minX,ch=maxY-minY,p=12,s=Math.max(.1,Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1)),tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform="translate("+tx+"px,"+ty+"px) scale("+s+")";}}addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",u);else u();}})();</scr' + 'ipt>';
                                     var fitInsert = wrappedHtml.toLowerCase().lastIndexOf('</bo' + 'dy>');
@@ -2405,7 +2408,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 if (wrappedHtml.indexOf('__stage') === -1) {{
                                     var documentSnippet;
                                     var insertTag;
-                                    if ((elem.htmlDisplayMode || 'page') === 'fit' && wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1) {{
+                                    if ((elem.htmlDisplayMode || 'page') === 'fit' && wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 && wrappedHtml.indexOf('data-sim-engine="entity-planning-v1"') === -1) {{
                                         documentSnippet = '<style id="__scormify_fit_v3">html,body{{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;}}body{{display:block!important;position:relative!important;}}</style>' +
                                             '<scr' + 'ipt>(function(){{function b(){{var bd=document.body;if(!bd||document.getElementById("__stage"))return;var st=document.createElement("div");st.id="__stage";st.style.cssText="width:960px;position:absolute;left:0;top:0;margin:0;transform-origin:0 0;";while(bd.firstChild){{st.appendChild(bd.firstChild);}}bd.appendChild(st);function fit(){{st.style.transform="none";var sr=st.getBoundingClientRect(),minX=0,minY=0,maxX=Math.max(960,st.scrollWidth,st.offsetWidth),maxY=Math.max(540,st.scrollHeight,st.offsetHeight);Array.prototype.forEach.call(st.querySelectorAll("*"),function(n){{var cs=getComputedStyle(n);if(cs.display==="none"||cs.visibility==="hidden")return;var r=n.getBoundingClientRect();if(!r.width&&!r.height)return;minX=Math.min(minX,r.left-sr.left);minY=Math.min(minY,r.top-sr.top);maxX=Math.max(maxX,r.right-sr.left);maxY=Math.max(maxY,r.bottom-sr.top);}});var cw=maxX-minX,ch=maxY-minY,p=12,s=Math.max(.1,Math.min((innerWidth-p*2)/cw,(innerHeight-p*2)/ch,1)),tx=(innerWidth-cw*s)/2-minX*s,ty=(innerHeight-ch*s)/2-minY*s;st.style.transform="translate("+tx+"px,"+ty+"px) scale("+s+")";}}window.addEventListener("resize",fit);fit();setTimeout(fit,300);setTimeout(fit,1000);}}if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",b);}}else{{b();}}}})();</scr' + 'ipt>';
                                         insertTag = '</bo' + 'dy>';
