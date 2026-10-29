@@ -27,6 +27,8 @@ tarefa pode ser feita, dependencies: lista de IDs de tarefas que terminam antes 
 event: {title: até 100, message: até 500 explicando o imprevisto,
 resourceId: ID de recurso, start: inteiro a partir de 0, duration: inteiro 1 a 4}.
 O imprevisto ocupa UMA unidade da capacidade desse recurso nesse intervalo.
+Ele deve poder afetar o horário de pelo menos uma tarefa desse recurso: não
+coloque uma reunião num intervalo em que nenhuma tarefa poderia ocorrer.
 Deve existir solução com TODAS as tarefas dentro dos prazos, respeitando
 dependências e capacidades, MESMO após o imprevisto. Não gere uma missão impossível.
 Inclua pelo menos duas dependências, duas prioridades diferentes e recurso
@@ -36,6 +38,8 @@ reduzi-las sinaliza risco de qualidade, não acelera magicamente a aprendizagem.
 O aluno não executa trabalho real: os indicadores avaliam a VIABILIDADE do plano,
 não a conclusão real do projeto. Identifique claramente os dados como fictícios
 para prática; não invente normas, garantias de segurança ou precisão científica.
+debrief deve ser uma reflexão neutra, sem 'Parabéns', aprovação antecipada ou
+afirmação de conclusão do projeto: o motor explica o resultado efetivamente obtido.
 Começa com tarefas no banco, não alocadas. Depois de alocar duas tarefas o aluno
 pode revelar o imprevisto. Para finalizar precisa lidar com esse imprevisto.
 A identidade visual é fornecida pelo motor; tema, nomes, restrições e dificuldade
@@ -57,6 +61,8 @@ def planning_request(prompt):
         else:
             text = str(prompt)
     text = ''.join(c for c in unicodedata.normalize('NFKD', text.lower()) if not unicodedata.combining(c))
+    if re.search(r'\b(?:nao|sem|exceto)\s+(?:um[a]?\s+)?(?:cronogram\w*|agenda|scheduling)\b',text):
+        return False
     return bool(re.search(r'\b(?:cronogram\w*|scheduling|calendariz\w*)\b|\b(?:montar|organizar|planejar)\s+(?:a\s+|o\s+|as\s+|meu\s+|seu\s+|sua\s+)?(?:agenda|tarefas|semana|dia)\b', text))
 
 
@@ -136,9 +142,21 @@ def validate_planning(raw):
     duration=_integer(event.get('duration'),'duração do imprevisto',1,min(4,horizon-start))
     result['event']={'title':_text(event.get('title'),'imprevisto',100),'message':_text(event.get('message'),'explicação do imprevisto',500),
                      'resourceId':event['resourceId'],'start':start,'duration':duration}
+    if re.search(r'^\s*parab[eé]ns\b|(?:você|voce)\s+conclu[ií]u com sucesso',result['debrief'],re.I):
+        raise ValueError('Use debrief reflexivo e neutro. O resultado é calculado pelo motor, não pode ser presumido nos textos.')
     solution=solve_planning(result)
     if solution is None:
         raise ValueError('Não foi possível comprovar uma solução dentro do orçamento de busca. Ajuste durações, prazos, dependências ou capacidade; preserve o desafio e o contexto.')
+    earliest={}
+    pending=list(result['tasks'])
+    while pending:
+        ready=[task for task in pending if all(dep in earliest for dep in task['dependencies'])]
+        for task in ready:
+            earliest[task['id']]=max([earliest[dep]+next(item['duration'] for item in result['tasks'] if item['id']==dep) for dep in task['dependencies']] or [0])
+            pending.remove(task)
+        if not ready:break
+    if not any(event['resourceId'] in task['allowedResources'] and earliest.get(task['id'],horizon)<start+duration and task['due']>start for task in result['tasks']):
+        raise ValueError('O imprevisto não pode afetar nenhuma tarefa dentro dos prazos. Escolha recurso e intervalo relevantes ao caso, mantendo uma solução possível.')
     # The witness is verified server-side, not embedded as the learner's answer.
     result['verification']={'engine':'entity-planning-v1','feasibleWithEvent':True,'tasks':len(tasks)}
     return result

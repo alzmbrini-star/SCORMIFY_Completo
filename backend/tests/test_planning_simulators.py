@@ -28,7 +28,7 @@ class PlanningTests(unittest.TestCase):
         for text in ['Simulador: Montando Seu Cronograma','Crie um cronograma de manutenção industrial','Organizar as tarefas da equipe','Planning scheduling workshop']:
             self.assertTrue(planning_request(text),text)
         self.assertTrue(planning_request(json.dumps({'title':'Meu cronograma','purpose':'Montar o planejamento'})))
-        for text in ['Simule uma negociação SPIN','Cronômetro','Operar uma bomba hidráulica',json.dumps({'title':'Dar feedback','courseTitle':'Gestão do Tempo com Cronogramas'})]:
+        for text in ['Simule uma negociação SPIN','Simule vendas, sem cronograma','Cronômetro','Operar uma bomba hidráulica',json.dumps({'title':'Dar feedback','courseTitle':'Gestão do Tempo com Cronogramas'})]:
             self.assertFalse(planning_request(text),text)
 
     def test_same_operations_accept_different_themes_and_have_feasible_witness(self):
@@ -73,6 +73,14 @@ class PlanningTests(unittest.TestCase):
         embedded=html.split('type="application/json">',1)[1].split('</script>',1)[0]
         self.assertEqual(json.loads(embedded)['title'],'__PLANNING_ENGINE__')
         self.assertEqual(html.count('function createPlanningEngine('),1)
+
+    def test_decorative_interruption_and_premature_success_text_are_rejected(self):
+        data=fixture();data['event'].update(resourceId='apoio',start=14,duration=2)
+        with self.assertRaisesRegex(ValueError,'imprevisto não pode afetar'):
+            validate_planning(data)
+        data=fixture();data['debrief']='Parabéns! Você concluiu com sucesso.'
+        with self.assertRaisesRegex(ValueError,'reflexivo e neutro'):
+            validate_planning(data)
 
     def test_agent_and_editor_canonical_generator_request_only_data(self):
         from services.visual_simulators import generate_visual_simulator
