@@ -26,7 +26,9 @@ for(const mutate of [v=>{v.nodes[5].bindings[0].property='fill';},v=>{v.nodes[5]
  const visual=JSON.parse(JSON.stringify(packet.visual));mutate(visual);assert.equal(check(visual),false);
 }
 assert.ok(ajv.compile(packet.planSchema)(packet.plan));
+assert.equal(ajv.compile(packet.planSchema)({...packet.plan,focus:'x'.repeat(221)}),false);
 assert.ok(ajv.compile(packet.reviewSchema)({approved:true,summary:'Relações coerentes.',issues:[]}));
+assert.equal(ajv.compile(packet.reviewSchema)({approved:true,summary:'x'.repeat(601),issues:[]}),false);
 function strictObjects(s){if(!s||typeof s!=='object')return;if(s.type==='object'){assert.equal(s.additionalProperties,false);assert.deepEqual([...s.required].sort(),Object.keys(s.properties).sort());}for(const v of Object.values(s)){if(Array.isArray(v))v.forEach(strictObjects);else if(v&&typeof v==='object')strictObjects(v);}}
 strictObjects(packet.schema);strictObjects(packet.planSchema);strictObjects(packet.reviewSchema);
 console.log('PASS constrained scene vocabulary: typed shape-specific attributes/bindings, exact variable IDs, recursive predicates, strict objects, null round-trip and provider fallback');

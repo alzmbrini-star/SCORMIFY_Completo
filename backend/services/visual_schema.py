@@ -4,18 +4,18 @@ def obj(properties):
 
 
 def array(items,low=0,high=100):return {'type':'array','items':items,'minItems':low,'maxItems':high}
-def string():return {'type':'string'}
+def string(limit=None):return {'type':'string',**({'minLength':1,'maxLength':limit} if limit else {})}
 def nullable(schema):return {'anyOf':[schema,{'type':'null'}]}
 
 
 def plan_schema(ids):
-    mechanism=obj({'var':{'type':'string','enum':ids},'object':string(),'change':string(),'meaning':string()})
-    return obj({'setting':string(),'focus':string(),'composition':string(),'artDirection':string(),'mechanisms':array(mechanism,2,4)})
+    mechanism=obj({'var':{'type':'string','enum':ids},'object':string(100),'change':string(180),'meaning':string(240)})
+    return obj({'setting':string(600),'focus':string(220),'composition':string(800),'artDirection':string(1000),'mechanisms':array(mechanism,2,4)})
 
 
 def review_schema(ids):
-    issue=obj({'nodes':array({'type':'string','enum':ids},0,8),'problem':string(),'correction':string()})
-    return obj({'approved':{'type':'boolean'},'summary':string(),'issues':array(issue,0,6)})
+    issue=obj({'nodes':array({'type':'string','enum':ids},0,8),'problem':string(350),'correction':string(500)})
+    return obj({'approved':{'type':'boolean'},'summary':string(600),'issues':array(issue,0,6)})
 
 
 def scene_schema(ids,actions):
@@ -49,9 +49,9 @@ def scene_schema(ids,actions):
             'states':array(state,0,8),'visibleWhen':nullable({'$ref':'#/$defs/predicate'}),
             'action':nullable({'type':'string','enum':actions})})
         definitions['node_'+kind]=node;variants.append({'$ref':'#/$defs/node_'+kind})
-    link=obj({'node':string(),'var':{'type':'string','enum':ids},'whatChanges':string(),'whyItMatters':string()})
-    teaching=obj({'version':{'type':'integer','enum':[1]},'focus':string(),'readScene':string(),'links':array(link,2,4)})
-    result=obj({'version':{'type':'integer','enum':[1]},'title':string(),'description':string(),
+    link=obj({'node':string(),'var':{'type':'string','enum':ids},'whatChanges':string(180),'whyItMatters':string(240)})
+    teaching=obj({'version':{'type':'integer','enum':[1]},'focus':string(220),'readScene':string(700),'links':array(link,2,4)})
+    result=obj({'version':{'type':'integer','enum':[1]},'title':string(100),'description':string(600),
         'background':{'type':'string','pattern':'^#[0-9a-fA-F]{6}$'},'nodes':array({'anyOf':variants},6,100),'teaching':teaching})
     result['$defs']=definitions
     return result
