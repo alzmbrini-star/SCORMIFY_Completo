@@ -989,15 +989,30 @@ export default function Editor() {
   };
 
   // Generate HTML with AI
-  const handleGenerateHtmlAI = async () => {
+  const handleGenerateHtmlAI = async (visualSource = '') => {
     if (aiHtmlLoading) return;
-    if (!aiHtmlPrompt.trim()) {
+    const refining = typeof visualSource === 'string' && !!visualSource.trim();
+    let sourceSimulator = '';
+    if (refining) {
+      try {
+        const document = new DOMParser().parseFromString(visualSource, 'text/html');
+        if (document.body.getAttribute('data-sim-engine') !== 'finite-rules-v1') throw new Error('unsupported');
+        const model = JSON.parse(document.getElementById('scormify-simulator-plan').textContent);
+        delete model.visual; delete model.visualNotice;
+        sourceSimulator = JSON.stringify(model);
+      } catch {
+        toast.error('O refino visual está disponível para simuladores do motor de regras. O HTML original não foi alterado.');
+        return;
+      }
+    }
+    if (!aiHtmlPrompt.trim() && !refining) {
       toast.error('Digite uma descrição do que deseja gerar');
       return;
     }
     setAiHtmlLoading(true);
     setAiHtmlProgress('Enviando pedido de geração…');
-    setAiHtmlResult('');
+    if (!refining) setAiHtmlResult('');
+    else { setAiHtmlResult(visualSource); setHtmlDialogTab('ai'); }
     try {
       const slideContext = (currentSlide?.elements || [])
         .map((element) => element.content || element.text || element.htmlContent || '')
@@ -1022,11 +1037,13 @@ export default function Editor() {
         }),
       ].filter(Boolean).join(' — ').slice(0, 8000);
       const html = await generateHtmlJob(API_URL, {
-        prompt: aiHtmlPrompt, courseContext, projectId: currentProject?.id || projectId || '',
+        prompt: aiHtmlPrompt.trim() || 'Refine apenas a composição visual didática deste simulador, preservando todas as regras e o tema descrito no modelo.', courseContext, projectId: currentProject?.id || projectId || '',
         simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
+        ...(refining ? { sourceSimulator } : {}),
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);
-      toast.success('HTML gerado com sucesso!');
+      setAiHtmlProgress(refining ? 'Refino visual concluído. Confira a prévia antes de inserir; as regras foram preservadas.' : 'Geração concluída. Confira a prévia antes de inserir.');
+      toast.success(refining ? 'Cenário refinado; regras e resultados preservados.' : 'HTML gerado com sucesso!');
     } catch (err) {
       setAiHtmlProgress(err.message || 'Erro ao gerar HTML');
       toast.error(err.message || 'Erro ao gerar HTML');
@@ -2507,7 +2524,7 @@ export default function Editor() {
           aiHtmlPrompt={aiHtmlPrompt} setAiHtmlPrompt={setAiHtmlPrompt}
           aiHtmlResult={aiHtmlResult} setAiHtmlResult={setAiHtmlResult}
           aiHtmlLoading={aiHtmlLoading} aiHtmlProgress={aiHtmlProgress}
-          simulatorOptions={simulatorOptions} onSimulatorOptionsChange={value => { setSimulatorOptions(value); setAiHtmlResult(''); setAiHtmlProgress(''); }}
+          simulatorOptions={simulatorOptions} onSimulatorOptionsChange={value => { setSimulatorOptions(value); setAiHtmlProgress('As opções serão aplicadas à próxima geração ou ao refinar o cenário.'); }}
           handleAddHtml={handleAddHtml} handleGenerateHtmlAI={handleGenerateHtmlAI} handleInsertAiHtml={handleInsertAiHtml}
         />
 

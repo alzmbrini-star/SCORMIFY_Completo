@@ -97,6 +97,18 @@ class Jobs(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('requestHash', result)
         self.assertEqual((await self.start())['status'], 'done')
 
+    async def test_visual_refinement_uses_same_owned_idempotent_worker_without_regenerating_rules(self):
+        self.body.sourceSimulator='{"title":"Dados de origem"}'
+        self.body.simulatorComplexity='advanced';self.body.simulatorVisualStyle='technical'
+        job=await self.start();fake=ModuleType('services.simulator_visual_refinement')
+        fake.refine_visual=AsyncMock(return_value={'html':'<html>Nova cena</html>'})
+        with patch.dict(sys.modules,{'services.simulator_visual_refinement':fake}):
+            for function,*args in self.tasks+self.tasks:await function(*args)
+        fake.refine_visual.assert_awaited_once_with(self.body.sourceSimulator,self.body.prompt,self.body.courseContext,'advanced','technical')
+        result=await self.scope['get_html_job'](job['jobId'],self.user)
+        self.assertEqual(result['html'],'<html>Nova cena</html>')
+        self.assertNotIn('sourceSimulator',result)
+
     async def test_another_owner_cannot_read_result(self):
         job = await self.start()
         with self.assertRaises(HttpError) as err:

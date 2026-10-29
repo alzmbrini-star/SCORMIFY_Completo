@@ -127,7 +127,7 @@ def normalize_visual(raw):
 def validate_visual(raw, spec):
     from services.rule_simulators import expression,_refs,_id,trace_rules
     raw=normalize_visual(raw)
-    if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes'}:
+    if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes','teaching'}:
         raise ValueError('Cena deve seguir o contrato visual versão 1')
     result={'version':VERSION,'title':_text(raw.get('title'),100),'description':_text(raw.get('description'),600),
             'background':_color(raw.get('background')),'nodes':[]}
@@ -271,6 +271,9 @@ def validate_visual(raw, spec):
     if clipped:errors.append('Objetos/rótulos fora do canvas 800x450: '+json.dumps(clipped,ensure_ascii=False)+'. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
     if label_errors:errors.append('Rótulos sobrepostos (estimativa conservadora): '+', '.join(sorted(label_errors)[:16])+'. Separe os textos ou reorganize os objetos; não reduza a fonte abaixo de 24.')
     if errors:raise ValueError(' | '.join(errors)+' Corrija TODOS os objetos listados.')
+    if raw.get('teaching') is not None:
+        from services.visual_teaching import validate_teaching
+        result['teaching']=validate_teaching(raw['teaching'],result,spec)
     return result
 
 
@@ -317,6 +320,9 @@ def illustration_detail_issues(visual,spec):
 
 
 async def generate_visual(data,prompt,context,session_id,provider,key,model):
+    if (data.get('experience') or {}).get('complexity')=='advanced':
+        from services.visual_teaching import generate_teaching_visual
+        return await generate_teaching_visual(data,prompt,context,session_id,provider,key,model)
     from emergentintegrations.llm.chat import LlmChat,UserMessage
     from services.simulator_diagnostics import record_attempt
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic'}}

@@ -42,7 +42,7 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso direto de diagnósticos exige a versão 16 do gerador. Dados
+HTML do aluno. Reuso direto de diagnósticos exige a versão 17 do gerador. Dados
 JSON de versões conhecidas do mesmo contrato podem ser revalidados, sem IA,
 somente se o hash corresponder exatamente ao pedido, contexto e modelo originais.
 As rotas filtram proprietário, sessão e validade de retenção. O compilador atual
@@ -89,6 +89,32 @@ redução global da fonte. Textos longos e ações são paginados; contexto e hi
 abrem em diálogos. HTML, SCORM clássico e Single Page preservam esse viewport.
 
 ## Camada visual contextualizada
+
+### Composição didática avançada
+
+Novas gerações avançadas planejam ambiente, enquadramento e 2–4 mecanismos
+observáveis antes de desenhar. O mesmo contrato serve a qualquer tema suportado,
+sem selecionar modelos temáticos. Uma etapa independente revisa a relação entre
+o plano, os objetos, as mudanças reais e as explicações. O revisor recebe JSON e
+projeções executadas, não pixels: não é certificação estética ou de aprendizagem.
+
+`visual.teaching` vincula objetos não textuais a variáveis existentes, com mudança
+perceptível nas trajetórias positiva/negativa. Número isolado, referência inventada,
+vínculo desconectado ou variação mínima imperceptível não bastam. Orientação e
+valores antes/depois aparecem fora da ilustração; o botão **Como interpretar** abre
+as explicações completas. A cena ocupa cerca de 2/3 do slide, indicadores essenciais
+acompanham as ações à direita e instrumentos/histórico ficam em detalhes opcionais.
+Objetos acionáveis continuam usando as mesmas ações e requisitos do motor, com
+alternativa por botão e teclado. Reinício limpa os realces e a leitura da última ação.
+
+O Editor permite **Refinar cenário** na prévia de IA. Em Colar HTML, um simulador
+do motor de regras oferece **Preparar refino visual**: o autor escolhe nível/estilo
+e solicita a nova arte. Somente JSON limitado e revalidado é enviado; HTML anterior
+nunca é executado pelo servidor. Regras, objetivos e resultados permanecem iguais;
+uma falha não substitui a prévia anterior. O curso só muda quando o autor insere.
+O Agente pode reaproveitar regras do pedido exato e solicitar apenas a arte quando
+uma ilustração antiga não possui os novos vínculos didáticos. Recursos antigos
+salvos não são substituídos automaticamente. A revisão final do autor continua necessária.
 
 Agente (Configurar) e Editor (HTML → Gerar com IA) permitem escolher interação
 Guiada, Aplicada ou Avançada e abordagem ilustrada ou técnica. As opções fazem

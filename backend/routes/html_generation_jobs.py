@@ -20,6 +20,7 @@ class HtmlJobRequest(BaseModel):
     courseContext: str = Field(default='', max_length=8000)
     simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
+    sourceSimulator: str = Field(default='', max_length=120000)
     projectId: str = Field(default='', max_length=100)
     requestId: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
 
@@ -44,8 +45,13 @@ async def _run(job_id, owner, request, user):
         {'$set': {'status': 'running', 'updatedAt': datetime.now(timezone.utc)}})
     if not claimed.modified_count: return
     try:
-        from routes.agent import GenerateHtmlRequest, generate_html_with_ai
-        result = await asyncio.wait_for(generate_html_with_ai(
+        if request.get('sourceSimulator'):
+            from services.simulator_visual_refinement import refine_visual
+            result=await asyncio.wait_for(refine_visual(request['sourceSimulator'],request['prompt'],request['courseContext'],
+                request.get('simulatorComplexity','advanced'),request.get('simulatorVisualStyle','illustrated')),timeout=18*60)
+        else:
+            from routes.agent import GenerateHtmlRequest, generate_html_with_ai
+            result = await asyncio.wait_for(generate_html_with_ai(
             GenerateHtmlRequest(prompt=request['prompt'], courseContext=request['courseContext'],
                                 simulatorComplexity=request.get('simulatorComplexity','guided'),
                                 simulatorVisualStyle=request.get('simulatorVisualStyle','illustrated')),

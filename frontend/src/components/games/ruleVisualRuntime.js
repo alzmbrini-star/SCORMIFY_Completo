@@ -24,6 +24,14 @@ export function ruleVisualRuntime() {
   var title=svg('title'),desc=svg('desc');title.textContent=authored?visual.title:'Mapa visual dos estados';desc.textContent=authored?visual.description:((data.visualNotice||'')+' Diagrama conceitual: as formas mostram os estados reais e suas mudanças. Não é uma representação física do ambiente.').trim();picture.appendChild(title);picture.appendChild(desc);picture.setAttribute('aria-label',title.textContent);figure.dataset.visualDescription=desc.textContent;
   picture.style.background=authored?color(visual.background):'#102a43';picture.style.fontFamily='system-ui,sans-serif';figure.appendChild(picture);
   var caption=node('figcaption');caption.className='sim-visual-caption';figure.appendChild(caption);anchor.parentNode.insertBefore(figure,anchor);
+  var teaching=authored&&visual.teaching&&visual.teaching.version===1?visual.teaching:null;
+  var explanation=null,guide=null,previousState=null;
+  if(teaching){
+    explanation=node('span');explanation.setAttribute('role','status');explanation.setAttribute('aria-live','polite');caption.appendChild(explanation);
+    guide=node('button','Como interpretar');guide.type='button';guide.className='sim-visual-guide';guide.addEventListener('click',function(){document.dispatchEvent(new CustomEvent('scormify:visual-guide'));});caption.appendChild(guide);
+    caption.style.display='flex';caption.style.alignItems='center';caption.style.gap='8px';explanation.style.flex='1';explanation.style.minWidth='0';
+    explanation.style.display='-webkit-box';explanation.style.webkitLineClamp='2';explanation.style.webkitBoxOrient='vertical';explanation.style.overflow='hidden';guide.style.flexShrink='0';
+  }
   var style=node('style');style.id='rule-visual-style';style.textContent='.sim-rule-visual{margin:0;display:flex;flex-direction:column;min-width:0;min-height:0;flex:1;overflow:hidden}.sim-rule-visual>svg{display:block;width:100%;flex:1;min-height:0;border:1px solid #59768f;border-radius:10px}.sim-dialog-body .sim-rule-visual{height:min(65vh,520px);min-height:200px}.sim-visual-caption{font:calc(14px * var(--sim-ui,1))/1.35 system-ui,sans-serif;color:#dceafb;padding-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.sim-rule-visual [role="button"]{cursor:pointer}.sim-rule-visual [aria-disabled="true"]{cursor:not-allowed}.sim-rule-visual [role="button"]:focus-visible{outline:3px solid #fbbf24;outline-offset:4px}.sim-rule-visual [data-visual-changed="true"]{filter:drop-shadow(0 0 5px #7dd3fc)}';document.head.appendChild(style);
   var entries=[],elements=Object.create(null),frame=null,initial=true,lastStep=0;
   var propertyNames={strokeWidth:'stroke-width',fontSize:'font-size',fontWeight:'font-weight',anchor:'text-anchor'};
@@ -83,7 +91,13 @@ export function ruleVisualRuntime() {
     if(animate&&typeof window.requestAnimationFrame==='function'){
       var start=null;function step(now){if(start===null)start=now;var t=Math.min(1,(now-start)/420);paint(t*t*(3-2*t));frame=t<1?window.requestAnimationFrame(step):null;}frame=window.requestAnimationFrame(step);
     }else paint(1);
-    caption.textContent=(authored?'Cena vinculada às decisões · ':data.visualNotice?'Ilustração indisponível; diagrama conceitual · ':'Diagrama conceitual dos estados · ')+(view.scene?view.scene.title:'Estado inicial');
+    if(teaching){
+      var changedLinks=(teaching.links||[]).filter(function(link){return previousState&&previousState[link.var]!==view.state[link.var];});
+      if(reset||!previousState)explanation.textContent=teaching.focus;
+      else if(changedLinks.length)explanation.textContent='Observe: '+changedLinks.map(function(link){var v=data.variables.find(function(item){return item.id===link.var;});return v.label+': '+previousState[link.var]+' → '+view.state[link.var]+'. '+link.whatChanges+' '+link.whyItMatters;}).join(' ').slice(0,420);
+      previousState=Object.assign({},view.state);
+      caption.title=explanation.textContent;figure.dataset.observedVariables=changedLinks.map(function(link){return link.var;}).join(',');
+    }else caption.textContent=(authored?'Cena vinculada às decisões · ':data.visualNotice?'Ilustração indisponível; diagrama conceitual · ':'Diagrama conceitual dos estados · ')+(view.scene?view.scene.title:'Estado inicial');
   }
   var state=Object.create(null);data.variables.forEach(function(v){state[v.id]=v.initial;});update({state:state,steps:0,actions:[],scene:{title:'Estado inicial'}});
   document.addEventListener('scormify:rules-state',function(event){update(event.detail);});

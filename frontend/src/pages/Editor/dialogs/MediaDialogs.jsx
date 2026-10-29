@@ -206,6 +206,7 @@ export function HtmlDialog({
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              {htmlConfig.content.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => { setAiHtmlResult(htmlConfig.content); setHtmlDialogTab('ai'); }}>Preparar refino visual</Button>}
               <Button onClick={handleAddHtml} data-testid="confirm-add-html">Adicionar HTML</Button>
             </DialogFooter>
           </TabsContent>
@@ -230,7 +231,7 @@ export function HtmlDialog({
                     {aiHtmlLoading ? 'Gerando...' : 'Gerar HTML'}
                   </Button>
                 </div>
-                {!aiHtmlResult && aiHtmlProgress && <p role="status" className="text-sm text-muted-foreground mt-2">{aiHtmlProgress}</p>}
+                {aiHtmlProgress && <p role="status" className="text-sm text-muted-foreground mt-2">{aiHtmlProgress}</p>}
               </div>
               {aiHtmlResult && (
                 <div className="flex flex-col shrink-0 border rounded-lg overflow-hidden">
@@ -252,7 +253,8 @@ export function HtmlDialog({
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              {aiHtmlResult && <Button onClick={handleInsertAiHtml} data-testid="ai-html-insert-btn">Inserir no Slide</Button>}
+              {aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => handleGenerateHtmlAI(aiHtmlResult)} data-testid="ai-html-refine-visual-btn">Refinar cenário</Button>}
+              {aiHtmlResult && <Button onClick={handleInsertAiHtml} disabled={aiHtmlLoading} data-testid="ai-html-insert-btn">Inserir no Slide</Button>}
             </DialogFooter>
           </TabsContent>
         </Tabs>

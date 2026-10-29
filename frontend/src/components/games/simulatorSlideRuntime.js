@@ -8,7 +8,9 @@ export function simulatorSlideRuntime() {
     var definition={},experience=null;
     if(rule){try{definition=JSON.parse(document.getElementById('scormify-simulator-plan').textContent);experience=definition.experience||null;}catch(_){/* retain legacy presentation */}}
     var guided=experience&&experience.complexity==='guided',applied=experience&&experience.complexity==='applied';
-    var progressive=guided||applied;
+    var didactic=!!(definition.visual&&definition.visual.teaching&&definition.visual.teaching.version===1);
+    var sceneLed=guided||didactic,progressive=guided||applied||didactic;
+    var teachingPrimary=didactic?definition.visual.teaching.links.map(function(link){return link.var;}).filter(function(id,i,all){return all.indexOf(id)===i;}).slice(0,3):[];
     var ids = planning ? ['title','subtitle','mission','briefing','connection','coverage','score','overload','late','status','chart','tasks','selectedTitle','description','reference','dependencies','start','duration','resource','include','remove','earlier','later','event','reveal','load','violations','save','versions','comparison','restore','extraName','extraDuration','extraDue','addExtra','finalize','reset','report'] : ['title','subtitle','mission','briefing','connection','counter','status','sceneTitle','sceneDescription','facts','metrics','actions','history','result','resultTitle','resultMessage','debrief','save','snapshots','comparison','reset'];
     var nodes = {};
     ids.forEach(function (id) { nodes[id] = document.getElementById(id); });
@@ -58,11 +60,14 @@ export function simulatorSlideRuntime() {
       '@media(max-width:700px){.sim-exp-guided #sim-slide-shell{grid-template-rows:auto 38px minmax(0,1fr) 48px}.sim-exp-guided .sim-main,.sim-comp-scene-led .sim-main,.sim-comp-instruments .sim-main{grid-template-columns:minmax(0,1fr)}.sim-exp-applied #sim-slide-shell{grid-template-rows:auto 76px 38px minmax(0,1fr) 48px}}';
     style.textContent += 'body.sim-palette-warm{background:#f5efe6!important}.sim-exp-guided .sim-metric-strip .track,.sim-exp-applied .sim-metric-strip .track{display:none}.sim-exp-guided .sim-metric-strip .metric strong{margin:2px 0!important}.sim-exp-applied .sim-metric-strip .metric{padding:6px 10px!important}.sim-exp-applied .sim-metric-strip .metric strong{font-size:22px!important}.sim-exp-applied .sim-metric-strip .metric>div:first-child{font-size:13px!important}';
     style.textContent += '.sim-learning-brief{font-size:16px;line-height:1.4;margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0;color:#dceafb}.sim-palette-daylight .sim-learning-brief,.sim-palette-daylight .sim-reader{color:#31556e}.sim-palette-daylight .sim-dialog-body .sim-visual-caption{color:#dceafb}';
+    style.textContent=style.textContent.replace(/\.sim-exp-guided/g,':is(.sim-exp-guided,.sim-didactic-scene)');
+    style.textContent+='.sim-didactic-scene .sim-main{grid-template-columns:minmax(0,2fr) minmax(270px,1fr)}@media(max-width:700px){.sim-didactic-scene .sim-main{grid-template-columns:minmax(0,1fr)}}';
     style.textContent=style.textContent.replace(/\{([^{}]*)\}/g,function(block){return block.replace(/(\d+(?:\.\d+)?)px/g,function(_,value){return 'calc('+value+'px * var(--sim-ui,1))';});});
     var uiScale=1;
     function setUIScale(){uiScale=Math.max(1,Math.min(2,window.innerWidth/960,window.innerHeight/540));document.body.style.setProperty('--sim-ui',String(uiScale));}
     setUIScale();document.head.appendChild(style);
     document.body.classList.add('sim-slide');
+    if(didactic)document.body.classList.add('sim-didactic-scene');
     if(experience){document.body.classList.add('sim-exp-'+experience.complexity,'sim-comp-'+experience.composition,'sim-palette-'+(experience.palette==='warm'?'daylight':experience.palette));if(experience.palette==='warm')document.body.classList.add('sim-palette-warm');}
     var bank = document.createElement('div'); bank.id = 'sim-slide-sources'; bank.hidden = true;
     var children = Array.prototype.slice.call(document.body.children);
@@ -107,7 +112,7 @@ export function simulatorSlideRuntime() {
     var metrics=planning?nodes.coverage.closest('.metrics'):nodes.metrics;metricStrip.appendChild(metrics);
     var mobile=make('nav',undefined,'sim-mobile-tabs');mobile.setAttribute('aria-label','Painel principal');mobile.setAttribute('role','tablist');shell.appendChild(mobile);
     var main=make('main',undefined,'sim-main'), left=make('section',undefined,'sim-pane sim-scene sim-mobile-active'), right=make('section',undefined,'sim-pane');main.appendChild(left);main.appendChild(right);shell.appendChild(main);
-    if(guided)right.appendChild(metricStrip);
+    if(sceneLed)right.appendChild(metricStrip);
     function tabKeys(nav){nav.addEventListener('keydown',function(e){var entries=Array.prototype.slice.call(nav.querySelectorAll('[role="tab"]')),index=entries.indexOf(document.activeElement);if(index<0)return;var next;if(e.key==='ArrowRight')next=(index+1)%entries.length;else if(e.key==='ArrowLeft')next=(index+entries.length-1)%entries.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=entries.length-1;else return;e.preventDefault();entries[next].click();entries[next].focus();});}
     function mobileTab(label,pane){var b=button(label,function(){left.classList.toggle('sim-mobile-active',pane===left);right.classList.toggle('sim-mobile-active',pane===right);Array.prototype.forEach.call(mobile.children,function(c){c.setAttribute('aria-selected',String(c===b));});schedule();});b.setAttribute('role','tab');b.setAttribute('aria-selected',String(pane===left));mobile.appendChild(b);}
     tabKeys(mobile);
@@ -131,7 +136,7 @@ export function simulatorSlideRuntime() {
     function ruleView(){try{return JSON.parse(document.getElementById('scormify-rule-view').textContent);}catch(_){return null;}}
     jobs.push(function(){var cards=Array.prototype.slice.call(metrics.children),full=!!metrics.closest('dialog'),view=rule?ruleView():null;
       if(rule&&view)cards.forEach(function(card,i){var v=definition.variables[i],value=v&&view.state[v.id],label=experience&&experience.stateLabels&&experience.stateLabels[v.id]&&experience.stateLabels[v.id][String(value)];if(!v)return;if(!label&&v.min===0&&v.max===1&&/^(flag|bool|boolean|estado)$/i.test(v.unit))label=value?'Ativo':'Inativo';var strong=card.querySelector('strong'),formatted=label||String(value)+' '+v.unit;if(strong&&strong.textContent!==formatted)strong.textContent=formatted;});
-      var eligible=cards.filter(function(card,i){return full||!progressive||experience.essentialVariables.indexOf(definition.variables[i].id)!==-1;});
+      var eligible=cards.filter(function(card,i){return full||!progressive||(didactic?teachingPrimary:experience.essentialVariables).indexOf(definition.variables[i].id)!==-1;});
       var size=full?Math.max(1,cards.length):Math.max(1,Math.min(guided?2:6,Math.floor(((metricStrip.clientWidth||940)-80*uiScale)/(145*uiScale))));mp.update(Math.ceil(eligible.length/size));mp.total=full?1:mp.total;mp.page=full?0:mp.page;
       cards.forEach(function(card){var i=eligible.indexOf(card);card.hidden=i<0||(!full&&(i<mp.page*size||i>=(mp.page+1)*size));if(!card.hasAttribute('data-sim-detail')){card.setAttribute('data-sim-detail','1');card.setAttribute('role','button');card.tabIndex=0;var detail=function(){openDialog('Indicador',metricText(card));};card.onclick=detail;card.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();detail();}};}card.setAttribute('aria-label','Detalhes do indicador: '+metricText(card));});});
     function paginate(container,viewport,parent,label,columns,selector,rowHeight) {
@@ -152,7 +157,8 @@ export function simulatorSlideRuntime() {
     if(rule) {
       var visual=document.getElementById('rule-visual');
       var lh=make('div',undefined,'sim-pane-head'),sceneTitle=make('h2');lh.appendChild(sceneTitle);lh.appendChild(button('Ler tudo',function(){openDialog(nodes.sceneTitle.textContent,[visual?visual.dataset.visualDescription:'',nodes.sceneDescription.textContent,nodes.facts.textContent]);}));left.appendChild(lh);
-      if(guided)left.appendChild(make('p',experience.learningFocus,'sim-learning-brief'));
+      if(sceneLed)left.appendChild(make('p',didactic?definition.visual.teaching.focus:experience.learningFocus,'sim-learning-brief'));
+      if(didactic)document.addEventListener('scormify:visual-guide',function(){openDialog('Como interpretar o cenário',[definition.visual.teaching.readScene].concat(definition.visual.teaching.links.map(function(link){var variable=definition.variables.find(function(v){return v.id===link.var;});return variable.label+': '+link.whatChanges+' '+link.whyItMatters;})));});
       if(visual){lh.appendChild(button('Ampliar',function(){openDialog('Cena da simulação',visual,true);}));left.appendChild(visual);}
       else readonlyReader(left,'Cenário',function(){return [nodes.sceneDescription.textContent].concat(Array.prototype.map.call(nodes.facts.children,function(li){return '◆ '+li.textContent;}));});
       var rh=make('div',undefined,'sim-pane-head');rh.appendChild(make('h2','Escolha a próxima ação'));right.appendChild(rh);
@@ -187,7 +193,7 @@ export function simulatorSlideRuntime() {
     if(experience){var extra=make('div',undefined,'sim-extra-tools');bank.appendChild(extra);
       extra.appendChild(button('Todos os indicadores',function(){openDialog('Indicadores do modelo',metrics,true);}));
       if(progressive)extra.appendChild(button('Ações indisponíveis',function(){var view=ruleView();openDialog('Ações ainda indisponíveis',view?view.actions.filter(function(a){return !a.enabled;}).map(function(a){var action=definition.actions.find(function(item){return item.id===a.id;});return action.label+': '+a.reason;}):'Consulte as condições da atividade.');}));
-      if(guided){Array.prototype.slice.call(tools.children).forEach(function(b){if(b!==nodes.reset&&b.textContent!=='Objetivo')extra.appendChild(b);});tools.insertBefore(button('Detalhes',function(){openDialog('Detalhes da atividade',extra,true);}),nodes.reset);}
+      if(sceneLed){Array.prototype.slice.call(tools.children).forEach(function(b){if(b!==nodes.reset&&b.textContent!=='Objetivo')extra.appendChild(b);});tools.insertBefore(button('Detalhes',function(){openDialog('Detalhes da atividade',extra,true);}),nodes.reset);}
       else tools.insertBefore(button('Detalhes',function(){openDialog('Detalhes da atividade',extra,true);}),nodes.reset);
     }
     jobs.push(function(){feedback.textContent=nodes.status.textContent;feedbackButton.disabled=!nodes.status.textContent.trim();var activeResult=planning?!nodes.report.hidden:!nodes.result.classList.contains('hidden');resultButton.hidden=!activeResult;feedbackButton.hidden=activeResult;if(activeResult && !previousResult)showResult();previousResult=activeResult;});

@@ -12,7 +12,7 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 16
+VERSION = 17
 MAX_DOCUMENT = 1000000
 
 
@@ -135,6 +135,10 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                 if has_options(context) and not data.get('experience'):
                     data['experience']=normalize_experience(None,data,selected)
                 from services.rule_visuals import illustration_detail_issues
+                teaching_required=has_options(context) and selected['complexity']=='advanced'
+                if teaching_required and data.get('visual') and not data['visual'].get('teaching'):
+                    data.pop('visual');data.pop('visualNotice',None)
+                    data['verification']['visualTeachingRevalidationRequired']=True
                 if has_options(context) and data.get('visual') and illustration_detail_issues(data['visual'],data):
                     data.pop('visual');data.pop('visualNotice',None)
                     data['verification']['visualDetailRevalidationRequired']=True
@@ -146,6 +150,7 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                         try:
                             scene=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',document.strip(),flags=re.I))
                             visual=validate_visual(scene,data)
+                            if teaching_required and not visual.get('teaching'):continue
                             if has_options(context) and illustration_detail_issues(visual,data):continue
                             data['visual']=visual
                             data['verification'].update(visualMode='illustrated',visualRecompiled=True)
