@@ -85,6 +85,9 @@ class VisualTests(unittest.TestCase):
         bad=lock_fixture();bad['visual']['nodes'][5]['attrs']['y']=440
         bad['visual']['nodes'][5]['bindings']=[binding('height','nivel',0,2,40,160)]
         with self.assertRaisesRegex(ValueError,'fora do canvas'):validate_rules(bad)
+        bad['visual']['nodes'][8]['bindings'][0]['output']=[30,900]
+        with self.assertRaises(ValueError) as error:validate_rules(bad)
+        self.assertIn('agua_camara',str(error.exception));self.assertIn('casco',str(error.exception))
 
     def test_different_subjects_share_one_graph_and_unchanged_rule_engine(self):
         for raw in (lock_fixture(),sales_visual()):

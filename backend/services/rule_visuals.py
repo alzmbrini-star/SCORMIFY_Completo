@@ -194,6 +194,7 @@ def validate_visual(raw, spec):
     # Check moving objects at actual executable states, including intermediate
     # steps. A complementary y/height binding is evaluated together, not guessed.
     definitions={n['id']:n for n in result['nodes']}
+    clipped={}
     for state in states:
         projections={n['id']:n for n in visual_state(result,state)}
         for node in result['nodes']:
@@ -211,7 +212,10 @@ def validate_visual(raw, spec):
             elif node['type']=='polygon':
                 xs=[p[0]+ox for p in a['points']];ys=[p[1]+oy for p in a['points']];bounds=(min(xs),min(ys),max(xs),max(ys))
             if bounds and (bounds[0]<-8 or bounds[1]<-8 or bounds[2]>808 or bounds[3]>458):
-                raise ValueError('Objeto dinâmico '+node['id']+' fica fora do canvas 800x450: '+str(bounds)+'. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
+                prior=clipped.get(node['id'],bounds)
+                clipped[node['id']]=(min(prior[0],bounds[0]),min(prior[1],bounds[1]),max(prior[2],bounds[2]),max(prior[3],bounds[3]))
+    if clipped:
+        raise ValueError('Objetos dinâmicos fora do canvas 800x450: '+json.dumps(clipped,ensure_ascii=False)+'. Corrija TODOS os objetos listados. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
     return result
 
 
