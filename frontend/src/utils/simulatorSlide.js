@@ -25,8 +25,8 @@ export function upgradeSimulatorSlide(html) {
     html=html.replace('function render(view){','function render(view){'+bridge);
     html=html.replace(/<\/body>/i,'<script id="scormify-rule-visual-v1">('+ruleVisualRuntime.toString()+')();</script></body>');
   }
-  if (html.includes('id="scormify-simulator-slide-v2"')) return html;
-  html=html.replace(/<script id="scormify-simulator-slide-v1">[\s\S]*?<\/script>/i,'');
-  const script = '<script id="scormify-simulator-slide-v2">(' + simulatorSlideRuntime.toString() + ')();</script>';
+  if (html.includes('id="scormify-simulator-slide-v3"')) return html;
+  html=html.replace(/<script id="scormify-simulator-slide-v[12]">[\s\S]*?<\/script>/i,'');
+  const script = '<script id="scormify-simulator-slide-v3">(' + simulatorSlideRuntime.toString() + ')();</script>';
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, script + '</body>') : html + script;
 }

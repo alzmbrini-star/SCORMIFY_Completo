@@ -751,8 +751,10 @@ def validate_simulator_candidate(response, spec):
     return code
 
 
-async def generate_visual_simulator(prompt, context="", session_id="visual-simulator"):
+async def generate_visual_simulator(prompt, context="", session_id="visual-simulator", preferences=None):
     from services.simulator_diagnostics import capture_generation
+    from services.simulator_experience import with_options
+    context=with_options(context,preferences)
     provider, _key, model = simulator_generation_config()
     return await capture_generation(_generate_visual_simulator, prompt, context, session_id, [provider, model], enrich=_enrich_rule_visual)
 

@@ -12,14 +12,16 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 14
+VERSION = 15
 MAX_DOCUMENT = 1000000
 
 
 def simulator_request(source, content, config):
+    from services.simulator_experience import options
     return (json.dumps(source, ensure_ascii=False), json.dumps({
         'course': {key: config[key] for key in ('title', 'targetAudience', 'audience', 'depth', 'learningObjectives', 'objectives') if key in config},
-        'module': source.get('moduleName'), 'objective': source.get('purpose'), 'reference': content[:6000]}, ensure_ascii=False))
+        'module': source.get('moduleName'), 'objective': source.get('purpose'), 'reference': content[:6000],
+        'simulatorOptions':options(config.get('simulatorComplexity'),config.get('simulatorVisualStyle'))}, ensure_ascii=False))
 
 
 def simulator_sources(session):
@@ -127,6 +129,11 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                     data=validate_rules(logic)
                     data['verification']['visualRevalidationRequired']=True
                 if single_action_shortcuts(data): continue
+                from services.simulator_experience import from_context,normalize_experience,has_options
+                selected=from_context(context)
+                if has_options(context) and data.get('experience') and any(data['experience'].get(k)!=selected[k] for k in selected):continue
+                if has_options(context) and not data.get('experience'):
+                    data['experience']=normalize_experience(None,data,selected)
                 if not data.get('visual'):
                     from services.rule_visuals import validate_visual
                     for attempt in reversed(previous.get('attempts',[])[-3:]):

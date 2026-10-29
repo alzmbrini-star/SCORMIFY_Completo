@@ -112,6 +112,7 @@ export default function Agent() {
     title: '', depth: 'intermediario', duration: 30, modules: 3,
     interactivity: 'media', visualStyle: 'moderno e profissional',
     visualCourseMode: 'standard',
+    simulatorComplexity: 'guided', simulatorVisualStyle: 'illustrated',
     format: 'curso_completo', description: '',
     narrationEnabled: false, narrationVoiceId: '',
     resourceBalance: 'media',

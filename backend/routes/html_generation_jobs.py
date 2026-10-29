@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
+from typing import Literal
 from routes.auth import require_auth
 from routes.deps import db, logger
 from routes.projects_common import load_authorized_project
@@ -17,6 +18,8 @@ router = APIRouter(prefix='/generate-html/jobs', tags=['Editor generation'])
 class HtmlJobRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=5000)
     courseContext: str = Field(default='', max_length=8000)
+    simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
+    simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
     projectId: str = Field(default='', max_length=100)
     requestId: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
 
@@ -43,7 +46,9 @@ async def _run(job_id, owner, request, user):
     try:
         from routes.agent import GenerateHtmlRequest, generate_html_with_ai
         result = await asyncio.wait_for(generate_html_with_ai(
-            GenerateHtmlRequest(prompt=request['prompt'], courseContext=request['courseContext']),
+            GenerateHtmlRequest(prompt=request['prompt'], courseContext=request['courseContext'],
+                                simulatorComplexity=request.get('simulatorComplexity','guided'),
+                                simulatorVisualStyle=request.get('simulatorVisualStyle','illustrated')),
             _user=user), timeout=18 * 60)
         if not result.get('html'): raise ValueError('A IA retornou uma atividade vazia.')
         update = {'status': 'done', 'html': result['html']}

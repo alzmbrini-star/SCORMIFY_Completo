@@ -5,12 +5,16 @@ export function simulatorSlideRuntime() {
     if (document.getElementById('sim-slide-shell')) return;
     var planning = document.body.getAttribute('data-sim-engine') === 'entity-planning-v1';
     var rule = document.body.getAttribute('data-sim-engine') === 'finite-rules-v1';
+    var definition={},experience=null;
+    if(rule){try{definition=JSON.parse(document.getElementById('scormify-simulator-plan').textContent);experience=definition.experience||null;}catch(_){/* retain legacy presentation */}}
+    var guided=experience&&experience.complexity==='guided',applied=experience&&experience.complexity==='applied';
+    var progressive=guided||applied;
     var ids = planning ? ['title','subtitle','mission','briefing','connection','coverage','score','overload','late','status','chart','tasks','selectedTitle','description','reference','dependencies','start','duration','resource','include','remove','earlier','later','event','reveal','load','violations','save','versions','comparison','restore','extraName','extraDuration','extraDue','addExtra','finalize','reset','report'] : ['title','subtitle','mission','briefing','connection','counter','status','sceneTitle','sceneDescription','facts','metrics','actions','history','result','resultTitle','resultMessage','debrief','save','snapshots','comparison','reset'];
     var nodes = {};
     ids.forEach(function (id) { nodes[id] = document.getElementById(id); });
     if ((!planning && !rule) || ids.some(function (id) { return !nodes[id]; })) return;
     var style = document.createElement('style');
-    style.id = 'scormify-simulator-slide-style-v2';
+    style.id = 'scormify-simulator-slide-style-v3';
     if (planning) nodes.finalize.setAttribute('aria-label', nodes.finalize.textContent);
     // Compose this ID so legacy substring-based fit detectors don't mistake
     // this responsive document for a fixed-size design stage.
@@ -49,11 +53,17 @@ export function simulatorSlideRuntime() {
     // which the Editor displays at a reduced zoom. Never shrink the UI below
     // its readable 960×540 base. This is reflow, not a document transform.
     style.textContent += '.sim-pane-head h2{min-width:0;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.sim-reader p,.sim-dialog-body p,.sim-pane-head h2,.sim-slide #tasks strong{overflow-wrap:anywhere}';
+    style.textContent += '.sim-exp-guided #sim-slide-shell{grid-template-rows:auto minmax(0,1fr) 52px}.sim-exp-guided .sim-main,.sim-comp-scene-led .sim-main{grid-template-columns:minmax(0,1.8fr) minmax(270px,1fr)}.sim-comp-instruments .sim-main{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)}.sim-exp-applied #sim-slide-shell{grid-template-rows:auto 68px minmax(0,1fr) 52px}.sim-exp-guided .sim-metric-strip{height:70px;flex-shrink:0;margin-bottom:10px}.sim-exp-guided .sim-metric-strip .metric{padding:6px 8px!important}.sim-exp-guided .sim-metric-strip .metric strong{font-size:20px!important}.sim-exp-guided .sim-metric-strip .metric>div:first-child{font-size:13px!important}.sim-extra-tools{display:flex;flex-wrap:wrap;gap:10px}.sim-dialog-body .metrics{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sim-dialog-body .metric{padding:12px;background:#1d3e5a;border-radius:10px;border:1px solid #6c90ab;cursor:pointer}.sim-dialog-body .metric strong{display:block;font-size:24px}.sim-dialog-body .metric small{display:block;margin-top:8px}.sim-dialog-body .metric .track{display:none}' +
+      'body.sim-palette-daylight{background:#edf3f8!important;color:#18354b}.sim-palette-daylight .sim-head,.sim-palette-daylight .sim-head h1{color:#18354b!important}.sim-palette-daylight .sim-pane{background:#ffffff;border-color:#adc4d4}.sim-palette-daylight .sim-pane h2{color:#18354b!important}.sim-palette-daylight #actions>.action{background:#f2f7fa;border-color:#b2cbdc}.sim-palette-daylight #actions>.action>button:first-child{background:#e3f2f3;color:#143d4e;border-color:#89b9c5}.sim-palette-daylight #actions .reason{color:#78420b}.sim-palette-daylight .sim-foot,.sim-palette-daylight .sim-feedback,.sim-palette-daylight .sim-counter,.sim-palette-daylight .sim-pager,.sim-palette-daylight .sim-visual-caption{color:#274c64;border-color:#b4cbd9}.sim-palette-daylight .sim-metric-strip .metric{background:#fff!important;color:#274c64!important;border-color:#b4cbd9!important;border-top-color:#167d89!important}.sim-palette-daylight .sim-metric-strip .metric>div:first-child{color:#31556e!important}.sim-palette-daylight .sim-metric-strip .metric strong{color:#173f56!important}.sim-palette-warm{background:#f5efe6!important}.sim-palette-warm .sim-pane{background:#fffaf2;border-color:#c8b397}' +
+      '@media(max-width:700px){.sim-exp-guided #sim-slide-shell{grid-template-rows:auto 38px minmax(0,1fr) 48px}.sim-exp-guided .sim-main,.sim-comp-scene-led .sim-main,.sim-comp-instruments .sim-main{grid-template-columns:minmax(0,1fr)}.sim-exp-applied #sim-slide-shell{grid-template-rows:auto 76px 38px minmax(0,1fr) 48px}}';
+    style.textContent += 'body.sim-palette-warm{background:#f5efe6!important}.sim-exp-guided .sim-metric-strip .track,.sim-exp-applied .sim-metric-strip .track{display:none}.sim-exp-guided .sim-metric-strip .metric strong{margin:2px 0!important}.sim-exp-applied .sim-metric-strip .metric{padding:6px 10px!important}.sim-exp-applied .sim-metric-strip .metric strong{font-size:22px!important}.sim-exp-applied .sim-metric-strip .metric>div:first-child{font-size:13px!important}';
+    style.textContent += '.sim-learning-brief{font-size:16px;line-height:1.4;margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0;color:#dceafb}.sim-palette-daylight .sim-learning-brief,.sim-palette-daylight .sim-reader{color:#31556e}.sim-palette-daylight .sim-dialog-body .sim-visual-caption{color:#dceafb}';
     style.textContent=style.textContent.replace(/\{([^{}]*)\}/g,function(block){return block.replace(/(\d+(?:\.\d+)?)px/g,function(_,value){return 'calc('+value+'px * var(--sim-ui,1))';});});
     var uiScale=1;
     function setUIScale(){uiScale=Math.max(1,Math.min(2,window.innerWidth/960,window.innerHeight/540));document.body.style.setProperty('--sim-ui',String(uiScale));}
     setUIScale();document.head.appendChild(style);
     document.body.classList.add('sim-slide');
+    if(experience){document.body.classList.add('sim-exp-'+experience.complexity,'sim-comp-'+experience.composition,'sim-palette-'+(experience.palette==='warm'?'daylight':experience.palette));if(experience.palette==='warm')document.body.classList.add('sim-palette-warm');}
     var bank = document.createElement('div'); bank.id = 'sim-slide-sources'; bank.hidden = true;
     var children = Array.prototype.slice.call(document.body.children);
     document.body.appendChild(bank);
@@ -72,6 +82,7 @@ export function simulatorSlideRuntime() {
       if (typeof dialog.close==='function' && dialog.open) dialog.close();else dialog.removeAttribute('open');
       shell.removeAttribute('inert');db.replaceChildren();
       var target=returnFocus && returnFocus.isConnected && returnFocus!==document.body && !returnFocus.disabled ? returnFocus : nodes.reset;target.focus();
+      schedule();
     }
     function openDialog(title, content, move) {
       if (dialog.open || dialog.hasAttribute('open')) closeDialog();
@@ -83,6 +94,7 @@ export function simulatorSlideRuntime() {
       shell.setAttribute('inert','');
       if (typeof dialog.showModal==='function') dialog.showModal();else dialog.setAttribute('open','');
       closeButton.focus();
+      schedule();
     }
     dialog.addEventListener('cancel',function (e) {e.preventDefault();closeDialog();});
     dialog.addEventListener('keydown',function (e) {
@@ -95,6 +107,7 @@ export function simulatorSlideRuntime() {
     var metrics=planning?nodes.coverage.closest('.metrics'):nodes.metrics;metricStrip.appendChild(metrics);
     var mobile=make('nav',undefined,'sim-mobile-tabs');mobile.setAttribute('aria-label','Painel principal');mobile.setAttribute('role','tablist');shell.appendChild(mobile);
     var main=make('main',undefined,'sim-main'), left=make('section',undefined,'sim-pane sim-scene sim-mobile-active'), right=make('section',undefined,'sim-pane');main.appendChild(left);main.appendChild(right);shell.appendChild(main);
+    if(guided)right.appendChild(metricStrip);
     function tabKeys(nav){nav.addEventListener('keydown',function(e){var entries=Array.prototype.slice.call(nav.querySelectorAll('[role="tab"]')),index=entries.indexOf(document.activeElement);if(index<0)return;var next;if(e.key==='ArrowRight')next=(index+1)%entries.length;else if(e.key==='ArrowLeft')next=(index+entries.length-1)%entries.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=entries.length-1;else return;e.preventDefault();entries[next].click();entries[next].focus();});}
     function mobileTab(label,pane){var b=button(label,function(){left.classList.toggle('sim-mobile-active',pane===left);right.classList.toggle('sim-mobile-active',pane===right);Array.prototype.forEach.call(mobile.children,function(c){c.setAttribute('aria-selected',String(c===b));});schedule();});b.setAttribute('role','tab');b.setAttribute('aria-selected',String(pane===left));mobile.appendChild(b);}
     tabKeys(mobile);
@@ -103,21 +116,27 @@ export function simulatorSlideRuntime() {
     var resultButton=button('Ver resultado',function(){showResult();});resultButton.hidden=true;
     var feedbackButton=button('Consequência',function(){openDialog('Consequência da decisão',[nodes.status.textContent, !planning && nodes.history.lastElementChild ? nodes.history.lastElementChild.textContent : '']);});
     foot.appendChild(counter);foot.appendChild(feedback);foot.appendChild(feedbackButton);foot.appendChild(resultButton);shell.appendChild(foot);
-    var jobs=[], frame=null;
+    var jobs=[], frame=null,pagers=[];
     function schedule(){if(frame!==null)return;frame=requestAnimationFrame(function(){frame=null;jobs.forEach(function(job){job();});});}
     function pager(parent,label) {
       var bar=make('div',undefined,'sim-pager'),state={page:0,total:1};var info=make('span');
       var prev=button('‹',function(){state.page=Math.max(0,state.page-1);schedule();}),next=button('›',function(){state.page=Math.min(state.total-1,state.page+1);schedule();});
       prev.setAttribute('aria-label',label+': página anterior');next.setAttribute('aria-label',label+': próxima página');bar.appendChild(prev);bar.appendChild(info);bar.appendChild(next);parent.appendChild(bar);
       state.update=function(total){state.total=Math.max(1,total);state.page=Math.min(state.page,state.total-1);info.textContent=(state.page+1)+' / '+state.total;prev.disabled=state.page===0;next.disabled=state.page===state.total-1;bar.hidden=state.total===1;};
+      pagers.push(state);
       return state;
     }
     var mp=pager(metricStrip,'Indicadores');
     function metricText(card){return Array.prototype.map.call(card.children,function(n){return n.textContent.trim();}).filter(Boolean).join(' · ');}
-    jobs.push(function(){var cards=Array.prototype.slice.call(metrics.children);var size=Math.max(1,Math.min(6,Math.floor(((metricStrip.clientWidth||940)-80*uiScale)/(145*uiScale))));mp.update(Math.ceil(cards.length/size));cards.forEach(function(card,i){card.hidden=i<mp.page*size||i>=(mp.page+1)*size;if(!card.hasAttribute('data-sim-detail')){card.setAttribute('data-sim-detail','1');card.setAttribute('role','button');card.tabIndex=0;var detail=function(){openDialog('Indicador',metricText(card));};card.onclick=detail;card.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();detail();}};}card.setAttribute('aria-label','Detalhes do indicador: '+metricText(card));});});
+    function ruleView(){try{return JSON.parse(document.getElementById('scormify-rule-view').textContent);}catch(_){return null;}}
+    jobs.push(function(){var cards=Array.prototype.slice.call(metrics.children),full=!!metrics.closest('dialog'),view=rule?ruleView():null;
+      if(rule&&view)cards.forEach(function(card,i){var v=definition.variables[i],value=v&&view.state[v.id],label=experience&&experience.stateLabels&&experience.stateLabels[v.id]&&experience.stateLabels[v.id][String(value)];if(!v)return;if(!label&&v.min===0&&v.max===1&&/^(flag|bool|boolean|estado)$/i.test(v.unit))label=value?'Ativo':'Inativo';var strong=card.querySelector('strong'),formatted=label||String(value)+' '+v.unit;if(strong&&strong.textContent!==formatted)strong.textContent=formatted;});
+      var eligible=cards.filter(function(card,i){return full||!progressive||experience.essentialVariables.indexOf(definition.variables[i].id)!==-1;});
+      var size=full?Math.max(1,cards.length):Math.max(1,Math.min(guided?2:6,Math.floor(((metricStrip.clientWidth||940)-80*uiScale)/(145*uiScale))));mp.update(Math.ceil(eligible.length/size));mp.total=full?1:mp.total;mp.page=full?0:mp.page;
+      cards.forEach(function(card){var i=eligible.indexOf(card);card.hidden=i<0||(!full&&(i<mp.page*size||i>=(mp.page+1)*size));if(!card.hasAttribute('data-sim-detail')){card.setAttribute('data-sim-detail','1');card.setAttribute('role','button');card.tabIndex=0;var detail=function(){openDialog('Indicador',metricText(card));};card.onclick=detail;card.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();detail();}};}card.setAttribute('aria-label','Detalhes do indicador: '+metricText(card));});});
     function paginate(container,viewport,parent,label,columns,selector,rowHeight) {
       var p=pager(parent,label);
-      jobs.push(function(){var items=Array.prototype.slice.call(selector?container.querySelectorAll(selector):container.children);items.forEach(function(item){item.hidden=false;});var height=Math.max(40,(viewport.clientHeight||200)-(selector?52*uiScale:0)),pages=[],page=[],used=0,cols=columns||1;for(var i=0;i<items.length;i+=cols){var row=items.slice(i,i+cols),rh=0;row.forEach(function(item){rh=Math.max(rh,item.getBoundingClientRect().height||(rowHeight||70)*uiScale);});if(page.length && used+rh+8*uiScale>height){pages.push(page);page=[];used=0;}page=page.concat(row);used+=rh+(used?8*uiScale:0);}if(page.length)pages.push(page);p.update(pages.length);items.forEach(function(item){item.hidden=(pages[p.page]||[]).indexOf(item)===-1;});});
+      jobs.push(function(){var all=Array.prototype.slice.call(selector?container.querySelectorAll(selector):container.children),items=all.filter(function(item){var action=item.querySelector('button[data-action]');return !progressive||container!==nodes.actions||!action||!action.disabled;});all.forEach(function(item){item.hidden=items.indexOf(item)===-1;});var height=Math.max(40,(viewport.clientHeight||200)-(selector?52*uiScale:0)),pages=[],page=[],used=0,cols=columns||1;for(var i=0;i<items.length;i+=cols){var row=items.slice(i,i+cols),rh=0;row.forEach(function(item){rh=Math.max(rh,item.getBoundingClientRect().height||(rowHeight||70)*uiScale);});if(page.length && (used+rh+8*uiScale>height||(guided&&container===nodes.actions&&page.length>=3))){pages.push(page);page=[];used=0;}page=page.concat(row);used+=rh+(used?8*uiScale:0);}if(page.length)pages.push(page);p.update(pages.length);all.forEach(function(item){item.hidden=(pages[p.page]||[]).indexOf(item)===-1;});});
       return p;
     }
     function readonlyReader(parent,label,getBlocks) {
@@ -133,6 +152,7 @@ export function simulatorSlideRuntime() {
     if(rule) {
       var visual=document.getElementById('rule-visual');
       var lh=make('div',undefined,'sim-pane-head'),sceneTitle=make('h2');lh.appendChild(sceneTitle);lh.appendChild(button('Ler tudo',function(){openDialog(nodes.sceneTitle.textContent,[visual?visual.dataset.visualDescription:'',nodes.sceneDescription.textContent,nodes.facts.textContent]);}));left.appendChild(lh);
+      if(guided)left.appendChild(make('p',experience.learningFocus,'sim-learning-brief'));
       if(visual){lh.appendChild(button('Ampliar',function(){openDialog('Cena da simulação',visual,true);}));left.appendChild(visual);}
       else readonlyReader(left,'Cenário',function(){return [nodes.sceneDescription.textContent].concat(Array.prototype.map.call(nodes.facts.children,function(li){return '◆ '+li.textContent;}));});
       var rh=make('div',undefined,'sim-pane-head');rh.appendChild(make('h2','Escolha a próxima ação'));right.appendChild(rh);
@@ -163,6 +183,13 @@ export function simulatorSlideRuntime() {
       jobs.push(function(){counter.textContent=nodes.coverage.textContent+' tarefas'+(window.innerWidth<700?'':' · '+nodes.score.textContent+' viável');nodes.finalize.textContent=window.innerWidth<700?'Analisar':'Analisar meu planejamento';});
     }
     nodes.reset.setAttribute('aria-label',nodes.reset.textContent);nodes.reset.textContent='Reiniciar';tools.appendChild(nodes.reset);nodes.reset.addEventListener('click',function(){previousResult=false;Array.prototype.forEach.call(shell.querySelectorAll('[role="tablist"]'),function(nav){var first=nav.querySelector('[role="tab"]');if(first)first.click();});schedule();});
+    nodes.reset.addEventListener('click',function(){pagers.forEach(function(p){p.page=0;});});
+    if(experience){var extra=make('div',undefined,'sim-extra-tools');bank.appendChild(extra);
+      extra.appendChild(button('Todos os indicadores',function(){openDialog('Indicadores do modelo',metrics,true);}));
+      if(progressive)extra.appendChild(button('Ações indisponíveis',function(){var view=ruleView();openDialog('Ações ainda indisponíveis',view?view.actions.filter(function(a){return !a.enabled;}).map(function(a){var action=definition.actions.find(function(item){return item.id===a.id;});return action.label+': '+a.reason;}):'Consulte as condições da atividade.');}));
+      if(guided){Array.prototype.slice.call(tools.children).forEach(function(b){if(b!==nodes.reset&&b.textContent!=='Objetivo')extra.appendChild(b);});tools.insertBefore(button('Detalhes',function(){openDialog('Detalhes da atividade',extra,true);}),nodes.reset);}
+      else tools.insertBefore(button('Detalhes',function(){openDialog('Detalhes da atividade',extra,true);}),nodes.reset);
+    }
     jobs.push(function(){feedback.textContent=nodes.status.textContent;feedbackButton.disabled=!nodes.status.textContent.trim();var activeResult=planning?!nodes.report.hidden:!nodes.result.classList.contains('hidden');resultButton.hidden=!activeResult;feedbackButton.hidden=activeResult;if(activeResult && !previousResult)showResult();previousResult=activeResult;});
     var observer=new MutationObserver(schedule);
     [metrics,nodes.status,planning?nodes.chart:nodes.actions,planning?nodes.tasks:nodes.sceneTitle,planning?nodes.report:nodes.sceneDescription,planning?nodes.selectedTitle:nodes.facts,planning?nodes.event:nodes.result].forEach(function(n){var options={childList:true,subtree:true,characterData:true};if(n===nodes.report || n===nodes.result){options.attributes=true;options.attributeFilter=['class','hidden'];}observer.observe(n,options);});

@@ -188,6 +188,25 @@ def validate_visual(raw, spec):
             node['action']=row['action']
         seen[key]=kind;result['nodes'].append(node)
     if len(dynamic)<2 or not geometric:raise ValueError('Cena deve alterar formas/posições por estado e representar pelo menos duas variáveis causais; não apenas texto ou números')
+    if (spec.get('experience') or {}).get('visualStyle')=='illustrated':
+        def descendants(key):
+            children=[n for n in result['nodes'] if n.get('parent')==key]
+            return sum((1 if n['type'] not in {'group','text'} else 0)+(descendants(n['id']) if n['type']=='group' else 0) for n in children)
+        assembled=any(n['type']=='group' and descendants(n['id'])>=3 for n in result['nodes'])
+        detailed_path=any(n['type']=='path' and len(re.findall(r'[-+]?(?:\d*\.)?\d+',n['attrs']['d']))>=30 for n in result['nodes'])
+        if not assembled and not detailed_path:
+            raise ValueError('Ilustração contextualizada precisa de objetos reconhecíveis e compostos, não boneco feito só de retângulo/círculo. Desenvolva o cenário do plano pedagógico; mantenha os controles e a lógica.')
+        reactive=[]
+        for n in result['nodes']:
+            if n['type']=='text':continue
+            geometry=any(b['property'] not in {'opacity','strokeWidth'} for b in n['bindings'])
+            if not geometry and not n['states'] and 'visibleWhen' not in n:continue
+            attrs=n['attrs']
+            gauge=n['type']=='rect' and not n['states'] and 'visibleWhen' not in n and (
+                attrs.get('width',800)<=30 and any(b['property']=='height' for b in n['bindings']) or
+                attrs.get('height',450)<=16 and any(b['property']=='width' for b in n['bindings']))
+            reactive.append(not gauge)
+        if reactive and not any(reactive):raise ValueError('A cena muda apenas barras/medidores. Vincule as variáveis aos objetos reais do contexto, conforme o plano; indicadores já existem na interface.')
     # Execute actual successful and negative traces: visual rules must be total,
     # finite and observably different, without writing to the logical state.
     initial={v['id']:v['initial'] for v in spec['variables']}
@@ -285,6 +304,8 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
     from services.simulator_diagnostics import record_attempt
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
+             'pedagogicalPlan':data.get('experience'),
+             'artDirection':'Execute o ambiente e a abordagem visual do plano pedagógico. illustrated pede cenário contextualizado com acabamento e objetos reconhecíveis; technical pede esquema técnico bem acabado, componentes, conexões e leitura operacional. QUALIDADE GRÁFICA É ALTA EM TODOS OS NÍVEIS; guided não significa boneco geométrico. No guiado, o cenário e as consequências devem explicar a atividade com poucas ações. Não repita o mesmo escritório/barras para todos os temas. As variáveis essenciais já têm indicadores: use mudanças nos próprios objetos. O plano é obrigatório como orientação visual, não cria novas leis físicas ou efeitos.',
              'sceneInstructions':'Prefira lista plana nodes com parent apontando para GROUP, nunca para rect/text/path. x/y dos filhos são LOCAIS ao grupo. Desenhe ilustração vetorial profissional: objetos reconhecíveis com detalhes, pessoas com rosto e roupa quando pertinentes, paleta harmônica com sombras por formas, fundo e elementos de ambiente. Evite bonecos feitos apenas de um retângulo e círculo. As variáveis devem alterar os próprios objetos do ambiente (artefatos, expressão, peças, organização), não apenas três barras de indicadores; indicadores já estão fora da cena. Preserve objetos e textos dentro de 800x450 em todos os estados. Separe rótulos pelo espaço que o texto inteiro ocupa: 12 caracteres em fonte 28 ocupam cerca de 185 unidades, não 50. Use textos curtos, sem sobreposição. Para volumes que crescem para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
     for attempt in range(2):
         response=''

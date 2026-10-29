@@ -1,7 +1,7 @@
 """AI Instructional Design Agent routes"""
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends, BackgroundTasks
 from pydantic import BaseModel, ConfigDict as PydanticConfigDict, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 import uuid
 import os
 import asyncio
@@ -89,11 +89,15 @@ class AgentSessionCreate(BaseModel):
 class GenerateHtmlRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=5000)
     courseContext: Optional[str] = Field(default=None, max_length=8000)
+    simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
+    simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
 
 class AgentConfigUpdate(BaseModel):
     model_config = PydanticConfigDict(extra="allow")
     title: Optional[str] = None
     depth: Optional[str] = "intermediario"
+    simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
+    simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
     duration: Optional[int] = 30
     modules: Optional[int] = 3
     interactivity: Optional[str] = "media"
@@ -369,7 +373,8 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
         if is_simulator:
             from services.visual_simulators import generate_visual_simulator
             generated = await generate_visual_simulator(
-                body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}"
+                body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}",
+                preferences={'complexity':getattr(body,'simulatorComplexity','guided'),'visualStyle':getattr(body,'simulatorVisualStyle','illustrated')}
             )
             if generated.get('spec', {}).get('mechanic') in {'entity-planning-v1', 'finite-rules-v1'}:
                 # This HTML is compiled from validated data and our own assets,

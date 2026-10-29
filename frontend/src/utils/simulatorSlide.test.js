@@ -4,7 +4,7 @@ import { wrapInteractiveFullbleed } from './htmlUtils';
 test.each(['finite-rules-v1','entity-planning-v1'])('upgrades existing %s data only once without the fixed-stage shrinker',engine=>{
   const html='<html><body data-sim-engine="'+engine+'"><script id="scormify-simulator-plan" type="application/json">{"title":"Prática ç"}</script><script>const originalEngine=true;</script></body></html>';
   const updated=upgradeSimulatorSlide(html);
-  expect(updated).toContain('id="scormify-simulator-slide-v2"');
+  expect(updated).toContain('id="scormify-simulator-slide-v3"');
   expect(updated).toContain('originalEngine=true');
   expect(updated).toContain('Prática ç');
   expect(upgradeSimulatorSlide(updated)).toBe(updated);

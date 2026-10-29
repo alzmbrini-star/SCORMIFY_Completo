@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui
 import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash2, FileText, Upload } from 'lucide-react';
 import RichTextEditor from '../../../components/RichTextEditor';
 import KlingVideoForm from './KlingVideoForm';
+import SimulatorExperienceOptions from '../../../components/SimulatorExperienceOptions';
 
 // Gallery image with auto-retry on load failure
 function GalleryImage({ src, alt }) {
@@ -180,6 +181,7 @@ export function HtmlDialog({
   aiHtmlPrompt, setAiHtmlPrompt,
   aiHtmlResult, setAiHtmlResult,
   aiHtmlLoading, aiHtmlProgress,
+  simulatorOptions = { complexity: 'guided', visualStyle: 'illustrated' }, onSimulatorOptionsChange = () => {},
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
 }) {
   return (
@@ -209,6 +211,7 @@ export function HtmlDialog({
           </TabsContent>
           <TabsContent value="ai" className="flex flex-col mt-4">
             <div className="flex flex-col gap-3">
+              <SimulatorExperienceOptions {...simulatorOptions} onChange={onSimulatorOptionsChange} disabled={aiHtmlLoading} />
               <div>
                 <label className="text-sm font-medium mb-1 block">Descreva o que deseja criar</label>
                 <textarea className="w-full h-24 p-3 rounded-md border bg-background text-sm resize-none"

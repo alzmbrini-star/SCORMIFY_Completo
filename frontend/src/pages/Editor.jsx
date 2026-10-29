@@ -318,6 +318,7 @@ export default function Editor() {
   });
   const [htmlConfig, setHtmlConfig] = useState({ content: '' });
   const [aiHtmlPrompt, setAiHtmlPrompt] = useState('');
+  const [simulatorOptions, setSimulatorOptions] = useState({ complexity: 'guided', visualStyle: 'illustrated' });
   const [aiHtmlResult, setAiHtmlResult] = useState('');
   const [aiHtmlLoading, setAiHtmlLoading] = useState(false);
   const [aiHtmlProgress, setAiHtmlProgress] = useState('');
@@ -1022,6 +1023,7 @@ export default function Editor() {
       ].filter(Boolean).join(' — ').slice(0, 8000);
       const html = await generateHtmlJob(API_URL, {
         prompt: aiHtmlPrompt, courseContext, projectId: currentProject?.id || projectId || '',
+        simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);
       toast.success('HTML gerado com sucesso!');
@@ -2505,6 +2507,7 @@ export default function Editor() {
           aiHtmlPrompt={aiHtmlPrompt} setAiHtmlPrompt={setAiHtmlPrompt}
           aiHtmlResult={aiHtmlResult} setAiHtmlResult={setAiHtmlResult}
           aiHtmlLoading={aiHtmlLoading} aiHtmlProgress={aiHtmlProgress}
+          simulatorOptions={simulatorOptions} onSimulatorOptionsChange={value => { setSimulatorOptions(value); setAiHtmlResult(''); setAiHtmlProgress(''); }}
           handleAddHtml={handleAddHtml} handleGenerateHtmlAI={handleGenerateHtmlAI} handleInsertAiHtml={handleInsertAiHtml}
         />
 

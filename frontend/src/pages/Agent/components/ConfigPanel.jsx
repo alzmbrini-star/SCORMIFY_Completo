@@ -12,6 +12,7 @@ import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import { Slider } from '../../../components/ui/slider';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { toast } from 'sonner';
+import SimulatorExperienceOptions from '../../../components/SimulatorExperienceOptions';
 import {
   Brain, Upload, FileText, Settings, BookOpen, Layers, Play,
   Send, ArrowLeft, ArrowRight, Check, Loader2, Sparkles,
@@ -244,6 +245,9 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
             </div>
           </CardContent>
         </Card>
+
+        <SimulatorExperienceOptions complexity={config.simulatorComplexity || 'guided'} visualStyle={config.simulatorVisualStyle || 'illustrated'} disabled={loading}
+          onChange={({ complexity, visualStyle }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle }))} />
 
         {/* Resource Balance Config */}
         <Card className="bg-slate-900/50 border-slate-800" data-testid="resource-balance-card">

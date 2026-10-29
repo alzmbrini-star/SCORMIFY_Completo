@@ -4633,6 +4633,8 @@ Retorne JSON com os slides a atualizar:
                             "currentSlide": next((s for s in slides_content if s["index"] == slide.get("slideIndex")), {}),
                             "courseContent": slides_content}, ensure_ascii=False)[:8000],
                 f"agent-edit-simulator-{session_id}",
+                preferences={'complexity':project.get('agentConfig',{}).get('simulatorComplexity','guided'),
+                             'visualStyle':project.get('agentConfig',{}).get('simulatorVisualStyle','illustrated')},
             )
             slide["type"] = "simulator"
             slide["elements"] = [{"type": "html", "htmlContent": generated["html"], "width": 960, "height": 540}]

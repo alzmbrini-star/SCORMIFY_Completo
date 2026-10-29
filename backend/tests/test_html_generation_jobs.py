@@ -79,6 +79,8 @@ class Jobs(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(err.exception.status_code, 409)
 
     async def test_worker_is_claimed_once_and_result_is_recoverable(self):
+        self.body.simulatorComplexity='advanced'
+        self.body.simulatorVisualStyle='technical'
         job = await self.start()
         fake = ModuleType('routes.agent')
         fake.GenerateHtmlRequest = lambda **kw: SimpleNamespace(**kw)
@@ -86,6 +88,9 @@ class Jobs(unittest.IsolatedAsyncioTestCase):
         with patch.dict(sys.modules, {'routes.agent': fake}):
             for function, *args in self.tasks + self.tasks: await function(*args)
         fake.generate_html_with_ai.assert_awaited_once()
+        request=fake.generate_html_with_ai.call_args.args[0]
+        self.assertEqual(request.simulatorComplexity,'advanced')
+        self.assertEqual(request.simulatorVisualStyle,'technical')
         result = await self.scope['get_html_job'](job['jobId'], self.user)
         self.assertEqual(result['html'], '<html>Atividade</html>')
         self.assertNotIn('ownerId', result)

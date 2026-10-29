@@ -37,7 +37,7 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso direto de diagnósticos exige a versão 14 do gerador. Dados
+HTML do aluno. Reuso direto de diagnósticos exige a versão 15 do gerador. Dados
 JSON de versões conhecidas do mesmo contrato podem ser revalidados, sem IA,
 somente se o hash corresponder exatamente ao pedido, contexto e modelo originais.
 As rotas filtram proprietário, sessão e validade de retenção. O compilador atual
@@ -77,6 +77,22 @@ redução global da fonte. Textos longos e ações são paginados; contexto e hi
 abrem em diálogos. HTML, SCORM clássico e Single Page preservam esse viewport.
 
 ## Camada visual contextualizada
+
+Agente (Configurar) e Editor (HTML → Gerar com IA) permitem escolher interação
+Guiada, Aplicada ou Avançada e abordagem ilustrada ou técnica. As opções fazem
+parte da identidade do pedido e do plano `experience`, antes da criação da cena.
+Não selecionam motores temáticos nem reduzem a qualidade gráfica no nível guiado.
+O plano descreve ambiente, foco didático, objetos observáveis, composição,
+indicadores essenciais e rótulos semânticos para estados discretos.
+
+Guiado prioriza cena, até dois indicadores e ações disponíveis; histórico,
+comparações, outros indicadores e ações bloqueadas ficam em detalhes opcionais.
+Aplicado apresenta até três indicadores; Avançado mantém instrumentos completos.
+As três apresentações preservam regras, efeitos, aprovação e reinício. Documentos
+antigos sem esse plano conservam sua apresentação; as opções valem para novas
+gerações. O autor deve revisar a pertinência e o acabamento: verificações
+estruturais de objetos compostos e mudanças contextuais não certificam realismo
+fotográfico nem qualidade pedagógica absoluta.
 
 Depois de aprovar a lógica, uma etapa separada solicita uma cena JSON original.
 O grafo usa grupos e primitivas SVG (formas, caminhos, polígonos e texto), não

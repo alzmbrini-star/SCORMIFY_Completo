@@ -350,6 +350,9 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     spec['verification']['recomputedProposedChecks']=proposal_mismatches
     spec['verification']['actionKindsInWitness']=len(set(proof['success']))
     spec['verification']['stateGuardedActions']=sum(bool(_refs(a['requires'])) for a in spec['actions'])
+    if isinstance(raw.get('experience'),dict):
+        from services.simulator_experience import normalize_experience
+        spec['experience']=normalize_experience(raw['experience'],spec)
     if raw.get('visual') is not None:
         from services.rule_visuals import validate_visual
         spec['visual']=validate_visual(raw['visual'],spec)
@@ -371,16 +374,19 @@ def render_rules(data):
 async def generate_rule_simulator(prompt, context, session_id, provider, key, model):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     from services.simulator_diagnostics import record_attempt
-    original={'request':prompt[:7000],'courseContext':context[:10000]}; request=json.dumps(original,ensure_ascii=False)
+    from services.simulator_experience import EXPERIENCE_PROMPT,from_context,normalize_experience
+    selected=from_context(context)
+    original={'request':prompt[:7000],'courseContext':context[:10000],'simulatorOptions':selected}; request=json.dumps(original,ensure_ascii=False)
     error=''
     for attempt in range(3):
         raw=None
         # Fresh planning history prevents a failed candidate anchoring all repairs.
-        chat=LlmChat(api_key=key,session_id=session_id+f'-finite-rules-{attempt}',system_message=PROMPT).with_model(provider,model).with_params(temperature=0.3,max_tokens=13000)
+        chat=LlmChat(api_key=key,session_id=session_id+f'-finite-rules-{attempt}',system_message=PROMPT+EXPERIENCE_PROMPT).with_model(provider,model).with_params(temperature=0.3,max_tokens=14000)
         response=await asyncio.wait_for(chat.send_message(UserMessage(text=request)),timeout=180)
         try:
             raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I))
             data=validate_rules(raw)
+            data['experience']=normalize_experience(raw.get('experience'),data,selected)
             shortcuts=single_action_shortcuts(data)
             if shortcuts:
                 raise ValueError('Atalho sem tomada de decisão: repetir uma única ação já vence. Contraexemplos executados: '
