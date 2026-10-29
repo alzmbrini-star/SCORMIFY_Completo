@@ -11,7 +11,7 @@ import json
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 6
+VERSION = 7
 MAX_DOCUMENT = 1000000
 
 

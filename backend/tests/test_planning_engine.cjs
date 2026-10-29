@@ -31,6 +31,8 @@ assert.equal(engine.updateTask('t2',{due:99}).ok,false);assert.equal(engine.upda
 engine.reset();assert.equal(engine.getState().eventActive,false);assert.equal(engine.getState().snapshots.length,0);assert.equal(engine.getState().history.length,0);
 engine.updateTask('t1',{start:0});engine.updateTask('t2',{start:5});engine.saveSnapshot();const preEvent=engine.getState().snapshots[0].id;engine.revealEvent();engine.restoreSnapshot(preEvent);assert.equal(engine.getState().eventActive,true);
 const state=engine.getState();state.tasks[0].duration=99;assert.notEqual(engine.getState().tasks[0].duration,99);
+const multiData=JSON.parse(JSON.stringify(data));multiData.resources[0].capacity=3;
+const multi=createPlanningEngine(multiData);multi.updateTask('t1',{start:2});multi.updateTask('t2',{start:5,resourceId:'apoio'});assert.equal(multi.getState().metrics.overload,0);multi.revealEvent();assert.ok(multi.getState().metrics.overload>0,'The event must reserve the resource even when its capacity exceeds one');
 for(const theme of ['Manutenção Industrial','Organização de Eventos','Produção de Conteúdo']){const alternate=createPlanningEngine({...data,title:theme});solve(alternate);alternate.revealEvent();assert.equal(alternate.getState().metrics.success,true);}
 const assets=path.join(root,'backend/services/export_assets');
 const html=fs.readFileSync(path.join(assets,'planning-simulator.html'),'utf8').replace('__PLANNING_DATA__',JSON.stringify(data).replace(/</g,'\\u003c')).replace('__PLANNING_ENGINE__',fs.readFileSync(path.join(assets,'planning-engine.js'),'utf8'));

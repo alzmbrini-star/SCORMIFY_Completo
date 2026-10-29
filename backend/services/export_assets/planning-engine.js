@@ -15,7 +15,8 @@ function createPlanningEngine(definition) {
     const violations=[], affected=new Set();let overload=0, late=0, quality=0;
     const usage=Object.fromEntries(spec.resources.map(resource=>[resource.id,Array(spec.horizon).fill(0)]));
     let load=0;
-    if(eventActive) for(let slot=spec.event.start;slot<spec.event.start+spec.event.duration;slot++)usage[spec.event.resourceId][slot]++;
+    const eventCapacity=spec.resources.find(resource=>resource.id===spec.event.resourceId).capacity;
+    if(eventActive) for(let slot=spec.event.start;slot<spec.event.start+spec.event.duration;slot++)usage[spec.event.resourceId][slot]+=eventCapacity;
     scheduled.forEach(task=>{
       const end=task.start+task.duration;
       load+=task.duration;
@@ -38,7 +39,7 @@ function createPlanningEngine(definition) {
     const totalWeight=spec.tasks.reduce((sum,task)=>sum+task.priority,0);
     const validWeight=required.filter(task=>task.start!==null && !affected.has(task.id)).reduce((sum,task)=>sum+baseline.get(task.id).priority,0);
     const coverage=Math.round(placed.length/spec.tasks.length*100), score=Math.round(validWeight/totalWeight*100);
-    const capacity=spec.resources.reduce((sum,resource)=>sum+resource.capacity*spec.horizon,0);
+    const capacity=spec.resources.reduce((sum,resource)=>sum+resource.capacity*spec.horizon,0)-(eventActive?eventCapacity*spec.event.duration:0);
     const success=coverage===100 && !violations.length && eventActive;
     return {coverage,score,late,overload,quality,load,usage,violations,success,
       utilization:Math.round(load/capacity*100),placed:placed.length,required:spec.tasks.length,

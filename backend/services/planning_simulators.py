@@ -26,7 +26,8 @@ duration: inteiro 1 a 12, due: inteiro de 1 até horizon, priority: inteiro 1 a 
 tarefa pode ser feita, dependencies: lista de IDs de tarefas que terminam antes dela}),
 event: {title: até 100, message: até 500 explicando o imprevisto,
 resourceId: ID de recurso, start: inteiro a partir de 0, duration: inteiro 1 a 4}.
-O imprevisto ocupa UMA unidade da capacidade desse recurso nesse intervalo.
+O imprevisto torna TODA a capacidade desse recurso indisponível nesse intervalo.
+Descreva essa indisponibilidade integral no texto do evento, não uma perda parcial.
 Ele deve poder afetar o horário de pelo menos uma tarefa desse recurso: não
 coloque uma reunião num intervalo em que nenhuma tarefa poderia ocorrer.
 Deve existir solução com TODAS as tarefas dentro dos prazos, respeitando
@@ -141,7 +142,8 @@ def validate_planning(raw):
     start=_integer(event.get('start'),'início do imprevisto',0,horizon-1)
     duration=_integer(event.get('duration'),'duração do imprevisto',1,min(4,horizon-start))
     result['event']={'title':_text(event.get('title'),'imprevisto',100),'message':_text(event.get('message'),'explicação do imprevisto',500),
-                     'resourceId':event['resourceId'],'start':start,'duration':duration}
+                     'resourceId':event['resourceId'],'start':start,'duration':duration,
+                     'capacityLoss':next(resource['capacity'] for resource in result['resources'] if resource['id']==event['resourceId'])}
     if re.search(r'^\s*parab[eé]ns\b|(?:você|voce)\s+conclu[ií]u com sucesso',result['debrief'],re.I):
         raise ValueError('Use debrief reflexivo e neutro. O resultado é calculado pelo motor, não pode ser presumido nos textos.')
     solution=solve_planning(result)
@@ -168,7 +170,7 @@ def solve_planning(spec, budget=50000):
     capacities={r['id']:r['capacity'] for r in spec['resources']}
     occupied={key:[0]*horizon for key in capacities}
     for slot in range(event['start'],event['start']+event['duration']):
-        occupied[event['resourceId']][slot]+=1
+        occupied[event['resourceId']][slot]+=capacities[event['resourceId']]
     assigned={}; nodes=0
     def search():
         nonlocal nodes
