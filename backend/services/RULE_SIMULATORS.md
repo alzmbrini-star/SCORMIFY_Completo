@@ -37,7 +37,7 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso direto de diagnósticos exige a versão 13 do gerador. Dados
+HTML do aluno. Reuso direto de diagnósticos exige a versão 14 do gerador. Dados
 JSON de versões conhecidas do mesmo contrato podem ser revalidados, sem IA,
 somente se o hash corresponder exatamente ao pedido, contexto e modelo originais.
 As rotas filtram proprietário, sessão e validade de retenção. O compilador atual

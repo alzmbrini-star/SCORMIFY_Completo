@@ -12,7 +12,7 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 13
+VERSION = 14
 MAX_DOCUMENT = 1000000
 
 
@@ -117,7 +117,15 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                 continue
         for raw in candidates:
             try:
-                data=validate_rules(raw)
+                try:
+                    data=validate_rules(raw)
+                except ValueError:
+                    if not isinstance(raw,dict) or 'visual' not in raw:raise
+                    # A stricter visual compiler must never discard proven rules.
+                    # Revalidate those rules from scratch, then request only art.
+                    logic=dict(raw);logic.pop('visual');logic.pop('visualNotice',None)
+                    data=validate_rules(logic)
+                    data['verification']['visualRevalidationRequired']=True
                 if single_action_shortcuts(data): continue
                 data['verification'].update(noSingleActionShortcut=True,revalidatedFromVersion=version)
                 return {'html':render_rules(data),'spec':dict(data,template='custom',mechanic=ENGINE)}

@@ -12,6 +12,17 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_visual_checks_preserve_the_previous_rules(self):
+        from test_rule_visuals import sales_visual
+        raw=sales_visual();raw['visual']['nodes'][10]['attrs'].update(x=170,y=305)
+        prior={'version':13,'status':'accepted','generationKey':generation_key('request','context',['p','m'],13),
+               'plan':{'mechanic':'finite-rules-v1'},'result':{'spec':raw}}
+        generate=AsyncMock(side_effect=AssertionError('Do not regenerate rules for an art error'))
+        saved=[]
+        with diagnostic_scope(saved.append,[prior]):result=await capture_generation(generate,'request','context','session',['p','m'])
+        generate.assert_not_awaited();self.assertNotIn('visual',result['spec'])
+        self.assertTrue(result['spec']['verification']['visualRevalidationRequired'])
+
     async def test_revalidated_logic_can_receive_only_the_missing_visual_layer(self):
         from test_rule_simulators import fixtures
         raw=fixtures()[0]

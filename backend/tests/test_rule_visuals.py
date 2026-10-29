@@ -77,11 +77,13 @@ class VisualTests(unittest.TestCase):
         self.assertEqual(len(scene['nodes']),len(flat['nodes'])+1)
         self.assertEqual(scene['nodes'][1]['parent'],'room')
         self.assertEqual(scene['nodes'][1]['attrs'],flat['nodes'][0]['attrs'])
-        annotated=copy.deepcopy(flat);annotated['nodes'][10]['parent']='mesa'
+        annotated=copy.deepcopy(flat);annotated['nodes'][10]['parent']='mesa';annotated['nodes'][10]['attrs'].update(x=20,y=30)
         scene=validate_visual(annotated,data)
         self.assertEqual(next(n for n in scene['nodes'] if n['id']=='cliente')['parent'],'container_0')
         self.assertEqual(next(n for n in scene['nodes'] if n['id']=='mesa')['parent'],'container_0')
-        self.assertEqual(next(n for n in scene['nodes'] if n['id']=='cliente')['attrs']['x'],500)
+        self.assertEqual(next(n for n in scene['nodes'] if n['id']=='cliente')['attrs']['x'],20)
+        self.assertEqual(next(n for n in scene['nodes'] if n['id']=='mesa')['attrs']['x'],0)
+        self.assertEqual(next(n for n in scene['nodes'] if n['id']=='container_0')['attrs']['x'],80)
         bad=lock_fixture();bad['visual']['nodes'][5]['attrs']['y']=440
         bad['visual']['nodes'][5]['bindings']=[binding('height','nivel',0,2,40,160)]
         with self.assertRaisesRegex(ValueError,'fora do canvas'):validate_rules(bad)

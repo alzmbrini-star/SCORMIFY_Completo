@@ -87,15 +87,22 @@ def normalize_visual(raw):
     byid={row.get('id'):row for row in flat}
     if len(byid)!=len(flat):raise ValueError('ID visual repetido')
     # Some scene descriptions attach a caption to a rectangle. SVG primitives
-    # cannot contain rendered children: compile an identity group around both,
-    # retaining their authored coordinates, rather than inventing a translation.
+    # cannot contain rendered children: use its explicit position as the local
+    # origin, just as a conventional scene-graph container would. The primitive
+    # is drawn at (0,0); child coordinates remain local, never guessed by topic.
     used=set(byid);wrappers={}
     for row in list(flat):
         parent=byid.get(row.get('parent'))
         if parent and parent.get('type')!='group' and parent.get('id') not in wrappers:
             key='container_'+str(len(wrappers))
             while key in used:key+='x'
-            used.add(key);wrapper={'id':key,'type':'group','label':parent.get('label',key),'attrs':{}}
+            if any(set(s.get('set',{}))&{'x','y','rotation','opacity'} for s in parent.get('states',[])):
+                raise ValueError('Use um group explícito para '+str(parent['id'])+' antes de aplicar estados de posição/rotação/opacidade ao conjunto')
+            attrs=parent['attrs'];transform={k:attrs.pop(k) for k in ('x','y','rotation','opacity') if k in attrs}
+            if parent.get('type') in {'rect','circle','ellipse','text','line'}:attrs.update(x=0,y=0)
+            moving=[b for b in parent.get('bindings',[]) if b.get('property') in {'x','y','rotation','opacity'}]
+            parent['bindings']=[b for b in parent.get('bindings',[]) if b not in moving]
+            used.add(key);wrapper={'id':key,'type':'group','label':parent.get('label',key),'attrs':transform,'bindings':moving}
             if parent.get('parent'):wrapper['parent']=parent['parent']
             if 'visibleWhen' in parent:wrapper['visibleWhen']=parent['visibleWhen']
             wrappers[parent['id']]=wrapper
@@ -194,9 +201,10 @@ def validate_visual(raw, spec):
     # Check moving objects at actual executable states, including intermediate
     # steps. A complementary y/height binding is evaluated together, not guessed.
     definitions={n['id']:n for n in result['nodes']}
-    clipped={}
+    clipped={};label_errors=set()
     for state in states:
         projections={n['id']:n for n in visual_state(result,state)}
+        labels=[]
         for node in result['nodes']:
             current=node;ox=oy=0;dynamic=bool(node['bindings']);rotated=False;visible=True
             while current:
@@ -204,8 +212,18 @@ def validate_visual(raw, spec):
                 rotated=rotated or bool(projected['attrs'].get('rotation',0))
                 if current is not node:ox+=projected['attrs'].get('x',0);oy+=projected['attrs'].get('y',0);dynamic=dynamic or bool(current['bindings'])
                 current=definitions.get(current.get('parent'))
-            if not dynamic or rotated or not visible:continue
+            if rotated or not visible:continue
             a=projections[node['id']]['attrs'];x=a.get('x',0)+ox;y=a.get('y',0)+oy;bounds=None
+            if node['type']=='text':
+                width=len(a['text'])*a.get('fontSize',28)*0.55;anchor=a.get('anchor','start')
+                left=x-(width/2 if anchor=='middle' else width if anchor=='end' else 0)
+                bounds=(left,y-a.get('fontSize',28)*0.85,left+width,y+a.get('fontSize',28)*0.2)
+                for other_id,other in labels:
+                    overlap=max(0,min(bounds[2],other[2])-max(bounds[0],other[0]))*max(0,min(bounds[3],other[3])-max(bounds[1],other[1]))
+                    area=min((bounds[2]-bounds[0])*(bounds[3]-bounds[1]),(other[2]-other[0])*(other[3]-other[1]))
+                    if area and overlap>area*0.12:label_errors.add(other_id+' / '+node['id'])
+                labels.append((node['id'],bounds))
+            elif not dynamic:continue
             if node['type']=='rect':bounds=(x,y,x+a['width'],y+a['height'])
             elif node['type'] in ('circle','ellipse'):
                 rx=a.get('r',a.get('rx',0));ry=a.get('r',a.get('ry',0));bounds=(x-rx,y-ry,x+rx,y+ry)
@@ -214,8 +232,10 @@ def validate_visual(raw, spec):
             if bounds and (bounds[0]<-8 or bounds[1]<-8 or bounds[2]>808 or bounds[3]>458):
                 prior=clipped.get(node['id'],bounds)
                 clipped[node['id']]=(min(prior[0],bounds[0]),min(prior[1],bounds[1]),max(prior[2],bounds[2]),max(prior[3],bounds[3]))
-    if clipped:
-        raise ValueError('Objetos dinâmicos fora do canvas 800x450: '+json.dumps(clipped,ensure_ascii=False)+'. Corrija TODOS os objetos listados. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
+    errors=[]
+    if clipped:errors.append('Objetos/rótulos fora do canvas 800x450: '+json.dumps(clipped,ensure_ascii=False)+'. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
+    if label_errors:errors.append('Rótulos sobrepostos (estimativa conservadora): '+', '.join(sorted(label_errors)[:16])+'. Separe os textos ou reorganize os objetos; não reduza a fonte abaixo de 24.')
+    if errors:raise ValueError(' | '.join(errors)+' Corrija TODOS os objetos listados.')
     return result
 
 
@@ -249,7 +269,7 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
     from services.simulator_diagnostics import record_attempt
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
-             'sceneInstructions':'Prefira lista plana nodes com parent. A cena deve alterar os próprios objetos do ambiente, não só barras de indicadores. Preserve formas visíveis dentro de 800x450 no estado inicial e nos finais. Para uma barra/volume que cresce para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
+             'sceneInstructions':'Prefira lista plana nodes com parent apontando para GROUP, nunca para rect/text/path. x/y dos filhos são LOCAIS ao grupo. Desenhe ilustração vetorial profissional: objetos reconhecíveis com detalhes, pessoas com rosto e roupa quando pertinentes, paleta harmônica com sombras por formas, fundo e elementos de ambiente. Evite bonecos feitos apenas de um retângulo e círculo. As variáveis devem alterar os próprios objetos do ambiente (artefatos, expressão, peças, organização), não apenas três barras de indicadores; indicadores já estão fora da cena. Preserve objetos e textos dentro de 800x450 em todos os estados. Separe rótulos pelo espaço que o texto inteiro ocupa: 12 caracteres em fonte 28 ocupam cerca de 185 unidades, não 50. Use textos curtos, sem sobreposição. Para volumes que crescem para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
     for attempt in range(2):
         response=''
         try:
