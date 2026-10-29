@@ -1,9 +1,12 @@
 import asyncio
+import ast
 import copy
 import json
 import os
 import unittest
-from unittest.mock import patch
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch, AsyncMock, Mock
 
 from services.planning_simulators import planning_request, validate_planning, solve_planning, render_planning
 
@@ -95,6 +98,25 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual(Chat.sessions,['case-planning-data'])
         self.assertEqual(result['spec']['mechanic'],'entity-planning-v1')
         self.assertIn('createPlanningEngine',result['html'])
+
+    def test_editor_preserves_safe_topic_text_mentioning_browser_api_names(self):
+        from services.planning_simulators import render_planning
+        import re, uuid
+        source=Path(__file__).resolve().parents[1]/'routes/agent.py'
+        node=next(node for node in ast.parse(source.read_text(encoding='utf-8')).body if isinstance(node,ast.AsyncFunctionDef) and node.name=='generate_html_with_ai')
+        node.decorator_list=[]
+        ns={'GenerateHtmlRequest':SimpleNamespace,'Depends':lambda value:None,'require_auth':None,
+            '_html_generation_credentials':lambda:('test','test'),'re':re,'uuid':uuid,
+            '_clean_generated_interactive_html':Mock(side_effect=AssertionError('Trusted data must not be scanned as code')),
+            'HTTPException':Exception,'logger':Mock()}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),str(source),'exec'),ns)
+        data=fixture('Programação: fetch e localStorage')
+        html=render_planning(data)
+        generated={'html':html,'spec':dict(data,mechanic='entity-planning-v1')}
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}),patch('services.visual_simulators.generate_visual_simulator',AsyncMock(return_value=generated)):
+            result=asyncio.run(ns['generate_html_with_ai'](SimpleNamespace(prompt='Simulador de cronograma',courseContext='Programação'),{}))
+        self.assertEqual(result['html'],html)
+        ns['_clean_generated_interactive_html'].assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

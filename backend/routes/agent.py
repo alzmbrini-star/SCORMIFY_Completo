@@ -371,6 +371,11 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
             generated = await generate_visual_simulator(
                 body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}"
             )
+            if generated.get('spec', {}).get('mechanic') == 'entity-planning-v1':
+                # This HTML is compiled from validated data and our own assets,
+                # not AI-authored code. Topic text may legitimately mention API
+                # names such as fetch/localStorage without invoking those APIs.
+                return {"html": generated["html"]}
             return {"html": _clean_generated_interactive_html(generated["html"])}
         chat = LlmChat(
             api_key=api_key,
