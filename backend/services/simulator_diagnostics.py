@@ -8,10 +8,11 @@ from contextvars import ContextVar
 import copy
 import hashlib
 import json
+import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 11
+VERSION = 12
 MAX_DOCUMENT = 1000000
 
 
@@ -29,16 +30,17 @@ def simulator_sources(session):
     return [(index, slide) for index, slide in enumerate(slides) if slide.get('type') == 'simulator']
 
 
-def generation_key(prompt, context, config):
-    payload = json.dumps([VERSION, prompt, context, config], ensure_ascii=True)
+def generation_key(prompt, context, config, version=VERSION):
+    payload = json.dumps([version, prompt, context, config], ensure_ascii=True)
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
 @contextmanager
 def diagnostic_scope(sink, cached=()):
+    cached=list(cached)
     token = _scope.set((sink, {item['generationKey']: item for item in cached
         if item.get('status') == 'accepted' and item.get('version') == VERSION
-        and item.get('result') and not item.get('truncated')}))
+        and item.get('result') and not item.get('truncated')}, cached))
     try:
         yield
     finally:
@@ -63,7 +65,11 @@ async def capture_generation(generate, prompt, context, session_id, config):
     token = _record.set(record)
     try:
         _publish()
-        result = await generate(prompt, context, session_id)
+        result = _revalidate_rule_data(scope[2],prompt,context,config)
+        if result is None:
+            result = await generate(prompt, context, session_id)
+        else:
+            record_attempt(result['html'],result['spec'],[],review='Dados anteriores revalidados pelo compilador atual, sem chamada de IA. Solução e teste contra atalhos comprovados novamente; HTML anterior não foi executado.')
         record.update(status='accepted', plan=result.get('spec'), result=result)
         if len(json.dumps(result, ensure_ascii=True)) > MAX_DOCUMENT:
             record.pop('result', None)
@@ -76,6 +82,46 @@ async def capture_generation(generate, prompt, context, session_id, config):
         raise
     finally:
         _record.reset(token)
+
+
+def _revalidate_rule_data(records, prompt, context, config):
+    """Recompile only exact-input, owned/TTL-filtered records from known DSL versions.
+
+Routes supply owner-scoped records. This function never runs saved HTML or trusts
+an earlier approval: all JSON passes the current proof and quality policy again.
+"""
+    from services.rule_simulators import ENGINE, validate_rules, render_rules, single_action_shortcuts
+    records=sorted((r for r in records if type(r.get('version')) is int),key=lambda r:r['version'],reverse=True)
+    for previous in records[:60]:
+        version=previous.get('version')
+        if type(version) is not int or not 8 <= version <= VERSION:
+            continue
+        if previous.get('status') not in {'accepted','failed'} or previous.get('truncated'):
+            continue
+        if previous.get('generationKey') != generation_key(prompt,context,config,version):
+            continue
+        if (previous.get('plan') or {}).get('mechanic') != ENGINE:
+            continue
+        candidates=[]
+        saved=(previous.get('result') or {}).get('spec')
+        if isinstance(saved,dict): candidates.append(saved)
+        for attempt in reversed(previous.get('attempts',[])[-3:]):
+            document=attempt.get('document')
+            if attempt.get('truncated') or not isinstance(document,str) or len(document)>MAX_DOCUMENT:
+                continue
+            try:
+                candidates.append(json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',document.strip(),flags=re.I)))
+            except (ValueError,TypeError,RecursionError):
+                continue
+        for raw in candidates:
+            try:
+                data=validate_rules(raw)
+                if single_action_shortcuts(data): continue
+                data['verification'].update(noSingleActionShortcut=True,revalidatedFromVersion=version)
+                return {'html':render_rules(data),'spec':dict(data,template='custom',mechanic=ENGINE)}
+            except (ValueError,TypeError,KeyError,RecursionError):
+                continue
+    return None
 
 
 def record_attempt(document, spec, issues, error='', review=''):

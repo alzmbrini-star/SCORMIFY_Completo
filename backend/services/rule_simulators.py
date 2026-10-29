@@ -36,6 +36,7 @@ Contrato:
 IDs [a-z][a-z0-9_]* até 32. Cada grupo tem IDs únicos.
 EXPRESSAO_NUMERICA: inteiro ou {var:"id"} ou
 {op:"add"|"sub"|"mul"|"min"|"max",args:[expressao,expressao]}.
+min/max também aceitam 3..10 expressões, como mínimo entre vários critérios.
 PREDICADO: true/false, {op:"eq"|"ne"|"lt"|"le"|"gt"|"ge",args:[num,num]},
 {op:"all"|"any",args:[predicado,predicado,...]} ou {op:"not",args:[predicado]}.
 Máximo profundidade 7. Nunca use JS, operadores infixos nem referências fora de var.
@@ -120,7 +121,7 @@ def expression(node, ids, boolean=False, depth=0, counter=None):
     compare = {'eq','ne','lt','le','gt','ge'}
     if set(node) != {'op','args'} or not isinstance(op, str) or not isinstance(args, list):
         raise ValueError('Expressão deve conter op e args válidos')
-    if not boolean and op in numeric and len(args) == 2:
+    if not boolean and op in numeric and (len(args) == 2 or (op in {'min','max'} and 2 <= len(args) <= 10)):
         child_type = False
     elif boolean and op in compare and len(args) == 2:
         child_type = False
@@ -129,8 +130,15 @@ def expression(node, ids, boolean=False, depth=0, counter=None):
     elif boolean and op == 'not' and len(args) == 1:
         child_type = True
     else:
-        raise ValueError('Operador, tipo ou quantidade de argumentos inválidos')
+        raise ValueError(f'Operador {op!r} com {len(args)} argumentos inválido como '+('predicado' if boolean else 'número')+'. Comparações e add/sub/mul exigem 2; min/max aceitam 2..10; all/any aceitam 2..10 predicados; not exige 1.')
     return {'op':op,'args':[expression(a, ids, child_type, depth+1, counter) for a in args]}
+
+
+def _field_expression(node, ids, boolean, label):
+    try:
+        return expression(node,ids,boolean)
+    except ValueError as exc:
+        raise ValueError(label+': '+str(exc)) from exc
 
 
 def evaluate(node, state):
@@ -274,8 +282,8 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         changed.update(effects)
         spec['actions'].append({'id':key,**{k:_text(row.get(k),lim) for k,lim in (
             ('label',100),('description',350),('unavailable',220),('feedback',500))},
-            'requires':expression(row.get('requires'),ids,True),
-            'effects':{k:expression(v,ids) for k,v in effects.items()}})
+            'requires':_field_expression(row.get('requires'),ids,True,'actions.'+key+'.requires'),
+            'effects':{k:_field_expression(v,ids,False,'actions.'+key+'.effects.'+k) for k,v in effects.items()}})
     scenes=raw.get('scenes')
     if not isinstance(scenes,list) or not 2 <= len(scenes) <= 10: raise ValueError('Defina 2 a 10 cenas de estado')
     spec['scenes']=[]; scene_ids=set()
@@ -285,7 +293,7 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         if key in scene_ids: raise ValueError('ID de cena repetido')
         scene_ids.add(key); facts=row.get('facts')
         if not isinstance(facts,list) or not 1 <= len(facts) <= 5: raise ValueError('Cena precisa de 1 a 5 fatos')
-        spec['scenes'].append({'id':key,'when':expression(row.get('when'),ids,True),
+        spec['scenes'].append({'id':key,'when':_field_expression(row.get('when'),ids,True,'scenes.'+key+'.when'),
             'title':_text(row.get('title'),120),'description':_text(row.get('description'),700),
             'facts':[_text(f,220) for f in facts]})
     # Coverage is a compiler responsibility, not an arbitrary reason to reject
@@ -300,7 +308,7 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     for key in ('goal','failure'):
         row=raw.get(key)
         if not isinstance(row,dict): raise ValueError('Defina objetivo e fracasso')
-        spec[key]={'when':expression(row.get('when'),ids,True),'message':_text(row.get('message'),700)}
+        spec[key]={'when':_field_expression(row.get('when'),ids,True,key+'.when'),'message':_text(row.get('message'),700)}
     influencing=_refs(spec['goal']['when'])
     while True:
         before=set(influencing)

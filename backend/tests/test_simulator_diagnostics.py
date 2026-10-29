@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import ast
 import json
 from pathlib import Path
@@ -11,6 +12,35 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_prior_json_is_recompiled_without_ai_only_for_exact_input_and_current_proof(self):
+        from test_rule_simulators import fixtures
+        raw=fixtures()[0]
+        prior={'version':11,'status':'failed','generationKey':generation_key('request','context',['p','m'],11),
+            'plan':{'mechanic':'finite-rules-v1'},'attempts':[{'document':json.dumps(raw),'truncated':False}]}
+        saved=[];generate=AsyncMock(side_effect=AssertionError('Revalidation must not call or charge AI'))
+        with diagnostic_scope(saved.append,[prior]):
+            result=await capture_generation(generate,'request','context','session',['p','m'])
+        generate.assert_not_awaited()
+        self.assertEqual(saved[-1]['version'],VERSION)
+        self.assertEqual(saved[-1]['status'],'accepted')
+        self.assertIn('createRuleEngine',result['html'])
+        self.assertEqual(result['spec']['verification']['revalidatedFromVersion'],11)
+        self.assertTrue(result['spec']['verification']['noSingleActionShortcut'])
+        for change in ('context','version','truncated','html','unsafe'):
+            record=copy.deepcopy(prior)
+            context='context'
+            if change=='context':context='changed'
+            elif change=='version':record['version']=7
+            elif change=='truncated':record['attempts'][0]['truncated']=True
+            elif change=='html':record['attempts'][0]['document']='<script>globalThis.executed=true</script>'
+            else:
+                invalid=copy.deepcopy(raw);invalid['actions'][0]['effects']['confianca']='eval(1)'
+                record['attempts'][0]['document']=json.dumps(invalid)
+            fresh=AsyncMock(return_value={'html':'fresh','spec':{}})
+            with diagnostic_scope(saved.append,[record]):
+                await capture_generation(fresh,'request',context,'session',['p','m'])
+            fresh.assert_awaited_once()
+
     async def test_failure_preserves_source_and_structured_issues_without_approval(self):
         saved=[]
         issue={'issue':'O botão não atualiza o estado','context':'Adicionar tarefa > editar duração','action':'Renderizar após a alteração'}

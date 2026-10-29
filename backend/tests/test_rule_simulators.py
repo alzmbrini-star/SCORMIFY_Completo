@@ -143,6 +143,16 @@ class RuleTests(unittest.TestCase):
         for i in range(10):deep=op('add',deep,1)
         with self.assertRaisesRegex(ValueError,'profundidade'):expression(deep,{'x'})
 
+    def test_minimum_and_maximum_of_multiple_criteria_are_safe_numeric_expressions(self):
+        for name,value in [('min',2),('max',8)]:
+            node=expression(op(name,ref('x'),ref('y'),ref('z')),{'x','y','z'})
+            self.assertEqual(evaluate(node,{'x':5,'y':2,'z':8}),value)
+        with self.assertRaises(ValueError):expression(op('min',1,True,2),set())
+        with self.assertRaises(ValueError):expression(op('min',*range(11)),set())
+        raw=fixtures()[0];raw['actions'][0]['effects']['confianca']=op('sub',1,2,3)
+        with self.assertRaisesRegex(ValueError,'actions.investigar.effects.confianca.*sub.*3 argumentos'):
+            validate_rules(raw)
+
     def test_atomic_effects_bounds_and_failure_precedence(self):
         raw=fixtures()[0];state={'descoberta':0,'confianca':1,'acordo':0}
         a=action('swap','Trocar',True,{'descoberta':ref('confianca'),'confianca':ref('descoberta')})

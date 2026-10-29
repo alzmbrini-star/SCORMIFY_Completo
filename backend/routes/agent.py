@@ -947,7 +947,7 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             from services.simulator_diagnostics import diagnostic_scope
             diagnostic_db = _get_bg_db()
             cached = list(diagnostic_db.simulator_diagnostics.find({
-                'sessionId': session_id, 'ownerId': s.get('userId'), 'status': 'accepted',
+                'sessionId': session_id, 'ownerId': s.get('userId'), 'status': {'$in': ['accepted','failed']},
                 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
             with diagnostic_scope(_simulator_diagnostic_sink(diagnostic_db, s), cached):
                 storyboard = loop.run_until_complete(
@@ -1069,7 +1069,7 @@ async def retry_simulator_diagnostic(session_id: str, body: SimulatorDiagnosticR
         loop = asyncio.new_event_loop()
         try:
             cached = list(database.simulator_diagnostics.find({'sessionId': session_id, 'ownerId': user['user_id'],
-                'status': 'accepted', 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
+                'status': {'$in': ['accepted','failed']}, 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
             prompt, context = simulator_request(source, session.get('contentText', ''), session.get('config', {}))
             with diagnostic_scope(_simulator_diagnostic_sink(database, session), cached):
                 loop.run_until_complete(generate_visual_simulator(prompt, context, f'{session_id}_visual_simulator_{body.slideIndex}'))

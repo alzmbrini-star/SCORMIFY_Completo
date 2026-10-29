@@ -17,7 +17,8 @@ efeitos implícitos ou cronômetros inventados.
 O mesmo interpretador suporta combinações de decisões, investigação, alocação
 discreta, ordenação de processos e experimentação. Os layouts são apresentações
 do mesmo modelo, não motores por domínio. As operações disponíveis são comparação,
-lógica booleana, soma, subtração, multiplicação, mínimo e máximo. Não há `eval`,
+lógica booleana, soma, subtração, multiplicação, mínimo e máximo (inclusive de
+três ou mais critérios). Erros indicam a ação/campo e a aridade problemática. Não há `eval`,
 funções geradas, acesso a rede ou código vindo do modelo.
 
 Todos os efeitos leem o estado anterior e são aplicados juntos. Ações são
@@ -36,7 +37,13 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso de diagnósticos exige a versão 11 do gerador. Propostas de
+HTML do aluno. Reuso direto de diagnósticos exige a versão 12 do gerador. Dados
+JSON de versões conhecidas do mesmo contrato podem ser revalidados, sem IA,
+somente se o hash corresponder exatamente ao pedido, contexto e modelo originais.
+As rotas filtram proprietário, sessão e validade de retenção. O compilador atual
+repete prova de solução e checagem contra atalhos e gera HTML próprio; nunca
+executa HTML reprovado ou aceita dados antigos apenas por aprovação anterior.
+O novo diagnóstico registra a versão de origem. Propostas de
 testes inconsistentes são substituídas por trajetórias comprovadas e contabilizadas
 nos metadados de verificação. Erros independentes de regras são reportados juntos;
 cada reparo usa uma conversa nova. O compilador coloca cenas incondicionais como
