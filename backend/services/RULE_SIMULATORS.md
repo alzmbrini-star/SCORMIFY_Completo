@@ -30,10 +30,13 @@ reiniciar sempre restaura o estado e limpa comparações e histórico.
 
 O servidor valida tipos, referências, tamanhos, limites numéricos e dependências
 causais diretas ou indiretas do objetivo. Em seguida executa busca em largura limitada a 30.000 estados
-expandidos e até 24 decisões. Exige caminho de sucesso com ao menos três ações
-distintas, desbloqueio real por estado e mudança da cena, além de teste negativo.
+expandidos e até 24 decisões. Exige caminho de sucesso com ao menos três decisões
+e mudança da cena, além de teste negativo. Não exige três tipos distintos no
+primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâmetros
+podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
+são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso de diagnósticos exige a versão 9 do gerador. Propostas de
+HTML do aluno. Reuso de diagnósticos exige a versão 10 do gerador. Propostas de
 testes inconsistentes são substituídas por trajetórias comprovadas e contabilizadas
 nos metadados de verificação. Erros independentes de regras são reportados juntos;
 cada reparo usa uma conversa nova. O compilador coloca cenas incondicionais como
@@ -67,6 +70,6 @@ as regras existentes do curso continuam responsáveis pela aprovação. Compara�
 
 `test_rule_simulators.py`: validação, busca, limites, segurança, integração canônica
 Agente/Editor, exportação e correção de dados. `test_rule_engine.cjs`: os mesmos
-quatro modelos com topologias distintas executados em Python e JS, comparando
+cinco modelos com topologias distintas executados em Python e JS, comparando
 cada estado; testes DOM exercitam controles, desfechos, comparação e reinício.
 Os testes antigos exercitam explicitamente o gerador legado e seus formatos.

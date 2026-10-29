@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from services.rule_simulators import (ENGINE, evaluate, expression, outcome,
-    render_rules, solve_rules, transition, validate_rules)
+    render_rules, solve_rules, transition, trace_rules, validate_rules)
 
 
 def ref(key): return {'var':key}
@@ -77,7 +77,18 @@ def fixtures():
          action('copiar','Repetir uma solução sem analisar o contexto',True,{'recurso':0})],
         op('all',op('ge',ref('coerencia'),3),op('ge',ref('diversidade'),3)),op('eq',ref('recurso'),0),
         ['observar','combinar','criticar'],['copiar'])
-    return [sales,time,safety,creative]
+    return [sales,time,safety,creative,experiment_fixture()]
+
+
+def experiment_fixture():
+    return base('Experimento de equilíbrio',
+        [dict(var('x','Indicador X',0,5),min=-5),dict(var('y','Indicador Y',0,5),min=-5),var('recurso','Recurso',3,3)],
+        [action('ajustar_x','Aumentar X com custo em Y',True,{'x':op('add',ref('x'),2),'y':op('sub',ref('y'),1)}),
+         action('ajustar_y','Aumentar Y com custo em X',True,{'y':op('add',ref('y'),2),'x':op('sub',ref('x'),1)}),
+         action('reforcar','Reforçar X consumindo recurso',True,{'x':op('add',ref('x'),1),'recurso':op('sub',ref('recurso'),1)}),
+         action('esgotar','Consumir o recurso restante',True,{'recurso':0})],
+        op('all',op('ge',ref('x'),3),op('ge',ref('y'),3)),op('eq',ref('recurso'),0),
+        ['ajustar_x','ajustar_y']*3,['esgotar'])
 
 
 class RuleTests(unittest.TestCase):
@@ -175,8 +186,17 @@ class RuleTests(unittest.TestCase):
         raw['goal']['when']=op('ge',ref('acordo'),1)
         raw['failure']['when']=op('lt',ref('acordo'),1)
         for a in raw['actions']:a['requires']=True
-        with self.assertRaisesRegex(ValueError,'Estado inicial já é terminal.*Todas as ações'):
+        raw['goal']['when']=op('eq',ref('acordo'),1)
+        with self.assertRaisesRegex(ValueError,'objetivo só é influenciado.*Estado inicial já é terminal'):
             validate_rules(raw)
+
+    def test_parameter_experiment_can_alternate_two_controls_without_artificial_locks(self):
+        data=experiment_fixture()
+        spec=validate_rules(data);proof=solve_rules(spec)
+        self.assertEqual(len(proof['success']),6)
+        self.assertEqual(spec['verification']['stateGuardedActions'],0)
+        self.assertEqual(spec['verification']['actionKindsInWitness'],2)
+        self.assertEqual(trace_rules(spec,proof['success'])['outcome'],'success')
 
     def test_renderer_escapes_untrusted_text_and_omits_answer_traces(self):
         raw=fixtures()[0];raw['title']='</script><img src=x onerror=alert(1)>'

@@ -1,4 +1,4 @@
-/* Cross-runtime parity, real controls and reset tests for four rule topologies. */
+/* Cross-runtime parity, real controls and reset tests for five rule topologies. */
 const assert=require('node:assert/strict');
 const {execFileSync}=require('node:child_process');
 const path=require('node:path');
@@ -11,7 +11,13 @@ sys.path.insert(0,'tests')
 from test_rule_simulators import fixtures
 from services.rule_simulators import *
 out=[]
-for raw in fixtures():
+source=fixtures()
+if len(sys.argv)>1:
+ with open(sys.argv[1],encoding='utf-8-sig') as file: diagnostic=json.load(file)
+ record=next(r for r in diagnostic['records'] if r['status']=='accepted' and r['result']['spec'].get('mechanic')==ENGINE)
+ source=[record['result']['spec']]
+ assert record['result']['html']==render_rules(source[0]), 'Downloaded HTML differs from the trusted compiler'
+for raw in source:
  data=validate_rules(raw)
  paths=[]
  for check in data['checks']:
@@ -20,7 +26,7 @@ for raw in fixtures():
    state=transition(data,state,next(a for a in data['actions'] if a['id']==key));states.append(state)
   paths.append(dict(check,states=states))
  out.append(dict(data=data,paths=paths,html=render_rules(data)))
-print(json.dumps(out))`],{cwd:backend,env:{...process.env,PYTHONPATH:backend},maxBuffer:3000000}).toString());
+print(json.dumps(out))`,...process.argv.slice(2)],{cwd:backend,env:{...process.env,PYTHONPATH:backend},maxBuffer:3000000}).toString());
 for (const fixture of fixtures) {
  const engine=createRuleEngine(fixture.data),initial=engine.getState();let notifications=0;
  const unsub=engine.subscribe(()=>notifications++);

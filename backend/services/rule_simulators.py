@@ -47,7 +47,10 @@ custos de tempo, qualidade e orçamento devem estar explícitos nos efeitos.
 As cenas são avaliadas em ordem: a PRIMEIRA com when=true é exibida; termine
 com uma cena when=true. Mude a cena com as descobertas/estado, não apenas pontuação.
 Pelo menos duas ações devem estar disponíveis inicialmente. Deve haver decisões
-com trade-offs e ações dependentes de descobertas anteriores (flags 0/1).
+com trade-offs. Use requisitos dependentes de descobertas/estágios (flags 0/1)
+QUANDO fizerem parte da mecânica. Um experimento por parâmetros pode manter os
+controles disponíveis enquanto os limites permitirem: não invente travas só para
+transformar todo experimento em conversa ou sequência obrigatória.
 Objetivo precisa depender direta OU indiretamente de >=2 variáveis afetadas pelas ações e só ser alcançável
 após >=3 ações. A condição inicial não pode ser sucesso nem fracasso.
 O motor calcula os caminhos e os estados esperados; não invente resultados de testes.
@@ -289,22 +292,18 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     active=outcome(spec,initial,0)=='active'
     if not active: errors.append('Estado inicial já é terminal: '+json.dumps(initial,ensure_ascii=False)+'. Corrija goal/failure. Falta de resultado ANTES de avaliar não é fracasso; use uma flag de entrega/avaliação.')
     if sum(transition(spec,initial,a) is not None for a in spec['actions']) < 2: errors.append('Ofereça pelo menos duas ações inicialmente disponíveis')
-    if not any(_refs(a['requires']) for a in spec['actions']): errors.append('Todas as ações têm requires constante. Inclua decisões/desbloqueios dependentes do estado anterior.')
     if errors: raise ValueError(' | '.join(errors))
     by_id={a['id']:a for a in spec['actions']}
     proof=solve_rules(spec,budget)
     if proof['success'] is None: raise ValueError('Busca esgotou o orçamento sem provar solução' if proof['status']=='budget' else 'Objetivo inalcançável pelas regras')
     if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos.')
     if len(proof['success']) < 3: raise ValueError('Conclusão trivial: exija pelo menos três decisões')
-    if len(set(proof['success'])) < 3: raise ValueError('Inclua pelo menos três intervenções distintas, não apenas repetir uma ação')
-    state=dict(initial); visited_scenes=set(); unlocked=False
+    state=dict(initial); visited_scenes=set()
     for key in proof['success']:
         visited_scenes.add(next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state)))
         action=by_id[key]
-        if transition(spec,initial,action) is None and evaluate(action['requires'],state): unlocked=True
         state=transition(spec,state,action)
     visited_scenes.add(next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state)))
-    if not unlocked: raise ValueError('O caminho precisa desbloquear ações por descobertas/decisões anteriores')
     if len(visited_scenes)<2: raise ValueError('A cena precisa mudar conforme o estado, não permanecer decorativa')
     # The interpreter, not the language model, derives exact acceptance traces.
     spec['checks']=[trace_rules(spec,proof[key]) for key in ('success','failure')]
@@ -316,6 +315,8 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         except (ValueError,TypeError,KeyError,AttributeError): proposal_mismatches+=1
     spec['verification']={'engine':ENGINE,'solutionVerified':True,'visitedStates':proof['nodes']}
     spec['verification']['recomputedProposedChecks']=proposal_mismatches
+    spec['verification']['actionKindsInWitness']=len(set(proof['success']))
+    spec['verification']['stateGuardedActions']=sum(bool(_refs(a['requires'])) for a in spec['actions'])
     return spec
 
 
