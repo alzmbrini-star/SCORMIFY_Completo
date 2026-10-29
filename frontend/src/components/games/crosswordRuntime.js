@@ -1,7 +1,7 @@
 // Serialized into offline game documents. Do not reference module scope.
 export function crosswordRuntime(Game, BANK, QE, stage) {
-  if (!Game || Game.crosswordVersion === 3) return;
-  Game.crosswordVersion = 3;
+  if (!Game || Game.crosswordVersion === 4) return;
+  Game.crosswordVersion = 4;
   const originalStart=Game.start, originalRestart=Game.restart, originalEnd=Game.end, originalTimer=Game.resetTimer;
   let ended=false, successTimer=null;
   function resetReview() {
@@ -39,7 +39,7 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
       this.cross.placements.slice().sort((a,b)=>a.number-b.number||Number(a.vertical)-Number(b.vertical)).forEach(p=>{
         const item=document.createElement('li');
         const answer=p.q.alternatives?.[QE.correct(p.q)]?.text || p.word;
-        item.textContent='Dica '+p.number+' · '+(p.vertical?'Vertical':'Horizontal')+': '+p.q.question+' — '+answer;
+        item.textContent='Dica '+p.number+' · '+(p.vertical?'Vertical':'Horizontal')+': '+p.clue+' — '+answer+(p.target ? ' · Palavra na grade: '+p.target : '');
         list.appendChild(item);
       });
       review.appendChild(list);finish.appendChild(review);reveal.disabled=true;reveal.textContent='RESPOSTAS REVELADAS';
@@ -47,8 +47,22 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
     finish.appendChild(reveal);
   };
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z]/g, '');
-  if (!document.getElementById('crossword-style-v2')) {
-    const style = document.createElement('style'); style.id = 'crossword-style-v2';
+  function entry(q) {
+    const answer=String(q.alternatives?.[QE.correct(q)]?.text || q.correctAnswer || '').trim();
+    const tokens=Array.from(answer.matchAll(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g));
+    // Short terms (including compound terms) fit intact. Long sentences become
+    // an explicit completion clue, never an arbitrary prefix of the answer.
+    if(normalize(answer).length>24 && tokens.length>1){
+      const token=tokens.slice().sort((a,b)=>normalize(b[0]).length-normalize(a[0]).length)[0];
+      const target=token[0];
+      const completion=answer.slice(0,token.index)+'_____'+answer.slice(token.index+target.length);
+      return {q,word:normalize(target),target,clue:q.question+' Complete a resposta: '+completion};
+    }
+    return {q,word:normalize(answer),target:'',clue:q.question};
+  }
+  Game.word=function(q){return entry(q).word;};
+  if (!document.getElementById('crossword-style-v4')) {
+    const style = document.createElement('style'); style.id = 'crossword-style-v4';
     style.textContent = `
       #playScreen{overflow-y:auto}
       .cross-wrap{width:min(100%,940px);display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,1fr);gap:16px;align-items:start}
@@ -74,8 +88,8 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
     document.head.appendChild(style);
   }
   Game.makeCross = function () {
-    const size = 13, grid = Array(size * size).fill(''), placements = [], axes = Array.from({length:size*size}, () => new Set());
-    const words = BANK.slice(0,6).map(q => ({q,word:this.word(q)})).filter(p => p.word);
+    const words = BANK.slice(0,6).map(entry).filter(p => p.word);
+    const size = words.reduce((max,p)=>Math.max(max,p.word.length+2),13), grid = Array(size * size).fill(''), placements = [], axes = Array.from({length:size*size}, () => new Set());
     function valid(word,row,col,vertical) {
       const dr = vertical ? 1 : 0, dc = vertical ? 0 : 1;
       const at = (r,c) => r >= 0 && c >= 0 && r < size && c < size ? grid[r*size+c] : '';
@@ -90,7 +104,7 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
     function place(p,row,col,vertical) {
       const cells = Array.from(p.word, (_,k) => (row+(vertical?k:0))*size+col+(vertical?0:k));
       cells.forEach((pos,k) => {grid[pos]=p.word[k];axes[pos].add(vertical);});
-      placements.push({...p,row,col,vertical,cells});
+      placements.push(Object.assign({},p,{row,col,vertical,cells}));
     }
     for (const p of words) {
       let candidate = null;
@@ -116,17 +130,17 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
       words.forEach((p,i)=>place(p,i*2,Math.floor((size-p.word.length)/2),false));
     }
     let number=0; const starts=new Map();
-    [...placements].sort((a,b)=>a.row-b.row||a.col-b.col).forEach(p=>{
+    placements.slice().sort((a,b)=>a.row-b.row||a.col-b.col).forEach(p=>{
       const start=p.row*size+p.col;
       if (!starts.has(start)) starts.set(start,++number);
       p.number=starts.get(start);
     });
-    return {version:2,size,grid,placements,starts};
+    return {version:4,size,grid,placements,starts};
   };
   Game.renderCrossword = function () {
-    if (!this.cross || this.cross.version !== 2) this.cross=this.makeCross();
+    if (!this.cross || this.cross.version !== 4) this.cross=this.makeCross();
     const c=this.cross; let active=null;
-    stage.innerHTML='<div class="cross-wrap"><div class="cross-board glass"><div class="cross-grid"></div></div><div class="clues glass"><h3>Dicas numeradas</h3><p class="cross-instructions">Clique em uma dica para destacar a palavra. O número na primeira casa corresponde à dica. Digite sem acentos: o cursor avança sozinho. Em cruzamentos, use Enter para trocar a direção.</p><div class="cross-clue-list"></div><p class="cross-status" role="status" aria-live="polite"></p></div></div>';
+    stage.innerHTML='<div class="cross-wrap"><div class="cross-board glass"><div class="cross-grid"></div></div><div class="clues glass"><h3>Dicas numeradas</h3><p class="cross-instructions">Clique em uma dica para destacar a palavra. O número na primeira casa corresponde à dica. Digite sem acentos, espaços ou hífens: o cursor avança sozinho. Nas dicas com lacuna, digite somente a palavra que falta. Em cruzamentos, use Enter para trocar a direção.</p><div class="cross-clue-list"></div><p class="cross-status" role="status" aria-live="polite"></p></div></div>';
     const board=stage.querySelector('.cross-grid'), clues=stage.querySelector('.cross-clue-list'), status=stage.querySelector('.cross-status'), inputs=new Map(), buttons=new Map();
     board.style.setProperty('--cross-size',c.size);
     const wordsAt = pos => c.placements.filter(p=>p.cells.includes(pos));
@@ -156,7 +170,7 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
         const text=normalize(event.clipboardData?.getData('text') || '');if(!text)return;
         event.preventDefault();if(!active)activate(wordsAt(pos)[0]);
         const start=active.cells.indexOf(pos);let last=pos;
-        [...text].slice(0,active.cells.length-start).forEach((ch,i)=>{last=active.cells[start+i];inputs.get(last).value=ch;});
+        Array.from(text).slice(0,active.cells.length-start).forEach((ch,i)=>{last=active.cells[start+i];inputs.get(last).value=ch;});
         focus(last);move(last,1);
       });
       input.onkeydown=event=>{
@@ -172,20 +186,20 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
       };
       inputs.set(pos,input);wrapper.appendChild(input);board.appendChild(wrapper);
     });
-    [...c.placements].sort((a,b)=>a.number-b.number||Number(a.vertical)-Number(b.vertical)).forEach(p=>{
+    c.placements.slice().sort((a,b)=>a.number-b.number||Number(a.vertical)-Number(b.vertical)).forEach(p=>{
       const button=document.createElement('button');button.type='button';button.className='cross-clue';button.setAttribute('aria-pressed','false');
       const label=document.createElement('strong');label.textContent=p.number+'. '+(p.vertical?'Vertical ↓':'Horizontal →')+' · '+p.word.length+' letras';
-      const question=document.createElement('span');question.textContent=p.q.question;
+      const question=document.createElement('span');question.textContent=p.clue;
       button.append(label,question);button.onclick=()=>{activate(p);focus(p.cells.find(pos=>!inputs.get(pos).value) ?? p.cells[0]);};
       buttons.set(p,button);clues.appendChild(button);
     });
     const validate=document.createElement('button');validate.className='cta';validate.textContent='VALIDAR CRUZADINHA';validate.onclick=()=>this.validateCross();
     stage.querySelector('.clues').appendChild(validate);
-    activate([...c.placements].sort((a,b)=>a.number-b.number)[0]);
+    activate(c.placements.slice().sort((a,b)=>a.number-b.number)[0]);
   };
   Game.validateCross = function () {
     if(this.locked)return;
-    const cells=[...stage.querySelectorAll('input.cell')];if(!cells.length)return;
+    const cells=Array.from(stage.querySelectorAll('input.cell'));if(!cells.length)return;
     const ok=cells.every(cell=>cell.value.toUpperCase()===cell.dataset.solution);
     cells.forEach(cell=>cell.style.background=cell.value.toUpperCase()===cell.dataset.solution?'#6ee7b7':'#fca5a5');
     if(ok){this.locked=true;clearInterval(this.tick);this.correct=BANK.length;this.xp+=500;this.coins+=60;this.index=BANK.length;this.sync();this.burst();successTimer=setTimeout(()=>this.end(),700);}

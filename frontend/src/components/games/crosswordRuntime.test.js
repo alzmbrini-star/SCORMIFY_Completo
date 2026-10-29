@@ -19,7 +19,7 @@ beforeEach(()=>{
   new Function('return ('+crosswordRuntime.toString()+');')()(game,env.BANK,env.QE,document.getElementById('stage'));
   game.start();
 });
-afterEach(()=>{jest.clearAllTimers();jest.useRealTimers();document.body.replaceChildren();document.getElementById('crossword-style-v2')?.remove();});
+afterEach(()=>{jest.clearAllTimers();jest.useRealTimers();document.body.replaceChildren();document.getElementById('crossword-style-v4')?.remove();});
 
 test('every clue maps to its numbered start, orientation and collision-free word',()=>{
   expect(game.cross.placements).toHaveLength(6);
@@ -69,7 +69,7 @@ test('intersection Enter switches direction and score is credited only once',()=
 
 test('legacy upgrade is idempotent; other games are unchanged',()=>{
   const legacy='<html><body><script>const QE={};const SETTINGS={"type":"crossword"};function renderCrossword(){}</script></body></html>';
-  expect(upgradeCrosswordHtml(legacy)).toContain('scormify-crossword-v3');
+  expect(upgradeCrosswordHtml(legacy)).toContain('scormify-crossword-v4');
   expect(upgradeCrosswordHtml(upgradeCrosswordHtml(legacy))).toBe(upgradeCrosswordHtml(legacy));
   expect(upgradeCrosswordHtml(legacy.replace('"crossword"','"climb"'))).toBe(legacy.replace('"crossword"','"climb"'));
 });
@@ -100,11 +100,41 @@ test('losing all lives permits review, while a perfect solution never does',()=>
   expect(document.getElementById('crossword-reveal')).toBeNull();
 });
 
-test('restart cancels pending success completion and v2 documents are replaced by v3',()=>{
+test('restart cancels pending success completion and v2 documents are replaced by v4',()=>{
   document.querySelectorAll('input.cell').forEach(input=>{input.value=input.dataset.solution;});
   game.validateCross();game.restart();jest.advanceTimersByTime(700);
   expect(document.getElementById('finishScreen').classList.contains('hidden')).toBe(true);
   const old='<html><body><script>const QE={};const SETTINGS={"type":"crossword"};function renderCrossword(){}</script><script id="scormify-crossword-v2">oldRuntime()</script></body></html>';
   const upgraded=upgradeCrosswordHtml(old);
-  expect(upgraded).not.toContain('oldRuntime()');expect(upgraded).toContain('scormify-crossword-v3');
+  expect(upgraded).not.toContain('oldRuntime()');expect(upgraded).toContain('scormify-crossword-v4');
+});
+
+test('whole terms and compound terms never lose letters and all crossings remain consistent',()=>{
+  const bank=['Criatividade','Design Thinking','Interdisciplinaridade','Empatia'].map((text,i)=>({id:'term'+i,question:'Termo '+i,alternatives:[{id:'a',text}],correctAnswer:'a'}));
+  const QE={correct:()=>0};
+  const fresh={start(){},restart(){},end(){},resetTimer(){}};
+  new Function('return ('+crosswordRuntime.toString()+');')()(fresh,bank,QE,document.getElementById('stage'));
+  const cross=fresh.makeCross();
+  expect(cross.placements.map(p=>p.word)).toEqual(['CRIATIVIDADE','DESIGNTHINKING','INTERDISCIPLINARIDADE','EMPATIA']);
+  expect(cross.size).toBeGreaterThanOrEqual('INTERDISCIPLINARIDADE'.length);
+  cross.placements.forEach(p=>expect(p.cells.map(pos=>cross.grid[pos]).join('')).toBe(p.word));
+});
+
+test('long answer sentences use a complete word and an explicit cloze, not a truncated sentence',()=>{
+  const text='Permite entender profundamente as necessidades dos usuários.';
+  const bank=[{question:'Qual a importância da empatia?',alternatives:[{id:'a',text}],correctAnswer:'a'}];
+  const fresh={start(){},restart(){},end(){},resetTimer(){}};
+  new Function('return ('+crosswordRuntime.toString()+');')()(fresh,bank,{correct:()=>0},document.getElementById('stage'));
+  const p=fresh.makeCross().placements[0];
+  expect(text.split(/\s+/)).toContain(p.target);
+  expect(p.word).toBe('PROFUNDAMENTE');
+  expect(p.clue).toBe('Qual a importância da empatia? Complete a resposta: Permite entender _____ as necessidades dos usuários.');
+  expect(p.word).not.toBe('PERMITEENTE');
+});
+
+test('previous v3 saved games migrate to v4 without keeping an old installer',()=>{
+  const old='<body><script>const QE={};const SETTINGS={"type":"crossword"};function renderCrossword(){}</script><script id="scormify-crossword-v3">outdated()</script></body>';
+  const upgraded=upgradeCrosswordHtml(old);
+  expect(upgraded).not.toContain('outdated()');expect(upgraded).toContain('scormify-crossword-v4');
+  expect(upgradeCrosswordHtml(upgraded)).toBe(upgraded);
 });
