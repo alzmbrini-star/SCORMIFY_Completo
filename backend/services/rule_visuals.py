@@ -136,6 +136,26 @@ def validate_visual(raw, spec):
     if not isinstance(rows,list) or not 6<=len(rows)<=100:raise ValueError('Cena precisa de 6 a 100 formas/objetos')
     variables={v['id']:v for v in spec['variables']};ids=set(variables);seen={};dynamic=set();geometric=0
     changed=set().union(*(set(a['effects']) for a in spec['actions']))
+    # Report independent schema faults together before charging an art repair.
+    contract_errors=[]
+    for row in rows:
+        if not isinstance(row,dict) or row.get('type') not in TYPES:continue
+        kind=row['type'];key=str(row.get('id','?'))[:32];bindings=row.get('bindings',[])
+        attrs=row.get('attrs',{})
+        if isinstance(attrs,dict) and set(attrs)-ALLOWED[kind]:
+            contract_errors.append(key+': atributos não suportados '+','.join(sorted(set(attrs)-ALLOWED[kind])))
+        if not isinstance(bindings,list):continue
+        bound=set()
+        for binding in bindings:
+            if not isinstance(binding,dict):continue
+            prop=binding.get('property');var=binding.get('var')
+            if not isinstance(prop,str) or not isinstance(var,str) or prop not in ALLOWED[kind] or prop not in NUMBERS or prop in {'fontSize','fontWeight'} or prop in bound or var not in ids:
+                allowed=sorted((ALLOWED[kind]&set(NUMBERS))-{'fontSize','fontWeight'})
+                contract_errors.append(key+' ('+kind+'): vínculo property='+str(prop)[:40]+', var='+str(var)[:40]+
+                    '. Propriedades numéricas permitidas: '+','.join(allowed)+'. Variáveis: '+','.join(sorted(ids))+
+                    '. fill/stroke/d/points são alterados por states, NÃO por bindings; para mover um path, use x/y de um group pai.')
+            if isinstance(prop,str):bound.add(prop)
+    if contract_errors:raise ValueError('Contrato visual: '+' | '.join(contract_errors[:16])+'. Corrija TODOS estes objetos mantendo a lógica.')
     for row in rows:
         if not isinstance(row,dict) or set(row)-{'id','type','label','parent','attrs','bindings','states','visibleWhen','action'}:
             raise ValueError('Campos de objeto visual inválidos')

@@ -69,6 +69,15 @@ def sales_visual():
 
 
 class VisualTests(unittest.TestCase):
+    def test_all_invalid_binding_objects_are_reported_without_allowing_code_or_color_interpolation(self):
+        raw=lock_fixture();data=validate_rules(raw)
+        raw['visual']['nodes'][5]['bindings'][0]['property']='fill'
+        raw['visual']['nodes'][6]['bindings'][0]['var']='invented'
+        with self.assertRaisesRegex(ValueError,'Contrato visual') as error:
+            validate_visual(raw['visual'],data)
+        self.assertIn('agua_camara',str(error.exception));self.assertIn('gate_in',str(error.exception))
+        self.assertIn('states',str(error.exception));self.assertIn('invented',str(error.exception))
+
     def test_owned_exact_context_revalidation_keeps_proven_logic_when_art_needs_detail(self):
         from services.simulator_diagnostics import _revalidate_rule_data,generation_key
         from services.simulator_experience import with_options,options,normalize_experience
